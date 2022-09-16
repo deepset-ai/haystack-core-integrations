@@ -174,6 +174,6 @@ class TextToSpeech:
         :param bitrate: The desired bitrate of your compressed audio. Default to '320k'.
         :param normalized: Normalizes the audio before compression (range 2^15) or leaves it untouched.
         """
-        data = np.array((data * 2**15) if normalized else data, type=np.int16)
+        data = np.array((data * 2**15) if normalized else data, dtype=np.int16)
         audio = AudioSegment(data.tobytes(), frame_rate=sample_rate, sample_width=sample_width, channels=channels_count)
         audio.export(path, format=format, bitrate=bitrate)
