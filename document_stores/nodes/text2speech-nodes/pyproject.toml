@@ -1,0 +1,91 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "haystack-text2speech-nodes"
+description = 'Haystack node to convert text entities (documents, answers, etc...) into audio files.'
+readme = "README.md"
+requires-python = ">=3.7"
+license = "Apache-2.0"
+keywords = []
+authors = [
+  { name = "deepset GmbH", email = "info@deepset.ai" },
+]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Programming Language :: Python",
+  "Programming Language :: Python :: 3.7",
+  "Programming Language :: Python :: 3.8",
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: Implementation :: CPython",
+  "Programming Language :: Python :: Implementation :: PyPy",
+]
+dependencies = [
+  "farm-haystack",
+  "numpy",
+  "torch",
+  "pydantic",
+  "soundfile",
+  "pyworld<=0.2.12",
+  "espnet",
+  "espnet-model-zoo",
+  "pydub",
+]
+dynamic = ["version"]
+
+[project.optional-dependencies]
+dev = [
+  "pre-commit",
+  # Type check
+  "mypy",
+  "typing_extensions; python_version < '3.8'",
+  # Test
+  "pytest",
+  "tox",
+  "coverage",
+  # Linting
+  "pylint",
+  # Code formatting
+  "black[jupyter]==22.6.0",
+  # Documentation
+  "pydoc-markdown",
+  "mkdocs",
+  "jupytercontrib",
+]
+
+[project.urls]
+Documentation = "https://github.com/deepset-ai/haystack-extras/tree/main/nodes/text2speech-nodes#readme"
+Issues = "https://github.com/deepset-ai/haystack-extras/issues"
+Source = "https://github.com/deepset-ai/haystack-extras/tree/main/nodes/text2speech-nodes"
+
+[tool.hatch.version]
+path = "src/text2speech_nodes/__about__.py"
+
+[tool.hatch.envs.default]
+dependencies = [
+  "pytest",
+  "pytest-cov",
+]
+[tool.hatch.envs.default.scripts]
+cov = "pytest --cov-report=term-missing --cov-config=pyproject.toml --cov=src/text2speech_nodes --cov=tests"
+no-cov = "cov --no-cov"
+
+[[tool.hatch.envs.test.matrix]]
+python = ["37", "38", "39", "310", "311"]
+
+[tool.coverage.run]
+branch = true
+parallel = true
+omit = [
+  "src/text2speech_nodes/__about__.py",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+  "no cov",
+  "if __name__ == .__main__.:",
+  "if TYPE_CHECKING:",
+]

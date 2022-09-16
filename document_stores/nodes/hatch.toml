@@ -1,0 +1,12 @@
+[template]
+name = "deepset GmbH"
+email = "info@deepset.ai"
+
+[template.licenses]
+headers = true
+default = [
+  "Apache-2.0",
+]
+
+[template.plugins.default]
+src-layout = true
