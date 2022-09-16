@@ -1,0 +1,23 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema",
+  "$id": "https://raw.githubusercontent.com/deepset-ai/haystack-extras/main/nodes/text2speech-nodes/json-schemas/haystack-text2speech-nodes.schema.json",
+  "title": "text2speech nodes schema",
+  "description": "schema for text2speech nodes",
+  "type": "object",
+  "oneOf": [
+    {
+      "allOf": [
+        {
+          "properties": {
+            "version": {
+              "const": "0.0.1"
+            }
+          }
+        },
+        {
+          "$ref": "https://raw.githubusercontent.com/deepset-ai/haystack-extras/main/nodes/text2speech-nodes/json-schemas/haystack-text2speech-nodes-0.0.1.schema.json"
+        }
+      ]
+    }
+  ]
+}
