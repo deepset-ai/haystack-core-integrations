@@ -16,6 +16,7 @@ from text2speech_nodes._text_to_speech import TextToSpeech
 SAMPLES_PATH = Path(__file__).parent / "samples"
 
 
+@pytest.mark.integration
 class TestTextToSpeech:
 
     def test_text_to_speech_audio_data(self):

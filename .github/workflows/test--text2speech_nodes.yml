@@ -1,0 +1,122 @@
+name: Tests `text2speech_nodes`
+
+on:
+  workflow_dispatch:
+  on:
+  push:
+    paths:
+      - 'nodes/text2speech-nodes/**'
+
+env:
+  PACKAGE: nodes/text2speech-nodes/
+  PYTEST_PARAMS: --maxfail=5 --durations=10
+
+jobs:
+
+  mypy:
+    runs-on: ubuntu-latest
+    steps:
+
+    - name: Checkout
+      uses: actions/checkout@v2
+
+    - name: Setup Python
+      uses: ./.github/actions/python_cache/
+
+    - name: Install dependencies
+      run: pip install ${{ env.PACKAGE }}[dev]
+
+    - name: Mypy
+      # NOTE: https://mypy.readthedocs.io/en/stable/running_mypy.html#missing-library-stubs-or-py-typed-marker
+      # FIXME --install-types does not work properly yet, see https://github.com/python/mypy/issues/10600
+      # We should see if there's a better way than --ignore-missing-imports
+      run: mypy ${{ env.PACKAGE }} --ignore-missing-imports
+
+    # - uses: act10ns/slack@v1
+    #   with:
+    #     status: ${{ job.status }}
+    #     channel: '#haystack'
+    #   if: failure() && github.repository_owner == 'deepset-ai' && github.ref == 'refs/heads/main'
+
+  pylint:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+
+    - name: Checkout
+      uses: actions/checkout@v2
+
+    - name: Setup Python
+      uses: ./.github/actions/python_cache/
+
+    - name: Pylint
+      run: pylint -ry -j 0 ${{ env.PACKAGE }}
+
+    # - uses: act10ns/slack@v1
+    #   with:
+    #     status: ${{ job.status }}
+    #     channel: '#haystack'
+    #   if: failure() && github.repository_owner == 'deepset-ai' && github.ref == 'refs/heads/main'
+
+  unit-tests:
+    name: Unit / ${{ matrix.os }}
+    needs:
+      - mypy
+      - pylint
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]  # windows-latest --> No audio deps available for Windows.
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Setup Python
+        uses: ./.github/actions/python_cache/
+
+      - name: Install Haystack
+        run: pip install .[dev]
+
+      - name: Run
+        run: pytest ${{ env.PYTEST_PARAMS }} -m "unit"
+
+      # - uses: act10ns/slack@v1
+      #   with:
+      #     status: ${{ job.status }}
+      #     channel: '#haystack'
+      #   if: failure() && github.repository_owner == 'deepset-ai' && github.ref == 'refs/heads/main'
+
+  integration-tests:
+    needs:
+      - unit-tests
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]  # windows-latest --> No audio deps available for Windows.
+
+    steps:
+    - uses: actions/checkout@v2
+
+    - name: Setup Python
+      uses: ./.github/actions/python_cache/
+
+    - name: Install audio libraries
+      run: |
+        sudo apt-get update
+        sudo apt-get install libsndfile1 ffmpeg
+
+    - name: Install Haystack
+      run: pip install .[dev]
+
+    - name: Run tests
+      env:
+        TOKENIZERS_PARALLELISM: 'false'  # Avoid logspam by tokenizers
+      run: |
+        pytest ${{ env.PYTEST_PARAMS }} -m "integration" 
+
+    # - uses: act10ns/slack@v1
+    #   with:
+    #     status: ${{ job.status }}
+    #     channel: '#haystack'
+    #   if: failure() && github.repository_owner == 'deepset-ai' && github.ref == 'refs/heads/main'
