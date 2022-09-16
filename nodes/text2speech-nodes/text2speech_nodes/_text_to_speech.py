@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: 2022-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
-from typing import Union, Callable, Any, Optional, Dict, List, Tuple
+from typing import Union, Callable, Any, Optional, Dict, List
 
 import os
 import logging
@@ -38,7 +38,7 @@ class TextToSpeech:
         self,
         model_name_or_path: Union[str, Path],
         transformers_params: Optional[Dict[str, Any]] = None,
-        devices: List[str] = ["cuda"],
+        devices: Optional[List[str]] = None,
     ):
         """
         :param model_name_or_path: The text to speech model, for example `espnet/kan-bayashi_ljspeech_vits`.
@@ -51,18 +51,19 @@ class TextToSpeech:
         """
         super().__init__()
 
+        devices = devices or ["cuda"]
         if len(devices) > 1:
             logger.warning(
-                "Multiple devices are not supported (yet) in text2audio nodes. " "Using the first device: %s",
+                "Multiple devices are not supported (yet) in text2audio nodes. Using the first device: %s",
                 devices[0],
             )
-        device = torch.device(devices[0])
+        device = torch.device(devices[0])  # pylint: disable=no-member
 
         self.model = Text2SpeechModel.from_pretrained(
             model_name_or_path, device=device.type, **(transformers_params or {})
         )
 
-    def text_to_audio_file(
+    def text_to_audio_file(  # pylint: disable=too-many-arguments
         self,
         text: str,
         generated_audio_dir: Path,
@@ -138,7 +139,7 @@ class TextToSpeech:
         prediction = self.model(text)
         if not prediction:
             raise AudioNodeError(
-                f"The model returned no predictions. Make sure you selected a valid text-to-speech model."
+                "The model returned no predictions. Make sure you selected a valid text-to-speech model."
             )
         output = prediction.get(_models_output_key, None)
         if output is None:
@@ -148,11 +149,11 @@ class TextToSpeech:
             )
         return output.cpu().numpy()
 
-    def compress_audio(
+    def compress_audio(  # pylint: disable=too-many-arguments
         self,
         data: np.ndarray,
         path: Path,
-        format: str,
+        format: str,  # pylint: disable=redefined-builtin
         sample_rate: int,
         sample_width: int = 2,
         channels_count: int = 1,

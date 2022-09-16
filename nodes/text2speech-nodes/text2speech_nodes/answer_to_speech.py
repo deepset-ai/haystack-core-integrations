@@ -5,7 +5,6 @@ from typing import Union, Optional, List, Dict, Tuple, Any
 
 from pathlib import Path
 
-import torch
 from tqdm.auto import tqdm
 from haystack.nodes import BaseComponent
 from haystack import Answer
@@ -29,7 +28,7 @@ class AnswerToSpeech(BaseComponent):
         audio_params: Optional[Dict[str, Any]] = None,
         transformers_params: Optional[Dict[str, Any]] = None,
         progress_bar: bool = True,
-        devices: List[str] = ["cuda"],
+        devices: Optional[List[str]] = None,
     ):
         """
         Convert an input Answer into an audio file containing the answer and its context read out loud.
@@ -66,13 +65,13 @@ class AnswerToSpeech(BaseComponent):
         """
         super().__init__()
         self.converter = TextToSpeech(
-            model_name_or_path=model_name_or_path, transformers_params=transformers_params, devices=devices
+            model_name_or_path=model_name_or_path, transformers_params=transformers_params, devices=devices or ["cuda"]
         )
         self.generated_audio_dir = generated_audio_dir
         self.params: Dict[str, Any] = audio_params or {}
         self.progress_bar = progress_bar
 
-    def run(self, answers: List[Answer]) -> Tuple[Dict[str, List[Answer]], str]:  # type: ignore
+    def run(self, answers: List[Answer]) -> Tuple[Dict[str, List[Answer]], str]:  # type: ignore  # pylint: disable=arguments-differ
         audio_answers = []
         for answer in tqdm(answers, disable=not self.progress_bar, desc="Converting answers to audio"):
 

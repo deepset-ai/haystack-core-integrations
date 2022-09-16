@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2022-present deepset GmbH <info@deepset.ai>
+#
+# SPDX-License-Identifier: Apache-2.0
 from typing import Optional
 
 from haystack.utils.export_utils import print_answers
@@ -19,5 +22,7 @@ def print_audio_answers(results: dict, details: str = "all", max_text_len: Optio
         "all": [],
     }
     print_answers(
-        results=results, details=details, max_text_len=max_text_len, _fields=fields_to_keep_by_level["details"]
+        results=results,
+        details=details,
+        max_text_len=max_text_len,  # FIXME once the Haystack PR is merged, add this:   _fields=fields_to_keep_by_level["details"]
     )

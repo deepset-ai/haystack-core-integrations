@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2022-present deepset GmbH <info@deepset.ai>
+#
+# SPDX-License-Identifier: Apache-2.0
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
@@ -89,6 +92,7 @@ exclude_lines = [
 max-line-length=120
 disable = [
   "missing-module-docstring",
+  "fixme"
 ]
 [tool.pylint.'DESIGN']
 max-args=7

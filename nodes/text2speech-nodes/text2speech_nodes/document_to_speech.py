@@ -5,7 +5,6 @@ from typing import Union, Optional, List, Dict, Tuple, Any
 
 from pathlib import Path
 
-import torch
 from tqdm import tqdm
 from haystack import Document
 from haystack.nodes import BaseComponent
@@ -28,7 +27,7 @@ class DocumentToSpeech(BaseComponent):
         generated_audio_dir: Path = Path("./generated_audio_documents"),
         audio_params: Optional[Dict[str, Any]] = None,
         transformers_params: Optional[Dict[str, Any]] = None,
-        devices: List[str] = ["cuda"],
+        devices: Optional[List[str]] = None,
     ):
         """
         Convert an input Document into an audio file containing the document's content read out loud.
@@ -63,12 +62,12 @@ class DocumentToSpeech(BaseComponent):
         """
         super().__init__()
         self.converter = TextToSpeech(
-            model_name_or_path=model_name_or_path, transformers_params=transformers_params, devices=devices
+            model_name_or_path=model_name_or_path, transformers_params=transformers_params, devices=devices or ["cuda"]
         )
         self.generated_audio_dir = generated_audio_dir
         self.params: Dict[str, Any] = audio_params or {}
 
-    def run(self, documents: List[Document]) -> Tuple[Dict[str, List[Document]], str]:  # type: ignore
+    def run(self, documents: List[Document]) -> Tuple[Dict[str, List[Document]], str]:  # type: ignore  # pylint: disable=arguments-differ
         audio_documents = []
         for doc in tqdm(documents):
 

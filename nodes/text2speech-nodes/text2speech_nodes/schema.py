@@ -37,23 +37,29 @@ class SpeechDocument(Document):
             f"{'...' if len(self.content) > 100 else ''}', content_audio={self.content_audio}>"
         )
 
-    def to_dict(self, field_map={}) -> Dict:
-        dictionary = super().to_dict(field_map=field_map)
+    def to_dict(self, field_map=None) -> Dict:
+        dictionary = super().to_dict(field_map=field_map or {})
         for key, value in dictionary.items():
             if isinstance(value, Path):
                 dictionary[key] = str(value.absolute())
         return dictionary
 
     @classmethod
-    def from_dict(cls, dict, field_map={}, id_hash_keys=None):
-        doc = super().from_dict(dict=dict, field_map=field_map, id_hash_keys=id_hash_keys)
-        doc.content_audio = Path(dict["content_audio"])
+    def from_dict(cls, dictionary, field_map=None, id_hash_keys=None):
+        """
+        Create a SpeechDocument object from its dictionary representation
+        """
+        doc = super().from_dict(dict=dictionary, field_map=field_map or {}, id_hash_keys=id_hash_keys)
+        doc.content_audio = Path(dictionary["content_audio"])
         return doc
 
     @classmethod
     def from_text_document(
         cls, document_object: Document, audio_content: Any = None, additional_meta: Optional[Dict[str, Any]] = None
     ):
+        """
+        Export a SpeechDocument object into its dictionary representation
+        """
         doc_dict = document_object.to_dict()
         doc_dict = {key: value for key, value in doc_dict.items() if value}
 
