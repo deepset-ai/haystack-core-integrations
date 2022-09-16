@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import importlib
 from typing import List
 
 import os
@@ -7,6 +8,8 @@ import sys
 import json
 import logging
 from pathlib import Path
+from importlib import metadata
+
 from haystack.nodes._json_schema import find_subclasses_in_modules, create_schema_for_node_class
 
 
@@ -18,6 +21,7 @@ def get_package_json_schema(title: str, description: str, module_name: str, sche
     Generate JSON schema for the custom node.
     """
     # List all known nodes in the given modules
+    importlib.import_module(module_name)
     possible_node_classes = find_subclasses_in_modules(importable_modules=[module_name])
 
     # Build the definitions and refs for the nodes
@@ -61,7 +65,7 @@ def update_json_schema(
     )
 
     # Update mains's schema
-    with open(os.path.sep.join([destination_path, main_filename]), "w") as json_file:
+    with open(destination_path / main_filename, "w+") as json_file:
         json.dump(package_schema, json_file, indent=2)
 
     # If it's not an rc version:
@@ -70,13 +74,13 @@ def update_json_schema(
         # Create/update the specific version file too
         version_filename = f"haystack-{package_name}-{version}.schema.json"
         package_schema["$id"] = base_schema_ref + version_filename
-        with open(os.path.sep.join([destination_path, version_filename]), "w") as json_file:
+        with open(destination_path / version_filename, "w") as json_file:
             json.dump(package_schema, json_file, indent=2)
 
         # Update the index
         index_name = f"haystack-{package_name}.schema.json"
 
-        if not os.path.exists(os.path.sep.join([destination_path, index_name])):
+        if not os.path.exists(destination_path / index_name):
             generate_schema_index(
                 destination_path=destination_path,
                 schema_ref=base_schema_ref + index_name,
@@ -85,7 +89,7 @@ def update_json_schema(
                 index_name=index_name,
             )
 
-        with open(os.path.sep.join([destination_path, index_name]), "r") as json_file:
+        with open(destination_path / index_name, "r") as json_file:
             index = json.load(json_file)
             new_entry = {
                 "allOf": [
@@ -95,7 +99,7 @@ def update_json_schema(
             }
             if new_entry not in index["oneOf"]:
                 index["oneOf"].append(new_entry)
-        with open(os.path.sep.join([destination_path, index_name]), "w") as json_file:
+        with open(destination_path / index_name, "w") as json_file:
             json.dump(index, json_file, indent=2)
 
 
@@ -114,22 +118,35 @@ def generate_schema_index(
         "type": "object",
         "oneOf": []
     }
-    with open(os.path.sep.join([destination_path, index_name]), "w") as json_file:
+    with open(destination_path / index_name, "w") as json_file:
         json.dump(index, json_file, indent=2)
+
+
+
+def get_package_data(folder: str):
+    meta = metadata.metadata("haystack-"+folder)
+    return {
+        "version": metadata.version("haystack-"+folder),
+        "title": str(meta["name"]).replace("-", " ").replace("_", " "),
+        "description": meta["summary"],
+        "destination_path": (Path(sys.argv[0]).parent.parent.parent / "nodes" / folder / "json-schemas").absolute()
+    }
+
 
 
 if __name__ == "__main__":
 
     import argparse
-    import text2speech_nodes
 
     parser = argparse.ArgumentParser(description='JSON Schema generator for Haystack custom node packages')
-    parser.add_argument('-o','--output-path', dest="destination_path", help='Path where to save the generated schemas (usually <your package>/json-schemas)', required=True)
-    parser.add_argument('-v','--version', dest="version", help='Package version', required=True)
-    parser.add_argument('-t','--title', dest="title", help='Schema title, i.e. "My Haystack Hello World Node"', required=True)
-    parser.add_argument('-d','--description', dest="description", help='Schema description, i.e. "JSON schemas for Haystack nodes that can be used to greet the world."', required=True)
-    parser.add_argument('-p','--package', dest="package_name", help='Name of the package, i.e. hello-world-node', required=True)
+    parser.add_argument('-f','--folder-name', dest="folder", help='Name of the folder, i.e. hello-world-node', required=True)
     parser.add_argument('-m','--module', dest="module_name", help='Name of the module, i.e. hello_world_node', required=True)
+    parser.add_argument('-v','--version', dest="version", help='Package version')
+    parser.add_argument('-t','--title', dest="title", help='Schema title, i.e. "My Haystack Hello World Node"')
+    parser.add_argument('-d','--description', dest="description", help='Schema description, i.e. "JSON schemas for Haystack nodes that can be used to greet the world."')
+    parser.add_argument('-o','--output-path', dest="destination_path", help='Path where to save the generated schemas (usually <your package>/json-schemas)')
     params = vars(parser.parse_args())
 
-    update_json_schema(**params)
+    package_data = get_package_data(folder=params["folder"])
+
+    update_json_schema(**package_data, module_name=params["module_name"])

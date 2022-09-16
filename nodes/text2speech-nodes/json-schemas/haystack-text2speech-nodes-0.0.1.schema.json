@@ -1,8 +1,8 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema",
   "$id": "https://raw.githubusercontent.com/deepset-ai/haystack-extras/main/nodes/text2speech-nodes/json-schemas/haystack-text2speech-nodes-0.0.1.schema.json",
-  "title": "text2speech nodes schema",
-  "description": "schema for text2speech nodes For more info read the docs at: https://haystack.deepset.ai/components/pipelines#yaml-file-definitions",
+  "title": "Haystack text2speech nodes",
+  "description": "Haystack node to convert text entities (documents, answers, etc...) into audio files. For more info read the docs at: https://haystack.deepset.ai/components/pipelines#yaml-file-definitions",
   "type": "object",
   "items": {
     "anyOf": [

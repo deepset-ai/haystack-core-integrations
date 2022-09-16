@@ -8,7 +8,7 @@ repos:
     - id: check-json  # checks JSON syntax
     - id: check-yaml  # checks YAML syntax
     - id: check-toml  # checks TOML syntax
-    - id: end-of-file-fixer  # checks there is a newline at the end of the file
+    #- id: end-of-file-fixer  # checks there is a newline at the end of the file     # FIXME: JSON schema generator conflicts with this
     - id: trailing-whitespace  # trims trailing whitespace
     - id: check-merge-conflict  # checks for no merge conflict strings
     - id: check-shebang-scripts-are-executable  # checks all shell scripts have executable permissions
