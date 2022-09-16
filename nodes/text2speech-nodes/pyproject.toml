@@ -88,8 +88,12 @@ exclude_lines = [
 [tool.pylint.'MESSAGES CONTROL']
 max-line-length=120
 disable = [
-  "missing-module-docstring", 
+  "missing-module-docstring",
 ]
+[tool.pylint.'DESIGN']
+max-args=7
+[tool.pylint.'SIMILARITIES']
+min-similarity-lines=6
 
 [tool.pytest.ini_options]
 minversion = "6.0"

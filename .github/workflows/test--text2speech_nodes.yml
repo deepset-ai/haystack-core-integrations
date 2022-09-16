@@ -113,7 +113,7 @@ jobs:
       env:
         TOKENIZERS_PARALLELISM: 'false'  # Avoid logspam by tokenizers
       run: |
-        pytest ${{ env.PYTEST_PARAMS }} -m "integration" 
+        pytest ${{ env.PYTEST_PARAMS }} -m "integration"
 
     # - uses: act10ns/slack@v1
     #   with:
