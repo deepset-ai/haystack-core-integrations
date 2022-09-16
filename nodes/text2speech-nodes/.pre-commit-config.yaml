@@ -34,16 +34,15 @@ repos:
 # - repo: local
 #   hooks:
 #     - id: pylint
-#       files: nodes/text2speech-nodes/src
 #       name: pylint
-#       entry: pylint nodes/text2speech-nodes/src
+#       entry: pylint
 #       language: system
 #       types: [python]
 #       args:
 #         [
-#           "-rn", # Only display messages
-#           "-sn", # Don't display the score
+#           "-ry",
+#           "-j 0",
+#           "nodes/text2speech-nodes/text2speech_nodes"
 #         ]
-
 
 # TODO: Add pre-commit hook that reads title and desc from pyproject.toml and calls the schema generation script with such info
