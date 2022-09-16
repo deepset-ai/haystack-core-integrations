@@ -18,7 +18,6 @@ SAMPLES_PATH = Path(__file__).parent / "samples"
 
 @pytest.mark.integration
 class TestTextToSpeech:
-
     def test_text_to_speech_audio_data(self):
         text2speech = TextToSpeech(
             model_name_or_path="espnet/kan-bayashi_ljspeech_vits",

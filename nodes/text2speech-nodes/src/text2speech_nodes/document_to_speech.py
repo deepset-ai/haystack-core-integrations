@@ -4,6 +4,8 @@
 from typing import Union, Optional, List, Dict, Tuple, Any
 
 from pathlib import Path
+
+import torch
 from tqdm import tqdm
 from haystack.nodes import BaseComponent, Document
 
@@ -25,6 +27,7 @@ class DocumentToSpeech(BaseComponent):
         generated_audio_dir: Path = Path("./generated_audio_documents"),
         audio_params: Optional[Dict[str, Any]] = None,
         transformers_params: Optional[Dict[str, Any]] = None,
+        devices: List[Union[str, torch.device]] = [torch.device("cuda")],
     ):
         """
         Convert an input Document into an audio file containing the document's content read out loud.
@@ -44,15 +47,23 @@ class DocumentToSpeech(BaseComponent):
             - sample_width: Used only for compressed formats. The sample width of your audio. Defaults to 2.
             - channels count: Used only for compressed formats. The number of channels your audio file has:
                 1 for mono, 2 for stereo. Depends on the model, but it's often mono so it defaults to 1.
-            - bitrate: Used only for compressed formats. The desired bitrate of your compressed audio. Defaults to '320k'.
+            - bitrate: Used only for compressed formats. The desired bitrate of your compressed audio.
+                Defaults to '320k'.
             - normalized: Used only for compressed formats. Normalizes the audio before compression (range 2^15)
                 or leaves it untouched.
             - audio_naming_function: The function mapping the input text into the audio file name.
                 By default, the audio file gets the name from the MD5 sum of the input text.
         :param transformers_params: The parameters to pass over to the `Text2Speech.from_pretrained()` call.
+        :param devices: List of torch devices (e.g. cuda, cpu, mps) to limit inference to specific devices.
+                        A list containing torch device objects and/or strings is supported (For example
+                        [torch.device('cuda:0'), "mps", "cuda:1"]).
+                        NOTE: multiple devices are not supported yet. If many devices are passed,
+                        only the first one will be used.
         """
         super().__init__()
-        self.converter = TextToSpeech(model_name_or_path=model_name_or_path, transformers_params=transformers_params)
+        self.converter = TextToSpeech(
+            model_name_or_path=model_name_or_path, transformers_params=transformers_params, devices=devices
+        )
         self.generated_audio_dir = generated_audio_dir
         self.params: Dict[str, Any] = audio_params or {}
 

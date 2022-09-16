@@ -39,18 +39,13 @@ dynamic = ["version"]
 [project.optional-dependencies]
 dev = [
   "pre-commit",
-  # Type check
   "mypy",
   "typing_extensions; python_version < '3.8'",
-  # Test
   "pytest",
   "tox",
   "coverage",
-  # Linting
   "pylint",
-  # Code formatting
-  "black[jupyter]==22.6.0",
-  # Documentation
+  "black[jupyter]==22.8.0",
   "pydoc-markdown",
   "mkdocs",
   "jupytercontrib",
@@ -89,3 +84,21 @@ exclude_lines = [
   "if __name__ == .__main__.:",
   "if TYPE_CHECKING:",
 ]
+
+[tool.pylint.'MESSAGES CONTROL']
+max-line-length=120
+disable = [
+  "missing-module-docstring", 
+]
+
+[tool.pytest.ini_options]
+minversion = "6.0"
+addopts = "--strict-markers"
+markers = [
+  "integration: integration tests",
+  "unit: unit tests",
+]
+log_cli = true
+
+[tool.black]
+line-length = 120

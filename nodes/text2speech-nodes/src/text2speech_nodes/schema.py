@@ -32,7 +32,10 @@ class SpeechDocument(Document):
         # In some cases, self.content is None (therefore not subscriptable)
         if self.content is None:
             return f"<SpeechDocument: id={self.id}, content=None>"
-        return f"<SpeechDocument: id={self.id}, content='{self.content[:100]} {'...' if len(self.content) > 100 else ''}', content_audio={self.content_audio}>"
+        return (
+            f"<SpeechDocument: id={self.id}, content='{self.content[:100]} "
+            f"{'...' if len(self.content) > 100 else ''}', content_audio={self.content_audio}>"
+        )
 
     def to_dict(self, field_map={}) -> Dict:
         dictionary = super().to_dict(field_map=field_map)
@@ -79,8 +82,15 @@ class SpeechAnswer(Answer):
     def __str__(self):
         # self.context might be None (therefore not subscriptable)
         if not self.context:
-            return f"<SpeechAnswer: answer='{self.answer}', answer_audio={self.answer_audio}, score={self.score}, context=None>"
-        return f"<SpeechAnswer: answer='{self.answer}', answer_audio={self.answer_audio}, score={self.score}, context='{self.context[:50]}{'...' if len(self.context) > 50 else ''}', context_audio={self.context_audio}>"
+            return (
+                f"<SpeechAnswer: answer='{self.answer}', answer_audio={self.answer_audio}, "
+                f"score={self.score}, context=None>"
+            )
+        return (
+            f"<SpeechAnswer: answer='{self.answer}', answer_audio={self.answer_audio}, score={self.score}, "
+            f"context='{self.context[:50]}{'...' if len(self.context) > 50 else ''}', "
+            f"context_audio={self.context_audio}>"
+        )
 
     def __repr__(self):
         return f"<SpeechAnswer {asdict(self)}>"

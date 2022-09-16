@@ -13,7 +13,6 @@ SAMPLES_PATH = Path(__file__).parent / "samples"
 
 @pytest.mark.unit
 class TestSpeechSchema:
-
     def test_serialize_speech_document(self):
         speech_doc = SpeechDocument(
             id=12345,
@@ -29,7 +28,6 @@ class TestSpeechSchema:
             (SAMPLES_PATH / "audio" / "this is the content of the document.wav").absolute()
         )
 
-
     def test_deserialize_speech_document(self):
         speech_doc = SpeechDocument(
             id=12345,
@@ -39,7 +37,6 @@ class TestSpeechSchema:
             meta={"some": "meta"},
         )
         assert speech_doc == SpeechDocument.from_dict(speech_doc.to_dict())
-
 
     def test_serialize_speech_answer(self):
         speech_answer = SpeechAnswer(
@@ -56,7 +53,6 @@ class TestSpeechSchema:
         assert speech_answer_dict["context_audio"] == str(
             (SAMPLES_PATH / "audio" / "the context for this answer is here.wav").absolute()
         )
-
 
     def test_deserialize_speech_answer(self):
         speech_answer = SpeechAnswer(
