@@ -59,7 +59,7 @@ class TextToSpeech:
         device = torch.device(devices[0])
 
         self.model = Text2SpeechModel.from_pretrained(
-            model_name_or_path, device=device[0].type, **(transformers_params or {})
+            model_name_or_path, device=device.type, **(transformers_params or {})
         )
 
     def text_to_audio_file(
@@ -173,6 +173,6 @@ class TextToSpeech:
         :param bitrate: The desired bitrate of your compressed audio. Default to '320k'.
         :param normalized: Normalizes the audio before compression (range 2^15) or leaves it untouched.
         """
-        data = np.int16((data * 2**15) if normalized else data)
+        data = np.array((data * 2**15) if normalized else data, type=np.int16)
         audio = AudioSegment(data.tobytes(), frame_rate=sample_rate, sample_width=sample_width, channels=channels_count)
         audio.export(path, format=format, bitrate=bitrate)
