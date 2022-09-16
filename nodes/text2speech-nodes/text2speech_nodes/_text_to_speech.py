@@ -38,7 +38,7 @@ class TextToSpeech:
         self,
         model_name_or_path: Union[str, Path],
         transformers_params: Optional[Dict[str, Any]] = None,
-        devices: List[Union[str, torch.device]] = [torch.device("cuda")],
+        devices: List[str] = ["cuda"],
     ):
         """
         :param model_name_or_path: The text to speech model, for example `espnet/kan-bayashi_ljspeech_vits`.
@@ -59,7 +59,7 @@ class TextToSpeech:
         device = torch.device(devices[0])
 
         self.model = Text2SpeechModel.from_pretrained(
-            model_name_or_path, device=device.type, **(transformers_params or {})
+            model_name_or_path, device=device[0].type, **(transformers_params or {})
         )
 
     def text_to_audio_file(
@@ -126,7 +126,7 @@ class TextToSpeech:
 
         return file_path
 
-    def text_to_audio_data(self, text: str, _models_output_key: str = "wav") -> np.array:
+    def text_to_audio_data(self, text: str, _models_output_key: str = "wav") -> np.ndarray:
         """
         Convert an input string into a numpy array representing the audio.
 
@@ -150,7 +150,7 @@ class TextToSpeech:
 
     def compress_audio(
         self,
-        data: np.array,
+        data: np.ndarray,
         path: Path,
         format: str,
         sample_rate: int,
