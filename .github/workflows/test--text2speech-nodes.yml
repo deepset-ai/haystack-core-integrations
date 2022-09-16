@@ -49,7 +49,9 @@ jobs:
         package: ${{ env.PACKAGE }}
 
     - name: Pylint
-      run: pylint -ry -j 0 ${{ env.PACKAGE }}
+      run: |
+        cd ${{ env.PACKAGE }}
+        pylint -ry -j 0 text2speech_nodes/
 
     # - uses: act10ns/slack@v1
     #   with:
