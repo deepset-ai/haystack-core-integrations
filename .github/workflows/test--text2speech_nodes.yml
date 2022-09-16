@@ -82,6 +82,7 @@ jobs:
       #   if: failure() && github.repository_owner == 'deepset-ai' && github.ref == 'refs/heads/main'
 
   integration-tests:
+    name: Integration / ${{ matrix.os }}
     needs:
       - unit-tests
     timeout-minutes: 60
