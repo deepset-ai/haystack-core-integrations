@@ -1,0 +1,14 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema",
+    "$id": "https://raw.githubusercontent.com/deepset-ai/haystack-extras/main/nodes/haystack-extras.schema.json",
+    "title": "Haystack Extras",
+    "description": "Haystack Extra nodes. For more info read the docs at: https://haystack.deepset.ai/components/pipelines#yaml-file-definitions",
+    "type": "object",
+    "items": {
+        "anyOf": [
+            {
+                "$ref": "https://raw.githubusercontent.com/deepset-ai/haystack-extras/main/nodes/haystack-text2speech-nodes.schema.json"
+            }
+        ]
+    }
+}
