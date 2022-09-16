@@ -6,6 +6,7 @@ on:
   push:
     paths:
       - 'nodes/text2speech-nodes/**'
+      - '.github/workflows/test--text2speech_nodes.yml'
 
 env:
   PACKAGE: nodes/text2speech-nodes/
