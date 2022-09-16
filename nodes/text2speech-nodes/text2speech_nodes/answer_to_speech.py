@@ -7,7 +7,8 @@ from pathlib import Path
 
 import torch
 from tqdm.auto import tqdm
-from haystack.nodes import BaseComponent, Answer
+from haystack.nodes import BaseComponent
+from haystack import Answer
 
 from text2speech_nodes.schema import SpeechAnswer
 from text2speech_nodes._text_to_speech import TextToSpeech
@@ -28,7 +29,7 @@ class AnswerToSpeech(BaseComponent):
         audio_params: Optional[Dict[str, Any]] = None,
         transformers_params: Optional[Dict[str, Any]] = None,
         progress_bar: bool = True,
-        devices: List[Union[str, torch.device]] = [torch.device("cuda")],
+        devices: List[str] = ["cuda"],
     ):
         """
         Convert an input Answer into an audio file containing the answer and its context read out loud.

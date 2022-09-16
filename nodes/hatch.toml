@@ -9,4 +9,4 @@ default = [
 ]
 
 [template.plugins.default]
-src-layout = true
+src-layout = false

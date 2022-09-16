@@ -7,7 +7,8 @@ from pathlib import Path
 
 import torch
 from tqdm import tqdm
-from haystack.nodes import BaseComponent, Document
+from haystack import Document
+from haystack.nodes import BaseComponent
 
 from text2speech_nodes.schema import SpeechDocument
 from text2speech_nodes._text_to_speech import TextToSpeech
@@ -27,7 +28,7 @@ class DocumentToSpeech(BaseComponent):
         generated_audio_dir: Path = Path("./generated_audio_documents"),
         audio_params: Optional[Dict[str, Any]] = None,
         transformers_params: Optional[Dict[str, Any]] = None,
-        devices: List[Union[str, torch.device]] = [torch.device("cuda")],
+        devices: List[str] = ["cuda"],
     ):
         """
         Convert an input Document into an audio file containing the document's content read out loud.

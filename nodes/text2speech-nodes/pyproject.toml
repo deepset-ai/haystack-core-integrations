@@ -57,7 +57,7 @@ Issues = "https://github.com/deepset-ai/haystack-extras/issues"
 Source = "https://github.com/deepset-ai/haystack-extras/tree/main/nodes/text2speech-nodes"
 
 [tool.hatch.version]
-path = "src/text2speech_nodes/__about__.py"
+path = "text2speech_nodes/__about__.py"
 
 [tool.hatch.envs.default]
 dependencies = [
@@ -65,7 +65,7 @@ dependencies = [
   "pytest-cov",
 ]
 [tool.hatch.envs.default.scripts]
-cov = "pytest --cov-report=term-missing --cov-config=pyproject.toml --cov=src/text2speech_nodes --cov=tests"
+cov = "pytest --cov-report=term-missing --cov-config=pyproject.toml --cov=text2speech_nodes --cov=tests"
 no-cov = "cov --no-cov"
 
 [[tool.hatch.envs.test.matrix]]
@@ -75,7 +75,7 @@ python = ["37", "38", "39", "310", "311"]
 branch = true
 parallel = true
 omit = [
-  "src/text2speech_nodes/__about__.py",
+  "text2speech_nodes/__about__.py",
 ]
 
 [tool.coverage.report]
