@@ -7,13 +7,10 @@ import sys
 import json
 import logging
 from pathlib import Path
-
-logging.basicConfig(level=logging.INFO)
-
-
-sys.path.append(".")
 from haystack.nodes._json_schema import find_subclasses_in_modules, create_schema_for_node_class
 
+
+logging.basicConfig(level=logging.INFO)
 
 
 def get_package_json_schema(title: str, description: str, module_name: str, schema_ref: str):

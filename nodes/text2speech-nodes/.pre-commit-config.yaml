@@ -41,3 +41,6 @@ repos:
 #           "-rn", # Only display messages
 #           "-sn", # Don't display the score
 #         ]
+
+
+# TODO: Add pre-commit hook that reads title and desc from pyproject.toml and calls the schema generation script with such info

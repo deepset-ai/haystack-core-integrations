@@ -2,7 +2,7 @@ name: Test text2speech_nodes
 
 on:
   workflow_dispatch:
-  push:
+  pull_request:
     paths:
       - 'nodes/text2speech-nodes/**'
       - '.github/workflows/test--text2speech_nodes.yml'
