@@ -1,4 +1,4 @@
-name: Test text2speech_nodes
+name: Test text2speech-nodes
 
 on:
   workflow_dispatch:
