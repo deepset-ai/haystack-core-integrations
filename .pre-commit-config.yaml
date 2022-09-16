@@ -21,4 +21,20 @@ repos:
   hooks:
   - id: black-jupyter
 
-# TODO we can make mypy and pylint run at this stage too, once their execution gets normalized
+- repo: https://github.com/pre-commit/mirrors-mypy
+  rev: ''
+  hooks:
+  - id: mypy
+
+- repo: local
+  hooks:
+    - id: pylint
+      name: pylint
+      entry: pylint
+      language: system
+      types: [python]
+      args:
+        [
+          "-rn", # Only display messages
+          "-sn", # Don't display the score
+        ]
