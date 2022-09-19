@@ -5,6 +5,7 @@ from typing import Union, Optional, List, Dict, Tuple, Any
 
 from pathlib import Path
 
+from torch.cuda import is_available as is_cuda_available
 from tqdm.auto import tqdm
 from haystack.nodes import BaseComponent
 from haystack import Answer
@@ -13,7 +14,7 @@ from text2speech_nodes.schema import SpeechAnswer
 from text2speech_nodes._text_to_speech import TextToSpeech
 
 
-class AnswerToSpeech2(BaseComponent):
+class AnswerToSpeech(BaseComponent):
     """
     This node converts text-based Answers into SpeechAnswers, where the answer and its context are
     read out into an audio file.
@@ -65,7 +66,9 @@ class AnswerToSpeech2(BaseComponent):
         """
         super().__init__()
         self.converter = TextToSpeech(
-            model_name_or_path=model_name_or_path, transformers_params=transformers_params, devices=devices or ["cuda"]
+            model_name_or_path=model_name_or_path,
+            transformers_params=transformers_params,
+            devices=devices or ["cuda" if is_cuda_available() else "cpu"],
         )
         self.generated_audio_dir = generated_audio_dir
         self.params: Dict[str, Any] = audio_params or {}

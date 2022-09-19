@@ -6,6 +6,7 @@ from typing import Union, Optional, List, Dict, Tuple, Any
 from pathlib import Path
 
 from tqdm import tqdm
+from torch.cuda import is_available as is_cuda_available
 from haystack import Document
 from haystack.nodes import BaseComponent
 
@@ -62,7 +63,9 @@ class DocumentToSpeech(BaseComponent):
         """
         super().__init__()
         self.converter = TextToSpeech(
-            model_name_or_path=model_name_or_path, transformers_params=transformers_params, devices=devices or ["cuda"]
+            model_name_or_path=model_name_or_path,
+            transformers_params=transformers_params,
+            devices=devices or ["cuda" if is_cuda_available() else "cpu"],
         )
         self.generated_audio_dir = generated_audio_dir
         self.params: Dict[str, Any] = audio_params or {}

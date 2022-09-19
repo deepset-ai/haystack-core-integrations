@@ -10,6 +10,7 @@ from pathlib import Path
 
 import numpy as np
 import torch
+from torch.cuda import is_available as is_cuda_available
 
 try:
     import soundfile as sf
@@ -51,7 +52,7 @@ class TextToSpeech:
         """
         super().__init__()
 
-        devices = devices or ["cuda"]
+        devices = devices or ["cuda" if is_cuda_available() else "cpu"]
         if len(devices) > 1:
             logger.warning(
                 "Multiple devices are not supported (yet) in text2audio nodes. Using the first device: %s",
