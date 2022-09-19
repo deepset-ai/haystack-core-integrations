@@ -26,7 +26,7 @@ logging.basicConfig(level=logging.INFO)
 
 def get_package_json_schema(title: str, description: str, module_name: str, schema_ref: str):
     """
-    Generate JSON schema for the custom node.
+    Generate JSON schema for the custom node(s).
     """
     # List all known nodes in the given modules
     importlib.import_module(module_name)
