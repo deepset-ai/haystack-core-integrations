@@ -31,8 +31,15 @@ repos:
   - id: mypy
     files: nodes/text2speech-nodes/
 
-# - repo: local
-#   hooks:
+- repo: local
+  hooks:
+    - id: yaml-schema
+      name: YAML Schema
+      entry: .github/utils/generate_json_schema.py -f text2speech-nodes -m text2speech_nodes
+      language: script
+      types: [bash]
+      always_run: true
+
 #     - id: pylint
 #       name: pylint
 #       entry: pylint
@@ -44,5 +51,3 @@ repos:
 #           "-j 0",
 #           "nodes/text2speech-nodes/text2speech_nodes"
 #         ]
-
-# TODO: Add pre-commit hook that reads title and desc from pyproject.toml and calls the schema generation script with such info

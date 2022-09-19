@@ -7,7 +7,7 @@
     "items": {
         "anyOf": [
             {
-                "$ref": "https://raw.githubusercontent.com/deepset-ai/haystack-extras/main/nodes/haystack-text2speech-nodes.schema.json"
+                "$ref": "https://raw.githubusercontent.com/deepset-ai/haystack-extras/main/nodes/haystack-text2speech-nodes/haystack-text2speech-nodes.schema.json"
             }
         ]
     }
