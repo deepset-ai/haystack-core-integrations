@@ -13,7 +13,7 @@ from text2speech_nodes.schema import SpeechAnswer
 from text2speech_nodes._text_to_speech import TextToSpeech
 
 
-class AnswerToSpeech(BaseComponent):
+class AnswerToSpeech2(BaseComponent):
     """
     This node converts text-based Answers into SpeechAnswers, where the answer and its context are
     read out into an audio file.

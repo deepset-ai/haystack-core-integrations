@@ -104,7 +104,7 @@ def update_json_schema(
             index = json.load(json_file)
             new_entry = {
                 "allOf": [
-                    {"properties": {"version": {"const": version}}},
+                    # {"properties": {"version": {"const": version}}},  # FIXME once we agree on versioning, if necessary
                     {"$ref": base_schema_ref + version_filename},
                 ]
             }

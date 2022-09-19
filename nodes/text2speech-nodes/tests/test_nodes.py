@@ -9,7 +9,7 @@ import numpy as np
 import soundfile as sf
 from haystack.schema import Span, Answer, Document
 
-from text2speech_nodes import SpeechAnswer, SpeechDocument, AnswerToSpeech, DocumentToSpeech
+from text2speech_nodes import SpeechAnswer, SpeechDocument, AnswerToSpeech2, DocumentToSpeech
 from text2speech_nodes._text_to_speech import TextToSpeech
 
 
@@ -77,7 +77,7 @@ class TestTextToSpeech:
         expected_audio_answer = SAMPLES_PATH / "answer.wav"
         expected_audio_context = SAMPLES_PATH / "the context for this answer is here.wav"
 
-        answer2speech = AnswerToSpeech(
+        answer2speech = AnswerToSpeech2(
             generated_audio_dir=tmp_path / "test_audio",
             audio_params={"audio_naming_function": lambda text: text},
             transformers_params={"seed": 777, "always_fix_seed": True},
