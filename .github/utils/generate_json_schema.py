@@ -24,6 +24,9 @@ from haystack.nodes._json_schema import find_subclasses_in_modules, create_schem
 logging.basicConfig(level=logging.INFO)
 
 
+BRANCH_NAME = "text2speech_nodes"  # FIXME should be main after merge
+
+
 def get_package_json_schema(title: str, description: str, module_name: str, schema_ref: str):
     """
     Generate JSON schema for the custom node(s).
@@ -61,7 +64,7 @@ def update_json_schema(
     If the version contains "rc", only update main's schema.
     Otherwise, create (or update) a new schema.
     """
-    base_schema_ref = f"https://raw.githubusercontent.com/deepset-ai/haystack-extras/main/nodes/{package_name}/json-schemas/"
+    base_schema_ref = f"https://raw.githubusercontent.com/deepset-ai/haystack-extras/{BRANCH_NAME}/nodes/{package_name}/json-schemas/"
     main_filename = f"haystack-{package_name}-main.schema.json"
 
     # Create the schemas for the nodes

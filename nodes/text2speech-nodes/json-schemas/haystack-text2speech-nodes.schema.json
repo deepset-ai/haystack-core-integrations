@@ -15,7 +15,7 @@
           }
         },
         {
-          "$ref": "https://raw.githubusercontent.com/deepset-ai/haystack-extras/main/nodes/text2speech-nodes/json-schemas/haystack-text2speech-nodes-0.0.1.schema.json"
+          "$ref": "https://raw.githubusercontent.com/deepset-ai/haystack-extras/text2speech_nodes/nodes/text2speech-nodes/json-schemas/haystack-text2speech-nodes-0.0.1.schema.json"
         }
       ]
     }
