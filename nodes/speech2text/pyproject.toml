@@ -33,6 +33,7 @@ dependencies = [
   "pydantic",
   "torchaudio",
   "librosa",
+  "pydub"
 ]
 dynamic = ["version"]
 

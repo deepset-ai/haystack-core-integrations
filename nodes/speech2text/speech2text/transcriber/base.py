@@ -35,7 +35,18 @@ class BaseSpeechTranscriber(BaseComponent):
             for fragment_file in self.chunk(audio_file):
                 complete_transcript += self.transcribe(fragment_file)
 
-            documents.append(Document(content=complete_transcript, content_type="text", meta={"name": str(audio_file)}))
+            documents.append(
+                Document(
+                    content=complete_transcript,
+                    content_type="text",
+                    meta={
+                        "name": str(audio_file),
+                        "audio": {
+                            "content": audio_file
+                        }
+                    }
+                )
+            )
 
         return {"documents": documents}, "output_1"
 
@@ -61,7 +72,7 @@ class BaseSpeechTranscriber(BaseComponent):
             yield fragment_path
 
     @abstractmethod
-    def transcribe(self, audio_file: Path, sample_rate=16000):
+    def transcribe(self, audio_file: Path, sample_rate=16000) -> str:
         pass
 
 
@@ -82,7 +93,7 @@ class Wav2VecTranscriber(BaseSpeechTranscriber):
         self.tokenizer = Wav2Vec2Tokenizer.from_pretrained(model_name_or_path)
         self.model = Wav2Vec2ForCTC.from_pretrained(model_name_or_path)
 
-    def transcribe(self, audio_file: Path, sample_rate=16000):
+    def transcribe(self, audio_file: Path, sample_rate=16000) -> str:
         if audio_file.suffix != ".wav":
             raise SpeechToTextNodeError(
                 f"{audio_file.suffix} files are not supported by Wav2VecTranscriber. "

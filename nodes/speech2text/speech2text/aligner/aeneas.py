@@ -37,7 +37,7 @@ class AeneasTranscriptAligner(BaseTranscriptAligner):
         with open(transcript_path, "w") as tf:
             tf.write(deepcopy(document.content).replace(" ", "\n"))
 
-        raw_alignments = self._align(audio_file=document.content, transcript_file=transcript_path)
+        raw_alignments = self._align(audio_file=document.meta["audio"]["content"]["path"], transcript_file=transcript_path)
 
         accumulator = 0
         alignments = []

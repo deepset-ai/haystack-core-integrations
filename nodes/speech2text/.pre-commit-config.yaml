@@ -39,15 +39,3 @@ repos:
       language: script
       types: [bash]
       always_run: true
-
-#     - id: pylint
-#       name: pylint
-#       entry: pylint
-#       language: system
-#       types: [python]
-#       args:
-#         [
-#           "-ry",
-#           "-j 0",
-#           "nodes/text2speech/speech2text"
-#         ]

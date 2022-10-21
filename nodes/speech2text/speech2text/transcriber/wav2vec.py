@@ -31,7 +31,7 @@ class Wav2VecTranscriber(BaseSpeechTranscriber):
         self.tokenizer = Wav2Vec2Tokenizer.from_pretrained(model_name_or_path)
         self.model = Wav2Vec2ForCTC.from_pretrained(model_name_or_path)
 
-    def transcribe(self, audio_file: Path, sample_rate=16000):
+    def transcribe(self, audio_file: Path, sample_rate=16000) -> str:
         if audio_file.suffix != ".wav":
             raise SpeechToTextNodeError(
                 f"{audio_file.suffix} files are not supported by Wav2VecTranscriber. "

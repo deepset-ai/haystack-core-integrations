@@ -65,6 +65,9 @@ class TestTextToSpeech:
         assert audio_file.name == expected_audio_file.name
         assert np.allclose(sf.read(expected_audio_file)[0], sf.read(audio_file)[0], atol=0.001)
 
+
+@pytest.mark.integration
+class TestAnswerToSpeech:
     def test_answer_to_speech(self, tmp_path):
         text_answer = Answer(
             answer="answer",
@@ -86,8 +89,8 @@ class TestTextToSpeech:
 
         audio_answer: Answer = results["answers"][0]
         assert isinstance(audio_answer, Answer)
-        assert audio_answer.meta["audio"]["answer"]["path"] == expected_audio_answer.name
-        assert audio_answer["audio"]["context"]["path"] == expected_audio_context.name
+        assert audio_answer.meta["audio"]["answer"]["path"] == expected_audio_answer
+        assert audio_answer["audio"]["context"]["path"] == expected_audio_context
         assert audio_answer.answer == "answer"
         assert audio_answer.context == "the context for this answer is here"
         assert audio_answer.offsets_in_document == [Span(31, 37)]
@@ -99,6 +102,9 @@ class TestTextToSpeech:
         assert np.allclose(sf.read(audio_answer.answer_audio)[0], sf.read(expected_audio_answer)[0], atol=0.001)
         assert np.allclose(sf.read(audio_answer.context_audio)[0], sf.read(expected_audio_context)[0], atol=0.001)
 
+
+@pytest.mark.integration
+class TestDocumentToSpeech:
     def test_document_to_speech(self, tmp_path):
         text_doc = Document(
             content="this is the content of the document", content_type="text", meta={"name": "test_document.txt"}
@@ -114,8 +120,8 @@ class TestTextToSpeech:
 
         audio_doc: Document = results["documents"][0]
         assert isinstance(audio_doc, Document)
-        assert audio_doc.content_type == "audio"
-        assert audio_doc.meta["audio"]["content"]["path"] == expected_audio_content.name
+        assert audio_doc.content_type == "text"
+        assert audio_doc.meta["audio"]["content"]["path"] == expected_audio_content
         assert audio_doc.content == "this is the content of the document"
         assert audio_doc.meta["name"] == "test_document.txt"
         assert audio_doc.meta["audio"]["content"]["format"] == "wav"
