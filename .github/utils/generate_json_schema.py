@@ -24,7 +24,7 @@ from haystack.nodes._json_schema import find_subclasses_in_modules, create_schem
 logging.basicConfig(level=logging.INFO)
 
 
-BRANCH_NAME = "text2speech_nodes"  # FIXME should be main after merge
+BRANCH_NAME = "text2speech"  # FIXME should be main after merge
 
 
 def get_package_json_schema(title: str, description: str, module_name: str, schema_ref: str):
@@ -57,8 +57,8 @@ def update_json_schema(
     version: str,
     title: str,
     description: str,
-    package_name: str = "text2speech-nodes",
-    module_name: str = "text2speech_nodes",
+    package_name: str,
+    module_name: str,
 ):
     """
     If the version contains "rc", only update main's schema.
@@ -135,8 +135,10 @@ def generate_schema_index(
 
 
 def get_package_data(folder: str):
-    meta = metadata.metadata("haystack-"+folder)
+    package_name = "haystack-"+folder
+    meta = metadata.metadata(package_name)
     return {
+        "package_name": package_name,
         "version": metadata.version("haystack-"+folder),
         "title": str(meta["name"]).replace("-", " ").replace("_", " "),
         "description": meta["summary"],

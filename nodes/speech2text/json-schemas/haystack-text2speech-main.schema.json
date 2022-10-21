@@ -1,0 +1,85 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema",
+  "$id": "https://raw.githubusercontent.com/deepset-ai/haystack-extras/text2speech/nodes/text2speech/json-schemas/haystack-text2speech-main.schema.json",
+  "title": "haystack speech2text nodes",
+  "description": "Haystack node to convert audio files into Documents. For more info read the docs at: https://haystack.deepset.ai/components/pipelines#yaml-file-definitions",
+  "type": "object",
+  "items": {
+    "anyOf": [
+      {
+        "AeneasTranscriptAlignerComponent": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "title": "Name",
+              "description": "Custom name for the component. Helpful for visualization and debugging.",
+              "type": "string"
+            },
+            "type": {
+              "title": "Type",
+              "description": "Haystack Class name for the component.",
+              "type": "string",
+              "const": "AeneasTranscriptAligner"
+            },
+            "params": {
+              "title": "Parameters",
+              "type": "object",
+              "properties": {},
+              "additionalProperties": false,
+              "description": "Each parameter can reference other components defined in the same YAML file."
+            }
+          },
+          "required": [
+            "type",
+            "name"
+          ],
+          "additionalProperties": false
+        }
+      },
+      {
+        "Wav2VecTranscriberComponent": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "title": "Name",
+              "description": "Custom name for the component. Helpful for visualization and debugging.",
+              "type": "string"
+            },
+            "type": {
+              "title": "Type",
+              "description": "Haystack Class name for the component.",
+              "type": "string",
+              "const": "Wav2VecTranscriber"
+            },
+            "params": {
+              "title": "Parameters",
+              "type": "object",
+              "properties": {
+                "model_name_or_path": {
+                  "title": "Model Name Or Path",
+                  "default": "facebook/wav2vec2-base-960h",
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "string",
+                      "format": "path"
+                    }
+                  ]
+                }
+              },
+              "additionalProperties": false,
+              "description": "Each parameter can reference other components defined in the same YAML file."
+            }
+          },
+          "required": [
+            "type",
+            "name"
+          ],
+          "additionalProperties": false
+        }
+      }
+    ]
+  }
+}

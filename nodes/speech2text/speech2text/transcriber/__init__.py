@@ -1,0 +1,2 @@
+from speech2text.transcriber.base import BaseSpeechTranscriber
+from speech2text.transcriber.wav2vec import Wav2VecTranscriber
