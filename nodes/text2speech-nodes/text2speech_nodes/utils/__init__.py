@@ -1,0 +1,1 @@
+from text2speech_nodes.utils.text_to_speech import TextToSpeech

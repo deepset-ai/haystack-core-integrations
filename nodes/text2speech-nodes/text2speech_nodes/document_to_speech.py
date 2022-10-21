@@ -10,14 +10,13 @@ from torch.cuda import is_available as is_cuda_available
 from haystack import Document
 from haystack.nodes import BaseComponent
 
-from text2speech_nodes.schema import SpeechDocument
-from text2speech_nodes._text_to_speech import TextToSpeech
+from text2speech_nodes.utils import TextToSpeech
 
 
 class DocumentToSpeech(BaseComponent):
     """
-    This node converts text-based Documents into SpeechDocuments, where the content is
-    read out into an audio file.
+    This node adds an audio version of the content into the `audio` metadata field of text-based Documents,
+    plus some other additional information like the audio's sample rate.
     """
 
     outgoing_edges = 1
@@ -71,25 +70,20 @@ class DocumentToSpeech(BaseComponent):
         self.params: Dict[str, Any] = audio_params or {}
 
     def run(self, documents: List[Document]) -> Tuple[Dict[str, List[Document]], str]:  # type: ignore  # pylint: disable=arguments-differ
-        audio_documents = []
         for doc in tqdm(documents):
 
             content_audio = self.converter.text_to_audio_file(
                 text=doc.content, generated_audio_dir=self.generated_audio_dir, **self.params
             )
-
-            audio_document = SpeechDocument.from_text_document(
-                document_object=doc,
-                audio_content=content_audio,
-                additional_meta={
-                    "audio_format": self.params.get("audio_format", content_audio.suffix.replace(".", "")),
+            doc.meta["audio"] = {
+                "content": {
+                    "path": content_audio,
+                    "format": self.params.get("audio_format", content_audio.suffix.replace(".", "")),
                     "sample_rate": self.converter.model.fs,
-                },
-            )
-            audio_document.type = "generative"
-            audio_documents.append(audio_document)
+                }
+            }
 
-        return {"documents": audio_documents}, "output_1"
+        return {"documents": documents}, "output_1"
 
     def run_batch(self, documents: List[List[Document]]) -> Tuple[Dict[str, List[List[Document]]], str]:  # type: ignore
         results: Dict[str, List[List[Document]]] = {"documents": []}

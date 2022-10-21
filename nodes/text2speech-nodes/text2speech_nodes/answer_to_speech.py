@@ -10,14 +10,13 @@ from tqdm.auto import tqdm
 from haystack.nodes import BaseComponent
 from haystack import Answer
 
-from text2speech_nodes.schema import SpeechAnswer
-from text2speech_nodes._text_to_speech import TextToSpeech
+from text2speech_nodes.utils import TextToSpeech
 
 
 class AnswerToSpeech(BaseComponent):
     """
-    This node converts text-based Answers into SpeechAnswers, where the answer and its context are
-    read out into an audio file.
+    This node adds an audio version of the answer and context into the `audio` metadata field of text-based Answers,
+    plus some other additional information like the audio's sample rate.
     """
 
     outgoing_edges = 1
@@ -75,30 +74,29 @@ class AnswerToSpeech(BaseComponent):
         self.progress_bar = progress_bar
 
     def run(self, answers: List[Answer]) -> Tuple[Dict[str, List[Answer]], str]:  # type: ignore  # pylint: disable=arguments-differ
-        audio_answers = []
         for answer in tqdm(answers, disable=not self.progress_bar, desc="Converting answers to audio"):
 
-            answer_audio = self.converter.text_to_audio_file(
-                text=answer.answer, generated_audio_dir=self.generated_audio_dir, **self.params
-            )
+            if isinstance(answer.answer, str):
+                answer_audio = self.converter.text_to_audio_file(
+                    text=answer.answer, generated_audio_dir=self.generated_audio_dir, **self.params
+                )
+                answer.meta["audio"] = {
+                    "answer": {
+                        "path": answer_audio,
+                        "format": self.params.get("audio_format", answer_audio.suffix.replace(".", "")),
+                        "sample_rate": self.converter.model.fs,
+                    }
+                }
             if isinstance(answer.context, str):
                 context_audio = self.converter.text_to_audio_file(
                     text=answer.context, generated_audio_dir=self.generated_audio_dir, **self.params
                 )
-
-            audio_answer = SpeechAnswer.from_text_answer(
-                answer_object=answer,
-                audio_answer=answer_audio,
-                audio_context=context_audio,
-                additional_meta={
-                    "audio_format": self.params.get("audio_format", answer_audio.suffix.replace(".", "")),
+                answer.meta["audio"]["context"] = {
+                    "path": context_audio,
+                    "format": self.params.get("audio_format", context_audio.suffix.replace(".", "")),
                     "sample_rate": self.converter.model.fs,
-                },
-            )
-            audio_answer.type = "generative"
-            audio_answers.append(audio_answer)
-
-        return {"answers": audio_answers}, "output_1"
+                }
+        return {"answers": answers}, "output_1"
 
     def run_batch(self, answers: List[List[Answer]]) -> Tuple[Dict[str, List[List[Answer]]], str]:  # type: ignore
         results: Dict[str, List[List[Answer]]] = {"answers": []}

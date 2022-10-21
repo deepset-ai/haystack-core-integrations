@@ -6,8 +6,8 @@ from typing import Optional
 from haystack.errors import NodeError
 
 
-class Text2SpeechNodeError(NodeError):
-    """Exception for issues that occur in a node of the text2speech module"""
+class SpeechToTextNodeError(NodeError):
+    """Exception for issues that occur in a node of the speech2text module"""
 
     def __init__(self, message: Optional[str] = None):
         super().__init__(message=message)

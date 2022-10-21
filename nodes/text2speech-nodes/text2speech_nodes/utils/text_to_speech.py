@@ -22,7 +22,7 @@ except OSError as ose:
     )
 from pydub import AudioSegment
 
-from text2speech_nodes.errors import AudioNodeError
+from text2speech_nodes.errors import Text2SpeechNodeError
 
 
 logger = logging.getLogger(__name__)
@@ -139,12 +139,12 @@ class TextToSpeech:
         """
         prediction = self.model(text)
         if not prediction:
-            raise AudioNodeError(
+            raise Text2SpeechNodeError(
                 "The model returned no predictions. Make sure you selected a valid text-to-speech model."
             )
         output = prediction.get(_models_output_key, None)
         if output is None:
-            raise AudioNodeError(
+            raise Text2SpeechNodeError(
                 f"The model returned no output under the {_models_output_key} key. "
                 f"The available output keys are {prediction.keys()}. Make sure you selected the right key."
             )
