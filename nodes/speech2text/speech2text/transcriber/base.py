@@ -1,14 +1,9 @@
-from typing import Union, List
+from typing import List
 
-import math
 from abc import abstractmethod
 import logging
 from pathlib import Path
 
-from tqdm import tqdm
-from pydub import AudioSegment
-import librosa
-import torch
 from haystack import Document
 from haystack.nodes import BaseComponent
 
@@ -53,23 +48,9 @@ class BaseSpeechTranscriber(BaseComponent):
     def run_batch(self):
         raise NotImplemented
 
+    @abstractmethod
     def chunk(self, path: Path):
-        """
-        Returns the input audio in chunks that can be processed by the transcriber model.
-
-        Override to a no-op if the transcriber implementation does not need it
-        """
-        audio_format = path.suffix.replace(".", "")
-        audio = AudioSegment.from_file(path, format=audio_format)
-        n_fragments = math.ceil(audio.duration_seconds / self.fragment_length)
-        fragment_path = Path(f"/tmp/[frag]__{path.name}")
-
-        for fragment_id in tqdm(total=n_fragments):
-            fragment = audio[
-                fragment_id * self.fragment_length * 1000 : (fragment_id + 1) * self.fragment_length * 1000
-            ]
-            fragment.export(fragment_path, format=audio_format)
-            yield fragment_path
+        pass
 
     @abstractmethod
     def transcribe(self, audio_file: Path, sample_rate=16000) -> str:
