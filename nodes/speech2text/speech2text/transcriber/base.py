@@ -40,7 +40,9 @@ class BaseSpeechTranscriber(BaseComponent):
                     meta={
                         "name": str(audio_file),
                         "audio": {
-                            "content": audio_file
+                            "content": {
+                                "path": audio_file
+                            }
                         }
                     }
                 )
