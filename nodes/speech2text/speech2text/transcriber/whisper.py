@@ -31,3 +31,6 @@ class WhisperTranscriber(BaseSpeechTranscriber):
 
     def transcribe(self, audio_file: Path, sample_rate=16000) -> str:
         return self.model.transcribe(audio_file)
+
+    def chunk(self, path: Path):
+        yield path
