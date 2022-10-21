@@ -2,9 +2,9 @@ from typing import List
 
 from abc import abstractmethod
 import logging
+from dataclasses import dataclass
 
 from tqdm import tqdm
-from pydantic import dataclass
 
 from haystack import Span, Document
 from haystack.nodes import BaseComponent
@@ -20,11 +20,11 @@ class AudioTranscriptionAlignment:
     aligned_string: str
 
 
-
 class BaseTranscriptAligner(BaseComponent):
     """
     Aligns an audio file containing speech with its transcription.
     """
+
     outgoing_edges = 1
 
     def run(self, documents: List[Document]):  # type: ignore
@@ -38,8 +38,6 @@ class BaseTranscriptAligner(BaseComponent):
                 document.meta["alignment"] = self.align(document)
         return {"documents": documents}, "output_1"
 
-
     @abstractmethod
     def align(self, document: Document):
         pass
-

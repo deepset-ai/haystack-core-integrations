@@ -1,4 +1,4 @@
-from typing import Union
+from typing import Union, List
 
 import math
 from abc import abstractmethod
@@ -26,7 +26,6 @@ class BaseSpeechTranscriber(BaseComponent):
 
     outgoing_edges = 1
 
-
     def run(self, file_paths: List[Path]):  # type: ignore
         documents = []
         for audio_file in file_paths:
@@ -36,11 +35,7 @@ class BaseSpeechTranscriber(BaseComponent):
             for fragment_file in self.chunk(audio_file):
                 complete_transcript += self.transcribe(fragment_file)
 
-            documents.append(Document(
-                content=complete_transcript,
-                content_type="text",
-                meta={"name": str(audio_file)}
-            ))
+            documents.append(Document(content=complete_transcript, content_type="text", meta={"name": str(audio_file)}))
 
         return {"documents": documents}, "output_1"
 
@@ -59,7 +54,9 @@ class BaseSpeechTranscriber(BaseComponent):
         fragment_path = Path(f"/tmp/[frag]__{path.name}")
 
         for fragment_id in tqdm(total=n_fragments):
-            fragment = audio[fragment_id*self.fragment_length*1000: (fragment_id+1)*self.fragment_length*1000]
+            fragment = audio[
+                fragment_id * self.fragment_length * 1000 : (fragment_id + 1) * self.fragment_length * 1000
+            ]
             fragment.export(fragment_path, format=audio_format)
             yield fragment_path
 

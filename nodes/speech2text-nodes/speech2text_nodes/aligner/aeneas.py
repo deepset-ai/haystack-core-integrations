@@ -29,12 +29,12 @@ class AeneasTranscriptAligner(BaseTranscriptAligner):
 
     def __init__(self):
         super().__init__()
-        self.task = Task(config_string=u"task_language=eng|is_text_type=plain|os_task_file_format=json")
+        self.task = Task(config_string="task_language=eng|is_text_type=plain|os_task_file_format=json")
 
     def align(self, document: Document):
         # This step seems to be unavoidable :(
         transcript_path = Path(f"/tmp/{document.meta['name']}_transcript.txt")
-        with open(transcript_path, 'w') as tf:
+        with open(transcript_path, "w") as tf:
             tf.write(deepcopy(document.content).replace(" ", "\n"))
 
         raw_alignments = self._align(audio_file=document.content, transcript_file=transcript_path)
@@ -44,11 +44,11 @@ class AeneasTranscriptAligner(BaseTranscriptAligner):
         for raw_alignment in raw_alignments:
             if raw_alignment["lines"]:
                 word = raw_alignment["lines"][0]
-                word_len = len(word) + 1   # 1 for the whitespace
+                word_len = len(word) + 1  # 1 for the whitespace
                 alignment = AudioTranscriptionAlignment(
-                    offset_audio=Span(int(float(raw_alignment["begin"]) * 1000),int(float(raw_alignment["end"]) * 1000)),
-                    offset_text=Span(accumulator, accumulator+word_len),
-                    aligned_string=word
+                    Span(int(float(raw_alignment["begin"]) * 1000), int(float(raw_alignment["end"]) * 1000)),
+                    Span(accumulator, accumulator + word_len),
+                    word,
                 )
                 alignments.append(alignment)
                 accumulator += word_len

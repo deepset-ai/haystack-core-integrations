@@ -23,19 +23,19 @@ repos:
   rev: 22.8.0  # IMPORTANT: keep this aligned with the black version in pyproject.toml
   hooks:
   - id: black-jupyter
-    files: nodes/text2speech-nodes/
+    files: nodes/speech2text-nodes/
 
 - repo: https://github.com/pre-commit/mirrors-mypy
   rev: 'v0.971'
   hooks:
   - id: mypy
-    files: nodes/text2speech-nodes/
+    files: nodes/speech2text-nodes/
 
 - repo: local
   hooks:
     - id: yaml-schema
       name: YAML Schema
-      entry: .github/utils/generate_json_schema.py --folder-name text2speech-nodes --module text2speech_nodes
+      entry: .github/utils/generate_json_schema.py --folder-name speech2text-nodes --module speech2text_nodes
       language: script
       types: [bash]
       always_run: true
@@ -49,5 +49,5 @@ repos:
 #         [
 #           "-ry",
 #           "-j 0",
-#           "nodes/text2speech-nodes/text2speech_nodes"
+#           "nodes/text2speech-nodes/speech2text_nodes"
 #         ]
