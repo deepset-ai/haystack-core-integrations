@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from speech2text.transcriber import Wav2VecTranscriber
+from speech2text.transcriber import Wav2VecTranscriber, WhisperTranscriber
 from speech2text.errors import SpeechToTextNodeError
 
 
@@ -13,7 +13,7 @@ SAMPLES_PATH = Path(__file__).parent / "samples"
 
 
 @pytest.mark.integration
-class TestTranscriber:
+class TestWav2VecTranscriber:
 
     def test_transcribe(self):
         transcriber = Wav2VecTranscriber()
@@ -25,3 +25,11 @@ class TestTranscriber:
         transcriber.transcribe(SAMPLES_PATH / "answer.wav")
         with pytest.raises(SpeechToTextNodeError):
             transcriber.transcribe(SAMPLES_PATH / "answer.mp3")
+
+
+@pytest.mark.integration
+class TestWhisperTranscriber:
+
+    def test_transcribe(self):
+        transcriber = WhisperTranscriber()
+        assert transcriber.transcribe(SAMPLES_PATH / "this is the content of the document.wav").lower() == "this is the content of the document"
