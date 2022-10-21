@@ -1,7 +1,7 @@
-# text2audio
+# text2speech
 
-[![PyPI - Version](https://img.shields.io/pypi/v/text2audio.svg)](https://pypi.org/project/text2audio)
-[![PyPI - Python Version](https://img.shields.io/pypi/pyversions/text2audio.svg)](https://pypi.org/project/text2audio)
+[![PyPI - Version](https://img.shields.io/pypi/v/text2speech.svg)](https://pypi.org/project/text2speech)
+[![PyPI - Python Version](https://img.shields.io/pypi/pyversions/text2speech.svg)](https://pypi.org/project/text2speech)
 
 -----
 
