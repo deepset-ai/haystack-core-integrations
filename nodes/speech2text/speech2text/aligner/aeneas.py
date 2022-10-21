@@ -8,11 +8,11 @@ try:
     from aeneas.executetask import ExecuteTask
     from aeneas.task import Task
 except ImportError as e:
-    raise ImportError(
+    logging.exception(
         "'aeneas' not found. To use AeneasTranscriptAligner, please install aeneas with `pip install aeneas`. "
         "Make sure you install also the additional dependencies as explained here: "
-        "https://github.com/readbeyond/aeneas/blob/master/wiki/INSTALL.md#manual-procedure"
-    ) from e
+        "https://github.com/readbeyond/aeneas/blob/master/wiki/INSTALL.md#manual-procedure", e
+    )
 
 from haystack import Span, Document
 
