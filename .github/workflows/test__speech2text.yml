@@ -74,6 +74,7 @@ jobs:
           sudo apt-get install libsndfile1 ffmpeg
           wget https://raw.githubusercontent.com/readbeyond/aeneas/master/install_dependencies.sh
           bash install_dependencies.sh
+          rm install_dependencies.sh
 
       - name: Install Haystack
         run: pip install ${{ env.PACKAGE }}[whisper,wav2vec,aeneas,dev]
@@ -112,6 +113,7 @@ jobs:
         sudo apt-get install libsndfile1 ffmpeg
         wget https://raw.githubusercontent.com/readbeyond/aeneas/master/install_dependencies.sh
         bash install_dependencies.sh
+        rm install_dependencies.sh
 
     - name: Install Haystack
       run: pip install ${{ env.PACKAGE }}[whisper,wav2vec,aeneas,dev]
@@ -146,6 +148,7 @@ jobs:
           sudo apt-get install libsndfile1 ffmpeg
           wget https://raw.githubusercontent.com/readbeyond/aeneas/master/install_dependencies.sh
           bash install_dependencies.sh
+          rm install_dependencies.sh
 
       - name: Install package
         run: pip install -U ${{ env.PACKAGE }}[whisper,wav2vec,aeneas,dev]
