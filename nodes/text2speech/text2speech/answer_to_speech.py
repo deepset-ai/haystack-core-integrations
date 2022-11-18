@@ -74,26 +74,36 @@ class AnswerToSpeech(BaseComponent):
         self.progress_bar = progress_bar
 
     def run(self, answers: List[Answer]) -> Tuple[Dict[str, List[Answer]], str]:  # type: ignore  # pylint: disable=arguments-differ
-        for answer in tqdm(answers, disable=not self.progress_bar, desc="Converting answers to audio"):
+        for answer in tqdm(
+            answers, disable=not self.progress_bar, desc="Converting answers to audio"
+        ):
 
             if isinstance(answer.answer, str):
                 answer_audio = self.converter.text_to_audio_file(
-                    text=answer.answer, generated_audio_dir=self.generated_audio_dir, **self.params
+                    text=answer.answer,
+                    generated_audio_dir=self.generated_audio_dir,
+                    **self.params
                 )
                 answer.meta["audio"] = {
                     "answer": {
                         "path": answer_audio,
-                        "format": self.params.get("audio_format", answer_audio.suffix.replace(".", "")),
+                        "format": self.params.get(
+                            "audio_format", answer_audio.suffix.replace(".", "")
+                        ),
                         "sample_rate": self.converter.model.fs,
                     }
                 }
             if isinstance(answer.context, str):
                 context_audio = self.converter.text_to_audio_file(
-                    text=answer.context, generated_audio_dir=self.generated_audio_dir, **self.params
+                    text=answer.context,
+                    generated_audio_dir=self.generated_audio_dir,
+                    **self.params
                 )
                 answer.meta["audio"]["context"] = {
                     "path": context_audio,
-                    "format": self.params.get("audio_format", context_audio.suffix.replace(".", "")),
+                    "format": self.params.get(
+                        "audio_format", context_audio.suffix.replace(".", "")
+                    ),
                     "sample_rate": self.converter.model.fs,
                 }
         return {"answers": answers}, "output_1"

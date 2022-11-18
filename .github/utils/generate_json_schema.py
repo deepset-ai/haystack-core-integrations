@@ -15,10 +15,13 @@ from pathlib import Path
 
 try:
     from importlib import metadata
-except ImportError: # for Python<3.8
+except ImportError:  # for Python<3.8
     import importlib_metadata as metadata
 
-from haystack.nodes._json_schema import find_subclasses_in_modules, create_schema_for_node_class
+from haystack.nodes._json_schema import (
+    find_subclasses_in_modules,
+    create_schema_for_node_class,
+)
 
 
 logging.basicConfig(level=logging.INFO)
@@ -27,7 +30,9 @@ logging.basicConfig(level=logging.INFO)
 BRANCH_NAME = "text2speech"  # FIXME should be main after merge
 
 
-def get_package_json_schema(title: str, description: str, module_name: str, schema_ref: str):
+def get_package_json_schema(
+    title: str, description: str, module_name: str, schema_ref: str
+):
     """
     Generate JSON schema for the custom node(s).
     """
@@ -72,7 +77,7 @@ def update_json_schema(
         title=title,
         description=description,
         module_name=module_name,
-        schema_ref=base_schema_ref + main_filename
+        schema_ref=base_schema_ref + main_filename,
     )
 
     # Update mains's schema
@@ -127,37 +132,66 @@ def generate_schema_index(
         "title": title,
         "description": description,
         "type": "object",
-        "oneOf": []
+        "oneOf": [],
     }
     with open(destination_path / index_name, "w") as json_file:
         json.dump(index, json_file, indent=2)
 
 
-
 def get_package_data(folder: str):
-    package_name = "haystack-"+folder
+    package_name = "haystack-" + folder
     meta = metadata.metadata(package_name)
     return {
         "package_name": package_name,
-        "version": metadata.version("haystack-"+folder),
+        "version": metadata.version("haystack-" + folder),
         "title": str(meta["name"]).replace("-", " ").replace("_", " "),
         "description": meta["summary"],
-        "destination_path": (Path(sys.argv[0]).parent.parent.parent / "nodes" / folder / "json-schemas").absolute()
+        "destination_path": (
+            Path(sys.argv[0]).parent.parent.parent / "nodes" / folder / "json-schemas"
+        ).absolute(),
     }
-
 
 
 if __name__ == "__main__":
 
     import argparse
 
-    parser = argparse.ArgumentParser(description='JSON Schema generator for Haystack custom node packages')
-    parser.add_argument('-f','--folder-name', dest="folder", help='Name of the folder, i.e. hello-world-node', required=True)
-    parser.add_argument('-m','--module', dest="module_name", help='Name of the module, i.e. hello_world_node', required=True)
-    parser.add_argument('-v','--version', dest="version", help='Package version')
-    parser.add_argument('-t','--title', dest="title", help='Schema title, i.e. "My Haystack Hello World Node"')
-    parser.add_argument('-d','--description', dest="description", help='Schema description, i.e. "JSON schemas for Haystack nodes that can be used to greet the world."')
-    parser.add_argument('-o','--output-path', dest="destination_path", help='Path where to save the generated schemas (usually <your package>/json-schemas)')
+    parser = argparse.ArgumentParser(
+        description="JSON Schema generator for Haystack custom node packages"
+    )
+    parser.add_argument(
+        "-f",
+        "--folder-name",
+        dest="folder",
+        help="Name of the folder, i.e. hello-world-node",
+        required=True,
+    )
+    parser.add_argument(
+        "-m",
+        "--module",
+        dest="module_name",
+        help="Name of the module, i.e. hello_world_node",
+        required=True,
+    )
+    parser.add_argument("-v", "--version", dest="version", help="Package version")
+    parser.add_argument(
+        "-t",
+        "--title",
+        dest="title",
+        help='Schema title, i.e. "My Haystack Hello World Node"',
+    )
+    parser.add_argument(
+        "-d",
+        "--description",
+        dest="description",
+        help='Schema description, i.e. "JSON schemas for Haystack nodes that can be used to greet the world."',
+    )
+    parser.add_argument(
+        "-o",
+        "--output-path",
+        dest="destination_path",
+        help="Path where to save the generated schemas (usually <your package>/json-schemas)",
+    )
     params = vars(parser.parse_args())
 
     package_data = get_package_data(folder=params["folder"])

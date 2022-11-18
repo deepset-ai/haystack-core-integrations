@@ -14,11 +14,12 @@ SAMPLES_PATH = Path(__file__).parent / "samples"
 
 @pytest.mark.integration
 class TestWav2VecTranscriber:
-
     def test_transcribe(self):
         transcriber = Wav2VecTranscriber()
-        assert transcriber.transcribe(SAMPLES_PATH / "this is the content of the document.wav").lower() == "this is the content of the document"
-
+        assert (
+            transcriber.transcribe(SAMPLES_PATH / "this is the content of the document.wav").lower()
+            == "this is the content of the document"
+        )
 
     def test_transcribe_supported_formats(self):
         transcriber = Wav2VecTranscriber()
@@ -29,7 +30,9 @@ class TestWav2VecTranscriber:
 
 @pytest.mark.integration
 class TestWhisperTranscriber:
-
     def test_transcribe(self):
         transcriber = WhisperTranscriber()
-        assert transcriber.transcribe(SAMPLES_PATH / "this is the content of the document.wav").lower() == "this is the content of the document"
+        assert (
+            transcriber.transcribe(SAMPLES_PATH / "this is the content of the document.wav").lower()
+            == "this is the content of the document"
+        )

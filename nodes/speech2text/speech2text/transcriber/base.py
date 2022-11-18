@@ -8,7 +8,6 @@ from haystack import Document
 from haystack.nodes import BaseComponent
 
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -34,12 +33,8 @@ class BaseSpeechTranscriber(BaseComponent):
                     content_type="text",
                     meta={
                         "name": str(audio_file),
-                        "audio": {
-                            "content": {
-                                "path": audio_file
-                            }
-                        }
-                    }
+                        "audio": {"content": {"path": audio_file}},
+                    },
                 )
             )
 

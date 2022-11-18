@@ -11,7 +11,8 @@ except ImportError as e:
     logging.exception(
         "'aeneas' not found. To use AeneasTranscriptAligner, please install aeneas with `pip install aeneas`. "
         "Make sure you install also the additional dependencies as explained here: "
-        "https://github.com/readbeyond/aeneas/blob/master/wiki/INSTALL.md#manual-procedure", e
+        "https://github.com/readbeyond/aeneas/blob/master/wiki/INSTALL.md#manual-procedure",
+        e,
     )
 
 from haystack import Span, Document
@@ -37,7 +38,10 @@ class AeneasTranscriptAligner(BaseTranscriptAligner):
         with open(transcript_path, "w") as tf:
             tf.write(deepcopy(document.content).replace(" ", "\n"))
 
-        raw_alignments = self._align(audio_file=Path(document.meta["audio"]["content"]["path"]), transcript_file=transcript_path)
+        raw_alignments = self._align(
+            audio_file=Path(document.meta["audio"]["content"]["path"]),
+            transcript_file=transcript_path,
+        )
 
         accumulator = 0
         alignments = []
@@ -46,7 +50,10 @@ class AeneasTranscriptAligner(BaseTranscriptAligner):
                 word = raw_alignment["lines"][0]
                 word_len = len(word) + 1  # 1 for the whitespace
                 alignment = AudioTranscriptionAlignment(
-                    Span(int(float(raw_alignment["begin"]) * 1000), int(float(raw_alignment["end"]) * 1000)),
+                    Span(
+                        int(float(raw_alignment["begin"]) * 1000),
+                        int(float(raw_alignment["end"]) * 1000),
+                    ),
                     Span(accumulator, accumulator + word_len),
                     word,
                 )
