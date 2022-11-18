@@ -4,10 +4,17 @@ import math
 import logging
 from pathlib import Path
 
-from tqdm import tqdm
-from pydub import AudioSegment
-import librosa
-from transformers import Wav2Vec2ForCTC, Wav2Vec2Tokenizer
+import torch
+
+try:
+    from tqdm import tqdm
+    from pydub import AudioSegment
+    import librosa
+    from transformers import Wav2Vec2ForCTC, Wav2Vec2Tokenizer
+except ImportError as e:
+    raise ImportError(
+        "Wav2Vec is missing some dependencies. Install this package again with `pip install 'haystack-speech2text[wav2vec]'`"
+    )
 
 from speech2text.transcriber.base import BaseSpeechTranscriber
 from speech2text.errors import SpeechToTextNodeError
@@ -20,7 +27,6 @@ class Wav2VecTranscriber(BaseSpeechTranscriber):
     """
     Converts audio containing speech into its trascription using HF models.
     Tested with `facebook/wav2vec-base-960`
-    (TODO try models that predict punctuation like `boris/xlsr-en-punctuation`)
 
     Returns the transcript.
     """
