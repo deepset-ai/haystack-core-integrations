@@ -56,12 +56,6 @@ jobs:
         cd ${{ env.PACKAGE }}
         pylint -ry -j 0 text2speech/
 
-    # - uses: act10ns/slack@v1
-    #   with:
-    #     status: ${{ job.status }}
-    #     channel: '#haystack'
-    #   if: failure() && github.repository_owner == 'deepset-ai' && github.ref == 'refs/heads/main'
-
   unit-tests:
     name: Unit / ${{ matrix.os }}
     needs:
@@ -86,11 +80,6 @@ jobs:
       - name: Run
         run: pytest ${{ env.PYTEST_PARAMS }} -m "unit" ${{ env.PACKAGE }}
 
-      # - uses: act10ns/slack@v1
-      #   with:
-      #     status: ${{ job.status }}
-      #     channel: '#haystack'
-      #   if: failure() && github.repository_owner == 'deepset-ai' && github.ref == 'refs/heads/main'
 
   integration-tests:
     name: Integration / ${{ matrix.os }}
@@ -125,12 +114,6 @@ jobs:
       run: |
         pytest ${{ env.PYTEST_PARAMS }} -m "integration" ${{ env.PACKAGE }}
 
-    # - uses: act10ns/slack@v1
-    #   with:
-    #     status: ${{ job.status }}
-    #     channel: '#haystack'
-    #   if: failure() && github.repository_owner == 'deepset-ai' && github.ref == 'refs/heads/main'
-
 
   yaml-schema:
     runs-on: ubuntu-latest
@@ -150,7 +133,7 @@ jobs:
         run: pip install -U ${{ env.PACKAGE }}[dev]
 
       - name: Update pipeline YAML schemas
-        run: python .github/utils/generate_json_schema.py -o ${{ env.PACKAGE }}/json-schemas -v 0.0.1 -t "text2speech nodes schema" -d "schema for text2speech nodes" -p text2speech -m text2speech
+        run: python .github/utils/generate_json_schema.py -f text2speech -m text2speech
 
       - name: Check status
         run: |

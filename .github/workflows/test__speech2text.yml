@@ -82,12 +82,6 @@ jobs:
       - name: Run
         run: pytest ${{ env.PYTEST_PARAMS }} -m "unit" ${{ env.PACKAGE }}
 
-      # - uses: act10ns/slack@v1
-      #   with:
-      #     status: ${{ job.status }}
-      #     channel: '#haystack'
-      #   if: failure() && github.repository_owner == 'deepset-ai' && github.ref == 'refs/heads/main'
-
   integration-tests:
     name: Integration / ${{ matrix.os }}
     needs:
@@ -123,13 +117,6 @@ jobs:
         TOKENIZERS_PARALLELISM: 'false'  # Avoid logspam by tokenizers
       run: |
         pytest ${{ env.PYTEST_PARAMS }} -m "integration" ${{ env.PACKAGE }}
-
-    # - uses: act10ns/slack@v1
-    #   with:
-    #     status: ${{ job.status }}
-    #     channel: '#haystack'
-    #   if: failure() && github.repository_owner == 'deepset-ai' && github.ref == 'refs/heads/main'
-
 
   yaml-schema:
     runs-on: ubuntu-latest
