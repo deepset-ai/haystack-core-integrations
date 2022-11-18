@@ -18,7 +18,7 @@ class BaseSpeechTranscriber(BaseComponent):
 
     outgoing_edges = 1
 
-    def run(self, file_paths: List[Path]):  # type: ignore  # pylint: ignore
+    def run(self, file_paths: List[Path]):  # type: ignore  # pylint: disable:arguments-differ
         documents = []
         for audio_file in file_paths:
 
@@ -40,7 +40,7 @@ class BaseSpeechTranscriber(BaseComponent):
 
         return {"documents": documents}, "output_1"
 
-    def run_batch(self, *args, **kwargs):  # pylint: ignore
+    def run_batch(self, *args, **kwargs):  # pylint: disable:arguments-differ
         raise NotImplementedError()
 
     @abstractmethod
