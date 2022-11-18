@@ -34,7 +34,7 @@ repos:
 - repo: local
   hooks:
     - id: yaml-schema
-      name: YAML Schema
+      name: yaml-schema
       entry: .github/utils/generate_json_schema.py --folder-name speech2text --module speech2text
       language: script
       types: [bash]
