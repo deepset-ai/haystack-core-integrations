@@ -68,6 +68,9 @@ jobs:
         with:
           package: ${{ env.PACKAGE }}
 
+      - name: Install sndfile
+        run: sudo apt update && sudo apt-get install libsndfile1 ffmpeg
+
       - name: Install Haystack
         run: pip install ${{ env.PACKAGE }}[dev]
 
