@@ -43,8 +43,8 @@ class AeneasTranscriptAligner(BaseTranscriptAligner):
         with TemporaryDirectory() as tempdir_name:
             # This step seems to be unavoidable :(
             transcript_path = Path(f"{tempdir_name}/aeneas_transcript.txt")
-            with open(transcript_path, "w") as tf:
-                tf.write(deepcopy(document.content).replace(" ", "\n"))
+            with open(transcript_path, "w", encoding="utf-8") as temp_file:
+                temp_file.write(deepcopy(document.content).replace(" ", "\n"))
 
             raw_alignments = self._align(
                 audio_file=Path(document.meta["audio"]["content"]["path"]),

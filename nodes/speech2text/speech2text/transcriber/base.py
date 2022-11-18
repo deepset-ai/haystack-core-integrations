@@ -18,7 +18,7 @@ class BaseSpeechTranscriber(BaseComponent):
 
     outgoing_edges = 1
 
-    def run(self, file_paths: List[Path]):  # type: ignore  # pylint: disable:arguments-differ
+    def run(self, file_paths: List[Path]):  # type: ignore  # pylint: disable=arguments-differ
         documents = []
         for audio_file in file_paths:
 
@@ -40,7 +40,7 @@ class BaseSpeechTranscriber(BaseComponent):
 
         return {"documents": documents}, "output_1"
 
-    def run_batch(self, *args, **kwargs):  # pylint: disable:arguments-differ
+    def run_batch(self, *args, **kwargs):  # pylint: disable=arguments-differ
         raise NotImplementedError()
 
     @abstractmethod
@@ -49,11 +49,9 @@ class BaseSpeechTranscriber(BaseComponent):
         Chunks the audio into smaller chunks that can be processed by the transcriber model.
         If the model can handle any length, implement with `yield path`.
         """
-        pass
 
     @abstractmethod
     def transcribe(self, audio_file: Path, sample_rate=16000) -> str:
         """
         Performs the actual transcription.
         """
-        pass

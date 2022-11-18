@@ -31,12 +31,12 @@ class BaseTranscriptAligner(BaseComponent):
 
     outgoing_edges = 1
 
-    def run(self, documents: List[Document]):  # type: ignore  # pylint: disable:arguments-differ
+    def run(self, documents: List[Document]):  # type: ignore  # pylint: disable=arguments-differ
         for document in tqdm(documents):
             document.meta["alignment"] = self.align(document)
         return {"documents": documents}, "output_1"
 
-    def run_batch(self, documents: List[List[Document]]):  # type: ignore  # pylint: disable:arguments-differ
+    def run_batch(self, documents: List[List[Document]]):  # type: ignore  # pylint: disable=arguments-differ
         for document_list in documents:
             for document in tqdm(document_list):
                 document.meta["alignment"] = self.align(document)
@@ -47,4 +47,3 @@ class BaseTranscriptAligner(BaseComponent):
         """
         Create a list of alignment units matching each word with its position in the original audio.
         """
-        pass

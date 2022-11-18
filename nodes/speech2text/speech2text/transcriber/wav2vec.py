@@ -63,7 +63,7 @@ class Wav2VecTranscriber(BaseSpeechTranscriber):
 
         input_values = self.tokenizer(input_audio, return_tensors="pt").input_values
         logits = self.model(input_values).logits
-        predicted_ids = torch.argmax(logits, dim=-1)
+        predicted_ids = torch.argmax(logits, dim=-1)  # pylint: disable=no-member
         transcription = self.tokenizer.batch_decode(predicted_ids)[0]
         return transcription
 
