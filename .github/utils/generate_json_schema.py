@@ -31,14 +31,16 @@ BRANCH_NAME = "text2speech"  # FIXME should be main after merge
 
 
 def get_package_json_schema(
-    title: str, description: str, module_name: str, schema_ref: str
+    title: str, description: str, module_names: List[str], schema_ref: str
 ):
     """
     Generate JSON schema for the custom node(s).
     """
     # List all known nodes in the given modules
-    importlib.import_module(module_name)
-    possible_node_classes = find_subclasses_in_modules(importable_modules=[module_name])
+    possible_node_classes = []
+    for module_name in module_names:
+        importlib.import_module(module_name)
+        possible_node_classes += find_subclasses_in_modules(importable_modules=[module_name])
 
     # Build the definitions and refs for the nodes
     schema_definitions = []
@@ -63,7 +65,7 @@ def update_json_schema(
     title: str,
     description: str,
     package_name: str,
-    module_name: str,
+    module_names: str,
 ):
     """
     If the version contains "rc", only update main's schema.
@@ -76,7 +78,7 @@ def update_json_schema(
     package_schema = get_package_json_schema(
         title=title,
         description=description,
-        module_name=module_name,
+        module_names=module_names,
         schema_ref=base_schema_ref + main_filename,
     )
 
@@ -168,32 +170,11 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "-m",
-        "--module",
-        dest="module_name",
+        "--modules",
+        dest="module_names",
         help="Name of the module, i.e. hello_world_node",
         required=True,
     )
-    parser.add_argument("-v", "--version", dest="version", help="Package version")
-    parser.add_argument(
-        "-t",
-        "--title",
-        dest="title",
-        help='Schema title, i.e. "My Haystack Hello World Node"',
-    )
-    parser.add_argument(
-        "-d",
-        "--description",
-        dest="description",
-        help='Schema description, i.e. "JSON schemas for Haystack nodes that can be used to greet the world."',
-    )
-    parser.add_argument(
-        "-o",
-        "--output-path",
-        dest="destination_path",
-        help="Path where to save the generated schemas (usually <your package>/json-schemas)",
-    )
     params = vars(parser.parse_args())
-
     package_data = get_package_data(folder=params["folder"])
-
-    update_json_schema(**package_data, module_name=params["module_name"])
+    update_json_schema(**package_data, module_names=params["module_names"].split(","))

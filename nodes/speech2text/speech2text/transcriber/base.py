@@ -18,12 +18,12 @@ class BaseSpeechTranscriber(BaseComponent):
 
     outgoing_edges = 1
 
-    def run(self, file_paths: List[Path]):  # type: ignore
+    def run(self, file_paths: List[Path]):  # type: ignore  # pylint: ignore
         documents = []
         for audio_file in file_paths:
 
             complete_transcript = ""
-            logger.info(f"Processing {audio_file}")
+            logger.info("Processing %s", audio_file)
             for fragment_file in self.chunk(audio_file):
                 complete_transcript += self.transcribe(fragment_file)
 
@@ -40,13 +40,20 @@ class BaseSpeechTranscriber(BaseComponent):
 
         return {"documents": documents}, "output_1"
 
-    def run_batch(self):
-        raise NotImplemented
+    def run_batch(self, *args, **kwargs):  # pylint: ignore
+        raise NotImplementedError()
 
     @abstractmethod
     def chunk(self, path: Path):
+        """
+        Chunks the audio into smaller chunks that can be processed by the transcriber model.
+        If the model can handle any length, implement with `yield path`.
+        """
         pass
 
     @abstractmethod
     def transcribe(self, audio_file: Path, sample_rate=16000) -> str:
+        """
+        Performs the actual transcription.
+        """
         pass

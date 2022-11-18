@@ -15,9 +15,13 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class AudioTranscriptionAlignment:
-    offset_audio: Span
-    offset_text: Span
-    aligned_string: str
+    """
+    Dataclass representing an alignment unit with its position in the text, in the audio, and the aligned text itself
+    """
+
+    position_audio: Span
+    position_text: Span
+    aligned_text: str
 
 
 class BaseTranscriptAligner(BaseComponent):
@@ -27,12 +31,12 @@ class BaseTranscriptAligner(BaseComponent):
 
     outgoing_edges = 1
 
-    def run(self, documents: List[Document]):  # type: ignore
+    def run(self, documents: List[Document]):  # type: ignore  # pylint: ignore
         for document in tqdm(documents):
             document.meta["alignment"] = self.align(document)
         return {"documents": documents}, "output_1"
 
-    def run_batch(self, documents: List[List[Document]]):
+    def run_batch(self, documents: List[List[Document]]):  # type: ignore  # pylint: ignore
         for document_list in documents:
             for document in tqdm(document_list):
                 document.meta["alignment"] = self.align(document)
@@ -40,4 +44,7 @@ class BaseTranscriptAligner(BaseComponent):
 
     @abstractmethod
     def align(self, document: Document):
+        """
+        Create a list of alignment units matching each word with its position in the original audio.
+        """
         pass

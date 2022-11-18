@@ -150,7 +150,7 @@ jobs:
         run: pip install -U ${{ env.PACKAGE }}[dev]
 
       - name: Update pipeline YAML schemas
-        run: python .github/utils/generate_json_schema.py -o ${{ env.PACKAGE }}/json-schemas -v 0.0.1 -t "speech2text nodes schema" -d "schema for speech2text nodes" -p speech2text -m speech2text
+        run: python .github/utils/generate_json_schema.py -f speech2text -m=speech2text.transcriber,speech2text.aligner
 
       - name: Check status
         run: |
