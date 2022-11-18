@@ -108,7 +108,7 @@ class AnswerToSpeech(BaseComponent):
                 }
         return {"answers": answers}, "output_1"
 
-    def run_batch(self, answers: List[List[Answer]]) -> Tuple[Dict[str, List[List[Answer]]], str]:  # type: ignore
+    def run_batch(self, answers: List[List[Answer]]) -> Tuple[Dict[str, List[List[Answer]]], str]:  # type: ignore  # pylint: disable=arguments-differ
         results: Dict[str, List[List[Answer]]] = {"answers": []}
         for answers_list in answers:
             results["answers"].append(self.run(answers_list)[0]["answers"])
