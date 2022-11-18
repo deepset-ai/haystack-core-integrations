@@ -35,12 +35,6 @@ jobs:
       # We should see if there's a better way than --ignore-missing-imports
       run: mypy ${{ env.PACKAGE }} --ignore-missing-imports
 
-    # - uses: act10ns/slack@v1
-    #   with:
-    #     status: ${{ job.status }}
-    #     channel: '#haystack'
-    #   if: failure() && github.repository_owner == 'deepset-ai' && github.ref == 'refs/heads/main'
-
   pylint:
     runs-on: ubuntu-latest
     steps:
@@ -55,12 +49,6 @@ jobs:
       run: |
         cd ${{ env.PACKAGE }}
         pylint -ry -j 0 speech2text/
-
-    # - uses: act10ns/slack@v1
-    #   with:
-    #     status: ${{ job.status }}
-    #     channel: '#haystack'
-    #   if: failure() && github.repository_owner == 'deepset-ai' && github.ref == 'refs/heads/main'
 
   unit-tests:
     name: Unit / ${{ matrix.os }}
@@ -80,8 +68,15 @@ jobs:
         with:
           package: ${{ env.PACKAGE }}
 
+      - name: Install audio libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install libsndfile1 ffmpeg
+          wget https://raw.githubusercontent.com/readbeyond/aeneas/master/install_dependencies.sh
+          bash install_dependencies.sh
+
       - name: Install Haystack
-        run: pip install ${{ env.PACKAGE }}[dev]
+        run: pip install ${{ env.PACKAGE }}[whisper,wav2vec,aeneas,dev]
 
       - name: Run
         run: pytest ${{ env.PYTEST_PARAMS }} -m "unit" ${{ env.PACKAGE }}
@@ -115,9 +110,11 @@ jobs:
       run: |
         sudo apt-get update
         sudo apt-get install libsndfile1 ffmpeg
+        wget https://raw.githubusercontent.com/readbeyond/aeneas/master/install_dependencies.sh
+        bash install_dependencies.sh
 
     - name: Install Haystack
-      run: pip install ${{ env.PACKAGE }}[dev]
+      run: pip install ${{ env.PACKAGE }}[whisper,wav2vec,aeneas,dev]
 
     - name: Run tests
       env:
@@ -143,8 +140,12 @@ jobs:
         with:
           package: ${{ env.PACKAGE }}
 
-      - name: Install sndfile
-        run: sudo apt update && sudo apt-get install libsndfile1 ffmpeg
+      - name: Install audio libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install libsndfile1 ffmpeg
+          wget https://raw.githubusercontent.com/readbeyond/aeneas/master/install_dependencies.sh
+          bash install_dependencies.sh
 
       - name: Install package
         run: pip install -U ${{ env.PACKAGE }}[whisper,wav2vec,aeneas,dev]
