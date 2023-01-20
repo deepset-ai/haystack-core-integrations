@@ -48,7 +48,7 @@ jobs:
             echo "# "
             echo "# Please generate the new schemas locally:"
             echo "# "
-            echo "#     python .github/utils/generate_json_schema.py -f text2speech -m text2speech
+            echo "#     python .github/utils/generate_json_schema.py -f text2speech -m text2speech"
             echo "# "
             echo "# Or see https://github.com/deepset-ai/haystack/blob/main/CONTRIBUTING.md for help."
             echo "# "
