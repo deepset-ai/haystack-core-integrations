@@ -111,6 +111,7 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest]  # windows-latest --> No audio deps available for Windows.
     runs-on: ${{ matrix.os }}
+
     steps:
       - uses: actions/checkout@v2
 
@@ -119,10 +120,16 @@ jobs:
         with:
           package: ${{ env.PACKAGE }}
 
-      - name: Install audio libraries
+      - name: Install Linux audio libraries
+        if: matrix.os == "ubuntu-latest"
         run: |
           sudo apt-get update
           sudo apt-get install libsndfile1 ffmpeg
+
+      - name: Install Mac audio libraries
+        if: matrix.os == "macos-latest"
+        run: |
+          brew install libsndfile ffmpeg
 
       - name: Install Haystack
         run: |
@@ -151,10 +158,16 @@ jobs:
       with:
         package: ${{ env.PACKAGE }}
 
-    - name: Install audio libraries
+    - name: Install Linux audio libraries
+      if: matrix.os == "ubuntu-latest"
       run: |
         sudo apt-get update
         sudo apt-get install libsndfile1 ffmpeg
+
+    - name: Install Mac audio libraries
+      if: matrix.os == "macos-latest"
+      run: |
+        brew install libsndfile ffmpeg
 
     - name: Install Haystack
       run: |
