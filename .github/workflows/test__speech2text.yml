@@ -76,10 +76,8 @@ jobs:
         pip install git+https://github.com/openai/whisper.git
 
     - name: Mypy
-      # NOTE: https://mypy.readthedocs.io/en/stable/running_mypy.html#missing-library-stubs-or-py-typed-marker
-      # FIXME --install-types does not work properly yet, see https://github.com/python/mypy/issues/10600
-      # We should see if there's a better way than --ignore-missing-imports
-      run: mypy --install-types --non-interactive ${{ env.PACKAGE }} --exclude=tests/ --exclude=json_schemas/
+      # Haystack does not provide type stubs, so --ignore-missing-imports is necessary
+      run: mypy --install-types --non-interactive ${{ env.PACKAGE }} --exclude=tests/ --exclude=json_schemas/ --ignore-missing-imports
 
   pylint:
     runs-on: ubuntu-latest

@@ -50,4 +50,4 @@ class BaseSpeechTranscriber(BaseComponent):
         """
         Performs the actual transcription.
         """
-        pass
+        raise NotImplementedError()
