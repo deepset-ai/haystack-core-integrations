@@ -33,7 +33,9 @@ jobs:
           sudo apt-get install libsndfile1 ffmpeg
 
       - name: Install package
-        run: pip install -U ${{ env.PACKAGE }}[dev]
+        run: |
+          pip install ${{ env.PACKAGE }}[dev]
+          pip install git+https://github.com/openai/whisper.git
 
       - name: Update pipeline YAML schemas
         run: python .github/utils/generate_json_schema.py -f speech2text -m=speech2text.transcriber
