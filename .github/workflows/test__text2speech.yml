@@ -12,7 +12,7 @@ on:
 
 env:
   PACKAGE: nodes/text2speech/
-  PYTEST_PARAMS: --maxfail=5 --durations=10
+  PYTEST_PARAMS: --maxfail=5 --durations=10 --suppress-no-test-exit-code
 
 jobs:
 
