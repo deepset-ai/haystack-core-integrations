@@ -16,102 +16,6 @@ env:
 
 jobs:
 
-  mypy:
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v2
-
-    - name: Setup Python
-      uses: ./.github/actions/python_cache/
-      with:
-        package: ${{ env.PACKAGE }}
-
-    - name: Install dependencies
-      run: pip install ${{ env.PACKAGE }}[dev]
-
-    - name: Mypy
-      # NOTE: https://mypy.readthedocs.io/en/stable/running_mypy.html#missing-library-stubs-or-py-typed-marker
-      # FIXME --install-types does not work properly yet, see https://github.com/python/mypy/issues/10600
-      # We should see if there's a better way than --ignore-missing-imports
-      run: mypy ${{ env.PACKAGE }} --ignore-missing-imports
-
-  pylint:
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v2
-
-    - name: Setup Python
-      uses: ./.github/actions/python_cache/
-      with:
-        package: ${{ env.PACKAGE }}
-
-    - name: Pylint
-      run: |
-        cd ${{ env.PACKAGE }}
-        pylint -ry -j 0 text2speech/
-
-  unit-tests:
-    name: Unit / ${{ matrix.os }}
-    needs:
-      - mypy
-      - pylint
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, macos-latest]  # windows-latest --> No audio deps available for Windows.
-    runs-on: ${{ matrix.os }}
-    steps:
-      - uses: actions/checkout@v2
-
-      - name: Setup Python
-        uses: ./.github/actions/python_cache/
-        with:
-          package: ${{ env.PACKAGE }}
-
-      - name: Install sndfile
-        run: sudo apt update && sudo apt-get install libsndfile1 ffmpeg
-
-      - name: Install Haystack
-        run: pip install ${{ env.PACKAGE }}[dev]
-
-      - name: Run
-        run: pytest ${{ env.PYTEST_PARAMS }} -m "unit" ${{ env.PACKAGE }}
-
-
-  integration-tests:
-    name: Integration / ${{ matrix.os }}
-    needs:
-      - unit-tests
-    timeout-minutes: 60
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, macos-latest]  # windows-latest --> No audio deps available for Windows.
-    runs-on: ${{ matrix.os }}
-
-    steps:
-    - uses: actions/checkout@v2
-
-    - name: Setup Python
-      uses: ./.github/actions/python_cache/
-      with:
-        package: ${{ env.PACKAGE }}
-
-    - name: Install audio libraries
-      run: |
-        sudo apt-get update
-        sudo apt-get install libsndfile1 ffmpeg
-
-    - name: Install Haystack
-      run: pip install ${{ env.PACKAGE }}[dev]
-
-    - name: Run tests
-      env:
-        TOKENIZERS_PARALLELISM: 'false'  # Avoid logspam by tokenizers
-      run: |
-        pytest ${{ env.PYTEST_PARAMS }} -m "integration" ${{ env.PACKAGE }}
-
-
   yaml-schema:
     runs-on: ubuntu-latest
     steps:
@@ -144,7 +48,7 @@ jobs:
             echo "# "
             echo "# Please generate the new schemas locally:"
             echo "# "
-            echo "#     python .github/utils/generate_json_schema.py -o ${{ env.PACKAGE }}/json-schemas -v 0.0.1 -t "text2speech nodes schema" -d "schema for text2speech nodes" -p text2speech -m text2speech"
+            echo "#     python .github/utils/generate_json_schema.py -f text2speech -m text2speech
             echo "# "
             echo "# Or see https://github.com/deepset-ai/haystack/blob/main/CONTRIBUTING.md for help."
             echo "# "
@@ -153,3 +57,101 @@ jobs:
             echo "##################################################################################################"
             exit 1
           fi
+
+  mypy:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+
+    - name: Setup Python
+      uses: ./.github/actions/python_cache/
+      with:
+        package: ${{ env.PACKAGE }}
+
+    - name: Install dependencies
+      run: pip install ${{ env.PACKAGE }}[dev]
+
+    - name: Mypy
+      # NOTE: https://mypy.readthedocs.io/en/stable/running_mypy.html#missing-library-stubs-or-py-typed-marker
+      # FIXME --install-types does not work properly yet, see https://github.com/python/mypy/issues/10600
+      # We should see if there's a better way than --ignore-missing-imports
+      run: mypy ${{ env.PACKAGE }} --ignore-missing-imports
+
+  pylint:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+
+    - name: Setup Python
+      uses: ./.github/actions/python_cache/
+      with:
+        package: ${{ env.PACKAGE }}
+
+    - name: Install dependencies
+      run: pip install ${{ env.PACKAGE }}[dev]
+
+    - name: Pylint
+      run: |
+        cd ${{ env.PACKAGE }}
+        pylint -ry -j 0 text2speech/
+
+  unit-tests:
+    name: Unit / ${{ matrix.os }}
+    needs:
+      - mypy
+      - pylint
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]  # windows-latest --> No audio deps available for Windows.
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Setup Python
+        uses: ./.github/actions/python_cache/
+        with:
+          package: ${{ env.PACKAGE }}
+
+      - name: Install sndfile
+        run: sudo apt update && sudo apt-get install libsndfile1 ffmpeg
+
+      - name: Install deps
+        run: pip install ${{ env.PACKAGE }}[dev]
+
+      - name: Run
+        run: pytest ${{ env.PYTEST_PARAMS }} -m "unit" ${{ env.PACKAGE }}
+
+
+  integration-tests:
+    name: Integration / ${{ matrix.os }}
+    needs:
+      - unit-tests
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]  # windows-latest --> No audio deps available for Windows.
+    runs-on: ${{ matrix.os }}
+
+    steps:
+    - uses: actions/checkout@v2
+
+    - name: Setup Python
+      uses: ./.github/actions/python_cache/
+      with:
+        package: ${{ env.PACKAGE }}
+
+    - name: Install audio libraries
+      run: |
+        sudo apt-get update
+        sudo apt-get install libsndfile1 ffmpeg
+
+    - name: Install deps
+      run: pip install ${{ env.PACKAGE }}[dev]
+
+    - name: Run tests
+      env:
+        TOKENIZERS_PARALLELISM: 'false'  # Avoid logspam by tokenizers
+      run: |
+        pytest ${{ env.PYTEST_PARAMS }} -m "integration" ${{ env.PACKAGE }}
