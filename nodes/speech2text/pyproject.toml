@@ -32,24 +32,12 @@ dependencies = [
   "torch",
   "pydantic",
   "torchaudio",
+  "whisper@git+https://github.com/openai/whisper.git"
 ]
 
 dynamic = ["version"]
 
 [project.optional-dependencies]
-whisper = [
-  "whisper@git+https://github.com/openai/whisper.git"
-]
-wav2vec = [
-  "transformers",
-  "librosa",
-  "pydub",
-  "tqdm"
-]
-aeneas = [
-  "aeneas"
-]
-
 dev = [
   "pre-commit",
   "mypy",

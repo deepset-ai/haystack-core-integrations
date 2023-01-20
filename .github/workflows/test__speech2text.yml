@@ -72,12 +72,9 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install libsndfile1 ffmpeg
-          wget https://raw.githubusercontent.com/readbeyond/aeneas/master/install_dependencies.sh
-          bash install_dependencies.sh
-          rm install_dependencies.sh
 
       - name: Install Haystack
-        run: pip install ${{ env.PACKAGE }}[whisper,wav2vec,aeneas,dev]
+        run: pip install ${{ env.PACKAGE }}[dev]
 
       - name: Run
         run: pytest ${{ env.PYTEST_PARAMS }} -m "unit" ${{ env.PACKAGE }}
@@ -105,12 +102,9 @@ jobs:
       run: |
         sudo apt-get update
         sudo apt-get install libsndfile1 ffmpeg
-        wget https://raw.githubusercontent.com/readbeyond/aeneas/master/install_dependencies.sh
-        bash install_dependencies.sh
-        rm install_dependencies.sh
 
     - name: Install Haystack
-      run: pip install ${{ env.PACKAGE }}[whisper,wav2vec,aeneas,dev]
+      run: pip install ${{ env.PACKAGE }}[dev]
 
     - name: Run tests
       env:
@@ -133,15 +127,12 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install libsndfile1 ffmpeg
-          wget https://raw.githubusercontent.com/readbeyond/aeneas/master/install_dependencies.sh
-          bash install_dependencies.sh
-          rm install_dependencies.sh
 
       - name: Install package
-        run: pip install -U ${{ env.PACKAGE }}[whisper,wav2vec,aeneas,dev]
+        run: pip install -U ${{ env.PACKAGE }}[dev]
 
       - name: Update pipeline YAML schemas
-        run: python .github/utils/generate_json_schema.py -f speech2text -m=speech2text.transcriber,speech2text.aligner
+        run: python .github/utils/generate_json_schema.py -f speech2text -m=speech2text.transcriber
 
       - name: Check status
         run: |
@@ -155,7 +146,7 @@ jobs:
             echo "# "
             echo "# Please generate the new schemas locally:"
             echo "# "
-            echo "#     python .github/utils/generate_json_schema.py -o ${{ env.PACKAGE }}/json-schemas -v 0.0.1 -t "speech2text nodes schema" -d "schema for speech2text nodes" -p speech2text -m speech2text"
+            echo "#     python .github/utils/generate_json_schema.py -o ${{ env.PACKAGE }}/json-schemas -v 0.0.1 -t "speech2text nodes schema" -d "schema for speech2text nodes" -p speech2text -m speech2text.transcriber"
             echo "# "
             echo "# Or see https://github.com/deepset-ai/haystack/blob/main/CONTRIBUTING.md for help."
             echo "# "

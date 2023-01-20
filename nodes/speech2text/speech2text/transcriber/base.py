@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: 2022-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
-from typing import List
+from typing import List, Dict, Any, Union
 
 from abc import abstractmethod
 import logging
@@ -25,29 +25,29 @@ class BaseSpeechTranscriber(BaseComponent):
         documents = []
         for audio_file in file_paths:
 
-            complete_transcript = ""
             logger.info("Processing %s", audio_file)
-            for fragment_file in self.chunk(audio_file):
-                complete_transcript += self.transcribe(fragment_file)
+            output = self.transcribe(audio_file)
+            transcript = output.pop("text")
 
             documents.append(
                 Document(
-                    content=complete_transcript,
+                    content=transcript,
                     content_type="text",
                     meta={
                         "name": str(audio_file),
-                        "audio": {"content": {"path": audio_file}},
+                        "audio": {"path": audio_file, **output},
                     },
                 )
             )
 
         return {"documents": documents}, "output_1"
 
-    def run_batch(self, *args, **kwargs):  # pylint: disable=arguments-differ
+    def run_batch(self):  # pylint: disable=arguments-differ
         raise NotImplementedError()
 
     @abstractmethod
-    def transcribe(self, audio_file: Path, sample_rate=16000) -> str:
+    def transcribe(self, audio_file: Union[Path, str], sample_rate=16000) -> Dict[str, Any]:
         """
         Performs the actual transcription.
         """
+        pass
