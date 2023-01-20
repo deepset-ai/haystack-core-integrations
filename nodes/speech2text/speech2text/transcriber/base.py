@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2022-present deepset GmbH <info@deepset.ai>
+#
+# SPDX-License-Identifier: Apache-2.0
 from typing import List
 
 from abc import abstractmethod
@@ -42,13 +45,6 @@ class BaseSpeechTranscriber(BaseComponent):
 
     def run_batch(self, *args, **kwargs):  # pylint: disable=arguments-differ
         raise NotImplementedError()
-
-    @abstractmethod
-    def chunk(self, path: Path):
-        """
-        Chunks the audio into smaller chunks that can be processed by the transcriber model.
-        If the model can handle any length, implement with `yield path`.
-        """
 
     @abstractmethod
     def transcribe(self, audio_file: Path, sample_rate=16000) -> str:

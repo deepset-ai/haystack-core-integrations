@@ -35,7 +35,7 @@ repos:
   hooks:
     - id: yaml-schema
       name: yaml-schema
-      entry: .github/utils/generate_json_schema.py --folder-name speech2text --modules=speech2text.transcriber,speech2text.aligner
+      entry: .github/utils/generate_json_schema.py --folder-name speech2text --modules=speech2text.transcriber
       language: script
       types: [bash]
       always_run: true
