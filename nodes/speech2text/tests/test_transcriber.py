@@ -16,6 +16,6 @@ SAMPLES_PATH = Path(__file__).parent / "samples"
 def test_transcribe():
     transcriber = WhisperTranscriber()
     assert (
-        transcriber.transcribe(SAMPLES_PATH / "this is the content of the document.wav").lower()
-        == "this is the content of the document"
+        transcriber.transcribe(SAMPLES_PATH / "this is the content of the document.wav")["text"].lower().strip()
+        == "this is the content of the document."
     )
