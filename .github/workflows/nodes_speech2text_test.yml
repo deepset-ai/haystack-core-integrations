@@ -1,0 +1,35 @@
+# SPDX-FileCopyrightText: 2022-present deepset GmbH <info@deepset.ai>
+#
+# SPDX-License-Identifier: Apache-2.0
+name: Test / speech2text
+
+on:
+  push:
+    paths:
+      - 'nodes/speech2text/**'
+      - '.github/workflows/nodes_speech2text_test.yml'
+
+env:
+  PACKAGE_DIR: nodes/speech2text/
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    container: deepset/haystack:base-cpu-main
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Install audio libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install libsndfile1 ffmpeg
+
+      - name: Install Node
+        run: |
+          pip install -e ${{ env.PACKAGE_DIR }}[dev]
+
+      - name: Run tests
+        run: |
+          pytest -m "integration" ${{ env.PACKAGE_DIR }}
