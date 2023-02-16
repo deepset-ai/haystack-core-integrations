@@ -24,7 +24,7 @@ jobs:
       - name: Install audio libraries
         run: |
           apt-get update
-          apt-get install libsndfile1 ffmpeg
+          apt-get install -y --no-install-recommends libsndfile1 ffmpeg
 
       - name: Install Node
         run: |
