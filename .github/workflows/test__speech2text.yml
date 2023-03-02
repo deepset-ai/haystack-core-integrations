@@ -4,7 +4,6 @@
 name: Test speech2text
 
 on:
-  workflow_dispatch:
   push:
     paths:
       - 'nodes/speech2text/**'
@@ -12,6 +11,7 @@ on:
 
 env:
   PACKAGE: nodes/speech2text/
+  MODULE: speech2text
   PYTEST_PARAMS: --maxfail=5 --durations=10
 
 jobs:
@@ -26,20 +26,21 @@ jobs:
       with:
         package: ${{ env.PACKAGE }}
 
+    - name: Install audio libraries
+      if: matrix.os == "ubuntu-latest"
+      run: |
+        sudo apt-get update
+        sudo apt-get install libsndfile1 ffmpeg
+
     - name: Install dependencies
       run: pip install ${{ env.PACKAGE }}[dev]
 
     - name: Mypy
-      # NOTE: https://mypy.readthedocs.io/en/stable/running_mypy.html#missing-library-stubs-or-py-typed-marker
-      # FIXME --install-types does not work properly yet, see https://github.com/python/mypy/issues/10600
-      # We should see if there's a better way than --ignore-missing-imports
-      run: mypy ${{ env.PACKAGE }} --ignore-missing-imports
+      if: steps.files.outputs.any_changed == 'true'
+      run: |
+        mkdir .mypy_cache/
+        mypy --install-types --non-interactive .
 
-    # - uses: act10ns/slack@v1
-    #   with:
-    #     status: ${{ job.status }}
-    #     channel: '#haystack'
-    #   if: failure() && github.repository_owner == 'deepset-ai' && github.ref == 'refs/heads/main'
 
   pylint:
     runs-on: ubuntu-latest
@@ -54,13 +55,8 @@ jobs:
     - name: Pylint
       run: |
         cd ${{ env.PACKAGE }}
-        pylint -ry -j 0 speech2text/
+        pylint -ry -j 0 ${{ env.MODULE }}/
 
-    # - uses: act10ns/slack@v1
-    #   with:
-    #     status: ${{ job.status }}
-    #     channel: '#haystack'
-    #   if: failure() && github.repository_owner == 'deepset-ai' && github.ref == 'refs/heads/main'
 
   unit-tests:
     name: Unit / ${{ matrix.os }}
@@ -86,11 +82,6 @@ jobs:
       - name: Run
         run: pytest ${{ env.PYTEST_PARAMS }} -m "unit" ${{ env.PACKAGE }}
 
-      # - uses: act10ns/slack@v1
-      #   with:
-      #     status: ${{ job.status }}
-      #     channel: '#haystack'
-      #   if: failure() && github.repository_owner == 'deepset-ai' && github.ref == 'refs/heads/main'
 
   integration-tests:
     name: Integration / ${{ matrix.os }}
@@ -124,52 +115,3 @@ jobs:
         TOKENIZERS_PARALLELISM: 'false'  # Avoid logspam by tokenizers
       run: |
         pytest ${{ env.PYTEST_PARAMS }} -m "integration" ${{ env.PACKAGE }}
-
-    # - uses: act10ns/slack@v1
-    #   with:
-    #     status: ${{ job.status }}
-    #     channel: '#haystack'
-    #   if: failure() && github.repository_owner == 'deepset-ai' && github.ref == 'refs/heads/main'
-
-
-  yaml-schema:
-    runs-on: ubuntu-latest
-    steps:
-
-      - uses: actions/checkout@v2
-
-      - name: Setup Python
-        uses: ./.github/actions/python_cache/
-        with:
-          package: ${{ env.PACKAGE }}
-
-      - name: Install sndfile
-        run: sudo apt update && sudo apt-get install libsndfile1 ffmpeg
-
-      - name: Install package
-        run: pip install -U ${{ env.PACKAGE }}[dev]
-
-      - name: Update pipeline YAML schemas
-        run: python .github/utils/generate_json_schema.py -o ${{ env.PACKAGE }}/json-schemas -v 0.0.1 -t "speech2text nodes schema" -d "schema for speech2text nodes" -p speech2text -m speech2text
-
-      - name: Check status
-        run: |
-          if [[ `git status --porcelain` ]]; then
-            git status
-            echo "##################################################################################################"
-            git diff
-            echo "##################################################################################################"
-            echo "# "
-            echo "# CHECK FAILED! The YAML schemas for this package were not updated."
-            echo "# "
-            echo "# Please generate the new schemas locally:"
-            echo "# "
-            echo "#     python .github/utils/generate_json_schema.py -o ${{ env.PACKAGE }}/json-schemas -v 0.0.1 -t "speech2text nodes schema" -d "schema for speech2text nodes" -p speech2text -m speech2text"
-            echo "# "
-            echo "# Or see https://github.com/deepset-ai/haystack/blob/main/CONTRIBUTING.md for help."
-            echo "# "
-            echo "# If you have further problems, please open an issue: https://github.com/deepset-ai/haystack-extras/issues"
-            echo "# "
-            echo "##################################################################################################"
-            exit 1
-          fi

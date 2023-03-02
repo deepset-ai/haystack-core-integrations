@@ -4,7 +4,6 @@
 name: Test text2speech
 
 on:
-  workflow_dispatch:
   push:
     paths:
       - 'nodes/text2speech/**'
@@ -12,6 +11,7 @@ on:
 
 env:
   PACKAGE: nodes/text2speech/
+  MODULE: text2speech
   PYTEST_PARAMS: --maxfail=5 --durations=10
 
 jobs:
@@ -55,7 +55,7 @@ jobs:
     - name: Pylint
       run: |
         cd ${{ env.PACKAGE }}
-        pylint -ry -j 0 text2speech/
+        pylint -ry -j 0 ${{ env.MODULE }}/
 
 
   unit-tests:
