@@ -2,6 +2,9 @@ name: Test / speech2text
 
 on:
   push:
+    branches:
+      - main
+  pull_request:
     paths:
       - 'nodes/speech2text/**'
       - '.github/workflows/nodes_speech2text.yml'

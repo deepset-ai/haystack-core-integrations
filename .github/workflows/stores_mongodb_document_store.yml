@@ -2,6 +2,9 @@ name: Test / MongoDBDocumentStore
 
 on:
   push:
+    branches:
+      - main
+  pull_request:
     paths:
       - 'stores/mongodb-documentstore/**'
       - '.github/workflows/stores_mongodb_document_store.yml'
