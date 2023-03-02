@@ -21,11 +21,11 @@ jobs:
 
     - name: Install audio libraries
       run: |
-        sudo apt-get update
-        sudo apt-get install libsndfile1 ffmpeg
+        apt-get update
+        apt-get install libsndfile1 ffmpeg
 
     - name: Install dependencies
-      run: pip install ${{ env.PACKAGE }}[dev]
+      run: pip install nodes/text2speech/[dev]
 
     - name: Mypy
       if: steps.files.outputs.any_changed == 'true'
@@ -43,11 +43,11 @@ jobs:
 
     - name: Install audio libraries
       run: |
-        sudo apt-get update
-        sudo apt-get install libsndfile1 ffmpeg
+        apt-get update
+        apt-get install libsndfile1 ffmpeg
 
     - name: Install dependencies
-      run: pip install ${{ env.PACKAGE }}[dev]
+      run: pip install nodes/text2speech/[dev]
 
     - name: Pylint
       run: |
@@ -63,8 +63,8 @@ jobs:
 
       - name: Install libs
         run: |
-          sudo apt-get update
-          sudo apt-get install libsndfile1 ffmpeg
+          apt-get update
+          apt-get install libsndfile1 ffmpeg
 
       - name: Install text2speech
         run: |
