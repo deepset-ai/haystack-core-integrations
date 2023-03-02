@@ -66,8 +66,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest]  # windows-latest --> No audio deps available for Windows.
+        os: [ubuntu-latest]  # windows-latest --> No audio deps available for Windows.
     runs-on: ${{ matrix.os }}
+
     steps:
       - uses: actions/checkout@v2
 
@@ -76,8 +77,15 @@ jobs:
         with:
           package: ${{ env.PACKAGE }}
 
+      - name: Install audio libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install libsndfile1 ffmpeg
+
       - name: Install Haystack
-        run: pip install ${{ env.PACKAGE }}[dev]
+        run: |
+          pip install ${{ env.PACKAGE }}[dev]
+          pip install git+https://github.com/openai/whisper.git
 
       - name: Run
         run: pytest ${{ env.PYTEST_PARAMS }} -m "unit" ${{ env.PACKAGE }}
@@ -91,7 +99,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest]  # windows-latest --> No audio deps available for Windows.
+        os: [ubuntu-latest]  # windows-latest --> No audio deps available for Windows.
     runs-on: ${{ matrix.os }}
 
     steps:
@@ -108,7 +116,9 @@ jobs:
         sudo apt-get install libsndfile1 ffmpeg
 
     - name: Install Haystack
-      run: pip install ${{ env.PACKAGE }}[dev]
+      run: |
+        pip install ${{ env.PACKAGE }}[dev]
+        pip install git+https://github.com/openai/whisper.git
 
     - name: Run tests
       env:

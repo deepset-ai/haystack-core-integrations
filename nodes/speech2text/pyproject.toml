@@ -31,10 +31,9 @@ dependencies = [
   "numpy",
   "torch",
   "pydantic",
-  "torchaudio",
-  "librosa",
-  "pydub"
+  "torchaudio"
 ]
+
 dynamic = ["version"]
 
 [project.optional-dependencies]
@@ -50,6 +49,7 @@ dev = [
   "pydoc-markdown",
   "mkdocs",
   "jupytercontrib",
+  "pytest-custom_exit_code",
 ]
 
 [project.urls]
@@ -68,6 +68,9 @@ dependencies = [
 [tool.hatch.envs.default.scripts]
 cov = "pytest --cov-report=term-missing --cov-config=pyproject.toml --cov=speech2text --cov=tests"
 no-cov = "cov --no-cov"
+
+[tool.hatch.metadata]
+allow-direct-references = true
 
 [[tool.hatch.envs.test.matrix]]
 python = ["37", "38", "39", "310", "311"]

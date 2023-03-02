@@ -73,19 +73,23 @@ class DocumentToSpeech(BaseComponent):
         for doc in tqdm(documents):
 
             content_audio = self.converter.text_to_audio_file(
-                text=doc.content, generated_audio_dir=self.generated_audio_dir, **self.params
+                text=doc.content,
+                generated_audio_dir=self.generated_audio_dir,
+                **self.params
             )
             doc.meta["audio"] = {
                 "content": {
                     "path": content_audio,
-                    "format": self.params.get("audio_format", content_audio.suffix.replace(".", "")),
+                    "format": self.params.get(
+                        "audio_format", content_audio.suffix.replace(".", "")
+                    ),
                     "sample_rate": self.converter.model.fs,
                 }
             }
 
         return {"documents": documents}, "output_1"
 
-    def run_batch(self, documents: List[List[Document]]) -> Tuple[Dict[str, List[List[Document]]], str]:  # type: ignore
+    def run_batch(self, documents: List[List[Document]]) -> Tuple[Dict[str, List[List[Document]]], str]:  # type: ignore # pylint: disable=arguments-differ
         results: Dict[str, List[List[Document]]] = {"documents": []}
         for docs_list in documents:
             results["documents"].append(self.run(docs_list)[0]["documents"])

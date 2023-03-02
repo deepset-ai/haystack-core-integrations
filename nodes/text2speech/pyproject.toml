@@ -52,6 +52,7 @@ dev = [
   "pydoc-markdown",
   "mkdocs",
   "jupytercontrib",
+  "pytest-custom_exit_code",  # used in the CI
 ]
 
 [project.urls]

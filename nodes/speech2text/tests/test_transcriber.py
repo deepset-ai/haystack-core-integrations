@@ -4,32 +4,35 @@
 from pathlib import Path
 
 import pytest
+from haystack import Document
 
-from speech2text.transcriber import Wav2VecTranscriber, WhisperTranscriber
+from speech2text.transcriber import WhisperTranscriber
 from speech2text.errors import SpeechToTextNodeError
 
 
 SAMPLES_PATH = Path(__file__).parent / "samples"
 
 
-@pytest.mark.integration
-class TestWav2VecTranscriber:
-
-    def test_transcribe(self):
-        transcriber = Wav2VecTranscriber()
-        assert transcriber.transcribe(SAMPLES_PATH / "this is the content of the document.wav").lower() == "this is the content of the document"
-
-
-    def test_transcribe_supported_formats(self):
-        transcriber = Wav2VecTranscriber()
-        transcriber.transcribe(SAMPLES_PATH / "answer.wav")
-        with pytest.raises(SpeechToTextNodeError):
-            transcriber.transcribe(SAMPLES_PATH / "answer.mp3")
+@pytest.fixture(scope="module")
+def transcriber():
+    return WhisperTranscriber()
 
 
 @pytest.mark.integration
-class TestWhisperTranscriber:
+def test_transcribe(transcriber):
+    assert (
+        transcriber.transcribe(SAMPLES_PATH / "this is the content of the document.wav")["text"].lower().strip()
+        == "this is the content of the document."
+    )
 
-    def test_transcribe(self):
-        transcriber = WhisperTranscriber()
-        assert transcriber.transcribe(SAMPLES_PATH / "this is the content of the document.wav").lower() == "this is the content of the document"
+
+@pytest.mark.integration
+def test_run(transcriber):
+    results, _ = transcriber.run(file_paths=[SAMPLES_PATH / "this is the content of the document.wav"])
+    assert len(results["documents"]) == 1
+
+    document = results["documents"][0]
+    assert "this is the content of the document." == document.content.lower().strip()
+    assert "text" == document.content_type
+    assert "audio" in document.meta.keys()
+    assert "path" in document.meta["audio"].keys()

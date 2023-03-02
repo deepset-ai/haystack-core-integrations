@@ -36,7 +36,6 @@ jobs:
       run: pip install ${{ env.PACKAGE }}[dev]
 
     - name: Mypy
-      if: steps.files.outputs.any_changed == 'true'
       run: |
         mkdir .mypy_cache/
         mypy --install-types --non-interactive .
@@ -52,11 +51,19 @@ jobs:
       with:
         package: ${{ env.PACKAGE }}
 
+    - name: Install audio libraries
+      if: matrix.os == "ubuntu-latest"
+      run: |
+        sudo apt-get update
+        sudo apt-get install libsndfile1 ffmpeg
+
+    - name: Install dependencies
+      run: pip install ${{ env.PACKAGE }}[dev]
+
     - name: Pylint
       run: |
         cd ${{ env.PACKAGE }}
         pylint -ry -j 0 ${{ env.MODULE }}/
-
 
   unit-tests:
     name: Unit / ${{ matrix.os }}
@@ -66,7 +73,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest]  # windows-latest --> No audio deps available for Windows.
+        os: [ubuntu-latest]  # windows-latest --> No audio deps available for Windows.
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v2
@@ -76,7 +83,12 @@ jobs:
         with:
           package: ${{ env.PACKAGE }}
 
-      - name: Install Haystack
+      - name: Install audio libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install libsndfile1 ffmpeg
+
+      - name: Install deps
         run: pip install ${{ env.PACKAGE }}[dev]
 
       - name: Run
@@ -91,7 +103,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest]  # windows-latest --> No audio deps available for Windows.
+        os: [ubuntu-latest]  # windows-latest --> No audio deps available for Windows.
     runs-on: ${{ matrix.os }}
 
     steps:
@@ -107,7 +119,7 @@ jobs:
         sudo apt-get update
         sudo apt-get install libsndfile1 ffmpeg
 
-    - name: Install Haystack
+    - name: Install deps
       run: pip install ${{ env.PACKAGE }}[dev]
 
     - name: Run tests

@@ -74,7 +74,9 @@ class TextToSpeech:
         channels_count: int = 1,
         bitrate: str = "320k",
         normalized=True,
-        audio_naming_function: Callable = lambda text: hashlib.md5(text.encode("utf-8")).hexdigest(),
+        audio_naming_function: Callable = lambda text: hashlib.md5(
+            text.encode("utf-8")
+        ).hexdigest(),
     ) -> Path:
         """
         Convert an input string into an audio file containing the same string read out loud.
@@ -112,7 +114,11 @@ class TextToSpeech:
             audio_data = self.text_to_audio_data(text)
             if audio_format.upper() in sf.available_formats().keys():
                 sf.write(
-                    data=audio_data, file=file_path, format=audio_format, subtype=subtype, samplerate=self.model.fs
+                    data=audio_data,
+                    file=file_path,
+                    format=audio_format,
+                    subtype=subtype,
+                    samplerate=self.model.fs,
                 )
             else:
                 self.compress_audio(
@@ -128,7 +134,9 @@ class TextToSpeech:
 
         return file_path
 
-    def text_to_audio_data(self, text: str, _models_output_key: str = "wav") -> np.ndarray:
+    def text_to_audio_data(
+        self, text: str, _models_output_key: str = "wav"
+    ) -> np.ndarray:
         """
         Convert an input string into a numpy array representing the audio.
 
@@ -176,5 +184,10 @@ class TextToSpeech:
         :param normalized: Normalizes the audio before compression (range 2^15) or leaves it untouched.
         """
         data = np.array((data * 2**15) if normalized else data, dtype=np.int16)
-        audio = AudioSegment(data.tobytes(), frame_rate=sample_rate, sample_width=sample_width, channels=channels_count)
+        audio = AudioSegment(
+            data.tobytes(),
+            frame_rate=sample_rate,
+            sample_width=sample_width,
+            channels=channels_count,
+        )
         audio.export(path, format=format, bitrate=bitrate)
