@@ -66,7 +66,6 @@ jobs:
         uses: actions/checkout@v3
 
       - name: Install libs
-        if: matrix.os == "ubuntu-latest"
         run: |
           sudo apt-get update
           sudo apt-get install libsndfile1 ffmpeg
