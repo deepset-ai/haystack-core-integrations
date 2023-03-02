@@ -21,8 +21,8 @@ jobs:
 
     - name: Install audio libraries
       run: |
-        apt-get update
-        apt-get install libsndfile1 ffmpeg
+        sudo apt-get -y update
+        sudo apt-get-y install libsndfile1 ffmpeg
 
     - name: Install dependencies
       run: |
@@ -30,7 +30,6 @@ jobs:
         pip install git+https://github.com/openai/whisper.git
 
     - name: Mypy
-      if: steps.files.outputs.any_changed == 'true'
       run: |
         mkdir .mypy_cache/
         mypy --install-types --non-interactive nodes/speech2text/
@@ -45,8 +44,8 @@ jobs:
 
     - name: Install audio libraries
       run: |
-        apt-get update
-        apt-get install libsndfile1 ffmpeg
+        sudo apt-get -y update
+        sudo apt-get-y install libsndfile1 ffmpeg
 
     - name: Install dependencies
       run: |
@@ -67,8 +66,8 @@ jobs:
 
       - name: Install libs
         run: |
-          apt-get update
-          apt-get install libsndfile1 ffmpeg
+          apt-get -y update
+          apt-get-y install libsndfile1 ffmpeg
 
       - name: Install speech2text
         run: |
