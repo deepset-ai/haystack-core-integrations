@@ -1,0 +1,76 @@
+name: Test / text2speech
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    paths:
+      - 'nodes/text2speech/**'
+      - '.github/workflows/nodes_text2speech.yml'
+
+jobs:
+
+  mypy:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+
+    - name: Setup Python
+      uses: actions/setup-python@v3
+
+    - name: Install audio libraries
+      run: |
+        sudo apt-get update
+        sudo apt-get install libsndfile1 ffmpeg
+
+    - name: Install dependencies
+      run: pip install ${{ env.PACKAGE }}[dev]
+
+    - name: Mypy
+      if: steps.files.outputs.any_changed == 'true'
+      run: |
+        mkdir .mypy_cache/
+        mypy --install-types --non-interactive nodes/text2speech/
+
+  pylint:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+
+    - name: Setup Python
+      uses: actions/setup-python@v3
+
+    - name: Install audio libraries
+      run: |
+        sudo apt-get update
+        sudo apt-get install libsndfile1 ffmpeg
+
+    - name: Install dependencies
+      run: pip install ${{ env.PACKAGE }}[dev]
+
+    - name: Pylint
+      run: |
+        pylint -ry -j 0 nodes/text2speech/
+
+  test:
+    runs-on: ubuntu-latest
+    container: deepset/haystack:base-cpu-main
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Install libs
+        if: matrix.os == "ubuntu-latest"
+        run: |
+          sudo apt-get update
+          sudo apt-get install libsndfile1 ffmpeg
+
+      - name: Install text2speech
+        run: |
+          pip install -e nodes/text2speech[dev]
+
+      - name: Run tests
+        run: |
+          pytest nodes/text2speech

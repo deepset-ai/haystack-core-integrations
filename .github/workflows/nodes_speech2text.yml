@@ -1,0 +1,81 @@
+name: Test / speech2text
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    paths:
+      - 'nodes/speech2text/**'
+      - '.github/workflows/nodes_speech2text.yml'
+
+jobs:
+
+  mypy:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+
+    - name: Setup Python
+      uses: actions/setup-python@v3
+
+    - name: Install audio libraries
+      run: |
+        sudo apt-get update
+        sudo apt-get install libsndfile1 ffmpeg
+
+    - name: Install dependencies
+      run: |
+        pip install ${{ env.PACKAGE }}[dev]
+        pip install git+https://github.com/openai/whisper.git
+
+    - name: Mypy
+      if: steps.files.outputs.any_changed == 'true'
+      run: |
+        mkdir .mypy_cache/
+        mypy --install-types --non-interactive nodes/speech2text/
+
+  pylint:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+
+    - name: Setup Python
+      uses: actions/setup-python@v3
+
+    - name: Install audio libraries
+      run: |
+        sudo apt-get update
+        sudo apt-get install libsndfile1 ffmpeg
+
+    - name: Install dependencies
+      run: |
+        pip install ${{ env.PACKAGE }}[dev]
+        pip install git+https://github.com/openai/whisper.git
+
+    - name: Pylint
+      run: |
+        pylint -ry -j 0 nodes/speech2text/
+
+  test:
+    runs-on: ubuntu-latest
+    container: deepset/haystack:base-cpu-main
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Install libs
+        if: matrix.os == "ubuntu-latest"
+        run: |
+          sudo apt-get update
+          sudo apt-get install libsndfile1 ffmpeg
+
+      - name: Install speech2text
+        run: |
+          pip install -e nodes/speech2text[dev]
+          pip install git+https://github.com/openai/whisper.git
+
+      - name: Run tests
+        run: |
+          pytest nodes/speech2text
