@@ -22,7 +22,7 @@ jobs:
     - name: Install audio libraries
       run: |
         sudo apt-get -y update
-        sudo apt-get-y install libsndfile1 ffmpeg
+        sudo apt-get -y install libsndfile1 ffmpeg
 
     - name: Install dependencies
       run: pip install nodes/text2speech/[dev]
@@ -44,8 +44,7 @@ jobs:
     - name: Install audio libraries
       run: |
         sudo apt-get -y update
-        sudo apt-get-y install libsndfile1 ffmpeg
-
+        sudo apt-get -y install libsndfile1 ffmpeg
 
     - name: Install dependencies
       run: pip install nodes/text2speech/[dev]
@@ -65,7 +64,7 @@ jobs:
       - name: Install libs
         run: |
           apt-get -y update
-          apt-get-y install libsndfile1 ffmpeg
+          apt-get -y install libsndfile1 ffmpeg
 
       - name: Install text2speech
         run: |
