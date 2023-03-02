@@ -1,17 +1,17 @@
 # SPDX-FileCopyrightText: 2022-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
-name: Test speech2text
+name: Test text2speech
 
 on:
   push:
     paths:
-      - 'nodes/speech2text/**'
-      - '.github/workflows/test__speech2text.yml'
+      - 'nodes/text2speech/**'
+      - '.github/workflows/nodes__text2speech.yml'
 
 env:
-  PACKAGE: nodes/speech2text/
-  MODULE: speech2text
+  PACKAGE: nodes/text2speech/
+  MODULE: text2speech
   PYTEST_PARAMS: --maxfail=5 --durations=10
 
 jobs:
@@ -36,7 +36,6 @@ jobs:
       run: pip install ${{ env.PACKAGE }}[dev]
 
     - name: Mypy
-      if: steps.files.outputs.any_changed == 'true'
       run: |
         mkdir .mypy_cache/
         mypy --install-types --non-interactive .
@@ -52,11 +51,19 @@ jobs:
       with:
         package: ${{ env.PACKAGE }}
 
+    - name: Install audio libraries
+      if: matrix.os == "ubuntu-latest"
+      run: |
+        sudo apt-get update
+        sudo apt-get install libsndfile1 ffmpeg
+
+    - name: Install dependencies
+      run: pip install ${{ env.PACKAGE }}[dev]
+
     - name: Pylint
       run: |
         cd ${{ env.PACKAGE }}
         pylint -ry -j 0 ${{ env.MODULE }}/
-
 
   unit-tests:
     name: Unit / ${{ matrix.os }}
@@ -68,7 +75,6 @@ jobs:
       matrix:
         os: [ubuntu-latest]  # windows-latest --> No audio deps available for Windows.
     runs-on: ${{ matrix.os }}
-
     steps:
       - uses: actions/checkout@v2
 
@@ -82,10 +88,8 @@ jobs:
           sudo apt-get update
           sudo apt-get install libsndfile1 ffmpeg
 
-      - name: Install Haystack
-        run: |
-          pip install ${{ env.PACKAGE }}[dev]
-          pip install git+https://github.com/openai/whisper.git
+      - name: Install deps
+        run: pip install ${{ env.PACKAGE }}[dev]
 
       - name: Run
         run: pytest ${{ env.PYTEST_PARAMS }} -m "unit" ${{ env.PACKAGE }}
@@ -115,10 +119,8 @@ jobs:
         sudo apt-get update
         sudo apt-get install libsndfile1 ffmpeg
 
-    - name: Install Haystack
-      run: |
-        pip install ${{ env.PACKAGE }}[dev]
-        pip install git+https://github.com/openai/whisper.git
+    - name: Install deps
+      run: pip install ${{ env.PACKAGE }}[dev]
 
     - name: Run tests
       env:
