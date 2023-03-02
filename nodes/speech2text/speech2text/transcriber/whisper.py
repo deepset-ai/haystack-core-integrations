@@ -1,10 +1,15 @@
-import logging
-from pathlib import Path
+# SPDX-FileCopyrightText: 2022-present deepset GmbH <info@deepset.ai>
+#
+# SPDX-License-Identifier: Apache-2.0
+from typing import Union, Dict, Any
 
 try:
-    from typing import Literal
+    from typing import Literal  # type: ignore
 except ImportError:
-    from typing_extensions import Literal
+    from typing_extensions import Literal  # type: ignore
+
+import logging
+from pathlib import Path
 
 try:
     import whisper
@@ -22,15 +27,9 @@ class WhisperTranscriber(BaseSpeechTranscriber):
     Converts audio containing speech into its trascription using Whisper.
     """
 
-    def __init__(
-        self,
-        model_size: Literal["tiny", "base", "small", "medium", "large"] = "base"
-    ):
+    def __init__(self, model_size: Literal["tiny", "base", "small", "medium", "large"] = "base"):  # type: ignore
         super().__init__()
         self.model = whisper.load_model(model_size)
 
-    def transcribe(self, audio_file: Path, sample_rate=16000) -> str:
-        return self.model.transcribe(audio_file)["text"]
-
-    def chunk(self, path: Path):
-        yield path
+    def transcribe(self, audio_file: Union[Path, str], sample_rate=16000) -> Dict[str, Any]:
+        return self.model.transcribe(str(audio_file))

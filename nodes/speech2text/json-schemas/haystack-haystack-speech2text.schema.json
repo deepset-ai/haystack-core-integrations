@@ -1,0 +1,16 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema",
+  "$id": "https://raw.githubusercontent.com/deepset-ai/haystack-extras/text2speech/nodes/haystack-speech2text/json-schemas/haystack-haystack-speech2text.schema.json",
+  "title": "haystack speech2text",
+  "description": "Haystack node to convert audio files into Documents.",
+  "type": "object",
+  "oneOf": [
+    {
+      "allOf": [
+        {
+          "$ref": "https://raw.githubusercontent.com/deepset-ai/haystack-extras/text2speech/nodes/haystack-speech2text/json-schemas/haystack-haystack-speech2text-0.0.1.schema.json"
+        }
+      ]
+    }
+  ]
+}

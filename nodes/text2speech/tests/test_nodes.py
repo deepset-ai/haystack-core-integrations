@@ -34,7 +34,9 @@ class TestTextToSpeech:
             transformers_params={"seed": 777, "always_fix_seed": True},
         )
         expected_audio_data, _ = sf.read(SAMPLES_PATH / "answer.wav")
-        audio_file = text2speech.text_to_audio_file(text="answer", generated_audio_dir=tmp_path / "test_audio")
+        audio_file = text2speech.text_to_audio_file(
+            text="answer", generated_audio_dir=tmp_path / "test_audio"
+        )
         assert os.path.exists(audio_file)
         assert np.allclose(expected_audio_data, sf.read(audio_file)[0], atol=0.001)
 
@@ -45,7 +47,9 @@ class TestTextToSpeech:
         )
         expected_audio_file = SAMPLES_PATH / "answer.wav"
         audio_file = text2speech.text_to_audio_file(
-            text="answer", generated_audio_dir=tmp_path / "test_audio", audio_format="mp3"
+            text="answer",
+            generated_audio_dir=tmp_path / "test_audio",
+            audio_format="mp3",
         )
         assert os.path.exists(audio_file)
         assert audio_file.suffix == ".mp3"
@@ -59,11 +63,15 @@ class TestTextToSpeech:
         )
         expected_audio_file = SAMPLES_PATH / "answer.wav"
         audio_file = text2speech.text_to_audio_file(
-            text="answer", generated_audio_dir=tmp_path / "test_audio", audio_naming_function=lambda text: text
+            text="answer",
+            generated_audio_dir=tmp_path / "test_audio",
+            audio_naming_function=lambda text: text,
         )
         assert os.path.exists(audio_file)
         assert audio_file.name == expected_audio_file.name
-        assert np.allclose(sf.read(expected_audio_file)[0], sf.read(audio_file)[0], atol=0.001)
+        assert np.allclose(
+            sf.read(expected_audio_file)[0], sf.read(audio_file)[0], atol=0.001
+        )
 
 
 @pytest.mark.integration
@@ -78,7 +86,9 @@ class TestAnswerToSpeech:
             meta={"some_meta": "some_value"},
         )
         expected_audio_answer = SAMPLES_PATH / "answer.wav"
-        expected_audio_context = SAMPLES_PATH / "the context for this answer is here.wav"
+        expected_audio_context = (
+            SAMPLES_PATH / "the context for this answer is here.wav"
+        )
 
         answer2speech = AnswerToSpeech(
             generated_audio_dir=tmp_path / "test_audio",
@@ -99,17 +109,29 @@ class TestAnswerToSpeech:
         assert audio_answer.meta["audio"]["answer"]["path"] == "wav"
         assert audio_answer.meta["audio"]["context"]["path"] == "wav"
 
-        assert np.allclose(sf.read(audio_answer.answer_audio)[0], sf.read(expected_audio_answer)[0], atol=0.001)
-        assert np.allclose(sf.read(audio_answer.context_audio)[0], sf.read(expected_audio_context)[0], atol=0.001)
+        assert np.allclose(
+            sf.read(audio_answer.answer_audio)[0],
+            sf.read(expected_audio_answer)[0],
+            atol=0.001,
+        )
+        assert np.allclose(
+            sf.read(audio_answer.context_audio)[0],
+            sf.read(expected_audio_context)[0],
+            atol=0.001,
+        )
 
 
 @pytest.mark.integration
 class TestDocumentToSpeech:
     def test_document_to_speech(self, tmp_path):
         text_doc = Document(
-            content="this is the content of the document", content_type="text", meta={"name": "test_document.txt"}
+            content="this is the content of the document",
+            content_type="text",
+            meta={"name": "test_document.txt"},
         )
-        expected_audio_content = SAMPLES_PATH / "this is the content of the document.wav"
+        expected_audio_content = (
+            SAMPLES_PATH / "this is the content of the document.wav"
+        )
 
         doc2speech = DocumentToSpeech(
             generated_audio_dir=tmp_path / "test_audio",
@@ -126,4 +148,8 @@ class TestDocumentToSpeech:
         assert audio_doc.meta["name"] == "test_document.txt"
         assert audio_doc.meta["audio"]["content"]["format"] == "wav"
 
-        assert np.allclose(sf.read(audio_doc.content_audio)[0], sf.read(expected_audio_content)[0], atol=0.001)
+        assert np.allclose(
+            sf.read(audio_doc.content_audio)[0],
+            sf.read(expected_audio_content)[0],
+            atol=0.001,
+        )

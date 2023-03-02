@@ -15,7 +15,7 @@ inputs:
   pythonVersion:
     description: 'Python version to use'
     required: true
-    default: "3.7"
+    default: "3.8"
   package:
     description: 'Package to install'
     required: true
