@@ -4,7 +4,7 @@ on:
   push:
     paths:
       - 'stores/mongodb-documentstore/**'
-      - '.github/workflows/stores__mongodb_document_store.yml'
+      - '.github/workflows/stores_mongodb_document_store.yml'
 
 jobs:
   test:

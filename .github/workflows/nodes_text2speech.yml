@@ -4,12 +4,7 @@ on:
   push:
     paths:
       - 'nodes/text2speech/**'
-      - '.github/workflows/nodes__text2speech.yml'
-
-env:
-  PACKAGE: nodes/text2speech/
-  MODULE: text2speech
-  PYTEST_PARAMS: --maxfail=5 --durations=10
+      - '.github/workflows/nodes_text2speech.yml'
 
 jobs:
 
@@ -19,12 +14,9 @@ jobs:
     - uses: actions/checkout@v2
 
     - name: Setup Python
-      uses: ./.github/actions/python_cache/
-      with:
-        package: ${{ env.PACKAGE }}
+      uses: actions/setup-python@v3
 
     - name: Install audio libraries
-      if: matrix.os == "ubuntu-latest"
       run: |
         sudo apt-get update
         sudo apt-get install libsndfile1 ffmpeg
@@ -33,10 +25,10 @@ jobs:
       run: pip install ${{ env.PACKAGE }}[dev]
 
     - name: Mypy
+      if: steps.files.outputs.any_changed == 'true'
       run: |
         mkdir .mypy_cache/
-        mypy --install-types --non-interactive .
-
+        mypy --install-types --non-interactive nodes/text2speech/
 
   pylint:
     runs-on: ubuntu-latest
@@ -44,12 +36,9 @@ jobs:
     - uses: actions/checkout@v2
 
     - name: Setup Python
-      uses: ./.github/actions/python_cache/
-      with:
-        package: ${{ env.PACKAGE }}
+      uses: actions/setup-python@v3
 
     - name: Install audio libraries
-      if: matrix.os == "ubuntu-latest"
       run: |
         sudo apt-get update
         sudo apt-get install libsndfile1 ffmpeg
@@ -59,68 +48,26 @@ jobs:
 
     - name: Pylint
       run: |
-        cd ${{ env.PACKAGE }}
-        pylint -ry -j 0 ${{ env.MODULE }}/
+        pylint -ry -j 0 nodes/text2speech/
 
-  unit-tests:
-    name: Unit / ${{ matrix.os }}
-    needs:
-      - mypy
-      - pylint
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest]  # windows-latest --> No audio deps available for Windows.
-    runs-on: ${{ matrix.os }}
+  test:
+    runs-on: ubuntu-latest
+    container: deepset/haystack:base-cpu-main
+
     steps:
-      - uses: actions/checkout@v2
+      - name: Checkout
+        uses: actions/checkout@v3
 
-      - name: Setup Python
-        uses: ./.github/actions/python_cache/
-        with:
-          package: ${{ env.PACKAGE }}
-
-      - name: Install audio libraries
+      - name: Install libs
+        if: matrix.os == "ubuntu-latest"
         run: |
           sudo apt-get update
           sudo apt-get install libsndfile1 ffmpeg
 
-      - name: Install deps
-        run: pip install ${{ env.PACKAGE }}[dev]
+      - name: Install text2speech
+        run: |
+          pip install -e nodes/text2speech[dev]
 
-      - name: Run
-        run: pytest ${{ env.PYTEST_PARAMS }} -m "unit" ${{ env.PACKAGE }}
-
-
-  integration-tests:
-    name: Integration / ${{ matrix.os }}
-    needs:
-      - unit-tests
-    timeout-minutes: 60
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest]  # windows-latest --> No audio deps available for Windows.
-    runs-on: ${{ matrix.os }}
-
-    steps:
-    - uses: actions/checkout@v2
-
-    - name: Setup Python
-      uses: ./.github/actions/python_cache/
-      with:
-        package: ${{ env.PACKAGE }}
-
-    - name: Install audio libraries
-      run: |
-        sudo apt-get update
-        sudo apt-get install libsndfile1 ffmpeg
-
-    - name: Install deps
-      run: pip install ${{ env.PACKAGE }}[dev]
-
-    - name: Run tests
-      env:
-        TOKENIZERS_PARALLELISM: 'false'  # Avoid logspam by tokenizers
-      run: |
-        pytest ${{ env.PYTEST_PARAMS }} -m "integration" ${{ env.PACKAGE }}
+      - name: Run tests
+        run: |
+          pytest nodes/text2speech
