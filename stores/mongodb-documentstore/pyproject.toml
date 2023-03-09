@@ -67,3 +67,12 @@ exclude_lines = [
   "if __name__ == .__main__.:",
   "if TYPE_CHECKING:",
 ]
+
+[tool.pytest.ini_options]
+minversion = "6.0"
+addopts = "--strict-markers"
+markers = [
+  "unit: unit tests",
+  "integration: integration tests",
+  "document_store",
+]
