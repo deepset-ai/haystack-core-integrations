@@ -18,6 +18,8 @@ jobs:
 
     - name: Setup Python
       uses: actions/setup-python@v3
+      with:
+        python-version: '3.10'
 
     - name: Install audio libraries
       run: |
@@ -39,6 +41,8 @@ jobs:
 
     - name: Setup Python
       uses: actions/setup-python@v3
+      with:
+        python-version: '3.10'
 
     - name: Install audio libraries
       run: |
@@ -55,18 +59,23 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v3
+    - name: Checkout
+      uses: actions/checkout@v3
 
-      - name: Install libs
-        run: |
-          sudo apt-get update
-          sudo apt-get install libsndfile1 ffmpeg
+    - name: Setup Python
+      uses: actions/setup-python@v3
+      with:
+        python-version: '3.10'
 
-      - name: Install text2speech
-        run: |
-          pip install -e nodes/text2speech[dev]
+    - name: Install libs
+      run: |
+        sudo apt-get update
+        sudo apt-get install libsndfile1 ffmpeg
 
-      - name: Run tests
-        run: |
-          pytest nodes/text2speech
+    - name: Install text2speech
+      run: |
+        pip install -e nodes/text2speech[dev]
+
+    - name: Run tests
+      run: |
+        pytest nodes/text2speech
