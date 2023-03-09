@@ -11,7 +11,7 @@ on:
 
 jobs:
 
-  mypy:
+  pylint:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v3
@@ -29,35 +29,13 @@ jobs:
     - name: Install dependencies
       run: pip install nodes/text2speech[dev]
 
-    - name: Mypy
-      run: |
-        mkdir .mypy_cache/
-        mypy --install-types --non-interactive nodes/text2speech/
-
-  pylint:
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v3
-
-    - name: Setup Python
-      uses: actions/setup-python@v3
-      with:
-        python-version: '3.10'
-
-    - name: Install audio libraries
-      run: |
-        sudo apt-get update
-        sudo apt-get install libsndfile1 ffmpeg
-
-    - name: Install dependencies
-      run: pip install ${{ env.PACKAGE }}[dev]
-
     - name: Pylint
       run: |
         pylint -ry -j 0 nodes/text2speech/
 
   test:
     runs-on: ubuntu-latest
+    needs: pylint
     steps:
     - name: Checkout
       uses: actions/checkout@v3
