@@ -14,7 +14,7 @@ jobs:
   mypy:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
 
     - name: Setup Python
       uses: actions/setup-python@v3
@@ -25,10 +25,9 @@ jobs:
         sudo apt-get install libsndfile1 ffmpeg
 
     - name: Install dependencies
-      run: pip install ${{ env.PACKAGE }}[dev]
+      run: pip install nodes/text2speech[dev]
 
     - name: Mypy
-      if: steps.files.outputs.any_changed == 'true'
       run: |
         mkdir .mypy_cache/
         mypy --install-types --non-interactive nodes/text2speech/
@@ -36,7 +35,7 @@ jobs:
   pylint:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
 
     - name: Setup Python
       uses: actions/setup-python@v3
@@ -55,8 +54,6 @@ jobs:
 
   test:
     runs-on: ubuntu-latest
-    container: deepset/haystack:base-cpu-main
-
     steps:
       - name: Checkout
         uses: actions/checkout@v3
