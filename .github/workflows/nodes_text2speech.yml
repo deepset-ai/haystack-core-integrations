@@ -10,29 +10,6 @@ on:
       - '.github/workflows/nodes_text2speech.yml'
 
 jobs:
-
-  pylint:
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v3
-
-    - name: Setup Python
-      uses: actions/setup-python@v3
-      with:
-        python-version: '3.10'
-
-    - name: Install audio libraries
-      run: |
-        sudo apt-get update
-        sudo apt-get install libsndfile1 ffmpeg
-
-    - name: Install dependencies
-      run: pip install nodes/text2speech[dev]
-
-    - name: Pylint
-      run: |
-        pylint -ry -j 0 nodes/text2speech/
-
   test:
     runs-on: ubuntu-latest
     needs: pylint
@@ -45,7 +22,7 @@ jobs:
       with:
         python-version: '3.10'
 
-    - name: Install libs
+    - name: Install audio libraries
       run: |
         sudo apt-get update
         sudo apt-get install libsndfile1 ffmpeg
@@ -53,6 +30,10 @@ jobs:
     - name: Install text2speech
       run: |
         pip install -e nodes/text2speech[dev]
+
+    - name: Pylint
+      run: |
+        pylint -ry -j 0 nodes/text2speech/
 
     - name: Run tests
       run: |
