@@ -9,6 +9,10 @@ on:
       - 'nodes/text2speech/**'
       - '.github/workflows/nodes_text2speech.yml'
 
+defaults:
+  run:
+    working-directory: nodes/text2speech
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -29,12 +33,12 @@ jobs:
 
     - name: Install text2speech
       run: |
-        pip install -e nodes/text2speech[dev]
+        pip install -e .[dev]
 
     - name: Pylint
       run: |
-        pylint -ry -j 0 nodes/text2speech/
+        pylint -ry -j 0 ./text2speech
 
     - name: Run tests
       run: |
-        pytest nodes/text2speech
+        pytest
