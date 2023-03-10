@@ -8,25 +8,62 @@ import pytest
 import numpy as np
 import soundfile as sf
 from haystack.schema import Span, Answer, Document
+from transformers import WhisperProcessor, WhisperForConditionalGeneration
+import ffmpeg
 
 from text2speech import AnswerToSpeech, DocumentToSpeech
 from text2speech.utils import TextToSpeech
 
 
+
 SAMPLES_PATH = Path(__file__).parent / "samples"
 
+class WhisperHelper:
+    def __init__(self, model):
+        self._processor = WhisperProcessor.from_pretrained(model)
+        self._model = WhisperForConditionalGeneration.from_pretrained(model)
+        self._model.config.forced_decoder_ids = None
+
+    def transcribe(self, media_file: str):
+        output, _ = (
+            ffmpeg.input(media_file)
+            .output("-", format="s16le", acodec="pcm_s16le", ac=1, ar=16000)
+            .run(cmd=["ffmpeg", "-nostdin"], capture_stdout=True, capture_stderr=True)
+        )
+        data = np.frombuffer(output, np.int16).flatten().astype(np.float32) / 32768.0
+
+        features = self._processor(data, sampling_rate=16000, return_tensors="pt").input_features
+        tokens = self._model.generate(features)
+
+        return self._processor.batch_decode(tokens, skip_special_tokens=True)
+
+
+@pytest.fixture(scope="session", autouse=True)
+def whisper_helper():
+    return WhisperHelper("openai/whisper-medium")
 
 @pytest.mark.integration
 class TestTextToSpeech:
-    def test_text_to_speech_audio_data(self):
+    def test_text_to_speech_audio_data(self, tmp_path, whisper_helper: WhisperHelper):
         text2speech = TextToSpeech(
             model_name_or_path="espnet/kan-bayashi_ljspeech_vits",
-            transformers_params={"seed": 777, "always_fix_seed": True},
+            transformers_params={"seed": 4535, "always_fix_seed": True},
         )
-        expected_audio_data, _ = sf.read(SAMPLES_PATH / "answer.wav")
+
         audio_data = text2speech.text_to_audio_data(text="answer")
 
-        assert np.allclose(expected_audio_data, audio_data, atol=0.001)
+        sf.write(
+            data=audio_data,
+            file=str(tmp_path / "audio1.wav"),
+            format="wav",
+            subtype="PCM_16",
+            samplerate=text2speech.model.fs,
+        )
+
+        expedtec_doc = whisper_helper.transcribe(str(SAMPLES_PATH / "audio" / "answer.wav"))
+        generated_doc = whisper_helper.transcribe(str(tmp_path / "audio1.wav"))
+
+        assert expedtec_doc == generated_doc
 
     def test_text_to_speech_audio_file(self, tmp_path):
         text2speech = TextToSpeech(
