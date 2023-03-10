@@ -83,13 +83,19 @@ class TextToSpeech:
         :param generated_audio_dir: The folder to save the audio file to.
         :param audio_format: The format to save the audio into (wav, mp3, ...).
             Supported formats:
-             - Uncompressed formats thanks to `soundfile` (see `libsndfile documentation <https://libsndfile.github.io/libsndfile/api.html>`_ for a list of supported formats)
-             - Compressed formats thanks to `pydub` (uses FFMPEG: run `ffmpeg -formats` in your terminal to see the list of supported formats).
-        :param subtype: Used only for uncompressed formats. See https://libsndfile.github.io/libsndfile/api.html for the complete list of available subtypes.
+             - Uncompressed formats thanks to `soundfile` (see `libsndfile documentation
+                <https://libsndfile.github.io/libsndfile/api.html>`_ for a list of supported formats)
+             - Compressed formats thanks to `pydub` (uses FFMPEG: run `ffmpeg -formats` in your terminal to see the
+                list of supported formats).
+        :param subtype: Used only for uncompressed formats. See https://libsndfile.github.io/libsndfile/api.html for
+            the complete list of available subtypes.
         :param sample_width: Used only for compressed formats. The sample width of your audio. Defaults to 2.
-        :param channels count: Used only for compressed formats. THe number of channels your audio file has: 1 for mono, 2 for stereo. Depends on the model, but it's often mono so it defaults to 1.
-        :param bitrate: Used only for compressed formats. The desired bitrate of your compressed audio. Defaults to '320k'.
-        :param normalized: Used only for compressed formats. Normalizes the audio before compression (range 2^15) or leaves it untouched.
+        :param channels count: Used only for compressed formats. THe number of channels your audio file has:
+            1 for mono, 2 for stereo. Depends on the model, but it's often mono so it defaults to 1.
+        :param bitrate: Used only for compressed formats. The desired bitrate of your compressed audio.
+            Defaults to '320k'.
+        :param normalized: Used only for compressed formats. Normalizes the audio before compression (range 2^15) or
+            leaves it untouched.
         :param audio_naming_function: A function mapping the input text into the audio file name.
                 By default, the audio file gets the name from the MD5 sum of the input text.
         :return: The path to the generated file.
@@ -112,7 +118,7 @@ class TextToSpeech:
                 self.compress_audio(
                     data=audio_data,
                     path=file_path,
-                    format=audio_format,
+                    audio_format=audio_format,
                     sample_rate=self.model.fs,
                     sample_width=sample_width,
                     channels_count=channels_count,
@@ -138,7 +144,8 @@ class TextToSpeech:
         output = prediction.get(_models_output_key, None)
         if output is None:
             raise AudioNodeError(
-                f"The model returned no output under the {_models_output_key} key. The available output keys are {prediction.keys()}. Make sure you selected the right key."
+                f"The model returned no output under the {_models_output_key} key."
+                f"The available output keys are {prediction.keys()}. Make sure you selected the right key."
             )
         return output.cpu().numpy()
 
@@ -146,7 +153,7 @@ class TextToSpeech:
         self,
         data: np.array,  # type: ignore [valid-type]
         path: Path,
-        format: str,
+        audio_format: str,
         sample_rate: int,
         sample_width: int = 2,
         channels_count: int = 1,
@@ -158,13 +165,15 @@ class TextToSpeech:
 
         :param data: The audio data to compress.
         :param path: The path to save the compressed audio at.
-        :param format: The format to compress the data into ('mp3', 'wav', 'raw', 'ogg' or other ffmpeg/avconv supported files).
+        :param audio_format: The format to compress the data into ('mp3', 'wav', 'raw', 'ogg' or other ffmpeg/avconv
+            supported files).
         :param sample_rate: The sample rate of the audio. Depends on the model.
         :param sample_width: The sample width of your audio. Defaults to 2.
-        :param channels count: The number of channels your audio file has: 1 for mono, 2 for stereo. Depends on the model, but it's often mono so it defaults to 1.
+        :param channels count: The number of channels your audio file has: 1 for mono, 2 for stereo.
+            Depends on the model, but it's often mono so it defaults to 1.
         :param bitrate: The desired bitrate of your compressed audio. Default to '320k'.
         :param normalized: Normalizes the audio before compression (range 2^15) or leaves it untouched.
         """
         data = np.int16((data * 2**15) if normalized else data)
         audio = AudioSegment(data.tobytes(), frame_rate=sample_rate, sample_width=sample_width, channels=channels_count)
-        audio.export(path, format=format, bitrate=bitrate)
+        audio.export(path, format=audio_format, bitrate=bitrate)

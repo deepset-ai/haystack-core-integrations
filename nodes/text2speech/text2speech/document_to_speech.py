@@ -41,7 +41,8 @@ class DocumentToSpeech(BaseComponent):
             - sample_width: Used only for compressed formats. The sample width of your audio. Defaults to 2.
             - channels count: Used only for compressed formats. The number of channels your audio file has:
                 1 for mono, 2 for stereo. Depends on the model, but it's often mono so it defaults to 1.
-            - bitrate: Used only for compressed formats. The desired bitrate of your compressed audio. Defaults to '320k'.
+            - bitrate: Used only for compressed formats. The desired bitrate of your compressed audio.
+                Defaults to '320k'.
             - normalized: Used only for compressed formats. Normalizes the audio before compression (range 2^15)
                 or leaves it untouched.
             - audio_naming_function: The function mapping the input text into the audio file name.

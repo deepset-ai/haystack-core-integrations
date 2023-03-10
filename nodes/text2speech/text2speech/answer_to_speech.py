@@ -36,16 +36,19 @@ class AnswerToSpeech(BaseComponent):
             The allowed parameters are:
             - audio_format: The format to save the audio into (wav, mp3, ...). Defaults to `wav`.
                 Supported formats:
-                - Uncompressed formats thanks to `soundfile` (see `libsndfile documentation <https://libsndfile.github.io/libsndfile/api.html>`_
+                - Uncompressed formats thanks to `soundfile` (see `libsndfile documentation
+                    <https://libsndfile.github.io/libsndfile/api.html>`_
                     for a list of supported formats).
                 - Compressed formats thanks to `pydub`
                     (uses FFMPEG: run `ffmpeg -formats` in your terminal to see the list of supported formats).
-            - subtype: Used only for uncompressed formats. See `libsndfile documentation <https://libsndfile.github.io/libsndfile/api.html>`_
+            - subtype: Used only for uncompressed formats. See `libsndfile documentation
+                <https://libsndfile.github.io/libsndfile/api.html>`_
                 for the complete list of available subtypes. Defaults to `PCM_16`.
             - sample_width: Used only for compressed formats. The sample width of your audio. Defaults to 2.
             - channels count: Used only for compressed formats. The number of channels your audio file has:
                 1 for mono, 2 for stereo. Depends on the model, but it's often mono so it defaults to 1.
-            - bitrate: Used only for compressed formats. The desired bitrate of your compressed audio. Defaults to '320k'.
+            - bitrate: Used only for compressed formats. The desired bitrate of your compressed audio.
+                Defaults to '320k'.
             - normalized: Used only for compressed formats. Normalizes the audio before compression (range 2^15)
                 or leaves it untouched.
             - audio_naming_function: A function mapping the input text into the audio file name.
