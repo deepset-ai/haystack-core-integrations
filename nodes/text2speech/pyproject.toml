@@ -36,23 +36,15 @@ dependencies = [
   "espnet",
   "espnet-model-zoo",
   "pydub",
+  "ffmpeg-python"
 ]
 dynamic = ["version"]
 
 [project.optional-dependencies]
 dev = [
-  "pre-commit",
-  "mypy",
-  "typing_extensions; python_version < '3.8'",
   "pytest",
-  "tox",
-  "coverage",
   "pylint",
-  "black[jupyter]==22.8.0",
-  "pydoc-markdown",
-  "mkdocs",
-  "jupytercontrib",
-  "pytest-custom_exit_code",  # used in the CI
+  "black"
 ]
 
 [project.urls]
@@ -93,12 +85,19 @@ exclude_lines = [
 max-line-length=120
 disable = [
   "missing-module-docstring",
-  "fixme"
+  "fixme",
+  "R0913",
+  "W0221"
 ]
 [tool.pylint.'DESIGN']
 max-args=7
 [tool.pylint.'SIMILARITIES']
-min-similarity-lines=6
+min-similarity-lines=10
+ignore-comments=true
+[tool.pylint.'TYPECHECK']
+# List of members which are set dynamically and missed by Pylint inference
+# system, and so shouldn't trigger E1101 when accessed.
+generated-members="torch.*"
 
 [tool.pytest.ini_options]
 minversion = "6.0"
