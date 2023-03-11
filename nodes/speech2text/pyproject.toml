@@ -38,18 +38,8 @@ dynamic = ["version"]
 
 [project.optional-dependencies]
 dev = [
-  "pre-commit",
-  "mypy",
-  "typing_extensions; python_version < '3.8'",
   "pytest",
-  "tox",
-  "coverage",
-  "pylint",
-  "black[jupyter]==22.8.0",
-  "pydoc-markdown",
-  "mkdocs",
-  "jupytercontrib",
-  "pytest-custom_exit_code",
+  "pylint"
 ]
 
 [project.urls]
