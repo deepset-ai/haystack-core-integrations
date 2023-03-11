@@ -31,7 +31,8 @@ dependencies = [
   "numpy",
   "torch",
   "pydantic",
-  "torchaudio"
+  "torchaudio",
+  "git+https://github.com/openai/whisper.git"
 ]
 
 dynamic = ["version"]
