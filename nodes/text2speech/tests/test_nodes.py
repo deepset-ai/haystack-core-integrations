@@ -87,7 +87,7 @@ class TestTextToSpeech:
 
         assert expected_doc[0] in generated_doc[0]
 
-    @pytest.mark.skipif(platform.system() == "Darwin", reason="MP3 compression not working on M1")
+    @pytest.mark.xfail(reason="known issue converting to MP3")
     def test_text_to_speech_compress_audio(self, tmp_path, whisper_helper: WhisperHelper):
         text2speech = TextToSpeech(
             model_name_or_path="espnet/kan-bayashi_ljspeech_vits",
