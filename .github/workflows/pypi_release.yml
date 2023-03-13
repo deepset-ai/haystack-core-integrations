@@ -1,0 +1,36 @@
+name: Project release on PyPi
+
+on:
+  push:
+    tags:
+      - "^.*-v[0-9].[0-9]+.[0-9]+$"
+
+jobs:
+  release-on-pypi:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Install Hatch
+        run: pip install hatch
+
+      - name: Get project folder
+        id: pathfinder
+        shell: python
+        run: |
+          project_path = "${{ github.ref_name }}".rsplit("-", maxsplit=1)[0]
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+            print(f'{project_path}={project_path}', file=f)
+
+      - name: Build extra
+        working-directory: ${{ steps.pathfinder.outputs.project_path }}
+        run: hatch build
+
+      - name: Publish on PyPi
+        working-directory: ${{ steps.pathfinder.outputs.project_path }}
+        env:
+          HATCH_INDEX_USER: __token__
+          HATCH_INDEX_AUTH: ${{ secrets.PYPI_API_TOKEN }}
+        run: hatch publish -y
