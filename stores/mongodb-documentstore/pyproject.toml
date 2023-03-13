@@ -3,15 +3,13 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "haystack-mongodb-documentstore"
+name = "farm-haystack-mongodb-documentstore"
 description = ''
 readme = "README.md"
 requires-python = ">=3.7"
 license = "Apache-2.0"
 keywords = []
-authors = [
-  { name = "deepset GmbH", email = "info@deepset.ai" },
-]
+authors = [{ name = "deepset GmbH", email = "info@deepset.ai" }]
 classifiers = [
   "Development Status :: 4 - Beta",
   "Programming Language :: Python",
@@ -23,16 +21,11 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
-dependencies = [
-  "farm-haystack>1, <2",
-  "pymongo<5"
-]
+dependencies = ["farm-haystack>1, <2", "pymongo<5"]
 dynamic = ["version"]
 
 [project.optional-dependencies]
-dev = [
-  "farm-haystack[dev]>1, <2",
-]
+dev = ["farm-haystack[dev]>1, <2"]
 
 [project.urls]
 Documentation = "https://github.com/unknown/mongodb-documentstore#readme"
@@ -43,10 +36,8 @@ Source = "https://github.com/unknown/mongodb-documentstore"
 path = "mongodb_documentstore/__about__.py"
 
 [tool.hatch.envs.default]
-dependencies = [
-  "pytest",
-  "pytest-cov",
-]
+dependencies = ["pytest", "pytest-cov"]
+
 [tool.hatch.envs.default.scripts]
 cov = "pytest --cov-report=term-missing --cov-config=pyproject.toml --cov=mongodb_documentstore --cov=tests"
 no-cov = "cov --no-cov"
@@ -57,13 +48,7 @@ python = ["37", "38", "39", "310", "311"]
 [tool.coverage.run]
 branch = true
 parallel = true
-omit = [
-  "mongodb_documentstore/__about__.py",
-]
+omit = ["mongodb_documentstore/__about__.py"]
 
 [tool.coverage.report]
-exclude_lines = [
-  "no cov",
-  "if __name__ == .__main__.:",
-  "if TYPE_CHECKING:",
-]
+exclude_lines = ["no cov", "if __name__ == .__main__.:", "if TYPE_CHECKING:"]
