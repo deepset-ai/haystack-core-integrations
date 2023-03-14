@@ -1,9 +1,9 @@
 # text2speech
 
-[![PyPI - Version](https://img.shields.io/pypi/v/text2speech.svg)](https://pypi.org/project/text2speech)
-[![PyPI - Python Version](https://img.shields.io/pypi/pyversions/text2speech.svg)](https://pypi.org/project/text2speech)
+[![PyPI - Version](https://img.shields.io/pypi/v/farm-haystack-text2speech.svg)](https://pypi.org/project/farm-haystack-text2speech)
+[![PyPI - Python Version](https://img.shields.io/pypi/pyversions/farm-haystack-text2speech.svg)](https://pypi.org/project/farm-haystack-text2speech)
 
------
+---
 
 **Table of Contents**
 
@@ -14,7 +14,7 @@
 ## Installation
 
 ```console
-pip install haystack-text2speech
+pip install farm-haystack-text2speech-text2speech
 ```
 
 ## Installation
@@ -28,7 +28,7 @@ sudo apt-get install libsndfile1 ffmpeg
 Step 2. Install the package. With pip:
 
 ```console
-pip install haystack-text2speech
+pip install farm-haystack-text2speech-text2speech
 ```
 
 ## License
