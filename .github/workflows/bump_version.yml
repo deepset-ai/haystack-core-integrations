@@ -56,4 +56,4 @@ jobs:
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git checkout -b ${{ inputs.project-path }}/version-bump
           git commit -am "${{ inputs.project-path }} version bump to ${{ inputs.new-version }}"
-          gh pr create --base main --fill
+          gh pr create --base main --fill --reviewer deepset-ai/core-engineering
