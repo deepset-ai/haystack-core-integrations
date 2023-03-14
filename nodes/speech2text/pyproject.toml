@@ -30,7 +30,7 @@ dependencies = [
   "torch",
   "pydantic",
   "torchaudio",
-  "openai-whisper @ git+https://github.com/openai/whisper.git"
+  "openai-whisper"
 ]
 dynamic = ["version"]
 
