@@ -1,0 +1,59 @@
+name: Bump project version
+
+on:
+  workflow_dispatch:
+    inputs:
+      project-path:
+        description: "Project path from repo root"
+        required: true
+        type: string
+      new-version:
+        description: "New project version, must be greater than latest release"
+        required: true
+        type: string
+
+jobs:
+  bump-version:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Install Hatch
+        run: pip install hatch
+
+      - name: Get latest version
+        id: latest-version
+        working-directory: ${{ inputs.project-path }}
+        run: |
+          VERSION=$(hatch version)
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Compare new version with latest
+        uses: madhead/semver-utils@latest
+        id: version
+        with:
+          # New version
+          version: ${{  inputs.new-version }}
+          # Compare to latest
+          compare-to: ${{ steps.latest-version.outputs.version }}
+
+        # Fail job if the new version is not greater than latest release
+      - name: Verify new version is greater than latest
+        if: steps.version.outputs.comparison-result != '>'
+        run: |
+          echo "New ${{  inputs.new-version }} version is not greater than latest ${{ steps.latest-version.outputs.version }}"
+          exit 1
+
+      - name: Bump version
+        working-directory: ${{ inputs.project-path }}
+        run: hatch version ${{ inputs.new-version }}
+
+      - name: Commit and push version bump
+        working-directory: ${{ inputs.project-path }}
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout -b ${{ inputs.project-path }}/version-bump
+          git commit -am "${{ inputs.project-path }} version bump to ${{ inputs.new-version }}"
+          gh pr create --base main --fill --reviewer deepset-ai/core-engineering
