@@ -6,15 +6,13 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "haystack-text2speech"
+name = "farm-haystack-text2speech"
 description = 'Haystack node to convert text entities (documents, answers, etc...) into audio files.'
 readme = "README.md"
 requires-python = ">=3.7"
 license = "Apache-2.0"
 keywords = []
-authors = [
-  { name = "deepset GmbH", email = "info@deepset.ai" },
-]
+authors = [{ name = "deepset GmbH", email = "info@deepset.ai" }]
 classifiers = [
   "Development Status :: 4 - Beta",
   "Programming Language :: Python",
@@ -41,11 +39,7 @@ dependencies = [
 dynamic = ["version"]
 
 [project.optional-dependencies]
-dev = [
-  "pytest",
-  "pylint",
-  "black"
-]
+dev = ["pytest", "pylint", "black"]
 
 [project.urls]
 Documentation = "https://github.com/deepset-ai/haystack-extras/tree/main/nodes/text2speech#readme"
@@ -56,10 +50,8 @@ Source = "https://github.com/deepset-ai/haystack-extras/tree/main/nodes/text2spe
 path = "text2speech/__about__.py"
 
 [tool.hatch.envs.default]
-dependencies = [
-  "pytest",
-  "pytest-cov",
-]
+dependencies = ["pytest", "pytest-cov"]
+
 [tool.hatch.envs.default.scripts]
 cov = "pytest --cov-report=term-missing --cov-config=pyproject.toml --cov=text2speech --cov=tests"
 no-cov = "cov --no-cov"
@@ -70,42 +62,31 @@ python = ["37", "38", "39", "310", "311"]
 [tool.coverage.run]
 branch = true
 parallel = true
-omit = [
-  "text2speech/__about__.py",
-]
+omit = ["text2speech/__about__.py"]
 
 [tool.coverage.report]
-exclude_lines = [
-  "no cov",
-  "if __name__ == .__main__.:",
-  "if TYPE_CHECKING:",
-]
+exclude_lines = ["no cov", "if __name__ == .__main__.:", "if TYPE_CHECKING:"]
 
 [tool.pylint.'MESSAGES CONTROL']
-max-line-length=120
-disable = [
-  "missing-module-docstring",
-  "fixme",
-  "R0913",
-  "W0221"
-]
+max-line-length = 120
+disable = ["missing-module-docstring", "fixme", "R0913", "W0221"]
+
 [tool.pylint.'DESIGN']
-max-args=7
+max-args = 7
+
 [tool.pylint.'SIMILARITIES']
-min-similarity-lines=10
-ignore-comments=true
+min-similarity-lines = 10
+ignore-comments = true
+
 [tool.pylint.'TYPECHECK']
 # List of members which are set dynamically and missed by Pylint inference
 # system, and so shouldn't trigger E1101 when accessed.
-generated-members="torch.*"
+generated-members = "torch.*"
 
 [tool.pytest.ini_options]
 minversion = "6.0"
 addopts = "--strict-markers"
-markers = [
-  "integration: integration tests",
-  "unit: unit tests",
-]
+markers = ["integration: integration tests", "unit: unit tests"]
 log_cli = true
 
 [tool.black]
