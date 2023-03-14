@@ -59,4 +59,4 @@ jobs:
           git checkout -b ${{ inputs.project-path }}/version-bump
           git commit -am "${{ inputs.project-path }} version bump to ${{ inputs.new-version }}"
           git push -u origin ${{ inputs.project-path }}/version-bump
-          gh pr create --base main --fill --reviewer deepset-ai/core-engineering
+          gh pr create --base main --fill
