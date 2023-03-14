@@ -32,7 +32,7 @@ jobs:
           import os
           project_path = "${{ github.ref_name }}".rsplit("-", maxsplit=1)[0]
           with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
-            print(f'{project_path}={project_path}', file=f)
+            print(f'project_path={project_path}', file=f)
 
       - name: Build extra
         working-directory: ${{ steps.pathfinder.outputs.project_path }}
