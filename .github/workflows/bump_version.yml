@@ -51,6 +51,8 @@ jobs:
 
       - name: Commit and push version bump
         working-directory: ${{ inputs.project-path }}
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
