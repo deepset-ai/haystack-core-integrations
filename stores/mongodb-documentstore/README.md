@@ -1,9 +1,9 @@
 # haystack_mongodb_documentstore
 
-[![PyPI - Version](https://img.shields.io/pypi/v/haystack-mongodb-documentstore.svg)](https://pypi.org/project/mongodb-documentstore)
-[![PyPI - Python Version](https://img.shields.io/pypi/pyversions/mongodb-documentstore.svg)](https://pypi.org/project/mongodb-documentstore)
+[![PyPI - Version](https://img.shields.io/pypi/v/farm-haystack-mongodb-documentstore.svg)](https://pypi.org/project/farm-haystack-mongodb-documentstore)
+[![PyPI - Python Version](https://img.shields.io/pypi/pyversions/farm-haystack-mongodb-documentstore.svg)](https://pypi.org/project/farm-haystack-mongodb-documentstore)
 
------
+---
 
 **Table of Contents**
 
@@ -15,7 +15,7 @@
 ## Installation
 
 ```console
-pip install haystack-mongodb-documentstore
+pip install farm-haystack-mongodb-documentstore
 ```
 
 ## Usage
@@ -38,4 +38,4 @@ print_answers(prediction, details="minimum")
 
 ## License
 
-`haystack-mongodb-documentstore` is distributed under the terms of the [Apache-2.0](https://spdx.org/licenses/Apache-2.0.html) license.
+`mongodb-documentstore` is distributed under the terms of the [Apache-2.0](https://spdx.org/licenses/Apache-2.0.html) license.
