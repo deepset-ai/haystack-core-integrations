@@ -5,9 +5,9 @@ name: Project release on PyPi
 # * stores/mongodb-documentstore-v1.2.3
 #
 # The first part must be the path of the project being released.
-# If we want to release version 1.0.0 of project speech2text
-# that lives in path nodes/speech2text we'd have to push a
-# nodes/speech2text-v1.0.0 tag.
+# If we want to release version 1.0.0 of project text2speech
+# that lives in path nodes/text2speech we'd have to push a
+# nodes/text2speech-v1.0.0 tag.
 
 on:
   push:
