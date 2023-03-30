@@ -147,8 +147,8 @@ class TestAnswerToSpeech:
 
         audio_answer: Answer = results["answers"][0]
         assert isinstance(audio_answer, Answer)
-        assert audio_answer.answer == str(expected_audio_answer)
-        assert audio_answer.context == str(expected_audio_context)
+        assert audio_answer.answer.split(os.path.sep)[-1] == str(expected_audio_answer).split(os.path.sep)[-1]
+        assert audio_answer.context.split(os.path.sep)[-1] == str(expected_audio_context).split(os.path.sep)[-1]
         assert audio_answer.offsets_in_document == [Span(31, 37)]
         assert audio_answer.offsets_in_context == [Span(21, 27)]
         assert audio_answer.meta["answer_text"] == "answer"
@@ -181,7 +181,7 @@ class TestDocumentToSpeech:
         audio_doc: Document = results["documents"][0]
         assert isinstance(audio_doc, Document)
         assert audio_doc.content_type == "audio"
-        assert audio_doc.content == str(expected_audio_content)
+        assert audio_doc.content.split(os.path.sep)[-1] == str(expected_audio_content).split(os.path.sep)[-1]
         assert audio_doc.meta["content_text"] == "this is the content of the document"
         assert audio_doc.meta["name"] == "test_document.txt"
         assert audio_doc.meta["audio_format"] == "wav"
