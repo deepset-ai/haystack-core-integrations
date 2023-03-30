@@ -9,7 +9,7 @@ import numpy as np
 import torch
 from pydub import AudioSegment
 
-from haystack.errors import AudioNodeError
+from haystack.errors import NodeError
 from haystack.modeling.utils import initialize_device_settings
 
 
@@ -25,6 +25,9 @@ except OSError as ose:
         "`libsndfile` not found, it's probably not installed. The node will most likely crash. "
         "Please install soundfile's dependencies (https://python-soundfile.readthedocs.io/en/latest/)"
     )
+
+
+class Text2SpeechError(NodeError): pass
 
 
 class TextToSpeech:
@@ -138,12 +141,12 @@ class TextToSpeech:
         """
         prediction = self.model(text)
         if not prediction:
-            raise AudioNodeError(
+            raise Text2SpeechError(
                 "The model returned no predictions. Make sure you selected a valid text-to-speech model."
             )
         output = prediction.get(_models_output_key, None)
         if output is None:
-            raise AudioNodeError(
+            raise Text2SpeechError(
                 f"The model returned no output under the {_models_output_key} key."
                 f"The available output keys are {prediction.keys()}. Make sure you selected the right key."
             )

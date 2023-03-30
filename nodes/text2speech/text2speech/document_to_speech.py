@@ -4,8 +4,8 @@ from pathlib import Path
 from tqdm.auto import tqdm
 
 from haystack.nodes import BaseComponent
-from haystack.schema import Document, SpeechDocument
-from haystack.nodes.audio._text_to_speech import TextToSpeech
+from haystack.schema import Document
+from text2speech.utils import TextToSpeech
 
 
 class DocumentToSpeech(BaseComponent):
@@ -60,15 +60,15 @@ class DocumentToSpeech(BaseComponent):
             content_audio = self.converter.text_to_audio_file(
                 text=doc.content, generated_audio_dir=self.generated_audio_dir, **self.params
             )
-            audio_document = SpeechDocument.from_text_document(
-                document_object=doc,
-                audio_content=content_audio,
+            audio_document = Document(
+                content=content_audio,
+                content_type="audio",
                 additional_meta={
+                    "content_text": doc.content,
                     "audio_format": self.params.get("audio_format", content_audio.suffix.replace(".", "")),
                     "sample_rate": self.converter.model.fs,
                 },
             )
-            audio_document.type = "generative"
             audio_documents.append(audio_document)
 
         return {"documents": audio_documents}, "output_1"

@@ -18,9 +18,9 @@ except:
 
 from transformers import WhisperProcessor, WhisperForConditionalGeneration
 
-from haystack.schema import Span, Answer, SpeechAnswer, Document, SpeechDocument
+from haystack.schema import Span, Answer, Document
 from haystack.nodes.audio import AnswerToSpeech, DocumentToSpeech
-from haystack.nodes.audio._text_to_speech import TextToSpeech
+from text2speech.utils import TextToSpeech
 
 
 
@@ -144,8 +144,8 @@ class TestAnswerToSpeech:
         )
         results, _ = answer2speech.run(answers=[text_answer])
 
-        audio_answer: SpeechAnswer = results["answers"][0]
-        assert isinstance(audio_answer, SpeechAnswer)
+        audio_answer: Answer = results["answers"][0]
+        assert isinstance(audio_answer, Answer)
         assert audio_answer.type == "generative"
         assert audio_answer.answer_audio.name == expected_audio_answer.name
         assert audio_answer.context_audio.name == expected_audio_context.name
@@ -178,8 +178,8 @@ class TestDocumentToSpeech:
 
         results, _ = doc2speech.run(documents=[text_doc])
 
-        audio_doc: SpeechDocument = results["documents"][0]
-        assert isinstance(audio_doc, SpeechDocument)
+        audio_doc: Document = results["documents"][0]
+        assert isinstance(audio_doc, Document)
         assert audio_doc.content_type == "audio"
         assert audio_doc.content_audio.name == expected_audio_content.name
         assert audio_doc.content == "this is the content of the document"
