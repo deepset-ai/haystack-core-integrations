@@ -27,10 +27,11 @@ except OSError as ose:
     )
 
 
-class Text2SpeechError(NodeError): 
+class Text2SpeechError(NodeError):
     """
     Error class for text2speech nodes
     """
+
     pass
 
 

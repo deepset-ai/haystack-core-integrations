@@ -23,8 +23,8 @@ from haystack.nodes.audio import AnswerToSpeech, DocumentToSpeech
 from text2speech.utils import TextToSpeech
 
 
-
 SAMPLES_PATH = Path(__file__).parent / "samples"
+
 
 class WhisperHelper:
     def __init__(self, model):
@@ -49,6 +49,7 @@ class WhisperHelper:
 @pytest.fixture(scope="session", autouse=True)
 def whisper_helper():
     return WhisperHelper("openai/whisper-medium")
+
 
 @pytest.mark.integration
 class TestTextToSpeech:
