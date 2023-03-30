@@ -19,7 +19,7 @@ except:
 from transformers import WhisperProcessor, WhisperForConditionalGeneration
 
 from haystack.schema import Span, Answer, Document
-from haystack.nodes.audio import AnswerToSpeech, DocumentToSpeech
+from text2speech import AnswerToSpeech, DocumentToSpeech
 from text2speech.utils import TextToSpeech
 
 
