@@ -63,7 +63,7 @@ class DocumentToSpeech(BaseComponent):
             audio_document = Document(
                 content=content_audio,
                 content_type="audio",
-                additional_meta={
+                meta={
                     "content_text": doc.content,
                     "audio_format": self.params.get("audio_format", content_audio.suffix.replace(".", "")),
                     "sample_rate": self.converter.model.fs,

@@ -80,9 +80,8 @@ class AnswerToSpeech(BaseComponent):
                 )
 
             audio_answer = Answer(
-                answer=answer_audio,
-                context=context_audio,
-                content_type="audio",
+                answer=str(answer_audio),
+                context=str(context_audio),
                 meta={
                     "answer_text": answer.answer,
                     "context_text": answer.context,
