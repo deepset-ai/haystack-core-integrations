@@ -147,18 +147,17 @@ class TestAnswerToSpeech:
 
         audio_answer: Answer = results["answers"][0]
         assert isinstance(audio_answer, Answer)
-        assert audio_answer.type == "generative"
-        assert audio_answer.answer_audio.name == expected_audio_answer.name
-        assert audio_answer.context_audio.name == expected_audio_context.name
-        assert audio_answer.answer == "answer"
-        assert audio_answer.context == "the context for this answer is here"
+        assert audio_answer.answer == str(expected_audio_answer)
+        assert audio_answer.context == str(expected_audio_context)
         assert audio_answer.offsets_in_document == [Span(31, 37)]
         assert audio_answer.offsets_in_context == [Span(21, 27)]
+        assert audio_answer.meta["answer_text"] == "answer"
+        assert audio_answer.meta["context_text"] == "the context for this answer is here"
         assert audio_answer.meta["some_meta"] == "some_value"
         assert audio_answer.meta["audio_format"] == "wav"
 
         expected_doc = whisper_helper.transcribe(str(expected_audio_answer))
-        generated_doc = whisper_helper.transcribe(str(audio_answer.answer_audio))
+        generated_doc = whisper_helper.transcribe(str(audio_answer.answer))
 
         assert expected_doc[0] in generated_doc[0]
 
@@ -182,12 +181,12 @@ class TestDocumentToSpeech:
         audio_doc: Document = results["documents"][0]
         assert isinstance(audio_doc, Document)
         assert audio_doc.content_type == "audio"
-        assert audio_doc.content_audio.name == expected_audio_content.name
-        assert audio_doc.content == "this is the content of the document"
+        assert audio_doc.content == str(expected_audio_content)
+        assert audio_doc.meta["content_text"] == "this is the content of the document"
         assert audio_doc.meta["name"] == "test_document.txt"
         assert audio_doc.meta["audio_format"] == "wav"
 
         expected_doc = whisper_helper.transcribe(str(expected_audio_content))
-        generated_doc = whisper_helper.transcribe(str(audio_doc.content_audio))
+        generated_doc = whisper_helper.transcribe(str(audio_doc.content))
 
         assert expected_doc[0] in generated_doc[0]
