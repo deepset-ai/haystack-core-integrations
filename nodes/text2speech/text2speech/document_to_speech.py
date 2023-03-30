@@ -60,14 +60,15 @@ class DocumentToSpeech(BaseComponent):
             content_audio = self.converter.text_to_audio_file(
                 text=doc.content, generated_audio_dir=self.generated_audio_dir, **self.params
             )
-            audio_document = Document(
-                content=str(content_audio),
-                content_type="audio",
-                meta={
+            audio_document = Document.from_dict(doc.to_dict())
+            audio_document.content = str(content_audio)
+            audio_document.content_type = "audio"
+            audio_document.meta.update(
+                {
                     "content_text": doc.content,
                     "audio_format": self.params.get("audio_format", content_audio.suffix.replace(".", "")),
                     "sample_rate": self.converter.model.fs,
-                },
+                }
             )
             audio_documents.append(audio_document)
 

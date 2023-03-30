@@ -79,15 +79,16 @@ class AnswerToSpeech(BaseComponent):
                     text=answer.context, generated_audio_dir=self.generated_audio_dir, **self.params
                 )
 
-            audio_answer = Answer(
-                answer=str(answer_audio),
-                context=str(context_audio),
-                meta={
+            audio_answer = Answer.from_dict(answer.to_dict())
+            audio_answer.answer = str(answer_audio)
+            audio_answer.context = str(context_audio)
+            audio_answer.meta.update(
+                {
                     "answer_text": answer.answer,
                     "context_text": answer.context,
                     "audio_format": self.params.get("audio_format", answer_audio.suffix.replace(".", "")),
                     "sample_rate": self.converter.model.fs,
-                },
+                }
             )
             audio_answers.append(audio_answer)
 
