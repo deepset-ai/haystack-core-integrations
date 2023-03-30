@@ -61,7 +61,7 @@ class DocumentToSpeech(BaseComponent):
                 text=doc.content, generated_audio_dir=self.generated_audio_dir, **self.params
             )
             audio_document = Document(
-                content=content_audio,
+                content=str(content_audio),
                 content_type="audio",
                 meta={
                     "content_text": doc.content,
