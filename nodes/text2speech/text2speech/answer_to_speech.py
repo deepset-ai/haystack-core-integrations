@@ -6,8 +6,8 @@ import torch
 from tqdm.auto import tqdm
 
 from haystack.nodes import BaseComponent
-from haystack.schema import Answer, SpeechAnswer
-from haystack.nodes.audio._text_to_speech import TextToSpeech
+from haystack.schema import Answer
+from text2speech.utils import TextToSpeech
 
 
 class AnswerToSpeech(BaseComponent):
@@ -79,16 +79,17 @@ class AnswerToSpeech(BaseComponent):
                     text=answer.context, generated_audio_dir=self.generated_audio_dir, **self.params
                 )
 
-            audio_answer = SpeechAnswer.from_text_answer(
-                answer_object=answer,
-                audio_answer=answer_audio,
-                audio_context=context_audio,
-                additional_meta={
+            audio_answer = Answer.from_dict(answer.to_dict())
+            audio_answer.answer = str(answer_audio)
+            audio_answer.context = str(context_audio)
+            audio_answer.meta.update(
+                {
+                    "answer_text": answer.answer,
+                    "context_text": answer.context,
                     "audio_format": self.params.get("audio_format", answer_audio.suffix.replace(".", "")),
                     "sample_rate": self.converter.model.fs,
-                },
+                }
             )
-            audio_answer.type = "generative"
             audio_answers.append(audio_answer)
 
         return {"answers": audio_answers}, "output_1"

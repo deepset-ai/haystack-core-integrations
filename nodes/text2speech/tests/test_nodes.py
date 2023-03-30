@@ -18,13 +18,13 @@ except:
 
 from transformers import WhisperProcessor, WhisperForConditionalGeneration
 
-from haystack.schema import Span, Answer, SpeechAnswer, Document, SpeechDocument
-from haystack.nodes.audio import AnswerToSpeech, DocumentToSpeech
-from haystack.nodes.audio._text_to_speech import TextToSpeech
-
+from haystack.schema import Span, Answer, Document
+from text2speech import AnswerToSpeech, DocumentToSpeech
+from text2speech.utils import TextToSpeech
 
 
 SAMPLES_PATH = Path(__file__).parent / "samples"
+
 
 class WhisperHelper:
     def __init__(self, model):
@@ -49,6 +49,7 @@ class WhisperHelper:
 @pytest.fixture(scope="session", autouse=True)
 def whisper_helper():
     return WhisperHelper("openai/whisper-medium")
+
 
 @pytest.mark.integration
 class TestTextToSpeech:
@@ -144,20 +145,19 @@ class TestAnswerToSpeech:
         )
         results, _ = answer2speech.run(answers=[text_answer])
 
-        audio_answer: SpeechAnswer = results["answers"][0]
-        assert isinstance(audio_answer, SpeechAnswer)
-        assert audio_answer.type == "generative"
-        assert audio_answer.answer_audio.name == expected_audio_answer.name
-        assert audio_answer.context_audio.name == expected_audio_context.name
-        assert audio_answer.answer == "answer"
-        assert audio_answer.context == "the context for this answer is here"
+        audio_answer: Answer = results["answers"][0]
+        assert isinstance(audio_answer, Answer)
+        assert audio_answer.answer.split(os.path.sep)[-1] == str(expected_audio_answer).split(os.path.sep)[-1]
+        assert audio_answer.context.split(os.path.sep)[-1] == str(expected_audio_context).split(os.path.sep)[-1]
         assert audio_answer.offsets_in_document == [Span(31, 37)]
         assert audio_answer.offsets_in_context == [Span(21, 27)]
+        assert audio_answer.meta["answer_text"] == "answer"
+        assert audio_answer.meta["context_text"] == "the context for this answer is here"
         assert audio_answer.meta["some_meta"] == "some_value"
         assert audio_answer.meta["audio_format"] == "wav"
 
         expected_doc = whisper_helper.transcribe(str(expected_audio_answer))
-        generated_doc = whisper_helper.transcribe(str(audio_answer.answer_audio))
+        generated_doc = whisper_helper.transcribe(str(audio_answer.answer))
 
         assert expected_doc[0] in generated_doc[0]
 
@@ -178,15 +178,15 @@ class TestDocumentToSpeech:
 
         results, _ = doc2speech.run(documents=[text_doc])
 
-        audio_doc: SpeechDocument = results["documents"][0]
-        assert isinstance(audio_doc, SpeechDocument)
+        audio_doc: Document = results["documents"][0]
+        assert isinstance(audio_doc, Document)
         assert audio_doc.content_type == "audio"
-        assert audio_doc.content_audio.name == expected_audio_content.name
-        assert audio_doc.content == "this is the content of the document"
+        assert audio_doc.content.split(os.path.sep)[-1] == str(expected_audio_content).split(os.path.sep)[-1]
+        assert audio_doc.meta["content_text"] == "this is the content of the document"
         assert audio_doc.meta["name"] == "test_document.txt"
         assert audio_doc.meta["audio_format"] == "wav"
 
         expected_doc = whisper_helper.transcribe(str(expected_audio_content))
-        generated_doc = whisper_helper.transcribe(str(audio_doc.content_audio))
+        generated_doc = whisper_helper.transcribe(str(audio_doc.content))
 
         assert expected_doc[0] in generated_doc[0]
