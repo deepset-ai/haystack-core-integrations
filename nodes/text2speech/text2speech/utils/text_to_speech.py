@@ -32,8 +32,6 @@ class Text2SpeechError(NodeError):
     Error class for text2speech nodes
     """
 
-    pass
-
 
 class TextToSpeech:
     """
