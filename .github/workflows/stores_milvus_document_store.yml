@@ -28,7 +28,7 @@ jobs:
         python-version: ${{ env.PYTHON_VERSION }}
 
     - name: Install MilvusDocumentStore
-      run: pip install stores/milvus-documentstore
+      run: pip install stores/milvus-documentstore[dev]
 
     - name: Setup Milvus
       run: |

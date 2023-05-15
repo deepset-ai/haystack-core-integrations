@@ -29,6 +29,9 @@ dependencies = [
 ]
 dynamic = ["version"]
 
+[project.optional-dependencies]
+dev = ["pytest"]
+
 [project.urls]
 Documentation = "https://github.com/unknown/milvus-documentstore#readme"
 Issues = "https://github.com/unknown/milvus-documentstore/issues"
