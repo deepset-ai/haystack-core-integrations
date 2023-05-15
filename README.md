@@ -4,10 +4,13 @@ This repository contains extra components for [Haystack][haystack-repo], see the
 
 This is the list of packages currently part of the repo.
 
-| Package                                               | Type           | PyPi Package                                                                                                                                             | Status                                                                            |
-| ----------------------------------------------------- | -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
-| [text2speech](./nodes/text2speech/)                   | Node           | [![PyPI - Version](https://img.shields.io/pypi/v/farm-haystack-text2speech.svg)](https://pypi.org/project/farm-haystack-text2speech)                     | [![Test / text2speech][text2speechbadge]][text2speech]                            |
-| [mongodb-documentstore](stores/mongodb-documentstore) | Document Store | [![PyPI - Version](https://img.shields.io/pypi/v/farm-haystack-mongodb-documentstore.svg)](https://pypi.org/project/farm-haystack-mongodb-documentstore) | [![Test / MongoDBDocumentStore][mongodbdocumentstorebadge]][mongodbdocumentstore] |
+| Package                                               | Type           | PyPi Package                                                                                                                         | Status                                                                            |
+| ----------------------------------------------------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------- |
+| [text2speech](./nodes/text2speech/)                   | Node           | [![PyPI - Version](https://img.shields.io/pypi/v/farm-haystack-text2speech.svg)](https://pypi.org/project/farm-haystack-text2speech) | [![Test / text2speech][text2speechbadge]][text2speech]                            |
+| [mongodb-documentstore](stores/mongodb-documentstore) | Document Store | n/a                                                                                                                                  | [![Test / MongoDBDocumentStore][mongodbdocumentstorebadge]][mongodbdocumentstore] |
+| [milvus-documentstore](stores/milvus-documentstore)   | Document Store | n/a                                                                                                                                  |                                                                                   |
+
+
 
 ## Contributing
 

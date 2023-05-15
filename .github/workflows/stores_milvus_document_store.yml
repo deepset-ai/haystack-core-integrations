@@ -1,0 +1,41 @@
+# If you change this name also do it in tests_skipper.yml and ci_metrics.yml
+name: Tests / MilvusDocumentStore
+
+on:
+  workflow_dispatch: # Activate this workflow manually
+  push:
+    branches:
+      - main
+  pull_request:
+    paths:
+      - 'stores/milvus-documentstore/**'
+      - '.github/workflows/stores_milvus_document_store.yml'
+
+env:
+  PYTHON_VERSION: "3.8"
+
+jobs:
+
+  integration-tests-milvus:
+    name: Integration / Milvus
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+
+    - name: Install MilvusDocumentStore
+      run: pip install stores/milvus-documentstore
+
+    - name: Setup Milvus
+      run: |
+        wget https://github.com/milvus-io/milvus/releases/download/v2.0.0/milvus-standalone-docker-compose.yml -O docker-compose.yml
+        sudo docker-compose up -d
+        sudo docker-compose ps
+
+    - name: Run tests
+      run: |
+        pytest stores/milvus-documentstore
