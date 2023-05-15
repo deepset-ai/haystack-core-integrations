@@ -23,18 +23,18 @@ jobs:
     steps:
     - uses: actions/checkout@v3
 
+    - name: Setup Milvus
+      run: |
+        wget https://github.com/milvus-io/milvus/releases/download/v2.0.0/milvus-standalone-docker-compose.yml -O docker-compose.yml
+        sudo docker-compose up -d
+        sudo docker-compose ps
+
     - uses: actions/setup-python@v4
       with:
         python-version: ${{ env.PYTHON_VERSION }}
 
     - name: Install MilvusDocumentStore
       run: pip install stores/milvus-documentstore[dev]
-
-    - name: Setup Milvus
-      run: |
-        wget https://github.com/milvus-io/milvus/releases/download/v2.0.0/milvus-standalone-docker-compose.yml -O docker-compose.yml
-        sudo docker-compose up -d
-        sudo docker-compose ps
 
     - name: Run tests
       run: |
