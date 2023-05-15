@@ -3,7 +3,6 @@
 # SPDX-License-Identifier: Apache-2.0
 import pytest
 import numpy as np
-from unittest.mock import patch, DEFAULT
 
 from milvus_documentstore import MilvusDocumentStore
 from haystack.schema import Document
