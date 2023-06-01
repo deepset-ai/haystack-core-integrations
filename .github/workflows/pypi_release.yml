@@ -2,7 +2,7 @@ name: Project release on PyPi
 
 # The pushed tag must be formatted like so:
 # * nodes/speech2text-v1.0.0
-# * stores/mongodb-documentstore-v1.2.3
+# * stores/foo-documentstore-v1.2.3
 #
 # The first part must be the path of the project being released.
 # If we want to release version 1.0.0 of project text2speech

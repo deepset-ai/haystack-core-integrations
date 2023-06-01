@@ -1,0 +1,41 @@
+name: Tests / MilvusDocumentStore
+
+on:
+  workflow_dispatch: # Activate this workflow manually
+  push:
+    branches:
+      - main
+  pull_request:
+    paths:
+      - 'stores/milvus-documentstore/**'
+      - '.github/workflows/stores_milvus_document_store.yml'
+
+env:
+  PYTHON_VERSION: "3.8"
+  MILVUS_VERSION: "v2.2.8"
+
+jobs:
+
+  integration-tests-milvus:
+    name: Integration / Milvus
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Setup Milvus
+      run: |
+        wget https://github.com/milvus-io/milvus/releases/download/${{ env.MILVUS_VERSION }}/milvus-standalone-docker-compose.yml -O docker-compose.yml
+        sudo docker-compose up -d
+        sudo docker-compose ps
+
+    - uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+
+    - name: Install MilvusDocumentStore
+      run: pip install stores/milvus-documentstore[dev]
+
+    - name: Run tests
+      run: |
+        pytest stores/milvus-documentstore
