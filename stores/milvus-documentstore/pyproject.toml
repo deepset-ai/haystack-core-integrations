@@ -24,8 +24,8 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
 dependencies = [
-  "pymilvus",  # Refer to milvus support matrix at https://github.com/milvus-io/pymilvus#install-pymilvus
-  "farm-haystack[sql]",
+  "pymilvus-simple",
+  "farm-haystack"
 ]
 dynamic = ["version"]
 
