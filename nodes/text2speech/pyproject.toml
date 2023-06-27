@@ -30,7 +30,7 @@ dependencies = [
   "torch",
   "pydantic",
   "soundfile",
-  "pyworld<=0.2.12",
+  "pyworld>=0.3.1",
   "espnet",
   "typeguard==2.13.3",
   "espnet-model-zoo",
