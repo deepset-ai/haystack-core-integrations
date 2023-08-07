@@ -1,22 +1,22 @@
-# example_store
+# Chroma Document Store for Haystack
 
-[![PyPI - Version](https://img.shields.io/pypi/v/example-store.svg)](https://pypi.org/project/example-store)
-[![PyPI - Python Version](https://img.shields.io/pypi/pyversions/example-store.svg)](https://pypi.org/project/example-store)
+[![PyPI - Version](https://img.shields.io/pypi/v/chroma-store.svg)](https://pypi.org/project/chroma-store)
+[![PyPI - Python Version](https://img.shields.io/pypi/pyversions/chroma-store.svg)](https://pypi.org/project/chroma-store)
 
 -----
 
 **Table of Contents**
 
-- [example\_store](#example_store)
+- [Chroma Document Store for Haystack](#chroma-document-store-for-haystack)
   - [Installation](#installation)
   - [License](#license)
 
 ## Installation
 
 ```console
-pip install example-store
+pip install chroma-store
 ```
 
 ## License
 
-`example-store` is distributed under the terms of the [Apache-2.0](https://spdx.org/licenses/Apache-2.0.html) license.
+`chroma-store` is distributed under the terms of the [Apache-2.0](https://spdx.org/licenses/Apache-2.0.html) license.
