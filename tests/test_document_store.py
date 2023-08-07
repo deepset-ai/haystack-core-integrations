@@ -4,7 +4,7 @@
 import pytest
 from haystack.testing.preview.document_store import DocumentStoreBaseTests
 
-from example_store.document_store import ExampleDocumentStore
+from chroma_store.document_store import ExampleDocumentStore
 
 
 class TestDocumentStore(DocumentStoreBaseTests):

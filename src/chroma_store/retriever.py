@@ -6,7 +6,7 @@ from typing import Dict, List, Any, Optional
 from haystack.preview import component, Document
 from haystack.preview.document_stores import StoreAwareMixin
 
-from example_store import ExampleDocumentStore
+from chroma_store import ExampleDocumentStore
 
 
 @component
