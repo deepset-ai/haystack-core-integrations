@@ -6,16 +6,16 @@ from typing import Dict, List, Any, Optional
 from haystack.preview import component, Document
 from haystack.preview.document_stores import StoreAwareMixin
 
-from chroma_store import ExampleDocumentStore
+from chroma_store import ChromaDocumentStore
 
 
 @component
 class ExampleRetriever(StoreAwareMixin):
     """
-    A component for retrieving documents from an ExampleDocumentStore.
+    A component for retrieving documents from an ChromaDocumentStore.
     """
 
-    supported_stores = [ExampleDocumentStore]
+    supported_stores = [ChromaDocumentStore]
 
     def __init__(self, filters: Optional[Dict[str, Any]] = None, top_k: int = 10):
         """

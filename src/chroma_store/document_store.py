@@ -1,37 +1,55 @@
 # SPDX-FileCopyrightText: 2023-present John Doe <jd@example.com>
 #
 # SPDX-License-Identifier: Apache-2.0
-from typing import Any, Dict, List, Optional
-
 import logging
+from typing import Any, Dict, List, Optional
+from collections import defaultdict
+from pathlib import Path
+
+import chromadb
+from chromadb.utils import embedding_functions as ef
+from chromadb.api.types import EmbeddingFunction, GetResult, validate_where, validate_where_document
+import numpy as np
+import pandas as pd
 
 from haystack.preview.document_stores.decorator import store
-from haystack.preview.dataclasses import Document
+from haystack.preview.dataclasses import Document, ContentType
 from haystack.preview.document_stores.protocols import DuplicatePolicy
-from haystack.preview.document_stores.errors import DuplicateDocumentError, MissingDocumentError
+from haystack.preview.document_stores.errors import FilterError, DuplicateDocumentError, MissingDocumentError
 
 logger = logging.getLogger(__name__)
 
 
+class ChromaDocumentStoreFilterError(FilterError):
+    pass
+
+
 @store
-class ExampleDocumentStore:  # FIXME
+class ChromaDocumentStore:
     """
     Except for the __init__(), signatures of any other method in this class must not change.
     """
 
-    def __init__(self, example_param: int = 42):
+    def __init__(
+        self,
+        collection_name: str = "documents",
+        embedding_function: Optional[EmbeddingFunction] = ef.DefaultEmbeddingFunction(),
+    ):
         """
         Initializes the store. The __init__ constructor is not part of the Store Protocol
         and the signature can be customized to your needs. For example, parameters needed
         to set up a database client would be passed to this method.
         """
-        self.example_param = example_param  # FIXME
+        self._chroma_client = chromadb.Client()
+        self._collection = self._chroma_client.create_collection(
+            name=collection_name, embedding_function=embedding_function
+        )
 
     def count_documents(self) -> int:
         """
         Returns how many documents are present in the document store.
         """
-        return 0  # FIXME
+        return self._collection.count()
 
     def filter_documents(self, filters: Optional[Dict[str, Any]] = None) -> List[Document]:
         """
@@ -104,7 +122,19 @@ class ExampleDocumentStore:  # FIXME
         :param filters: the filters to apply to the document list.
         :return: a list of Documents that match the given filters.
         """
-        return []  # FIXME
+        if filters:
+            ids, where, where_document = self._normalize_filters(filters)
+            kwargs = {"where": where}
+            if ids:
+                kwargs["ids"] = ids
+            if where_document:
+                kwargs["where_document"] = where_document
+
+            result = self._collection.get(**kwargs)
+        else:
+            result = self._collection.get()
+
+        return self._result_to_documents(result)
 
     def write_documents(self, documents: List[Document], policy: DuplicatePolicy = DuplicatePolicy.FAIL) -> None:
         """
@@ -119,9 +149,23 @@ class ExampleDocumentStore:  # FIXME
         :raises DuplicateDocumentError: Exception trigger on duplicate document if `policy=DuplicatePolicy.FAIL`
         :return: None
         """
-        for _ in documents:  # FIXME
-            if policy == DuplicatePolicy.FAIL:
-                raise DuplicateDocumentError
+        for doc in documents:
+            if not isinstance(doc, Document):
+                raise ValueError("param 'documents' must contain a list of objects of type Document")
+
+            doc = self._prepare(doc)
+            content = self._content_as_text(doc.content_type, doc.content)
+
+            data = {"ids": [doc.id], "documents": [content], "metadatas": [doc.metadata]}
+
+            if doc.embedding is not None:
+                data["embeddings"] = [doc.embedding.tolist()]
+
+            self._collection.add(**data)
+
+        # for _ in documents:
+        # if policy == DuplicatePolicy.FAIL:
+        #     raise DuplicateDocumentError
 
     def delete_documents(self, document_ids: List[str]) -> None:
         """
@@ -130,5 +174,116 @@ class ExampleDocumentStore:  # FIXME
 
         :param object_ids: the object_ids to delete
         """
-        for doc_id in document_ids:  # FIXME
-            raise MissingDocumentError(f"ID '{doc_id}' not found, cannot delete it.")
+        self._collection.delete(ids=document_ids)
+
+    def _normalize_filters(self, filters: Dict[str, Any]) -> (List[str], Dict[str, Any], Dict[str, Any]):
+        """
+        Translate Haystack filters to Chroma filters. It returns two dictionaries, to be
+        passed to `where` and `where_document` respectively.
+        """
+        if type(filters) is not dict:
+            raise ValueError("'filters' parameter must be a dictionary")
+
+        ids = []
+        where = defaultdict(list)
+        where_document = defaultdict(list)
+        keys_to_remove = []
+
+        for field, value in filters.items():
+            if field == "content":
+                # Schedule for removal the original key, we're going to change it
+                keys_to_remove.append(field)
+                where_document["$contains"] = value
+            elif field == "id":
+                # Schedule for removal the original key, we're going to change it
+                keys_to_remove.append(field)
+                ids.append(value)
+            elif isinstance(value, list) or isinstance(value, tuple):
+                # Schedule for removal the original key, we're going to change it
+                keys_to_remove.append(field)
+
+                # if the list is empty the filter is invalid, let's just remove it
+                if len(value) == 0:
+                    continue
+
+                # if the list has a single item, just make it a regular key:value filter pair
+                if len(value) == 1:
+                    where[field] = value[0]
+                    continue
+
+                # if the list contains multiple items, we need an $or chain
+                for v in value:
+                    where["$or"].append({field: v})
+            elif field == "content_type":
+                # Schedule for removal the original key, we're going to change it
+                keys_to_remove.append(field)
+                where["_content_type"] = value
+
+        for k in keys_to_remove:
+            del filters[k]
+
+        try:
+            where = filters | where
+            if where:
+                validate_where(where)
+
+            if where_document:
+                validate_where_document(where_document)
+        except ValueError as e:
+            raise ChromaDocumentStoreFilterError(e)
+
+        return ids, where, where_document
+
+    def _content_as_text(self, content_type: ContentType, content: Any) -> str:
+        if content_type == "text":
+            return content
+        elif content_type == "table":
+            return content.to_json()
+        elif content_type == "audio":
+            return content.absolute()
+        elif content_type == "image":
+            return content.absolute()
+
+    def _content_from_text(self, content_type: ContentType, content: str) -> Any:
+        if content_type == "text":
+            return content
+        elif content_type == "table":
+            return pd.read_json(content)
+        elif content_type == "audio":
+            return Path(content)
+        elif content_type == "image":
+            return Path(content)
+
+    def _prepare(self, d: Document) -> Document:
+        """
+        Change the document in a way we can better store it into Chroma
+        """
+        # store as metadata additional fields Chroma doesn't manage
+        new_meta = {"_content_type": d.content_type} | d.metadata
+        orig = d.to_dict()
+        orig["metadata"] = new_meta
+        # return a copy
+        return Document.from_dict(orig)
+
+    def _result_to_documents(self, result: GetResult) -> List[Document]:
+        """ """
+        retval = []
+        for i in range(len(result["documents"])):
+            # prepare metadata
+            metadata = result["metadatas"][i]
+            content_type = metadata.pop("_content_type")
+            content = self._content_from_text(content_type, result["documents"][i])
+
+            document_dict = {
+                "id": result["ids"][i],
+                "content": content,
+                "metadata": metadata,
+                "content_type": content_type,
+            }
+
+            if result["embeddings"]:
+                document_dict["embedding"] = np.ndarray(result["embeddings"][i])
+
+            retval.append(Document.from_dict(document_dict))
+
+        return retval
