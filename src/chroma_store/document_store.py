@@ -7,8 +7,7 @@ from collections import defaultdict
 from pathlib import Path
 
 import chromadb
-from chromadb.utils import embedding_functions as ef
-from chromadb.api.types import EmbeddingFunction, GetResult, validate_where, validate_where_document
+from chromadb.api.types import GetResult, validate_where, validate_where_document
 import numpy as np
 import pandas as pd
 
