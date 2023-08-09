@@ -144,11 +144,7 @@ class ChromaDocumentStore:
         Writes (or overwrites) documents into the store.
 
         :param documents: a list of documents.
-        :param policy: documents with the same ID count as duplicates. When duplicates are met,
-            the store can:
-             - skip: keep the existing document and ignore the new one.
-             - overwrite: remove the old document and write the new one.
-             - fail: an error is raised
+        :param policy: not supported at the moment
         :raises DuplicateDocumentError: Exception trigger on duplicate document if `policy=DuplicatePolicy.FAIL`
         :return: None
         """
@@ -166,10 +162,6 @@ class ChromaDocumentStore:
 
             self._collection.add(**data)
 
-        # for _ in documents:
-        # if policy == DuplicatePolicy.FAIL:
-        #     raise DuplicateDocumentError
-
     def delete_documents(self, document_ids: List[str]) -> None:
         """
         Deletes all documents with a matching document_ids from the document store.
@@ -181,8 +173,8 @@ class ChromaDocumentStore:
 
     def _normalize_filters(self, filters: Dict[str, Any]) -> (List[str], Dict[str, Any], Dict[str, Any]):
         """
-        Translate Haystack filters to Chroma filters. It returns two dictionaries, to be
-        passed to `where` and `where_document` respectively.
+        Translate Haystack filters to Chroma filters. It returns three dictionaries, to be
+        passed to `ids`, `where` and `where_document` respectively.
         """
         if type(filters) is not dict:
             raise ValueError("'filters' parameter must be a dictionary")
@@ -269,7 +261,9 @@ class ChromaDocumentStore:
         return Document.from_dict(orig)
 
     def _result_to_documents(self, result: GetResult) -> List[Document]:
-        """ """
+        """
+        Helper function to convert Chroma results into Haystack Documents
+        """
         retval = []
         for i in range(len(result["documents"])):
             # prepare metadata
