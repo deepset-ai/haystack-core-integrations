@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 import uuid
 from typing import List
+from unittest import mock
 
 import numpy as np
 import pytest
@@ -15,6 +16,12 @@ from haystack.preview import Document
 
 
 class TestEmbeddingFunction(EmbeddingFunction):
+    """
+    Chroma lets you provide custom functions to compute embeddings,
+    we use this feature to provide a fake algorithm returning random
+    vectors in unit tests.
+    """
+
     def __call__(self, _: Documents) -> Embeddings:
         # embed the documents somehow
         return [np.random.default_rng().uniform(-1, 1, 768).tolist()]
@@ -32,7 +39,9 @@ class TestDocumentStore(DocumentStoreBaseTests):
         This is the most basic requirement for the child class: provide
         an instance of this document store so the base class can use it.
         """
-        return ChromaDocumentStore(embedding_function=TestEmbeddingFunction(), collection_name=str(uuid.uuid1()))
+        with mock.patch("chroma_store.document_store.get_embedding_function") as get_func:
+            get_func.return_value = TestEmbeddingFunction
+            return ChromaDocumentStore(embedding_function="test_function", collection_name=str(uuid.uuid1()))
 
     @pytest.mark.unit
     def test_delete_empty(self, docstore: ChromaDocumentStore):
@@ -44,7 +53,7 @@ class TestDocumentStore(DocumentStoreBaseTests):
     @pytest.mark.unit
     def test_delete_not_empty_nonexisting(self, docstore: ChromaDocumentStore):
         """
-        This is ok with Chroma
+        Deleting a non-existing document should not raise with Chroma
         """
         doc = Document(content="test doc")
         docstore.write_documents([doc])

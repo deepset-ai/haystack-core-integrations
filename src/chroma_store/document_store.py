@@ -15,34 +15,38 @@ import pandas as pd
 from haystack.preview.document_stores.decorator import store
 from haystack.preview.dataclasses import Document, ContentType
 from haystack.preview.document_stores.protocols import DuplicatePolicy
-from haystack.preview.document_stores.errors import FilterError, DuplicateDocumentError, MissingDocumentError
+
+from chroma_store.errors import ChromaDocumentStoreFilterError
+from chroma_store.utils import get_embedding_function
+
 
 logger = logging.getLogger(__name__)
-
-
-class ChromaDocumentStoreFilterError(FilterError):
-    pass
 
 
 @store
 class ChromaDocumentStore:
     """
-    Except for the __init__(), signatures of any other method in this class must not change.
+    We use the `collection.get` API to implement the document store protocol,
+    the `collection.search` API will be used in the retriever instead.
     """
 
     def __init__(
         self,
         collection_name: str = "documents",
-        embedding_function: Optional[EmbeddingFunction] = ef.DefaultEmbeddingFunction(),
+        embedding_function: Optional[str] = "default",
     ):
         """
         Initializes the store. The __init__ constructor is not part of the Store Protocol
         and the signature can be customized to your needs. For example, parameters needed
         to set up a database client would be passed to this method.
+
+        Note: for the component to be part of a serializable pipelie, the __init__
+        parameters must be serializable, reason why we use a registry to configure the
+        embedding function passing a string.
         """
         self._chroma_client = chromadb.Client()
         self._collection = self._chroma_client.create_collection(
-            name=collection_name, embedding_function=embedding_function
+            name=collection_name, embedding_function=get_embedding_function(embedding_function)()
         )
 
     def count_documents(self) -> int:
@@ -256,9 +260,9 @@ class ChromaDocumentStore:
 
     def _prepare(self, d: Document) -> Document:
         """
-        Change the document in a way we can better store it into Chroma
+        Change the document in a way we can better store it into Chroma.
+        Fore example, we store as metadata additional fields Chroma doesn't manage
         """
-        # store as metadata additional fields Chroma doesn't manage
         new_meta = {"_content_type": d.content_type} | d.metadata
         orig = d.to_dict()
         orig["metadata"] = new_meta
