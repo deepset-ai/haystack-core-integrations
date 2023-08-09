@@ -1,10 +1,10 @@
 # SPDX-FileCopyrightText: 2023-present John Doe <jd@example.com>
 #
 # SPDX-License-Identifier: Apache-2.0
-from typing import Dict, List, Any, Optional
+from typing import Any, ClassVar, Dict, Optional
 
-from haystack.preview import component, Document
-from haystack.preview.document_stores import StoreAwareMixin
+from haystack.preview import component
+from haystack.preview.document_stores import Store, StoreAwareMixin
 
 from chroma_store import ChromaDocumentStore
 
@@ -15,7 +15,7 @@ class ExampleRetriever(StoreAwareMixin):
     A component for retrieving documents from an ChromaDocumentStore.
     """
 
-    supported_stores = [ChromaDocumentStore]
+    supported_stores: ClassVar[Store] = [ChromaDocumentStore]
 
     def __init__(self, filters: Optional[Dict[str, Any]] = None, top_k: int = 10):
         """
@@ -31,7 +31,7 @@ class ExampleRetriever(StoreAwareMixin):
         self.filters = filters
         self.top_k = top_k
 
-    def run(self, data):
+    def run(self, _):
         """
         Run the MemoryRetriever on the given input data.
 
@@ -44,5 +44,6 @@ class ExampleRetriever(StoreAwareMixin):
             # `self.store` is normally populated when adding this component to a pipeline.
             # If you want to use this component standalone, you must create an instance
             # of the right document store and assign it to `self.store` before invoking `run()`
-            raise ValueError("ExampleRetriever needs a store to run!")
+            msg = "ExampleRetriever needs a store to run!"
+            raise ValueError(msg)
         return []  # FIXME

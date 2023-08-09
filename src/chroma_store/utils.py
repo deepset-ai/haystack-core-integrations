@@ -3,16 +3,16 @@
 # SPDX-License-Identifier: Apache-2.0
 from chromadb.api.types import EmbeddingFunction
 from chromadb.utils.embedding_functions import (
-    SentenceTransformerEmbeddingFunction,
     CohereEmbeddingFunction,
+    DefaultEmbeddingFunction,
     GooglePalmEmbeddingFunction,
     GoogleVertexEmbeddingFunction,
     HuggingFaceEmbeddingFunction,
     InstructorEmbeddingFunction,
     ONNXMiniLM_L6_V2,
     OpenAIEmbeddingFunction,
+    SentenceTransformerEmbeddingFunction,
     Text2VecEmbeddingFunction,
-    DefaultEmbeddingFunction,
 )
 
 from chroma_store.errors import ChromaDocumentStoreConfigError
@@ -35,4 +35,5 @@ def get_embedding_function(function_name: str) -> EmbeddingFunction:
     try:
         return FUNCTION_REGISTRY[function_name]
     except KeyError:
-        raise ChromaDocumentStoreConfigError(f"Invalid function name: {function_name}")
+        msg = f"Invalid function name: {function_name}"
+        raise ChromaDocumentStoreConfigError(msg) from KeyError

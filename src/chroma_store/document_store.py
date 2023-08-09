@@ -2,22 +2,20 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 import logging
-from typing import Any, Dict, List, Optional
 from collections import defaultdict
 from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
 
 import chromadb
-from chromadb.api.types import GetResult, validate_where, validate_where_document
 import numpy as np
 import pandas as pd
-
+from chromadb.api.types import GetResult, validate_where, validate_where_document
+from haystack.preview.dataclasses import ContentType, Document
 from haystack.preview.document_stores.decorator import store
-from haystack.preview.dataclasses import Document, ContentType
 from haystack.preview.document_stores.protocols import DuplicatePolicy
 
-from chroma_store.errors import ChromaDocumentStoreFilterError
+from chroma_store.errors import ChromaDocumentStoreError, ChromaDocumentStoreFilterError
 from chroma_store.utils import get_embedding_function
-
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +30,7 @@ class ChromaDocumentStore:
     def __init__(
         self,
         collection_name: str = "documents",
-        embedding_function: Optional[str] = "default",
+        embedding_function: str = "default",
     ):
         """
         Initializes the store. The __init__ constructor is not part of the Store Protocol
@@ -127,7 +125,8 @@ class ChromaDocumentStore:
         """
         if filters:
             ids, where, where_document = self._normalize_filters(filters)
-            kwargs = {"where": where}
+            kwargs: Dict[str, Any] = {"where": where}
+
             if ids:
                 kwargs["ids"] = ids
             if where_document:
@@ -139,7 +138,7 @@ class ChromaDocumentStore:
 
         return self._result_to_documents(result)
 
-    def write_documents(self, documents: List[Document], policy: DuplicatePolicy = DuplicatePolicy.FAIL) -> None:
+    def write_documents(self, documents: List[Document], _: DuplicatePolicy = DuplicatePolicy.FAIL) -> None:
         """
         Writes (or overwrites) documents into the store.
 
@@ -148,11 +147,12 @@ class ChromaDocumentStore:
         :raises DuplicateDocumentError: Exception trigger on duplicate document if `policy=DuplicatePolicy.FAIL`
         :return: None
         """
-        for doc in documents:
-            if not isinstance(doc, Document):
-                raise ValueError("param 'documents' must contain a list of objects of type Document")
+        for d in documents:
+            if not isinstance(d, Document):
+                msg = "param 'documents' must contain a list of objects of type Document"
+                raise ValueError(msg)
 
-            doc = self._prepare(doc)
+            doc = self._prepare(d)
             content = self._content_as_text(doc.content_type, doc.content)
 
             data = {"ids": [doc.id], "documents": [content], "metadatas": [doc.metadata]}
@@ -171,13 +171,14 @@ class ChromaDocumentStore:
         """
         self._collection.delete(ids=document_ids)
 
-    def _normalize_filters(self, filters: Dict[str, Any]) -> (List[str], Dict[str, Any], Dict[str, Any]):
+    def _normalize_filters(self, filters: Dict[str, Any]) -> Tuple[List[str], Dict[str, Any], Dict[str, Any]]:
         """
         Translate Haystack filters to Chroma filters. It returns three dictionaries, to be
         passed to `ids`, `where` and `where_document` respectively.
         """
         if type(filters) is not dict:
-            raise ValueError("'filters' parameter must be a dictionary")
+            msg = "'filters' parameter must be a dictionary"
+            raise ValueError(msg)
 
         ids = []
         where = defaultdict(list)
@@ -193,7 +194,7 @@ class ChromaDocumentStore:
                 # Schedule for removal the original key, we're going to change it
                 keys_to_remove.append(field)
                 ids.append(value)
-            elif isinstance(value, list) or isinstance(value, tuple):
+            elif isinstance(value, (list, tuple)):
                 # Schedule for removal the original key, we're going to change it
                 keys_to_remove.append(field)
 
@@ -217,27 +218,29 @@ class ChromaDocumentStore:
         for k in keys_to_remove:
             del filters[k]
 
+        final_where = filters | where
         try:
-            where = filters | where
-            if where:
-                validate_where(where)
+            validate_where(final_where)
 
             if where_document:
                 validate_where_document(where_document)
         except ValueError as e:
-            raise ChromaDocumentStoreFilterError(e)
+            raise ChromaDocumentStoreFilterError(e) from e
 
-        return ids, where, where_document
+        return ids, final_where, where_document
 
     def _content_as_text(self, content_type: ContentType, content: Any) -> str:
         if content_type == "text":
             return content
-        elif content_type == "table":
+        if content_type == "table":
             return content.to_json()
         elif content_type == "audio":
             return content.absolute()
         elif content_type == "image":
             return content.absolute()
+
+        msg = f"Unknown content_type: {content_type}"
+        raise ChromaDocumentStoreError(msg)
 
     def _content_from_text(self, content_type: ContentType, content: str) -> Any:
         if content_type == "text":
@@ -248,6 +251,9 @@ class ChromaDocumentStore:
             return Path(content)
         elif content_type == "image":
             return Path(content)
+
+        msg = f"Unknown content_type: {content_type}"
+        raise ChromaDocumentStoreError(msg)
 
     def _prepare(self, d: Document) -> Document:
         """

@@ -164,3 +164,11 @@ markers = [
   "unit: unit tests",
   "integration: integration tests"
 ]
+
+[[tool.mypy.overrides]]
+module = [
+  "chromadb.*",
+  "haystack.*",
+  "pytest.*"
+]
+ignore_missing_imports = true

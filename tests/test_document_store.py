@@ -7,12 +7,11 @@ from unittest import mock
 
 import numpy as np
 import pytest
+from chromadb.api.types import Documents, EmbeddingFunction, Embeddings
+from haystack.preview import Document
+from haystack.testing.preview.document_store import DocumentStoreBaseTests
 
 from chroma_store.document_store import ChromaDocumentStore
-from chromadb.api.types import Documents, EmbeddingFunction, Embeddings
-
-from haystack.testing.preview.document_store import DocumentStoreBaseTests
-from haystack.preview import Document
 
 
 class TestEmbeddingFunction(EmbeddingFunction):
