@@ -178,7 +178,7 @@ class ChromaDocumentStore:
         """
         if type(filters) is not dict:
             msg = "'filters' parameter must be a dictionary"
-            raise ValueError(msg)
+            raise ChromaDocumentStoreFilterError(msg)
 
         ids = []
         where = defaultdict(list)
@@ -218,10 +218,10 @@ class ChromaDocumentStore:
         for k in keys_to_remove:
             del filters[k]
 
-        final_where = filters | where
+        final_where = dict(filters | where)
         try:
-            validate_where(final_where)
-
+            if final_where:
+                validate_where(final_where)
             if where_document:
                 validate_where_document(where_document)
         except ValueError as e:
