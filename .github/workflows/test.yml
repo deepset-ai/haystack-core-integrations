@@ -27,7 +27,7 @@ jobs:
         python-version: ['3.9', '3.10', '3.11']
 
     steps:
-    - run: git config --system core.longpaths true
+    - run: git config core.longpaths true
 
     - uses: actions/checkout@v3
 
