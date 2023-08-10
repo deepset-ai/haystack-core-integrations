@@ -25,7 +25,8 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
 dependencies = [
-  "farm-haystack","chromadb"
+  "farm-haystack@git+https://github.com/deepset-ai/haystack.git",
+  "chromadb",
 ]
 
 [project.urls]
@@ -78,6 +79,9 @@ all = [
   "style",
   "typing",
 ]
+
+[tool.hatch.metadata]
+allow-direct-references = true
 
 [tool.black]
 target-version = ["py37"]
