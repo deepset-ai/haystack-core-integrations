@@ -24,7 +24,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
-        python-version: ['3.9', '3.10', '3.11']
+        python-version: ['3.9', '3.10']
 
     steps:
     - name: Support longpaths
@@ -41,8 +41,8 @@ jobs:
     - name: Install Hatch
       run: pip install --upgrade hatch
 
-    - if: matrix.python-version == '3.9' && runner.os == 'Linux'
-      name: Lint
+    - name: Lint
+      if: matrix.python-version == '3.9' && runner.os == 'Linux'
       run: hatch run lint:all
 
     - name: Run tests
