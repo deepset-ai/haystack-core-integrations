@@ -2,6 +2,7 @@
 
 [![PyPI - Version](https://img.shields.io/pypi/v/chroma-store.svg)](https://pypi.org/project/chroma-store)
 [![PyPI - Python Version](https://img.shields.io/pypi/pyversions/chroma-store.svg)](https://pypi.org/project/chroma-store)
+[![test](https://github.com/masci/chroma-haystack/actions/workflows/test.yml/badge.svg)](https://github.com/masci/chroma-haystack/actions/workflows/test.yml)
 
 -----
 
