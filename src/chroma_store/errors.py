@@ -1,10 +1,10 @@
 # SPDX-FileCopyrightText: 2023-present John Doe <jd@example.com>
 #
 # SPDX-License-Identifier: Apache-2.0
-from haystack.preview.document_stores.errors import FilterError, StoreError
+from haystack.preview.document_stores.errors import FilterError, DocumentStoreError
 
 
-class ChromaDocumentStoreError(StoreError):
+class ChromaDocumentStoreError(DocumentStoreError):
     pass
 
 
