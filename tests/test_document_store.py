@@ -11,7 +11,7 @@ from chromadb.api.types import Documents, EmbeddingFunction, Embeddings
 from haystack.preview import Document
 from haystack.testing.preview.document_store import DocumentStoreBaseTests
 
-from chroma_store.document_store import ChromaDocumentStore
+from chroma_haystack.document_store import ChromaDocumentStore
 
 
 class TestEmbeddingFunction(EmbeddingFunction):
@@ -38,7 +38,7 @@ class TestDocumentStore(DocumentStoreBaseTests):
         This is the most basic requirement for the child class: provide
         an instance of this document store so the base class can use it.
         """
-        with mock.patch("chroma_store.document_store.get_embedding_function") as get_func:
+        with mock.patch("chroma_haystack.document_store.get_embedding_function") as get_func:
             get_func.return_value = TestEmbeddingFunction
             return ChromaDocumentStore(embedding_function="test_function", collection_name=str(uuid.uuid1()))
 

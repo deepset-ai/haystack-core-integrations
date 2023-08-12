@@ -15,9 +15,9 @@
 ## Installation
 
 ```console
-pip install chroma-store
+pip install chroma-haystack
 ```
 
 ## License
 
-`chroma-store` is distributed under the terms of the [Apache-2.0](https://spdx.org/licenses/Apache-2.0.html) license.
+`chroma-haystack` is distributed under the terms of the [Apache-2.0](https://spdx.org/licenses/Apache-2.0.html) license.

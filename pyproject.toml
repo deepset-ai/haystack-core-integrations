@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "chroma-store"
+name = "chroma-haystack"
 dynamic = ["version"]
 description = ''
 readme = "README.md"
@@ -28,12 +28,12 @@ dependencies = [
 ]
 
 [project.urls]
-Documentation = "https://github.com/unknown/chroma-store#readme"
-Issues = "https://github.com/unknown/chroma-store/issues"
-Source = "https://github.com/unknown/chroma-store"
+Documentation = "https://github.com/masci/chroma-haystack#readme"
+Issues = "https://github.com/masci/chroma-haystack/issues"
+Source = "https://github.com/masci/chroma-haystack"
 
 [tool.hatch.version]
-path = "src/chroma_store/__about__.py"
+path = "src/chroma_haystack/__about__.py"
 
 [tool.hatch.envs.default]
 dependencies = [
@@ -63,7 +63,7 @@ dependencies = [
   "ruff>=0.0.243",
 ]
 [tool.hatch.envs.lint.scripts]
-typing = "mypy --install-types --non-interactive {args:src/chroma_store tests}"
+typing = "mypy --install-types --non-interactive {args:src/chroma_haystack tests}"
 style = [
   "ruff {args:.}",
   "black --check --diff {args:.}",
@@ -132,7 +132,7 @@ unfixable = [
 ]
 
 [tool.ruff.isort]
-known-first-party = ["chroma_store"]
+known-first-party = ["chroma_haystack"]
 
 [tool.ruff.flake8-tidy-imports]
 ban-relative-imports = "all"
@@ -142,16 +142,16 @@ ban-relative-imports = "all"
 "tests/**/*" = ["PLR2004", "S101", "TID252"]
 
 [tool.coverage.run]
-source_pkgs = ["chroma_store", "tests"]
+source_pkgs = ["chroma_haystack", "tests"]
 branch = true
 parallel = true
 omit = [
-  "src/chroma_store/__about__.py",
+  "src/chroma_haystack/__about__.py",
 ]
 
 [tool.coverage.paths]
-chroma_store = ["src/chroma_store", "*/chroma-store/src/chroma_store"]
-tests = ["tests", "*/chroma-store/tests"]
+chroma_haystack = ["src/chroma_haystack", "*/chroma-haystack/src/chroma_haystack"]
+tests = ["tests"]
 
 [tool.coverage.report]
 exclude_lines = [

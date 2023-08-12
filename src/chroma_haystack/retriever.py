@@ -6,7 +6,7 @@ from typing import Any, ClassVar, Dict, Optional
 from haystack.preview import component
 from haystack.preview.document_stores import Store, StoreAwareMixin
 
-from chroma_store import ChromaDocumentStore
+from chroma_haystack import ChromaDocumentStore
 
 
 @component

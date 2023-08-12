@@ -14,8 +14,8 @@ from haystack.preview.dataclasses import ContentType, Document
 from haystack.preview.document_stores.decorator import document_store
 from haystack.preview.document_stores.protocols import DuplicatePolicy
 
-from chroma_store.errors import ChromaDocumentStoreError, ChromaDocumentStoreFilterError
-from chroma_store.utils import get_embedding_function
+from chroma_haystack.errors import ChromaDocumentStoreError, ChromaDocumentStoreFilterError
+from chroma_haystack.utils import get_embedding_function
 
 logger = logging.getLogger(__name__)
 
