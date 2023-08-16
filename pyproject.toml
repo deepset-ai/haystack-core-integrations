@@ -23,7 +23,7 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
 dependencies = [
-  "farm-haystack@git+https://github.com/deepset-ai/haystack.git",
+  "haystack-ai",
   "chromadb",
 ]
 
