@@ -9,7 +9,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import chromadb
 import numpy as np
 import pandas as pd
-from chromadb.api.types import GetResult, validate_where, validate_where_document
+from chromadb.api.types import GetResult, QueryResult, validate_where, validate_where_document
 from haystack.preview.dataclasses import ContentType, Document
 from haystack.preview.document_stores.decorator import document_store
 from haystack.preview.document_stores.protocols import DuplicatePolicy
@@ -136,7 +136,7 @@ class ChromaDocumentStore:
         else:
             result = self._collection.get()
 
-        return self._result_to_documents(result)
+        return self._get_result_to_documents(result)
 
     def write_documents(self, documents: List[Document], _: DuplicatePolicy = DuplicatePolicy.FAIL) -> None:
         """
@@ -170,6 +170,13 @@ class ChromaDocumentStore:
         :param object_ids: the object_ids to delete
         """
         self._collection.delete(ids=document_ids)
+
+    def search(self, queries: List[str], top_k: int) -> List[List[Document]]:
+        """
+        Perform vector search on the stored documents
+        """
+        results = self._collection.query(query_texts=queries, n_results=top_k)
+        return self._query_result_to_documents(results)
 
     def _normalize_filters(self, filters: Dict[str, Any]) -> Tuple[List[str], Dict[str, Any], Dict[str, Any]]:
         """
@@ -266,7 +273,7 @@ class ChromaDocumentStore:
         # return a copy
         return Document.from_dict(orig)
 
-    def _result_to_documents(self, result: GetResult) -> List[Document]:
+    def _get_result_to_documents(self, result: GetResult) -> List[Document]:
         """
         Helper function to convert Chroma results into Haystack Documents
         """
@@ -288,5 +295,33 @@ class ChromaDocumentStore:
                 document_dict["embedding"] = np.ndarray(result["embeddings"][i])
 
             retval.append(Document.from_dict(document_dict))
+
+        return retval
+
+    def _query_result_to_documents(self, result: QueryResult) -> List[List[Document]]:
+        """
+        Helper function to convert Chroma results into Haystack Documents
+        """
+        retval = []
+        for i, answers in enumerate(result["documents"]):
+            converted_answers = []
+            for j in range(len(answers)):
+                # prepare metadata
+                metadata = result["metadatas"][i][j]
+                content_type = metadata.pop("_content_type")
+                content = self._content_from_text(content_type, result["documents"][i][j])
+
+                document_dict = {
+                    "id": result["ids"][i][j],
+                    "content": content,
+                    "metadata": metadata,
+                    "content_type": content_type,
+                }
+
+                if result["embeddings"]:
+                    document_dict["embedding"] = np.ndarray(result["embeddings"][i][j])
+
+                converted_answers.append(Document.from_dict(document_dict))
+            retval.append(converted_answers)
 
         return retval
