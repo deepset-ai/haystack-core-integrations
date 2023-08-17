@@ -138,7 +138,7 @@ class ChromaDocumentStore:
 
         return self._get_result_to_documents(result)
 
-    def write_documents(self, documents: List[Document], _: DuplicatePolicy = DuplicatePolicy.FAIL) -> None:
+    def write_documents(self, documents: List[Document], policy: DuplicatePolicy = DuplicatePolicy.FAIL) -> None:
         """
         Writes (or overwrites) documents into the store.
 
@@ -175,7 +175,9 @@ class ChromaDocumentStore:
         """
         Perform vector search on the stored documents
         """
-        results = self._collection.query(query_texts=queries, n_results=top_k)
+        results = self._collection.query(
+            query_texts=queries, n_results=top_k, include=["embeddings", "documents", "metadatas", "distances"]
+        )
         return self._query_result_to_documents(results)
 
     def _normalize_filters(self, filters: Dict[str, Any]) -> Tuple[List[str], Dict[str, Any], Dict[str, Any]]:
@@ -318,8 +320,11 @@ class ChromaDocumentStore:
                     "content_type": content_type,
                 }
 
-                if result["embeddings"]:
-                    document_dict["embedding"] = np.ndarray(result["embeddings"][i][j])
+                if result["embeddings"][i][j]:
+                    document_dict["embedding"] = np.array(result["embeddings"][i][j])
+
+                if result["distances"][i][j]:
+                    document_dict["score"] = result["distances"][i][j]
 
                 converted_answers.append(Document.from_dict(document_dict))
             retval.append(converted_answers)

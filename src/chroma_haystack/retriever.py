@@ -15,7 +15,7 @@ class ChromaDenseRetriever(DocumentStoreAwareMixin):
     A component for retrieving documents from an ChromaDocumentStore.
     """
 
-    supported_stores: ClassVar[DocumentStore] = [ChromaDocumentStore]
+    supported_document_stores: ClassVar[DocumentStore] = [ChromaDocumentStore]
 
     def __init__(self, filters: Optional[Dict[str, Any]] = None, top_k: int = 10):
         """
@@ -43,7 +43,7 @@ class ChromaDenseRetriever(DocumentStoreAwareMixin):
 
         :raises ValueError: If the specified document store is not found or is not a MemoryDocumentStore instance.
         """
-        if not self.store:
+        if not self.document_store:
             # `self.store` is normally populated when adding this component to a pipeline.
             # If you want to use this component standalone, you must create an instance
             # of the right document store and assign it to `self.store` before invoking `run()`

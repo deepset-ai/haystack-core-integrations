@@ -125,11 +125,14 @@ ignore = [
   "S105", "S106", "S107",
   # Ignore complexity
   "C901", "PLR0911", "PLR0912", "PLR0913", "PLR0915",
+  # Ignore unused params
+  "ARG002",
 ]
 unfixable = [
   # Don't touch unused imports
   "F401",
 ]
+exclude = ["example"]
 
 [tool.ruff.isort]
 known-first-party = ["chroma_haystack"]
@@ -147,6 +150,7 @@ branch = true
 parallel = true
 omit = [
   "src/chroma_haystack/__about__.py",
+  "example"
 ]
 
 [tool.coverage.paths]
