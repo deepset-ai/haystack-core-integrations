@@ -1,23 +1,20 @@
 # SPDX-FileCopyrightText: 2023-present John Doe <jd@example.com>
 #
 # SPDX-License-Identifier: Apache-2.0
-from typing import Any, ClassVar, Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 from haystack.preview import Document, component
-from haystack.preview.document_stores import DocumentStore, DocumentStoreAwareMixin
 
 from chroma_haystack import ChromaDocumentStore
 
 
 @component
-class ChromaDenseRetriever(DocumentStoreAwareMixin):
+class ChromaDenseRetriever:
     """
     A component for retrieving documents from an ChromaDocumentStore.
     """
 
-    supported_document_stores: ClassVar[DocumentStore] = [ChromaDocumentStore]
-
-    def __init__(self, filters: Optional[Dict[str, Any]] = None, top_k: int = 10):
+    def __init__(self, document_store: ChromaDocumentStore, filters: Optional[Dict[str, Any]] = None, top_k: int = 10):
         """
         Create an ExampleRetriever component. Usually you pass some basic configuration
         parameters to the constructor.
@@ -27,6 +24,7 @@ class ChromaDenseRetriever(DocumentStoreAwareMixin):
         """
         self.filters = filters
         self.top_k = top_k
+        self.document_store = document_store
 
     @component.output_types(documents=List[List[Document]])
     def run(
@@ -43,11 +41,6 @@ class ChromaDenseRetriever(DocumentStoreAwareMixin):
 
         :raises ValueError: If the specified document store is not found or is not a MemoryDocumentStore instance.
         """
-        if not self.document_store:
-            # `self.store` is normally populated when adding this component to a pipeline.
-            # If you want to use this component standalone, you must create an instance
-            # of the right document store and assign it to `self.store` before invoking `run()`
-            msg = "ExampleRetriever needs a store to run!"
-            raise ValueError(msg)
-
+        if not top_k:
+            top_k = 3
         return self.document_store.search(queries, top_k)

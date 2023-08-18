@@ -9,7 +9,7 @@ import numpy as np
 import pytest
 from chromadb.api.types import Documents, EmbeddingFunction, Embeddings
 from haystack.preview import Document
-from haystack.testing.preview.document_store import DocumentStoreBaseTests
+from haystack.preview.testing.document_store import DocumentStoreBaseTests
 
 from chroma_haystack.document_store import ChromaDocumentStore
 
