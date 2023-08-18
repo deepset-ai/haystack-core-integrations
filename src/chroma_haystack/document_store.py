@@ -185,7 +185,7 @@ class ChromaDocumentStore:
         Translate Haystack filters to Chroma filters. It returns three dictionaries, to be
         passed to `ids`, `where` and `where_document` respectively.
         """
-        if type(filters) is not dict:
+        if not isinstance(filters, dict):
             msg = "'filters' parameter must be a dictionary"
             raise ChromaDocumentStoreFilterError(msg)
 
