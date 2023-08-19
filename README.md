@@ -10,6 +10,7 @@
 
 - [Chroma Document Store for Haystack](#chroma-document-store-for-haystack)
   - [Installation](#installation)
+  - [Examples](#examples)
   - [License](#license)
 
 ## Installation
@@ -17,6 +18,9 @@
 ```console
 pip install chroma-haystack
 ```
+
+## Examples
+You can find a code example showing how to use the Document Store and the Retriever under the `examples/` folder of this repo or in [this Colab](https://colab.research.google.com/drive/1YpDetI8BRbObPDEVdfqUcwhEX9UUXP-m?usp=sharing).
 
 ## License
 
