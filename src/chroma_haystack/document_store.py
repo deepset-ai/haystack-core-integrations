@@ -3,18 +3,16 @@
 # SPDX-License-Identifier: Apache-2.0
 import logging
 from collections import defaultdict
-from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 import chromadb
 import numpy as np
-import pandas as pd
 from chromadb.api.types import GetResult, QueryResult, validate_where, validate_where_document
 from haystack.preview.dataclasses import Document
 from haystack.preview.document_stores.decorator import document_store
 from haystack.preview.document_stores.protocols import DuplicatePolicy
 
-from chroma_haystack.errors import ChromaDocumentStoreError, ChromaDocumentStoreFilterError
+from chroma_haystack.errors import ChromaDocumentStoreFilterError
 from chroma_haystack.utils import get_embedding_function
 
 logger = logging.getLogger(__name__)
