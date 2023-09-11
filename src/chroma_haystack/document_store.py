@@ -260,8 +260,6 @@ class ChromaDocumentStore:
             # prepare metadata
             metadata = result["metadatas"][i]
             mime_type = metadata.pop("_mime_type")
-
-
             document_dict = {
                 "id": result["ids"][i],
                 "text": result["documents"][i],
