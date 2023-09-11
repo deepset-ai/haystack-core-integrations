@@ -43,4 +43,4 @@ class ChromaDenseRetriever:
         """
         if not top_k:
             top_k = 3
-        return self.document_store.search(queries, top_k)
+        return {"documents": self.document_store.search(queries, top_k)}
