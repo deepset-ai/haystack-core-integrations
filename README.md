@@ -1,9 +1,9 @@
 # Haystack Extras
 
-This repository contains extra components for [Haystack][haystack-repo], see the component `README.md` for detailed
-installation and usage instructions.
+This repository contains extra components for [Haystack][haystack-repo], maintained by [deepset](https://www.deepset.ai) on a best-effort basis. 
+See each component's `README` file for detailed installation and usage instructions.
 
-This is the list of packages currently part of the repo.
+This is the list of packages currently hosted in this repo.
 
 | Package                                             | Type           | PyPi Package                                                                                      | Status                                                 |
 | --------------------------------------------------- | -------------- | ------------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
