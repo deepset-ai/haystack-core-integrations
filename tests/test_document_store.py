@@ -54,11 +54,21 @@ class TestDocumentStore(DocumentStoreBaseTests):
         """
         Deleting a non-existing document should not raise with Chroma
         """
-        doc = Document(content="test doc")
+        doc = Document(text="test doc")
         docstore.write_documents([doc])
         docstore.delete_documents(["non_existing"])
 
         assert docstore.filter_documents(filters={"id": doc.id}) == [doc]
+
+    @pytest.mark.skip(reason="Filter on array contents is not supported.")
+    @pytest.mark.unit
+    def test_filter_document_array(self, docstore: ChromaDocumentStore, filterable_docs: List[Document]):
+        pass
+
+    @pytest.mark.skip(reason="Filter on dataframe contents is not supported.")
+    @pytest.mark.unit
+    def test_filter_document_dataframe(self, docstore: ChromaDocumentStore, filterable_docs: List[Document]):
+        pass
 
     @pytest.mark.skip(reason="Filter on table contents is not supported.")
     @pytest.mark.unit

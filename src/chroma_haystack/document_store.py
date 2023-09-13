@@ -3,18 +3,16 @@
 # SPDX-License-Identifier: Apache-2.0
 import logging
 from collections import defaultdict
-from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 import chromadb
 import numpy as np
-import pandas as pd
 from chromadb.api.types import GetResult, QueryResult, validate_where, validate_where_document
-from haystack.preview.dataclasses import ContentType, Document
+from haystack.preview.dataclasses import Document
 from haystack.preview.document_stores.decorator import document_store
 from haystack.preview.document_stores.protocols import DuplicatePolicy
 
-from chroma_haystack.errors import ChromaDocumentStoreError, ChromaDocumentStoreFilterError
+from chroma_haystack.errors import ChromaDocumentStoreFilterError
 from chroma_haystack.utils import get_embedding_function
 
 logger = logging.getLogger(__name__)
@@ -153,9 +151,13 @@ class ChromaDocumentStore:
                 raise ValueError(msg)
 
             doc = self._prepare(d)
-            content = self._content_as_text(doc.content_type, doc.content)
 
-            data = {"ids": [doc.id], "documents": [content], "metadatas": [doc.metadata]}
+            if doc.text is None:
+                logger.warn(
+                    "ChromaDocumentStore can only store the text field of Documents: "
+                    "'array', 'dataframe' and 'blob' will be dropped."
+                )
+            data = {"ids": [doc.id], "documents": [doc.text], "metadatas": [doc.metadata]}
 
             if doc.embedding is not None:
                 data["embeddings"] = [doc.embedding.tolist()]
@@ -195,7 +197,7 @@ class ChromaDocumentStore:
         keys_to_remove = []
 
         for field, value in filters.items():
-            if field == "content":
+            if field == "text":
                 # Schedule for removal the original key, we're going to change it
                 keys_to_remove.append(field)
                 where_document["$contains"] = value
@@ -219,10 +221,10 @@ class ChromaDocumentStore:
                 # if the list contains multiple items, we need an $or chain
                 for v in value:
                     where["$or"].append({field: v})
-            elif field == "content_type":
+            elif field == "mime_type":
                 # Schedule for removal the original key, we're going to change it
                 keys_to_remove.append(field)
-                where["_content_type"] = value
+                where["_mime_type"] = value
 
         for k in keys_to_remove:
             del filters[k]
@@ -238,38 +240,12 @@ class ChromaDocumentStore:
 
         return ids, final_where, where_document
 
-    def _content_as_text(self, content_type: ContentType, content: Any) -> str:
-        if content_type == "text":
-            return content
-        if content_type == "table":
-            return content.to_json()
-        elif content_type == "audio":
-            return content.absolute()
-        elif content_type == "image":
-            return content.absolute()
-
-        msg = f"Unknown content_type: {content_type}"
-        raise ChromaDocumentStoreError(msg)
-
-    def _content_from_text(self, content_type: ContentType, content: str) -> Any:
-        if content_type == "text":
-            return content
-        elif content_type == "table":
-            return pd.read_json(content)
-        elif content_type == "audio":
-            return Path(content)
-        elif content_type == "image":
-            return Path(content)
-
-        msg = f"Unknown content_type: {content_type}"
-        raise ChromaDocumentStoreError(msg)
-
     def _prepare(self, d: Document) -> Document:
         """
         Change the document in a way we can better store it into Chroma.
         Fore example, we store as metadata additional fields Chroma doesn't manage
         """
-        new_meta = {"_content_type": d.content_type} | d.metadata
+        new_meta = {"_mime_type": d.mime_type} | d.metadata
         orig = d.to_dict()
         orig["metadata"] = new_meta
         # return a copy
@@ -283,14 +259,12 @@ class ChromaDocumentStore:
         for i in range(len(result["documents"])):
             # prepare metadata
             metadata = result["metadatas"][i]
-            content_type = metadata.pop("_content_type")
-            content = self._content_from_text(content_type, result["documents"][i])
-
+            mime_type = metadata.pop("_mime_type")
             document_dict = {
                 "id": result["ids"][i],
-                "content": content,
+                "text": result["documents"][i],
                 "metadata": metadata,
-                "content_type": content_type,
+                "mime_type": mime_type,
             }
 
             if result["embeddings"]:
@@ -310,14 +284,13 @@ class ChromaDocumentStore:
             for j in range(len(answers)):
                 # prepare metadata
                 metadata = result["metadatas"][i][j]
-                content_type = metadata.pop("_content_type")
-                content = self._content_from_text(content_type, result["documents"][i][j])
+                mime_type = metadata.pop("_mime_type")
 
                 document_dict = {
                     "id": result["ids"][i][j],
-                    "content": content,
+                    "text": result["documents"][i][j].text,
                     "metadata": metadata,
-                    "content_type": content_type,
+                    "mime_type": mime_type,
                 }
 
                 if result["embeddings"][i][j]:
