@@ -12,7 +12,7 @@ on:
 
 env:
   PYTHON_VERSION: "3.8"
-  MILVUS_VERSION: "v2.2.8"
+  MILVUS_VERSION: "v2.2.10"
 
 jobs:
 
