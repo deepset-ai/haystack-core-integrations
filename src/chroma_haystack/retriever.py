@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 from typing import Any, Dict, List, Optional
+
 from haystack.preview import Document, component
 
 from chroma_haystack import ChromaDocumentStore
@@ -24,7 +25,7 @@ class ChromaDenseRetriever:
         self.filters = filters
         self.top_k = top_k
         self.document_store = document_store
-    
+
     @component.output_types(documents=List[List[Document]])
     def run(
         self,
