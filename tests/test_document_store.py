@@ -60,6 +60,22 @@ class TestDocumentStore(DocumentStoreBaseTests):
 
         assert docstore.filter_documents(filters={"id": doc.id}) == [doc]
 
+    @pytest.mark.integration
+    def test_to_json(self):
+        ds = ChromaDocumentStore()
+        ds_dict = ds.to_dict()
+        assert ds_dict == {'collection_name': 'documents', 'embedding_function': 'default'}
+
+    @pytest.mark.integration
+    def test_from_json(self):
+        collection_name = "test_collection"
+        function_name = "OpenAIEmbeddingFunction"
+        ds_dict = {'collection_name': collection_name, 'embedding_function': function_name}
+
+        ds = ChromaDocumentStore.from_dict(ds_dict)
+        assert ds._collection_name == collection_name
+        assert ds._embedding_function == function_name
+
     @pytest.mark.skip(reason="Filter on array contents is not supported.")
     @pytest.mark.unit
     def test_filter_document_array(self, docstore: ChromaDocumentStore, filterable_docs: List[Document]):

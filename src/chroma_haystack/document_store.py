@@ -39,6 +39,10 @@ class ChromaDocumentStore:
         parameters must be serializable, reason why we use a registry to configure the
         embedding function passing a string.
         """
+        # Store the params for marshalling
+        self._collection_name = collection_name
+        self._embedding_function = embedding_function
+        # Create the client instance
         self._chroma_client = chromadb.Client()
         self._collection = self._chroma_client.create_collection(
             name=collection_name, embedding_function=get_embedding_function(embedding_function)()
@@ -181,6 +185,13 @@ class ChromaDocumentStore:
             query_texts=queries, n_results=top_k, include=["embeddings", "documents", "metadatas", "distances"]
         )
         return self._query_result_to_documents(results)
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "ChromaDocumentStore":
+        return ChromaDocumentStore(**data)
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {"collection_name": self._collection_name, "embedding_function": self._embedding_function}
 
     def _normalize_filters(self, filters: Dict[str, Any]) -> Tuple[List[str], Dict[str, Any], Dict[str, Any]]:
         """
