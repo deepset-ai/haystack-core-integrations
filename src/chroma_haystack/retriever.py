@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 from typing import Any, Dict, List, Optional
 
-from haystack.preview import Document, component
+from haystack.preview import Document, component, default_from_dict, default_to_dict
 
 from chroma_haystack import ChromaDocumentStore
 
@@ -44,3 +44,18 @@ class ChromaDenseRetriever:
         if not top_k:
             top_k = 3
         return {"documents": self.document_store.search(queries, top_k)}
+
+    def to_dict(self) -> Dict[str, Any]:
+        """
+        Override the default serializer in order to manage the Chroma client string representation
+        """
+        d = default_to_dict(self, filters=self.filters, top_k=self.top_k)
+        d["init_parameters"]["document_store"] = self.document_store.to_dict()
+
+        return d
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "ChromaDenseRetriever":
+        document_store = ChromaDocumentStore.from_dict(data["init_parameters"]["document_store"])
+        data["init_parameters"]["document_store"] = document_store
+        return default_from_dict(cls, data)

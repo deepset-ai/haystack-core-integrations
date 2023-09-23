@@ -60,6 +60,29 @@ class TestDocumentStore(DocumentStoreBaseTests):
 
         assert docstore.filter_documents(filters={"id": doc.id}) == [doc]
 
+    @pytest.mark.integration
+    def test_to_json(self, request):
+        ds = ChromaDocumentStore(
+            collection_name=request.node.name, embedding_function="HuggingFaceEmbeddingFunction", api_key="1234567890"
+        )
+        ds_dict = ds.to_dict()
+        assert ds_dict == {
+            "collection_name": request.node.name,
+            "embedding_function": "HuggingFaceEmbeddingFunction",
+            "api_key": "1234567890",
+        }
+
+    @pytest.mark.integration
+    def test_from_json(self):
+        collection_name = "test_collection"
+        function_name = "HuggingFaceEmbeddingFunction"
+        ds_dict = {"collection_name": collection_name, "embedding_function": function_name, "api_key": "1234567890"}
+
+        ds = ChromaDocumentStore.from_dict(ds_dict)
+        assert ds._collection_name == collection_name
+        assert ds._embedding_function == function_name
+        assert ds._embedding_function_params == {"api_key": "1234567890"}
+
     @pytest.mark.skip(reason="Filter on array contents is not supported.")
     @pytest.mark.unit
     def test_filter_document_array(self, docstore: ChromaDocumentStore, filterable_docs: List[Document]):

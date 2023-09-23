@@ -26,9 +26,7 @@ class ChromaDocumentStore:
     """
 
     def __init__(
-        self,
-        collection_name: str = "documents",
-        embedding_function: str = "default",
+        self, collection_name: str = "documents", embedding_function: str = "default", **embedding_function_params
     ):
         """
         Initializes the store. The __init__ constructor is not part of the Store Protocol
@@ -39,9 +37,15 @@ class ChromaDocumentStore:
         parameters must be serializable, reason why we use a registry to configure the
         embedding function passing a string.
         """
+        # Store the params for marshalling
+        self._collection_name = collection_name
+        self._embedding_function = embedding_function
+        self._embedding_function_params = embedding_function_params
+        # Create the client instance
         self._chroma_client = chromadb.Client()
         self._collection = self._chroma_client.create_collection(
-            name=collection_name, embedding_function=get_embedding_function(embedding_function)()
+            name=collection_name,
+            embedding_function=get_embedding_function(embedding_function)(**embedding_function_params),
         )
 
     def count_documents(self) -> int:
@@ -181,6 +185,17 @@ class ChromaDocumentStore:
             query_texts=queries, n_results=top_k, include=["embeddings", "documents", "metadatas", "distances"]
         )
         return self._query_result_to_documents(results)
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "ChromaDocumentStore":
+        return ChromaDocumentStore(**data)
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "collection_name": self._collection_name,
+            "embedding_function": self._embedding_function,
+            **self._embedding_function_params,
+        }
 
     def _normalize_filters(self, filters: Dict[str, Any]) -> Tuple[List[str], Dict[str, Any], Dict[str, Any]]:
         """
