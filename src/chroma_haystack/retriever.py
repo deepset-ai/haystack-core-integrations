@@ -2,7 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 from typing import Any, Dict, List, Optional
-from canals.serialization import default_to_dict, default_from_dict
 from haystack.preview import Document, component
 
 from chroma_haystack import ChromaDocumentStore
@@ -25,13 +24,6 @@ class ChromaDenseRetriever:
         self.filters = filters
         self.top_k = top_k
         self.document_store = document_store
-    
-    def to_dict(self) -> Dict[str, Any]:
-        return default_to_dict(self, adocument_storegs=self.document_store, filters = self.filters, top_k=self.top_k)
-    
-    @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "ChromaDenseRetriever":
-        return default_from_dict(cls, data)
     
     @component.output_types(documents=List[List[Document]])
     def run(
