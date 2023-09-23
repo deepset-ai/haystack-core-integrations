@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 from typing import Any, Dict, List, Optional
 
-from haystack.preview import Document, component, default_to_dict, default_from_dict
+from haystack.preview import Document, component, default_from_dict, default_to_dict
 
 from chroma_haystack import ChromaDocumentStore
 

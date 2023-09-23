@@ -64,13 +64,13 @@ class TestDocumentStore(DocumentStoreBaseTests):
     def test_to_json(self):
         ds = ChromaDocumentStore()
         ds_dict = ds.to_dict()
-        assert ds_dict == {'collection_name': 'documents', 'embedding_function': 'default'}
+        assert ds_dict == {"collection_name": "documents", "embedding_function": "default"}
 
     @pytest.mark.integration
     def test_from_json(self):
         collection_name = "test_collection"
         function_name = "OpenAIEmbeddingFunction"
-        ds_dict = {'collection_name': collection_name, 'embedding_function': function_name}
+        ds_dict = {"collection_name": collection_name, "embedding_function": function_name}
 
         ds = ChromaDocumentStore.from_dict(ds_dict)
         assert ds._collection_name == collection_name
