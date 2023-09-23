@@ -248,7 +248,6 @@ class ChromaDocumentStore:
         new_meta = {"_mime_type": d.mime_type} | d.metadata
         orig = d.to_dict()
         orig["metadata"] = new_meta
-        del orig["id"]
         # return a copy
         return Document.from_dict(orig)
 
