@@ -69,7 +69,7 @@ class TestDocumentStore(DocumentStoreBaseTests):
         assert ds_dict == {
             "collection_name": request.node.name,
             "embedding_function": "HuggingFaceEmbeddingFunction",
-            'api_key': '1234567890',
+            "api_key": "1234567890",
         }
 
     @pytest.mark.integration

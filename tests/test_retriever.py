@@ -18,7 +18,7 @@ def test_retriever_to_json(request):
             "document_store": {
                 "collection_name": request.node.name,
                 "embedding_function": "HuggingFaceEmbeddingFunction",
-                'api_key': '1234567890',
+                "api_key": "1234567890",
             },
         },
     }
@@ -34,13 +34,13 @@ def test_retriever_from_json(request):
             "document_store": {
                 "collection_name": request.node.name,
                 "embedding_function": "HuggingFaceEmbeddingFunction",
-                'api_key': '1234567890',
+                "api_key": "1234567890",
             },
         },
     }
     retriever = ChromaDenseRetriever.from_dict(data)
     assert retriever.document_store._collection_name == request.node.name
     assert retriever.document_store._embedding_function == "HuggingFaceEmbeddingFunction"
-    assert retriever.document_store._embedding_function_params == {'api_key': '1234567890'}
+    assert retriever.document_store._embedding_function_params == {"api_key": "1234567890"}
     assert retriever.filters == {"bar": "baz"}
     assert retriever.top_k == 42
