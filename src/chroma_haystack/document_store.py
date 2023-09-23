@@ -261,6 +261,7 @@ class ChromaDocumentStore:
             metadata = result["metadatas"][i]
             mime_type = metadata.pop("_mime_type")
             document_dict = {
+                "id": result["ids"][i],
                 "text": result["documents"][i],
                 "metadata": metadata,
                 "mime_type": mime_type,
@@ -286,7 +287,8 @@ class ChromaDocumentStore:
                 mime_type = metadata.pop("_mime_type")
 
                 document_dict = {
-                    "text": result["documents"][i][j],
+                    "id": result["ids"][i],
+                    "text": result["documents"][i][j].text,
                     "metadata": metadata,
                     "mime_type": mime_type,
                 }
