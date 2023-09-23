@@ -56,6 +56,6 @@ class ChromaDenseRetriever:
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "ChromaDenseRetriever":
-        document_store = ChromaDocumentStore.from_dict(data["init_param"]["document_store"])
-        data["init_param"]["document_store"] = document_store
+        document_store = ChromaDocumentStore.from_dict(data["init_parameters"]["document_store"])
+        data["init_parameters"]["document_store"] = document_store
         return default_from_dict(cls, data)
