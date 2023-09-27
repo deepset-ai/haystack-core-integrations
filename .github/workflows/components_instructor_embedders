@@ -1,0 +1,38 @@
+name: Test / instructor-embedders
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    paths:
+      - 'components/instructor-embedders/**'
+      - '.github/workflows/components_instructor_embedders.yml'
+
+defaults:
+  run:
+    working-directory: components/instructor-embedders
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Setup Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+
+    - name: Install instructor-embedders
+      run: |
+        pip install -e .[dev]
+
+    - name: Pylint
+      run: |
+        pylint -ry -j 0 ./instructor_embedders
+
+    - name: Run tests
+      run: |
+        pytest
