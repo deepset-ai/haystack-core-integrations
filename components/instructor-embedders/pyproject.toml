@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "haystack-instructor-embedders"
+name = "instructor-embedders-haystack"
 dynamic = ["version"]
 description = 'Haystack 2.x component to embed strings and Documents using Instructor embedding model.'
 readme = "README.md"
@@ -27,9 +27,10 @@ classifiers = [
 dependencies = [
   "haystack-ai",
 
-  # the following dependencies are copied from https://github.com/xlang-ai/instructor-embedding/blob/main/requirements.txt
-  # since the InstructorEmbedding package does not install them, but they are mandatory
-  "transformers==4.20.0",
+  # The following dependencies are copied from https://github.com/xlang-ai/instructor-embedding/blob/main/requirements.txt
+  # since the InstructorEmbedding package does not install them, but they are mandatory.
+  # Commenting some of them to not interfere with the dependencies of Haystack.
+  #"transformers==4.20.0",
   "datasets>=2.2.0",
   "pyarrow==8.0.0",
   "jsonlines",

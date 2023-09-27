@@ -1,7 +1,7 @@
 # instructor_embedders
 
-[![PyPI - Version](https://img.shields.io/pypi/v/haystack-instructor-embedders.svg)](https://pypi.org/project/haystack-instructor-embedders)
-[![PyPI - Python Version](https://img.shields.io/pypi/pyversions/haystack-instructor-embedders.svg)](https://pypi.org/project/haystack-instructor-embedders)
+[![PyPI - Version](https://img.shields.io/pypi/v/instructor-embedders-haystack.svg)](https://pypi.org/project/instructor-embedders-haystack)
+[![PyPI - Python Version](https://img.shields.io/pypi/pyversions/instructor-embedders-haystack.svg)](https://pypi.org/project/instructor-embedders-haystack)
 
 -----
 
