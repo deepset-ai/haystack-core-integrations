@@ -1,7 +1,8 @@
-# Haystack Extras
+# Haystack 2.x additional resources
 
-This repository contains extra components for [Haystack][haystack-repo], maintained by [deepset](https://www.deepset.ai) on a best-effort basis.
-See each component's `README` file for detailed installation and usage instructions.
+This repository contains additional packages (components, document stores and the likes) to extend the capabilities of 
+[Haystack][haystack-repo] version 2.0 and onwards. The code in this repo is maintained by [deepset](https://www.deepset.ai), 
+some of it on a best-effort basis: see each folder's `README` file for details around installation, usage and support.
 
 This is the list of packages currently hosted in this repo.
 
