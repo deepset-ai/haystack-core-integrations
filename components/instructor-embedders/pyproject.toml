@@ -49,7 +49,7 @@ dependencies = [
 [project.urls]
 Documentation = "https://github.com/deepset-ai/haystack-extras/tree/main/components/instructor-embedders#readme"
 Issues = "https://github.com/deepset-ai/haystack-extras/issues"
-Source = "https://github.com/deepset-ai/haystack-extras/tree/main/components/text2speech"
+Source = "https://github.com/deepset-ai/haystack-extras/tree/main/components/instructor-embedders"
 
 [tool.hatch.version]
 path = "instructor_embedders/__about__.py"
