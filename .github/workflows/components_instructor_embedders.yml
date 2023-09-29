@@ -35,4 +35,4 @@ jobs:
 
     - name: Run tests
       run: |
-        pytest ./instructor_embedders/tests
+        pytest
