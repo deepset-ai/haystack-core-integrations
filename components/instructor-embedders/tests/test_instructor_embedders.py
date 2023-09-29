@@ -3,3 +3,5 @@
 # SPDX-License-Identifier: Apache-2.0
 import pytest
 
+def test_instructor_embedders():
+    assert True
