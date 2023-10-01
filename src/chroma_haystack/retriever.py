@@ -9,9 +9,9 @@ from chroma_haystack import ChromaDocumentStore
 
 
 @component
-class ChromaDenseRetriever:
+class ChromaQueryRetriever:
     """
-    A component for retrieving documents from an ChromaDocumentStore.
+    A component for retrieving documents from an ChromaDocumentStore using the `query` API.
     """
 
     def __init__(self, document_store: ChromaDocumentStore, filters: Optional[Dict[str, Any]] = None, top_k: int = 10):
@@ -55,7 +55,25 @@ class ChromaDenseRetriever:
         return d
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "ChromaDenseRetriever":
+    def from_dict(cls, data: Dict[str, Any]) -> "ChromaQueryRetriever":
         document_store = ChromaDocumentStore.from_dict(data["init_parameters"]["document_store"])
         data["init_parameters"]["document_store"] = document_store
         return default_from_dict(cls, data)
+
+
+@component
+class ChromaSingleQueryRetriever(ChromaQueryRetriever):
+    """
+    A convenient wrapper to the standard query retriever that accepts a single query
+    and returns a list of documents
+    """
+
+    @component.output_types(documents=List[Document])
+    def run(
+        self,
+        query: str,
+        filters: Optional[Dict[str, Any]] = None,  # filters not yet supported
+        top_k: Optional[int] = None,
+    ):
+        queries = [query]
+        return super().run(queries, filters, top_k)[0]
