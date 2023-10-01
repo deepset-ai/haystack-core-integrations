@@ -1,5 +1,5 @@
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling", "hatch-vcs"]
 build-backend = "hatchling.build"
 
 [project]
@@ -33,7 +33,7 @@ Issues = "https://github.com/masci/chroma-haystack/issues"
 Source = "https://github.com/masci/chroma-haystack"
 
 [tool.hatch.version]
-path = "src/chroma_haystack/__about__.py"
+source="vcs"
 
 [tool.hatch.envs.default]
 dependencies = [
