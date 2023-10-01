@@ -77,3 +77,27 @@ class ChromaSingleQueryRetriever(ChromaQueryRetriever):
     ):
         queries = [query]
         return super().run(queries, filters, top_k)[0]
+
+
+@component
+class ChromaEmbeddingRetriever(ChromaQueryRetriever):
+    @component.output_types(documents=List[Document])
+    def run(
+        self,
+        query_embedding: List[float],
+        _: Optional[Dict[str, Any]] = None,  # filters not yet supported
+        top_k: Optional[int] = None,
+    ):
+        """
+        Run the retriever on the given input data.
+
+        :param queries: The input data for the retriever. In this case, a list of queries.
+        :return: The retrieved documents.
+
+        :raises ValueError: If the specified document store is not found or is not a MemoryDocumentStore instance.
+        """
+        if not top_k:
+            top_k = 3
+
+        query_embeddings = [query_embedding]
+        return {"documents": self.document_store.search_embeddings(query_embeddings, top_k)[0]}

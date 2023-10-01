@@ -186,6 +186,18 @@ class ChromaDocumentStore:
         )
         return self._query_result_to_documents(results)
 
+    def search_embeddings(self, query_embeddings: List[List[float]], top_k: int) -> List[List[Document]]:
+        """
+        Perform vector search on the stored document, pass the embeddings of the queries
+        instead of their text
+        """
+        results = self._collection.query(
+            query_embeddings=query_embeddings,
+            n_results=top_k,
+            include=["embeddings", "documents", "metadatas", "distances"],
+        )
+        return self._query_result_to_documents(results)
+
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "ChromaDocumentStore":
         return ChromaDocumentStore(**data)
