@@ -27,7 +27,8 @@ jobs:
 
     - name: Ruff
       uses: chartboost/ruff-action@v1
-      src: components/instructor-embedders
+      with:
+        src: components/instructor-embedders
 
     - name: Install instructor-embedders
       run: |
