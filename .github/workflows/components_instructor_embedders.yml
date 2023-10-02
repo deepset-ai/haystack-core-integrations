@@ -29,9 +29,8 @@ jobs:
       run: |
         pip install -e .[dev]
 
-    - name: Pylint
-      run: |
-        pylint -ry -j 0 ./instructor_embedders
+    - name: Ruff
+      uses: chartboost/ruff-action@v1
 
     - name: Run tests
       run: |

@@ -47,7 +47,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest", "pylint", "black"]
+dev = ["pytest"]
 
 [project.urls]
 Documentation = "https://github.com/deepset-ai/haystack-extras/tree/main/components/instructor-embedders#readme"
@@ -75,21 +75,60 @@ omit = ["instructor_embedders/__about__.py"]
 [tool.coverage.report]
 exclude_lines = ["no cov", "if __name__ == .__main__.:", "if TYPE_CHECKING:"]
 
-[tool.pylint.'MESSAGES CONTROL']
-max-line-length = 120
-disable = ["missing-module-docstring", "fixme", "R0913", "W0221"]
+[tool.ruff]
+target-version = "py37"
+line-length = 120
+select = [
+  "A",
+  "ARG",
+  "B",
+  "C",
+  "DTZ",
+  "E",
+  "EM",
+  "F",
+  "FBT",
+  "I",
+  "ICN",
+  "ISC",
+  "N",
+  "PLC",
+  "PLE",
+  "PLR",
+  "PLW",
+  "Q",
+  "RUF",
+  "S",
+  "T",
+  "TID",
+  "UP",
+  "W",
+  "YTT",
+]
+ignore = [
+  # Allow non-abstract empty methods in abstract base classes
+  "B027",
+  # Allow boolean positional values in function calls, like `dict.get(... True)`
+  "FBT003",
+  # Ignore checks for possible passwords
+  "S105", "S106", "S107",
+  # Ignore complexity
+  "C901", "PLR0911", "PLR0912", "PLR0913", "PLR0915",
+]
+unfixable = [
+  # Don't touch unused imports
+  "F401",
+]
 
-[tool.pylint.'DESIGN']
-max-args = 7
+[tool.ruff.isort]
+known-first-party = ["instructor_embedders"]
 
-[tool.pylint.'SIMILARITIES']
-min-similarity-lines = 10
-ignore-comments = true
+[tool.ruff.flake8-tidy-imports]
+ban-relative-imports = "all"
 
-[tool.pylint.'TYPECHECK']
-# List of members which are set dynamically and missed by Pylint inference
-# system, and so shouldn't trigger E1101 when accessed.
-generated-members = "torch.*"
+[tool.ruff.per-file-ignores]
+# Tests can use magic values, assertions, and relative imports
+"tests/**/*" = ["PLR2004", "S101", "TID252"]
 
 [tool.pytest.ini_options]
 minversion = "6.0"
