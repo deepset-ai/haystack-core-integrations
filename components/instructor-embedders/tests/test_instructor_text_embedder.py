@@ -1,7 +1,7 @@
-from unittest.mock import patch, MagicMock
-import pytest
+from unittest.mock import MagicMock, patch
 
 import numpy as np
+import pytest
 
 from instructor_embedders.instructor_text_embedder import InstructorTextEmbedder
 
@@ -175,7 +175,7 @@ class TestInstructorTextEmbedder:
         """
         embedder = InstructorTextEmbedder(model_name_or_path="hkunlp/instructor-base")
         embedder.embedding_backend = MagicMock()
-        embedder.embedding_backend.embed = lambda x, **kwargs: np.random.rand(len(x), 16).tolist()
+        embedder.embedding_backend.embed = lambda x, **kwargs: np.random.rand(len(x), 16).tolist()  # noqa: ARG005
 
         text = "Good text to embed"
 

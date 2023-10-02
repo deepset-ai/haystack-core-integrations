@@ -2,5 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+
 def test_instructor_embedders():
     assert True

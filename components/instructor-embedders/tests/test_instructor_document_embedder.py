@@ -1,8 +1,9 @@
-from unittest.mock import patch, MagicMock
-import pytest
-import numpy as np
+from unittest.mock import MagicMock, patch
 
+import numpy as np
+import pytest
 from haystack.preview import Document
+
 from instructor_embedders.instructor_document_embedder import InstructorDocumentEmbedder
 
 
@@ -195,7 +196,7 @@ class TestInstructorDocumentEmbedder:
         """
         embedder = InstructorDocumentEmbedder(model_name_or_path="hkunlp/instructor-base")
         embedder.embedding_backend = MagicMock()
-        embedder.embedding_backend.embed = lambda x, **kwargs: np.random.rand(len(x), 16).tolist()
+        embedder.embedding_backend.embed = lambda x, **kwargs: np.random.rand(len(x), 16).tolist()  # noqa: ARG005
 
         documents = [Document(text=f"Sample-document text {i}") for i in range(5)]
 
@@ -227,7 +228,8 @@ class TestInstructorDocumentEmbedder:
     @pytest.mark.unit
     def test_embed_metadata(self):
         """
-        Test for checking output dimensions and embedding dimensions for documents with a custom instruction and metadata.
+        Test for checking output dimensions and embedding dimensions for documents
+        with a custom instruction and metadata.
         """
         embedder = InstructorDocumentEmbedder(
             model_name_or_path="model",

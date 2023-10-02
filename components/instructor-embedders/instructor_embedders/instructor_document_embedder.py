@@ -1,6 +1,7 @@
-from typing import List, Optional, Union, Dict, Any
+from typing import Any, Dict, List, Optional, Union
 
-from haystack.preview import component, Document, default_to_dict, default_from_dict
+from haystack.preview import Document, component, default_from_dict, default_to_dict
+
 from instructor_embedders.embedding_backend.instructor_backend import _InstructorEmbeddingBackendFactory
 
 
@@ -26,15 +27,20 @@ class InstructorDocumentEmbedder:
         """
         Create a InstructorDocumentEmbedder component.
 
-        :param model_name_or_path: Local path or name of the model in Hugging Face's model hub, such as ``'sentence-transformers/all-mpnet-base-v2'``.
-        :param device: Device (like 'cuda' / 'cpu') that should be used for computation. If None, checks if a GPU can be used.
+        :param model_name_or_path: Local path or name of the model in Hugging Face's model hub,
+            such as ``'hkunlp/instructor-base'``.
+        :param device: Device (like 'cuda' / 'cpu') that should be used for computation.
+            If None, checks if a GPU can be used.
         :param use_auth_token: The API token used to download private models from Hugging Face.
-                        If this parameter is set to `True`, then the token generated when running
-                        `transformers-cli login` (stored in ~/.huggingface) will be used.
-        :param instruction: The instruction string to be used while computing domain specific embeddings. The instruction follows the unified template of the form: "Represent the 'domain' 'text_type' for 'task_objective'", where
-        - "domain" is optional, and it specifies the domain of the text, e.g., science, finance, medicine, etc.
-        - "text_type" is required, and it specifies the encoding unit, e.g., sentence, document, paragraph, etc.
-        - "task_objective" is optional, and it specifies the objective of embedding, e.g., retrieve a document, classify the sentence, etc.
+            If this parameter is set to `True`, then the token generated when running
+            `transformers-cli login` (stored in ~/.huggingface) will be used.
+        :param instruction: The instruction string to be used while computing domain specific embeddings.
+            The instruction follows the unified template of the form:
+            "Represent the 'domain' 'text_type' for 'task_objective'", where
+            - "domain" is optional, and it specifies the domain of the text, e.g., science, finance, medicine, etc.
+            - "text_type" is required, and it specifies the encoding unit, e.g., sentence, document, paragraph, etc.
+            - "task_objective" is optional, and it specifies the objective of embedding, e.g., retrieve a document,
+            classify the sentence, etc.
         :param batch_size: Number of strings to encode at once.
         :param progress_bar: If true, displays progress bar during embedding.
         :param normalize_embeddings: If set to true, returned vectors will have length 1.
@@ -93,12 +99,12 @@ class InstructorDocumentEmbedder:
         The embedding of each Document is stored in the `embedding` field of the Document.
         """
         if not isinstance(documents, list) or not isinstance(documents[0], Document):
-            raise TypeError(
-                "InstructorDocumentEmbedder expects a list of Documents as input."
-                "In case you want to embed a list of strings, please use the InstructorTextEmbedder."
-            )
+            msg = ("InstructorDocumentEmbedder expects a list of Documents as input. "
+                   "In case you want to embed a list of strings, please use the InstructorTextEmbedder.")
+            raise TypeError(msg)
         if not hasattr(self, "embedding_backend"):
-            raise RuntimeError("The embedding model has not been loaded. Please call warm_up() before running.")
+            msg = "The embedding model has not been loaded. Please call warm_up() before running."
+            raise RuntimeError(msg)
 
         # TODO: once non textual Documents are properly supported, we should also prepare them for embedding here
 
@@ -109,7 +115,7 @@ class InstructorDocumentEmbedder:
                 for key in self.metadata_fields_to_embed
                 if key in doc.metadata and doc.metadata[key]
             ]
-            text_to_embed = [self.instruction, self.embedding_separator.join(meta_values_to_embed + [doc.text or ""])]
+            text_to_embed = [self.instruction, self.embedding_separator.join([*meta_values_to_embed, doc.text or ""])]
             texts_to_embed.append(text_to_embed)
 
         embeddings = self.embedding_backend.embed(

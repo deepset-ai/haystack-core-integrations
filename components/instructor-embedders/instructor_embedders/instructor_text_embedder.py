@@ -1,6 +1,7 @@
-from typing import List, Optional, Union, Dict, Any
+from typing import Any, Dict, List, Optional, Union
 
-from haystack.preview import component, default_to_dict, default_from_dict
+from haystack.preview import component, default_from_dict, default_to_dict
+
 from instructor_embedders.embedding_backend.instructor_backend import _InstructorEmbeddingBackendFactory
 
 
@@ -23,15 +24,20 @@ class InstructorTextEmbedder:
         """
         Create a InstructorTextEmbedder component.
 
-        :param model_name_or_path: Local path or name of the model in Hugging Face's model hub, such as ``'sentence-transformers/all-mpnet-base-v2'``.
-        :param device: Device (like 'cuda' / 'cpu') that should be used for computation. If None, checks if a GPU can be used.
+        :param model_name_or_path: Local path or name of the model in Hugging Face's model hub,
+            such as ``'hkunlp/instructor-base'``.
+        :param device: Device (like 'cuda' / 'cpu') that should be used for computation.
+            If None, checks if a GPU can be used.
         :param use_auth_token: The API token used to download private models from Hugging Face.
                         If this parameter is set to `True`, then the token generated when running
                         `transformers-cli login` (stored in ~/.huggingface) will be used.
-        :param instruction: The instruction string to be used while computing domain specific embeddings. The instruction follows the unified template of the form: "Represent the 'domain' 'text_type' for 'task_objective'", where
-        - "domain" is optional, and it specifies the domain of the text, e.g., science, finance, medicine, etc.
-        - "text_type" is required, and it specifies the encoding unit, e.g., sentence, document, paragraph, etc.
-        - "task_objective" is optional, and it specifies the objective of embedding, e.g., retrieve a document, classify the sentence, etc.
+        :param instruction: The instruction string to be used while computing domain specific embeddings.
+            The instruction follows the unified template of the form:
+            "Represent the 'domain' 'text_type' for 'task_objective'", where
+            - "domain" is optional, and it specifies the domain of the text, e.g., science, finance, medicine, etc.
+            - "text_type" is required, and it specifies the encoding unit, e.g., sentence, document, paragraph, etc.
+            - "task_objective" is optional, and it specifies the objective of embedding, e.g., retrieve a document,
+            classify the sentence, etc.
         :param batch_size: Number of strings to encode at once.
         :param progress_bar: If true, displays progress bar during embedding.
         :param normalize_embeddings: If set to true, returned vectors will have length 1.
@@ -81,12 +87,12 @@ class InstructorTextEmbedder:
     def run(self, text: str):
         """Embed a string."""
         if not isinstance(text, str):
-            raise TypeError(
-                "InstructorTextEmbedder expects a string as input."
-                "In case you want to embed a list of Documents, please use the InstructorDocumentEmbedder."
-            )
+            msg = ("InstructorTextEmbedder expects a string as input. "
+                   "In case you want to embed a list of Documents, please use the InstructorDocumentEmbedder.")
+            raise TypeError(msg)
         if not hasattr(self, "embedding_backend"):
-            raise RuntimeError("The embedding model has not been loaded. Please call warm_up() before running.")
+            msg = "The embedding model has not been loaded. Please call warm_up() before running."
+            raise RuntimeError(msg)
 
         text_to_embed = [self.instruction, text]
         embedding = self.embedding_backend.embed(

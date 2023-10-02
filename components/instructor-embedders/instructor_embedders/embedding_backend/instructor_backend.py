@@ -1,4 +1,4 @@
-from typing import List, Optional, Union, Dict
+from typing import ClassVar, Dict, List, Optional, Union
 
 from haystack.preview.lazy_imports import LazyImport
 
@@ -11,7 +11,7 @@ class _InstructorEmbeddingBackendFactory:
     Factory class to create instances of INSTRUCTOR embedding backends.
     """
 
-    _instances: Dict[str, "_InstructorEmbeddingBackend"] = {}
+    _instances: ClassVar[Dict[str, "_InstructorEmbeddingBackend"]] = {}
 
     @staticmethod
     def get_embedding_backend(
