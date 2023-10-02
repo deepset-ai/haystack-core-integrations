@@ -268,7 +268,7 @@ class TestInstructorDocumentEmbedder:
         doc = Document(text="Parton energy loss in QCD matter")
 
         result = embedder.run(documents=[doc])
-        embedding = result['documents'][0].embedding
+        embedding = result["documents"][0].embedding
 
         assert isinstance(embedding, list)
         assert len(embedding) == 768
