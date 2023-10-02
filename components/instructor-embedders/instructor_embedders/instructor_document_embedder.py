@@ -41,6 +41,7 @@ class InstructorDocumentEmbedder:
             - "text_type" is required, and it specifies the encoding unit, e.g., sentence, document, paragraph, etc.
             - "task_objective" is optional, and it specifies the objective of embedding, e.g., retrieve a document,
             classify the sentence, etc.
+            Check some examples of instructions here: https://github.com/xlang-ai/instructor-embedding#use-cases
         :param batch_size: Number of strings to encode at once.
         :param progress_bar: If true, displays progress bar during embedding.
         :param normalize_embeddings: If set to true, returned vectors will have length 1.
@@ -98,7 +99,7 @@ class InstructorDocumentEmbedder:
         Embed a list of Documents.
         The embedding of each Document is stored in the `embedding` field of the Document.
         """
-        if not isinstance(documents, list) or not isinstance(documents[0], Document):
+        if not isinstance(documents, list) or documents and not isinstance(documents[0], Document):
             msg = ("InstructorDocumentEmbedder expects a list of Documents as input. "
                    "In case you want to embed a list of strings, please use the InstructorTextEmbedder.")
             raise TypeError(msg)
@@ -113,7 +114,7 @@ class InstructorDocumentEmbedder:
             meta_values_to_embed = [
                 str(doc.metadata[key])
                 for key in self.metadata_fields_to_embed
-                if key in doc.metadata and doc.metadata[key]
+                if key in doc.metadata and doc.metadata[key] is not None
             ]
             text_to_embed = [self.instruction, self.embedding_separator.join([*meta_values_to_embed, doc.text or ""])]
             texts_to_embed.append(text_to_embed)
