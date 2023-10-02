@@ -25,12 +25,13 @@ jobs:
       with:
         python-version: '3.10'
 
+    - name: Ruff
+      uses: chartboost/ruff-action@v1
+      src: components/instructor-embedders
+
     - name: Install instructor-embedders
       run: |
         pip install -e .[dev]
-
-    - name: Ruff
-      uses: chartboost/ruff-action@v1
 
     - name: Run tests
       run: |
