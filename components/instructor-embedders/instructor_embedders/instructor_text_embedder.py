@@ -16,7 +16,7 @@ class InstructorTextEmbedder:
         model_name_or_path: str = "hkunlp/instructor-base",
         device: Optional[str] = None,
         use_auth_token: Union[bool, str, None] = None,
-        instruction: str = "Represent the 'domain' 'text_type' for 'task_objective'",
+        instruction: str = "Represent the sentence",
         batch_size: int = 32,
         progress_bar: bool = True,
         normalize_embeddings: bool = False,

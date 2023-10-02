@@ -16,7 +16,7 @@ class TestInstructorTextEmbedder:
         assert embedder.model_name_or_path == "hkunlp/instructor-base"
         assert embedder.device == "cpu"
         assert embedder.use_auth_token is None
-        assert embedder.instruction == "Represent the 'domain' 'text_type' for 'task_objective'"
+        assert embedder.instruction == "Represent the sentence"
         assert embedder.batch_size == 32
         assert embedder.progress_bar is True
         assert embedder.normalize_embeddings is False
@@ -56,7 +56,7 @@ class TestInstructorTextEmbedder:
                 "model_name_or_path": "hkunlp/instructor-base",
                 "device": "cpu",
                 "use_auth_token": None,
-                "instruction": "Represent the 'domain' 'text_type' for 'task_objective'",
+                "instruction": "Represent the sentence",
                 "batch_size": 32,
                 "progress_bar": True,
                 "normalize_embeddings": False,
@@ -173,7 +173,7 @@ class TestInstructorTextEmbedder:
         """
         Test for checking output dimensions and embedding dimensions.
         """
-        embedder = InstructorTextEmbedder(model_name_or_path="hkunlp/instructor-base")
+        embedder = InstructorTextEmbedder(model_name_or_path="hkunlp/instructor-large")
         embedder.embedding_backend = MagicMock()
         embedder.embedding_backend.embed = lambda x, **kwargs: np.random.rand(len(x), 16).tolist()  # noqa: ARG005
 
@@ -190,10 +190,26 @@ class TestInstructorTextEmbedder:
         """
         Test for checking incorrect input format when creating embedding.
         """
-        embedder = InstructorTextEmbedder(model_name_or_path="hkunlp/instructor-base")
+        embedder = InstructorTextEmbedder(model_name_or_path="hkunlp/instructor-large")
         embedder.embedding_backend = MagicMock()
 
         list_integers_input = [1, 2, 3]
 
         with pytest.raises(TypeError, match="InstructorTextEmbedder expects a string as input"):
             embedder.run(text=list_integers_input)
+
+    @pytest.mark.integration
+    def test_run(self):
+        embedder = InstructorTextEmbedder(model_name_or_path="hkunlp/instructor-base",
+                                          device="cpu",
+                                          instruction="Represent the Science sentence for retrieval")
+        embedder.warm_up()
+
+        text = "Parton energy loss in QCD matter"
+
+        result = embedder.run(text=text)
+        embedding = result["embedding"]
+
+        assert isinstance(embedding, list)
+        assert len(embedding) == 768
+        assert all(isinstance(emb, float) for emb in embedding)

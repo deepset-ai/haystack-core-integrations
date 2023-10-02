@@ -17,7 +17,7 @@ class TestInstructorDocumentEmbedder:
         assert embedder.model_name_or_path == "hkunlp/instructor-base"
         assert embedder.device == "cpu"
         assert embedder.use_auth_token is None
-        assert embedder.instruction == "Represent the 'domain' 'text_type' for 'task_objective'"
+        assert embedder.instruction == "Represent the document"
         assert embedder.batch_size == 32
         assert embedder.progress_bar is True
         assert embedder.normalize_embeddings is False
@@ -63,7 +63,7 @@ class TestInstructorDocumentEmbedder:
                 "model_name_or_path": "hkunlp/instructor-base",
                 "device": "cpu",
                 "use_auth_token": None,
-                "instruction": "Represent the 'domain' 'text_type' for 'task_objective'",
+                "instruction": "Represent the document",
                 "batch_size": 32,
                 "progress_bar": True,
                 "normalize_embeddings": False,
@@ -194,7 +194,7 @@ class TestInstructorDocumentEmbedder:
         """
         Test for checking output dimensions and embedding dimensions.
         """
-        embedder = InstructorDocumentEmbedder(model_name_or_path="hkunlp/instructor-base")
+        embedder = InstructorDocumentEmbedder(model_name_or_path="hkunlp/instructor-large")
         embedder.embedding_backend = MagicMock()
         embedder.embedding_backend.embed = lambda x, **kwargs: np.random.rand(len(x), 16).tolist()  # noqa: ARG005
 
@@ -257,3 +257,19 @@ class TestInstructorDocumentEmbedder:
             show_progress_bar=True,
             normalize_embeddings=False,
         )
+
+    @pytest.mark.integration
+    def test_run(self):
+        embedder = InstructorDocumentEmbedder(model_name_or_path="hkunlp/instructor-base",
+                                          device="cpu",
+                                          instruction="Represent the Science document for retrieval")
+        embedder.warm_up()
+
+        doc = Document(text="Parton energy loss in QCD matter")
+
+        result = embedder.run(documents=[doc])
+        embedding = result['documents'][0].embedding
+
+        assert isinstance(embedding, list)
+        assert len(embedding) == 768
+        assert all(isinstance(emb, float) for emb in embedding)
