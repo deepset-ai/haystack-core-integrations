@@ -22,7 +22,7 @@ class InstructorTextEmbedder:
         normalize_embeddings: bool = False,
     ):
         """
-        Create a InstructorTextEmbedder component.
+        Create an InstructorTextEmbedder component.
 
         :param model_name_or_path: Local path or name of the model in Hugging Face's model hub,
             such as ``'hkunlp/instructor-base'``.
@@ -31,17 +31,17 @@ class InstructorTextEmbedder:
         :param use_auth_token: The API token used to download private models from Hugging Face.
                         If this parameter is set to `True`, then the token generated when running
                         `transformers-cli login` (stored in ~/.huggingface) will be used.
-        :param instruction: The instruction string to be used while computing domain specific embeddings.
+        :param instruction: The instruction string to be used while computing domain-specific embeddings.
             The instruction follows the unified template of the form:
-            "Represent the 'domain' 'text_type' for 'task_objective'", where
-            - "domain" is optional, and it specifies the domain of the text, e.g., science, finance, medicine, etc.
-            - "text_type" is required, and it specifies the encoding unit, e.g., sentence, document, paragraph, etc.
-            - "task_objective" is optional, and it specifies the objective of embedding, e.g., retrieve a document,
-            classify the sentence, etc.
-            Check some examples of instructions here: https://github.com/xlang-ai/instructor-embedding#use-cases
+            "Represent the 'domain' 'text_type' for 'task_objective'", where:
+            - "domain" is optional, and it specifies the domain of the text, for example, science, finance, medicine, and so on.
+            - "text_type" is required, and it specifies the encoding unit, for example, sentence, document, paragraph, and so on.
+            - "task_objective" is optional, and it specifies the objective of embedding, for example, retrieve a document,
+            classify the sentence, and so on.
+            Check some examples of instructions here: https://github.com/xlang-ai/instructor-embedding#use-cases.
         :param batch_size: Number of strings to encode at once.
         :param progress_bar: If true, displays progress bar during embedding.
-        :param normalize_embeddings: If set to true, returned vectors will have length 1.
+        :param normalize_embeddings: If set to true, returned vectors will have the length of 1.
         """
 
         self.model_name_or_path = model_name_or_path
