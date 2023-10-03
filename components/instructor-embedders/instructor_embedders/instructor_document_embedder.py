@@ -37,10 +37,12 @@ class InstructorDocumentEmbedder:
         :param instruction: The instruction string to be used while computing domain-specific embeddings.
             The instruction follows the unified template of the form:
             "Represent the 'domain' 'text_type' for 'task_objective'", where:
-            - "domain" is optional, and it specifies the domain of the text, for example, science, finance, medicine, and so on.
-            - "text_type" is required, and it specifies the encoding unit, for example, sentence, document, paragraph, and so on.
-            - "task_objective" is optional, and it specifies the objective of embedding, for example, retrieve a document,
-            classify the sentence, and so on.
+            - "domain" is optional, and it specifies the domain of the text, for example, science, finance, 
+            medicine, and so on.
+            - "text_type" is required, and it specifies the encoding unit, for example, sentence, document, 
+            paragraph, and so on.
+            - "task_objective" is optional, and it specifies the objective of embedding, for example, 
+            retrieve a document, classify the sentence, and so on.
             Check some examples of instructions here: https://github.com/xlang-ai/instructor-embedding#use-cases
         :param batch_size: Number of strings to encode at once.
         :param progress_bar: If true, displays progress bar during embedding.
