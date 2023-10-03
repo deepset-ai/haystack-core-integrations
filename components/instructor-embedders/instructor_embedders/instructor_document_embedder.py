@@ -39,8 +39,9 @@ class InstructorDocumentEmbedder:
             "Represent the 'domain' 'text_type' for 'task_objective'", where:
             - "domain" is optional, and it specifies the domain of the text, e.g., science, finance, medicine, etc.
             - "text_type" is required, and it specifies the encoding unit, e.g., sentence, document, paragraph, etc.
-            - "task_objective" is optional, and it specifies the objective of embedding, e.g., retrieve a document, classify the sentence, etc.
-            Check some examples of instructions here: https://github.com/xlang-ai/instructor-embedding#use-cases
+            - "task_objective" is optional, and it specifies the objective of embedding, e.g., retrieve a document,
+             classify the sentence, etc.
+            Check some examples of instructions here: https://github.com/xlang-ai/instructor-embedding#use-cases.
         :param batch_size: Number of strings to encode at once.
         :param progress_bar: If true, displays progress bar during embedding.
         :param normalize_embeddings: If set to true, returned vectors will have the length of 1.
