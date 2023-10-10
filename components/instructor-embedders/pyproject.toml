@@ -32,7 +32,7 @@ dependencies = [
   # Commenting some of them to not interfere with the dependencies of Haystack.
   #"transformers==4.20.0",
   "datasets>=2.2.0",
-  "pyarrow==8.0.0",
+  "pyarrow",
   "jsonlines",
   "numpy",
   "requests>=2.26.0",
@@ -137,4 +137,3 @@ log_cli = true
 
 [tool.black]
 line-length = 120
-
