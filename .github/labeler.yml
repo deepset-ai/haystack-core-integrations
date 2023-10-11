@@ -1,0 +1,14 @@
+# Integrations
+integration:instructor-embedders:
+- components/instructor-embedders/**/*
+# Topics
+topic:CI:
+- .github/*
+- .github/**/*
+topic:DX:
+- CONTRIBUTING.md
+- .pre-commit-config.yaml
+- .gitignore
+- requirements.txt
+topic:security:
+- SECURITY.md
