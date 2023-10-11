@@ -14,7 +14,7 @@
 ## Installation
 
 ```console
-pip install instructor-embedders
+pip install instructor-embedders-haystack
 ```
 
 ## License
