@@ -26,14 +26,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        os: [ubuntu-latest]
         python-version: ["3.8", "3.9", "3.10", "3.11"]
 
     steps:
-      - name: Support longpaths
-        if: matrix.os == 'windows-latest'
-        run: git config --system core.longpaths true
-
       - uses: actions/checkout@v3
 
       - name: Set up Python ${{ matrix.python-version }}
@@ -46,7 +42,7 @@ jobs:
 
       - name: Lint
         working-directory: document_stores/elasticsearch
-        if: matrix.python-version == '3.9' && runner.os == 'Linux'
+        if: matrix.python-version == '3.9'
         run: hatch run lint:all
 
       - name: Run ElasticSearch container
