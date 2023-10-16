@@ -6,8 +6,10 @@ import logging
 from typing import Any, Dict, List, Mapping, Optional, Union
 
 import numpy as np
-from elastic_transport import NodeConfig
-from elasticsearch import Elasticsearch, helpers
+
+# There are no import stubs for elastic_transport and elasticsearch so mypy fails
+from elastic_transport import NodeConfig  # type: ignore[import-not-found]
+from elasticsearch import Elasticsearch, helpers  # type: ignore[import-not-found]
 from haystack.preview import default_from_dict, default_to_dict
 from haystack.preview.dataclasses import Document
 from haystack.preview.document_stores.decorator import document_store
@@ -173,7 +175,12 @@ class ElasticsearchDocumentStore:
         _, errors = helpers.bulk(
             client=self._client,
             actions=(
-                {"_op_type": action, "_id": doc.id, "_source": self._serialize_document(doc)} for doc in documents
+                {
+                    "_op_type": action,
+                    "_id": doc.id,
+                    "_source": self._serialize_document(doc),
+                }
+                for doc in documents
             ),
             refresh="wait_for",
             index=self._index,
