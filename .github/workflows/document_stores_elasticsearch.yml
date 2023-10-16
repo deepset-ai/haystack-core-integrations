@@ -49,6 +49,10 @@ jobs:
         if: matrix.python-version == '3.9' && runner.os == 'Linux'
         run: hatch run lint:all
 
+      - name: Run ElasticSearch container
+        working-directory: document_stores/elasticsearch
+        run: docker-compose up -d
+
       - name: Run tests
         working-directory: document_stores/elasticsearch
         run: hatch run cov
