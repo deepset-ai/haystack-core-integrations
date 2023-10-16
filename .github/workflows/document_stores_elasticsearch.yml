@@ -45,8 +45,10 @@ jobs:
         run: pip install --upgrade hatch
 
       - name: Lint
+        working-directory: document_stores/elasticsearch
         if: matrix.python-version == '3.9' && runner.os == 'Linux'
         run: hatch run lint:all
 
       - name: Run tests
+        working-directory: document_stores/elasticsearch
         run: hatch run cov
