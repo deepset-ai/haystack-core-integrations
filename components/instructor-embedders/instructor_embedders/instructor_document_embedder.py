@@ -10,6 +10,49 @@ class InstructorDocumentEmbedder:
     """
     A component for computing Document embeddings using INSTRUCTOR embedding models.
     The embedding of each Document is stored in the `embedding` field of the Document.
+
+    Usage example:
+    ```python
+    # To use this component, install the "instructor-embedders-haystack" package.
+    # pip install instructor-embedders-haystack
+
+    from instructor_embedders.instructor_document_embedder import InstructorDocumentEmbedder
+    from haystack.preview.dataclasses import Document
+
+
+    doc_embedding_instruction = "Represent the Medical Document for retrieval:"
+
+    doc_embedder = InstructorDocumentEmbedder(
+        model_name_or_path="hkunlp/instructor-base",
+        instruction=doc_embedding_instruction,
+        batch_size=32,
+        device="cpu",
+    )
+
+    doc_embedder.warm_up()
+
+    # Text taken from PubMed QA Dataset (https://huggingface.co/datasets/pubmed_qa)
+    document_list = [
+        Document(
+            content="Oxidative stress generated within inflammatory joints can produce autoimmune phenomena and joint destruction. Radical species with oxidative activity, including reactive nitrogen species, represent mediators of inflammation and cartilage damage.",
+            meta={
+                "pubid": "25,445,628",
+                "long_answer": "yes",
+            },
+        ),
+        Document(
+            content="Plasma levels of pancreatic polypeptide (PP) rise upon food intake. Although other pancreatic islet hormones, such as insulin and glucagon, have been extensively investigated, PP secretion and actions are still poorly understood.",
+            meta={
+                "pubid": "25,445,712",
+                "long_answer": "yes",
+            },
+        ),
+    ]
+
+    result = doc_embedder.run(document_list)
+    print(f"Document Text: {result['documents'][0].text}")
+    print(f"Document Embedding: {result['documents'][0].embedding}")
+    print(f"Embedding Dimension: {len(result['documents'][0].embedding)}")
     """
 
     def __init__(

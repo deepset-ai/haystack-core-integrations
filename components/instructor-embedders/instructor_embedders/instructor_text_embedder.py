@@ -8,7 +8,27 @@ from instructor_embedders.embedding_backend.instructor_backend import _Instructo
 @component
 class InstructorTextEmbedder:
     """
-    A component for embedding strings using Sentence Transformers models.
+    A component for embedding strings using INSTRUCTOR embedding models.
+
+    Usage example:
+    ```python
+    # To use this component, install the "instructor-embedders-haystack" package.
+    # pip install instructor-embedders-haystack
+
+    from instructor_embedders.instructor_text_embedder import InstructorTextEmbedder
+
+    text = "It clearly says online this will work on a Mac OS system. The disk comes and it does not, only Windows. Do Not order this if you have a Mac!!"
+    instruction = (
+        "Represent the Amazon comment for classifying the sentence as positive or negative"
+    )
+
+    text_embedder = InstructorTextEmbedder(
+        model_name_or_path="hkunlp/instructor-base", instruction=instruction,
+        device="cpu"
+    )
+
+    embedding = text_embedder.run(text)
+    ```
     """
 
     def __init__(
