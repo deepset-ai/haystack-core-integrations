@@ -88,8 +88,10 @@ class InstructorTextEmbedder:
     def run(self, text: str):
         """Embed a string."""
         if not isinstance(text, str):
-            msg = ("InstructorTextEmbedder expects a string as input. "
-                   "In case you want to embed a list of Documents, please use the InstructorDocumentEmbedder.")
+            msg = (
+                "InstructorTextEmbedder expects a string as input. "
+                "In case you want to embed a list of Documents, please use the InstructorDocumentEmbedder."
+            )
             raise TypeError(msg)
         if not hasattr(self, "embedding_backend"):
             msg = "The embedding model has not been loaded. Please call warm_up() before running."

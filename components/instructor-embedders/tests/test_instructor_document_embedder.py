@@ -198,7 +198,7 @@ class TestInstructorDocumentEmbedder:
         embedder.embedding_backend = MagicMock()
         embedder.embedding_backend.embed = lambda x, **kwargs: np.random.rand(len(x), 16).tolist()  # noqa: ARG005
 
-        documents = [Document(text=f"Sample-document text {i}") for i in range(5)]
+        documents = [Document(content=f"Sample-document text {i}") for i in range(5)]
 
         result = embedder.run(documents=documents)
 
@@ -239,9 +239,7 @@ class TestInstructorDocumentEmbedder:
         )
         embedder.embedding_backend = MagicMock()
 
-        documents = [
-            Document(text=f"document-number {i}", metadata={"meta_field": f"meta_value {i}"}) for i in range(5)
-        ]
+        documents = [Document(content=f"document-number {i}", meta={"meta_field": f"meta_value {i}"}) for i in range(5)]
 
         embedder.run(documents=documents)
 
@@ -260,12 +258,14 @@ class TestInstructorDocumentEmbedder:
 
     @pytest.mark.integration
     def test_run(self):
-        embedder = InstructorDocumentEmbedder(model_name_or_path="hkunlp/instructor-base",
-                                          device="cpu",
-                                          instruction="Represent the Science document for retrieval")
+        embedder = InstructorDocumentEmbedder(
+            model_name_or_path="hkunlp/instructor-base",
+            device="cpu",
+            instruction="Represent the Science document for retrieval",
+        )
         embedder.warm_up()
 
-        doc = Document(text="Parton energy loss in QCD matter")
+        doc = Document(content="Parton energy loss in QCD matter")
 
         result = embedder.run(documents=[doc])
         embedding = result["documents"][0].embedding

@@ -100,8 +100,10 @@ class InstructorDocumentEmbedder:
         The embedding of each Document is stored in the `embedding` field of the Document.
         """
         if not isinstance(documents, list) or documents and not isinstance(documents[0], Document):
-            msg = ("InstructorDocumentEmbedder expects a list of Documents as input. "
-                   "In case you want to embed a list of strings, please use the InstructorTextEmbedder.")
+            msg = (
+                "InstructorDocumentEmbedder expects a list of Documents as input. "
+                "In case you want to embed a list of strings, please use the InstructorTextEmbedder."
+            )
             raise TypeError(msg)
         if not hasattr(self, "embedding_backend"):
             msg = "The embedding model has not been loaded. Please call warm_up() before running."
@@ -112,11 +114,14 @@ class InstructorDocumentEmbedder:
         texts_to_embed = []
         for doc in documents:
             meta_values_to_embed = [
-                str(doc.metadata[key])
+                str(doc.meta[key])
                 for key in self.metadata_fields_to_embed
-                if key in doc.metadata and doc.metadata[key] is not None
+                if key in doc.meta and doc.meta[key] is not None
             ]
-            text_to_embed = [self.instruction, self.embedding_separator.join([*meta_values_to_embed, doc.text or ""])]
+            text_to_embed = [
+                self.instruction,
+                self.embedding_separator.join([*meta_values_to_embed, doc.content or ""]),
+            ]
             texts_to_embed.append(text_to_embed)
 
         embeddings = self.embedding_backend.embed(
