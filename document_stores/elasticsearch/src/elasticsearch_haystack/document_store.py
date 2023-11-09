@@ -150,8 +150,21 @@ class ElasticsearchDocumentStore:
             index=self._index,
             query=query,
         )
+        documents = [self._deserialize_document(hit) for hit in res["hits"]["hits"]]
+        total = res["hits"]["total"]["value"]
 
-        return [self._deserialize_document(hit) for hit in res["hits"]["hits"]]
+        from_ = len(documents)
+        while len(documents) < total:
+            res = self._client.search(
+                index=self._index,
+                query=query,
+                from_=from_,
+            )
+
+            documents.extend(self._deserialize_document(hit) for hit in res["hits"]["hits"])
+            from_ = len(documents)
+
+        return documents
 
     def write_documents(self, documents: List[Document], policy: DuplicatePolicy = DuplicatePolicy.FAIL) -> None:
         """
@@ -178,7 +191,7 @@ class ElasticsearchDocumentStore:
                 {
                     "_op_type": action,
                     "_id": doc.id,
-                    "_source": self._serialize_document(doc),
+                    "_source": doc.to_dict(),
                 }
                 for doc in documents
             ),
@@ -208,47 +221,7 @@ class ElasticsearchDocumentStore:
             data["metadata"]["highlighted"] = hit["highlight"]
         data["score"] = hit["_score"]
 
-        if array := data["array"]:
-            data["array"] = np.asarray(array, dtype=np.float32)
-        if dataframe := data["dataframe"]:
-            data["dataframe"] = DataFrame.from_dict(json.loads(dataframe))
-        if embedding := data["embedding"]:
-            data["embedding"] = np.asarray(embedding, dtype=np.float32)
-
-        # We can't use Document.from_dict() as the data dictionary contains
-        # all the metadata fields
-        return Document(
-            id=data["id"],
-            text=data["text"],
-            array=data["array"],
-            dataframe=data["dataframe"],
-            blob=data["blob"],
-            mime_type=data["mime_type"],
-            metadata=data["metadata"],
-            id_hash_keys=data["id_hash_keys"],
-            score=data["score"],
-            embedding=data["embedding"],
-        )
-
-    def _serialize_document(self, doc: Document) -> Dict[str, Any]:
-        """
-        Serializes Document to a dictionary handling conversion of Pandas' dataframe
-        and NumPy arrays if present.
-        """
-        # We don't use doc.flatten() cause we want to keep the metadata field
-        # as it makes it easier to recreate the Document object when calling
-        # self.filter_document().
-        # Otherwise we'd have to filter out the fields that are not part of the
-        # Document dataclass and keep them as metadata. This is faster and easier.
-        res = {**doc.to_dict(), **doc.metadata}
-        if res["array"] is not None:
-            res["array"] = res["array"].tolist()
-        if res["dataframe"] is not None:
-            # Convert dataframe to a json string
-            res["dataframe"] = res["dataframe"].to_json()
-        if res["embedding"] is not None:
-            res["embedding"] = res["embedding"].tolist()
-        return res
+        return Document.from_dict(data)
 
     def delete_documents(self, document_ids: List[str]) -> None:
         """
