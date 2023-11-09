@@ -146,13 +146,17 @@ class ElasticsearchDocumentStore:
         """
         query = {"bool": {"filter": _normalize_filters(filters)}} if filters else None
 
+        # Get first page of the search results
         res = self._client.search(
             index=self._index,
             query=query,
         )
         documents = [self._deserialize_document(hit) for hit in res["hits"]["hits"]]
+
+        # This is the number of total documents that match the query
         total = res["hits"]["total"]["value"]
 
+        # Keep querying until we have all the documents
         from_ = len(documents)
         while len(documents) < total:
             res = self._client.search(
@@ -161,7 +165,9 @@ class ElasticsearchDocumentStore:
                 from_=from_,
             )
 
+            # Add new documents to the list
             documents.extend(self._deserialize_document(hit) for hit in res["hits"]["hits"])
+            # Update the cursor
             from_ = len(documents)
 
         return documents
