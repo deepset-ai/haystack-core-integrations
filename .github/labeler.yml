@@ -1,6 +1,8 @@
 # Integrations
-integration:instructor-embedders:
+integration:instructor-embedders-haystack:
 - components/instructor-embedders/**/*
+integration:chroma-haystack:
+- document_stores/chroma/**/*
 # Topics
 topic:CI:
 - .github/*
