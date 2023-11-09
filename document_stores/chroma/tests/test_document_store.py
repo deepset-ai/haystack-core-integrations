@@ -21,7 +21,7 @@ class TestEmbeddingFunction(EmbeddingFunction):
     vectors in unit tests.
     """
 
-    def __call__(self, _: Documents) -> Embeddings:
+    def __call__(self, input: Documents) -> Embeddings:  # noqa - chroma will inspect the signature, it must match
         # embed the documents somehow
         return [np.random.default_rng().uniform(-1, 1, 768).tolist()]
 
@@ -39,8 +39,18 @@ class TestDocumentStore(DocumentStoreBaseTests):
         an instance of this document store so the base class can use it.
         """
         with mock.patch("chroma_haystack.document_store.get_embedding_function") as get_func:
-            get_func.return_value = TestEmbeddingFunction
+            get_func.return_value = TestEmbeddingFunction()
             return ChromaDocumentStore(embedding_function="test_function", collection_name=str(uuid.uuid1()))
+
+    @pytest.mark.unit
+    def test_ne_filter(self, docstore: ChromaDocumentStore, filterable_docs: List[Document]):
+        """
+        We customize this test because Chroma consider "not equal" true when
+        a field is missing
+        """
+        docstore.write_documents(filterable_docs)
+        result = docstore.filter_documents(filters={"page": {"$ne": "100"}})
+        assert self.contains_same_docs(result, [doc for doc in filterable_docs if doc.meta.get("page", "100") != "100"])
 
     @pytest.mark.unit
     def test_delete_empty(self, docstore: ChromaDocumentStore):

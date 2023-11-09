@@ -1,4 +1,4 @@
-name: Test / instructor-embedders
+name: Test / Components / instructor-embedders
 
 on:
   push:
@@ -40,4 +40,4 @@ jobs:
 
     - name: Run integration tests
       run: |
-        pytest -v -m integration   
+        pytest -v -m integration
