@@ -53,12 +53,6 @@ class TestDocumentStore(DocumentStoreBaseTests):
         assert self.contains_same_docs(result, [doc for doc in filterable_docs if doc.meta.get("page", "100") != "100"])
 
     @pytest.mark.unit
-    def test_filter_document_content(self, docstore: ChromaDocumentStore, filterable_docs: List[Document]):
-        docstore.write_documents(filterable_docs)
-        result = docstore.filter_documents(filters={"content": "A Foo Document 1"})
-        assert self.contains_same_docs(result, [doc for doc in filterable_docs if doc.content == "A Foo Document 1"])
-
-    @pytest.mark.unit
     def test_delete_empty(self, docstore: ChromaDocumentStore):
         """
         Deleting a non-existing document should not raise with Chroma
