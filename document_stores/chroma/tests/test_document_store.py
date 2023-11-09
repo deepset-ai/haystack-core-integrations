@@ -21,7 +21,7 @@ class TestEmbeddingFunction(EmbeddingFunction):
     vectors in unit tests.
     """
 
-    def __call__(self, input: Documents) -> Embeddings:
+    def __call__(self, input: Documents) -> Embeddings:  # noqa - chroma will inspect the signature, it must match
         # embed the documents somehow
         return [np.random.default_rng().uniform(-1, 1, 768).tolist()]
 
@@ -56,8 +56,6 @@ class TestDocumentStore(DocumentStoreBaseTests):
     def test_filter_document_content(self, docstore: ChromaDocumentStore, filterable_docs: List[Document]):
         docstore.write_documents(filterable_docs)
         result = docstore.filter_documents(filters={"content": "A Foo Document 1"})
-        print(len(result))
-        print(result)
         assert self.contains_same_docs(result, [doc for doc in filterable_docs if doc.content == "A Foo Document 1"])
 
     @pytest.mark.unit
