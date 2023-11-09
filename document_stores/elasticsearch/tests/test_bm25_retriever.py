@@ -60,7 +60,7 @@ def test_from_dict(_mock_elasticsearch_client):
 
 def test_run():
     mock_store = Mock(spec=ElasticsearchDocumentStore)
-    mock_store._bm25_retrieval.return_value = [Document(text="Test doc")]
+    mock_store._bm25_retrieval.return_value = [Document(content="Test doc")]
     retriever = ElasticsearchBM25Retriever(document_store=mock_store)
     res = retriever.run(query="some query")
     mock_store._bm25_retrieval.assert_called_once_with(
@@ -71,4 +71,4 @@ def test_run():
     )
     assert len(res) == 1
     assert len(res["documents"]) == 1
-    assert res["documents"][0].text == "Test doc"
+    assert res["documents"][0].content == "Test doc"
