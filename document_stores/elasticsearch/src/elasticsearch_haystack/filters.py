@@ -1,6 +1,5 @@
 from typing import Any, Dict, List, Union
 
-import numpy as np
 from haystack.preview.errors import FilterError
 from pandas import DataFrame
 
@@ -24,10 +23,10 @@ def _normalize_filters(filters: Union[List[Dict], Dict], logical_condition="") -
                 # Comparison operators
                 conditions.extend(_parse_comparison(operator, value))
 
-    if len(conditions) == 1:
-        return conditions[0]
-
-    conditions = _normalize_ranges(conditions)
+    if len(conditions) > 1:
+        conditions = _normalize_ranges(conditions)
+    else:
+        conditions = conditions[0]
 
     if logical_condition == "$not":
         return {"bool": {"must_not": conditions}}
@@ -42,6 +41,8 @@ def _parse_comparison(field: str, comparison: Union[Dict, List, str, float]) -> 
     result: List[Dict[str, Any]] = []
     if isinstance(comparison, dict):
         for comparator, val in comparison.items():
+            if isinstance(val, DataFrame):
+                val = val.to_json()
             if comparator == "$eq":
                 if isinstance(val, list):
                     result.append(
@@ -59,9 +60,11 @@ def _parse_comparison(field: str, comparison: Union[Dict, List, str, float]) -> 
                 result.append({"term": {field: val}})
             elif comparator == "$ne":
                 if isinstance(val, list):
-                    msg = f"{field}'s value can't be a list when using '{comparator}' comparator"
-                    raise FilterError(msg)
-                result.append({"bool": {"must_not": {"term": {field: val}}}})
+                    result.append({"bool": {"must_not": {"terms": {field: val}}}})
+                else:
+                    result.append(
+                        {"bool": {"must_not": {"match": {field: {"query": val, "minimum_should_match": "100%"}}}}}
+                    )
             elif comparator == "$in":
                 if not isinstance(val, list):
                     msg = f"{field}'s value must be a list when using '{comparator}' comparator"
@@ -73,8 +76,8 @@ def _parse_comparison(field: str, comparison: Union[Dict, List, str, float]) -> 
                     raise FilterError(msg)
                 result.append({"bool": {"must_not": {"terms": {field: val}}}})
             elif comparator in ["$gt", "$gte", "$lt", "$lte"]:
-                if isinstance(val, list):
-                    msg = f"{field}'s value can't be a list when using '{comparator}' comparator"
+                if not isinstance(val, str) and not isinstance(val, int) and not isinstance(val, float):
+                    msg = f"{field}'s value must be 'str', 'int', 'float' types when using '{comparator}' comparator"
                     raise FilterError(msg)
                 result.append({"range": {field: {comparator[1:]: val}}})
             elif comparator in ["$not", "$or"]:
@@ -90,16 +93,13 @@ def _parse_comparison(field: str, comparison: Union[Dict, List, str, float]) -> 
                 raise FilterError(msg)
     elif isinstance(comparison, list):
         result.append({"terms": {field: comparison}})
-    elif isinstance(comparison, np.ndarray):
-        result.append({"terms": {field: comparison.tolist()}})
     elif isinstance(comparison, DataFrame):
-        # We're saving dataframes as json strings so we compare them as such
-        result.append({"match": {field: comparison.to_json()}})
+        result.append({"match": {field: {"query": comparison.to_json(), "minimum_should_match": "100%"}}})
     elif isinstance(comparison, str):
         # We can't use "term" for text fields as ElasticSearch changes the value of text.
         # More info here:
         # https://www.elastic.co/guide/en/elasticsearch/reference/current/query-dsl-term-query.html#query-dsl-term-query
-        result.append({"match": {field: comparison}})
+        result.append({"match": {field: {"query": comparison, "minimum_should_match": "100%"}}})
     else:
         result.append({"term": {field: comparison}})
     return result

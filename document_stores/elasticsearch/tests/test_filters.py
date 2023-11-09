@@ -15,19 +15,23 @@ filters_data = [
         },
         {
             "bool": {
-                "must": [
-                    {"term": {"type": "article"}},
-                    {
-                        "bool": {
-                            "should": [
-                                {"terms": {"genre": ["economy", "politics"]}},
-                                {"term": {"publisher": "nytimes"}},
-                            ]
-                        }
-                    },
-                    {"range": {"date": {"gte": "2015-01-01", "lt": "2021-01-01"}}},
-                    {"range": {"rating": {"gte": 3}}},
-                ]
+                "must": {
+                    "bool": {
+                        "must": [
+                            {"term": {"type": "article"}},
+                            {
+                                "bool": {
+                                    "should": [
+                                        {"terms": {"genre": ["economy", "politics"]}},
+                                        {"term": {"publisher": "nytimes"}},
+                                    ]
+                                }
+                            },
+                            {"range": {"date": {"gte": "2015-01-01", "lt": "2021-01-01"}}},
+                            {"range": {"rating": {"gte": 3}}},
+                        ]
+                    }
+                }
             }
         },
     ),
@@ -40,11 +44,15 @@ filters_data = [
         },
         {
             "bool": {
-                "should": [
-                    {"match": {"Type": "News Paper"}},
-                    {"match": {"Type": "Blog Post"}},
-                    {"range": {"Date": {"gte": "2019-01-01", "lt": "2019-01-01"}}},
-                ]
+                "must": {
+                    "bool": {
+                        "should": [
+                            {"match": {"Type": {"query": "News Paper", "minimum_should_match": "100%"}}},
+                            {"match": {"Type": {"query": "Blog Post", "minimum_should_match": "100%"}}},
+                            {"range": {"Date": {"lt": "2019-01-01", "gte": "2019-01-01"}}},
+                        ]
+                    }
+                }
             }
         },
     ),
@@ -59,19 +67,23 @@ filters_data = [
         },
         {
             "bool": {
-                "must": [
-                    {"term": {"type": "article"}},
-                    {
-                        "bool": {
-                            "should": [
-                                {"terms": {"genre": ["economy", "politics"]}},
-                                {"term": {"publisher": "nytimes"}},
-                            ]
-                        }
-                    },
-                    {"range": {"date": {"gte": "2015-01-01", "lt": "2021-01-01"}}},
-                    {"range": {"rating": {"gte": 3}}},
-                ]
+                "must": {
+                    "bool": {
+                        "must": [
+                            {"term": {"type": "article"}},
+                            {
+                                "bool": {
+                                    "should": [
+                                        {"terms": {"genre": ["economy", "politics"]}},
+                                        {"term": {"publisher": "nytimes"}},
+                                    ]
+                                }
+                            },
+                            {"range": {"date": {"gte": "2015-01-01", "lt": "2021-01-01"}}},
+                            {"range": {"rating": {"gte": 3}}},
+                        ]
+                    }
+                }
             }
         },
     ),
@@ -85,12 +97,12 @@ filters_data = [
         {
             "bool": {
                 "must": [
-                    {"match": {"type": "article"}},
+                    {"match": {"type": {"query": "article", "minimum_should_match": "100%"}}},
                     {
                         "bool": {
                             "should": [
                                 {"terms": {"genre": ["economy", "politics"]}},
-                                {"match": {"publisher": "nytimes"}},
+                                {"match": {"publisher": {"query": "nytimes", "minimum_should_match": "100%"}}},
                             ]
                         }
                     },
@@ -100,15 +112,29 @@ filters_data = [
             }
         },
     ),
-    ({"text": "A Foo Document 1"}, {"match": {"text": "A Foo Document 1"}}),
+    (
+        {"text": "A Foo Document 1"},
+        {"bool": {"must": {"match": {"text": {"query": "A Foo Document 1", "minimum_should_match": "100%"}}}}},
+    ),
     (
         {"$or": {"name": {"$or": [{"$eq": "name_0"}, {"$eq": "name_1"}]}, "number": {"$lt": 1.0}}},
         {
             "bool": {
-                "should": [
-                    {"bool": {"should": [{"match": {"$eq": "name_0"}}, {"match": {"$eq": "name_1"}}]}},
-                    {"range": {"number": {"lt": 1.0}}},
-                ]
+                "must": {
+                    "bool": {
+                        "should": [
+                            {
+                                "bool": {
+                                    "should": [
+                                        {"match": {"$eq": {"query": "name_0", "minimum_should_match": "100%"}}},
+                                        {"match": {"$eq": {"query": "name_1", "minimum_should_match": "100%"}}},
+                                    ]
+                                }
+                            },
+                            {"range": {"number": {"lt": 1.0}}},
+                        ]
+                    }
+                }
             }
         },
     ),
@@ -116,10 +142,14 @@ filters_data = [
         {"$and": {"number": {"$and": {"$lte": 2, "$gte": 0}}, "name": {"$in": ["name_0", "name_1"]}}},
         {
             "bool": {
-                "must": [
-                    {"bool": {"must": [{"range": {"number": {"lte": 2, "gte": 0}}}]}},
-                    {"terms": {"name": ["name_0", "name_1"]}},
-                ]
+                "must": {
+                    "bool": {
+                        "must": [
+                            {"bool": {"must": [{"range": {"number": {"lte": 2, "gte": 0}}}]}},
+                            {"terms": {"name": ["name_0", "name_1"]}},
+                        ]
+                    }
+                }
             }
         },
     ),
