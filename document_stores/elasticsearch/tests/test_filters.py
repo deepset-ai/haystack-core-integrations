@@ -126,8 +126,8 @@ filters_data = [
                             {
                                 "bool": {
                                     "should": [
-                                        {"match": {"$eq": {"query": "name_0", "minimum_should_match": "100%"}}},
-                                        {"match": {"$eq": {"query": "name_1", "minimum_should_match": "100%"}}},
+                                        {"term": {"name": "name_0"}},
+                                        {"term": {"name": "name_1"}},
                                     ]
                                 }
                             },
@@ -167,6 +167,21 @@ filters_data = [
     (
         {"number": {"$and": [{"$lte": 2}, {"$gte": 0}]}},
         {"bool": {"must": [{"range": {"number": {"lte": 2, "gte": 0}}}]}},
+    ),
+    (
+        {"name": {"$or": [{"$eq": "name_0"}, {"$eq": "name_1"}]}},
+        {
+            "bool": {
+                "must": {
+                    "bool": {
+                        "should": [
+                            {"term": {"name": "name_0"}},
+                            {"term": {"name": "name_1"}},
+                        ]
+                    }
+                }
+            }
+        },
     ),
 ]
 

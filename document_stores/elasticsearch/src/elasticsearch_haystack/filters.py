@@ -81,7 +81,18 @@ def _parse_comparison(field: str, comparison: Union[Dict, List, str, float]) -> 
                     raise FilterError(msg)
                 result.append({"range": {field: {comparator[1:]: val}}})
             elif comparator in ["$not", "$or"]:
-                result.append(_normalize_filters(val, comparator))
+                if isinstance(val, list):
+                    # This handles corner cases like this:
+                    # `{"name": {"$or": [{"$eq": "name_0"}, {"$eq": "name_1"}]}}`
+                    # If we don't handle it like this we'd lose the "name" field and the
+                    # generated query would be wrong and return unexpected results.
+                    comparisons = [_parse_comparison(field, v)[0] for v in val]
+                    if comparator == "$not":
+                        result.append({"bool": {"must_not": comparisons}})
+                    elif comparator == "$or":
+                        result.append({"bool": {"should": comparisons}})
+                else:
+                    result.append(_normalize_filters(val, comparator))
             elif comparator == "$and" and isinstance(val, list):
                 # We're assuming there are no duplicate items in the list
                 flat_filters = {k: v for d in val for k, v in d.items()}
