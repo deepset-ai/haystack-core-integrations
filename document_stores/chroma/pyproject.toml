@@ -33,7 +33,7 @@ Issues = "https://github.com/masci/chroma-haystack/issues"
 Source = "https://github.com/masci/chroma-haystack"
 
 [tool.hatch.version]
-path = "src/__about__.py"
+path = "src/chroma_haystack/__about__.py"
 
 [tool.hatch.envs.default]
 dependencies = [
