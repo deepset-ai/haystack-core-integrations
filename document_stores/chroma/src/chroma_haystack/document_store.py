@@ -45,7 +45,7 @@ class ChromaDocumentStore:
         self._chroma_client = chromadb.Client()
         self._collection = self._chroma_client.create_collection(
             name=collection_name,
-            embedding_function=get_embedding_function(embedding_function)(**embedding_function_params),
+            embedding_function=get_embedding_function(embedding_function, **embedding_function_params),
         )
 
     def count_documents(self) -> int:
@@ -149,22 +149,23 @@ class ChromaDocumentStore:
         :raises DuplicateDocumentError: Exception trigger on duplicate document if `policy=DuplicatePolicy.FAIL`
         :return: None
         """
-        for d in documents:
-            if not isinstance(d, Document):
+        for doc in documents:
+            if not isinstance(doc, Document):
                 msg = "param 'documents' must contain a list of objects of type Document"
                 raise ValueError(msg)
 
-            doc = self._prepare(d)
-
-            if doc.text is None:
+            if doc.content is None:
                 logger.warn(
                     "ChromaDocumentStore can only store the text field of Documents: "
                     "'array', 'dataframe' and 'blob' will be dropped."
                 )
-            data = {"ids": [doc.id], "documents": [doc.text], "metadatas": [doc.metadata]}
+            data = {"ids": [doc.id], "documents": [doc.content]}
+
+            if doc.meta:
+                data["metadatas"] = [doc.meta]
 
             if doc.embedding is not None:
-                data["embeddings"] = [doc.embedding.tolist()]
+                data["embeddings"] = [doc.embedding]
 
             self._collection.add(**data)
 
@@ -224,7 +225,7 @@ class ChromaDocumentStore:
         keys_to_remove = []
 
         for field, value in filters.items():
-            if field == "text":
+            if field == "content":
                 # Schedule for removal the original key, we're going to change it
                 keys_to_remove.append(field)
                 where_document["$contains"] = value
@@ -267,35 +268,25 @@ class ChromaDocumentStore:
 
         return ids, final_where, where_document
 
-    def _prepare(self, d: Document) -> Document:
-        """
-        Change the document in a way we can better store it into Chroma.
-        Fore example, we store as metadata additional fields Chroma doesn't manage
-        """
-        new_meta = {"_mime_type": d.mime_type} | d.metadata
-        orig = d.to_dict()
-        orig["metadata"] = new_meta
-        # return a copy
-        return Document.from_dict(orig)
-
     def _get_result_to_documents(self, result: GetResult) -> List[Document]:
         """
         Helper function to convert Chroma results into Haystack Documents
         """
         retval = []
-        for i in range(len(result["documents"])):
-            # prepare metadata
-            metadata = result["metadatas"][i]
-            mime_type = metadata.pop("_mime_type")
-            document_dict = {
-                "id": result["ids"][i],
-                "text": result["documents"][i],
-                "metadata": metadata,
-                "mime_type": mime_type,
-            }
+        for i in range(len(result.get("documents", []))):
+            document_dict: Dict[str, Any] = {"id": result["ids"][i]}
 
-            if result["embeddings"]:
-                document_dict["embedding"] = np.ndarray(result["embeddings"][i])
+            result_documents = result.get("documents")
+            if result_documents:
+                document_dict["content"] = result_documents[i]
+
+            result_metadata = result.get("metadatas")
+            if result_metadata:
+                document_dict["meta"] = result_metadata[i]
+
+            result_embeddings = result.get("embeddings")
+            if result_embeddings:
+                document_dict["embedding"] = list(result_embeddings[i])
 
             retval.append(Document.from_dict(document_dict))
 
