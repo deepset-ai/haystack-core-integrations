@@ -26,7 +26,9 @@ def _normalize_filters(filters: Union[List[Dict], Dict], logical_condition="") -
     if len(conditions) > 1:
         conditions = _normalize_ranges(conditions)
     else:
-        conditions = conditions[0]
+        # mypy is complaining we're assigning a dict to a list of dicts.
+        # We're ok with this as we're returning right after this.
+        conditions = conditions[0]  # type: ignore[assignment]
 
     if logical_condition == "$not":
         return {"bool": {"must_not": conditions}}
@@ -42,7 +44,9 @@ def _parse_comparison(field: str, comparison: Union[Dict, List, str, float]) -> 
     if isinstance(comparison, dict):
         for comparator, val in comparison.items():
             if isinstance(val, DataFrame):
-                val = val.to_json()
+                # Ruff is complaining we're overriding the loop variable `var`
+                # but we actually want to override it. So we ignore the error.
+                val = val.to_json()  # noqa: PLW2901
             if comparator == "$eq":
                 if isinstance(val, list):
                     result.append(

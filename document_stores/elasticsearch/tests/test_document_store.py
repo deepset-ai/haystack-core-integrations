@@ -4,14 +4,12 @@
 from typing import List
 from unittest.mock import patch
 
+import pandas as pd
 import pytest
 from haystack.preview.dataclasses.document import Document
 from haystack.preview.document_stores.errors import DuplicateDocumentError
 from haystack.preview.document_stores.protocols import DuplicatePolicy
 from haystack.preview.testing.document_store import DocumentStoreBaseTests
-from haystack.preview.errors import FilterError
-import pandas as pd
-import numpy as np
 
 from elasticsearch_haystack.document_store import ElasticsearchDocumentStore
 

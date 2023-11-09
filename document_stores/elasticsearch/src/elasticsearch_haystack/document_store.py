@@ -1,7 +1,6 @@
 # SPDX-FileCopyrightText: 2023-present Silvano Cerza <silvanocerza@gmail.com>
 #
 # SPDX-License-Identifier: Apache-2.0
-import json
 import logging
 from typing import Any, Dict, List, Mapping, Optional, Union
 
@@ -15,7 +14,6 @@ from haystack.preview.dataclasses import Document
 from haystack.preview.document_stores.decorator import document_store
 from haystack.preview.document_stores.errors import DuplicateDocumentError
 from haystack.preview.document_stores.protocols import DuplicatePolicy
-from pandas import DataFrame
 
 from elasticsearch_haystack.filters import _normalize_filters
 
