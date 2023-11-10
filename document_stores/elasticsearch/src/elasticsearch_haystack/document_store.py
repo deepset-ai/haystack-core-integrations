@@ -246,6 +246,7 @@ class ElasticsearchDocumentStore:
         query: str,
         *,
         filters: Optional[Dict[str, Any]] = None,
+        fuzziness: str = "AUTO",
         top_k: int = 10,
         scale_score: bool = True,
     ) -> List[Document]:
@@ -263,6 +264,9 @@ class ElasticsearchDocumentStore:
         :param query: String to search in saved Documents' text.
         :param filters: Filters applied to the retrieved Documents, for more info
                         see `ElasticsearchDocumentStore.filter_documents`, defaults to None
+        :param fuzziness: Fuzziness parameter passed to Elasticsearch, defaults to "AUTO".
+                          see the official documentation for valid values:
+                          https://www.elastic.co/guide/en/elasticsearch/reference/current/common-options.html#fuzziness
         :param top_k: Maximum number of Documents to return, defaults to 10
         :param scale_score: If `True` scales the Document`s scores between 0 and 1, defaults to True
         :raises ValueError: If `query` is an empty string
@@ -281,6 +285,7 @@ class ElasticsearchDocumentStore:
                         {
                             "multi_match": {
                                 "query": query,
+                                "fuzziness": fuzziness,
                                 "type": "most_fields",
                                 "operator": "AND",
                             }

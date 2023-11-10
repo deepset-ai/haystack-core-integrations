@@ -82,6 +82,36 @@ class TestDocumentStore(DocumentStoreBaseTests):
         assert "functional" in res[1].content
         assert "functional" in res[2].content
 
+    def test_bm25_retrieval_with_fuzziness(self, docstore: ElasticsearchDocumentStore):
+        docstore.write_documents(
+            [
+                Document(content="Haskell is a functional programming language"),
+                Document(content="Lisp is a functional programming language"),
+                Document(content="Exilir is a functional programming language"),
+                Document(content="F# is a functional programming language"),
+                Document(content="C# is a functional programming language"),
+                Document(content="C++ is an object oriented programming language"),
+                Document(content="Dart is an object oriented programming language"),
+                Document(content="Go is an object oriented programming language"),
+                Document(content="Python is a object oriented programming language"),
+                Document(content="Ruby is a object oriented programming language"),
+                Document(content="PHP is a object oriented programming language"),
+            ]
+        )
+
+        query_with_typo = "functinal"
+        # Query without fuzziness to search for the exact match
+        res = docstore._bm25_retrieval(query_with_typo, top_k=3, fuzziness="0")
+        # Nothing is found as the query contains a typo
+        assert res == []
+
+        # Query with fuzziness with the same query
+        res = docstore._bm25_retrieval(query_with_typo, top_k=3, fuzziness="1")
+        assert len(res) == 3
+        assert "functional" in res[0].content
+        assert "functional" in res[1].content
+        assert "functional" in res[2].content
+
     def test_write_duplicate_fail(self, docstore: ElasticsearchDocumentStore):
         """
         Verify `DuplicateDocumentError` is raised when trying to write duplicate files.

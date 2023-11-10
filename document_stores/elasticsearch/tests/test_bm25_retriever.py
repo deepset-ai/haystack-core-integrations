@@ -31,6 +31,7 @@ def test_to_dict(_mock_elasticsearch_client):
                 "type": "ElasticsearchDocumentStore",
             },
             "filters": {},
+            "fuzziness": "AUTO",
             "top_k": 10,
             "scale_score": True,
         },
@@ -47,6 +48,7 @@ def test_from_dict(_mock_elasticsearch_client):
                 "type": "ElasticsearchDocumentStore",
             },
             "filters": {},
+            "fuzziness": "AUTO",
             "top_k": 10,
             "scale_score": True,
         },
@@ -54,6 +56,7 @@ def test_from_dict(_mock_elasticsearch_client):
     retriever = ElasticsearchBM25Retriever.from_dict(data)
     assert retriever._document_store
     assert retriever._filters == {}
+    assert retriever._fuzziness == "AUTO"
     assert retriever._top_k == 10
     assert retriever._scale_score
 
@@ -66,6 +69,7 @@ def test_run():
     mock_store._bm25_retrieval.assert_called_once_with(
         query="some query",
         filters={},
+        fuzziness="AUTO",
         top_k=10,
         scale_score=True,
     )
