@@ -121,9 +121,6 @@ class TestDocumentStore(DocumentStoreBaseTests):
 
     def test_delete_not_empty_nonexisting(self, docstore: ElasticsearchDocumentStore):
         """
-        Verifies delete properly deletes specified document in DocumentStore containing
-        multiple documents.
-
         `DocumentStoreBaseTests` declares this test but we override it since we
         want `delete_documents` to be idempotent.
         """
