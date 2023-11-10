@@ -16,6 +16,7 @@ class ElasticsearchBM25Retriever:
         *,
         document_store: ElasticsearchDocumentStore,
         filters: Optional[Dict[str, Any]] = None,
+        fuzziness: str = "AUTO",
         top_k: int = 10,
         scale_score: bool = True,
     ):
@@ -25,6 +26,7 @@ class ElasticsearchBM25Retriever:
 
         self._document_store = document_store
         self._filters = filters or {}
+        self._fuzziness = fuzziness
         self._top_k = top_k
         self._scale_score = scale_score
 
@@ -32,6 +34,7 @@ class ElasticsearchBM25Retriever:
         return default_to_dict(
             self,
             filters=self._filters,
+            fuzziness=self._fuzziness,
             top_k=self._top_k,
             scale_score=self._scale_score,
             document_store=self._document_store.to_dict(),
@@ -47,6 +50,10 @@ class ElasticsearchBM25Retriever:
     @component.output_types(documents=List[Document])
     def run(self, query: str):
         docs = self._document_store._bm25_retrieval(
-            query=query, filters=self._filters, top_k=self._top_k, scale_score=self._scale_score
+            query=query,
+            filters=self._filters,
+            fuzziness=self._fuzziness,
+            top_k=self._top_k,
+            scale_score=self._scale_score,
         )
         return {"documents": docs}
