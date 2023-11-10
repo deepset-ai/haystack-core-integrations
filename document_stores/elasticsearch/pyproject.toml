@@ -31,9 +31,9 @@ dependencies = [
 ]
 
 [project.urls]
-Documentation = "https://github.com/deepset-ai/elasticsearch-haystack#readme"
-Issues = "https://github.com/deepset-ai/elasticsearch-haystack/issues"
-Source = "https://github.com/deepset-ai/elasticsearch-haystack"
+Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/document_stores/elasticsearch#readme"
+Issues = "https://github.com/deepset-ai/haystack-core-integrations/issues"
+Source = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/document_stores/elasticsearch"
 
 [tool.hatch.version]
 path = "src/elasticsearch_haystack/__about__.py"
