@@ -20,7 +20,8 @@ class ElasticsearchBM25Retriever:
         scale_score: bool = True,
     ):
         if not isinstance(document_store, ElasticsearchDocumentStore):
-            raise ValueError("document_store must be an instance of ElasticsearchDocumentStore")
+            msg = "document_store must be an instance of ElasticsearchDocumentStore"
+            raise ValueError(msg)
 
         self._document_store = document_store
         self._filters = filters or {}

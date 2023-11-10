@@ -24,9 +24,10 @@ Hosts = Union[str, List[Union[str, Mapping[str, Union[str, int]], NodeConfig]]]
 # document scores are essentially unbounded and will be scaled to values between 0 and 1 if scale_score is set to
 # True (default). Scaling uses the expit function (inverse of the logit function) after applying a scaling factor
 # (e.g., BM25_SCALING_FACTOR for the bm25_retrieval method).
-# Larger scaling factor decreases scaled scores. For example, an input of 10 is scaled to 0.99 with BM25_SCALING_FACTOR=2
-# but to 0.78 with BM25_SCALING_FACTOR=8 (default). The defaults were chosen empirically. Increase the default if most
-# unscaled scores are larger than expected (>30) and otherwise would incorrectly all be mapped to scores ~1.
+# Larger scaling factor decreases scaled scores. For example, an input of 10 is scaled to 0.99 with
+# BM25_SCALING_FACTOR=2 but to 0.78 with BM25_SCALING_FACTOR=8 (default). The defaults were chosen empirically.
+# Increase the default if most unscaled scores are larger than expected (>30) and otherwise would incorrectly
+# all be mapped to scores ~1.
 BM25_SCALING_FACTOR = 8
 
 
@@ -152,7 +153,7 @@ class ElasticsearchDocumentStore:
         """
         query = {"bool": {"filter": _normalize_filters(filters)}} if filters else None
 
-        documents = []
+        documents: List[Document] = []
         from_ = 0
         # Handle pagination
         while True:
