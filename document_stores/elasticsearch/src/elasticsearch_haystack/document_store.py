@@ -21,6 +21,14 @@ logger = logging.getLogger(__name__)
 
 Hosts = Union[str, List[Union[str, Mapping[str, Union[str, int]], NodeConfig]]]
 
+# document scores are essentially unbounded and will be scaled to values between 0 and 1 if scale_score is set to
+# True (default). Scaling uses the expit function (inverse of the logit function) after applying a scaling factor
+# (e.g., BM25_SCALING_FACTOR for the bm25_retrieval method).
+# Larger scaling factor decreases scaled scores. For example, an input of 10 is scaled to 0.99 with BM25_SCALING_FACTOR=2
+# but to 0.78 with BM25_SCALING_FACTOR=8 (default). The defaults were chosen empirically. Increase the default if most
+# unscaled scores are larger than expected (>30) and otherwise would incorrectly all be mapped to scores ~1.
+BM25_SCALING_FACTOR = 8
+
 
 @document_store
 class ElasticsearchDocumentStore:
@@ -289,6 +297,6 @@ class ElasticsearchDocumentStore:
         docs = []
         for hit in res["hits"]["hits"]:
             if scale_score:
-                hit["_score"] = float(1 / (1 + np.exp(-np.asarray(hit["_score"] / 8))))
+                hit["_score"] = float(1 / (1 + np.exp(-np.asarray(hit["_score"] / BM25_SCALING_FACTOR))))
             docs.append(self._deserialize_document(hit))
         return docs
