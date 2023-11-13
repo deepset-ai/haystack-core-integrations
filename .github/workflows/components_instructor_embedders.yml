@@ -1,9 +1,8 @@
 name: Test / Components / instructor-embedders
 
 on:
-  push:
-    branches:
-      - main
+  schedule:
+    - cron: "0 0 * * *"
   pull_request:
     paths:
       - 'components/instructor-embedders/**'
