@@ -18,7 +18,7 @@ class ElasticsearchBM25Retriever:
         filters: Optional[Dict[str, Any]] = None,
         fuzziness: str = "AUTO",
         top_k: int = 10,
-        scale_score: bool = True,
+        scale_score: bool = False,
     ):
         if not isinstance(document_store, ElasticsearchDocumentStore):
             msg = "document_store must be an instance of ElasticsearchDocumentStore"

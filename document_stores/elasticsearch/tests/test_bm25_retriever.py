@@ -15,7 +15,7 @@ def test_init_default():
     assert retriever._document_store == mock_store
     assert retriever._filters == {}
     assert retriever._top_k == 10
-    assert retriever._scale_score
+    assert retriever._scale_score is False
 
 
 @patch("elasticsearch_haystack.document_store.Elasticsearch")
@@ -33,7 +33,7 @@ def test_to_dict(_mock_elasticsearch_client):
             "filters": {},
             "fuzziness": "AUTO",
             "top_k": 10,
-            "scale_score": True,
+            "scale_score": False,
         },
     }
 
@@ -71,7 +71,7 @@ def test_run():
         filters={},
         fuzziness="AUTO",
         top_k=10,
-        scale_score=True,
+        scale_score=False,
     )
     assert len(res) == 1
     assert len(res["documents"]) == 1

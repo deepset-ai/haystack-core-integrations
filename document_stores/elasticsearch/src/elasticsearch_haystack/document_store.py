@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 Hosts = Union[str, List[Union[str, Mapping[str, Union[str, int]], NodeConfig]]]
 
 # document scores are essentially unbounded and will be scaled to values between 0 and 1 if scale_score is set to
-# True (default). Scaling uses the expit function (inverse of the logit function) after applying a scaling factor
+# True. Scaling uses the expit function (inverse of the logit function) after applying a scaling factor
 # (e.g., BM25_SCALING_FACTOR for the bm25_retrieval method).
 # Larger scaling factor decreases scaled scores. For example, an input of 10 is scaled to 0.99 with
 # BM25_SCALING_FACTOR=2 but to 0.78 with BM25_SCALING_FACTOR=8 (default). The defaults were chosen empirically.
@@ -248,7 +248,7 @@ class ElasticsearchDocumentStore:
         filters: Optional[Dict[str, Any]] = None,
         fuzziness: str = "AUTO",
         top_k: int = 10,
-        scale_score: bool = True,
+        scale_score: bool = False,
     ) -> List[Document]:
         """
         Elasticsearch by defaults uses BM25 search algorithm.
@@ -268,7 +268,7 @@ class ElasticsearchDocumentStore:
                           see the official documentation for valid values:
                           https://www.elastic.co/guide/en/elasticsearch/reference/current/common-options.html#fuzziness
         :param top_k: Maximum number of Documents to return, defaults to 10
-        :param scale_score: If `True` scales the Document`s scores between 0 and 1, defaults to True
+        :param scale_score: If `True` scales the Document`s scores between 0 and 1, defaults to False
         :raises ValueError: If `query` is an empty string
         :return: List of Document that match `query`
         """
