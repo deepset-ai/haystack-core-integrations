@@ -1,6 +1,6 @@
 # This workflow comes from https://github.com/ofek/hatch-mypyc
 # https://github.com/ofek/hatch-mypyc/blob/5a198c0ba8660494d02716cfc9d79ce4adfb1442/.github/workflows/test.yml
-name: Test / document_stores / elasticsearch
+name: Test / Document Stores / elasticsearch
 
 on:
   schedule:
@@ -11,7 +11,7 @@ on:
       - ".github/workflows/document_stores_elasticsearch.yml"
 
 concurrency:
-  group: test-${{ github.head_ref }}
+  group: document_stores_elasticsearch-${{ github.head_ref }}
   cancel-in-progress: true
 
 env:

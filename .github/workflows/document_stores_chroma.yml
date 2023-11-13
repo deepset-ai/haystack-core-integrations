@@ -15,7 +15,7 @@ defaults:
     working-directory: document_stores/chroma
 
 concurrency:
-  group: test-${{ github.head_ref }}
+  group: document_stores_chroma-${{ github.head_ref }}
   cancel-in-progress: true
 
 env:
