@@ -12,6 +12,7 @@ from haystack.preview.document_stores.protocols import DuplicatePolicy
 from haystack.preview.testing.document_store import DocumentStoreBaseTests
 
 from elasticsearch_haystack.document_store import ElasticsearchDocumentStore
+from elasticsearch.exceptions import BadRequestError
 
 
 class TestDocumentStore(DocumentStoreBaseTests):
@@ -231,3 +232,45 @@ class TestDocumentStore(DocumentStoreBaseTests):
         docstore.write_documents(filterable_docs)
         result = docstore.filter_documents(filters={"dataframe": {"$lte": pd.DataFrame([[1, 2, 3], [-1, -2, -3]])}})
         assert self.contains_same_docs(result, [d for d in filterable_docs if d.dataframe is not None])
+
+    def test_embedding_retrieval(self, docstore: ElasticsearchDocumentStore):
+        docs = [
+            Document(content="Most similar document", embedding=[1.0, 1.0, 1.0, 1.0]),
+            Document(content="2nd best document", embedding=[0.8, 0.8, 0.8, 1.0]),
+            Document(content="Not very similar document", embedding=[0.0, 0.8, 0.3, 0.9]),
+        ]
+        docstore.write_documents(docs)
+        results = docstore._embedding_retrieval(query_embedding=[0.1, 0.1, 0.1, 0.1], top_k=2, filters={})
+        assert len(results) == 2
+        assert results[0].content == "Most similar document"
+        assert results[1].content == "2nd best document"
+
+    def test_embedding_retrieval_w_filters(self, docstore: ElasticsearchDocumentStore):
+        docs = [
+            Document(content="Most similar document", embedding=[1.0, 1.0, 1.0, 1.0]),
+            Document(content="2nd best document", embedding=[0.8, 0.8, 0.8, 1.0]),
+            Document(
+                content="Not very similar document with meta field",
+                embedding=[0.0, 0.8, 0.3, 0.9],
+                meta={"meta_field": "custom_value"},
+            ),
+        ]
+        docstore.write_documents(docs)
+
+        filters = {"meta_field": {"$eq": "custom_value"}}
+        results = docstore._embedding_retrieval(query_embedding=[0.1, 0.1, 0.1, 0.1], top_k=2, filters=filters)
+        assert len(results) == 1
+        assert results[0].content == "Not very similar document with meta field"
+
+    def test_embedding_retrieval_query_documents_different_embedding_sizes(self, docstore: ElasticsearchDocumentStore):
+        """
+        Test that the retrieval fails if the query embedding and the documents have different embedding sizes.
+        """
+        docs = [Document(content="Hello world", embedding=[0.1, 0.2, 0.3, 0.4])]
+        docstore.write_documents(docs)
+
+        with pytest.raises(
+            BadRequestError,
+            match="search_phase_execution_exception",
+        ):
+            docstore._embedding_retrieval(query_embedding=[0.1, 0.1])
