@@ -6,13 +6,13 @@ from unittest.mock import patch
 
 import pandas as pd
 import pytest
+from elasticsearch.exceptions import BadRequestError
 from haystack.preview.dataclasses.document import Document
 from haystack.preview.document_stores.errors import DuplicateDocumentError
 from haystack.preview.document_stores.protocols import DuplicatePolicy
 from haystack.preview.testing.document_store import DocumentStoreBaseTests
 
 from elasticsearch_haystack.document_store import ElasticsearchDocumentStore
-from elasticsearch.exceptions import BadRequestError
 
 
 class TestDocumentStore(DocumentStoreBaseTests):
