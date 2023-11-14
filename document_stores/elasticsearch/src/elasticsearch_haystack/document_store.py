@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 import logging
-from typing import Any, Dict, List, Mapping, Optional, Union
+from typing import Any, Dict, List, Mapping, Optional, Union, Literal
 
 import numpy as np
 
@@ -33,7 +33,14 @@ BM25_SCALING_FACTOR = 8
 
 @document_store
 class ElasticsearchDocumentStore:
-    def __init__(self, *, hosts: Optional[Hosts] = None, index: str = "default", **kwargs):
+    def __init__(
+        self,
+        *,
+        hosts: Optional[Hosts] = None,
+        index: str = "default",
+        embedding_similarity_function: Literal["cosine", "dot_product", "l2_norm", "max_inner_product"] = "cosine",
+        **kwargs,
+    ):
         """
         Creates a new ElasticsearchDocumentStore instance.
 
@@ -45,19 +52,32 @@ class ElasticsearchDocumentStore:
 
         :param hosts: List of hosts running the Elasticsearch client. Defaults to None
         :param index: Name of index in Elasticsearch, if it doesn't exist it will be created. Defaults to "default"
+        :param embedding_similarity_function: The similarity function used to compare Documents embeddings.
+            Defaults to "cosine".
+            To choose the most appropriate function, look for information about your embedding model.
+            To understand how document scores are computed, see the Elasticsearch documentation:
+            https://www.elastic.co/guide/en/elasticsearch/reference/current/dense-vector.html#dense-vector-params
         :param **kwargs: Optional arguments that ``Elasticsearch`` takes.
         """
         self._hosts = hosts
         self._client = Elasticsearch(hosts, **kwargs)
         self._index = index
+        self._embedding_similarity_function = embedding_similarity_function
         self._kwargs = kwargs
 
         # Check client connection, this will raise if not connected
         self._client.info()
 
+        # configure mapping for the embedding field
+        mappings = {
+            "properties": {
+                "embedding": {"type": "dense_vector", "index": True, "similarity": embedding_similarity_function}
+            }
+        }
+
         # Create the index if it doesn't exist
         if not self._client.indices.exists(index=index):
-            self._client.indices.create(index=index)
+            self._client.indices.create(index=index, mappings=mappings)
 
     def to_dict(self) -> Dict[str, Any]:
         # This is not the best solution to serialise this class but is the fastest to implement.
@@ -67,6 +87,7 @@ class ElasticsearchDocumentStore:
             self,
             hosts=self._hosts,
             index=self._index,
+            embedding_similarity_function=self._embedding_similarity_function,
             **self._kwargs,
         )
 
@@ -304,5 +325,59 @@ class ElasticsearchDocumentStore:
         for hit in res["hits"]["hits"]:
             if scale_score:
                 hit["_score"] = float(1 / (1 + np.exp(-np.asarray(hit["_score"] / BM25_SCALING_FACTOR))))
+            docs.append(self._deserialize_document(hit))
+        return docs
+
+    def _embedding_retrieval(
+        self,
+        query_embedding: List[float],
+        *,
+        filters: Optional[Dict[str, Any]] = None,
+        top_k: int = 10,
+        num_candidates: Optional[int] = None,
+    ) -> List[Document]:
+        """
+        Retrieves documents that are most similar to the query embedding using a vector similarity metric.
+        It uses the Elasticsearch's Approximate k-Nearest Neighbors search algorithm.
+
+        This method is not mean to be part of the public interface of
+        `ElasticsearchDocumentStore` nor called directly.
+        `ElasticsearchEmbeddingRetriever` uses this method directly and is the public interface for it.
+
+        :param query_embedding: Embedding of the query.
+        :param filters: Filters applied to the retrieved Documents. Defaults to None.
+            Filters are applied during the approximate kNN search to ensure that top_k matching documents are returned.
+        :param top_k: Maximum number of Documents to return, defaults to 10
+        :param num_candidates: Number of approximate nearest neighbor candidates on each shard. Defaults to top_k * 10.
+            Increasing this value will improve search accuracy at the cost of slower search speeds.
+            You can read more about it in the Elasticsearch documentation:
+            https://www.elastic.co/guide/en/elasticsearch/reference/current/knn-search.html#tune-approximate-knn-for-speed-accuracy
+        :raises ValueError: If `query_embedding` is an empty list
+        :return: List of Document that are most similar to `query_embedding`
+        """
+
+        if not query_embedding:
+            msg = "query_embedding must be a non-empty list of floats"
+            raise ValueError(msg)
+
+        if not num_candidates:
+            num_candidates = top_k * 10
+
+        body: Dict[str, Any] = {
+            "knn": {
+                "field": "embedding",
+                "query_vector": query_embedding,
+                "k": top_k,
+                "num_candidates": num_candidates,
+            },
+        }
+
+        if filters:
+            body["knn"]["filter"] = _normalize_filters(filters)
+
+        res = self._client.search(index=self._index, **body)
+
+        docs = []
+        for hit in res["hits"]["hits"]:
             docs.append(self._deserialize_document(hit))
         return docs
