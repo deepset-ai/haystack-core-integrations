@@ -132,7 +132,7 @@ class TestDocumentStore(DocumentStoreBaseTests):
         `DocumentStoreBaseTests` declares this test but we override it since we
         want `delete_documents` to be idempotent.
         """
-        doc = Document(text="test doc")
+        doc = Document(content="test doc")
         docstore.write_documents([doc])
 
         docstore.delete_documents([doc.id])
@@ -154,7 +154,7 @@ class TestDocumentStore(DocumentStoreBaseTests):
         `DocumentStoreBaseTests` declares this test but we override it since we
         want `delete_documents` to be idempotent.
         """
-        doc = Document(text="test doc")
+        doc = Document(content="test doc")
         docstore.write_documents([doc])
 
         docstore.delete_documents(["non_existing"])
