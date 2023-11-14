@@ -6,7 +6,7 @@ from unittest.mock import patch
 
 import pandas as pd
 import pytest
-from elasticsearch.exceptions import BadRequestError
+from elasticsearch.exceptions import BadRequestError  # type: ignore[import-not-found]
 from haystack.preview.dataclasses.document import Document
 from haystack.preview.document_stores.errors import DuplicateDocumentError
 from haystack.preview.document_stores.protocols import DuplicatePolicy
