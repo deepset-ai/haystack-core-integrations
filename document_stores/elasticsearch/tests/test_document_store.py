@@ -31,7 +31,12 @@ class TestDocumentStore(DocumentStoreBaseTests):
         # Use a different index for each test so we can run them in parallel
         index = f"{request.node.name}"
 
-        store = ElasticsearchDocumentStore(hosts=hosts, index=index)
+        # this similarity function is rarely used in practice, but it is robust for test cases with fake embeddings
+        embedding_similarity_function = "max_inner_product"
+
+        store = ElasticsearchDocumentStore(
+            hosts=hosts, index=index, embedding_similarity_function=embedding_similarity_function
+        )
         yield store
         store._client.options(ignore_status=[400, 404]).indices.delete(index=index)
 
@@ -44,6 +49,7 @@ class TestDocumentStore(DocumentStoreBaseTests):
             "init_parameters": {
                 "hosts": "some hosts",
                 "index": "default",
+                "embedding_similarity_function": "cosine",
             },
         }
 
@@ -185,6 +191,26 @@ class TestDocumentStore(DocumentStoreBaseTests):
 
     @pytest.mark.skip(reason="Not supported")
     def test_nin_filter_embedding(self, docstore: ElasticsearchDocumentStore, filterable_docs: List[Document]):
+        pass
+
+    @pytest.mark.skip(reason="Not supported")
+    def test_eq_filter_embedding(self, docstore: ElasticsearchDocumentStore, filterable_docs: List[Document]):
+        """
+        If the embedding field is a dense vector (as expected), raise the following error:
+
+        elasticsearch.BadRequestError: BadRequestError(400, 'search_phase_execution_exception',
+        "failed to create query: Field [embedding] of type [dense_vector] doesn't support term queries")
+        """
+        pass
+
+    @pytest.mark.skip(reason="Not supported")
+    def test_ne_filter_embedding(self, docstore: ElasticsearchDocumentStore, filterable_docs: List[Document]):
+        """
+        If the embedding field is a dense vector (as expected), raise the following error:
+
+        elasticsearch.BadRequestError: BadRequestError(400, 'search_phase_execution_exception',
+        "failed to create query: Field [embedding] of type [dense_vector] doesn't support term queries")
+        """
         pass
 
     def test_gt_filter_non_numeric(self, docstore: ElasticsearchDocumentStore, filterable_docs: List[Document]):
