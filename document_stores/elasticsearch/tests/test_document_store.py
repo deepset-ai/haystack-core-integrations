@@ -176,15 +176,6 @@ class TestDocumentStore(DocumentStoreBaseTests):
     def test_in_filter_embedding(self, docstore: ElasticsearchDocumentStore, filterable_docs: List[Document]):
         pass
 
-    def test_ne_filter_embedding(self, docstore: ElasticsearchDocumentStore, filterable_docs: List[Document]):
-        docstore.write_documents(filterable_docs)
-        embedding = [0.0] * 768
-        result = docstore.filter_documents(filters={"embedding": {"$ne": embedding}})
-        assert self.contains_same_docs(
-            result,
-            [doc for doc in filterable_docs if doc.embedding is None or not embedding == doc.embedding],
-        )
-
     @pytest.mark.skip(reason="Not supported")
     def test_nin_filter_table(self, docstore: ElasticsearchDocumentStore, filterable_docs: List[Document]):
         pass
