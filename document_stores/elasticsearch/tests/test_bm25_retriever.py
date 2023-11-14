@@ -15,7 +15,7 @@ def test_init_default():
     assert retriever._document_store == mock_store
     assert retriever._filters == {}
     assert retriever._top_k == 10
-    assert retriever._scale_score is False
+    assert not retriever._scale_score
 
 
 @patch("elasticsearch_haystack.document_store.Elasticsearch")
