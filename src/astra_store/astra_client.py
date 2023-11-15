@@ -256,6 +256,8 @@ class AstraClient:
         delete_all: Optional[bool] = None,
         filter: Optional[Dict[str, Union[str, float, int, bool, List, dict]]] = None,
     ) -> Dict[str, Any]:
+        if delete_all:
+            query = {"deleteMany": {}}
         if ids is not None:
             query = {"deleteMany": {"filter": {"_id": {"$in": ids}}}}
         if filter is not None:

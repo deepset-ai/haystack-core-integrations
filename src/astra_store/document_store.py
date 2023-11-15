@@ -118,6 +118,4 @@ class AstraDocumentStore:  # FIXME
 
         :param object_ids: the object_ids to delete
         """
-        for doc_id in document_ids:  # FIXME
-            msg = f"ID '{doc_id}' not found, cannot delete it."
-            raise MissingDocumentError(msg)
+        self._index.delete(ids=document_ids)
