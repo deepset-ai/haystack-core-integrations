@@ -2,7 +2,7 @@ import os
 from inspect import getmembers, isclass, isfunction
 import pinecone
 from typing import Any, Dict, List, Union
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, Mock
 from unittest.mock import patch
 import numpy as np
 import pytest
@@ -20,88 +20,37 @@ from haystack.preview import (
 from haystack.preview.dataclasses import Document
 
 
-class TestPineconeDocumentStore:
-    @pytest.fixture
-    def ds(self, monkeypatch, request) -> PineconeDocumentStore:
-        """
-        This fixture provides an empty document store and takes care of cleaning up after each test
-        """
-
-        for fname, function in getmembers(pinecone_mock, isfunction):
-            monkeypatch.setattr(f"pinecone.{fname}", function, raising=False)
-        for cname, class_ in getmembers(pinecone_mock, isclass):
-            monkeypatch.setattr(f"pinecone.{cname}", class_, raising=False)
-
-        return PineconeDocumentStore(
-            api_key=os.environ.get("PINECONE_API_KEY") or "pinecone-test-key",
-            embedding_dim=768,
-            embedding_field="embedding",
-            index="haystack_tests",
-            similarity="cosine",
-            recreate_index=True,
-        )
-
-    @pytest.fixture
-    def doc_store_with_docs(self, ds: PineconeDocumentStore) -> PineconeDocumentStore:
-        """
-        This fixture provides a pre-populated document store and takes care of cleaning up after each test
-        """
-        documents = [
-            Document(
-                content="$TSLA lots of green on the 5 min, watch the hourly $259.33 possible resistance currently @ $257.00.Tesla is recalling 2,700 Model X cars.Hard to find new buyers of $TSLA at 250. Shorts continue to pile in.",
-                meta={
-                    "target": "Lloyds",
-                    "sentiment_score": -0.532,
-                    "format": "headline",
-                },
-            ),
-        ]
-        ds.write_documents(documents)
-        return ds
-
-    @pytest.fixture
-    def mocked_ds(self):
-        class DSMock(PineconeDocumentStore):
-            pass
-
-        pinecone.init = MagicMock()
-        DSMock._create_index = MagicMock()
-        mocked_ds = DSMock(api_key="MOCK")
-
-        return mocked_ds
-
-
 class TestPineconeRetriever:
-    @pytest.mark.integration
+    @pytest.mark.unit
     def test_init(self):
-        document_store = PineconeDocumentStore("pinecone-test-key")
-        retriever = PineconeRetriever(document_store=document_store)
-        assert retriever.document_store == document_store
+        mock_store = Mock(spec=PineconeDocumentStore)
+        retriever = PineconeRetriever(document_store=mock_store)
+        assert retriever.document_store == mock_store
         assert retriever.filters == None
         assert retriever.top_k == 10
         assert retriever.scale_score == True
         assert retriever.return_embedding == False
 
-    @pytest.mark.integration
+    @pytest.mark.unit
     def test_run(self):
-        document_store = PineconeDocumentStore("pinecone-test-key")
-        with patch.object(document_store, "query") as mock_query:
-            mock_query.return_value = Document(
+        mock_store = Mock(spec=PineconeDocumentStore)
+        mock_store.query_by_embedding.return_value = [Document(
                 content="$TSLA lots of green on the 5 min, watch the hourly $259.33 possible resistance currently @ $257.00.Tesla is recalling 2,700 Model X cars.Hard to find new buyers of $TSLA at 250. Shorts continue to pile in.",
                 meta={
                     "target": "TSLA",
                     "sentiment_score": 0.318,
                     "format": "post",
                 },
-            )
+            )]
 
-            results = self.retriever.run(["How many cars is TSLA recalling?"])
+        retriever = PineconeRetriever(document_store=mock_store)
+        results = retriever.run(["How many cars is TSLA recalling?"])
 
-            assert len(results["documents"]) == 1
-            assert (
-                results["documents"][0][0].content
-                == "$TSLA lots of green on the 5 min, watch the hourly $259.33 possible resistance currently @ $257.00.Tesla is recalling 2,700 Model X cars.Hard to find new buyers of $TSLA at 250. Shorts continue to pile in."
-            )
+        assert len(results["documents"]) == 1
+        assert (
+            results["documents"][0].content
+            == "$TSLA lots of green on the 5 min, watch the hourly $259.33 possible resistance currently @ $257.00.Tesla is recalling 2,700 Model X cars.Hard to find new buyers of $TSLA at 250. Shorts continue to pile in."
+        )
 
     @pytest.mark.integration
     def test_to_dict(self):

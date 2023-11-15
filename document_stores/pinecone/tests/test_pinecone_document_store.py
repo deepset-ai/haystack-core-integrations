@@ -16,7 +16,7 @@ from tests import pinecone_mock
 import pinecone
 
 
-class TestPineconeDocumentStore:
+class TestPineconeDocumentStore(DocumentStoreBaseTests):
     @pytest.fixture
     def ds(self, monkeypatch, request) -> PineconeDocumentStore:
         """
