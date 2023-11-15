@@ -200,9 +200,11 @@ class TestInstructorTextEmbedder:
 
     @pytest.mark.integration
     def test_run(self):
-        embedder = InstructorTextEmbedder(model_name_or_path="hkunlp/instructor-base",
-                                          device="cpu",
-                                          instruction="Represent the Science sentence for retrieval")
+        embedder = InstructorTextEmbedder(
+            model_name_or_path="hkunlp/instructor-base",
+            device="cpu",
+            instruction="Represent the Science sentence for retrieval",
+        )
         embedder.warm_up()
 
         text = "Parton energy loss in QCD matter"

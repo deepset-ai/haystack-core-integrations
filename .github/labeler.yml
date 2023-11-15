@@ -1,6 +1,10 @@
 # Integrations
 integration:instructor-embedders:
 - components/instructor-embedders/**/*
+integration:chroma:
+- document_stores/chroma/**/*
+integration:elasticsearch:
+- document_stores/elasticsearch/**/*
 # Topics
 topic:CI:
 - .github/*

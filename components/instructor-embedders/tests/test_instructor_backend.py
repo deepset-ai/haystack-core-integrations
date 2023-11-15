@@ -7,7 +7,7 @@ from instructor_embedders.embedding_backend.instructor_backend import _Instructo
 
 @pytest.mark.unit
 @patch("instructor_embedders.embedding_backend.instructor_backend.INSTRUCTOR")
-def test_factory_behavior(mock_instructor): # noqa: ARG001
+def test_factory_behavior(mock_instructor):  # noqa: ARG001
     embedding_backend = _InstructorEmbeddingBackendFactory.get_embedding_backend(
         model_name_or_path="hkunlp/instructor-large", device="cpu"
     )
@@ -33,7 +33,7 @@ def test_model_initialization(mock_instructor):
 
 @pytest.mark.unit
 @patch("instructor_embedders.embedding_backend.instructor_backend.INSTRUCTOR")
-def test_embedding_function_with_kwargs(mock_instructor):   # noqa: ARG001
+def test_embedding_function_with_kwargs(mock_instructor):  # noqa: ARG001
     embedding_backend = _InstructorEmbeddingBackendFactory.get_embedding_backend(
         model_name_or_path="hkunlp/instructor-base"
     )
