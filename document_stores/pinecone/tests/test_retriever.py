@@ -19,13 +19,14 @@ from haystack.preview import (
 
 from haystack.preview.dataclasses import Document
 
+
 class TestPineconeDocumentStore:
     @pytest.fixture
     def ds(self, monkeypatch, request) -> PineconeDocumentStore:
         """
         This fixture provides an empty document store and takes care of cleaning up after each test
         """
-    
+
         for fname, function in getmembers(pinecone_mock, isfunction):
             monkeypatch.setattr(f"pinecone.{fname}", function, raising=False)
         for cname, class_ in getmembers(pinecone_mock, isclass):
@@ -45,13 +46,15 @@ class TestPineconeDocumentStore:
         """
         This fixture provides a pre-populated document store and takes care of cleaning up after each test
         """
-        documents = [Document(
-                text="$TSLA lots of green on the 5 min, watch the hourly $259.33 possible resistance currently @ $257.00.Tesla is recalling 2,700 Model X cars.Hard to find new buyers of $TSLA at 250. Shorts continue to pile in.",
-                metadata={
+        documents = [
+            Document(
+                content="$TSLA lots of green on the 5 min, watch the hourly $259.33 possible resistance currently @ $257.00.Tesla is recalling 2,700 Model X cars.Hard to find new buyers of $TSLA at 250. Shorts continue to pile in.",
+                meta={
                     "target": "Lloyds",
                     "sentiment_score": -0.532,
                     "format": "headline",
-                }),
+                },
+            ),
         ]
         ds.write_documents(documents)
         return ds
@@ -78,24 +81,28 @@ class TestPineconeRetriever:
         assert retriever.top_k == 10
         assert retriever.scale_score == True
         assert retriever.return_embedding == False
-        
+
     @pytest.mark.integration
     def test_run(self):
         document_store = PineconeDocumentStore("pinecone-test-key")
         with patch.object(document_store, "query") as mock_query:
             mock_query.return_value = Document(
-                text="$TSLA lots of green on the 5 min, watch the hourly $259.33 possible resistance currently @ $257.00.Tesla is recalling 2,700 Model X cars.Hard to find new buyers of $TSLA at 250. Shorts continue to pile in.",
-                metadata={
+                content="$TSLA lots of green on the 5 min, watch the hourly $259.33 possible resistance currently @ $257.00.Tesla is recalling 2,700 Model X cars.Hard to find new buyers of $TSLA at 250. Shorts continue to pile in.",
+                meta={
                     "target": "TSLA",
                     "sentiment_score": 0.318,
                     "format": "post",
-                })
+                },
+            )
 
             results = self.retriever.run(["How many cars is TSLA recalling?"])
-        
+
             assert len(results["documents"]) == 1
-            assert results["documents"][0][0].text == "$TSLA lots of green on the 5 min, watch the hourly $259.33 possible resistance currently @ $257.00.Tesla is recalling 2,700 Model X cars.Hard to find new buyers of $TSLA at 250. Shorts continue to pile in."
-        
+            assert (
+                results["documents"][0][0].content
+                == "$TSLA lots of green on the 5 min, watch the hourly $259.33 possible resistance currently @ $257.00.Tesla is recalling 2,700 Model X cars.Hard to find new buyers of $TSLA at 250. Shorts continue to pile in."
+            )
+
     @pytest.mark.integration
     def test_to_dict(self):
         document_store = PineconeDocumentStore("pinecone-test-key")
@@ -110,7 +117,7 @@ class TestPineconeRetriever:
                 "return_embedding": False,
             }
         }
-        
+
     @pytest.mark.integration
     def test_from_dict(self):
         """
@@ -124,7 +131,7 @@ class TestPineconeRetriever:
                 "top_k": 10,
                 "scale_score": True,
                 "return_embedding": False,
-            }
+            },
         }
         retriever = PineconeRetriever.from_dict(retriever_component_dict)
 
@@ -133,4 +140,3 @@ class TestPineconeRetriever:
         assert retriever.top_k == 10
         assert retriever.scale_score is True
         assert retriever.return_embedding is False
-

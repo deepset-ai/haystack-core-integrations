@@ -2,11 +2,10 @@ import logging
 from typing import Union, List, Dict
 from abc import ABC, abstractmethod
 from collections import defaultdict
-from haystack.errors import FilterError
+from haystack.preview.errors import FilterError
 from pinecone_haystack.errors import PineconeDocumentStoreFilterError
 
 logger = logging.getLogger(__file__)
-
 
 
 def nested_defaultdict() -> defaultdict:
@@ -132,7 +131,6 @@ class LogicalFilterClause(ABC):
         pass
 
 
-
 class ComparisonOperation(ABC):
     def __init__(self, field_name: str, comparison_value: Union[str, int, float, bool, List]):
         self.field_name = field_name
@@ -187,8 +185,6 @@ class ComparisonOperation(ABC):
         (https://github.com/semi-technologies/weaviate/issues/1717)
         """
         pass
-
-
 
 
 class NotOperation(LogicalFilterClause):
@@ -400,7 +396,6 @@ class LtOperation(ComparisonOperation):
             return any(field < self.comparison_value for field in fields[self.field_name])
 
         return fields[self.field_name] < self.comparison_value
-
 
     def convert_to_pinecone(self) -> Dict[str, Dict[str, Union[float, int]]]:
         if not isinstance(self.comparison_value, (float, int)):

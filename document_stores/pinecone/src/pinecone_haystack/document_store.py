@@ -641,8 +641,8 @@ class PineconeDocumentStore:
                     self._meta_for_pinecone(
                         {
                             TYPE_METADATA_FIELD: type_metadata,  # add `doc_type` in metadata
-                            "text": doc.text,
-                            "content_type": doc.metadata,
+                            "text": doc.content,
+                            "content_type": doc.meta,
                         }
                     )
                     for doc in documents[i : i + self.batch_size]
