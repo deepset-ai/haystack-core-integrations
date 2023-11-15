@@ -5,8 +5,8 @@ from unittest.mock import Mock, patch
 
 from haystack.preview.dataclasses import Document
 
-from elasticsearch_haystack.embedding_retriever import ElasticsearchEmbeddingRetriever
 from elasticsearch_haystack.document_store import ElasticsearchDocumentStore
+from elasticsearch_haystack.embedding_retriever import ElasticsearchEmbeddingRetriever
 
 
 def test_init_default():
