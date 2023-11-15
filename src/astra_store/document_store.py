@@ -116,6 +116,6 @@ class AstraDocumentStore:  # FIXME
         Deletes all documents with a matching document_ids from the document store.
         Fails with `MissingDocumentError` if no document with this id is present in the store.
 
-        :param object_ids: the object_ids to delete
+        :param document_ids: the document_ids to delete
         """
         self._index.delete(ids=document_ids)

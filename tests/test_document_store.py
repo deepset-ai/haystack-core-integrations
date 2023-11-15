@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 import os
 import pytest
+from haystack.preview import Document
 from haystack.preview.testing.document_store import DocumentStoreBaseTests
 
 from src.astra_store.document_store import AstraDocumentStore
@@ -16,7 +17,7 @@ class TestDocumentStore(DocumentStoreBaseTests):
     """
 
     @pytest.fixture
-    def docstore(self) -> AstraDocumentStore:
+    def doc_store(self) -> AstraDocumentStore:
         """
         This is the most basic requirement for the child class: provide
         an instance of this document store so the base class can use it.
@@ -36,3 +37,15 @@ class TestDocumentStore(DocumentStoreBaseTests):
         #                  collection_name=collection_name)
         # return AstraDocumentStore()
         return AstraDocumentStore()
+
+    @pytest.mark.unit
+    def test_delete_not_empty_non_existing(self, doc_store: AstraDocumentStore):
+        """
+        Deleting a non-existing document should not raise with Marqo
+        """
+        doc = Document(text="test doc")
+        doc_store.write_documents([doc])
+        doc_store.delete_documents(["non_existing"])
+        assert doc_store.get_documents_by_id(ids=[doc.id])[0].id == doc.id
+        doc_store.delete_documents([doc.id])
+
