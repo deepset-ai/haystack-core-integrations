@@ -53,7 +53,7 @@ class ElasticsearchDocumentStore:
         :param hosts: List of hosts running the Elasticsearch client. Defaults to None
         :param index: Name of index in Elasticsearch, if it doesn't exist it will be created. Defaults to "default"
         :param embedding_similarity_function: The similarity function used to compare Documents embeddings.
-            Defaults to "cosine".
+            Defaults to "cosine". This parameter only takes effect if the index does not yet exist and is created.
             To choose the most appropriate function, look for information about your embedding model.
             To understand how document scores are computed, see the Elasticsearch documentation:
             https://www.elastic.co/guide/en/elasticsearch/reference/current/dense-vector.html#dense-vector-params
@@ -100,6 +100,26 @@ class ElasticsearchDocumentStore:
         Returns how many documents are present in the document store.
         """
         return self._client.count(index=self._index)["count"]
+
+    def _search_documents(self, **kwargs) -> List[Document]:
+        """
+        Calls the Elasticsearch client's search method and handles pagination.
+        """
+
+        documents: List[Document] = []
+        from_ = 0
+        # Handle pagination
+        while True:
+            res = self._client.search(
+                index=self._index,
+                from_=from_,
+                **kwargs,
+            )
+            documents.extend(self._deserialize_document(hit) for hit in res["hits"]["hits"])
+            from_ = len(documents)
+            if from_ >= res["hits"]["total"]["value"]:
+                break
+        return documents
 
     def filter_documents(self, filters: Optional[Dict[str, Any]] = None) -> List[Document]:
         """
@@ -173,20 +193,7 @@ class ElasticsearchDocumentStore:
         :return: a list of Documents that match the given filters.
         """
         query = {"bool": {"filter": _normalize_filters(filters)}} if filters else None
-
-        documents: List[Document] = []
-        from_ = 0
-        # Handle pagination
-        while True:
-            res = self._client.search(
-                index=self._index,
-                query=query,
-                from_=from_,
-            )
-            documents.extend(self._deserialize_document(hit) for hit in res["hits"]["hits"])
-            from_ = len(documents)
-            if from_ >= res["hits"]["total"]["value"]:
-                break
+        documents = self._search_documents(query=query)
         return documents
 
     def write_documents(self, documents: List[Document], policy: DuplicatePolicy = DuplicatePolicy.FAIL) -> None:
@@ -375,9 +382,5 @@ class ElasticsearchDocumentStore:
         if filters:
             body["knn"]["filter"] = _normalize_filters(filters)
 
-        res = self._client.search(index=self._index, **body)
-
-        docs = []
-        for hit in res["hits"]["hits"]:
-            docs.append(self._deserialize_document(hit))
+        docs = self._search_documents(**body)
         return docs

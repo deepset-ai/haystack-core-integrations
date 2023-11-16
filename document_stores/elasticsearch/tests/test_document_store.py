@@ -60,11 +60,13 @@ class TestDocumentStore(DocumentStoreBaseTests):
             "init_parameters": {
                 "hosts": "some hosts",
                 "index": "default",
+                "embedding_similarity_function": "cosine",
             },
         }
         document_store = ElasticsearchDocumentStore.from_dict(data)
         assert document_store._hosts == "some hosts"
         assert document_store._index == "default"
+        assert document_store._embedding_similarity_function == "cosine"
 
     def test_bm25_retrieval(self, docstore: ElasticsearchDocumentStore):
         docstore.write_documents(
