@@ -281,7 +281,8 @@ class ChromaDocumentStore:
                 document_dict["content"] = result_documents[i]
 
             result_metadata = result.get("metadatas")
-            if result_metadata:
+            # Ensure metadata[i] is not None or don't add it to the document dict
+            if result_metadata and result_metadata[i]:
                 document_dict["meta"] = result_metadata[i]
 
             result_embeddings = result.get("embeddings")
@@ -296,26 +297,29 @@ class ChromaDocumentStore:
         """
         Helper function to convert Chroma results into Haystack Documents
         """
-        retval = []
-        for i, answers in enumerate(result["documents"]):
+        retval: List[List[Document]] = []
+        documents = result.get("documents")
+        if documents is None:
+            return retval
+
+        for i, answers in enumerate(documents):
             converted_answers = []
             for j in range(len(answers)):
-                # prepare metadata
-                metadata = result["metadatas"][i][j]
-                mime_type = metadata.pop("_mime_type")
-
-                document_dict = {
+                document_dict: Dict[str, Any] = {
                     "id": result["ids"][i][j],
-                    "text": result["documents"][i][j].text,
-                    "metadata": metadata,
-                    "mime_type": mime_type,
+                    "content": documents[i][j],
                 }
 
-                if result["embeddings"][i][j]:
-                    document_dict["embedding"] = np.array(result["embeddings"][i][j])
+                # prepare metadata
+                if metadatas := result.get("metadatas"):
+                    document_dict["metadata"] = dict(metadatas[i][j])
+                    document_dict["mime_type"] = document_dict["metadata"].pop("_mime_type")
 
-                if result["distances"][i][j]:
-                    document_dict["score"] = result["distances"][i][j]
+                if embeddings := result.get("embeddings"):
+                    document_dict["embedding"] = np.array(embeddings[i][j])
+
+                if distances := result.get("distances"):
+                    document_dict["score"] = distances[i][j]
 
                 converted_answers.append(Document.from_dict(document_dict))
             retval.append(converted_answers)
