@@ -281,7 +281,8 @@ class ChromaDocumentStore:
                 document_dict["content"] = result_documents[i]
 
             result_metadata = result.get("metadatas")
-            if result_metadata:
+            # Ensure metadata[i] is not None or don't add it to the document dict
+            if result_metadata and result_metadata[i]:
                 document_dict["meta"] = result_metadata[i]
 
             result_embeddings = result.get("embeddings")
