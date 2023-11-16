@@ -32,6 +32,7 @@ class TestDocumentStore(DocumentStoreBaseTests):
         index = f"{request.node.name}"
 
         # this similarity function is rarely used in practice, but it is robust for test cases with fake embeddings
+        # in fact, it works fine with vectors like [0.0] * 768, while cosine similarity would raise an exception
         embedding_similarity_function = "max_inner_product"
 
         store = ElasticsearchDocumentStore(
@@ -288,8 +289,5 @@ class TestDocumentStore(DocumentStoreBaseTests):
         docs = [Document(content="Hello world", embedding=[0.1, 0.2, 0.3, 0.4])]
         docstore.write_documents(docs)
 
-        with pytest.raises(
-            BadRequestError,
-            match="search_phase_execution_exception",
-        ):
+        with pytest.raises(BadRequestError):
             docstore._embedding_retrieval(query_embedding=[0.1, 0.1])
