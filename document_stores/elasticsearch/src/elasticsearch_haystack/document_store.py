@@ -326,14 +326,17 @@ class ElasticsearchDocumentStore:
         if filters:
             body["query"]["bool"]["filter"] = _normalize_filters(filters)
 
-        res = self._client.search(index=self._index, **body)
+        documents = self._search_documents(**body)
 
-        docs = []
-        for hit in res["hits"]["hits"]:
-            if scale_score:
-                hit["_score"] = float(1 / (1 + np.exp(-np.asarray(hit["_score"] / BM25_SCALING_FACTOR))))
-            docs.append(self._deserialize_document(hit))
-        return docs
+        if not scale_score:
+            return documents
+
+        documents_w_scaled_scores = []
+        for doc in documents:
+            doc.score = float(1 / (1 + np.exp(-np.asarray(doc.score / BM25_SCALING_FACTOR))))
+            documents_w_scaled_scores.append(doc)
+
+        return documents_w_scaled_scores
 
     def _embedding_retrieval(
         self,
