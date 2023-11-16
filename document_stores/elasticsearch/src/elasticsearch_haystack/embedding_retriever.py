@@ -65,6 +65,12 @@ class ElasticsearchEmbeddingRetriever:
 
     @component.output_types(documents=List[Document])
     def run(self, query_embedding: List[float]):
+        """
+        Retrieve documents using a vector similarity metric.
+
+        :param query_embedding: Embedding of the query.
+        :return: List of Document similar to `query_embedding`.
+        """
         docs = self._document_store._embedding_retrieval(
             query_embedding=query_embedding,
             filters=self._filters,
