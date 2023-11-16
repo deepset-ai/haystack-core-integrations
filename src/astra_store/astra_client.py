@@ -1,8 +1,12 @@
 import json
+import logging
 from typing import Any, Dict, List, Optional, Union
 
 import requests
 from pydantic.dataclasses import dataclass
+
+logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO)
 
 
 @dataclass
@@ -23,15 +27,27 @@ class QueryResponse:
 
 class AstraClient:
     """
-        A client for interacting with an Astra index via REST API Built for SuperAgent use only!
+    A client for interacting with an Astra index via JSON API
     """
 
-    def __init__(self, astra_id: str,region:str, token: str, keyspace_name: str, collection_name: str):
+    def __init__(
+        self,
+        astra_id: str,
+        astra_region:str,
+        astra_application_token: str,
+        keyspace_name: str,
+        collection_name: str,
+        embedding_dim: int,
+        similarity_function: str,
+    ):
         self.astra_id = astra_id
-        self.astra_application_token = token
-        self.astra_region = region
+        self.astra_application_token = astra_application_token
+        self.astra_region = astra_region
         self.keyspace_name = keyspace_name
         self.collection_name = collection_name
+        self.embedding_dim = embedding_dim
+        self.similarity_function = similarity_function
+
         self.request_url = f"https://{self.astra_id}-{self.astra_region}.apps.astra.datastax.com/api/json/v1/{self.keyspace_name}/{self.collection_name}"
         self.request_header = {
             "x-cassandra-token": self.astra_application_token,
@@ -39,48 +55,57 @@ class AstraClient:
         }
         self.create_url = f"https://{self.astra_id}-{self.astra_region}.apps.astra.datastax.com/api/json/v1/{self.keyspace_name}"
 
-        ## Sanity check methods
-        self.create_index()
-        self.find_index()
+        index_exists = self.find_index()
+        if not index_exists:
+            self.create_index()
+
+    def find_index(self):
+        find_query =  {
+            "findCollections": {
+                "options": {
+                    "explain" : True
+                }
+            }
+        }
+        response = requests.request("POST", self.create_url, headers=self.request_header, data=json.dumps(find_query))
+        response_dict = json.loads(response.text)
+
+        collection_name_matches = list(filter(lambda d: d['name'] == self.collection_name, response_dict["status"]["collections"]))
+        if len(collection_name_matches)==0:
+            logger.warning(f"Astra collection {self.collection_name} not found under {self.keyspace_name}. Will be created.")
+            return False
+
+        if response.status_code == 200:
+            if "status" in response_dict:
+                collection_embedding_dim = collection_name_matches[0]["options"]["vector"]["dimension"]
+                if collection_embedding_dim != self.embedding_dim:
+                    raise Exception(f"Collection vector dimension is not valid, expected {self.embedding_dim}, found {collection_embedding_dim}")
+            else:
+                raise Exception(f"status not in response: {response.text}")
+        else:
+            raise Exception(f"Astra DB not available. Status code: {response.status_code}, {response.text}")
+            # Retry or handle error better
+
+        return True
+
 
     def create_index(self):
         create_query = { "createCollection": {
             "name": self.collection_name,
             "options": {
               "vector": {
-                  "dimension": 1536,
-                  "metric": "cosine"
+                  "dimension": self.embedding_dim,
+                  "metric": self.similarity_function
               }
             }
           }
         }
-        resp = requests.request("POST", self.create_url, headers=self.request_header, data=json.dumps(create_query))
-        if resp.status_code == 200:
-            print(f"[INFO] {resp.text}")
+        response = requests.request("POST", self.create_url, headers=self.request_header, data=json.dumps(create_query))
+        response_dict = json.loads(response.text)
+        if response.status_code == 200 and "status" in response_dict:
+            logger.info(f"Collection {self.collection_name} created: {response.text}")
         else:
-            raise Exception(f"[ERROR] Failed with the following error: {resp.status_code}, {resp.text}")
-
-    def find_index(self):
-        find_query =  {
-            "findCollections": {
-            "options": {
-              "explain" : True
-          }
-        }
-        }
-        resp = requests.request("POST", self.create_url, headers=self.request_header, data=json.dumps(find_query))
-        text_response = json.loads(resp.text)
-
-        collection_output = list(filter(lambda d: d['name'] == self.collection_name, text_response["status"]["collections"]))
-        if len(collection_output)==0:
-            raise Exception(f"[ERROR] Something went wrong! Astra collection {self.collection_name} not found under {self.keyspace_name}")
-
-        if resp.status_code == 200 and "status" in text_response:
-            v_dim = collection_output[0]["options"]["vector"]["dimension"]
-            if v_dim != 1536:
-                raise Exception(f"Collection vector dimension is not valid, expected 1536, found {v_dim}")
-        else:
-            raise Exception(f"Failed with the following error: {resp.status_code}, {resp.text}")
+            raise Exception(f"Create Astra collection ailed with the following error: status code {response.status_code}, {response.text}")
 
 
     def query(
@@ -278,4 +303,5 @@ class AstraClient:
             "index_fullness": 0.0,
             "namespaces": {},
             "total_vector_count": 0,
+            "total_document_count": 0
         }

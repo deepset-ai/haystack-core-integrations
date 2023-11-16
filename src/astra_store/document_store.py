@@ -2,7 +2,8 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Literal
+from pydantic import validate_arguments
 
 from haystack.preview.dataclasses import Document
 from haystack.preview.document_stores.decorator import document_store
@@ -14,26 +15,65 @@ from astra_client import AstraClient
 from errors import AstraDocumentStoreFilterError
 
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 
 
 @document_store
-class AstraDocumentStore:  # FIXME
+class AstraDocumentStore:
     """
         An AstraDocumentStore document store for Haystack.
     """
 
+    @validate_arguments
     def __init__(
-            self,
-            collection_name: str = "documents",
-            keyspace_name: str = "haystack",
-            application_token: Optional[str] = None,
-            region_id: Optional[str] = None,
-            astra_id: Optional[str] = None,
-            client_batch_size: int = 4,
+        self,
+        astra_id: str,
+        astra_region: str,
+        astra_application_token: str,
+        astra_keyspace: str,
+        astra_collection: str,
+        embedding_dim: int,
+        duplicate_documents: Literal["skip", "overwrite", "fail"],
+        similarity: str = "cosine",
     ):
-        self._index = AstraClient(astra_id=astra_id, region=region_id, token=application_token, keyspace_name=keyspace_name, collection_name=collection_name)
-        self._collection = collection_name
-        self.client_batch_size = client_batch_size
+        """
+        The connection to Astra DB is established and managed through the JSON API.
+        The required credentials (databse ID, region, and application token) can be generated
+        through the UI by clicking and the connect tab, and then selecting JSON API and
+        Generate Configuration.
+
+        :param astra_id: id of the Astra DB instance.
+        :param astra_region: Region of cloud servers (can be found when generating the token).
+        :param astra_application_token: the connection token for Astra.
+        :param astra_keyspace: The keyspace for the current Astra DB.
+        :param astra_collection: The current collection in the keyspace in the current Astra DB.
+        :param embedding_dim: Dimension of embedding vector.
+        :param similarity: The similarity function used to compare document vectors.
+        :param duplicate_documents: Handle duplicate documents based on parameter options.\
+            Parameter options:
+                - `"skip"`: Ignore the duplicate documents.
+                - `"overwrite"`: Update any existing documents with the same ID when adding documents.
+                - `"fail"`: An error is raised if the document ID of the document being added already exists.
+        """
+
+        self.astra_id = astra_id
+        self.astra_region = astra_region
+        self.astra_application_token = astra_application_token
+        self.astra_keyspace = astra_keyspace
+        self.astra_collection = astra_collection
+        self.embedding_dim = embedding_dim
+        self.similarity = similarity
+        self.duplicate_documents = duplicate_documents
+
+        self.index = AstraClient(
+            astra_id = self.astra_id,
+            astra_region = self.astra_region,
+            astra_application_token = self.astra_application_token,
+            keyspace_name = self.astra_keyspace,
+            collection_name = self.astra_collection,
+            embedding_dim = self.embedding_dim,
+            similarity_function = self.similarity
+        )
 
     def count_documents(self) -> int:
         """
@@ -41,11 +81,11 @@ class AstraDocumentStore:  # FIXME
         """
         return self._index.describe_index_stats()["total_document_count"]
 
-    def count_vectors(self) -> int:
-        """
-        Returns how many vectors are present in the document store.
-        """
-        return self._index.describe_index_stats()["total_vector_count"]
+    # def count_vectors(self) -> int:
+    #     """
+    #     Returns how many vectors are present in the document store.
+    #     """
+    #     return self._index.describe_index_stats()["total_vector_count"]
 
     def filter_documents(self, filters: Optional[Dict[str, Any]] = None) -> List[Document]:
         """Returns at most 1000 documents that match the filter
@@ -83,33 +123,33 @@ class AstraDocumentStore:  # FIXME
         return documents
 
 
-    def get_documents_by_id(self, ids: List[str]) -> List[Document]:
-        """
-            Returns documents with given ids.
-        """
-        results = self._index.get_documents(document_ids=ids)["results"] ## todo get_documents
-        results = [r for r in results if r["_found"]]
-        return self._get_result_to_documents(results)
+    # def get_documents_by_id(self, ids: List[str]) -> List[Document]:
+    #     """
+    #         Returns documents with given ids.
+    #     """
+    #     results = self._index.get_documents(document_ids=ids)["results"] ## todo get_documents
+    #     results = [r for r in results if r["_found"]]
+    #     return self._get_result_to_documents(results)
 
-    def search(
-            self, queries: List[Union[str, Dict[str, float]]], top_k: int, filters: Optional[Dict[str, Any]] = None
-    ) -> List[List[Document]]:
-        """Perform a search for a list of queries.
-
-        Args:
-            queries (List[Union[str, Dict[str, float]]]): A list of queries.
-            top_k (int): The number of results to return.
-            filters (Optional[Dict[str, Any]], optional): Filters to apply during search. Defaults to None.
-
-        Returns:
-            List[List[Document]]: A list of matching documents for each query.
-        """
-        results = []
-        for query in queries:
-            result = self._index.search(q=query, limit=top_k, filter_string=self._convert_filters(filters))
-            results.append(result)
-
-        return self._query_result_to_documents(results)
+    # def search(
+    #         self, queries: List[Union[str, Dict[str, float]]], top_k: int, filters: Optional[Dict[str, Any]] = None
+    # ) -> List[List[Document]]:
+    #     """Perform a search for a list of queries.
+    #
+    #     Args:
+    #         queries (List[Union[str, Dict[str, float]]]): A list of queries.
+    #         top_k (int): The number of results to return.
+    #         filters (Optional[Dict[str, Any]], optional): Filters to apply during search. Defaults to None.
+    #
+    #     Returns:
+    #         List[List[Document]]: A list of matching documents for each query.
+    #     """
+    #     results = []
+    #     for query in queries:
+    #         result = self._index.search(q=query, limit=top_k, filter_string=self._convert_filters(filters))
+    #         results.append(result)
+    #
+    #     return self._query_result_to_documents(results)
 
     def delete_documents(self, document_ids: List[str]) -> None:
         """
