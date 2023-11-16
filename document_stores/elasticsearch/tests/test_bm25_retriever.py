@@ -27,7 +27,11 @@ def test_to_dict(_mock_elasticsearch_client):
         "type": "ElasticsearchBM25Retriever",
         "init_parameters": {
             "document_store": {
-                "init_parameters": {"hosts": "some fake host", "index": "default"},
+                "init_parameters": {
+                    "hosts": "some fake host",
+                    "index": "default",
+                    "embedding_similarity_function": "cosine",
+                },
                 "type": "ElasticsearchDocumentStore",
             },
             "filters": {},

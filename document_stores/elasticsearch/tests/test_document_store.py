@@ -6,6 +6,7 @@ from unittest.mock import patch
 
 import pandas as pd
 import pytest
+from elasticsearch.exceptions import BadRequestError  # type: ignore[import-not-found]
 from haystack.preview.dataclasses.document import Document
 from haystack.preview.document_stores.errors import DuplicateDocumentError
 from haystack.preview.document_stores.protocols import DuplicatePolicy
@@ -30,7 +31,13 @@ class TestDocumentStore(DocumentStoreBaseTests):
         # Use a different index for each test so we can run them in parallel
         index = f"{request.node.name}"
 
-        store = ElasticsearchDocumentStore(hosts=hosts, index=index)
+        # this similarity function is rarely used in practice, but it is robust for test cases with fake embeddings
+        # in fact, it works fine with vectors like [0.0] * 768, while cosine similarity would raise an exception
+        embedding_similarity_function = "max_inner_product"
+
+        store = ElasticsearchDocumentStore(
+            hosts=hosts, index=index, embedding_similarity_function=embedding_similarity_function
+        )
         yield store
         store._client.options(ignore_status=[400, 404]).indices.delete(index=index)
 
@@ -43,6 +50,7 @@ class TestDocumentStore(DocumentStoreBaseTests):
             "init_parameters": {
                 "hosts": "some hosts",
                 "index": "default",
+                "embedding_similarity_function": "cosine",
             },
         }
 
@@ -53,11 +61,13 @@ class TestDocumentStore(DocumentStoreBaseTests):
             "init_parameters": {
                 "hosts": "some hosts",
                 "index": "default",
+                "embedding_similarity_function": "cosine",
             },
         }
         document_store = ElasticsearchDocumentStore.from_dict(data)
         assert document_store._hosts == "some hosts"
         assert document_store._index == "default"
+        assert document_store._embedding_similarity_function == "cosine"
 
     def test_bm25_retrieval(self, docstore: ElasticsearchDocumentStore):
         docstore.write_documents(
@@ -169,21 +179,32 @@ class TestDocumentStore(DocumentStoreBaseTests):
     def test_in_filter_embedding(self, docstore: ElasticsearchDocumentStore, filterable_docs: List[Document]):
         pass
 
-    def test_ne_filter_embedding(self, docstore: ElasticsearchDocumentStore, filterable_docs: List[Document]):
-        docstore.write_documents(filterable_docs)
-        embedding = [0.0] * 768
-        result = docstore.filter_documents(filters={"embedding": {"$ne": embedding}})
-        assert self.contains_same_docs(
-            result,
-            [doc for doc in filterable_docs if doc.embedding is None or not embedding == doc.embedding],
-        )
-
     @pytest.mark.skip(reason="Not supported")
     def test_nin_filter_table(self, docstore: ElasticsearchDocumentStore, filterable_docs: List[Document]):
         pass
 
     @pytest.mark.skip(reason="Not supported")
     def test_nin_filter_embedding(self, docstore: ElasticsearchDocumentStore, filterable_docs: List[Document]):
+        pass
+
+    @pytest.mark.skip(reason="Not supported")
+    def test_eq_filter_embedding(self, docstore: ElasticsearchDocumentStore, filterable_docs: List[Document]):
+        """
+        If the embedding field is a dense vector (as expected), raise the following error:
+
+        elasticsearch.BadRequestError: BadRequestError(400, 'search_phase_execution_exception',
+        "failed to create query: Field [embedding] of type [dense_vector] doesn't support term queries")
+        """
+        pass
+
+    @pytest.mark.skip(reason="Not supported")
+    def test_ne_filter_embedding(self, docstore: ElasticsearchDocumentStore, filterable_docs: List[Document]):
+        """
+        If the embedding field is a dense vector (as expected), raise the following error:
+
+        elasticsearch.BadRequestError: BadRequestError(400, 'search_phase_execution_exception',
+        "failed to create query: Field [embedding] of type [dense_vector] doesn't support term queries")
+        """
         pass
 
     def test_gt_filter_non_numeric(self, docstore: ElasticsearchDocumentStore, filterable_docs: List[Document]):
@@ -231,3 +252,42 @@ class TestDocumentStore(DocumentStoreBaseTests):
         docstore.write_documents(filterable_docs)
         result = docstore.filter_documents(filters={"dataframe": {"$lte": pd.DataFrame([[1, 2, 3], [-1, -2, -3]])}})
         assert self.contains_same_docs(result, [d for d in filterable_docs if d.dataframe is not None])
+
+    def test_embedding_retrieval(self, docstore: ElasticsearchDocumentStore):
+        docs = [
+            Document(content="Most similar document", embedding=[1.0, 1.0, 1.0, 1.0]),
+            Document(content="2nd best document", embedding=[0.8, 0.8, 0.8, 1.0]),
+            Document(content="Not very similar document", embedding=[0.0, 0.8, 0.3, 0.9]),
+        ]
+        docstore.write_documents(docs)
+        results = docstore._embedding_retrieval(query_embedding=[0.1, 0.1, 0.1, 0.1], top_k=2, filters={})
+        assert len(results) == 2
+        assert results[0].content == "Most similar document"
+        assert results[1].content == "2nd best document"
+
+    def test_embedding_retrieval_w_filters(self, docstore: ElasticsearchDocumentStore):
+        docs = [
+            Document(content="Most similar document", embedding=[1.0, 1.0, 1.0, 1.0]),
+            Document(content="2nd best document", embedding=[0.8, 0.8, 0.8, 1.0]),
+            Document(
+                content="Not very similar document with meta field",
+                embedding=[0.0, 0.8, 0.3, 0.9],
+                meta={"meta_field": "custom_value"},
+            ),
+        ]
+        docstore.write_documents(docs)
+
+        filters = {"meta_field": {"$eq": "custom_value"}}
+        results = docstore._embedding_retrieval(query_embedding=[0.1, 0.1, 0.1, 0.1], top_k=2, filters=filters)
+        assert len(results) == 1
+        assert results[0].content == "Not very similar document with meta field"
+
+    def test_embedding_retrieval_query_documents_different_embedding_sizes(self, docstore: ElasticsearchDocumentStore):
+        """
+        Test that the retrieval fails if the query embedding and the documents have different embedding sizes.
+        """
+        docs = [Document(content="Hello world", embedding=[0.1, 0.2, 0.3, 0.4])]
+        docstore.write_documents(docs)
+
+        with pytest.raises(BadRequestError):
+            docstore._embedding_retrieval(query_embedding=[0.1, 0.1])
