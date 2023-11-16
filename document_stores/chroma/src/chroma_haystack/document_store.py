@@ -296,7 +296,7 @@ class ChromaDocumentStore:
         """
         Helper function to convert Chroma results into Haystack Documents
         """
-        retval = []
+        retval: List[List[Document]] = []
         documents = result.get("documents")
         if documents is None:
             return retval
