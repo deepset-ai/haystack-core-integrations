@@ -2,18 +2,19 @@ import os
 from inspect import getmembers, isclass, isfunction
 from typing import Any, Dict, List, Union
 from unittest.mock import MagicMock
+
 import numpy as np
+import pinecone
 import pytest
+from haystack.preview.dataclasses import Document
+from haystack.preview.testing.document_store import DocumentStoreBaseTests
 
 from pinecone_haystack.document_store import PineconeDocumentStore
 from pinecone_haystack.errors import (
     PineconeDocumentStoreError,
     PineconeDocumentStoreFilterError,
 )
-from haystack.preview.dataclasses import Document
-from haystack.preview.testing.document_store import DocumentStoreBaseTests
 from tests import pinecone_mock
-import pinecone
 
 
 class TestPineconeDocumentStore(DocumentStoreBaseTests):

@@ -11,9 +11,7 @@ from itertools import islice
 from typing import Any, Dict, Generator, List, Literal, Optional, Set, Union
 
 import numpy as np
-from tqdm import tqdm
 import pinecone
-
 from haystack.preview.dataclasses import Document
 from haystack.preview.document_stores.decorator import document_store
 from haystack.preview.document_stores.errors import (
@@ -21,13 +19,13 @@ from haystack.preview.document_stores.errors import (
     MissingDocumentError,
 )
 from haystack.preview.document_stores.protocols import DuplicatePolicy
+from tqdm import tqdm
 
 from pinecone_haystack.errors import (
     PineconeDocumentStoreError,
     PineconeDocumentStoreFilterError,
 )
 from pinecone_haystack.filter_utils import LogicalFilterClause
-
 
 logger = logging.getLogger(__name__)
 

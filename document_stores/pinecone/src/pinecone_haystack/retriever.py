@@ -1,16 +1,17 @@
 # SPDX-FileCopyrightText: 2023-present John Doe <jd@example.com>
 #
 # SPDX-License-Identifier: Apache-2.0
-from typing import Dict, List, Any, Optional
+from typing import Any, Dict, List, Optional
 
 from haystack.preview import (
-    component,
-    Document,
-    default_to_dict,
-    default_from_dict,
     DeserializationError,
+    Document,
+    component,
+    default_from_dict,
+    default_to_dict,
 )
 from haystack.preview.dataclasses import Document
+
 from pinecone_haystack.document_store import PineconeDocumentStore
 
 

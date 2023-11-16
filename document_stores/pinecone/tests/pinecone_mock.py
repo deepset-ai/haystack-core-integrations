@@ -1,7 +1,5 @@
-from typing import Optional, List, Union, Dict, Any
-
 import logging
-
+from typing import Any, Dict, List, Optional, Union
 
 logger = logging.getLogger(__name__)
 
@@ -146,7 +144,7 @@ class Index:
                 }
         return response
 
-    def _filter(  # noqa: C901,PLR0912
+    def _filter(
         self,
         metadata: dict,
         filters: Dict[str, Any] = None,

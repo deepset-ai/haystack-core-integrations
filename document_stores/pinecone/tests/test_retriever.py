@@ -1,23 +1,23 @@
 import os
 from inspect import getmembers, isclass, isfunction
-import pinecone
 from typing import Any, Dict, List, Union
-from unittest.mock import MagicMock, Mock
-from unittest.mock import patch
+from unittest.mock import MagicMock, Mock, patch
+
 import numpy as np
+import pinecone
 import pytest
-from tests import pinecone_mock
+from haystack.preview import (
+    DeserializationError,
+    Document,
+    component,
+    default_from_dict,
+    default_to_dict,
+)
+from haystack.preview.dataclasses import Document
+
 from pinecone_haystack.document_store import PineconeDocumentStore
 from pinecone_haystack.retriever import PineconeRetriever
-from haystack.preview import (
-    component,
-    Document,
-    default_to_dict,
-    default_from_dict,
-    DeserializationError,
-)
-
-from haystack.preview.dataclasses import Document
+from tests import pinecone_mock
 
 
 class TestPineconeRetriever:
@@ -34,14 +34,16 @@ class TestPineconeRetriever:
     @pytest.mark.unit
     def test_run(self):
         mock_store = Mock(spec=PineconeDocumentStore)
-        mock_store.query_by_embedding.return_value = [Document(
+        mock_store.query_by_embedding.return_value = [
+            Document(
                 content="$TSLA lots of green on the 5 min, watch the hourly $259.33 possible resistance currently @ $257.00.Tesla is recalling 2,700 Model X cars.Hard to find new buyers of $TSLA at 250. Shorts continue to pile in.",
                 meta={
                     "target": "TSLA",
                     "sentiment_score": 0.318,
                     "format": "post",
                 },
-            )]
+            )
+        ]
 
         retriever = PineconeRetriever(document_store=mock_store)
         results = retriever.run(["How many cars is TSLA recalling?"])

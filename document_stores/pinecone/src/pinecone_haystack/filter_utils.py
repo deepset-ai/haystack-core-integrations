@@ -1,8 +1,10 @@
 import logging
-from typing import Union, List, Dict
 from abc import ABC, abstractmethod
 from collections import defaultdict
+from typing import Dict, List, Union
+
 from haystack.preview.errors import FilterError
+
 from pinecone_haystack.errors import PineconeDocumentStoreFilterError
 
 logger = logging.getLogger(__file__)
@@ -168,7 +170,7 @@ class ComparisonOperation(ABC):
         elif isinstance(comparison_clause, list):
             comparison_operations.append(InOperation(field_name, comparison_clause))
         else:
-            comparison_operations.append((EqOperation(field_name, comparison_clause)))
+            comparison_operations.append(EqOperation(field_name, comparison_clause))
 
         return comparison_operations
 
