@@ -11,6 +11,12 @@ from elasticsearch_haystack.document_store import ElasticsearchDocumentStore
 
 @component
 class ElasticsearchEmbeddingRetriever:
+    """
+    Uses a vector similarity metric to retrieve documents from the ElasticsearchDocumentStore.
+
+    Needs to be connected to the ElasticsearchDocumentStore to run.
+    """
+
     def __init__(
         self,
         *,
@@ -19,6 +25,19 @@ class ElasticsearchEmbeddingRetriever:
         top_k: int = 10,
         num_candidates: Optional[int] = None,
     ):
+        """
+        Create the ElasticsearchEmbeddingRetriever component.
+
+        :param document_store: An instance of ElasticsearchDocumentStore.
+        :param filters: Filters applied to the retrieved Documents. Defaults to None.
+            Filters are applied during the approximate kNN search to ensure that top_k matching documents are returned.
+        :param top_k: Maximum number of Documents to return, defaults to 10
+        :param num_candidates: Number of approximate nearest neighbor candidates on each shard. Defaults to top_k * 10.
+            Increasing this value will improve search accuracy at the cost of slower search speeds.
+            You can read more about it in the Elasticsearch documentation:
+            https://www.elastic.co/guide/en/elasticsearch/reference/current/knn-search.html#tune-approximate-knn-for-speed-accuracy
+        :raises ValueError: If `document_store` is not an instance of ElasticsearchDocumentStore.
+        """
         if not isinstance(document_store, ElasticsearchDocumentStore):
             msg = "document_store must be an instance of ElasticsearchDocumentStore"
             raise ValueError(msg)
