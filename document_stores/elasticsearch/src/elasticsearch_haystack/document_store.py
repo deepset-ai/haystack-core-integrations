@@ -107,7 +107,7 @@ class ElasticsearchDocumentStore:
         """
 
         top_k = kwargs.get("size")
-        if top_k is None and 'knn' in kwargs and 'k' in kwargs["knn"]:
+        if top_k is None and "knn" in kwargs and "k" in kwargs["knn"]:
             top_k = kwargs["knn"]["k"]
 
         documents: List[Document] = []
