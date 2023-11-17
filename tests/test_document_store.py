@@ -8,7 +8,6 @@ from haystack.preview.testing.document_store import DocumentStoreBaseTests
 
 from src.astra_store.document_store import AstraDocumentStore
 
-
 @pytest.mark.skip("This is an example Document Store")
 class TestDocumentStore(DocumentStoreBaseTests):
     """
@@ -48,4 +47,76 @@ class TestDocumentStore(DocumentStoreBaseTests):
         doc_store.delete_documents(["non_existing"])
         assert doc_store.get_documents_by_id(ids=[doc.id])[0].id == doc.id
         doc_store.delete_documents([doc.id])
+    @pytest.mark.unit("Retrieve Documents by id")
+    def test_get_documents_by_id(self, doc_store: AstraDocumentStore):
+        """
+        Retrieve documents related to ids provided as input parameter
+        """
+        astra_id = "af29f87d-72e6-47e4-a7c4-0c6279a51933"
+        astra_region = "us-east1"
+        astra_application_token = "AstraCS:cLLKQjnuXpEOiIoLHKBaouwp:2832c7c700a3256b654942e955eaf65bce7e2f742de64e0396359b7594253f4d"
+        keyspace_name = "test"
+        collection_name = "movies"
 
+        doc_store = AstraDocumentStore(
+            astra_id=astra_id,
+            astra_region=astra_region,
+            astra_application_token=astra_application_token,
+            astra_keyspace=keyspace_name,
+            astra_collection=collection_name,
+            embedding_dim=1536,
+            duplicate_documents="skip"
+        );
+        ids = ["653027fa27a8762bf1863cf0", "653027f527a8762bf1863cd0"]
+        ret = doc_store.get_documents_by_id(ids=ids, return_embedding=False)
+        assert ret[0].id == "653027fa27a8762bf1863cf0"
+        assert ret[1].id == "653027f527a8762bf1863cd0"
+
+def test_get_documents_by_id():
+    """
+    Retrieve documents related to ids provided as input parameter
+    """
+    astra_id = "af29f87d-72e6-47e4-a7c4-0c6279a51933"
+    astra_region = "us-east1"
+    astra_application_token = "AstraCS:cLLKQjnuXpEOiIoLHKBaouwp:2832c7c700a3256b654942e955eaf65bce7e2f742de64e0396359b7594253f4d"
+    keyspace_name = "test"
+    collection_name = "movies"
+
+    doc_store = AstraDocumentStore(
+        astra_id=astra_id,
+        astra_region=astra_region,
+        astra_application_token=astra_application_token,
+        astra_keyspace=keyspace_name,
+        astra_collection=collection_name,
+        embedding_dim=1536,
+        duplicate_documents="skip"
+    );
+    ids = ["653027f527a8762bf1863cd0","653027fa27a8762bf1863cf0"]
+    ret = doc_store.get_documents_by_id(ids=ids, return_embedding=False)
+    print(ret[0].id)
+    assert (ret[0].id == "653027f527a8762bf1863cd0")
+    print(ret[1].id)
+    assert (ret[1].id == "653027fa27a8762bf1863cf0")
+
+def test_get_document_by_id():
+    """
+    Retrieve documents related to ids provided as input parameter
+    """
+    astra_id = "af29f87d-72e6-47e4-a7c4-0c6279a51933"
+    astra_region = "us-east1"
+    astra_application_token = "AstraCS:cLLKQjnuXpEOiIoLHKBaouwp:2832c7c700a3256b654942e955eaf65bce7e2f742de64e0396359b7594253f4d"
+    keyspace_name = "test"
+    collection_name = "movies"
+
+    doc_store = AstraDocumentStore(
+        astra_id=astra_id,
+        astra_region=astra_region,
+        astra_application_token=astra_application_token,
+        astra_keyspace=keyspace_name,
+        astra_collection=collection_name,
+        embedding_dim=1536,
+        duplicate_documents="skip"
+    );
+    id = "653027f527a8762bf1863cd0"
+    ret = doc_store.get_document_by_id(id=id, return_embedding=False)
+    assert (ret[0].id == "653027f527a8762bf1863cd0")

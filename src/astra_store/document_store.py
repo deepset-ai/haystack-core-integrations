@@ -9,10 +9,13 @@ from haystack.preview.dataclasses import Document
 from haystack.preview.document_stores.decorator import document_store
 from haystack.preview.document_stores.errors import DuplicateDocumentError, MissingDocumentError
 from haystack.preview.document_stores.protocols import DuplicatePolicy
+
 from astra_client import AstraClient
-# from astra_store.astra_client import AstraClient
-# from astra_store.errors import AstraDocumentStoreFilterError
+
 from errors import AstraDocumentStoreFilterError
+
+import json
+import requests
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -74,6 +77,15 @@ class AstraDocumentStore:
             embedding_dim = self.embedding_dim,
             similarity_function = self.similarity
         )
+        self._index = AstraClient(
+            astra_id = self.astra_id,
+            astra_region = self.astra_region,
+            astra_application_token = self.astra_application_token,
+            keyspace_name = self.astra_keyspace,
+            collection_name = self.astra_collection,
+            embedding_dim = self.embedding_dim,
+            similarity_function = self.similarity
+        )
 
     def count_documents(self) -> int:
         """
@@ -109,27 +121,56 @@ class AstraDocumentStore:
         documents = self._get_documents(results)
         return documents
 
-    def _get_documents(self, results) -> List[Document]:
+    def _get_result_to_documents(self, results, return_embedding) -> List[Document]:
         documents = []
-        for res in results.matches:
-            document = Document(
-                id=res.id,
-                text=res.metadata.text,  ## Needs to agree on whether to put this inside metadata or outside
-                metadata=res.metadata if not res.metadata else {},
-                mime_type="",
-                score=res.score,
-            )
+        for res in results:
+            id = res.pop("_id")
+            metadata = res.pop("$vector")
+            val = res
+            if return_embedding:
+                document = Document(
+                    id=id,
+                    text=val,
+                    metadata=metadata,
+                    mime_type="",
+                    score=1,
+                )
+            else:
+                document = Document(
+                    id=id,
+                    text=val,
+                    mime_type="",
+                    score=1,
+                )
             documents.append(document)
         return documents
 
+    def get_documents(self, ids: List[str]) -> List[Document]:
+        query = {"find": {"filter": {"_id": ""}}}
+        query["find"]["filter"] = {"_id": {"$in":ids}}
+        documents = requests.request(
+            "POST",
+            self.index.request_url,
+            headers=self.index.request_header,
+            data=json.dumps(query),
+        ).json()["data"]["documents"]
+        return documents
 
-    # def get_documents_by_id(self, ids: List[str]) -> List[Document]:
-    #     """
-    #         Returns documents with given ids.
-    #     """
-    #     results = self._index.get_documents(document_ids=ids)["results"] ## todo get_documents
-    #     results = [r for r in results if r["_found"]]
-    #     return self._get_result_to_documents(results)
+    def get_documents_by_id(self, ids: List[str], return_embedding: Optional[bool] = None) -> List[Document]:
+        """
+            Returns documents with given ids.
+        """
+        results = self.get_documents(ids=ids)
+        ret = self._get_result_to_documents(results, return_embedding)
+        return ret
+
+    def get_document_by_id(self, id: str, return_embedding: Optional[bool] = None) -> Document:
+        """
+            Returns documents with given ids.
+        """
+        document = self.get_documents(ids=[id])
+        ret = self._get_result_to_documents(document, return_embedding)
+        return ret
 
     # def search(
     #         self, queries: List[Union[str, Dict[str, float]]], top_k: int, filters: Optional[Dict[str, Any]] = None
