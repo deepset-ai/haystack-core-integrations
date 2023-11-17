@@ -64,7 +64,7 @@ class TestDocumentStore(DocumentStoreBaseTests):
         """
         Deleting a non-existing document should not raise with Chroma
         """
-        doc = Document(text="test doc")
+        doc = Document(content="test doc")
         docstore.write_documents([doc])
         docstore.delete_documents(["non_existing"])
 
