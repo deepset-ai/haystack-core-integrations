@@ -1,6 +1,9 @@
 # SPDX-FileCopyrightText: 2023-present Silvano Cerza <silvanocerza@gmail.com>
 #
 # SPDX-License-Identifier: Apache-2.0
+
+# ruff: noqa: S311
+
 import random
 from typing import List
 from unittest.mock import patch
@@ -316,7 +319,7 @@ class TestDocumentStore(DocumentStoreBaseTests):
         Test that handling of pagination works as expected, when the matching documents are > 10.
         """
 
-        docs = [Document(content=f"Document {i}", embedding=[random.random() for _ in range(4)]) for i in range(20)] # noqa: S311
+        docs = [Document(content=f"Document {i}", embedding=[random.random() for _ in range(4)]) for i in range(20)]
 
         docstore.write_documents(docs)
         results = docstore._embedding_retrieval(query_embedding=[0.1, 0.1, 0.1, 0.1], top_k=11, filters={})
