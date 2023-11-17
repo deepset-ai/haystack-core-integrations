@@ -91,6 +91,14 @@ class AstraDocumentStore:
         """
         Returns how many documents are present in the document store.
         """
+        count = requests.request(
+            "POST",
+            self.index.request_url,
+            headers=self.index.request_header,
+            data=json.dumps({"countDocuments":{}}),
+        ).json()["status"]["count"]
+        return count
+
         return self._index.describe_index_stats()["total_document_count"]
 
     # def count_vectors(self) -> int:
