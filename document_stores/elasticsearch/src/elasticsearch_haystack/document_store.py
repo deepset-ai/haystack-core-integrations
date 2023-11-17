@@ -106,6 +106,10 @@ class ElasticsearchDocumentStore:
         Calls the Elasticsearch client's search method and handles pagination.
         """
 
+        top_k = kwargs.get("size")
+        if top_k is None and 'knn' in kwargs and 'k' in kwargs["knn"]:
+            top_k = kwargs["knn"]["k"]
+
         documents: List[Document] = []
         from_ = 0
         # Handle pagination
@@ -115,8 +119,12 @@ class ElasticsearchDocumentStore:
                 from_=from_,
                 **kwargs,
             )
+
             documents.extend(self._deserialize_document(hit) for hit in res["hits"]["hits"])
-            from_ = len(documents)
+            from_ += len(documents)
+
+            if top_k and from_ >= top_k:
+                break
             if from_ >= res["hits"]["total"]["value"]:
                 break
         return documents

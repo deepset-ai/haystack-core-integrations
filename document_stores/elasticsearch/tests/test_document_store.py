@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 from typing import List
 from unittest.mock import patch
+import random
 
 import pandas as pd
 import pytest
@@ -91,6 +92,34 @@ class TestDocumentStore(DocumentStoreBaseTests):
         assert "functional" in res[0].content
         assert "functional" in res[1].content
         assert "functional" in res[2].content
+
+    def test_bm25_retrieval_pagination(self, docstore: ElasticsearchDocumentStore):
+        """
+        Test that handling of pagination works as expected, when the matching documents are > 10.
+        """
+        docstore.write_documents(
+            [
+                Document(content="Haskell is a functional programming language"),
+                Document(content="Lisp is a functional programming language"),
+                Document(content="Exilir is a functional programming language"),
+                Document(content="F# is a functional programming language"),
+                Document(content="C# is a functional programming language"),
+                Document(content="C++ is an object oriented programming language"),
+                Document(content="Dart is an object oriented programming language"),
+                Document(content="Go is an object oriented programming language"),
+                Document(content="Python is a object oriented programming language"),
+                Document(content="Ruby is a object oriented programming language"),
+                Document(content="PHP is a object oriented programming language"),
+                Document(content="Java is an object oriented programming language"),
+                Document(content="Javascript is a programming language"),
+                Document(content="Typescript is a programming language"),
+                Document(content="C is a programming language"),
+            ]
+        )
+
+        res = docstore._bm25_retrieval("programming", top_k=11)
+        assert len(res) == 11
+        assert all("programming" in doc.content for doc in res)
 
     def test_bm25_retrieval_with_fuzziness(self, docstore: ElasticsearchDocumentStore):
         docstore.write_documents(
@@ -281,6 +310,17 @@ class TestDocumentStore(DocumentStoreBaseTests):
         results = docstore._embedding_retrieval(query_embedding=[0.1, 0.1, 0.1, 0.1], top_k=2, filters=filters)
         assert len(results) == 1
         assert results[0].content == "Not very similar document with meta field"
+
+    def test_embedding_retrieval_pagination(self, docstore: ElasticsearchDocumentStore):
+        """
+        Test that handling of pagination works as expected, when the matching documents are > 10.
+        """
+
+        docs = [Document(content=f"Document {i}", embedding=[random.random() for _ in range(4)]) for i in range(20)]
+
+        docstore.write_documents(docs)
+        results = docstore._embedding_retrieval(query_embedding=[0.1, 0.1, 0.1, 0.1], top_k=11, filters={})
+        assert len(results) == 11
 
     def test_embedding_retrieval_query_documents_different_embedding_sizes(self, docstore: ElasticsearchDocumentStore):
         """
