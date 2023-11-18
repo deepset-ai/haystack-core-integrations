@@ -77,16 +77,6 @@ class AstraDocumentStore:
             embedding_dim = self.embedding_dim,
             similarity_function = self.similarity
         )
-        self._index = AstraClient(
-            astra_id = self.astra_id,
-            astra_region = self.astra_region,
-            astra_application_token = self.astra_application_token,
-            keyspace_name = self.astra_keyspace,
-            collection_name = self.astra_collection,
-            embedding_dim = self.embedding_dim,
-            similarity_function = self.similarity
-        )
-
     def count_documents(self) -> int:
         """
         Returns how many documents are present in the document store.
