@@ -70,24 +70,31 @@ class AstraClient:
         response = requests.request("POST", self.create_url, headers=self.request_header, data=json.dumps(find_query))
         response_dict = json.loads(response.text)
 
-        collection_name_matches = list(filter(lambda d: d['name'] == self.collection_name, response_dict["status"]["collections"]))
-        if len(collection_name_matches)==0:
-            logger.warning(f"Astra collection {self.collection_name} not found under {self.keyspace_name}. Will be created.")
-            return False
-
         if response.status_code == 200:
             if "status" in response_dict:
+                collection_name_matches = list(
+                    filter(
+                        lambda d: d['name'] == self.collection_name,
+                        response_dict["status"]["collections"]
+                    )
+                )
+
+                if len(collection_name_matches)==0:
+                    logger.warning(f"Astra collection {self.collection_name} not found under {self.keyspace_name}. Will be created.")
+                    return False
+
                 collection_embedding_dim = collection_name_matches[0]["options"]["vector"]["dimension"]
                 if collection_embedding_dim != self.embedding_dim:
                     raise Exception(f"Collection vector dimension is not valid, expected {self.embedding_dim}, found {collection_embedding_dim}")
+
             else:
                 raise Exception(f"status not in response: {response.text}")
+
         else:
             raise Exception(f"Astra DB not available. Status code: {response.status_code}, {response.text}")
             # Retry or handle error better
 
         return True
-
 
     def create_index(self):
         create_query = { "createCollection": {
