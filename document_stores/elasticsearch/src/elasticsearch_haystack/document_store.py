@@ -123,7 +123,7 @@ class ElasticsearchDocumentStore:
             documents.extend(self._deserialize_document(hit) for hit in res["hits"]["hits"])
             from_ += len(documents)
 
-            if top_k and from_ >= top_k:
+            if top_k is not None and from_ >= top_k:
                 break
             if from_ >= res["hits"]["total"]["value"]:
                 break
