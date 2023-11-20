@@ -336,15 +336,11 @@ class ElasticsearchDocumentStore:
 
         documents = self._search_documents(**body)
 
-        if not scale_score:
-            return documents
+        if scale_score:
+            for doc in documents:
+                doc.score = float(1 / (1 + np.exp(-np.asarray(doc.score / BM25_SCALING_FACTOR))))
 
-        documents_w_scaled_scores = []
-        for doc in documents:
-            doc.score = float(1 / (1 + np.exp(-np.asarray(doc.score / BM25_SCALING_FACTOR))))
-            documents_w_scaled_scores.append(doc)
-
-        return documents_w_scaled_scores
+        return documents
 
     def _embedding_retrieval(
         self,
