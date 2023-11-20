@@ -106,6 +106,10 @@ class ElasticsearchDocumentStore:
         Calls the Elasticsearch client's search method and handles pagination.
         """
 
+        top_k = kwargs.get("size")
+        if top_k is None and "knn" in kwargs and "k" in kwargs["knn"]:
+            top_k = kwargs["knn"]["k"]
+
         documents: List[Document] = []
         from_ = 0
         # Handle pagination
@@ -115,8 +119,12 @@ class ElasticsearchDocumentStore:
                 from_=from_,
                 **kwargs,
             )
+
             documents.extend(self._deserialize_document(hit) for hit in res["hits"]["hits"])
             from_ = len(documents)
+
+            if top_k is not None and from_ >= top_k:
+                break
             if from_ >= res["hits"]["total"]["value"]:
                 break
         return documents
@@ -326,14 +334,13 @@ class ElasticsearchDocumentStore:
         if filters:
             body["query"]["bool"]["filter"] = _normalize_filters(filters)
 
-        res = self._client.search(index=self._index, **body)
+        documents = self._search_documents(**body)
 
-        docs = []
-        for hit in res["hits"]["hits"]:
-            if scale_score:
-                hit["_score"] = float(1 / (1 + np.exp(-np.asarray(hit["_score"] / BM25_SCALING_FACTOR))))
-            docs.append(self._deserialize_document(hit))
-        return docs
+        if scale_score:
+            for doc in documents:
+                doc.score = float(1 / (1 + np.exp(-np.asarray(doc.score / BM25_SCALING_FACTOR))))
+
+        return documents
 
     def _embedding_retrieval(
         self,
