@@ -12,7 +12,7 @@ from elasticsearch import Elasticsearch, helpers  # type: ignore[import-not-foun
 from haystack.preview import default_from_dict, default_to_dict
 from haystack.preview.dataclasses import Document
 from haystack.preview.document_stores.decorator import document_store
-from haystack.preview.document_stores.errors import DuplicateDocumentError
+from haystack.preview.document_stores.errors import DocumentStoreError, DuplicateDocumentError
 from haystack.preview.document_stores.protocols import DuplicatePolicy
 
 from elasticsearch_haystack.filters import _normalize_filters
@@ -106,6 +106,10 @@ class ElasticsearchDocumentStore:
         Calls the Elasticsearch client's search method and handles pagination.
         """
 
+        top_k = kwargs.get("size")
+        if top_k is None and "knn" in kwargs and "k" in kwargs["knn"]:
+            top_k = kwargs["knn"]["k"]
+
         documents: List[Document] = []
         from_ = 0
         # Handle pagination
@@ -115,8 +119,12 @@ class ElasticsearchDocumentStore:
                 from_=from_,
                 **kwargs,
             )
+
             documents.extend(self._deserialize_document(hit) for hit in res["hits"]["hits"])
             from_ = len(documents)
+
+            if top_k is not None and from_ >= top_k:
+                break
             if from_ >= res["hits"]["total"]["value"]:
                 break
         return documents
@@ -206,7 +214,10 @@ class ElasticsearchDocumentStore:
              - skip: keep the existing document and ignore the new one.
              - overwrite: remove the old document and write the new one.
              - fail: an error is raised
+
+        :raises ValueError: if 'documents' parameter is not a list of Document objects
         :raises DuplicateDocumentError: Exception trigger on duplicate document if `policy=DuplicatePolicy.FAIL`
+        :raises DocumentStoreError: Exception trigger on any other error when writing documents
         :return: None
         """
         if len(documents) > 0:
@@ -229,16 +240,20 @@ class ElasticsearchDocumentStore:
             index=self._index,
             raise_on_error=False,
         )
-        if errors and policy == DuplicatePolicy.FAIL:
-            # TODO: Handle errors in a better way, we're assuming that all errors
-            # are related to duplicate documents but that could be very well be wrong.
 
-            # mypy complains that `errors`` could be either `int` or a `list` of `dict`s.
-            # Since the type depends on the parameters passed to `helpers.bulk()`` we know
-            # for sure that it will be a `list`.
-            ids = ", ".join(e["create"]["_id"] for e in errors)  # type: ignore[union-attr]
-            msg = f"IDs '{ids}' already exist in the document store."
-            raise DuplicateDocumentError(msg)
+        if errors:
+            duplicate_errors_ids = []
+            if policy == DuplicatePolicy.FAIL:
+                for e in errors:
+                    if e["create"]["error"]["type"] == "version_conflict_engine_exception":
+                        duplicate_errors_ids.append(e["create"]["_id"])
+
+            if len(duplicate_errors_ids) > 0:
+                msg = f"IDs '{', '.join(duplicate_errors_ids)}' already exist in the document store."
+                raise DuplicateDocumentError(msg)
+
+            msg = f"Failed to write documents to Elasticsearch. Errors:\n{errors}"
+            raise DocumentStoreError(msg)
 
     def _deserialize_document(self, hit: Dict[str, Any]) -> Document:
         """
@@ -326,14 +341,13 @@ class ElasticsearchDocumentStore:
         if filters:
             body["query"]["bool"]["filter"] = _normalize_filters(filters)
 
-        res = self._client.search(index=self._index, **body)
+        documents = self._search_documents(**body)
 
-        docs = []
-        for hit in res["hits"]["hits"]:
-            if scale_score:
-                hit["_score"] = float(1 / (1 + np.exp(-np.asarray(hit["_score"] / BM25_SCALING_FACTOR))))
-            docs.append(self._deserialize_document(hit))
-        return docs
+        if scale_score:
+            for doc in documents:
+                doc.score = float(1 / (1 + np.exp(-np.asarray(doc.score / BM25_SCALING_FACTOR))))
+
+        return documents
 
     def _embedding_retrieval(
         self,

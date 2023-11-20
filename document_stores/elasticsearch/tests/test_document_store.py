@@ -8,7 +8,7 @@ import pandas as pd
 import pytest
 from elasticsearch.exceptions import BadRequestError  # type: ignore[import-not-found]
 from haystack.preview.dataclasses.document import Document
-from haystack.preview.document_stores.errors import DuplicateDocumentError
+from haystack.preview.document_stores.errors import DocumentStoreError, DuplicateDocumentError
 from haystack.preview.document_stores.protocols import DuplicatePolicy
 from haystack.preview.testing.document_store import DocumentStoreBaseTests
 
@@ -291,3 +291,15 @@ class TestDocumentStore(DocumentStoreBaseTests):
 
         with pytest.raises(BadRequestError):
             docstore._embedding_retrieval(query_embedding=[0.1, 0.1])
+
+    def test_write_documents_different_embedding_sizes_fail(self, docstore: ElasticsearchDocumentStore):
+        """
+        Test that write_documents fails if the documents have different embedding sizes.
+        """
+        docs = [
+            Document(content="Hello world", embedding=[0.1, 0.2, 0.3, 0.4]),
+            Document(content="Hello world", embedding=[0.1, 0.2]),
+        ]
+
+        with pytest.raises(DocumentStoreError):
+            docstore.write_documents(docs)
