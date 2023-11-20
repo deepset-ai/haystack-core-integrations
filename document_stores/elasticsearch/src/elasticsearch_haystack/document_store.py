@@ -243,17 +243,26 @@ class ElasticsearchDocumentStore:
 
         if errors:
             duplicate_errors_ids = []
-            if policy == DuplicatePolicy.FAIL:
-                for e in errors:
-                    if e["create"]["error"]["type"] == "version_conflict_engine_exception":
+            other_errors = []
+            for e in errors:
+                if e["create"]["error"]["type"] == "version_conflict_engine_exception":
+                    if policy == DuplicatePolicy.FAIL:
                         duplicate_errors_ids.append(e["create"]["_id"])
+                    elif policy == DuplicatePolicy.SKIP:
+                        # when the policy is skip, these errors are OK and we should not raise an exception
+                        continue
+                    else:
+                        other_errors.append(e)
+                else:
+                    other_errors.append(e)
 
             if len(duplicate_errors_ids) > 0:
                 msg = f"IDs '{', '.join(duplicate_errors_ids)}' already exist in the document store."
                 raise DuplicateDocumentError(msg)
 
-            msg = f"Failed to write documents to Elasticsearch. Errors:\n{errors}"
-            raise DocumentStoreError(msg)
+            if len(other_errors) > 0:
+                msg = f"Failed to write documents to Elasticsearch. Errors:\n{other_errors}"
+                raise DocumentStoreError(msg)
 
     def _deserialize_document(self, hit: Dict[str, Any]) -> Document:
         """
