@@ -16,6 +16,7 @@ from errors import AstraDocumentStoreFilterError
 
 import json
 import requests
+from batching import get_batches_from_generator
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -77,6 +78,7 @@ class AstraDocumentStore:
             embedding_dim = self.embedding_dim,
             similarity_function = self.similarity
         )
+        self.batch_size = 2
     def count_documents(self) -> int:
         """
         Returns how many documents are present in the document store.
@@ -143,15 +145,33 @@ class AstraDocumentStore:
             documents.append(document)
         return documents
 
+    # def get_documents(self, ids: List[str]) -> List[Document]:
+    #     query = {"find": {"filter": {"_id": ""}}}
+    #     query["find"]["filter"] = {"_id": {"$in":ids}}
+    #     documents = requests.request(
+    #         "POST",
+    #         self.index.request_url,
+    #         headers=self.index.request_header,
+    #         data=json.dumps(query),
+    #     ).json()["data"]["documents"]
+    #     return documents
+
     def get_documents(self, ids: List[str]) -> List[Document]:
-        query = {"find": {"filter": {"_id": ""}}}
-        query["find"]["filter"] = {"_id": {"$in":ids}}
-        documents = requests.request(
-            "POST",
-            self.index.request_url,
-            headers=self.index.request_header,
-            data=json.dumps(query),
-        ).json()["data"]["documents"]
+        documents = []
+        document_batch = []
+        for id_batch in get_batches_from_generator(ids, self.batch_size):
+            query = {"find": {"filter": {"_id": ""}}}
+            query["find"]["filter"] = {"_id": {"$in":id_batch}}
+            response = requests.request(
+                "POST",
+                self.index.request_url,
+                headers=self.index.request_header,
+                data=json.dumps(query),
+            ).json()["data"]["documents"]
+            document_batch.append(response)
+        for docs in document_batch:
+            for doc in docs:
+                documents.append(doc)
         return documents
 
     def get_documents_by_id(self, ids: List[str], return_embedding: Optional[bool] = None) -> List[Document]:
@@ -168,7 +188,7 @@ class AstraDocumentStore:
         """
         document = self.get_documents(ids=[id])
         ret = self._get_result_to_documents(document, return_embedding)
-        return ret
+        return ret[0]
 
     # def search(
     #         self, queries: List[Union[str, Dict[str, float]]], top_k: int, filters: Optional[Dict[str, Any]] = None
