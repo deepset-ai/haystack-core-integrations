@@ -245,14 +245,12 @@ class ElasticsearchDocumentStore:
             duplicate_errors_ids = []
             other_errors = []
             for e in errors:
-                if e["create"]["error"]["type"] == "version_conflict_engine_exception":
-                    if policy == DuplicatePolicy.FAIL:
-                        duplicate_errors_ids.append(e["create"]["_id"])
-                    elif policy == DuplicatePolicy.SKIP:
-                        # when the policy is skip, these errors are OK and we should not raise an exception
-                        continue
-                    else:
-                        other_errors.append(e)
+                error_type = e["create"]["error"]["type"]
+                if policy == DuplicatePolicy.FAIL and error_type == "version_conflict_engine_exception":
+                    duplicate_errors_ids.append(e["create"]["_id"])
+                elif policy == DuplicatePolicy.SKIP and error_type == "version_conflict_engine_exception":
+                    # when the policy is skip, duplication errors are OK and we should not raise an exception
+                    continue
                 else:
                     other_errors.append(e)
 
