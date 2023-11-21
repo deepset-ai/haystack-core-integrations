@@ -12,7 +12,7 @@ from elasticsearch import Elasticsearch, helpers  # type: ignore[import-not-foun
 from haystack.preview import default_from_dict, default_to_dict
 from haystack.preview.dataclasses import Document
 from haystack.preview.document_stores.decorator import document_store
-from haystack.preview.document_stores.errors import DuplicateDocumentError
+from haystack.preview.document_stores.errors import DocumentStoreError, DuplicateDocumentError
 from haystack.preview.document_stores.protocols import DuplicatePolicy
 
 from elasticsearch_haystack.filters import _normalize_filters
@@ -214,7 +214,10 @@ class ElasticsearchDocumentStore:
              - skip: keep the existing document and ignore the new one.
              - overwrite: remove the old document and write the new one.
              - fail: an error is raised
+
+        :raises ValueError: if 'documents' parameter is not a list of Document objects
         :raises DuplicateDocumentError: Exception trigger on duplicate document if `policy=DuplicatePolicy.FAIL`
+        :raises DocumentStoreError: Exception trigger on any other error when writing documents
         :return: None
         """
         if len(documents) > 0:
@@ -237,16 +240,27 @@ class ElasticsearchDocumentStore:
             index=self._index,
             raise_on_error=False,
         )
-        if errors and policy == DuplicatePolicy.FAIL:
-            # TODO: Handle errors in a better way, we're assuming that all errors
-            # are related to duplicate documents but that could be very well be wrong.
 
-            # mypy complains that `errors`` could be either `int` or a `list` of `dict`s.
-            # Since the type depends on the parameters passed to `helpers.bulk()`` we know
-            # for sure that it will be a `list`.
-            ids = ", ".join(e["create"]["_id"] for e in errors)  # type: ignore[union-attr]
-            msg = f"IDs '{ids}' already exist in the document store."
-            raise DuplicateDocumentError(msg)
+        if errors:
+            duplicate_errors_ids = []
+            other_errors = []
+            for e in errors:
+                error_type = e["create"]["error"]["type"]
+                if policy == DuplicatePolicy.FAIL and error_type == "version_conflict_engine_exception":
+                    duplicate_errors_ids.append(e["create"]["_id"])
+                elif policy == DuplicatePolicy.SKIP and error_type == "version_conflict_engine_exception":
+                    # when the policy is skip, duplication errors are OK and we should not raise an exception
+                    continue
+                else:
+                    other_errors.append(e)
+
+            if len(duplicate_errors_ids) > 0:
+                msg = f"IDs '{', '.join(duplicate_errors_ids)}' already exist in the document store."
+                raise DuplicateDocumentError(msg)
+
+            if len(other_errors) > 0:
+                msg = f"Failed to write documents to Elasticsearch. Errors:\n{other_errors}"
+                raise DocumentStoreError(msg)
 
     def _deserialize_document(self, hit: Dict[str, Any]) -> Document:
         """
