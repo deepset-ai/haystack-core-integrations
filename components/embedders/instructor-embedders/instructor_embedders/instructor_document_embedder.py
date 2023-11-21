@@ -50,7 +50,7 @@ class InstructorDocumentEmbedder:
     ]
 
     result = doc_embedder.run(document_list)
-    print(f"Document Text: {result['documents'][0].text}")
+    print(f"Document Text: {result['documents'][0].content}")
     print(f"Document Embedding: {result['documents'][0].embedding}")
     print(f"Embedding Dimension: {len(result['documents'][0].embedding)}")
     """  # noqa: E501
