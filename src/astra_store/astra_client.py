@@ -206,78 +206,111 @@ class AstraClient:
         return response
 
 
-    def upsert(self, to_upsert):
+    def find_document(self, find_key: str, find_value):
+        query = json.dumps({
+            "findOne": {
+                "filter": {
+                    find_key: find_value
+            }}})
+        response = requests.request(
+            "POST",
+            self.request_url,
+            headers=self.request_header,
+            data=query,
+        )
+        response_dict = json.loads(response.text)
+
+        if response.status_code == 200 and "data" in response_dict:
+            if response_dict["data"]["document"] == None:
+                return {"exists": False, "response": response_dict}
+            else:
+                return {"exists": True, "response": response_dict}
+        else:
+            raise Exception(f"Astra DB request error - status code: {response.status_code} response {response.text}")
+
+
+    def insert(self, documents: List[Dict], id_key: str):
+        query = json.dumps({
+            "insertMany": {
+                "options": {"ordered": False},
+                "documents": documents }})
+        response = requests.request(
+            "POST",
+            self.request_url,
+            headers=self.request_header,
+            data=query,
+        )
+        response_dict = json.loads(response.text)
+
+        if response.status_code == 200:
+            if "status" in response_dict and "errors" not in response_dict:
+                if "insertedIds" in response_dict["status"]:
+                    inserted_ids = response_dict["status"]["insertedIds"]
+                    if len(inserted_ids) == len(documents):
+                        return inserted_ids
+            logger.warning(f"{response.text}")
+            return []
+        else:
+            raise Exception(f"Astra DB request error - status code: {response.status_code} response {response.text}")
+
+
+    def update_document(self, document: Dict, id_key: str):
+        document_id = document.pop(id_key)
+        query = json.dumps({
+            "findOneAndUpdate": {
+                "filter": {
+                    id_key: document_id
+                },
+                "update": {
+                    "$set": document
+                },
+                "options": {
+                    "returnDocument": "after"
+                }
+            }})
+        response = requests.request(
+            "POST",
+            self.request_url,
+            headers=self.request_header,
+            data=query,
+        )
+        response_dict = json.loads(response.text)
+        document[id_key] = document_id
+
+        if response.status_code == 200:
+            if "status" in response_dict and "errors" not in response_dict:
+                if "matchedCount" in response_dict["status"] and "modifiedCount" in response_dict["status"]:
+                    if response_dict["status"]["matchedCount"] == 1 and response_dict["status"]["modifiedCount"] == 1:
+                        return True
+            logger.warning(f"Documents {document_id} not updated in Astra {response.text}")
+            return False
+        else:
+            raise Exception(f"Astra DB request error - status code: {response.status_code} response {response.text}")
+
+
+    def upsert(self, documents: List[Dict], id_key: str):
         to_insert = []
         upserted_ids = []
         not_upserted_ids = []
-        for record in to_upsert:
-            record_id = record[0]
-            record_text = record[2]["text"]
-            record_embedding = record[1]
-
-            reserved_keys = ["id", "_id", "chunk"]
-            record_metadata = {}
-            for k in list(record[2].keys()):
-                if k not in reserved_keys:
-                    record_metadata[k] = record[2][k]
+        for document in documents:
 
             # check if id exists:
-            query = json.dumps({
-                "findOne": {
-                    "filter": {
-                        "_id": record_id
-                }}})
-            result = requests.request(
-                "POST",
-                self.request_url,
-                headers=self.request_header,
-                data=query,
-            )
+            id_exists = self.find_document(find_key=id_key, find_value=document[id_key])["exists"]
 
             # if the id doesn't exist, prepare record for inserting
-            if json.loads(result.text)['data']['document'] == None:
-                to_insert.append({"_id": record_id, "$vector": record_embedding, "metadata": record_metadata})
+            if not id_exists:
+                to_insert.append(document)
 
             # else, update record with that id
             else:
-                query = json.dumps({
-                    "findOneAndUpdate": {
-                        "filter": {
-                            "_id": record_id
-                        },
-                        "update": {
-                            "$set": {
-                                "$vector": record_embedding,
-                                "metadata": record_metadata,
-                            }},
-                        "options": {
-                            "returnDocument": "after"
-                        }
-                      }
-                    })
-                result = requests.request(
-                    "POST",
-                    self.request_url,
-                    headers=self.request_header,
-                    data=query,
-                )
-
-                if json.loads(result.text)["status"]["matchedCount"] == 1 and json.loads(result.text)["status"]["modifiedCount"] == 1:
-                    upserted_ids.append(record_id)
+                record_updated = self.update_document(document, id_key)
+                if record_updated:
+                    upserted_ids.append(updated_id)
 
         # now insert the records stored in to_insert
         if len(to_insert) > 0:
-            query = json.dumps({
-            "insertMany": {
-                "documents": to_insert }})
-            result = requests.request(
-                    "POST",
-                    self.request_url,
-                    headers=self.request_header,
-                    data=query,
-                )
-            for inserted_id in json.loads(result.text)["status"]["insertedIds"]:
-                upserted_ids.append(inserted_id)
+            inserted_ids = self.insert(documents, id_key)
+            upserted_ids = upserted_ids + inserted_ids
 
         return list(set(upserted_ids))
 
