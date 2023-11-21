@@ -35,7 +35,7 @@ Issues = "https://github.com/deepset-ai/haystack-core-integrations/issues"
 Source = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/components/file_converters/unstructured_fileconverter"
 
 [tool.hatch.version]
-path = "src/unstructured_fileconverter/__about__.py"
+path = "src/unstructured_fileconverter_haystack/__about__.py"
 
 [tool.hatch.envs.default]
 dependencies = [
@@ -66,7 +66,7 @@ dependencies = [
   "ruff>=0.0.243",
 ]
 [tool.hatch.envs.lint.scripts]
-typing = "mypy --install-types --non-interactive {args:src/unstructured_fileconverter tests}"
+typing = "mypy --install-types --non-interactive {args:src/unstructured_fileconverter_haystack tests}"
 style = [
   "ruff {args:.}",
   "black --check --diff {args:.}",
