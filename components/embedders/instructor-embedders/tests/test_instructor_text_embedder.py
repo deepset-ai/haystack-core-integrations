@@ -51,7 +51,7 @@ class TestInstructorTextEmbedder:
         embedder = InstructorTextEmbedder(model_name_or_path="hkunlp/instructor-base")
         embedder_dict = embedder.to_dict()
         assert embedder_dict == {
-            "type": "InstructorTextEmbedder",
+            "type": "instructor_embedders.instructor_text_embedder.InstructorTextEmbedder",
             "init_parameters": {
                 "model_name_or_path": "hkunlp/instructor-base",
                 "device": "cpu",
@@ -79,7 +79,7 @@ class TestInstructorTextEmbedder:
         )
         embedder_dict = embedder.to_dict()
         assert embedder_dict == {
-            "type": "InstructorTextEmbedder",
+            "type": "instructor_embedders.instructor_text_embedder.InstructorTextEmbedder",
             "init_parameters": {
                 "model_name_or_path": "hkunlp/instructor-base",
                 "device": "cuda",
@@ -97,7 +97,7 @@ class TestInstructorTextEmbedder:
         Test deserialization of InstructorTextEmbedder from a dictionary, using default initialization parameters.
         """
         embedder_dict = {
-            "type": "InstructorTextEmbedder",
+            "type": "instructor_embedders.instructor_text_embedder.InstructorTextEmbedder",
             "init_parameters": {
                 "model_name_or_path": "hkunlp/instructor-base",
                 "device": "cpu",
@@ -123,7 +123,7 @@ class TestInstructorTextEmbedder:
         Test deserialization of InstructorTextEmbedder from a dictionary, using custom initialization parameters.
         """
         embedder_dict = {
-            "type": "InstructorTextEmbedder",
+            "type": "instructor_embedders.instructor_text_embedder.InstructorTextEmbedder",
             "init_parameters": {
                 "model_name_or_path": "hkunlp/instructor-base",
                 "device": "cuda",
