@@ -1,10 +1,7 @@
-# Haystack 2.x additional resources
+# Haystack 2.x Core Integrations
 
 This repository contains integrations to extend the capabilities of [Haystack](https://github.com/deepset-ai/haystack) version 2.0 and
-onwards. The code in this repo is maintained by [deepset](https://www.deepset.ai), some of it on a best-effort
-basis: see each folder's `README` file for details around installation, usage and support.
-
-This is the list of packages currently hosted in this repo.
+onwards. The code in this repo is maintained by [deepset](https://www.deepset.ai), see each integration's `README` file for details around installation, usage and support.
 
 | Package                                                           | Type           | PyPi Package                                                                                                                                 | Status                                                                                                                                                                                                                                                                            |
 | ----------------------------------------------------------------- | -------------- | -------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
