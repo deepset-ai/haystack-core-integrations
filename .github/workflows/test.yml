@@ -1,0 +1,56 @@
+name: test
+
+on:
+  push:
+    branches:
+    - main
+  pull_request:
+  workflow_call:
+
+concurrency:
+  group: test-${{ github.head_ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHONUNBUFFERED: "1"
+  FORCE_COLOR: "1"
+
+jobs:
+  run:
+    name: Python ${{ matrix.python-version }} on ${{ startsWith(matrix.os, 'macos-') && 'macOS' || startsWith(matrix.os, 'windows-') && 'Windows' || 'Linux' }}
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest]
+        python-version: ['3.9', '3.10']
+
+    steps:
+    - name: Support longpaths
+      if: matrix.os == 'windows-latest'
+      run: git config --system core.longpaths true
+
+    - uses: actions/checkout@v3
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Install Hatch
+      run: pip install --upgrade hatch
+
+    - name: Install Black
+      run: pip install --upgrade black
+
+    - name: Install Ruff
+      run: pip install --upgrade ruff
+
+    - name: Lint Black
+      if: matrix.python-version == '3.9' && runner.os == 'Linux'
+      run: black --check .
+
+    - name: Lint Ruff
+      if: matrix.python-version == '3.9' && runner.os == 'Linux'
+      run: ruff --select E501 T201 PLW2901 --quiet --ignore E501 .
