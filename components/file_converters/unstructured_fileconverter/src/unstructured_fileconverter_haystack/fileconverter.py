@@ -126,7 +126,7 @@ class UnstructuredFileConverter:
 
     def _create_documents(
         self,
-        filepath: str,
+        filepath: Path,
         elements: List[Element],
         document_creation_mode: Literal["one-doc-per-file", "one-doc-per-page", "one-doc-per-element"],
         separator: str,
@@ -166,7 +166,7 @@ class UnstructuredFileConverter:
 
         return docs
 
-    def _partition_file_into_elements(self, filepath: str) -> List[Element]:
+    def _partition_file_into_elements(self, filepath: Path) -> List[Element]:
         """
         Partition a file into elements using the Unstructured API.
         """
