@@ -4,7 +4,7 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Any, Dict, List, Literal, Optional, Union
 
-from haystack.preview import Document, component, default_from_dict, default_to_dict
+from haystack.preview import Document, component, default_to_dict
 from tqdm import tqdm
 from unstructured.documents.elements import Element  # type: ignore[import]
 from unstructured.partition.api import partition_via_api  # type: ignore[import]
@@ -82,13 +82,6 @@ class UnstructuredFileConverter:
             unstructured_kwargs=self.unstructured_kwargs,
             progress_bar=self.progress_bar,
         )
-
-    @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "UnstructuredFileConverter":
-        """
-        Deserialize this component from a dictionary.
-        """
-        return default_from_dict(cls, data)
 
     @component.output_types(documents=List[Document])
     def run(self, paths: Union[List[str], List[os.PathLike]]):
