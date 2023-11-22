@@ -6,7 +6,10 @@ from typing import Any, Dict, List, Optional
 
 from haystack.preview.dataclasses import Document
 from haystack.preview.document_stores.decorator import document_store
-from haystack.preview.document_stores.errors import DuplicateDocumentError, MissingDocumentError
+from haystack.preview.document_stores.errors import (
+    DuplicateDocumentError,
+    MissingDocumentError,
+)
 from haystack.preview.document_stores.protocols import DuplicatePolicy
 
 logger = logging.getLogger(__name__)
