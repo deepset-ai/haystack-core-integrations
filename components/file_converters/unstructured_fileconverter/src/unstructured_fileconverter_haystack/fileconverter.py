@@ -30,6 +30,7 @@ class UnstructuredFileConverter:
         ] = "one-doc-per-file",
         separator: str = "\n\n",
         unstructured_kwargs: Optional[Dict[str, Any]] = None,
+        progress_bar: bool = True,
     ):
         """
         :param api_url: URL of the Unstructured API. Defaults to the hosted version.
@@ -45,12 +46,14 @@ class UnstructuredFileConverter:
         :param separator: Separator between elements when concatenating them into one text field.
         :param unstructured_kwargs: Additional keyword arguments that are passed to the Unstructured API.
             See https://unstructured-io.github.io/unstructured/api.html.
+        :param progress_bar: Show a progress bar for the conversion. Defaults to True.            
         """
 
         self.api_url = api_url
         self.document_creation_mode = document_creation_mode
         self.unstructured_kwargs = unstructured_kwargs or {}
         self.separator = separator
+        self.progress_bar = progress_bar
 
         is_hosted_api = api_url == UNSTRUCTURED_HOSTED_API_URL
         if api_key is None and is_hosted_api:
@@ -75,6 +78,7 @@ class UnstructuredFileConverter:
             document_creation_mode=self.document_creation_mode,
             separator=self.separator,
             unstructured_kwargs=self.unstructured_kwargs,
+            progress_bar=self.progress_bar,
         )
 
     @classmethod
@@ -102,7 +106,7 @@ class UnstructuredFileConverter:
         # currently, the files are converted sequentially to gently handle API failures
         documents = []
 
-        for filepath in tqdm(filepaths):
+        for filepath in tqdm(filepaths, desc="Converting files to Haystack Documents", disable=not self.progress_bar):
             elements = self._partition_file_into_elements(filepath=filepath)
             docs_for_file = self._create_documents(
                 filepath=filepath,
