@@ -1,6 +1,8 @@
 # Integrations
 integration:instructor-embedders:
-- components/instructor-embedders/**/*
+- components/embedders/instructor-embedders/**/*
+integration:unstructured-fileconverter:
+- components/file_converters/unstructured_fileconverter/**/*
 integration:chroma:
 - document_stores/chroma/**/*
 integration:elasticsearch:
