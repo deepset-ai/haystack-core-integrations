@@ -3,14 +3,16 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from typing import Any, Dict, List, Optional
+
 from haystack.preview import Document, component
-from astra_store import AstraDocumentStore
+
+from astra_store.document_store import AstraDocumentStore
 
 
 @component
 class AstraRetriever:
     """
-        A component for retrieving documents from an AstraDocumentStore.
+    A component for retrieving documents from an AstraDocumentStore.
     """
 
     def __init__(self, document_store: AstraDocumentStore, filters: Optional[Dict[str, Any]] = None, top_k: int = 10):
