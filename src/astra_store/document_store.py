@@ -165,9 +165,15 @@ class AstraDocumentStore:
                 logger.info(f"write_documents updated documents with id {updated_ids}")
 
         elif policy == DuplicatePolicy.FAIL:
-            raise Exception(
-                f"write documents called with duplicate ids {[x['_id'] for x in documents_to_write]}, but argument policy set to FAIL"
-            )
+            if len(duplicate_documents) > 0:
+                raise Exception(
+                    f"write documents called with duplicate ids {[x['_id'] for x in documents_to_write]}, but argument policy set to FAIL"
+                )
+
+            if len(documents_to_write) > 0:
+                for batch in _batches(documents_to_write, batch_size):
+                    inserted_ids = index.insert(batch, "_id")
+                    logger.info(f"write_documents inserted documents with id {inserted_ids}")
 
     def count_documents(self) -> int:
         """
