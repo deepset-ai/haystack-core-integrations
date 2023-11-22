@@ -3,12 +3,13 @@
 # SPDX-License-Identifier: Apache-2.0
 import logging
 from dataclasses import asdict
-from typing import Any, Dict, List, Literal, Optional, Union
+from typing import Any, Dict, List, Optional, Union
 
 from haystack.preview.dataclasses import Document
 from haystack.preview.document_stores.decorator import document_store
-
-# from haystack.preview.document_stores.errors import DuplicateDocumentError, MissingDocumentError
+from haystack.preview.document_stores.errors import (
+    DuplicateDocumentError,  # , MissingDocumentError
+)
 from haystack.preview.document_stores.protocols import DuplicatePolicy
 from pydantic import validate_arguments
 from sentence_transformers import SentenceTransformer
@@ -80,7 +81,7 @@ class AstraDocumentStore:
         documents: Union[List[dict], List[Document]],
         index: Optional[str] = None,
         batch_size: int = 20,
-        policy: DuplicatePolicy = DuplicatePolicy.FAIL,
+        policy: DuplicatePolicy = DuplicatePolicy.SKIP,
     ):
         """
         Indexes documents for later queries.
@@ -116,6 +117,8 @@ class AstraDocumentStore:
         def _convert_input_document(document: Union[dict, Document]):
             if not isinstance(document, dict):
                 data = asdict(document)
+            else:
+                data = document
             meta = data.pop("meta")
             document_dict = {**data, **meta}
             document_dict["_id"] = document_dict.pop("id")
@@ -136,11 +139,11 @@ class AstraDocumentStore:
                 i = i - 1
             i = i + 1
 
-        def _batches(inputlist, batchsize):
-            print(batchsize)
-            l = len(inputlist)
-            for ndx in range(0, l, batchsize):
-                yield inputlist[ndx : min(ndx + batchsize, l)]
+        def _batches(input_list, batch_size):
+            print(batch_size)
+            l = len(input_list)
+            for ndx in range(0, l, batch_size):
+                yield input_list[ndx : min(ndx + batch_size, l)]
 
         if policy == DuplicatePolicy.SKIP:
             if len(documents_to_write) > 0:
@@ -156,7 +159,9 @@ class AstraDocumentStore:
                     inserted_ids = index.insert(batch, "_id")
                     logger.info(f"write_documents inserted documents with id {inserted_ids}")
             else:
-                logger.warning("No new documents to write to astra. No documents written. Argument policy set to OVERWRITE")
+                logger.warning(
+                    "No new documents to write to astra. No documents written. Argument policy set to OVERWRITE"
+                )
 
             if len(duplicate_documents) > 0:
                 updated_ids = []
@@ -170,8 +175,8 @@ class AstraDocumentStore:
 
         elif policy == DuplicatePolicy.FAIL:
             if len(duplicate_documents) > 0:
-                raise Exception(
-                    f"write documents called with duplicate ids {[x['_id'] for x in documents_to_write]}, but argument policy set to FAIL"
+                raise DuplicateDocumentError(
+                    f"write_documents called with duplicate ids {[x['_id'] for x in documents_to_write]}, but argument policy set to FAIL"
                 )
 
             if len(documents_to_write) > 0:

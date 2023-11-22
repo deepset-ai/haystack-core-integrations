@@ -2,4 +2,5 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 import sys
+
 sys.path.append("../src/astra_store/")

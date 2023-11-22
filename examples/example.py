@@ -54,13 +54,17 @@ print("filter:")
 print(document_store.filter_documents({"content_type": "text"}))
 
 
+print("search without filter")
 print(document_store.search(["Is black and white text boring?"], 3))
+print("search with filter")
+print(document_store.search(["Is black and white text boring?"], 3, {"content_type": "text"}))
+
 print("get_document_by_id and embeddings *********")
 print(document_store.get_document_by_id("539fb0d47917e832bbc661e55edb8b90"))
 print("get_documents_by_ids and embeddings *********")
 print(document_store.get_documents_by_id(["23dc6bb45225bade2764d856a0e1a6b3"]))
 
-# document_store.delete_documents(["23dc6bb45225bade2764d856a0e1a6b3"])
+document_store.delete_documents(["6f387cf0786d48d3768d605b44108241"])
 # document_store.delete_documents(delete_all=True)
 
 print("count:")

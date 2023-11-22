@@ -1,11 +1,15 @@
 import pytest
-from src.astra_store.document_store import AstraDocumentStore
+
+from astra_store.document_store import AstraDocumentStore
+
 
 @pytest.fixture
-def astra_obj( ):
+def astra_obj():
     astra_id = "af29f87d-72e6-47e4-a7c4-0c6279a51933"
     astra_region = "us-east1"
-    astra_application_token = "AstraCS:cLLKQjnuXpEOiIoLHKBaouwp:2832c7c700a3256b654942e955eaf65bce7e2f742de64e0396359b7594253f4d"
+    astra_application_token = (
+        "AstraCS:cLLKQjnuXpEOiIoLHKBaouwp:2832c7c700a3256b654942e955eaf65bce7e2f742de64e0396359b7594253f4d"
+    )
     keyspace_name = "test"
     collection_name = "movies"
 
@@ -16,6 +20,5 @@ def astra_obj( ):
         astra_keyspace=keyspace_name,
         astra_collection=collection_name,
         embedding_dim=1536,
-        duplicate_documents="skip"
-    );
+    )
     return astra_store
