@@ -145,7 +145,7 @@ ban-relative-imports = "all"
 "tests/**/*" = ["PLR2004", "S101", "TID252"]
 
 [tool.coverage.run]
-source_pkgs = ["unstructured_fileconverter", "tests"]
+source_pkgs = ["unstructured_fileconverter_haystack", "tests"]
 branch = true
 parallel = true
 omit = [
