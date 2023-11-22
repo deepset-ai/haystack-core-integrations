@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "example-store"
+name = "astra-store"
 dynamic = ["version"]
 description = ''
 readme = "README.md"
@@ -31,12 +31,12 @@ dependencies = [
 ]
 
 [project.urls]
-Documentation = "https://github.com/unknown/example-store#readme"
-Issues = "https://github.com/unknown/example-store/issues"
-Source = "https://github.com/unknown/example-store"
+Documentation = "https://github.com/Anant/astra-haystack/tree/main#readme"
+Issues = "https://github.com/Anant/astra-haystack/issues"
+Source = "https://github.com/Anant/astra-haystack"
 
 [tool.hatch.version]
-path = "src/example_store/__about__.py"
+path = "src/astra_store/__about__.py"
 
 [tool.hatch.envs.default]
 dependencies = [
@@ -66,7 +66,7 @@ dependencies = [
   "ruff>=0.0.243",
 ]
 [tool.hatch.envs.lint.scripts]
-typing = "mypy --install-types --non-interactive {args:src/example_store tests}"
+typing = "mypy --install-types --non-interactive {args:src/astra_store tests}"
 style = [
   "ruff {args:.}",
   "black --check --diff {args:.}",
@@ -88,6 +88,11 @@ allow-direct-references = true
 target-version = ["py37"]
 line-length = 120
 skip-string-normalization = true
+
+[tool.isort]
+profile = 'black'
+line_length = 79
+skip_gitignore = true
 
 [tool.ruff]
 target-version = "py37"
@@ -135,7 +140,7 @@ unfixable = [
 ]
 
 [tool.ruff.isort]
-known-first-party = ["example_store"]
+known-first-party = ["astra_store"]
 
 [tool.ruff.flake8-tidy-imports]
 ban-relative-imports = "all"
@@ -145,16 +150,16 @@ ban-relative-imports = "all"
 "tests/**/*" = ["PLR2004", "S101", "TID252"]
 
 [tool.coverage.run]
-source_pkgs = ["example_store", "tests"]
+source_pkgs = ["astra_store", "tests"]
 branch = true
 parallel = true
 omit = [
-  "src/example_store/__about__.py",
+  "src/astra_store/__about__.py",
 ]
 
 [tool.coverage.paths]
-example_store = ["src/example_store", "*/example-store/src/example_store"]
-tests = ["tests", "*/example-store/tests"]
+astra_store = ["src/astra_store", "*/astra-store/src/astra_store"]
+tests = ["tests", "*/astra-store/tests"]
 
 [tool.coverage.report]
 exclude_lines = [
