@@ -101,14 +101,18 @@ class UnstructuredFileConverter:
 
         unique_paths = {Path(path) for path in paths}
         filepaths = {path for path in unique_paths if path.is_file()}
-        filepaths_in_directories = {filepath for path in unique_paths if path.is_dir() for filepath in path.glob("*.*") if filepath.is_file()}
+        filepaths_in_directories = {
+            filepath for path in unique_paths if path.is_dir() for filepath in path.glob("*.*") if filepath.is_file()
+        }
 
         all_filepaths = filepaths.union(filepaths_in_directories)
 
         # currently, the files are converted sequentially to gently handle API failures
         documents = []
 
-        for filepath in tqdm(all_filepaths, desc="Converting files to Haystack Documents", disable=not self.progress_bar):
+        for filepath in tqdm(
+            all_filepaths, desc="Converting files to Haystack Documents", disable=not self.progress_bar
+        ):
             elements = self._partition_file_into_elements(filepath=filepath)
             docs_for_file = self._create_documents(
                 filepath=filepath,
@@ -138,7 +142,7 @@ class UnstructuredFileConverter:
 
         elif document_creation_mode == "one-doc-per-page":
             texts_per_page: defaultdict[int, str] = defaultdict(str)
-            meta_per_page: defaultdict[int, dict]  = defaultdict(dict)
+            meta_per_page: defaultdict[int, dict] = defaultdict(dict)
             for el in elements:
                 metadata = {"name": filepath}
                 if hasattr(el, "metadata"):
