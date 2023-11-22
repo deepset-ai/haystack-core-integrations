@@ -254,17 +254,39 @@ class AstraDocumentStore:
         for query in queries:
             vector = self.embeddings.encode(query).tolist()
 
-            raw_responses: QueryResponse = self.index.query(
-                vector,
-                filter=filters,
-                top_k=top_k,
-                include_metadata=True,
-            )
             result = self.index.query(vector=vector, top_k=top_k, filter=filters, include_metadata=True)
             results.append(result)
-            logger.debug(f"Raw responses: {raw_responses}")  # leaving for debugging
+            logger.debug(f"Raw responses: {result}")  # leaving for debugging
 
         return results
+
+    def _convert_filters(self, filters: Optional[Dict[str, Any]] = None) -> Optional[Dict[str, Any]]:
+        """
+        Convert haystack filters to astra filterstring capturing all boolean operators
+        """
+        if not filters:
+            return None
+
+        filter_statements = {}
+
+        for key in filters:
+            value = filters[key]
+            if key in {"$and", "$or"}:
+                filt = []
+                if type(value) is not list:
+                    filt.append(self._convert_filters(filters=value))
+                    filter_statements[key] = filt
+                else:
+                    for row in value:
+                        filt.append(self._convert_filters(filters=row))
+                    filter_statements[key] = filt
+            else:
+                if key != "$in" and type(value) is list:
+                    filter_statements[key] = {"$in": value}
+                else:
+                    filter_statements[key] = value
+
+        return filter_statements
 
     def delete_documents(self, document_ids: List[str] = None, delete_all: Optional[bool] = None) -> None:
         """
