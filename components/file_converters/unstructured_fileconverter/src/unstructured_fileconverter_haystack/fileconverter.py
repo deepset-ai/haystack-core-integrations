@@ -173,7 +173,7 @@ class UnstructuredFileConverter:
         elements = []
         try:
             elements = partition_via_api(
-                filename=filepath, api_url=self.api_url, api_key=self.api_key, **self.unstructured_kwargs
+                filename=str(filepath), api_url=self.api_url, api_key=self.api_key, **self.unstructured_kwargs
             )
         except Exception as e:
             logger.warning(f"Unstructured could not process file {filepath}. Error: {e}")
