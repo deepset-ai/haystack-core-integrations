@@ -138,13 +138,13 @@ class UnstructuredFileConverter:
 
         if document_creation_mode == "one-doc-per-file":
             text = separator.join([str(el) for el in elements])
-            docs = [Document(content=text, meta={"name": filepath})]
+            docs = [Document(content=text, meta={"name": str(filepath)})]
 
         elif document_creation_mode == "one-doc-per-page":
             texts_per_page: defaultdict[int, str] = defaultdict(str)
             meta_per_page: defaultdict[int, dict] = defaultdict(dict)
             for el in elements:
-                metadata = {"name": filepath}
+                metadata = {"name": str(filepath)}
                 if hasattr(el, "metadata"):
                     metadata.update(el.metadata.to_dict())
                 page_number = int(metadata.get("page_number", 1))
@@ -156,7 +156,7 @@ class UnstructuredFileConverter:
 
         elif document_creation_mode == "one-doc-per-element":
             for el in elements:
-                metadata = {"name": filepath}
+                metadata = {"name": str(filepath)}
                 if hasattr(el, "metadata"):
                     metadata.update(el.metadata.to_dict())
                 if hasattr(el, "category"):
