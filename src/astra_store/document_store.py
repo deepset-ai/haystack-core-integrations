@@ -155,6 +155,8 @@ class AstraDocumentStore:
                 for batch in _batches(documents_to_write, batch_size):
                     inserted_ids = index.insert(batch, "_id")
                     logger.info(f"write_documents inserted documents with id {inserted_ids}")
+            else:
+                logger.warning("No new documents to write to astra. No documents written. Argument policy set to OVERWRITE")
 
             if len(duplicate_documents) > 0:
                 updated_ids = []
@@ -163,6 +165,8 @@ class AstraDocumentStore:
                     if updated:
                         updated_ids.append(duplicate_doc["_id"])
                 logger.info(f"write_documents updated documents with id {updated_ids}")
+            else:
+                logger.info("No documents to update. No documents updated. Argument policy set to OVERWRITE")
 
         elif policy == DuplicatePolicy.FAIL:
             if len(duplicate_documents) > 0:
@@ -174,6 +178,8 @@ class AstraDocumentStore:
                 for batch in _batches(documents_to_write, batch_size):
                     inserted_ids = index.insert(batch, "_id")
                     logger.info(f"write_documents inserted documents with id {inserted_ids}")
+            else:
+                logger.warning("No new documents to write to astra. No documents written. Argument policy set to FAIL")
 
     def count_documents(self) -> int:
         """
