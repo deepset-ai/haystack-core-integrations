@@ -122,7 +122,7 @@ class AstraDocumentStore:
             meta = data.pop("meta")
             document_dict = {**data, **meta}
             document_dict["_id"] = document_dict.pop("id")
-            document_dict["$vector"] = self.embeddings.encode(document_dict.pop("content")).tolist()
+            document_dict["$vector"] = self.embeddings.encode(document_dict["content"]).tolist()
 
             return document_dict
 
@@ -217,10 +217,10 @@ class AstraDocumentStore:
         documents = []
         for match in results.matches:
             document = Document(
+                text=match.text,
                 id=match.id,
-                content=match.text,
                 embedding=match.values,
-                meta=match.metadata,
+                metadata=match.metadata,
                 score=match.score,
             )
             documents.append(document)
