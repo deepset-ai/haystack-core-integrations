@@ -6,8 +6,8 @@ from typing import Any, Dict, List, Literal, Optional, Union
 
 from haystack.preview import Document, component, default_from_dict, default_to_dict
 from tqdm import tqdm
-from unstructured.documents.elements import Element
-from unstructured.partition.api import partition_via_api
+from unstructured.documents.elements import Element  # type: ignore[import]
+from unstructured.partition.api import partition_via_api  # type: ignore[import]
 
 logger = logging.getLogger(__name__)
 
@@ -99,16 +99,16 @@ class UnstructuredFileConverter:
             If a path is a directory, all files in the directory are converted. Subdirectories are ignored.
         """
 
-        paths = {Path(path) for path in paths}
-        filepaths = {str(path) for path in paths if path.is_file()}
-        filepaths = filepaths.union(
-            {str(filepath) for path in paths if path.is_dir() for filepath in path.glob("*.*") if filepath.is_file()}
-        )
+        unique_paths = {Path(path) for path in paths}
+        filepaths = {path for path in unique_paths if path.is_file()}
+        filepaths_in_directories = {filepath for path in unique_paths if path.is_dir() for filepath in path.glob("*.*") if filepath.is_file()}
+
+        all_filepaths = filepaths.union(filepaths_in_directories)
 
         # currently, the files are converted sequentially to gently handle API failures
         documents = []
 
-        for filepath in tqdm(filepaths, desc="Converting files to Haystack Documents", disable=not self.progress_bar):
+        for filepath in tqdm(all_filepaths, desc="Converting files to Haystack Documents", disable=not self.progress_bar):
             elements = self._partition_file_into_elements(filepath=filepath)
             docs_for_file = self._create_documents(
                 filepath=filepath,
@@ -137,13 +137,13 @@ class UnstructuredFileConverter:
             docs = [Document(content=text, meta={"name": filepath})]
 
         elif document_creation_mode == "one-doc-per-page":
-            texts_per_page = defaultdict(str)
-            meta_per_page = defaultdict(dict)
+            texts_per_page: defaultdict[int, str] = defaultdict(str)
+            meta_per_page: defaultdict[int, dict]  = defaultdict(dict)
             for el in elements:
                 metadata = {"name": filepath}
                 if hasattr(el, "metadata"):
                     metadata.update(el.metadata.to_dict())
-                page_number = metadata.get("page_number", 1)
+                page_number = int(metadata.get("page_number", 1))
 
                 texts_per_page[page_number] += str(el) + separator
                 meta_per_page[page_number].update(metadata)
