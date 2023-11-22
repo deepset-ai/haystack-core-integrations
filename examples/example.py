@@ -42,7 +42,7 @@ indexing.connect("converter", "writer")
 
 querying = Pipeline()
 querying.add_component("retriever", AstraRetriever(document_store))
-results = querying.run({"retriever": {"queries": "Is black and white text boring?", "top_k": 3}})
+results = querying.run({"retriever": {"queries": ["Is black and white text boring?"], "top_k": 3}})
 
 print("query:")
 print(results)
@@ -50,15 +50,15 @@ print(results)
 print("count:")
 print(document_store.count_documents())
 
-# print("filter:")
-# print(document_store.filter_documents({"score": 0.91113937}))
+print("filter:")
+print(document_store.filter_documents({"content_type": "text"}))
 
 
 print(document_store.search(["Is black and white text boring?"], 3))
-print("get_documents_by_id with embeddings *********")
-print(document_store.get_documents_by_id(["539fb0d47917e832bbc661e55edb8b90"], True))
-print("get_documents_by_id without embeddings *********")
-print(document_store.get_documents_by_id(["23dc6bb45225bade2764d856a0e1a6b3"], False))
+print("get_document_by_id and embeddings *********")
+print(document_store.get_document_by_id("539fb0d47917e832bbc661e55edb8b90"))
+print("get_documents_by_ids and embeddings *********")
+print(document_store.get_documents_by_id(["23dc6bb45225bade2764d856a0e1a6b3"]))
 
 # document_store.delete_documents(["23dc6bb45225bade2764d856a0e1a6b3"])
 # document_store.delete_documents(delete_all=True)

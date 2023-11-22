@@ -205,47 +205,36 @@ class AstraDocumentStore:
             raise AstraDocumentStoreFilterError(msg)
 
         results = self.index.query(filter=filters, top_k=1000, include_values=True, include_metadata=True)
-        documents = self._get_result_to_documents(results, return_embedding=False)
+        documents = self._get_result_to_documents(results)
         return documents
 
-    def _get_result_to_documents(self, results, return_embedding) -> List[Document]:
+    def _get_result_to_documents(self, results) -> List[Document]:
         documents = []
-        for res in results:
-            _id = res.pop("_id")
-            vector = res.pop("$vector")
-            val = res
-            if return_embedding:
-                document = Document(
-                    id=_id,
-                    content=val,
-                    meta=res,
-                    score=1,
-                    embedding=vector,
-                )
-            else:
-                document = Document(
-                    id=_id,
-                    content=val,
-                    meta=res,
-                    score=1,
-                )
+        for match in results.matches:
+            document = Document(
+                id=match.id,
+                content=match.text,
+                embedding=match.values,
+                meta=match.metadata,
+                score=match.score,
+            )
             documents.append(document)
         return documents
 
-    def get_documents_by_id(self, ids: List[str], return_embedding: Optional[bool] = None) -> List[Document]:
+    def get_documents_by_id(self, ids: List[str]) -> List[Document]:
         """
         Returns documents with given ids.
         """
         results = self.index.get_documents(ids=ids)
-        ret = self._get_result_to_documents(results, return_embedding)
+        ret = self._get_result_to_documents(results)
         return ret
 
-    def get_document_by_id(self, id: str, return_embedding: Optional[bool] = None) -> Document:
+    def get_document_by_id(self, id: str) -> Document:
         """
         Returns documents with given ids.
         """
         document = self.index.get_documents(ids=[id])
-        ret = self._get_result_to_documents(document, return_embedding)
+        ret = self._get_result_to_documents(document)
         return ret[0]
 
     def search(

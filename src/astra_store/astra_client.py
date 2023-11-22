@@ -8,9 +8,10 @@ from pydantic.dataclasses import dataclass
 @dataclass
 class Response:
     id: str
-    score: float
-    metadata: dict
-    values: list
+    text: Optional[str]
+    values: Optional[list]
+    metadata: Optional[dict]
+    score: Optional[float]
 
 
 @dataclass
@@ -134,23 +135,41 @@ class AstraClient:
                  and namespace name.
         """
         # get vector data and scores
-        responses = self._query(vector, top_k, filter)
+        if vector is None:
+            responses = self._query_without_vector(top_k, filter)
+        else:
+            responses = self._query(vector, top_k, filter)
+
         # include_metadata means return all columns in the table (including text that got embedded)
         # include_values means return the vector of the embedding for the searched items
         formatted_response = self._format_query_response(responses, include_metadata, include_values)
 
         return formatted_response
 
+    def _query_without_vector(self, top_k, filters=None):
+        query = {"find": {"filter": filters, "options": {"limit": top_k}}}
+        results = requests.request(
+            "POST",
+            self.request_url,
+            headers=self.request_header,
+            data=json.dumps(query),
+        ).json()["data"]["documents"]
+        response = []
+        for element in results:
+            response.append(element)
+        return response
+
     @staticmethod
     def _format_query_response(responses, include_metadata, include_values):
         final_res = []
         for response in responses:
             id = response.pop("_id")
-            score = response.pop("$similarity")
-            _values = response.pop("$vector")
+            score = response.pop("$similarity") if "$similarity" in response else None
+            _values = response.pop("$vector") if "$vector" in response else None
+            text = response.pop("text") if "text" in response else None
             values = _values if include_values else []
             metadata = response if include_metadata else dict()
-            rsp = Response(id, score, metadata, values)
+            rsp = Response(id, text, values, metadata, score)
             final_res.append(rsp)
         return QueryResponse(final_res)
 
@@ -163,14 +182,6 @@ class AstraClient:
             }
         }
         query = {"find": {"sort": {"$vector": vector}, "options": {"limit": top_k}}}
-        print(
-            requests.request(
-                "POST",
-                self.request_url,
-                headers=self.request_header,
-                data=json.dumps(score_query),
-            ).json()
-        )
         if filters is not None:
             score_query["find"]["filter"] = filters
             query["find"]["filter"] = filters
@@ -208,7 +219,7 @@ class AstraClient:
         else:
             raise Exception(f"Astra DB request error - status code: {response.status_code} response {response.text}")
 
-    def get_documents(self, ids: List[str], batch_size: int) -> List[Dict]:
+    def get_documents(self, ids: List[str], batch_size: int = 20) -> QueryResponse:
         documents = []
         document_batch = []
 
@@ -231,7 +242,8 @@ class AstraClient:
         for docs in document_batch:
             for doc in docs:
                 documents.append(doc)
-        return documents
+        formatted_docs = self._format_query_response(documents, include_metadata=True, include_values=True)
+        return formatted_docs
 
     def insert(self, documents: List[Dict], id_key: str):
         query = json.dumps({"insertMany": {"options": {"ordered": False}, "documents": documents}})
