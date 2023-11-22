@@ -1,14 +1,13 @@
-from typing import Optional, List, Union, Literal, Dict, Any
-import os
 import logging
+import os
 from collections import defaultdict
 from pathlib import Path
+from typing import Any, Dict, List, Literal, Optional, Union
 
+from haystack.preview import Document, component, default_from_dict, default_to_dict
 from tqdm import tqdm
-from haystack.preview import component, Document, default_to_dict, default_from_dict
-from unstructured.partition.api import partition_via_api
 from unstructured.documents.elements import Element
-
+from unstructured.partition.api import partition_via_api
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +29,7 @@ class UnstructuredFileConverter:
         ] = "one-doc-per-file",
         separator: str = "\n\n",
         unstructured_kwargs: Optional[Dict[str, Any]] = None,
-        progress_bar: bool = True,
+        progress_bar: bool = True,  # noqa: FBT001, FBT002
     ):
         """
         :param api_url: URL of the Unstructured API. Defaults to the hosted version.
@@ -41,12 +40,14 @@ class UnstructuredFileConverter:
             If you use the hosted version, it defaults to the environment variable UNSTRUCTURED_API_KEY.
         :param document_creation_mode: How to create Haystack Documents from the elements returned by Unstructured.
             - "one-doc-per-file": One Haystack Document per file. All elements are concatenated into one text field.
-            - "one-doc-per-page": One Haystack Document per page. All elements on a page are concatenated into one text field.
-            - "one-doc-per-element": One Haystack Document per element. Each element is converted to a Haystack Document.
+            - "one-doc-per-page": One Haystack Document per page.
+               All elements on a page are concatenated into one text field.
+            - "one-doc-per-element": One Haystack Document per element.
+              Each element is converted to a Haystack Document.
         :param separator: Separator between elements when concatenating them into one text field.
         :param unstructured_kwargs: Additional keyword arguments that are passed to the Unstructured API.
             See https://unstructured-io.github.io/unstructured/api.html.
-        :param progress_bar: Show a progress bar for the conversion. Defaults to True.            
+        :param progress_bar: Show a progress bar for the conversion. Defaults to True.
         """
 
         self.api_url = api_url
@@ -60,10 +61,11 @@ class UnstructuredFileConverter:
             try:
                 api_key = os.environ["UNSTRUCTURED_API_KEY"]
             except KeyError as e:
-                raise ValueError(
+                msg = (
                     "To use the hosted version of Unstructured, you need to set the environment variable "
                     "UNSTRUCTURED_API_KEY (recommended) or explictly pass the parameter api_key."
-                ) from e
+                )
+                raise ValueError(msg) from e
         self.api_key = api_key
 
     def to_dict(self) -> Dict[str, Any]:
