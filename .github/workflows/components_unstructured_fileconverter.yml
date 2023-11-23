@@ -54,10 +54,6 @@ jobs:
         if: matrix.python-version == '3.9'
         run: hatch run lint:all
 
-      - name: Run Unstructured local API
-        working-directory: components/file_converters/unstructured_fileconverter
-        run: docker-compose up -d
-
       - name: Run tests
         working-directory: components/file_converters/unstructured_fileconverter
         run: hatch run cov
