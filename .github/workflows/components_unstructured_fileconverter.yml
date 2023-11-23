@@ -7,7 +7,7 @@ on:
     - cron: "0 0 * * *"
   pull_request:
     paths:
-      - "components/file_converters/unstructured_fileconverter/**"
+      - "components/converters/unstructured_fileconverter/**"
       - ".github/workflows/components_unstructured_fileconverter.yml"
 
 concurrency:
@@ -50,10 +50,10 @@ jobs:
         run: pip install --upgrade hatch
 
       - name: Lint
-        working-directory: components/file_converters/unstructured_fileconverter
+        working-directory: components/converters/unstructured_fileconverter
         if: matrix.python-version == '3.9'
         run: hatch run lint:all
 
       - name: Run tests
-        working-directory: components/file_converters/unstructured_fileconverter
+        working-directory: components/converters/unstructured_fileconverter
         run: hatch run cov
