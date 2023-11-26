@@ -4,6 +4,11 @@ from typing import Any, Dict, List, Optional, Union
 import requests
 from pydantic.dataclasses import dataclass
 
+import logging
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+
 
 @dataclass
 class Response:
@@ -70,7 +75,7 @@ class AstraClient:
                 )
 
                 if len(collection_name_matches) == 0:
-                    print(
+                    logger.error(
                         f"Astra collection {self.collection_name} not found under {self.keyspace_name}. Will be created."
                     )
                     return False
@@ -100,7 +105,7 @@ class AstraClient:
         response = requests.request("POST", self.create_url, headers=self.request_header, data=json.dumps(create_query))
         response_dict = json.loads(response.text)
         if response.status_code == 200 and "status" in response_dict:
-            print(f"Collection {self.collection_name} created: {response.text}")
+            logger.info(f"Collection {self.collection_name} created: {response.text}")
         else:
             raise Exception(
                 f"Create Astra collection ailed with the following error: status code {response.status_code}, {response.text}"
@@ -253,7 +258,7 @@ class AstraClient:
             headers=self.request_header,
             data=query,
         )
-        print(response.text)
+        logger.info(response.text)
         response_dict = json.loads(response.text)
 
         if response.status_code == 200:
@@ -291,7 +296,7 @@ class AstraClient:
                 if "matchedCount" in response_dict["status"] and "modifiedCount" in response_dict["status"]:
                     if response_dict["status"]["matchedCount"] == 1 and response_dict["status"]["modifiedCount"] == 1:
                         return True
-            print(f"Documents {document_id} not updated in Astra {response.text}")
+            logger.warning(f"Documents {document_id} not updated in Astra {response.text}")
             return False
         else:
             raise Exception(f"Astra DB request error - status code: {response.status_code} response {response.text}")
