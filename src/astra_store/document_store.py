@@ -38,6 +38,7 @@ class AstraDocumentStore:
         embedding_dim: int,
         similarity: str = "cosine",
         model_name: str = "intfloat/multilingual-e5-small",
+        duplicates_policy: Optional[DuplicatePolicy]
     ):
         """
         The connection to Astra DB is established and managed through the JSON API.
@@ -53,6 +54,12 @@ class AstraDocumentStore:
         :param embedding_dim: Dimension of embedding vector.
         :param similarity: The similarity function used to compare document vectors.
         :param model_name: SentenceTransformer model name.
+        :param duplicates_policy: Handle duplicate documents based on DuplicatePolicy parameter options.
+                                  Parameter options : (SKIP,OVERWRITE,FAIL)
+                                  skip: Ignore the duplicates documents
+                                  overwrite: Update any existing documents with the same ID when adding documents.
+                                  fail: an error is raised if the document ID of the document being added already
+                                  exists.
         """
 
         self.astra_id = astra_id
@@ -80,8 +87,8 @@ class AstraDocumentStore:
         self,
         documents: Union[List[dict], List[Document]],
         index: Optional[str] = None,
-        batch_size: int = 20,
-        policy: DuplicatePolicy = DuplicatePolicy.SKIP,
+        batch_size: Optional[int] = 20,
+        policy: DuplicatePolicy = None,
     ):
         """
         Indexes documents for later queries.
@@ -95,7 +102,7 @@ class AstraDocumentStore:
                       If None, the DocumentStore's default index (self.index) will be used.
         :param batch_size: Number of documents that are passed to bulk function at a time.
         :param policy:  Handle duplicate documents based on DuplicatePolicy parameter options.
-                        Parameter options : ( 'skip','overwrite','fail')
+                        Parameter options : (SKIP,OVERWRITE,FAIL)
                         skip: Ignore the duplicates documents
                         overwrite: Update any existing documents with the same ID when adding documents.
                         fail: an error is raised if the document ID of the document being added already
@@ -107,6 +114,12 @@ class AstraDocumentStore:
 
         if index is None:
             index = self.index
+
+        if policy is None:
+            if self.duplicates_policy != None:
+                policy = self.duplicates_policy
+            else:
+                policy = DuplicatePolicy.SKIP
 
         if batch_size > 20:
             logger.warning(
