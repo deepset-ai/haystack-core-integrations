@@ -12,7 +12,7 @@ from astra_store.retriever import AstraSingleRetriever, AstraRetriever
 prompt_template = """
     Given these documents, answer the question.\nDocuments:
     {% for doc in documents %}
-        {{ doc.content }}
+        {{ doc.text }}
     {% endfor %}
 
     \nQuestion: {{question}}
@@ -52,12 +52,12 @@ rag_pipeline.draw("./rag_pipeline.png")
 
 # Add Documents
 documents = [
-    Document(content="There are over 7,000 languages spoken around the world today."),
+    Document("There are over 7,000 languages spoken around the world today."),
     Document(
-        content="Elephants have been observed to behave in a way that indicates a high level of self-awareness, such as recognizing themselves in mirrors."
+        "Elephants have been observed to behave in a way that indicates a high level of self-awareness, such as recognizing themselves in mirrors."
     ),
     Document(
-        content="In certain parts of the world, like the Maldives, Puerto Rico, and San Diego, you can witness the phenomenon of bioluminescent waves."
+        "In certain parts of the world, like the Maldives, Puerto Rico, and San Diego, you can witness the phenomenon of bioluminescent waves."
     ),
 ]
 rag_pipeline.get_component("retriever").document_store.write_documents(documents)
