@@ -137,7 +137,8 @@ class AstraDocumentStore:
             meta = data.pop("meta")
             document_dict = {**data, **meta}
             document_dict["_id"] = document_dict.pop("id")
-            document_dict["$vector"] = self.embeddings.encode(document_dict["content"]).tolist()
+            document_dict["text"] = document_dict["content"]
+            document_dict["$vector"] = self.embeddings.encode(document_dict["text"]).tolist()
 
             return document_dict
 
@@ -281,7 +282,7 @@ class AstraDocumentStore:
         for query in queries:
             vector = self.embeddings.encode(query).tolist()
 
-            result = self.index.query(vector=vector, top_k=top_k, filter=filters, include_metadata=True)
+            result = self._get_result_to_documents(self.index.query(vector=vector, top_k=top_k, filter=filters, include_metadata=True))
             results.append(result)
             logger.debug(f"Raw responses: {result}")  # leaving for debugging
 
