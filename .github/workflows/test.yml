@@ -54,3 +54,13 @@ jobs:
     - name: Lint Ruff
       if: matrix.python-version == '3.9' && runner.os == 'Linux'
       run: ruff --select E501 T201 PLW2901 --quiet --ignore E501 .
+
+    - name: Install Dependencies
+      run: pip install -r requirements.txt
+
+    - name: Install astra-haystack
+      run: pip install -e .
+
+# commented out for now to be able to merge PRs, need to uncomment when unit tests are ready
+#    - name: Run unit tests
+#      run: pytest --cov-report xml:coverage.xml --cov="haystack" -m "unit" tests/${{ matrix.topic }}
