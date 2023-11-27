@@ -4,6 +4,7 @@ from pathlib import Path
 from haystack.preview import Pipeline
 from haystack.preview.components.file_converters import TextFileToDocument
 from haystack.preview.components.writers import DocumentWriter
+from haystack.preview.document_stores import DuplicatePolicy
 from haystack.utils import add_example_data
 
 from astra_store.document_store import AstraDocumentStore
@@ -26,6 +27,7 @@ document_store = AstraDocumentStore(
     astra_collection=collection_name,
     astra_keyspace=keyspace_name,
     astra_application_token=astra_application_token,
+    duplicates_policy=DuplicatePolicy.SKIP,
     embedding_dim=384,
 )
 
@@ -49,6 +51,7 @@ print(results)
 
 print("count:")
 print(document_store.count_documents())
+assert document_store.count_documents() == 6
 
 print("filter:")
 print(document_store.filter_documents({"content_type": "text"}))
@@ -68,4 +71,4 @@ document_store.delete_documents(["6f387cf0786d48d3768d605b44108241"])
 # document_store.delete_documents(delete_all=True)
 
 print("count:")
-print(document_store.count_documents())
+assert document_store.count_documents() == 5

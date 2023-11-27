@@ -8,7 +8,6 @@ from haystack.preview.testing.document_store import DocumentStoreBaseTests
 from astra_store.document_store import AstraDocumentStore
 
 
-@pytest.mark.skip("This is an example Document Store")
 class TestDocumentStore(DocumentStoreBaseTests):
     """
     Common test cases will be provided by `DocumentStoreBaseTests` but
@@ -71,7 +70,7 @@ class TestDocumentStore(DocumentStoreBaseTests):
             duplicate_documents="skip",
         )
         ids = ["653027fa27a8762bf1863cf0", "653027f527a8762bf1863cd0"]
-        ret = doc_store.get_documents_by_id(ids=ids, return_embedding=False)
+        ret = doc_store.get_documents_by_id(ids=ids)
         assert ret[0].id == "653027fa27a8762bf1863cf0"
         assert ret[1].id == "653027f527a8762bf1863cd0"
 
@@ -93,7 +92,7 @@ def test_get_document_by_id(astra_obj):
     Retrieve documents related to ids provided as input parameter
     """
     id = "653027f527a8762bf1863cd0"
-    ret = astra_obj.get_document_by_id(id=id, return_embedding=False)
+    ret = astra_obj.get_document_by_id(document_id=id, return_embedding=False)
     assert ret.id == "653027f527a8762bf1863cd0"
 
 

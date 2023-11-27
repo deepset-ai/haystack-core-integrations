@@ -8,13 +8,14 @@ from typing import Any, Dict, List, Optional, Union
 from haystack.preview.dataclasses import Document
 from haystack.preview.document_stores.decorator import document_store
 from haystack.preview.document_stores.errors import (
-    DuplicateDocumentError,  # , MissingDocumentError
+    DuplicateDocumentError,
+    MissingDocumentError,
 )
 from haystack.preview.document_stores.protocols import DuplicatePolicy
 from pydantic import validate_arguments
 from sentence_transformers import SentenceTransformer
 
-from astra_store.astra_client import AstraClient, QueryResponse
+from astra_store.astra_client import AstraClient
 from astra_store.errors import AstraDocumentStoreFilterError
 
 logger = logging.getLogger(__name__)
@@ -36,9 +37,9 @@ class AstraDocumentStore:
         astra_keyspace: str,
         astra_collection: str,
         embedding_dim: int,
+        duplicates_policy: Optional[DuplicatePolicy],
         similarity: str = "cosine",
         model_name: str = "intfloat/multilingual-e5-small",
-        duplicates_policy: Optional[DuplicatePolicy]
     ):
         """
         The connection to Astra DB is established and managed through the JSON API.
@@ -62,6 +63,7 @@ class AstraDocumentStore:
                                   exists.
         """
 
+        self.duplicates_policy = duplicates_policy
         self.astra_id = astra_id
         self.astra_region = astra_region
         self.astra_application_token = astra_application_token
@@ -107,7 +109,7 @@ class AstraDocumentStore:
                         overwrite: Update any existing documents with the same ID when adding documents.
                         fail: an error is raised if the document ID of the document being added already
                         exists.
-        :param headers: Custom HTTP headers to pass to document store client if supported (e.g. {'Authorization': 'Basic YWRtaW46cm9vdA=='} for basic authentication)
+        # :param headers: Custom HTTP headers to pass to document store client if supported (e.g. {'Authorization': 'Basic YWRtaW46cm9vdA=='} for basic authentication)
 
         :return: None
         """
@@ -116,7 +118,7 @@ class AstraDocumentStore:
             index = self.index
 
         if policy is None:
-            if self.duplicates_policy != None:
+            if self.duplicates_policy is not None:
                 policy = self.duplicates_policy
             else:
                 policy = DuplicatePolicy.SKIP
@@ -153,7 +155,6 @@ class AstraDocumentStore:
             i = i + 1
 
         def _batches(input_list, batch_size):
-            print(batch_size)
             l = len(input_list)
             for ndx in range(0, l, batch_size):
                 yield input_list[ndx : min(ndx + batch_size, l)]
@@ -226,7 +227,8 @@ class AstraDocumentStore:
         documents = self._get_result_to_documents(results)
         return documents
 
-    def _get_result_to_documents(self, results) -> List[Document]:
+    @staticmethod
+    def _get_result_to_documents(results) -> List[Document]:
         documents = []
         for match in results.matches:
             match.metadata.pop("score")
@@ -249,12 +251,16 @@ class AstraDocumentStore:
         ret = self._get_result_to_documents(results)
         return ret
 
-    def get_document_by_id(self, id: str) -> Document:
+    def get_document_by_id(self, document_id: str) -> Document:
         """
+        :param document_id: id of the document to retrieve
         Returns documents with given ids.
+        Raises MissingDocumentError when document_id does not exist in document store
         """
-        document = self.index.get_documents(ids=[id])
+        document = self.index.get_documents(ids=[document_id])
         ret = self._get_result_to_documents(document)
+        if not ret:
+            raise MissingDocumentError(f"Document {document_id} does not exist")
         return ret[0]
 
     def search(
