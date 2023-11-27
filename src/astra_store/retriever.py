@@ -49,7 +49,7 @@ class AstraRetriever:
 @component
 class AstraSingleRetriever(AstraRetriever):
     def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+        super(AstraSingleRetriever, self).__init__(*args, **kwargs)
 
     @component.output_types(documents=List[Document])
     def run(self, query: str, filters: Optional[Dict[str, Any]] = None, top_k: Optional[int] = None):
@@ -60,4 +60,4 @@ class AstraSingleRetriever(AstraRetriever):
             filters (Optional[Dict[str, Any]], optional): A dictionary with filters to narrow down the search space. Defaults to None.
             top_k (Optional[int], optional): The maximum number of documents to retrieve. Defaults to None.
         """
-        return {"documents": super().run([query], filters, top_k)["documents"][0]}
+        return {"documents": super(AstraSingleRetriever, self).run([query], filters, top_k)["documents"][0]}
