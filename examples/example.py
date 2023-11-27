@@ -31,6 +31,7 @@ document_store = AstraDocumentStore(
     embedding_dim=384,
 )
 
+document_store.delete_documents(delete_all=True)
 print("count:")
 print(document_store.count_documents())
 add_example_data(document_store, "examples/data")
@@ -71,4 +72,5 @@ document_store.delete_documents(["6f387cf0786d48d3768d605b44108241"])
 # document_store.delete_documents(delete_all=True)
 
 print("count:")
+print(document_store.count_documents())
 assert document_store.count_documents() == 5

@@ -6,6 +6,7 @@ from haystack.preview.components.builders.answer_builder import AnswerBuilder
 from haystack.preview.components.builders.prompt_builder import PromptBuilder
 from haystack.preview.components.generators import GPTGenerator
 from astra_store.document_store import AstraDocumentStore
+from haystack.preview.document_stores import DuplicatePolicy
 from astra_store.retriever import AstraSingleRetriever, AstraRetriever
 
 # Create a RAG query pipeline
@@ -33,6 +34,7 @@ document_store = AstraDocumentStore(
     astra_collection=collection_name,
     astra_keyspace=keyspace_name,
     astra_application_token=astra_application_token,
+    duplicates_policy=DuplicatePolicy.SKIP,
     embedding_dim=384,
 )
 
