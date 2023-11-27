@@ -216,6 +216,8 @@ class AstraDocumentStore:
     def _get_result_to_documents(self, results) -> List[Document]:
         documents = []
         for match in results.matches:
+            match.metadata.pop("score")
+            match.metadata.pop("embedding")
             document = Document(
                 text=match.text,
                 id=match.id,
