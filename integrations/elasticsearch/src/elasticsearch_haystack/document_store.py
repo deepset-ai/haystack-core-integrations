@@ -9,11 +9,11 @@ import numpy as np
 # There are no import stubs for elastic_transport and elasticsearch so mypy fails
 from elastic_transport import NodeConfig  # type: ignore[import-not-found]
 from elasticsearch import Elasticsearch, helpers  # type: ignore[import-not-found]
-from haystack.preview import default_from_dict, default_to_dict
-from haystack.preview.dataclasses import Document
-from haystack.preview.document_stores.decorator import document_store
-from haystack.preview.document_stores.errors import DocumentStoreError, DuplicateDocumentError
-from haystack.preview.document_stores.protocols import DuplicatePolicy
+from haystack import default_from_dict, default_to_dict
+from haystack.dataclasses import Document
+from haystack.document_stores.decorator import document_store
+from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
+from haystack.document_stores.protocols import DuplicatePolicy
 
 from elasticsearch_haystack.filters import _normalize_filters
 

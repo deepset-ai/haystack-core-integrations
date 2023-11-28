@@ -1,5 +1,5 @@
 import pytest
-from haystack.preview.errors import FilterError
+from haystack.errors import FilterError
 
 from elasticsearch_haystack.filters import _normalize_filters, _normalize_ranges
 

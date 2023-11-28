@@ -1,6 +1,6 @@
 from typing import Any, Dict, List, Union
 
-from haystack.preview.errors import FilterError
+from haystack.errors import FilterError
 from pandas import DataFrame
 
 

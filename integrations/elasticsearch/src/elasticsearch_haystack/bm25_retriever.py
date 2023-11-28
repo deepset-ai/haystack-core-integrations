@@ -3,8 +3,8 @@
 # SPDX-License-Identifier: Apache-2.0
 from typing import Any, Dict, List, Optional
 
-from haystack.preview import component, default_from_dict, default_to_dict
-from haystack.preview.dataclasses import Document
+from haystack import component, default_from_dict, default_to_dict
+from haystack.dataclasses import Document
 
 from elasticsearch_haystack.document_store import ElasticsearchDocumentStore
 

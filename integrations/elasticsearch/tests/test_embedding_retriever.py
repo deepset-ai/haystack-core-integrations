@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 from unittest.mock import Mock, patch
 
-from haystack.preview.dataclasses import Document
+from haystack.dataclasses import Document
 
 from elasticsearch_haystack.document_store import ElasticsearchDocumentStore
 from elasticsearch_haystack.embedding_retriever import ElasticsearchEmbeddingRetriever
