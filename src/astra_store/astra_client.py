@@ -251,6 +251,7 @@ class AstraClient:
             headers=self.request_header,
             data=query,
         )
+        logger.info(response.text)
         response_dict = json.loads(response.text)
         document[id_key] = document_id
 

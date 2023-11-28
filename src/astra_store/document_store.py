@@ -1,6 +1,7 @@
 # SPDX-FileCopyrightText: 2023-present John Doe <jd@example.com>
 #
 # SPDX-License-Identifier: Apache-2.0
+import json
 import logging
 from dataclasses import asdict
 from typing import Any, Dict, List, Optional, Union
@@ -136,10 +137,9 @@ class AstraDocumentStore:
                 data = asdict(document)
             else:
                 data = document
-            meta = data.pop("meta")
+            meta = data.pop("metadata")
             document_dict = {**data, **meta}
             document_dict["_id"] = document_dict.pop("id")
-            document_dict["text"] = document_dict["content"]
             document_dict["$vector"] = self.embeddings.encode(document_dict["text"]).tolist()
 
             return document_dict
@@ -147,14 +147,15 @@ class AstraDocumentStore:
         documents_to_write = [_convert_input_document(doc) for doc in documents]
 
         duplicate_documents = []
+        new_documents = []
         i = 0
         while i < len(documents_to_write):
             doc = documents_to_write[i]
             response = self.index.find_documents({"filter": {"_id": doc["_id"]}})
             if response:
                 duplicate_documents.append(doc)
-                del documents_to_write[i]
-                i = i - 1
+            else:
+                new_documents.append(doc)
             i = i + 1
 
         # TODO batch generator exists also in astra_client
@@ -164,16 +165,16 @@ class AstraDocumentStore:
                 yield input_list[ndx : min(ndx + batch_size, input_length)]
 
         if policy == DuplicatePolicy.SKIP:
-            if len(documents_to_write) > 0:
-                for batch in _batches(documents_to_write, batch_size):
+            if len(new_documents) > 0:
+                for batch in _batches(new_documents, batch_size):
                     inserted_ids = index.insert(batch)
                     logger.info(f"write_documents inserted documents with id {inserted_ids}")
             else:
                 logger.warning("No new documents to write to astra. No documents written. Argument policy set to SKIP")
 
         elif policy == DuplicatePolicy.OVERWRITE:
-            if len(documents_to_write) > 0:
-                for batch in _batches(documents_to_write, batch_size):
+            if len(new_documents) > 0:
+                for batch in _batches(new_documents, batch_size):
                     inserted_ids = index.insert(batch)
                     logger.info(f"write_documents inserted documents with id {inserted_ids}")
             else:
@@ -198,8 +199,8 @@ class AstraDocumentStore:
                     f"but argument policy set to FAIL"
                 )
 
-            if len(documents_to_write) > 0:
-                for batch in _batches(documents_to_write, batch_size):
+            if len(new_documents) > 0:
+                for batch in _batches(new_documents, batch_size):
                     inserted_ids = index.insert(batch)
                     logger.info(f"write_documents inserted documents with id {inserted_ids}")
             else:
@@ -236,7 +237,7 @@ class AstraDocumentStore:
     def _get_result_to_documents(results) -> List[Document]:
         documents = []
         for match in results.matches:
-            match.metadata.pop("score")
+            match.pop("score")
             match.metadata.pop("embedding")
             match.metadata.pop("id_hash_keys")
             document = Document(
@@ -332,4 +333,10 @@ class AstraDocumentStore:
         :param document_ids: the document_ids to delete
         :param delete_all: delete all documents
         """
-        self.index.delete(ids=document_ids, delete_all=delete_all)
+        response = self.index.delete(ids=document_ids, delete_all=delete_all)
+        response_dict = json.loads(response.text)
+
+        if response.status_code != 200:
+            raise Exception("Error querying Astra DB")
+        if response_dict["status"]["deletedCount"] == 0 and document_ids is not None:
+            raise MissingDocumentError(f"Document {document_ids} does not exist")

@@ -22,6 +22,7 @@ jobs:
 
     strategy:
       fail-fast: false
+      max-parallel: 1
       matrix:
         os: [ubuntu-latest]
         python-version: ['3.9', '3.10']
@@ -61,6 +62,8 @@ jobs:
     - name: Install astra-haystack
       run: pip install -e .
 
-# commented out for now to be able to merge PRs, need to uncomment when unit tests are ready
-#    - name: Run unit tests
-#      run: pytest --cov-report xml:coverage.xml --cov="haystack" -m "unit" tests/${{ matrix.topic }}
+    - name: Run unit tests
+      env:
+        ASTRA_DB_ID: ${{ secrets.ASTRA_DB_ID }}
+        ASTRA_DB_APPLICATION_TOKEN: ${{ secrets.ASTRA_DB_APPLICATION_TOKEN }}
+      run: pytest -ssv --cov-report xml:coverage.xml --cov="haystack" -m "unit" tests/${{ matrix.topic }}
