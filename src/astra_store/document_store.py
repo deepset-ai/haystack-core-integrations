@@ -282,7 +282,9 @@ class AstraDocumentStore:
         for query in queries:
             vector = self.embeddings.encode(query).tolist()
 
-            result = self._get_result_to_documents(self.index.query(vector=vector, top_k=top_k, filter=filters, include_metadata=True))
+            result = self._get_result_to_documents(
+                self.index.query(vector=vector, top_k=top_k, filter=filters, include_metadata=True)
+            )
             results.append(result)
             logger.debug(f"Raw responses: {result}")  # leaving for debugging
 

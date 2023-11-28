@@ -5,9 +5,10 @@ from haystack.preview import Pipeline
 from haystack.preview.components.builders.answer_builder import AnswerBuilder
 from haystack.preview.components.builders.prompt_builder import PromptBuilder
 from haystack.preview.components.generators import GPTGenerator
-from astra_store.document_store import AstraDocumentStore
 from haystack.preview.document_stores import DuplicatePolicy
-from astra_store.retriever import AstraSingleRetriever, AstraRetriever
+
+from astra_store.document_store import AstraDocumentStore
+from astra_store.retriever import AstraRetriever, AstraSingleRetriever
 
 # Create a RAG query pipeline
 prompt_template = """
