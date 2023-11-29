@@ -9,10 +9,8 @@ import numpy as np
 import pytest
 from chromadb.api.types import Documents, EmbeddingFunction, Embeddings
 from haystack import Document
-from haystack.document_stores.protocols import DocumentStore
 from haystack.testing.document_store import (
     CountDocumentsTest,
-    WriteDocumentsTest,
     DeleteDocumentsTest,
     LegacyFilterDocumentsTest,
 )
