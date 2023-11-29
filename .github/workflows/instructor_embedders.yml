@@ -10,7 +10,7 @@ on:
 
 defaults:
   run:
-    working-directory: instructor-embedders
+    working-directory: integrations/instructor-embedders
 
 jobs:
   test:
