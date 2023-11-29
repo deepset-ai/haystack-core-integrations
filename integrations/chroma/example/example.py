@@ -2,9 +2,9 @@
 import os
 from pathlib import Path
 
-from haystack.preview import Pipeline
-from haystack.preview.components.file_converters import TextFileToDocument
-from haystack.preview.components.writers import DocumentWriter
+from haystack import Pipeline
+from haystack.components.file_converters import TextFileToDocument
+from haystack.components.writers import DocumentWriter
 
 from chroma_haystack import ChromaDocumentStore
 from chroma_haystack.retriever import ChromaQueryRetriever

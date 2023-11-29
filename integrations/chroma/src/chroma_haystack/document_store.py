@@ -8,9 +8,9 @@ from typing import Any, Dict, List, Optional, Tuple
 import chromadb
 import numpy as np
 from chromadb.api.types import GetResult, QueryResult, validate_where, validate_where_document
-from haystack.preview.dataclasses import Document
-from haystack.preview.document_stores.decorator import document_store
-from haystack.preview.document_stores.protocols import DuplicatePolicy
+from haystack.dataclasses import Document
+from haystack.document_stores.decorator import document_store
+from haystack.document_stores.protocols import DuplicatePolicy
 
 from chroma_haystack.errors import ChromaDocumentStoreFilterError
 from chroma_haystack.utils import get_embedding_function

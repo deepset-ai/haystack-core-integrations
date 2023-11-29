@@ -1,6 +1,6 @@
 from typing import Any, Dict, List, Optional, Union
 
-from haystack.preview import Document, component, default_from_dict, default_to_dict
+from haystack import Document, component, default_from_dict, default_to_dict
 
 from instructor_embedders.embedding_backend.instructor_backend import _InstructorEmbeddingBackendFactory
 
@@ -17,7 +17,7 @@ class InstructorDocumentEmbedder:
     # pip install instructor-embedders-haystack
 
     from instructor_embedders.instructor_document_embedder import InstructorDocumentEmbedder
-    from haystack.preview.dataclasses import Document
+    from haystack.dataclasses import Document
 
 
     doc_embedding_instruction = "Represent the Medical Document for retrieval:"

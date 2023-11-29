@@ -1,6 +1,6 @@
 from typing import ClassVar, Dict, List, Optional, Union
 
-from haystack.preview.lazy_imports import LazyImport
+from haystack.lazy_imports import LazyImport
 
 with LazyImport(message="Run 'pip install InstructorEmbedding'") as instructor_embeddings_import:
     from InstructorEmbedding import INSTRUCTOR
