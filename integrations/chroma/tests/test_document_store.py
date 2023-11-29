@@ -9,6 +9,7 @@ import numpy as np
 import pytest
 from chromadb.api.types import Documents, EmbeddingFunction, Embeddings
 from haystack import Document
+from haystack.document_stores.protocols import DocumentStore
 from haystack.testing.document_store import (
     CountDocumentsTest,
     WriteDocumentsTest,
@@ -31,7 +32,7 @@ class _TestEmbeddingFunction(EmbeddingFunction):
         return [np.random.default_rng().uniform(-1, 1, 768).tolist()]
 
 
-class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsTest, LegacyFilterDocumentsTest):
+class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, LegacyFilterDocumentsTest):
     """
     Common test cases will be provided by `DocumentStoreBaseTests` but
     you can add more to this class.
@@ -47,33 +48,48 @@ class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsT
             get_func.return_value = _TestEmbeddingFunction()
             return ChromaDocumentStore(embedding_function="test_function", collection_name=str(uuid.uuid1()))
 
+    def assert_documents_are_equal(self, received: List[Document], expected: List[Document]):
+        """
+        Assert that two lists of Documents are equal.
+        This is used in every test, if a Document Store implementation has a different behaviour
+        it should override this method.
+
+        This can happen for example when the Document Store sets a score to returned Documents.
+        Since we can't know what the score will be, we can't compare the Documents reliably.
+        """
+        for doc_received, doc_expected in zip(received, expected):
+            assert doc_received.content == doc_expected.content
+            assert doc_received.meta == doc_expected.meta
+
     @pytest.mark.unit
-    def test_ne_filter(self, docstore: ChromaDocumentStore, filterable_docs: List[Document]):
+    def test_ne_filter(self, document_store: ChromaDocumentStore, filterable_docs: List[Document]):
         """
         We customize this test because Chroma consider "not equal" true when
         a field is missing
         """
-        docstore.write_documents(filterable_docs)
-        result = docstore.filter_documents(filters={"page": {"$ne": "100"}})
-        assert self.contains_same_docs(result, [doc for doc in filterable_docs if doc.meta.get("page", "100") != "100"])
+        document_store.write_documents(filterable_docs)
+        result = document_store.filter_documents(filters={"page": {"$ne": "100"}})
+        self.assert_documents_are_equal(
+            result, [doc for doc in filterable_docs if doc.meta.get("page", "100") != "100"]
+        )
 
     @pytest.mark.unit
-    def test_delete_empty(self, docstore: ChromaDocumentStore):
+    def test_delete_empty(self, document_store: ChromaDocumentStore):
         """
         Deleting a non-existing document should not raise with Chroma
         """
-        docstore.delete_documents(["test"])
+        document_store.delete_documents(["test"])
 
     @pytest.mark.unit
-    def test_delete_not_empty_nonexisting(self, docstore: ChromaDocumentStore):
+    def test_delete_not_empty_nonexisting(self, document_store: ChromaDocumentStore):
         """
         Deleting a non-existing document should not raise with Chroma
         """
         doc = Document(content="test doc")
-        docstore.write_documents([doc])
-        docstore.delete_documents(["non_existing"])
+        document_store.write_documents([doc])
+        document_store.delete_documents(["non_existing"])
 
-        assert docstore.filter_documents(filters={"id": doc.id}) == [doc]
+        assert document_store.filter_documents(filters={"id": doc.id}) == [doc]
 
     @pytest.mark.integration
     def test_to_json(self, request):
@@ -100,141 +116,143 @@ class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsT
 
     @pytest.mark.skip(reason="Filter on array contents is not supported.")
     @pytest.mark.unit
-    def test_filter_document_array(self, docstore: ChromaDocumentStore, filterable_docs: List[Document]):
+    def test_filter_document_array(self, document_store: ChromaDocumentStore, filterable_docs: List[Document]):
         pass
 
     @pytest.mark.skip(reason="Filter on dataframe contents is not supported.")
     @pytest.mark.unit
-    def test_filter_document_dataframe(self, docstore: ChromaDocumentStore, filterable_docs: List[Document]):
+    def test_filter_document_dataframe(self, document_store: ChromaDocumentStore, filterable_docs: List[Document]):
         pass
 
     @pytest.mark.skip(reason="Filter on table contents is not supported.")
     @pytest.mark.unit
-    def test_eq_filter_table(self, docstore: ChromaDocumentStore, filterable_docs: List[Document]):
+    def test_eq_filter_table(self, document_store: ChromaDocumentStore, filterable_docs: List[Document]):
         pass
 
     @pytest.mark.skip(reason="Filter on embedding value is not supported.")
     @pytest.mark.unit
-    def test_eq_filter_embedding(self, docstore: ChromaDocumentStore, filterable_docs: List[Document]):
+    def test_eq_filter_embedding(self, document_store: ChromaDocumentStore, filterable_docs: List[Document]):
         pass
 
     @pytest.mark.skip(reason="$in operator is not supported.")
     @pytest.mark.unit
-    def test_in_filter_explicit(self, docstore: ChromaDocumentStore, filterable_docs: List[Document]):
+    def test_in_filter_explicit(self, document_store: ChromaDocumentStore, filterable_docs: List[Document]):
         pass
 
     @pytest.mark.skip(reason="$in operator is not supported. Filter on table contents is not supported.")
     @pytest.mark.unit
-    def test_in_filter_table(self, docstore: ChromaDocumentStore, filterable_docs: List[Document]):
+    def test_in_filter_table(self, document_store: ChromaDocumentStore, filterable_docs: List[Document]):
         pass
 
     @pytest.mark.skip(reason="$in operator is not supported.")
     @pytest.mark.unit
-    def test_in_filter_embedding(self, docstore: ChromaDocumentStore, filterable_docs: List[Document]):
+    def test_in_filter_embedding(self, document_store: ChromaDocumentStore, filterable_docs: List[Document]):
         pass
 
     @pytest.mark.skip(reason="Filter on table contents is not supported.")
     @pytest.mark.unit
-    def test_ne_filter_table(self, docstore: ChromaDocumentStore, filterable_docs: List[Document]):
+    def test_ne_filter_table(self, document_store: ChromaDocumentStore, filterable_docs: List[Document]):
         pass
 
     @pytest.mark.skip(reason="Filter on embedding value is not supported.")
     @pytest.mark.unit
-    def test_ne_filter_embedding(self, docstore: ChromaDocumentStore, filterable_docs: List[Document]):
+    def test_ne_filter_embedding(self, document_store: ChromaDocumentStore, filterable_docs: List[Document]):
         pass
 
     @pytest.mark.skip(reason="$nin operator is not supported. Filter on table contents is not supported.")
     @pytest.mark.unit
-    def test_nin_filter_table(self, docstore: ChromaDocumentStore, filterable_docs: List[Document]):
+    def test_nin_filter_table(self, document_store: ChromaDocumentStore, filterable_docs: List[Document]):
         pass
 
     @pytest.mark.skip(reason="$nin operator is not supported. Filter on embedding value is not supported.")
     @pytest.mark.unit
-    def test_nin_filter_embedding(self, docstore: ChromaDocumentStore, filterable_docs: List[Document]):
+    def test_nin_filter_embedding(self, document_store: ChromaDocumentStore, filterable_docs: List[Document]):
         pass
 
     @pytest.mark.skip(reason="$nin operator is not supported.")
     @pytest.mark.unit
-    def test_nin_filter(self, docstore: ChromaDocumentStore, filterable_docs: List[Document]):
+    def test_nin_filter(self, document_store: ChromaDocumentStore, filterable_docs: List[Document]):
         pass
 
     @pytest.mark.skip(reason="Filter syntax not supported.")
     @pytest.mark.unit
     def test_filter_simple_implicit_and_with_multi_key_dict(
-        self, docstore: ChromaDocumentStore, filterable_docs: List[Document]
+        self, document_store: ChromaDocumentStore, filterable_docs: List[Document]
     ):
         pass
 
     @pytest.mark.skip(reason="Filter syntax not supported.")
     @pytest.mark.unit
     def test_filter_simple_explicit_and_with_multikey_dict(
-        self, docstore: ChromaDocumentStore, filterable_docs: List[Document]
+        self, document_store: ChromaDocumentStore, filterable_docs: List[Document]
     ):
         pass
 
     @pytest.mark.skip(reason="Filter syntax not supported.")
     @pytest.mark.unit
-    def test_filter_simple_explicit_and_with_list(self, docstore: ChromaDocumentStore, filterable_docs: List[Document]):
+    def test_filter_simple_explicit_and_with_list(
+        self, document_store: ChromaDocumentStore, filterable_docs: List[Document]
+    ):
         pass
 
     @pytest.mark.skip(reason="Filter syntax not supported.")
     @pytest.mark.unit
-    def test_filter_simple_implicit_and(self, docstore: ChromaDocumentStore, filterable_docs: List[Document]):
+    def test_filter_simple_implicit_and(self, document_store: ChromaDocumentStore, filterable_docs: List[Document]):
         pass
 
     @pytest.mark.skip(reason="Filter syntax not supported.")
     @pytest.mark.unit
-    def test_filter_nested_explicit_and(self, docstore: ChromaDocumentStore, filterable_docs: List[Document]):
+    def test_filter_nested_explicit_and(self, document_store: ChromaDocumentStore, filterable_docs: List[Document]):
         pass
 
     @pytest.mark.skip(reason="Filter syntax not supported.")
     @pytest.mark.unit
-    def test_filter_nested_implicit_and(self, docstore: ChromaDocumentStore, filterable_docs: List[Document]):
+    def test_filter_nested_implicit_and(self, document_store: ChromaDocumentStore, filterable_docs: List[Document]):
         pass
 
     @pytest.mark.skip(reason="Filter syntax not supported.")
     @pytest.mark.unit
-    def test_filter_simple_or(self, docstore: ChromaDocumentStore, filterable_docs: List[Document]):
+    def test_filter_simple_or(self, document_store: ChromaDocumentStore, filterable_docs: List[Document]):
         pass
 
     @pytest.mark.skip(reason="Filter syntax not supported.")
     @pytest.mark.unit
-    def test_filter_nested_or(self, docstore: ChromaDocumentStore, filterable_docs: List[Document]):
+    def test_filter_nested_or(self, document_store: ChromaDocumentStore, filterable_docs: List[Document]):
         pass
 
     @pytest.mark.skip(reason="Filter on table contents is not supported.")
     @pytest.mark.unit
-    def test_filter_nested_and_or_explicit(self, docstore: ChromaDocumentStore, filterable_docs: List[Document]):
+    def test_filter_nested_and_or_explicit(self, document_store: ChromaDocumentStore, filterable_docs: List[Document]):
         pass
 
     @pytest.mark.skip(reason="Filter syntax not supported.")
     @pytest.mark.unit
-    def test_filter_nested_and_or_implicit(self, docstore: ChromaDocumentStore, filterable_docs: List[Document]):
+    def test_filter_nested_and_or_implicit(self, document_store: ChromaDocumentStore, filterable_docs: List[Document]):
         pass
 
     @pytest.mark.skip(reason="Filter syntax not supported.")
     @pytest.mark.unit
-    def test_filter_nested_or_and(self, docstore: ChromaDocumentStore, filterable_docs: List[Document]):
+    def test_filter_nested_or_and(self, document_store: ChromaDocumentStore, filterable_docs: List[Document]):
         pass
 
     @pytest.mark.skip(reason="Filter syntax not supported.")
     @pytest.mark.unit
     def test_filter_nested_multiple_identical_operators_same_level(
-        self, docstore: ChromaDocumentStore, filterable_docs: List[Document]
+        self, document_store: ChromaDocumentStore, filterable_docs: List[Document]
     ):
         pass
 
     @pytest.mark.skip(reason="Duplicate policy not supported.")
     @pytest.mark.unit
-    def test_write_duplicate_fail(self, docstore: ChromaDocumentStore):
+    def test_write_duplicate_fail(self, document_store: ChromaDocumentStore):
         pass
 
     @pytest.mark.skip(reason="Duplicate policy not supported.")
     @pytest.mark.unit
-    def test_write_duplicate_skip(self, docstore: ChromaDocumentStore):
+    def test_write_duplicate_skip(self, document_store: ChromaDocumentStore):
         pass
 
     @pytest.mark.skip(reason="Duplicate policy not supported.")
     @pytest.mark.unit
-    def test_write_duplicate_overwrite(self, docstore: ChromaDocumentStore):
+    def test_write_duplicate_overwrite(self, document_store: ChromaDocumentStore):
         pass

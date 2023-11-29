@@ -216,6 +216,7 @@ class ChromaDocumentStore:
         passed to `ids`, `where` and `where_document` respectively.
         """
         if not isinstance(filters, dict):
+            print(filters)
             msg = "'filters' parameter must be a dictionary"
             raise ChromaDocumentStoreFilterError(msg)
 
