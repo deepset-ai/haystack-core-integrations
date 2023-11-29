@@ -1,5 +1,5 @@
-from typing import Any, Dict, List
 from datetime import datetime
+from typing import Any, Dict, List
 
 from haystack.errors import FilterError
 from pandas import DataFrame

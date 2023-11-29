@@ -11,7 +11,7 @@ from elastic_transport import NodeConfig  # type: ignore[import-not-found]
 from elasticsearch import Elasticsearch, helpers  # type: ignore[import-not-found]
 from haystack import default_from_dict, default_to_dict
 from haystack.dataclasses import Document
-from haystack.document_stores import document_store, DocumentStoreError, DuplicateDocumentError, DuplicatePolicy
+from haystack.document_stores import DocumentStoreError, DuplicateDocumentError, DuplicatePolicy, document_store
 from haystack.utils.filters import convert
 
 from elasticsearch_haystack.filters import _normalize_filters
@@ -129,14 +129,14 @@ class ElasticsearchDocumentStore:
         return documents
 
     def filter_documents(self, filters: Optional[Dict[str, Any]] = None) -> List[Document]:
-        if "operator" not in filters and "conditions" not in filters:
+        if filters and "operator" not in filters and "conditions" not in filters:
             filters = convert(filters)
 
         query = {"bool": {"filter": _normalize_filters(filters)}} if filters else None
         documents = self._search_documents(query=query)
         return documents
 
-    def write_documents(self, documents: List[Document], policy: DuplicatePolicy = DuplicatePolicy.NONE) -> None:
+    def write_documents(self, documents: List[Document], policy: DuplicatePolicy = DuplicatePolicy.NONE) -> int:
         """
         Writes Documents to Elasticsearch.
         If policy is not specified or set to DuplicatePolicy.NONE, it will raise an exception if a document with the
