@@ -346,38 +346,6 @@ class AstraClient:
         )
         return response
 
-    def describe_index_stats(self):
-        # get size of vectors in collection
-        query = json.dumps({"findCollections": {"options": {"explain": True}}})
-        try:
-            response = requests.request("POST", self.create_url, headers=self.request_header, data=query)
-            response_dict = json.loads(response.text)
-        except Exception as e:
-            raise Exception(f"The following exception occurred when requesting data for describe_index_stats(): {e}")
-        if "status" not in response_dict:
-            raise Exception(
-                f"collection data not present when requesting data for describe_index_stats(). The following response was received: {response_dict}"
-            )
-
-        collections = [x for x in response_dict["status"]["collections"] if x["name"] == self.collection_name]
-        if len(collections) == 0:
-            raise Exception(
-                f"The following exception occured when processing data for describe_index_stats(): No collections with name {self.collection_name}"
-            )
-
-        collection = collections[0]
-        dimension = collection["options"]["vector"]["dimension"]
-
-        # get number of vectors in collection
-        vector_count = self.count_documents()
-
-        result = {
-            "dimension": dimension,
-            "index_fullness": 0,
-            "namespaces": {"": {"vector_count": vector_count}},
-            "total_vector_count": vector_count,
-        }
-        return result
 
     def count_documents(self) -> int:
         """
