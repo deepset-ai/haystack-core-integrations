@@ -234,11 +234,11 @@ class AstraDocumentStore:
         for match in results.matches:
             match.metadata.pop("score")
             match.metadata.pop("embedding")
+            match.metadata.pop("id_hash_keys")
             document = Document(
                 text=match.text,
                 id=match.id,
                 embedding=match.values,
-                id_hash_keys=match.metadata.pop("id_hash_keys"),
                 metadata=match.metadata,
                 score=match.score,
             )
