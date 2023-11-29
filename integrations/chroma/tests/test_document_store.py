@@ -9,7 +9,12 @@ import numpy as np
 import pytest
 from chromadb.api.types import Documents, EmbeddingFunction, Embeddings
 from haystack import Document
-from haystack.testing.document_store import DocumentStoreBaseTests
+from haystack.testing.document_store import (
+    CountDocumentsTest,
+    WriteDocumentsTest,
+    DeleteDocumentsTest,
+    LegacyFilterDocumentsTest,
+)
 
 from chroma_haystack.document_store import ChromaDocumentStore
 
@@ -26,14 +31,14 @@ class TestEmbeddingFunction(EmbeddingFunction):
         return [np.random.default_rng().uniform(-1, 1, 768).tolist()]
 
 
-class TestDocumentStore(DocumentStoreBaseTests):
+class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsTest, LegacyFilterDocumentsTest):
     """
     Common test cases will be provided by `DocumentStoreBaseTests` but
     you can add more to this class.
     """
 
     @pytest.fixture
-    def docstore(self) -> ChromaDocumentStore:
+    def document_store(self) -> ChromaDocumentStore:
         """
         This is the most basic requirement for the child class: provide
         an instance of this document store so the base class can use it.
