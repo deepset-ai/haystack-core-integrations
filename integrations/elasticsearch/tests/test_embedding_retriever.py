@@ -24,7 +24,7 @@ def test_to_dict(_mock_elasticsearch_client):
     retriever = ElasticsearchEmbeddingRetriever(document_store=document_store)
     res = retriever.to_dict()
     assert res == {
-        "type": "ElasticsearchEmbeddingRetriever",
+        "type": "elasticsearch_haystack.embedding_retriever.ElasticsearchEmbeddingRetriever",
         "init_parameters": {
             "document_store": {
                 "init_parameters": {
@@ -32,7 +32,7 @@ def test_to_dict(_mock_elasticsearch_client):
                     "index": "default",
                     "embedding_similarity_function": "cosine",
                 },
-                "type": "ElasticsearchDocumentStore",
+                "type": "elasticsearch_haystack.document_store.ElasticsearchDocumentStore",
             },
             "filters": {},
             "top_k": 10,
@@ -44,11 +44,11 @@ def test_to_dict(_mock_elasticsearch_client):
 @patch("elasticsearch_haystack.document_store.Elasticsearch")
 def test_from_dict(_mock_elasticsearch_client):
     data = {
-        "type": "ElasticsearchEmbeddingRetriever",
+        "type": "elasticsearch_haystack.embedding_retriever.ElasticsearchEmbeddingRetriever",
         "init_parameters": {
             "document_store": {
                 "init_parameters": {"hosts": "some fake host", "index": "default"},
-                "type": "ElasticsearchDocumentStore",
+                "type": "elasticsearch_haystack.document_store.ElasticsearchDocumentStore",
             },
             "filters": {},
             "top_k": 10,
