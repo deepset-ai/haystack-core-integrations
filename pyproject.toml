@@ -29,7 +29,7 @@ dependencies = [
   # we distribute the preview version of Haystack 2.0 under the package "haystack-ai"
   # "haystack-ai",
   # and Haystack 1.x is distributed under farm-haystack.
-  "farm-haystack==1.21.1",
+  "farm-haystack==1.22.1",
   "typing_extensions",
 ]
 
