@@ -42,6 +42,9 @@ def _parse_logical_condition(condition: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def _equal(field: str, value: Any) -> Dict[str, Any]:
+    if value is None:
+        return {"bool": {"must_not": {"exists": {"field": field}}}}
+
     if isinstance(value, list):
         return {
             "terms_set": {
@@ -58,6 +61,9 @@ def _equal(field: str, value: Any) -> Dict[str, Any]:
 
 
 def _not_equal(field: str, value: Any) -> Dict[str, Any]:
+    if value is None:
+        return {"exists": {"field": field}}
+
     if isinstance(value, list):
         return {"bool": {"must_not": {"terms": {field: value}}}}
     if field in ["text", "dataframe"]:
@@ -68,6 +74,12 @@ def _not_equal(field: str, value: Any) -> Dict[str, Any]:
 
 
 def _greater_than(field: str, value: Any) -> Dict[str, Any]:
+    if value is None:
+        # When the value is None and '>' is used we create a filter that would return a Document
+        # if it has a field set and not set at the same time.
+        # This will cause the filter to match no Document.
+        # This way we keep the behavior consistent with other Document Stores.
+        return {"bool": {"must": [{"exists": {"field": field}}, {"bool": {"must_not": {"exists": {"field": field}}}}]}}
     if isinstance(value, str):
         try:
             datetime.fromisoformat(value)
@@ -84,6 +96,12 @@ def _greater_than(field: str, value: Any) -> Dict[str, Any]:
 
 
 def _greater_than_equal(field: str, value: Any) -> Dict[str, Any]:
+    if value is None:
+        # When the value is None and '>=' is used we create a filter that would return a Document
+        # if it has a field set and not set at the same time.
+        # This will cause the filter to match no Document.
+        # This way we keep the behavior consistent with other Document Stores.
+        return {"bool": {"must": [{"exists": {"field": field}}, {"bool": {"must_not": {"exists": {"field": field}}}}]}}
     if isinstance(value, str):
         try:
             datetime.fromisoformat(value)
@@ -100,6 +118,12 @@ def _greater_than_equal(field: str, value: Any) -> Dict[str, Any]:
 
 
 def _less_than(field: str, value: Any) -> Dict[str, Any]:
+    if value is None:
+        # When the value is None and '<' is used we create a filter that would return a Document
+        # if it has a field set and not set at the same time.
+        # This will cause the filter to match no Document.
+        # This way we keep the behavior consistent with other Document Stores.
+        return {"bool": {"must": [{"exists": {"field": field}}, {"bool": {"must_not": {"exists": {"field": field}}}}]}}
     if isinstance(value, str):
         try:
             datetime.fromisoformat(value)
@@ -116,6 +140,12 @@ def _less_than(field: str, value: Any) -> Dict[str, Any]:
 
 
 def _less_than_equal(field: str, value: Any) -> Dict[str, Any]:
+    if value is None:
+        # When the value is None and '<=' is used we create a filter that would return a Document
+        # if it has a field set and not set at the same time.
+        # This will cause the filter to match no Document.
+        # This way we keep the behavior consistent with other Document Stores.
+        return {"bool": {"must": [{"exists": {"field": field}}, {"bool": {"must_not": {"exists": {"field": field}}}}]}}
     if isinstance(value, str):
         try:
             datetime.fromisoformat(value)
