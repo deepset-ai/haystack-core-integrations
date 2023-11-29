@@ -5,12 +5,12 @@ on:
     - cron: "0 0 * * *"
   pull_request:
     paths:
-      - 'nodes/text2speech/**'
+      - 'integrations/nodes/text2speech/**'
       - '.github/workflows/nodes_text2speech.yml'
 
 defaults:
   run:
-    working-directory: nodes/text2speech
+    working-directory: integrations/nodes/text2speech
 
 jobs:
   test:

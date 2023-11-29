@@ -7,7 +7,7 @@ on:
     - cron: "0 0 * * *"
   pull_request:
     paths:
-      - "elasticsearch/**"
+      - "integrations/elasticsearch/**"
       - ".github/workflows/elasticsearch.yml"
 
 concurrency:
@@ -40,14 +40,14 @@ jobs:
         run: pip install --upgrade hatch
 
       - name: Lint
-        working-directory: elasticsearch
+        working-directory: integrations/elasticsearch
         if: matrix.python-version == '3.9'
         run: hatch run lint:all
 
       - name: Run ElasticSearch container
-        working-directory: elasticsearch
+        working-directory: integrations/elasticsearch
         run: docker-compose up -d
 
       - name: Run tests
-        working-directory: elasticsearch
+        working-directory: integrations/elasticsearch
         run: hatch run cov

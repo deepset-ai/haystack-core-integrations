@@ -5,7 +5,7 @@ on:
     - cron: "0 0 * * *"
   pull_request:
     paths:
-      - 'instructor-embedders/**'
+      - 'integrations/instructor-embedders/**'
       - '.github/workflows/instructor_embedders.yml'
 
 defaults:
@@ -27,7 +27,7 @@ jobs:
     - name: Ruff
       uses: chartboost/ruff-action@v1
       with:
-        src: instructor-embedders
+        src: integrations/instructor-embedders
 
     - name: Install instructor-embedders
       run: |

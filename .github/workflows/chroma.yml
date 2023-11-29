@@ -7,12 +7,12 @@ on:
     - cron: "0 0 * * *"
   pull_request:
     paths:
-      - 'chroma/**'
+      - 'integrations/chroma/**'
       - '.github/workflows/chroma.yml'
 
 defaults:
   run:
-    working-directory: chroma
+    working-directory: integrations/chroma
 
 concurrency:
   group: chroma-${{ github.head_ref }}
