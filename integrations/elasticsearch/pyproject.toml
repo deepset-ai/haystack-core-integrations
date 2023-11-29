@@ -24,10 +24,8 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
 dependencies = [
-  # we distribute the preview version of Haystack 2.0 under the package "haystack-ai"
-  "haystack-ai==0.143.0",
+  "haystack-ai",
   "elasticsearch>=8,<9",
-  "typing_extensions", # This is not a direct dependency, but `haystack-ai` is missing it cause `canals` is missing it
 ]
 
 [project.urls]

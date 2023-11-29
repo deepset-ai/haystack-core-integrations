@@ -6,13 +6,12 @@ import random
 from typing import List
 from unittest.mock import patch
 
-import pandas as pd
 import pytest
 from elasticsearch.exceptions import BadRequestError  # type: ignore[import-not-found]
-from haystack.preview.dataclasses.document import Document
-from haystack.preview.document_stores.errors import DocumentStoreError, DuplicateDocumentError
-from haystack.preview.document_stores.protocols import DuplicatePolicy
-from haystack.preview.testing.document_store import DocumentStoreBaseTests
+from haystack.dataclasses.document import Document
+from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
+from haystack.document_stores.protocols import DuplicatePolicy
+from haystack.testing.document_store import DocumentStoreBaseTests
 
 from elasticsearch_haystack.document_store import ElasticsearchDocumentStore
 
@@ -24,7 +23,7 @@ class TestDocumentStore(DocumentStoreBaseTests):
     """
 
     @pytest.fixture
-    def docstore(self, request):
+    def document_store(self, request):
         """
         This is the most basic requirement for the child class: provide
         an instance of this document store so the base class can use it.
@@ -43,12 +42,37 @@ class TestDocumentStore(DocumentStoreBaseTests):
         yield store
         store._client.options(ignore_status=[400, 404]).indices.delete(index=index)
 
+    def assert_documents_are_equal(self, received: List[Document], expected: List[Document]):
+        """
+        The ElasticSearchDocumentStore.filter_documents() method returns a Documents with their score set.
+        We don't want to compare the score, so we set it to None before comparing the documents.
+        """
+        received_meta = []
+        for doc in received:
+            r = {
+                "number": doc.meta.get("number"),
+                "name": doc.meta.get("name"),
+            }
+            received_meta.append(r)
+
+        expected_meta = []
+        for doc in expected:
+            r = {
+                "number": doc.meta.get("number"),
+                "name": doc.meta.get("name"),
+            }
+            expected_meta.append(r)
+        for doc in received:
+            doc.score = None
+
+        super().assert_documents_are_equal(received, expected)
+
     @patch("elasticsearch_haystack.document_store.Elasticsearch")
     def test_to_dict(self, _mock_elasticsearch_client):
         document_store = ElasticsearchDocumentStore(hosts="some hosts")
         res = document_store.to_dict()
         assert res == {
-            "type": "ElasticsearchDocumentStore",
+            "type": "elasticsearch_haystack.document_store.ElasticsearchDocumentStore",
             "init_parameters": {
                 "hosts": "some hosts",
                 "index": "default",
@@ -59,7 +83,7 @@ class TestDocumentStore(DocumentStoreBaseTests):
     @patch("elasticsearch_haystack.document_store.Elasticsearch")
     def test_from_dict(self, _mock_elasticsearch_client):
         data = {
-            "type": "ElasticsearchDocumentStore",
+            "type": "elasticsearch_haystack.document_store.ElasticsearchDocumentStore",
             "init_parameters": {
                 "hosts": "some hosts",
                 "index": "default",
@@ -71,8 +95,14 @@ class TestDocumentStore(DocumentStoreBaseTests):
         assert document_store._index == "default"
         assert document_store._embedding_similarity_function == "cosine"
 
-    def test_bm25_retrieval(self, docstore: ElasticsearchDocumentStore):
-        docstore.write_documents(
+    def test_write_documents(self, document_store: ElasticsearchDocumentStore):
+        docs = [Document(id="1")]
+        assert document_store.write_documents(docs) == 1
+        with pytest.raises(DuplicateDocumentError):
+            document_store.write_documents(docs, DuplicatePolicy.FAIL)
+
+    def test_bm25_retrieval(self, document_store: ElasticsearchDocumentStore):
+        document_store.write_documents(
             [
                 Document(content="Haskell is a functional programming language"),
                 Document(content="Lisp is a functional programming language"),
@@ -88,17 +118,17 @@ class TestDocumentStore(DocumentStoreBaseTests):
             ]
         )
 
-        res = docstore._bm25_retrieval("functional", top_k=3)
+        res = document_store._bm25_retrieval("functional", top_k=3)
         assert len(res) == 3
         assert "functional" in res[0].content
         assert "functional" in res[1].content
         assert "functional" in res[2].content
 
-    def test_bm25_retrieval_pagination(self, docstore: ElasticsearchDocumentStore):
+    def test_bm25_retrieval_pagination(self, document_store: ElasticsearchDocumentStore):
         """
         Test that handling of pagination works as expected, when the matching documents are > 10.
         """
-        docstore.write_documents(
+        document_store.write_documents(
             [
                 Document(content="Haskell is a functional programming language"),
                 Document(content="Lisp is a functional programming language"),
@@ -118,12 +148,12 @@ class TestDocumentStore(DocumentStoreBaseTests):
             ]
         )
 
-        res = docstore._bm25_retrieval("programming", top_k=11)
+        res = document_store._bm25_retrieval("programming", top_k=11)
         assert len(res) == 11
         assert all("programming" in doc.content for doc in res)
 
-    def test_bm25_retrieval_with_fuzziness(self, docstore: ElasticsearchDocumentStore):
-        docstore.write_documents(
+    def test_bm25_retrieval_with_fuzziness(self, document_store: ElasticsearchDocumentStore):
+        document_store.write_documents(
             [
                 Document(content="Haskell is a functional programming language"),
                 Document(content="Lisp is a functional programming language"),
@@ -141,161 +171,30 @@ class TestDocumentStore(DocumentStoreBaseTests):
 
         query_with_typo = "functinal"
         # Query without fuzziness to search for the exact match
-        res = docstore._bm25_retrieval(query_with_typo, top_k=3, fuzziness="0")
+        res = document_store._bm25_retrieval(query_with_typo, top_k=3, fuzziness="0")
         # Nothing is found as the query contains a typo
         assert res == []
 
         # Query with fuzziness with the same query
-        res = docstore._bm25_retrieval(query_with_typo, top_k=3, fuzziness="1")
+        res = document_store._bm25_retrieval(query_with_typo, top_k=3, fuzziness="1")
         assert len(res) == 3
         assert "functional" in res[0].content
         assert "functional" in res[1].content
         assert "functional" in res[2].content
 
-    def test_write_duplicate_fail(self, docstore: ElasticsearchDocumentStore):
-        """
-        Verify `DuplicateDocumentError` is raised when trying to write duplicate files.
-
-        `DocumentStoreBaseTests` declares this test but we override it since we return
-        a different error message that it expects.
-        """
-        doc = Document(content="test doc")
-        docstore.write_documents([doc])
-        with pytest.raises(DuplicateDocumentError):
-            docstore.write_documents(documents=[doc], policy=DuplicatePolicy.FAIL)
-        assert docstore.filter_documents(filters={"id": doc.id}) == [doc]
-
-    def test_delete_not_empty(self, docstore: ElasticsearchDocumentStore):
-        """
-        Verifies delete properly deletes specified document.
-
-        `DocumentStoreBaseTests` declares this test but we override it since we
-        want `delete_documents` to be idempotent.
-        """
-        doc = Document(content="test doc")
-        docstore.write_documents([doc])
-
-        docstore.delete_documents([doc.id])
-
-        res = docstore.filter_documents(filters={"id": doc.id})
-        assert res == []
-
-    def test_delete_empty(self, docstore: ElasticsearchDocumentStore):
-        """
-        Verifies delete doesn't raises when trying to delete a non-existing document.
-
-        `DocumentStoreBaseTests` declares this test but we override it since we
-        want `delete_documents` to be idempotent.
-        """
-        docstore.delete_documents(["test"])
-
-    def test_delete_not_empty_nonexisting(self, docstore: ElasticsearchDocumentStore):
-        """
-        `DocumentStoreBaseTests` declares this test but we override it since we
-        want `delete_documents` to be idempotent.
-        """
-        doc = Document(content="test doc")
-        docstore.write_documents([doc])
-
-        docstore.delete_documents(["non_existing"])
-
-        assert docstore.filter_documents(filters={"id": doc.id}) == [doc]
-
-    @pytest.mark.skip(reason="Not supported")
-    def test_in_filter_table(self, docstore: ElasticsearchDocumentStore, filterable_docs: List[Document]):
-        pass
-
-    @pytest.mark.skip(reason="Not supported")
-    def test_in_filter_embedding(self, docstore: ElasticsearchDocumentStore, filterable_docs: List[Document]):
-        pass
-
-    @pytest.mark.skip(reason="Not supported")
-    def test_nin_filter_table(self, docstore: ElasticsearchDocumentStore, filterable_docs: List[Document]):
-        pass
-
-    @pytest.mark.skip(reason="Not supported")
-    def test_nin_filter_embedding(self, docstore: ElasticsearchDocumentStore, filterable_docs: List[Document]):
-        pass
-
-    @pytest.mark.skip(reason="Not supported")
-    def test_eq_filter_embedding(self, docstore: ElasticsearchDocumentStore, filterable_docs: List[Document]):
-        """
-        If the embedding field is a dense vector (as expected), raise the following error:
-
-        elasticsearch.BadRequestError: BadRequestError(400, 'search_phase_execution_exception',
-        "failed to create query: Field [embedding] of type [dense_vector] doesn't support term queries")
-        """
-        pass
-
-    @pytest.mark.skip(reason="Not supported")
-    def test_ne_filter_embedding(self, docstore: ElasticsearchDocumentStore, filterable_docs: List[Document]):
-        """
-        If the embedding field is a dense vector (as expected), raise the following error:
-
-        elasticsearch.BadRequestError: BadRequestError(400, 'search_phase_execution_exception',
-        "failed to create query: Field [embedding] of type [dense_vector] doesn't support term queries")
-        """
-        pass
-
-    def test_gt_filter_non_numeric(self, docstore: ElasticsearchDocumentStore, filterable_docs: List[Document]):
-        docstore.write_documents(filterable_docs)
-        result = docstore.filter_documents(filters={"page": {"$gt": "100"}})
-        assert self.contains_same_docs(
-            result, [d for d in filterable_docs if "page" in d.meta and d.meta["page"] > "100"]
-        )
-
-    def test_gt_filter_table(self, docstore: ElasticsearchDocumentStore, filterable_docs: List[Document]):
-        docstore.write_documents(filterable_docs)
-        result = docstore.filter_documents(filters={"dataframe": {"$gt": pd.DataFrame([[1, 2, 3], [-1, -2, -3]])}})
-        assert result == []
-
-    def test_gte_filter_non_numeric(self, docstore: ElasticsearchDocumentStore, filterable_docs: List[Document]):
-        docstore.write_documents(filterable_docs)
-        result = docstore.filter_documents(filters={"page": {"$gte": "100"}})
-        assert self.contains_same_docs(
-            result, [d for d in filterable_docs if "page" in d.meta and d.meta["page"] >= "100"]
-        )
-
-    def test_gte_filter_table(self, docstore: ElasticsearchDocumentStore, filterable_docs: List[Document]):
-        docstore.write_documents(filterable_docs)
-        result = docstore.filter_documents(filters={"dataframe": {"$gte": pd.DataFrame([[1, 2, 3], [-1, -2, -3]])}})
-        assert result == []
-
-    def test_lt_filter_non_numeric(self, docstore: ElasticsearchDocumentStore, filterable_docs: List[Document]):
-        docstore.write_documents(filterable_docs)
-        result = docstore.filter_documents(filters={"page": {"$lt": "100"}})
-        assert result == []
-
-    def test_lt_filter_table(self, docstore: ElasticsearchDocumentStore, filterable_docs: List[Document]):
-        docstore.write_documents(filterable_docs)
-        result = docstore.filter_documents(filters={"dataframe": {"$lt": pd.DataFrame([[1, 2, 3], [-1, -2, -3]])}})
-        assert self.contains_same_docs(result, [d for d in filterable_docs if d.dataframe is not None])
-
-    def test_lte_filter_non_numeric(self, docstore: ElasticsearchDocumentStore, filterable_docs: List[Document]):
-        docstore.write_documents(filterable_docs)
-        result = docstore.filter_documents(filters={"page": {"$lte": "100"}})
-        assert self.contains_same_docs(
-            result, [d for d in filterable_docs if "page" in d.meta and d.meta["page"] <= "100"]
-        )
-
-    def test_lte_filter_table(self, docstore: ElasticsearchDocumentStore, filterable_docs: List[Document]):
-        docstore.write_documents(filterable_docs)
-        result = docstore.filter_documents(filters={"dataframe": {"$lte": pd.DataFrame([[1, 2, 3], [-1, -2, -3]])}})
-        assert self.contains_same_docs(result, [d for d in filterable_docs if d.dataframe is not None])
-
-    def test_embedding_retrieval(self, docstore: ElasticsearchDocumentStore):
+    def test_embedding_retrieval(self, document_store: ElasticsearchDocumentStore):
         docs = [
             Document(content="Most similar document", embedding=[1.0, 1.0, 1.0, 1.0]),
             Document(content="2nd best document", embedding=[0.8, 0.8, 0.8, 1.0]),
             Document(content="Not very similar document", embedding=[0.0, 0.8, 0.3, 0.9]),
         ]
-        docstore.write_documents(docs)
-        results = docstore._embedding_retrieval(query_embedding=[0.1, 0.1, 0.1, 0.1], top_k=2, filters={})
+        document_store.write_documents(docs)
+        results = document_store._embedding_retrieval(query_embedding=[0.1, 0.1, 0.1, 0.1], top_k=2, filters={})
         assert len(results) == 2
         assert results[0].content == "Most similar document"
         assert results[1].content == "2nd best document"
 
-    def test_embedding_retrieval_w_filters(self, docstore: ElasticsearchDocumentStore):
+    def test_embedding_retrieval_with_filters(self, document_store: ElasticsearchDocumentStore):
         docs = [
             Document(content="Most similar document", embedding=[1.0, 1.0, 1.0, 1.0]),
             Document(content="2nd best document", embedding=[0.8, 0.8, 0.8, 1.0]),
@@ -305,14 +204,14 @@ class TestDocumentStore(DocumentStoreBaseTests):
                 meta={"meta_field": "custom_value"},
             ),
         ]
-        docstore.write_documents(docs)
+        document_store.write_documents(docs)
 
-        filters = {"meta_field": {"$eq": "custom_value"}}
-        results = docstore._embedding_retrieval(query_embedding=[0.1, 0.1, 0.1, 0.1], top_k=2, filters=filters)
+        filters = {"field": "meta_field", "operator": "==", "value": "custom_value"}
+        results = document_store._embedding_retrieval(query_embedding=[0.1, 0.1, 0.1, 0.1], top_k=2, filters=filters)
         assert len(results) == 1
         assert results[0].content == "Not very similar document with meta field"
 
-    def test_embedding_retrieval_pagination(self, docstore: ElasticsearchDocumentStore):
+    def test_embedding_retrieval_pagination(self, document_store: ElasticsearchDocumentStore):
         """
         Test that handling of pagination works as expected, when the matching documents are > 10.
         """
@@ -322,21 +221,23 @@ class TestDocumentStore(DocumentStoreBaseTests):
             for i in range(20)
         ]
 
-        docstore.write_documents(docs)
-        results = docstore._embedding_retrieval(query_embedding=[0.1, 0.1, 0.1, 0.1], top_k=11, filters={})
+        document_store.write_documents(docs)
+        results = document_store._embedding_retrieval(query_embedding=[0.1, 0.1, 0.1, 0.1], top_k=11, filters={})
         assert len(results) == 11
 
-    def test_embedding_retrieval_query_documents_different_embedding_sizes(self, docstore: ElasticsearchDocumentStore):
+    def test_embedding_retrieval_query_documents_different_embedding_sizes(
+        self, document_store: ElasticsearchDocumentStore
+    ):
         """
         Test that the retrieval fails if the query embedding and the documents have different embedding sizes.
         """
         docs = [Document(content="Hello world", embedding=[0.1, 0.2, 0.3, 0.4])]
-        docstore.write_documents(docs)
+        document_store.write_documents(docs)
 
         with pytest.raises(BadRequestError):
-            docstore._embedding_retrieval(query_embedding=[0.1, 0.1])
+            document_store._embedding_retrieval(query_embedding=[0.1, 0.1])
 
-    def test_write_documents_different_embedding_sizes_fail(self, docstore: ElasticsearchDocumentStore):
+    def test_write_documents_different_embedding_sizes_fail(self, document_store: ElasticsearchDocumentStore):
         """
         Test that write_documents fails if the documents have different embedding sizes.
         """
@@ -346,4 +247,4 @@ class TestDocumentStore(DocumentStoreBaseTests):
         ]
 
         with pytest.raises(DocumentStoreError):
-            docstore.write_documents(docs)
+            document_store.write_documents(docs)

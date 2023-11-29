@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 from unittest.mock import Mock, patch
 
-from haystack.preview.dataclasses import Document
+from haystack.dataclasses import Document
 
 from elasticsearch_haystack.bm25_retriever import ElasticsearchBM25Retriever
 from elasticsearch_haystack.document_store import ElasticsearchDocumentStore
@@ -24,7 +24,7 @@ def test_to_dict(_mock_elasticsearch_client):
     retriever = ElasticsearchBM25Retriever(document_store=document_store)
     res = retriever.to_dict()
     assert res == {
-        "type": "ElasticsearchBM25Retriever",
+        "type": "elasticsearch_haystack.bm25_retriever.ElasticsearchBM25Retriever",
         "init_parameters": {
             "document_store": {
                 "init_parameters": {
@@ -32,7 +32,7 @@ def test_to_dict(_mock_elasticsearch_client):
                     "index": "default",
                     "embedding_similarity_function": "cosine",
                 },
-                "type": "ElasticsearchDocumentStore",
+                "type": "elasticsearch_haystack.document_store.ElasticsearchDocumentStore",
             },
             "filters": {},
             "fuzziness": "AUTO",
@@ -45,11 +45,11 @@ def test_to_dict(_mock_elasticsearch_client):
 @patch("elasticsearch_haystack.document_store.Elasticsearch")
 def test_from_dict(_mock_elasticsearch_client):
     data = {
-        "type": "ElasticsearchBM25Retriever",
+        "type": "elasticsearch_haystack.bm25_retriever.ElasticsearchBM25Retriever",
         "init_parameters": {
             "document_store": {
                 "init_parameters": {"hosts": "some fake host", "index": "default"},
-                "type": "ElasticsearchDocumentStore",
+                "type": "elasticsearch_haystack.document_store.ElasticsearchDocumentStore",
             },
             "filters": {},
             "fuzziness": "AUTO",
