@@ -4,7 +4,7 @@ from haystack import Document
 from haystack.preview import Pipeline
 from haystack.preview.components.builders.answer_builder import AnswerBuilder
 from haystack.preview.components.builders.prompt_builder import PromptBuilder
-from haystack.preview.components.generators import GPTGenerator
+from haystack.preview.components.generators.openai.gpt import GPTGenerator
 from haystack.preview.document_stores import DuplicatePolicy
 
 from astra_store.document_store import AstraDocumentStore
@@ -70,4 +70,4 @@ question = "How many languages are there?"
 result = rag_pipeline.run(
     {"retriever": {"query": question}, "prompt_builder": {"question": question}, "answer_builder": {"query": question}}
 )
-print(result["answer_builder"]["answers"][0])
+print(result["answer_builder"]["answers"][0].data)
