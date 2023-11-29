@@ -1,6 +1,6 @@
 # This workflow comes from https://github.com/ofek/hatch-mypyc
 # https://github.com/ofek/hatch-mypyc/blob/5a198c0ba8660494d02716cfc9d79ce4adfb1442/.github/workflows/test.yml
-name: unstructured / fileconverter
+name: Test / unstructured / fileconverter
 
 on:
   schedule:
