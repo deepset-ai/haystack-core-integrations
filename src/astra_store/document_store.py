@@ -238,6 +238,7 @@ class AstraDocumentStore:
                 text=match.text,
                 id=match.id,
                 embedding=match.values,
+                id_hash_keys=match.metadata.pop("id_hash_keys"),
                 metadata=match.metadata,
                 score=match.score,
             )
