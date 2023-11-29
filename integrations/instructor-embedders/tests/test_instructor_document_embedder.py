@@ -2,7 +2,7 @@ from unittest.mock import MagicMock, patch
 
 import numpy as np
 import pytest
-from haystack.preview import Document
+from haystack import Document
 
 from instructor_embedders.instructor_document_embedder import InstructorDocumentEmbedder
 

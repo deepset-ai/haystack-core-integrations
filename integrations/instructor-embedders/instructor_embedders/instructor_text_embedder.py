@@ -1,6 +1,6 @@
 from typing import Any, Dict, List, Optional, Union
 
-from haystack.preview import component, default_from_dict, default_to_dict
+from haystack import component, default_from_dict, default_to_dict
 
 from instructor_embedders.embedding_backend.instructor_backend import _InstructorEmbeddingBackendFactory
 
