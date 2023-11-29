@@ -1,21 +1,21 @@
 # This workflow comes from https://github.com/ofek/hatch-mypyc
 # https://github.com/ofek/hatch-mypyc/blob/5a198c0ba8660494d02716cfc9d79ce4adfb1442/.github/workflows/test.yml
-name: Test / Document Stores / chroma
+name: Test / chroma
 
 on:
   schedule:
     - cron: "0 0 * * *"
   pull_request:
     paths:
-      - 'document_stores/chroma/**'
-      - '.github/workflows/document_stores_chroma.yml'
+      - 'integrations/chroma/**'
+      - '.github/workflows/chroma.yml'
 
 defaults:
   run:
-    working-directory: document_stores/chroma
+    working-directory: integrations/chroma
 
 concurrency:
-  group: document_stores_chroma-${{ github.head_ref }}
+  group: chroma-${{ github.head_ref }}
   cancel-in-progress: true
 
 env:

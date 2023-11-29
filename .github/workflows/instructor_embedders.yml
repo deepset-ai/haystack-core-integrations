@@ -1,16 +1,16 @@
-name: Test / Components / instructor-embedders
+name: Test / instructor-embedders
 
 on:
   schedule:
     - cron: "0 0 * * *"
   pull_request:
     paths:
-      - 'components/embedders/instructor-embedders/**'
-      - '.github/workflows/components_instructor_embedders.yml'
+      - 'integrations/instructor-embedders/**'
+      - '.github/workflows/instructor_embedders.yml'
 
 defaults:
   run:
-    working-directory: components/embedders/instructor-embedders
+    working-directory: instructor-embedders
 
 jobs:
   test:
@@ -27,7 +27,7 @@ jobs:
     - name: Ruff
       uses: chartboost/ruff-action@v1
       with:
-        src: components/embedders/instructor-embedders
+        src: integrations/instructor-embedders
 
     - name: Install instructor-embedders
       run: |

@@ -1,17 +1,17 @@
 # This workflow comes from https://github.com/ofek/hatch-mypyc
 # https://github.com/ofek/hatch-mypyc/blob/5a198c0ba8660494d02716cfc9d79ce4adfb1442/.github/workflows/test.yml
-name: Test / Document Stores / elasticsearch
+name: Test / elasticsearch
 
 on:
   schedule:
     - cron: "0 0 * * *"
   pull_request:
     paths:
-      - "document_stores/elasticsearch/**"
-      - ".github/workflows/document_stores_elasticsearch.yml"
+      - "integrations/elasticsearch/**"
+      - ".github/workflows/elasticsearch.yml"
 
 concurrency:
-  group: document_stores_elasticsearch-${{ github.head_ref }}
+  group: elasticsearch-${{ github.head_ref }}
   cancel-in-progress: true
 
 env:
@@ -40,14 +40,14 @@ jobs:
         run: pip install --upgrade hatch
 
       - name: Lint
-        working-directory: document_stores/elasticsearch
+        working-directory: integrations/elasticsearch
         if: matrix.python-version == '3.9'
         run: hatch run lint:all
 
       - name: Run ElasticSearch container
-        working-directory: document_stores/elasticsearch
+        working-directory: integrations/elasticsearch
         run: docker-compose up -d
 
       - name: Run tests
-        working-directory: document_stores/elasticsearch
+        working-directory: integrations/elasticsearch
         run: hatch run cov
