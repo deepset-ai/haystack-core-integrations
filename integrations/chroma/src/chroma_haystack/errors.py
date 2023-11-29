@@ -9,7 +9,7 @@ class ChromaDocumentStoreError(DocumentStoreError):
     pass
 
 
-class ChromaDocumentStoreFilterError(FilterError):
+class ChromaDocumentStoreFilterError(FilterError, ValueError):
     pass
 
 
