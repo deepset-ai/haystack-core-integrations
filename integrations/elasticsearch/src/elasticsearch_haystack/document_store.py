@@ -130,103 +130,26 @@ class ElasticsearchDocumentStore:
         return documents
 
     def filter_documents(self, filters: Optional[Dict[str, Any]] = None) -> List[Document]:
-        """
-        Returns the documents that match the filters provided.
-
-        Filters are defined as nested dictionaries. The keys of the dictionaries can be a logical operator (`"$and"`,
-        `"$or"`, `"$not"`), a comparison operator (`"$eq"`, `$ne`, `"$in"`, `$nin`, `"$gt"`, `"$gte"`, `"$lt"`,
-        `"$lte"`) or a metadata field name.
-
-        Logical operator keys take a dictionary of metadata field names and/or logical operators as value. Metadata
-        field names take a dictionary of comparison operators as value. Comparison operator keys take a single value or
-        (in case of `"$in"`) a list of values as value. If no logical operator is provided, `"$and"` is used as default
-        operation. If no comparison operator is provided, `"$eq"` (or `"$in"` if the comparison value is a list) is used
-        as default operation.
-
-        Example:
-
-        ```python
-        filters = {
-            "$and": {
-                "type": {"$eq": "article"},
-                "date": {"$gte": "2015-01-01", "$lt": "2021-01-01"},
-                "rating": {"$gte": 3},
-                "$or": {
-                    "genre": {"$in": ["economy", "politics"]},
-                    "publisher": {"$eq": "nytimes"}
-                }
-            }
-        }
-        # or simpler using default operators
-        filters = {
-            "type": "article",
-            "date": {"$gte": "2015-01-01", "$lt": "2021-01-01"},
-            "rating": {"$gte": 3},
-            "$or": {
-                "genre": ["economy", "politics"],
-                "publisher": "nytimes"
-            }
-        }
-        ```
-
-        To use the same logical operator multiple times on the same level, logical operators can take a list of
-        dictionaries as value.
-
-        Example:
-
-        ```python
-        filters = {
-            "$or": [
-                {
-                    "$and": {
-                        "Type": "News Paper",
-                        "Date": {
-                            "$lt": "2019-01-01"
-                        }
-                    }
-                },
-                {
-                    "$and": {
-                        "Type": "Blog Post",
-                        "Date": {
-                            "$gte": "2019-01-01"
-                        }
-                    }
-                }
-            ]
-        }
-        ```
-
-        :param filters: the filters to apply to the document list.
-        :return: a list of Documents that match the given filters.
-        """
         query = {"bool": {"filter": _normalize_filters(filters)}} if filters else None
         documents = self._search_documents(query=query)
         return documents
 
-    def write_documents(self, documents: List[Document], policy: DuplicatePolicy = DuplicatePolicy.FAIL) -> None:
+    def write_documents(self, documents: List[Document], policy: DuplicatePolicy = DuplicatePolicy.NONE) -> None:
         """
-        Writes (or overwrites) documents into the store.
-
-        :param documents: a list of documents.
-        :param policy: documents with the same ID count as duplicates. When duplicates are met,
-            the store can:
-             - skip: keep the existing document and ignore the new one.
-             - overwrite: remove the old document and write the new one.
-             - fail: an error is raised
-
-        :raises ValueError: if 'documents' parameter is not a list of Document objects
-        :raises DuplicateDocumentError: Exception trigger on duplicate document if `policy=DuplicatePolicy.FAIL`
-        :raises DocumentStoreError: Exception trigger on any other error when writing documents
-        :return: None
+        Writes Documents to Elasticsearch.
+        If policy is not specified or set to DuplicatePolicy.NONE, it will raise an exception if a document with the
+        same ID already exists in the document store.
         """
         if len(documents) > 0:
             if not isinstance(documents[0], Document):
                 msg = "param 'documents' must contain a list of objects of type Document"
                 raise ValueError(msg)
 
+        if policy == DuplicatePolicy.NONE:
+            policy = DuplicatePolicy.FAIL
+
         action = "index" if policy == DuplicatePolicy.OVERWRITE else "create"
-        _, errors = helpers.bulk(
+        documents_written, errors = helpers.bulk(
             client=self._client,
             actions=(
                 {
@@ -261,6 +184,8 @@ class ElasticsearchDocumentStore:
             if len(other_errors) > 0:
                 msg = f"Failed to write documents to Elasticsearch. Errors:\n{other_errors}"
                 raise DocumentStoreError(msg)
+
+        return documents_written
 
     def _deserialize_document(self, hit: Dict[str, Any]) -> Document:
         """
