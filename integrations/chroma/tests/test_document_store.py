@@ -19,7 +19,7 @@ from haystack.testing.document_store import (
 from chroma_haystack.document_store import ChromaDocumentStore
 
 
-class TestEmbeddingFunction(EmbeddingFunction):
+class _TestEmbeddingFunction(EmbeddingFunction):
     """
     Chroma lets you provide custom functions to compute embeddings,
     we use this feature to provide a fake algorithm returning random
@@ -44,7 +44,7 @@ class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsT
         an instance of this document store so the base class can use it.
         """
         with mock.patch("chroma_haystack.document_store.get_embedding_function") as get_func:
-            get_func.return_value = TestEmbeddingFunction()
+            get_func.return_value = _TestEmbeddingFunction()
             return ChromaDocumentStore(embedding_function="test_function", collection_name=str(uuid.uuid1()))
 
     @pytest.mark.unit
