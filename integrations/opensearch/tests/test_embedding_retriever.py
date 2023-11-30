@@ -68,3 +68,35 @@ def test_run():
     assert len(res["documents"]) == 1
     assert res["documents"][0].content == "Test doc"
     assert res["documents"][0].embedding == [0.1, 0.2]
+
+
+def test_run_init_params():
+    mock_store = Mock(spec=OpenSearchDocumentStore)
+    mock_store._embedding_retrieval.return_value = [Document(content="Test doc", embedding=[0.1, 0.2])]
+    retriever = OpenSearchEmbeddingRetriever(document_store=mock_store, filters={"from": "init"}, top_k=11)
+    res = retriever.run(query_embedding=[0.5, 0.7])
+    mock_store._embedding_retrieval.assert_called_once_with(
+        query_embedding=[0.5, 0.7],
+        filters={"from": "init"},
+        top_k=11,
+    )
+    assert len(res) == 1
+    assert len(res["documents"]) == 1
+    assert res["documents"][0].content == "Test doc"
+    assert res["documents"][0].embedding == [0.1, 0.2]
+
+
+def test_run_time_params():
+    mock_store = Mock(spec=OpenSearchDocumentStore)
+    mock_store._embedding_retrieval.return_value = [Document(content="Test doc", embedding=[0.1, 0.2])]
+    retriever = OpenSearchEmbeddingRetriever(document_store=mock_store, filters={"from": "init"}, top_k=11)
+    res = retriever.run(query_embedding=[0.5, 0.7], filters={"from": "run"}, top_k=9)
+    mock_store._embedding_retrieval.assert_called_once_with(
+        query_embedding=[0.5, 0.7],
+        filters={"from": "run"},
+        top_k=9,
+    )
+    assert len(res) == 1
+    assert len(res["documents"]) == 1
+    assert res["documents"][0].content == "Test doc"
+    assert res["documents"][0].embedding == [0.1, 0.2]

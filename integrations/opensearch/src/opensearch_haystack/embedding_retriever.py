@@ -54,16 +54,23 @@ class OpenSearchEmbeddingRetriever:
         return default_from_dict(cls, data)
 
     @component.output_types(documents=List[Document])
-    def run(self, query_embedding: List[float]):
+    def run(self, query_embedding: List[float], filters: Optional[Dict[str, Any]] = None, top_k: Optional[int] = None):
         """
         Retrieve documents using a vector similarity metric.
 
         :param query_embedding: Embedding of the query.
+        :param filters: Optional filters to narrow down the search space.
+        :param top_k: Maximum number of Documents to return.
         :return: List of Document similar to `query_embedding`.
         """
+        if filters is None:
+            filters = self._filters
+        if top_k is None:
+            top_k = self._top_k
+
         docs = self._document_store._embedding_retrieval(
             query_embedding=query_embedding,
-            filters=self._filters,
-            top_k=self._top_k,
+            filters=filters,
+            top_k=top_k,
         )
         return {"documents": docs}
