@@ -7,7 +7,7 @@ from haystack.dataclasses.document import Document
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
 from haystack.document_stores.protocols import DuplicatePolicy
 from haystack.testing.document_store import DocumentStoreBaseTests
-from opensearchpy.exceptions import RequestError  # type: ignore[import-not-found]
+from opensearchpy.exceptions import RequestError
 
 from opensearch_haystack.document_store import OpenSearchDocumentStore
 
