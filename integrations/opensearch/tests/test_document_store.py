@@ -7,11 +7,11 @@ from typing import List
 from unittest.mock import patch
 
 import pytest
-from opensearchpy.exceptions import RequestError  # type: ignore[import-not-found]
 from haystack.dataclasses.document import Document
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
 from haystack.document_stores.protocols import DuplicatePolicy
 from haystack.testing.document_store import DocumentStoreBaseTests
+from opensearchpy.exceptions import RequestError  # type: ignore[import-not-found]
 
 from opensearch_haystack.document_store import OpenSearchDocumentStore
 

@@ -2,16 +2,15 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 import logging
-from typing import Any, Dict, List, Literal, Mapping, Optional, Union
+from typing import Any, Dict, List, Mapping, Optional, Union
 
 import numpy as np
-
-from opensearchpy import OpenSearch, Urllib3HttpConnection, RequestsHttpConnection, NotFoundError, RequestError
-from opensearchpy.helpers import bulk, scan
 from haystack import default_from_dict, default_to_dict
 from haystack.dataclasses import Document
 from haystack.document_stores import DocumentStoreError, DuplicateDocumentError, DuplicatePolicy, document_store
 from haystack.utils.filters import convert
+from opensearchpy import OpenSearch
+from opensearchpy.helpers import bulk
 
 from opensearch_haystack.filters import _normalize_filters
 
@@ -63,7 +62,7 @@ class OpenSearchDocumentStore:
         embedding_dim = kwargs.get("embedding_dim", 768)
         method = kwargs.get("method", None)
 
-        mappings = {
+        mappings: Dict[str, Any] = {
             "properties": {
                 "embedding": {"type": "knn_vector", "index": True, "dimension": embedding_dim},
                 "content": {"type": "text"},

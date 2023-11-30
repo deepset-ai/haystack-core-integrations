@@ -11,7 +11,7 @@ requires-python = ">=3.8"
 license = "Apache-2.0"
 keywords = []
 authors = [
-  { name = "Silvano Cerza", email = "silvanocerza@gmail.com" },
+  { name = "deepset", email = "info@deepset.ai" },
 ]
 classifiers = [
   "Development Status :: 4 - Beta",
@@ -172,6 +172,7 @@ markers = [
 [[tool.mypy.overrides]]
 module = [
   "haystack.*",
-  "pytest.*"
+  "pytest.*",
+  "opensearchpy.*",
 ]
 ignore_missing_imports = true
