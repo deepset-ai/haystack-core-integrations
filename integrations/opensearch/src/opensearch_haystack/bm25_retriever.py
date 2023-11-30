@@ -1,6 +1,3 @@
-# SPDX-FileCopyrightText: 2023-present Silvano Cerza <silvanocerza@gmail.com>
-#
-# SPDX-License-Identifier: Apache-2.0
 from typing import Any, Dict, List, Optional
 
 from haystack import component, default_from_dict, default_to_dict
