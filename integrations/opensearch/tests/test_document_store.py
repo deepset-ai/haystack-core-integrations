@@ -167,6 +167,52 @@ class TestDocumentStore(DocumentStoreBaseTests):
         assert len(res) == 11
         assert all("programming" in doc.content for doc in res)
 
+    def test_bm25_retrieval_all_terms_must_match(self, document_store: OpenSearchDocumentStore):
+        document_store.write_documents(
+            [
+                Document(content="Haskell is a functional programming language"),
+                Document(content="Lisp is a functional programming language"),
+                Document(content="Exilir is a functional programming language"),
+                Document(content="F# is a functional programming language"),
+                Document(content="C# is a functional programming language"),
+                Document(content="C++ is an object oriented programming language"),
+                Document(content="Dart is an object oriented programming language"),
+                Document(content="Go is an object oriented programming language"),
+                Document(content="Python is a object oriented programming language"),
+                Document(content="Ruby is a object oriented programming language"),
+                Document(content="PHP is a object oriented programming language"),
+            ]
+        )
+
+        res = document_store._bm25_retrieval("functional Haskell", top_k=3, all_terms_must_match=True)
+        assert len(res) == 1
+        assert "Haskell is a functional programming language" in res[0].content
+
+    def test_bm25_retrieval_all_terms_must_match_false(self, document_store: OpenSearchDocumentStore):
+        document_store.write_documents(
+            [
+                Document(content="Haskell is a functional programming language"),
+                Document(content="Lisp is a functional programming language"),
+                Document(content="Exilir is a functional programming language"),
+                Document(content="F# is a functional programming language"),
+                Document(content="C# is a functional programming language"),
+                Document(content="C++ is an object oriented programming language"),
+                Document(content="Dart is an object oriented programming language"),
+                Document(content="Go is an object oriented programming language"),
+                Document(content="Python is a object oriented programming language"),
+                Document(content="Ruby is a object oriented programming language"),
+                Document(content="PHP is a object oriented programming language"),
+            ]
+        )
+
+        res = document_store._bm25_retrieval("functional Haskell", top_k=10, all_terms_must_match=False)
+        assert len(res) == 5
+        assert "functional" in res[0].content
+        assert "functional" in res[1].content
+        assert "functional" in res[2].content
+        assert "functional" in res[3].content
+        assert "functional" in res[4].content
+
     def test_bm25_retrieval_with_fuzziness(self, document_store: OpenSearchDocumentStore):
         document_store.write_documents(
             [
