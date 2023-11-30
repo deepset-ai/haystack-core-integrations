@@ -26,9 +26,9 @@ class OpenSearchBM25Retriever:
         :param fuzziness: Fuzziness parameter for full-text queries. Defaults to "AUTO".
         :param top_k: Maximum number of Documents to return, defaults to 10
         :param scale_score: Whether to scale the score of retrieved documents between 0 and 1.
-            This is useful when comparing documents across different indexes.
+            This is useful when comparing documents across different indexes. Defaults to False.
         :param all_terms_must_match: If True, all terms in the query string must be present in the retrieved documents.
-            This is useful when searching for short text where even one term can make a difference.
+            This is useful when searching for short text where even one term can make a difference. Defaults to False.
         :raises ValueError: If `document_store` is not an instance of OpenSearchDocumentStore.
 
         """
