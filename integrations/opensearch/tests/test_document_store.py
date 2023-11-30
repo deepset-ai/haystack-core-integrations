@@ -33,9 +33,12 @@ class TestDocumentStore(DocumentStoreBaseTests):
         index = f"{request.node.name}"
 
         store = OpenSearchDocumentStore(
-            hosts=hosts, index=index, http_auth=("admin", "admin"), verify_certs=False, embedding_dim=768, method={
-                "space_type": "cosinesimil", "engine": "nmslib", "name": "hnsw"
-            }
+            hosts=hosts,
+            index=index,
+            http_auth=("admin", "admin"),
+            verify_certs=False,
+            embedding_dim=768,
+            method={"space_type": "cosinesimil", "engine": "nmslib", "name": "hnsw"},
         )
         yield store
         store._client.indices.delete(index=index, params={"ignore": [400, 404]})
@@ -51,9 +54,12 @@ class TestDocumentStore(DocumentStoreBaseTests):
         index = f"{request.node.name}"
 
         store = OpenSearchDocumentStore(
-            hosts=hosts, index=index, http_auth=("admin", "admin"), verify_certs=False, embedding_dim=4, method={
-                "space_type": "cosinesimil", "engine": "nmslib", "name": "hnsw"
-            }
+            hosts=hosts,
+            index=index,
+            http_auth=("admin", "admin"),
+            verify_certs=False,
+            embedding_dim=4,
+            method={"space_type": "cosinesimil", "engine": "nmslib", "name": "hnsw"},
         )
         yield store
         store._client.indices.delete(index=index, params={"ignore": [400, 404]})
@@ -202,7 +208,9 @@ class TestDocumentStore(DocumentStoreBaseTests):
             Document(content="Not very similar document", embedding=[0.0, 0.8, 0.3, 0.9]),
         ]
         document_store_embedding_dim_4.write_documents(docs)
-        results = document_store_embedding_dim_4._embedding_retrieval(query_embedding=[0.1, 0.1, 0.1, 0.1], top_k=2, filters={})
+        results = document_store_embedding_dim_4._embedding_retrieval(
+            query_embedding=[0.1, 0.1, 0.1, 0.1], top_k=2, filters={}
+        )
         assert len(results) == 2
         assert results[0].content == "Most similar document"
         assert results[1].content == "2nd best document"
@@ -222,7 +230,9 @@ class TestDocumentStore(DocumentStoreBaseTests):
         filters = {"field": "meta_field", "operator": "==", "value": "custom_value"}
         # we set top_k=3, to make the test pass as we are not sure whether efficient filtering is supported for nmslib
         # TODO: remove top_k=3, when efficient filtering is supported for nmslib
-        results = document_store_embedding_dim_4._embedding_retrieval(query_embedding=[0.1, 0.1, 0.1, 0.1], top_k=3, filters=filters)
+        results = document_store_embedding_dim_4._embedding_retrieval(
+            query_embedding=[0.1, 0.1, 0.1, 0.1], top_k=3, filters=filters
+        )
         assert len(results) == 1
         assert results[0].content == "Not very similar document with meta field"
 
@@ -237,7 +247,9 @@ class TestDocumentStore(DocumentStoreBaseTests):
         ]
 
         document_store_embedding_dim_4.write_documents(docs)
-        results = document_store_embedding_dim_4._embedding_retrieval(query_embedding=[0.1, 0.1, 0.1, 0.1], top_k=11, filters={})
+        results = document_store_embedding_dim_4._embedding_retrieval(
+            query_embedding=[0.1, 0.1, 0.1, 0.1], top_k=11, filters={}
+        )
         assert len(results) == 11
 
     def test_embedding_retrieval_query_documents_different_embedding_sizes(
@@ -252,7 +264,9 @@ class TestDocumentStore(DocumentStoreBaseTests):
         with pytest.raises(RequestError):
             document_store_embedding_dim_4._embedding_retrieval(query_embedding=[0.1, 0.1])
 
-    def test_write_documents_different_embedding_sizes_fail(self, document_store_embedding_dim_4: OpenSearchDocumentStore):
+    def test_write_documents_different_embedding_sizes_fail(
+        self, document_store_embedding_dim_4: OpenSearchDocumentStore
+    ):
         """
         Test that write_documents fails if the documents have different embedding sizes.
         """
@@ -263,4 +277,3 @@ class TestDocumentStore(DocumentStoreBaseTests):
 
         with pytest.raises(DocumentStoreError):
             document_store_embedding_dim_4.write_documents(docs)
-
