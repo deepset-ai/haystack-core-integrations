@@ -1,3 +1,5 @@
 from opensearch_haystack.document_store import OpenSearchDocumentStore
+from opensearch_haystack.bm25_retriever import OpenSearchBM25Retriever
+from opensearch_haystack.embedding_retriever import OpenSearchEmbeddingRetriever
 
-__all__ = ["OpenSearchDocumentStore"]
+__all__ = ["OpenSearchDocumentStore", "OpenSearchBM25Retriever", "OpenSearchEmbeddingRetriever"]
