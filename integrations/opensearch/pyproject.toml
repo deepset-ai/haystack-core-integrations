@@ -29,9 +29,9 @@ dependencies = [
 ]
 
 [project.urls]
-Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/document_stores/opensearch#readme"
+Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/opensearch#readme"
 Issues = "https://github.com/deepset-ai/haystack-core-integrations/issues"
-Source = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/document_stores/opensearch"
+Source = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/opensearch"
 
 [tool.hatch.version]
 path = "src/opensearch_haystack/__about__.py"
