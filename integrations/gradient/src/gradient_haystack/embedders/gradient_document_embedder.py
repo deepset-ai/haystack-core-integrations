@@ -1,7 +1,7 @@
 import logging
-from typing import List, Optional, Dict, Any
+from typing import Any, Dict, List, Optional
 
-from haystack import component, Document, default_to_dict
+from haystack import Document, component, default_to_dict
 from haystack.lazy_imports import LazyImport
 
 with LazyImport(message="Run 'pip install gradientai'") as gradientai_import:
@@ -97,13 +97,13 @@ class GradientDocumentEmbedder:
         :param documents: A list of Documents to embed.
         """
         if not isinstance(documents, list) or documents and any(not isinstance(doc, Document) for doc in documents):
-            raise TypeError(
-                "GradientDocumentEmbedder expects a list of Documents as input."
-                "In case you want to embed a list of strings, please use the GradientTextEmbedder."
-            )
+            msg = "GradientDocumentEmbedder expects a list of Documents as input.\
+                  In case you want to embed a list of strings, please use the GradientTextEmbedder."
+            raise TypeError(msg)
 
         if not hasattr(self, "_embedding_model"):
-            raise RuntimeError("The embedding model has not been loaded. Please call warm_up() before running.")
+            msg = "The embedding model has not been loaded. Please call warm_up() before running."
+            raise RuntimeError(msg)
 
         embeddings = self._generate_embeddings(documents=documents, batch_size=self._batch_size)
         for doc, embedding in zip(documents, embeddings):

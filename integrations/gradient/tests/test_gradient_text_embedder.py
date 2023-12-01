@@ -1,9 +1,10 @@
+from unittest.mock import MagicMock, NonCallableMagicMock
+
+import numpy as np
 import pytest
 from gradientai.openapi.client.models.generate_embedding_success import GenerateEmbeddingSuccess
-from haystack.components.embedders.gradient_text_embedder import GradientTextEmbedder
-from unittest.mock import MagicMock, NonCallableMagicMock
-import numpy as np
 
+from gradient_haystack.embedders.gradient_text_embedder import GradientTextEmbedder
 
 access_token = "access_token"
 workspace_id = "workspace_id"
@@ -57,7 +58,7 @@ class TestGradientTextEmbedder:
         component = GradientTextEmbedder(access_token=access_token, workspace_id=workspace_id)
         data = component.to_dict()
         assert data == {
-            "type": "haystack.components.embedders.gradient_text_embedder.GradientTextEmbedder",
+            "type": "gradient_haystack.embedders.gradient_text_embedder.GradientTextEmbedder",
             "init_parameters": {"workspace_id": workspace_id, "model_name": "bge-large"},
         }
 

@@ -1,11 +1,11 @@
+from unittest.mock import MagicMock, NonCallableMagicMock
+
+import numpy as np
 import pytest
 from gradientai.openapi.client.models.generate_embedding_success import GenerateEmbeddingSuccess
-from haystack.components.embedders.gradient_document_embedder import GradientDocumentEmbedder
-from unittest.mock import MagicMock, NonCallableMagicMock
-import numpy as np
-
 from haystack import Document
 
+from gradient_haystack.embedders.gradient_document_embedder import GradientDocumentEmbedder
 
 access_token = "access_token"
 workspace_id = "workspace_id"
@@ -59,7 +59,7 @@ class TestGradientDocumentEmbedder:
         component = GradientDocumentEmbedder(access_token=access_token, workspace_id=workspace_id)
         data = component.to_dict()
         assert data == {
-            "type": "haystack.components.embedders.gradient_document_embedder.GradientDocumentEmbedder",
+            "type": "gradient_haystack.embedders.gradient_document_embedder.GradientDocumentEmbedder",
             "init_parameters": {"workspace_id": workspace_id, "model_name": "bge-large"},
         }
 
@@ -131,12 +131,12 @@ class TestGradientDocumentEmbedder:
         embedder = GradientDocumentEmbedder(access_token=access_token, workspace_id=workspace_id, batch_size=20)
         embedder._embedding_model = NonCallableMagicMock()
 
-        DOCUMENT_COUNT = 101
+        document_count = 101
         embedder._embedding_model.generate_embeddings.return_value = GenerateEmbeddingSuccess(
-            embeddings=[{"embedding": np.random.rand(1024).tolist(), "index": i} for i in range(DOCUMENT_COUNT)]
+            embeddings=[{"embedding": np.random.rand(1024).tolist(), "index": i} for i in range(document_count)]
         )
 
-        documents = [Document(content=f"document number {i}") for i in range(DOCUMENT_COUNT)]
+        documents = [Document(content=f"document number {i}") for i in range(document_count)]
 
         result = embedder.run(documents=documents)
 

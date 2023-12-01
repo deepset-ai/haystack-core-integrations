@@ -72,17 +72,18 @@ class GradientTextEmbedder:
     def run(self, text: str):
         """Generates an embedding for a single text."""
         if not isinstance(text, str):
-            raise TypeError(
-                "GradientTextEmbedder expects a string as an input."
-                "In case you want to embed a list of Documents, please use the GradientDocumentEmbedder."
-            )
+            msg = "GradientTextEmbedder expects a string as an input.\
+                In case you want to embed a list of Documents, please use the GradientDocumentEmbedder."
+            raise TypeError(msg)
 
         if not hasattr(self, "_embedding_model"):
-            raise RuntimeError("The embedding model has not been loaded. Please call warm_up() before running.")
+            msg = "The embedding model has not been loaded. Please call warm_up() before running."
+            raise RuntimeError(msg)
 
         result = self._embedding_model.generate_embeddings(inputs=[{"input": text}])
 
         if (not result) or (result.embeddings is None) or (len(result.embeddings) == 0):
-            raise RuntimeError("The embedding model did not return any embeddings.")
+            msg = "The embedding model did not return any embeddings."
+            raise RuntimeError(msg)
 
         return {"embedding": result.embeddings[0].embedding}

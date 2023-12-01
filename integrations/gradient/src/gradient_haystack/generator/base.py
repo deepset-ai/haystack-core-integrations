@@ -1,9 +1,8 @@
-from typing import List, Optional, Dict, Any, overload
-
 import logging
-from haystack.lazy_imports import LazyImport
+from typing import Any, Dict, List, Optional
 
 from haystack import component, default_to_dict
+from haystack.lazy_imports import LazyImport
 
 with LazyImport(message="Run 'pip install gradientai'") as gradientai_import:
     from gradientai import Gradient
@@ -74,9 +73,11 @@ class GradientGenerator:
         has_model_adapter_id = model_adapter_id is not None and model_adapter_id != ""
 
         if not has_base_model_slug and not has_model_adapter_id:
-            raise ValueError("Either base_model_slug or model_adapter_id must be provided.")
+            msg = "Either base_model_slug or model_adapter_id must be provided."
+            raise ValueError(msg)
         if has_base_model_slug and has_model_adapter_id:
-            raise ValueError("Only one of base_model_slug or model_adapter_id must be provided.")
+            msg = "Only one of base_model_slug or model_adapter_id must be provided."
+            raise ValueError(msg)
 
         if has_base_model_slug:
             self._base_model_slug = base_model_slug
