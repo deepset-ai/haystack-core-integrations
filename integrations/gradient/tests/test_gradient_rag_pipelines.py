@@ -1,13 +1,13 @@
-import os
 import json
+import os
 
 import pytest
-from haystack import Pipeline, Document
-from haystack.document_stores import InMemoryDocumentStore
-from haystack.components.writers import DocumentWriter
-from haystack.components.retrievers import InMemoryEmbeddingRetriever
+from haystack import Document, Pipeline
 from haystack.components.builders.answer_builder import AnswerBuilder
 from haystack.components.builders.prompt_builder import PromptBuilder
+from haystack.components.retrievers import InMemoryEmbeddingRetriever
+from haystack.components.writers import DocumentWriter
+from haystack.document_stores import InMemoryDocumentStore
 
 from gradient_haystack.embedders.gradient_document_embedder import GradientDocumentEmbedder
 from gradient_haystack.embedders.gradient_text_embedder import GradientTextEmbedder
@@ -16,7 +16,10 @@ from gradient_haystack.generator.base import GradientGenerator
 
 @pytest.mark.skipif(
     not os.environ.get("GRADIENT_ACCESS_TOKEN", None) or not os.environ.get("GRADIENT_WORKSPACE_ID", None),
-    reason="Export env variables called GRADIENT_ACCESS_TOKEN and GRADIENT_WORKSPACE_ID containing the Gradient configuration settings to run this test.",
+    reason=(
+        "Export env variables called GRADIENT_ACCESS_TOKEN and GRADIENT_WORKSPACE_ID"
+        "containing the Gradient configuration settings to run this test.",
+    ),
 )
 def test_gradient_embedding_retrieval_rag_pipeline(tmp_path):
     # Create the RAG pipeline
@@ -55,7 +58,7 @@ def test_gradient_embedding_retrieval_rag_pipeline(tmp_path):
         json.dump(rag_pipeline.to_dict(), f)
 
     # Load the pipeline back
-    with open(tmp_path / "test_bm25_rag_pipeline.json", "r") as f:
+    with open(tmp_path / "test_bm25_rag_pipeline.json") as f:
         rag_pipeline = Pipeline.from_dict(json.load(f))
 
     # Populate the document store
