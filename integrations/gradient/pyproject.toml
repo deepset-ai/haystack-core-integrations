@@ -11,7 +11,7 @@ requires-python = ">=3.7"
 license = "MIT"
 keywords = []
 authors = [
-  { name = "Massimiliano Pippi", email = "mpippi@gmail.com" },
+  { name = "Mateusz Haligowski", email = "mhaligowski@gmail.com" },
 ]
 classifiers = [
   "Development Status :: 4 - Beta",
@@ -24,7 +24,10 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
-dependencies = []
+dependencies = [
+  "haystack-ai",
+  "gradientai",
+]
 
 [project.urls]
 Documentation = "https://github.com/unknown/gradient-haystack#readme"
