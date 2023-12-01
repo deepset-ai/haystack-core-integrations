@@ -163,7 +163,8 @@ class AstraClient:
             _values = response.pop("$vector") if "$vector" in response else None
             text = response.pop("text") if "text" in response else None
             values = _values if include_values else []
-            metadata = response if include_metadata else dict()
+            # TODO double check
+            metadata = response.pop("metadata") if "metadata" in response and include_metadata else dict()
             rsp = Response(_id, text, values, metadata, score)
             final_res.append(rsp)
         return QueryResponse(final_res)

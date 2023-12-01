@@ -42,14 +42,6 @@ class TestDocumentStore(DocumentStoreBaseTests):
         )
         return astra_store
 
-    @pytest.mark.unit
-    def test_delete_all(self, docstore: AstraDocumentStore):
-        """
-        Cleaning up document store
-        """
-        docstore.delete_documents(delete_all=True)
-        assert docstore.count_documents() == 0
-
     @pytest.mark.skip(reason="Unsupported filter operator $lte")
     @pytest.mark.unit
     def test_lte_filter_non_numeric(self, docstore: AstraDocumentStore, filterable_docs: List[Document]):
@@ -78,6 +70,13 @@ class TestDocumentStore(DocumentStoreBaseTests):
     @pytest.mark.skip(reason="Unsupported filter operator $gte.")
     @pytest.mark.unit
     def test_gte_filter_embedding(self, docstore: AstraDocumentStore, filterable_docs: List[Document]):
+        pass
+
+    @pytest.mark.skip(reason="Unsupported filter operator $gte.")
+    @pytest.mark.unit
+    def test_filter_simple_explicit_and_with_multikey_dict(
+        self, docstore: AstraDocumentStore, filterable_docs: List[Document]
+    ):
         pass
 
     @pytest.mark.skip(reason="Unsupported filter operator $gt.")
@@ -132,6 +131,33 @@ class TestDocumentStore(DocumentStoreBaseTests):
 
     @pytest.mark.skip(reason="Unsupported filter operator $lte.")
     @pytest.mark.unit
+    def test_filter_nested_implicit_and(self, docstore: AstraDocumentStore, filterable_docs: List[Document]):
+        pass
+
+    @pytest.mark.skip(reason="Unsupported filter operator $lte.")
+    @pytest.mark.unit
+    def test_filter_simple_explicit_and_with_list(self, docstore: AstraDocumentStore, filterable_docs: List[Document]):
+        pass
+
+    @pytest.mark.skip(reason="Unsupported filter operator $lte.")
+    @pytest.mark.unit
+    def test_filter_simple_implicit_and_with_multi_key_dict(
+        self, docstore: AstraDocumentStore, filterable_docs: List[Document]
+    ):
+        pass
+
+    @pytest.mark.skip(reason="Unsupported filter operator $lte.")
+    @pytest.mark.unit
+    def test_filter_nested_explicit_and(self, docstore: AstraDocumentStore, filterable_docs: List[Document]):
+        pass
+
+    @pytest.mark.skip(reason="Unsupported filter operator $lte.")
+    @pytest.mark.unit
+    def test_filter_simple_implicit_and(self, docstore: AstraDocumentStore, filterable_docs: List[Document]):
+        pass
+
+    @pytest.mark.skip(reason="Unsupported filter operator $lte.")
+    @pytest.mark.unit
     def test_lte_filter_table(self, docstore: AstraDocumentStore, filterable_docs: List[Document]):
         pass
 
@@ -164,3 +190,28 @@ class TestDocumentStore(DocumentStoreBaseTests):
     @pytest.mark.unit
     def test_nin_filter_embedding(self, docstore: AstraDocumentStore, filterable_docs: List[Document]):
         pass
+
+    ## we should be able to filter on page or any other column from the database
+    #
+    # @pytest.mark.skip(reason="Unsupported filter by page.")
+    # @pytest.mark.unit
+    # def test_filter_simple_list_one_value(self, docstore: AstraDocumentStore, filterable_docs: List[Document]):
+    #     pass
+    #
+    # @pytest.mark.skip(reason="Unsupported filter by page.")
+    # @pytest.mark.unit
+    # def test_filter_simple_list(self, docstore: AstraDocumentStore, filterable_docs: List[Document]):
+    #     pass
+    #
+    # @pytest.mark.skip(reason="Unsupported filter by page.")
+    # @pytest.mark.unit
+    # def test_filter_simple_list_single_element(self, docstore: AstraDocumentStore, filterable_docs: List[Document]):
+    #     pass
+
+    @pytest.mark.unit
+    def test_delete_all(self, docstore: AstraDocumentStore):
+        """
+        Cleaning up document store
+        """
+        docstore.delete_documents(delete_all=True)
+        assert docstore.count_documents() == 0

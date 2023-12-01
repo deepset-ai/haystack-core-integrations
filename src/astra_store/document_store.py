@@ -140,7 +140,12 @@ class AstraDocumentStore:
             meta = data.pop("metadata")
             document_dict = {**data, **meta}
             document_dict["_id"] = document_dict.pop("id")
-            document_dict["$vector"] = self.embeddings.encode(document_dict["text"]).tolist()
+            if "dataframe" in document_dict and document_dict["dataframe"] is not None:
+                document_dict["dataframe"] = document_dict.pop("dataframe").to_json()
+            if "text" in document_dict and document_dict["text"] is not None:
+                document_dict["$vector"] = self.embeddings.encode(document_dict["text"]).tolist()
+            else:
+                document_dict["$vector"] = None
 
             return document_dict
 
@@ -237,9 +242,6 @@ class AstraDocumentStore:
     def _get_result_to_documents(results) -> List[Document]:
         documents = []
         for match in results.matches:
-            match.pop("score")
-            match.metadata.pop("embedding")
-            match.metadata.pop("id_hash_keys")
             document = Document(
                 text=match.text,
                 id=match.id,
