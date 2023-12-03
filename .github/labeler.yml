@@ -1,12 +1,16 @@
 # Integrations
-integration:instructor-embedders:
-- components/embedders/instructor-embedders/**/*
-integration:unstructured-fileconverter:
-- components/converters/unstructured_fileconverter/**/*
 integration:chroma:
-- document_stores/chroma/**/*
+- integrations/chroma/**/*
 integration:elasticsearch:
-- document_stores/elasticsearch/**/*
+- integrations/elasticsearch/**/*
+integration:gradient:
+- integrations/gradient/**/*
+integration:instructor-embedders:
+- integrations/instructor-embedders/**/*
+integration:opensearch:
+- integrations/opensearch/**/*
+integration:unstructured-fileconverter:
+- integrations/unstructured/fileconverter/**/*
 # Topics
 topic:CI:
 - .github/*
