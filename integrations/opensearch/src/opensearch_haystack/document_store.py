@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
+#
+# SPDX-License-Identifier: Apache-2.0
 import logging
 from typing import Any, Dict, List, Mapping, Optional, Union
 

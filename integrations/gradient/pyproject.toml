@@ -8,7 +8,7 @@ dynamic = ["version"]
 description = ''
 readme = "README.md"
 requires-python = ">=3.7"
-license = "MIT"
+license = "Apache-2.0"
 keywords = []
 authors = [
   { name = "Mateusz Haligowski", email = "mhaligowski@gmail.com" },
