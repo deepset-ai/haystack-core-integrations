@@ -27,9 +27,13 @@ class TestDocumentStore(DocumentStoreBaseTests):
         astra_id = os.getenv("ASTRA_DB_ID", "")
         astra_region = os.getenv("ASTRA_DB_REGION", "us-east1")
 
-        astra_application_token = os.getenv("ASTRA_DB_APPLICATION_TOKEN", "")
-        keyspace_name = "test"
-        collection_name = "test_collection"
+        astra_application_token = os.getenv(
+            "ASTRA_DB_APPLICATION_TOKEN",
+            "",
+        )
+
+        keyspace_name = "astra_haystack_test"
+        collection_name = "test_collection_new"
 
         astra_store = AstraDocumentStore(
             astra_id=astra_id,
@@ -38,14 +42,55 @@ class TestDocumentStore(DocumentStoreBaseTests):
             astra_keyspace=keyspace_name,
             astra_collection=collection_name,
             duplicates_policy=DuplicatePolicy.OVERWRITE,
-            embedding_dim=384,
+            embedding_dim=768,
         )
         return astra_store
+
+    @pytest.fixture(autouse=True)
+    def run_before_and_after_tests(self, docstore: AstraDocumentStore):
+        """
+        Cleaning up document store
+        """
+        docstore.delete_documents(delete_all=True)
+        assert docstore.count_documents() == 0
+
+    @pytest.mark.unit
+    def test_filter_simple_list_single_element(self, docstore: AstraDocumentStore, filterable_docs: List[Document]):
+        docstore.write_documents(filterable_docs)
+        result = docstore.filter_documents(filters={"page": ["100"]})
+        assert self.contains_same_docs(
+            result, [doc for doc in filterable_docs if doc.metadata.get("page", "100") == "100"]
+        )
 
     @pytest.mark.skip(reason="Unsupported filter operator $lte")
     @pytest.mark.unit
     def test_lte_filter_non_numeric(self, docstore: AstraDocumentStore, filterable_docs: List[Document]):
         pass
+
+    @pytest.mark.unit
+    def test_eq_filter_embedding(self, docstore: AstraDocumentStore, filterable_docs: List[Document]):
+        docstore.write_documents(filterable_docs)
+        embedding = [1.0] * 768
+        _result = docstore.filter_documents(filters={"embedding": embedding})
+        result = []
+        for res in _result:
+            if res.score == 1.0:
+                result.append(res)
+        assert self.contains_same_docs(result, [doc for doc in filterable_docs if embedding == doc.embedding])
+
+    @pytest.mark.unit
+    def test_in_filter_embedding(self, docstore: AstraDocumentStore, filterable_docs: List[Document]):
+        docstore.write_documents(filterable_docs)
+        embedding_one = [1.0] * 768
+        _result = docstore.filter_documents(filters={"embedding": {"$in": [embedding_one]}})
+        result = []
+        for res in _result:
+            if res.score == 1.0:
+                result.append(res)
+        assert self.contains_same_docs(
+            result,
+            [doc for doc in filterable_docs if (embedding_one == doc.embedding)],
+        )
 
     @pytest.mark.skip(reason="Unsupported filter operator $ne.")
     @pytest.mark.unit
@@ -56,6 +101,16 @@ class TestDocumentStore(DocumentStoreBaseTests):
     @pytest.mark.unit
     def test_gte_filter(self, docstore: AstraDocumentStore, filterable_docs: List[Document]):
         pass
+
+    @pytest.mark.unit
+    def test_incorrect_filter_nesting(self, docstore: AstraDocumentStore, filterable_docs: List[Document]):
+        docstore.write_documents(filterable_docs)
+        assert len(docstore.filter_documents(filters={"number": {"page": "100"}})) == 0
+
+    @pytest.mark.unit
+    def test_deeper_incorrect_filter_nesting(self, docstore: AstraDocumentStore, filterable_docs: List[Document]):
+        docstore.write_documents(filterable_docs)
+        assert len(docstore.filter_documents(filters={"number": {"page": {"chapter": "intro"}}})) == 0
 
     @pytest.mark.skip(reason="Unsupported filter operator $gte.")
     @pytest.mark.unit

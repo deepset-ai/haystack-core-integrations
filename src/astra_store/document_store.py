@@ -5,6 +5,7 @@ import json
 import logging
 from dataclasses import asdict
 from typing import Any, Dict, List, Optional, Union
+import pandas as pd
 
 from haystack.preview.dataclasses import Document
 from haystack.preview.document_stores.decorator import document_store
@@ -143,7 +144,10 @@ class AstraDocumentStore:
             if "dataframe" in document_dict and document_dict["dataframe"] is not None:
                 document_dict["dataframe"] = document_dict.pop("dataframe").to_json()
             if "text" in document_dict and document_dict["text"] is not None:
-                document_dict["$vector"] = self.embeddings.encode(document_dict["text"]).tolist()
+                if "embedding" not in document_dict.keys():
+                    document_dict["$vector"] = self.embeddings.encode(document_dict["text"]).tolist()
+                else:
+                    document_dict["$vector"] = document_dict.pop("embedding")
             else:
                 document_dict["$vector"] = None
 
@@ -229,13 +233,31 @@ class AstraDocumentStore:
         Returns:
             List[Document]: A list of matching documents.
         """
-
         if not isinstance(filters, dict) and filters is not None:
             msg = "Filters must be a dictionary or None"
             raise AstraDocumentStoreFilterError(msg)
 
-        results = self.index.query(filter=filters, top_k=1000, include_values=True, include_metadata=True)
-        documents = self._get_result_to_documents(results)
+        vector = None
+        if filters is not None and "embedding" in filters.keys():
+            if "$in" in filters["embedding"].keys():
+                embeds = filters.pop("embedding")
+                vectors = embeds["$in"]
+            else:
+                filters["$vector"] = filters.pop("embedding")
+                vectors = [filters.pop("$vector")]
+            documents = []
+            for vector in vectors:
+                converted_filters = self._convert_filters(filters)
+                results = self.index.query(
+                    vector=vector, filter=converted_filters, top_k=1000, include_values=True, include_metadata=True
+                )
+                documents.extend(self._get_result_to_documents(results))
+        else:
+            converted_filters = self._convert_filters(filters)
+            results = self.index.query(
+                vector=vector, filter=converted_filters, top_k=1000, include_values=True, include_metadata=True
+            )
+            documents = self._get_result_to_documents(results)
         return documents
 
     @staticmethod
@@ -286,12 +308,12 @@ class AstraDocumentStore:
             List[List[Document]]: A list of matching documents for each query.
         """
         results = []
-
+        converted_filters = self._convert_filters(filters)
         for query in queries:
             vector = self.embeddings.encode(query).tolist()
 
             result = self._get_result_to_documents(
-                self.index.query(vector=vector, top_k=top_k, filter=filters, include_metadata=True)
+                self.index.query(vector=vector, top_k=top_k, filter=converted_filters, include_metadata=True)
             )
             results.append(result)
             logger.debug(f"Raw responses: {result}")  # leaving for debugging
@@ -305,9 +327,7 @@ class AstraDocumentStore:
         """
         if not filters:
             return None
-
         filter_statements = {}
-
         for key in filters:
             value = filters[key]
             if key in {"$and", "$or"}:
@@ -323,7 +343,22 @@ class AstraDocumentStore:
                 if key != "$in" and type(value) is list:
                     filter_statements[key] = {"$in": value}
                 else:
-                    filter_statements[key] = value
+                    if type(value) is pd.DataFrame:
+                        filter_statements[key] = value.to_json()
+                    elif type(value) is dict:
+                        for dkey, dvalue in value.items():
+                            converted = dict()
+                            if type(dvalue) is list:
+                                elts = []
+                                for elt in dvalue:
+                                    if type(elt) is pd.DataFrame:
+                                        elts.append(elt.to_json())
+                                converted[dkey] = elts
+                            else:
+                                converted[dkey] = dvalue
+                        filter_statements[key] = converted
+                    else:
+                        filter_statements[key] = value
 
         return filter_statements
 
