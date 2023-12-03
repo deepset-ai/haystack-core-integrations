@@ -1,10 +1,9 @@
 import json
+import logging
 from typing import Any, Dict, List, Optional, Union
 
 import requests
 from pydantic.dataclasses import dataclass
-
-import logging
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -152,56 +151,30 @@ class AstraClient:
         return formatted_response
 
     def _query_without_vector(self, top_k, filters=None):
-        query = {"find": {"filter": filters, "options": {"limit": top_k}}}
-        results = requests.request(
-            "POST",
-            self.request_url,
-            headers=self.request_header,
-            data=json.dumps(query),
-        ).json()["data"]["documents"]
-        response = []
-        for element in results:
-            response.append(element)
-        return response
+        query = {"filter": filters, "options": {"limit": top_k}}
+        return self.find_documents(query)
 
     @staticmethod
     def _format_query_response(responses, include_metadata, include_values):
         final_res = []
         for response in responses:
-            id = response.pop("_id")
+            _id = response.pop("_id")
             score = response.pop("$similarity") if "$similarity" in response else None
             _values = response.pop("$vector") if "$vector" in response else None
             text = response.pop("text") if "text" in response else None
             values = _values if include_values else []
             metadata = response if include_metadata else dict()
-            rsp = Response(id, text, values, metadata, score)
+            rsp = Response(_id, text, values, metadata, score)
             final_res.append(rsp)
         return QueryResponse(final_res)
 
     def _query(self, vector, top_k, filters=None):
-        score_query = {
-            "find": {
-                "sort": {"$vector": vector},
-                "projection": {"$similarity": 1},
-                "options": {"limit": top_k},
-            }
-        }
-        query = {"find": {"sort": {"$vector": vector}, "options": {"limit": top_k}}}
+        query = {"sort": {"$vector": vector}, "options": {"limit": top_k}}
         if filters is not None:
-            score_query["find"]["filter"] = filters
-            query["find"]["filter"] = filters
-        similarity_score = requests.request(
-            "POST",
-            self.request_url,
-            headers=self.request_header,
-            data=json.dumps(score_query),
-        ).json()["data"]["documents"]
-        result = requests.request(
-            "POST",
-            self.request_url,
-            headers=self.request_header,
-            data=json.dumps(query),
-        ).json()["data"]["documents"]
+            query["filter"] = filters
+
+        similarity_score = self.find_documents({**query, "projection": {"$similarity": 1}})
+        result = self.find_documents(query)
         response = []
         for elt1 in similarity_score:
             for elt2 in result:
@@ -209,8 +182,8 @@ class AstraClient:
                     response.append(elt1 | elt2)
         return response
 
-    def find_document(self, find_key: str, find_value):
-        query = json.dumps({"findOne": {"filter": {find_key: find_value}}})
+    def find_documents(self, find_query):
+        query = json.dumps({"find": find_query})
         response = requests.request(
             "POST",
             self.request_url,
@@ -218,14 +191,15 @@ class AstraClient:
             data=query,
         )
         response_dict = json.loads(response.text)
-
-        if response.status_code == 200 and "data" in response_dict:
-            return {"exists": response_dict["data"]["document"] is not None, "response": response_dict}
+        if response.status_code == 200:
+            if "data" in response_dict and "documents" in response_dict["data"]:
+                return response_dict["data"]["documents"]
+            else:
+                logger.warning("No documents found", response_dict)
         else:
             raise Exception(f"Astra DB request error - status code: {response.status_code} response {response.text}")
 
     def get_documents(self, ids: List[str], batch_size: int = 20) -> QueryResponse:
-        documents = []
         document_batch = []
 
         def batch_generator(chunks, batch_size):
@@ -235,22 +209,11 @@ class AstraClient:
                 yield batch
 
         for id_batch in batch_generator(ids, batch_size):
-            query = {"find": {"filter": {"_id": ""}}}
-            query["find"]["filter"] = {"_id": {"$in": id_batch}}
-            response = requests.request(
-                "POST",
-                self.request_url,
-                headers=self.request_header,
-                data=json.dumps(query),
-            ).json()["data"]["documents"]
-            document_batch.append(response)
-        for docs in document_batch:
-            for doc in docs:
-                documents.append(doc)
-        formatted_docs = self._format_query_response(documents, include_metadata=True, include_values=True)
+            document_batch.extend(self.find_documents({"filter": {"_id": {"$in": id_batch}}}))
+        formatted_docs = self._format_query_response(document_batch, include_metadata=True, include_values=True)
         return formatted_docs
 
-    def insert(self, documents: List[Dict], id_key: str):
+    def insert(self, documents: List[Dict]):
         query = json.dumps({"insertMany": {"options": {"ordered": False}, "documents": documents}})
         response = requests.request(
             "POST",
@@ -301,37 +264,12 @@ class AstraClient:
         else:
             raise Exception(f"Astra DB request error - status code: {response.status_code} response {response.text}")
 
-    def upsert(self, documents: List[Dict], id_key: str):
-        to_insert = []
-        upserted_ids = []
-        not_upserted_ids = []
-        for document in documents:
-            # check if id exists:
-            id_exists = self.find_document(find_key=id_key, find_value=document[id_key])["exists"]
-
-            # if the id doesn't exist, prepare record for inserting
-            if not id_exists:
-                to_insert.append(document)
-
-            # else, update record with that id
-            else:
-                record_updated = self.update_document(document, id_key)
-                if record_updated:
-                    upserted_ids.append(document[id_key])
-
-        # now insert the records stored in to_insert
-        if len(to_insert) > 0:
-            inserted_ids = self.insert(documents, id_key)
-            upserted_ids = upserted_ids + inserted_ids
-
-        return list(set(upserted_ids))
-
     def delete(
         self,
         ids: Optional[List[str]] = None,
         delete_all: Optional[bool] = None,
         filter: Optional[Dict[str, Union[str, float, int, bool, List, dict]]] = None,
-    ) -> Dict[str, Any]:
+    ) -> Response:
         if delete_all:  # TODO can this be defaulted to true when ids is none and filter is also none?
             query = {"deleteMany": {}}
         if ids is not None:
@@ -345,7 +283,6 @@ class AstraClient:
             data=json.dumps(query),
         )
         return response
-
 
     def count_documents(self) -> int:
         """

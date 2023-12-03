@@ -109,7 +109,8 @@ class AstraDocumentStore:
                         overwrite: Update any existing documents with the same ID when adding documents.
                         fail: an error is raised if the document ID of the document being added already
                         exists.
-        # :param headers: Custom HTTP headers to pass to document store client if supported (e.g. {'Authorization': 'Basic YWRtaW46cm9vdA=='} for basic authentication)
+        # :param headers: Custom HTTP headers to pass to document store client if supported (e.g.
+        {'Authorization': 'Basic YWRtaW46cm9vdA=='} for basic authentication)
 
         :return: None
         """
@@ -125,7 +126,8 @@ class AstraDocumentStore:
 
         if batch_size > 20:
             logger.warning(
-                f"batch_size set to {batch_size}, but maximum batch_size for Astra when using the JSON API is 20. batch_size set to 20."
+                f"batch_size set to {batch_size}, "
+                f"but maximum batch_size for Astra when using the JSON API is 20. batch_size set to 20."
             )
             batch_size = 20
 
@@ -148,22 +150,23 @@ class AstraDocumentStore:
         i = 0
         while i < len(documents_to_write):
             doc = documents_to_write[i]
-            id_exists = self.index.find_document(find_key="_id", find_value=doc["_id"])["exists"]
-            if id_exists:
+            response = self.index.find_documents({"filter": {"_id": doc["_id"]}})
+            if response:
                 duplicate_documents.append(doc)
                 del documents_to_write[i]
                 i = i - 1
             i = i + 1
 
+        # TODO batch generator exists also in astra_client
         def _batches(input_list, batch_size):
-            l = len(input_list)
-            for ndx in range(0, l, batch_size):
-                yield input_list[ndx : min(ndx + batch_size, l)]
+            input_length = len(input_list)
+            for ndx in range(0, input_length, batch_size):
+                yield input_list[ndx : min(ndx + batch_size, input_length)]
 
         if policy == DuplicatePolicy.SKIP:
             if len(documents_to_write) > 0:
                 for batch in _batches(documents_to_write, batch_size):
-                    inserted_ids = index.insert(batch, "_id")
+                    inserted_ids = index.insert(batch)
                     logger.info(f"write_documents inserted documents with id {inserted_ids}")
             else:
                 logger.warning("No new documents to write to astra. No documents written. Argument policy set to SKIP")
@@ -171,7 +174,7 @@ class AstraDocumentStore:
         elif policy == DuplicatePolicy.OVERWRITE:
             if len(documents_to_write) > 0:
                 for batch in _batches(documents_to_write, batch_size):
-                    inserted_ids = index.insert(batch, "_id")
+                    inserted_ids = index.insert(batch)
                     logger.info(f"write_documents inserted documents with id {inserted_ids}")
             else:
                 logger.warning(
@@ -191,12 +194,13 @@ class AstraDocumentStore:
         elif policy == DuplicatePolicy.FAIL:
             if len(duplicate_documents) > 0:
                 raise DuplicateDocumentError(
-                    f"write_documents called with duplicate ids {[x['_id'] for x in documents_to_write]}, but argument policy set to FAIL"
+                    f"write_documents called with duplicate ids {[x['_id'] for x in documents_to_write]}, "
+                    f"but argument policy set to FAIL"
                 )
 
             if len(documents_to_write) > 0:
                 for batch in _batches(documents_to_write, batch_size):
-                    inserted_ids = index.insert(batch, "_id")
+                    inserted_ids = index.insert(batch)
                     logger.info(f"write_documents inserted documents with id {inserted_ids}")
             else:
                 logger.warning("No new documents to write to astra. No documents written. Argument policy set to FAIL")
@@ -291,6 +295,7 @@ class AstraDocumentStore:
 
         return results
 
+    # TODO integrate this function
     def _convert_filters(self, filters: Optional[Dict[str, Any]] = None) -> Optional[Dict[str, Any]]:
         """
         Convert haystack filters to astra filterstring capturing all boolean operators
