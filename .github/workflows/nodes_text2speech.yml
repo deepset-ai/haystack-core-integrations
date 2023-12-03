@@ -1,8 +1,6 @@
 name: Test / text2speech
 
 on:
-  schedule:
-    - cron: "0 0 * * *"
   pull_request:
     paths:
       - 'integrations/nodes/text2speech/**'
