@@ -24,7 +24,10 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
-dependencies = []
+dependencies = [
+  "haystack-ai",
+  "cohere",
+]
 
 [project.urls]
 Documentation = "https://github.com/unknown/cohere-haystack#readme"
@@ -155,3 +158,11 @@ exclude_lines = [
   "if __name__ == .__main__.:",
   "if TYPE_CHECKING:",
 ]
+
+[[tool.mypy.overrides]]
+module = [
+  "cohere.*",
+  "haystack.*",
+  "pytest.*"
+]
+ignore_missing_imports = true
