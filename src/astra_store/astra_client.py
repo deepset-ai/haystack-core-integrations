@@ -74,7 +74,7 @@ class AstraClient:
                 )
 
                 if len(collection_name_matches) == 0:
-                    logger.error(
+                    logger.warning(
                         f"Astra collection {self.collection_name} not found under {self.keyspace_name}. Will be created."
                     )
                     return False
@@ -82,7 +82,8 @@ class AstraClient:
                 collection_embedding_dim = collection_name_matches[0]["options"]["vector"]["dimension"]
                 if collection_embedding_dim != self.embedding_dim:
                     raise Exception(
-                        f"Collection vector dimension is not valid, expected {self.embedding_dim}, found {collection_embedding_dim}"
+                        f"Collection vector dimension is not valid, expected {self.embedding_dim}, "
+                        f"found {collection_embedding_dim}"
                     )
 
             else:
@@ -222,7 +223,6 @@ class AstraClient:
             headers=self.request_header,
             data=query,
         )
-        logger.info(response.text)
         response_dict = json.loads(response.text)
 
         if response.status_code == 200:
@@ -254,7 +254,6 @@ class AstraClient:
             headers=self.request_header,
             data=query,
         )
-        logger.info(response.text)
         response_dict = json.loads(response.text)
         document[id_key] = document_id
 
@@ -274,7 +273,7 @@ class AstraClient:
         delete_all: Optional[bool] = None,
         filter: Optional[Dict[str, Union[str, float, int, bool, List, dict]]] = None,
     ) -> Response:
-        if delete_all:  # TODO can this be defaulted to true when ids is none and filter is also none?
+        if delete_all:
             query = {"deleteMany": {}}
         if ids is not None:
             query = {"deleteMany": {"filter": {"_id": {"$in": ids}}}}

@@ -134,10 +134,12 @@ class AstraDocumentStore:
             batch_size = 20
 
         def _convert_input_document(document: Union[dict, Document]):
-            if not isinstance(document, dict):
+            if isinstance(document, Document):
                 data = asdict(document)
-            else:
+            elif isinstance(document, dict):
                 data = document
+            else:
+                raise ValueError(f"Unsupported type for documents, documents is of type {type(document)}.")
             meta = data.pop("metadata")
             document_dict = {**data, **meta}
             document_dict["_id"] = document_dict.pop("id")
@@ -162,6 +164,8 @@ class AstraDocumentStore:
             doc = documents_to_write[i]
             response = self.index.find_documents({"filter": {"_id": doc["_id"]}})
             if response:
+                if policy == DuplicatePolicy.FAIL:
+                    raise DuplicateDocumentError(f"ID '{doc['_id']}' already exists.")
                 duplicate_documents.append(doc)
             else:
                 new_documents.append(doc)
@@ -200,12 +204,6 @@ class AstraDocumentStore:
                 logger.info("No documents updated. Argument policy set to OVERWRITE")
 
         elif policy == DuplicatePolicy.FAIL:
-            if len(duplicate_documents) > 0:
-                raise DuplicateDocumentError(
-                    f"write_documents called with duplicate ids {[x['_id'] for x in documents_to_write]}, "
-                    f"but argument policy set to FAIL"
-                )
-
             if len(new_documents) > 0:
                 for batch in _batches(new_documents, batch_size):
                     inserted_ids = index.insert(batch)
@@ -318,7 +316,6 @@ class AstraDocumentStore:
 
         return results
 
-    # TODO integrate this function
     def _convert_filters(self, filters: Optional[Dict[str, Any]] = None) -> Optional[Dict[str, Any]]:
         """
         Convert haystack filters to astra filterstring capturing all boolean operators
@@ -337,6 +334,8 @@ class AstraDocumentStore:
                         filt.append(self._convert_filters(filters=row))
                     filter_statements[key] = filt
             else:
+                if key == "id":
+                    filter_statements[key] = {"_id": value}
                 if key != "$in" and type(value) is list:
                     filter_statements[key] = {"$in": value}
                 else:
