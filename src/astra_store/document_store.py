@@ -146,7 +146,9 @@ class AstraDocumentStore:
                 if "_id" not in document_dict:
                     document_dict["_id"] = document_dict.pop("id")
                 elif "_id" in document_dict:
-                    raise Exception(f"Duplicate id definitions, both 'id' and '_id' present in document {document_dict}")
+                    raise Exception(
+                        f"Duplicate id definitions, both 'id' and '_id' present in document {document_dict}"
+                    )
             if "dataframe" in document_dict and document_dict["dataframe"] is not None:
                 document_dict["dataframe"] = document_dict.pop("dataframe").to_json()
             if "text" in document_dict and document_dict["text"] is not None:
