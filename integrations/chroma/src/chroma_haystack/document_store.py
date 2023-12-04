@@ -9,7 +9,6 @@ import chromadb
 import numpy as np
 from chromadb.api.types import GetResult, QueryResult, validate_where, validate_where_document
 from haystack.dataclasses import Document
-from haystack.document_stores.decorator import document_store
 from haystack.document_stores.protocols import DuplicatePolicy
 
 from chroma_haystack.errors import ChromaDocumentStoreFilterError
@@ -18,7 +17,6 @@ from chroma_haystack.utils import get_embedding_function
 logger = logging.getLogger(__name__)
 
 
-@document_store
 class ChromaDocumentStore:
     """
     We use the `collection.get` API to implement the document store protocol,

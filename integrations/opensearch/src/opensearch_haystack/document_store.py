@@ -7,7 +7,7 @@ from typing import Any, Dict, List, Mapping, Optional, Union
 import numpy as np
 from haystack import default_from_dict, default_to_dict
 from haystack.dataclasses import Document
-from haystack.document_stores import DocumentStoreError, DuplicateDocumentError, DuplicatePolicy, document_store
+from haystack.document_stores import DocumentStoreError, DuplicateDocumentError, DuplicatePolicy
 from haystack.utils.filters import convert
 from opensearchpy import OpenSearch
 from opensearchpy.helpers import bulk
@@ -28,7 +28,6 @@ Hosts = Union[str, List[Union[str, Mapping[str, Union[str, int]]]]]
 BM25_SCALING_FACTOR = 8
 
 
-@document_store
 class OpenSearchDocumentStore:
     def __init__(
         self,
