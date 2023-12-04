@@ -43,6 +43,7 @@ class TestDocumentStore(DocumentStoreBaseTests):
             astra_collection=collection_name,
             duplicates_policy=DuplicatePolicy.OVERWRITE,
             embedding_dim=768,
+            model_name="flax-sentence-embeddings/all_datasets_v3_mpnet-base",
         )
         return astra_store
 
