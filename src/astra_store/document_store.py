@@ -237,6 +237,10 @@ class AstraDocumentStore:
             msg = "Filters must be a dictionary or None"
             raise AstraDocumentStoreFilterError(msg)
 
+        if filters is not None:
+            if "id" in filters:
+                filters["_id"] = filters.pop("id")
+
         vector = None
         if filters is not None and "embedding" in filters.keys():
             if "$in" in filters["embedding"]:
