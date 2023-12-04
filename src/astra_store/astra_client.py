@@ -226,12 +226,14 @@ class AstraClient:
         response_dict = json.loads(response.text)
 
         if response.status_code == 200:
-            if "status" in response_dict and "errors" not in response_dict:
-                if "insertedIds" in response_dict["status"]:
-                    inserted_ids = response_dict["status"]["insertedIds"]
-                    if len(inserted_ids) == len(documents):
-                        return inserted_ids
-            return []
+            inserted_ids = (
+                response_dict["status"]["insertedIds"]
+                if "status" in response_dict and "insertedIds" in response_dict["status"]
+                else []
+            )
+            if "errors" in response_dict:
+                logger.error(response_dict["errors"])
+            return inserted_ids
         else:
             raise Exception(f"Astra DB request error - status code: {response.status_code} response {response.text}")
 

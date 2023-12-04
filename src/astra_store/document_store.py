@@ -5,8 +5,8 @@ import json
 import logging
 from dataclasses import asdict
 from typing import Any, Dict, List, Optional, Union
-import pandas as pd
 
+import pandas as pd
 from haystack.preview.dataclasses import Document
 from haystack.preview.document_stores.decorator import document_store
 from haystack.preview.document_stores.errors import (
@@ -179,7 +179,7 @@ class AstraDocumentStore:
                     inserted_ids = index.insert(batch)
                     logger.info(f"write_documents inserted documents with id {inserted_ids}")
             else:
-                logger.warning("No new documents to write to astra. No documents written. Argument policy set to SKIP")
+                logger.warning("No documents written. Argument policy set to SKIP")
 
         elif policy == DuplicatePolicy.OVERWRITE:
             if len(new_documents) > 0:
@@ -187,9 +187,7 @@ class AstraDocumentStore:
                     inserted_ids = index.insert(batch)
                     logger.info(f"write_documents inserted documents with id {inserted_ids}")
             else:
-                logger.warning(
-                    "No new documents to write to astra. No documents written. Argument policy set to OVERWRITE"
-                )
+                logger.warning("No documents written. Argument policy set to OVERWRITE")
 
             if len(duplicate_documents) > 0:
                 updated_ids = []
@@ -199,7 +197,7 @@ class AstraDocumentStore:
                         updated_ids.append(duplicate_doc["_id"])
                 logger.info(f"write_documents updated documents with id {updated_ids}")
             else:
-                logger.info("No documents to update. No documents updated. Argument policy set to OVERWRITE")
+                logger.info("No documents updated. Argument policy set to OVERWRITE")
 
         elif policy == DuplicatePolicy.FAIL:
             if len(duplicate_documents) > 0:
@@ -213,7 +211,7 @@ class AstraDocumentStore:
                     inserted_ids = index.insert(batch)
                     logger.info(f"write_documents inserted documents with id {inserted_ids}")
             else:
-                logger.warning("No new documents to write to astra. No documents written. Argument policy set to FAIL")
+                logger.warning("No documents written. Argument policy set to FAIL")
 
     def count_documents(self) -> int:
         """
@@ -239,7 +237,7 @@ class AstraDocumentStore:
 
         vector = None
         if filters is not None and "embedding" in filters.keys():
-            if "$in" in filters["embedding"].keys():
+            if "$in" in filters["embedding"]:
                 embeds = filters.pop("embedding")
                 vectors = embeds["$in"]
             else:
@@ -328,8 +326,7 @@ class AstraDocumentStore:
         if not filters:
             return None
         filter_statements = {}
-        for key in filters:
-            value = filters[key]
+        for key, value in filters.items():
             if key in {"$and", "$or"}:
                 filt = []
                 if type(value) is not list:
@@ -353,6 +350,8 @@ class AstraDocumentStore:
                                 for elt in dvalue:
                                     if type(elt) is pd.DataFrame:
                                         elts.append(elt.to_json())
+                                    else:
+                                        elts.append(elt)
                                 converted[dkey] = elts
                             else:
                                 converted[dkey] = dvalue
