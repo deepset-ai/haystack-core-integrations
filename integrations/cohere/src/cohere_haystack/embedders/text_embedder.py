@@ -2,14 +2,14 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 from typing import List, Optional, Dict, Any
+import asyncio
 import os
 
-from haystack.preview import component, default_to_dict, default_from_dict
-from haystack.preview.lazy_imports import LazyImport
+from haystack import component, default_to_dict, default_from_dict
 
-with LazyImport(message="Run 'pip install cohere'") as cohere_import:
-    from cohere import Client, AsyncClient, CohereError
+from cohere import Client, AsyncClient, CohereError
 
+from .utils import get_async_response, get_response
 
 API_BASE_URL = "https://api.cohere.ai/v1/embed"
 
@@ -27,8 +27,8 @@ class CohereTextEmbedder:
         api_base_url: str = API_BASE_URL,
         truncate: str = "END",
         use_async_client: bool = False,
-        max_retries: Optional[int] = 3,
-        timeout: Optional[int] = 120,
+        max_retries: int = 3,
+        timeout: int = 120,
     ):
         """
         Create a CohereTextEmbedder component.
@@ -61,7 +61,7 @@ class CohereTextEmbedder:
 
     def to_dict(self) -> Dict[str, Any]:
         """
-        Serialize this component to a dictionary.
+        Serialize this component to a dictionary omitting the api_key field.
         """
         return default_to_dict(
             self,
@@ -72,24 +72,6 @@ class CohereTextEmbedder:
             max_retries=self.max_retries,
             timeout=self.timeout,
         )
-
-    @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "CohereTextEmbedder":
-        """
-        Deserialize this component from a dictionary.
-        """
-        return default_from_dict(cls, data)
-
-    async def _get_async_response(self, cohere_async_client: AsyncClient, text: str):
-        try:
-            response = await cohere_async_client.embed(texts=[text], model=self.model_name, truncate=self.truncate)
-            metadata = response.meta
-            embedding = [list(map(float, emb)) for emb in response.embeddings][0]
-
-        except CohereError as error_response:
-            print(error_response.message)
-
-        return embedding, metadata
 
     @component.output_types(embedding=List[float], metadata=Dict[str, Any])
     def run(self, text: str):
@@ -102,23 +84,15 @@ class CohereTextEmbedder:
 
         # Establish connection to API
 
-        if self.use_async_client == True:
+        if self.use_async_client:
             cohere_client = AsyncClient(
                 self.api_key, api_url=self.api_base_url, max_retries=self.max_retries, timeout=self.timeout
             )
-            embedding, metadata = self._get_async_response(cohere_client, text)
-
+            embedding, metadata = asyncio.run(get_async_response(cohere_client, [text], self.model_name, self.truncate))
         else:
             cohere_client = Client(
                 self.api_key, api_url=self.api_base_url, max_retries=self.max_retries, timeout=self.timeout
             )
-
-            try:
-                response = cohere_client.embed(texts=[text], model=self.model_name, truncate=self.truncate)
-                metadata = response.meta
-                embedding = [list(map(float, emb)) for emb in response.embeddings][0]
-
-            except CohereError as error_response:
-                print(error_response.message)
+            embedding, metadata = get_response(cohere_client, [text], self.model_name, self.truncate)
 
         return {"embedding": embedding, "metadata": metadata}

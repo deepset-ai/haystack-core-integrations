@@ -3,13 +3,12 @@
 # SPDX-License-Identifier: Apache-2.0
 from typing import List, Optional, Dict, Any
 import os
-from tqdm import tqdm
+import asyncio
 
-from haystack.preview import component, Document, default_to_dict, default_from_dict
-from haystack.preview.lazy_imports import LazyImport
+from haystack import component, Document, default_to_dict
+from cohere import Client, AsyncClient, CohereError
 
-with LazyImport(message="Run 'pip install cohere'") as cohere_import:
-    from cohere import Client, AsyncClient, CohereError
+from .utils import get_async_response, get_response
 
 API_BASE_URL = "https://api.cohere.ai/v1/embed"
 
@@ -28,8 +27,8 @@ class CohereDocumentEmbedder:
         api_base_url: str = API_BASE_URL,
         truncate: str = "END",
         use_async_client: bool = False,
-        max_retries: Optional[int] = 3,
-        timeout: Optional[int] = 120,
+        max_retries: int = 3,
+        timeout: int = 120,
         batch_size: int = 32,
         progress_bar: bool = True,
         metadata_fields_to_embed: Optional[List[str]] = None,
@@ -75,7 +74,7 @@ class CohereDocumentEmbedder:
 
     def to_dict(self) -> Dict[str, Any]:
         """
-        Serialize this component to a dictionary.
+        Serialize this component to a dictionary omitting the api_key field.
         """
         return default_to_dict(
             self,
@@ -91,29 +90,11 @@ class CohereDocumentEmbedder:
             embedding_separator=self.embedding_separator,
         )
 
-    @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "CohereDocumentEmbedder":
-        """
-        Deserialize this component from a dictionary.
-        """
-        return default_from_dict(cls, data)
-
-    async def _get_async_response(self, cohere_async_client: AsyncClient, documents: List[Document]):
-        try:
-            response = await cohere_async_client.embed(texts=[documents], model=self.model_name, truncate=self.truncate)
-            metadata = response.meta
-            embedding = [list(map(float, emb)) for emb in response.embeddings][0]
-
-        except CohereError as error_response:
-            print(error_response.message)
-
-        return embedding, metadata
-
     def _prepare_texts_to_embed(self, documents: List[Document]) -> List[str]:
         """
         Prepare the texts to embed by concatenating the Document text with the metadata fields to embed.
         """
-        texts_to_embed = []
+        texts_to_embed: List[str] = []
         for doc in documents:
             meta_values_to_embed = [
                 str(doc.meta[key]) for key in self.metadata_fields_to_embed if doc.meta.get(key) is not None
@@ -138,40 +119,24 @@ class CohereDocumentEmbedder:
                 "In case you want to embed a string, please use the CohereTextEmbedder."
             )
 
-        # Establish connection to API
+        texts_to_embed = self._prepare_texts_to_embed(documents)
 
-        if self.use_async_client == True:
+        if self.use_async_client:
             cohere_client = AsyncClient(
                 self.api_key, api_url=self.api_base_url, max_retries=self.max_retries, timeout=self.timeout
             )
-            texts_to_embed = self._prepare_texts_to_embed(cohere_client, documents)
-
+            all_embeddings, metadata = asyncio.run(
+                get_async_response(cohere_client, texts_to_embed, self.model_name, self.truncate)
+            )
         else:
             cohere_client = Client(
                 self.api_key, api_url=self.api_base_url, max_retries=self.max_retries, timeout=self.timeout
             )
+            all_embeddings, metadata = get_response(
+                cohere_client, texts_to_embed, self.model_name, self.truncate, self.batch_size, self.progress_bar
+            )
 
-            try:
-                all_embeddings = []
-                metadata = {}
-                for i in tqdm(
-                    range(0, len(texts_to_embed), self.batch_size),
-                    disable=not self.progress_bar,
-                    desc="Calculating embeddings",
-                ):
-                    batch = texts_to_embed[i : i + self.batch_size]
-                    response = cohere_client.embed(batch)
-                    embeddings = [list(map(float, emb)) for emb in response.embeddings]
-                    all_embeddings.extend(embeddings)
+        for doc, embeddings in zip(documents, all_embeddings):
+            doc.embedding = embeddings
 
-                    metadata = response.meta
-
-                documents_with_embeddings = []
-                for doc, emb in zip(documents, all_embeddings):
-                    doc_as_dict = doc.to_dict()
-                    doc_as_dict["embedding"] = emb
-                    documents_with_embeddings.append(Document.from_dict(doc_as_dict))
-            except CohereError as error_response:
-                print(error_response.message)
-
-        return {"documents": documents_with_embeddings, "metadata": metadata}
+        return {"documents": documents, "metadata": metadata}
