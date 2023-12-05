@@ -1,15 +1,14 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
-from typing import List, Optional, Dict, Any
 import asyncio
 import os
+from typing import Any, Dict, List, Optional
 
-from haystack import component, default_to_dict, default_from_dict
+from cohere import AsyncClient, Client
+from haystack import component, default_to_dict
 
-from cohere import Client, AsyncClient, CohereError
-
-from .utils import get_async_response, get_response
+from cohere_haystack.embedders.utils import get_async_response, get_response
 
 API_BASE_URL = "https://api.cohere.ai/v1/embed"
 
@@ -33,11 +32,18 @@ class CohereTextEmbedder:
         """
         Create a CohereTextEmbedder component.
 
-        :param api_key: The Cohere API key. It can be explicitly provided or automatically read from the environment variable COHERE_API_KEY (recommended).
-        :param model_name: The name of the model to use, defaults to `"embed-english-v2.0"`. Supported Models are `"embed-english-v2.0"`/ `"large"`, `"embed-english-light-v2.0"`/ `"small"`, `"embed-multilingual-v2.0"`/ `"multilingual-22-12"`.
+        :param api_key: The Cohere API key. It can be explicitly provided or automatically read from the environment
+            variable COHERE_API_KEY (recommended).
+        :param model_name: The name of the model to use, defaults to `"embed-english-v2.0"`. Supported Models are
+            `"embed-english-v2.0"`/ `"large"`, `"embed-english-light-v2.0"`/ `"small"`,
+            `"embed-multilingual-v2.0"`/ `"multilingual-22-12"`.
         :param api_base_url: The Cohere API Base url, defaults to `https://api.cohere.ai/v1/embed`.
-        :param truncate: Truncate embeddings that are too long from start or end, ("NONE"|"START"|"END"), defaults to `"END"`. Passing START will discard the start of the input. END will discard the end of the input. In both cases, input is discarded until the remaining input is exactly the maximum input token length for the model. If NONE is selected, when the input exceeds the maximum input token length an error will be returned.
-        :param use_async_client: Flag to select the AsyncClient, defaults to `False`. It is recommended to use AsyncClient for applications with many concurrent calls.
+        :param truncate: Truncate embeddings that are too long from start or end, ("NONE"|"START"|"END"), defaults to
+            `"END"`. Passing START will discard the start of the input. END will discard the end of the input. In both
+            cases, input is discarded until the remaining input is exactly the maximum input token length for the model.
+            If NONE is selected, when the input exceeds the maximum input token length an error will be returned.
+        :param use_async_client: Flag to select the AsyncClient, defaults to `False`. It is recommended to use
+            AsyncClient for applications with many concurrent calls.
         :param max_retries: Maximum number of retries for requests, defaults to `3`.
         :param timeout: Request timeout in seconds, defaults to `120`.
         """
@@ -46,10 +52,11 @@ class CohereTextEmbedder:
             try:
                 api_key = os.environ["COHERE_API_KEY"]
             except KeyError as error_msg:
-                raise ValueError(
-                    "CohereTextEmbedder expects an Cohere API key. "
-                    "Please provide one by setting the environment variable COHERE_API_KEY (recommended) or by passing it explicitly."
-                ) from error_msg
+                msg = (
+                    "CohereTextEmbedder expects an Cohere API key. Please provide one by setting the environment "
+                    "variable COHERE_API_KEY (recommended) or by passing it explicitly."
+                )
+                raise ValueError(msg) from error_msg
 
         self.api_key = api_key
         self.model_name = model_name
@@ -77,10 +84,11 @@ class CohereTextEmbedder:
     def run(self, text: str):
         """Embed a string."""
         if not isinstance(text, str):
-            raise TypeError(
+            msg = (
                 "CohereTextEmbedder expects a string as input."
                 "In case you want to embed a list of Documents, please use the CohereDocumentEmbedder."
             )
+            raise TypeError(msg)
 
         # Establish connection to API
 

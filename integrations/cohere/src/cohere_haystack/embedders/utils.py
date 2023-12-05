@@ -1,11 +1,10 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
-from typing import List, Tuple, Dict, Any
+from typing import Any, Dict, List, Tuple
 
+from cohere import AsyncClient, Client, CohereError
 from tqdm import tqdm
-from cohere import Client, AsyncClient, CohereError
-
 
 API_BASE_URL = "https://api.cohere.ai/v1/embed"
 
@@ -43,7 +42,7 @@ def get_response(
             desc="Calculating embeddings",
         ):
             batch = texts[i : i + batch_size]
-            response = cohere_client.embed(batch)
+            response = cohere_client.embed(batch, model=model_name, truncate=truncate)
             for emb in response.embeddings:
                 all_embeddings.append(emb)
             embeddings = [list(map(float, emb)) for emb in response.embeddings]

@@ -2,12 +2,12 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 import os
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock
 
 import numpy as np
 import pytest
-
 from haystack import Document
+
 from cohere_haystack.embedders.document_embedder import CohereDocumentEmbedder
 
 
@@ -18,11 +18,11 @@ class TestCohereDocumentEmbedder:
         assert embedder.model_name == "embed-english-v2.0"
         assert embedder.api_base_url == "https://api.cohere.ai/v1/embed"
         assert embedder.truncate == "END"
-        assert embedder.use_async_client == False
+        assert embedder.use_async_client is False
         assert embedder.max_retries == 3
         assert embedder.timeout == 120
         assert embedder.batch_size == 32
-        assert embedder.progress_bar == True
+        assert embedder.progress_bar is True
         assert embedder.metadata_fields_to_embed == []
         assert embedder.embedding_separator == "\n"
 
@@ -44,11 +44,11 @@ class TestCohereDocumentEmbedder:
         assert embedder.model_name == "embed-multilingual-v2.0"
         assert embedder.api_base_url == "https://custom-api-base-url.com"
         assert embedder.truncate == "START"
-        assert embedder.use_async_client == True
+        assert embedder.use_async_client is True
         assert embedder.max_retries == 5
         assert embedder.timeout == 60
         assert embedder.batch_size == 64
-        assert embedder.progress_bar == False
+        assert embedder.progress_bar is False
         assert embedder.metadata_fields_to_embed == ["test_field"]
         assert embedder.embedding_separator == "-"
 
@@ -109,7 +109,7 @@ class TestCohereDocumentEmbedder:
     @pytest.mark.integration
     def test_run(self):
         embedder = MagicMock()
-        embedder.run = lambda x, **kwargs: np.random.rand(len(x), 2).tolist()
+        embedder.run = lambda x, **_: np.random.rand(len(x), 2).tolist()
 
         docs = [
             Document(content="I love cheese", meta={"topic": "Cuisine"}),
