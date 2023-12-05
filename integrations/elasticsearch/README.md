@@ -1,4 +1,4 @@
-[![test](https://github.com/deepset-ai/haystack-core-integrations/actions/workflows/document_stores_elasticsearch.yml/badge.svg)](https://github.com/deepset-ai/haystack-core-integrations/actions/workflows/document_stores_elasticsearch.yml)
+[![test](https://github.com/deepset-ai/haystack-core-integrations/actions/workflows/elasticsearch.yml/badge.svg)](https://github.com/deepset-ai/haystack-core-integrations/actions/workflows/elasticsearch.yml)
 
 [![PyPI - Version](https://img.shields.io/pypi/v/elasticsearch-haystack.svg)](https://pypi.org/project/elasticsearch-haystack)
 [![PyPI - Python Version](https://img.shields.io/pypi/pyversions/elasticsearch-haystack.svg)](https://pypi.org/project/elasticsearch-haystack)
