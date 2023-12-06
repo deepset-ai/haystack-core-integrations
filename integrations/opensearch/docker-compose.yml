@@ -1,0 +1,15 @@
+services:
+  opensearch:
+    image: "opensearchproject/opensearch:2.11.0"
+    ports:
+      - 9200:9200
+      - 9600:9600
+    restart: on-failure
+    environment:
+      - discovery.type=single-node
+      - "ES_JAVA_OPTS=-Xms1024m -Xmx1024m"
+    healthcheck:
+        test: curl --fail https://localhost:9200/_cat/health -ku admin:admin || exit 1
+        interval: 10s
+        timeout: 1s
+        retries: 10
