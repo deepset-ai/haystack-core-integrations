@@ -1,9 +1,8 @@
 import logging
 from typing import Any, Dict, List, Optional
 
-from haystack import component, default_to_dict
 from gradientai import Gradient
-
+from haystack import component, default_to_dict
 
 logger = logging.getLogger(__name__)
 
