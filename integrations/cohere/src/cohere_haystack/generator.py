@@ -4,13 +4,13 @@
 import logging
 import os
 import sys
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional, cast
 
 from haystack import DeserializationError, component, default_from_dict, default_to_dict
 from haystack.lazy_imports import LazyImport
 
-with LazyImport(message="Run 'pip install cohere'") as cohere_import:
-    from cohere import COHERE_API_URL, Client
+from cohere import COHERE_API_URL, Client
+from cohere.responses import Generations
 
 logger = logging.getLogger(__name__)
 
@@ -75,8 +75,6 @@ class CohereGenerator:
             - 'logit_bias': Used to prevent the model from generating unwanted tokens or to incentivize it to include
                 desired tokens. The format is {token_id: bias} where bias is a float between -10 and 10.
         """
-        cohere_import.check()
-
         if not api_key:
             api_key = os.environ.get("COHERE_API_KEY")
         if not api_key:
@@ -159,7 +157,7 @@ class CohereGenerator:
             self._check_truncated_answers(metadata)
             return {"replies": replies, "metadata": metadata}
 
-        metadata = [{"finish_reason": resp.finish_reason} for resp in response]
+        metadata = [{"finish_reason": resp.finish_reason} for resp in cast(Generations, response)]
         replies = [resp.text for resp in response]
         self._check_truncated_answers(metadata)
         return {"replies": replies, "metadata": metadata}

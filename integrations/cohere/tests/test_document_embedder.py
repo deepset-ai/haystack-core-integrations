@@ -11,6 +11,9 @@ from haystack import Document
 from cohere_haystack.embedders.document_embedder import CohereDocumentEmbedder
 
 
+pytestmark = pytest.mark.embedders
+
+
 class TestCohereDocumentEmbedder:
     def test_init_default(self):
         embedder = CohereDocumentEmbedder(api_key="test-api-key")

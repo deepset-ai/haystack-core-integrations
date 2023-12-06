@@ -8,6 +8,9 @@ import pytest
 from cohere_haystack.generator import CohereGenerator
 
 
+pytestmark = pytest.mark.generators
+
+
 def default_streaming_callback(chunk):
     """
     Default callback function for streaming responses from Cohere API.
@@ -16,7 +19,6 @@ def default_streaming_callback(chunk):
     print(chunk.text, flush=True, end="")  # noqa: T201
 
 
-@pytest.mark.integration
 class TestCohereGenerator:
     def test_init_default(self):
         import cohere
@@ -112,7 +114,7 @@ class TestCohereGenerator:
                 "streaming_callback": "tests.test_cohere_generators.default_streaming_callback",
             },
         }
-        component = CohereGenerator.from_dict(data)
+        component: CohereGenerator = CohereGenerator.from_dict(data)
         assert component.api_key == "test-key"
         assert component.model_name == "command"
         assert component.streaming_callback == default_streaming_callback

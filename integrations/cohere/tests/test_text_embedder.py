@@ -9,6 +9,9 @@ import pytest
 from cohere_haystack.embedders.text_embedder import CohereTextEmbedder
 
 
+pytestmark = pytest.mark.embedders
+
+
 class TestCohereTextEmbedder:
     def test_init_default(self):
         """
@@ -107,7 +110,5 @@ class TestCohereTextEmbedder:
     def test_run(self):
         embedder = MagicMock()
         text = "The food was delicious"
-
         result = embedder.run(text)
-
         assert all(isinstance(x, float) for x in result["embedding"])
