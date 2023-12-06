@@ -1,17 +1,17 @@
 # This workflow comes from https://github.com/ofek/hatch-mypyc
 # https://github.com/ofek/hatch-mypyc/blob/5a198c0ba8660494d02716cfc9d79ce4adfb1442/.github/workflows/test.yml
-name: Test / Document Stores / pinecone
+name: Test / pinecone
 
 on:
   schedule:
     - cron: "0 0 * * *"
   pull_request:
     paths:
-      - "document_stores/pinecone/**"
+      - "integrations/pinecone/**"
       - ".github/workflows/pinecone.yml"
 
 concurrency:
-  group: document_stores_pinecone-${{ github.head_ref }}
+  group: pinecone-${{ github.head_ref }}
   cancel-in-progress: true
 
 env:
@@ -40,10 +40,10 @@ jobs:
         run: pip install --upgrade hatch
 
       - name: Lint
-        working-directory: document_stores/pinecone
+        working-directory: pinecone
         if: matrix.python-version == '3.9'
         run: hatch run lint:all
 
       - name: Run tests
-        working-directory: document_stores/pinecone
+        working-directory: pinecone
         run: hatch run cov
