@@ -5,12 +5,10 @@ import asyncio
 import os
 from typing import Any, Dict, List, Optional
 
-from cohere import AsyncClient, Client
+from cohere import AsyncClient, Client, COHERE_API_URL
 from haystack import component, default_to_dict
 
 from cohere_haystack.embedders.utils import get_async_response, get_response
-
-API_BASE_URL = "https://api.cohere.ai/v1/embed"
 
 
 @component
@@ -23,7 +21,7 @@ class CohereTextEmbedder:
         self,
         api_key: Optional[str] = None,
         model_name: str = "embed-english-v2.0",
-        api_base_url: str = API_BASE_URL,
+        api_base_url: str = COHERE_API_URL,
         truncate: str = "END",
         use_async_client: bool = False,
         max_retries: int = 3,

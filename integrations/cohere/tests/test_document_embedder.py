@@ -111,8 +111,7 @@ class TestCohereDocumentEmbedder:
     )
     @pytest.mark.integration
     def test_run(self):
-        embedder = MagicMock()
-        embedder.run = lambda x, **_: np.random.rand(len(x), 2).tolist()
+        embedder = CohereDocumentEmbedder()
 
         docs = [
             Document(content="I love cheese", meta={"topic": "Cuisine"}),
