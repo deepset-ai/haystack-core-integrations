@@ -3,10 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 from typing import ClassVar, Dict, List, Optional, Union
 
-from haystack.lazy_imports import LazyImport
-
-with LazyImport(message="Run 'pip install InstructorEmbedding'") as instructor_embeddings_import:
-    from InstructorEmbedding import INSTRUCTOR
+from InstructorEmbedding import INSTRUCTOR
 
 
 class _InstructorEmbeddingBackendFactory:
@@ -40,7 +37,6 @@ class _InstructorEmbeddingBackend:
     def __init__(
         self, model_name_or_path: str, device: Optional[str] = None, use_auth_token: Union[bool, str, None] = None
     ):
-        instructor_embeddings_import.check()
         self.model = INSTRUCTOR(model_name_or_path=model_name_or_path, device=device, use_auth_token=use_auth_token)
 
     def embed(self, data: List[List[str]], **kwargs) -> List[List[float]]:

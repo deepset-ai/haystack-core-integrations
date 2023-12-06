@@ -2,10 +2,7 @@ import logging
 from typing import Any, Dict, List, Optional
 
 from haystack import Document, component, default_to_dict
-from haystack.lazy_imports import LazyImport
-
-with LazyImport(message="Run 'pip install gradientai'") as gradientai_import:
-    from gradientai import Gradient
+from gradientai import Gradient
 
 logger = logging.getLogger(__name__)
 
@@ -49,7 +46,6 @@ class GradientDocumentEmbedder:
                              variable GRADIENT_WORKSPACE_ID.
         :param host: The Gradient host. By default it uses https://api.gradient.ai/.
         """
-        gradientai_import.check()
         self._batch_size = batch_size
         self._host = host
         self._model_name = model_name
