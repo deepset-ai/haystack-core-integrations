@@ -4,6 +4,7 @@
 import os
 
 import pytest
+from cohere import COHERE_API_URL
 
 from cohere_haystack.generator import CohereGenerator
 
@@ -21,13 +22,11 @@ def default_streaming_callback(chunk):
 
 class TestCohereGenerator:
     def test_init_default(self):
-        import cohere
-
         component = CohereGenerator(api_key="test-api-key")
         assert component.api_key == "test-api-key"
         assert component.model_name == "command"
         assert component.streaming_callback is None
-        assert component.api_base_url == cohere.COHERE_API_URL
+        assert component.api_base_url == COHERE_API_URL
         assert component.model_parameters == {}
 
     def test_init_with_parameters(self):
@@ -47,8 +46,6 @@ class TestCohereGenerator:
         assert component.model_parameters == {"max_tokens": 10, "some_test_param": "test-params"}
 
     def test_to_dict_default(self):
-        import cohere
-
         component = CohereGenerator(api_key="test-api-key")
         data = component.to_dict()
         assert data == {
@@ -56,7 +53,7 @@ class TestCohereGenerator:
             "init_parameters": {
                 "model_name": "command",
                 "streaming_callback": None,
-                "api_base_url": cohere.COHERE_API_URL,
+                "api_base_url": COHERE_API_URL,
             },
         }
 
@@ -136,7 +133,7 @@ class TestCohereGenerator:
     )
     @pytest.mark.integration
     def test_cohere_generator_run(self):
-        component = CohereGenerator(api_key=os.environ.get("COHERE_API_KEY"))
+        component = CohereGenerator()
         results = component.run(prompt="What's the capital of France?")
         assert len(results["replies"]) == 1
         assert "Paris" in results["replies"][0]
@@ -151,7 +148,7 @@ class TestCohereGenerator:
     def test_cohere_generator_run_wrong_model_name(self):
         import cohere
 
-        component = CohereGenerator(model_name="something-obviously-wrong", api_key=os.environ.get("COHERE_API_KEY"))
+        component = CohereGenerator(model_name="something-obviously-wrong")
         with pytest.raises(
             cohere.CohereAPIError,
             match="model not found, make sure the correct model ID was used and that you have access to the model.",
@@ -173,7 +170,7 @@ class TestCohereGenerator:
                 return chunk
 
         callback = Callback()
-        component = CohereGenerator(os.environ.get("COHERE_API_KEY"), streaming_callback=callback)
+        component = CohereGenerator(streaming_callback=callback)
         results = component.run(prompt="What's the capital of France?")
 
         assert len(results["replies"]) == 1

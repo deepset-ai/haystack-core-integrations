@@ -5,6 +5,7 @@ import os
 from unittest.mock import MagicMock
 
 import pytest
+from cohere import COHERE_API_URL
 
 from cohere_haystack.embedders.text_embedder import CohereTextEmbedder
 
@@ -21,7 +22,7 @@ class TestCohereTextEmbedder:
 
         assert embedder.api_key == "test-api-key"
         assert embedder.model_name == "embed-english-v2.0"
-        assert embedder.api_base_url == "https://api.cohere.ai/v1/embed"
+        assert embedder.api_base_url == COHERE_API_URL
         assert embedder.truncate == "END"
         assert embedder.use_async_client is False
         assert embedder.max_retries == 3
@@ -58,7 +59,7 @@ class TestCohereTextEmbedder:
             "type": "cohere_haystack.embedders.text_embedder.CohereTextEmbedder",
             "init_parameters": {
                 "model_name": "embed-english-v2.0",
-                "api_base_url": "https://api.cohere.ai/v1/embed",
+                "api_base_url": COHERE_API_URL,
                 "truncate": "END",
                 "use_async_client": False,
                 "max_retries": 3,
