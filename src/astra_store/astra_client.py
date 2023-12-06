@@ -171,18 +171,11 @@ class AstraClient:
         return QueryResponse(final_res)
 
     def _query(self, vector, top_k, filters=None):
-        query = {"sort": {"$vector": vector}, "options": {"limit": top_k}}
+        query = {"sort": {"$vector": vector}, "options": {"limit": top_k, "includeSimilarity": True}}
         if filters is not None:
             query["filter"] = filters
-
-        similarity_score = self.find_documents({**query, "projection": {"$similarity": 1}})
         result = self.find_documents(query)
-        response = []
-        for elt1 in similarity_score:
-            for elt2 in result:
-                if elt1["_id"] == elt2["_id"]:
-                    response.append(elt1 | elt2)
-        return response
+        return result
 
     def find_documents(self, find_query):
         query = json.dumps({"find": find_query})

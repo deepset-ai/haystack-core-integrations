@@ -58,6 +58,7 @@ class TestDocumentStore(DocumentStoreBaseTests):
     @pytest.mark.unit
     def test_eq_filter_embedding(self, docstore: AstraDocumentStore, filterable_docs: List[Document]):
         docstore.write_documents(filterable_docs)
+        # 0.0 embedding values not supported in Astra's cosine similarity method
         embedding = [1.0] * 768
         _result = docstore.filter_documents(filters={"embedding": embedding})
         result = []
@@ -69,6 +70,7 @@ class TestDocumentStore(DocumentStoreBaseTests):
     @pytest.mark.unit
     def test_in_filter_embedding(self, docstore: AstraDocumentStore, filterable_docs: List[Document]):
         docstore.write_documents(filterable_docs)
+        # 0.0 embedding values not supported in Astra's cosine similarity method
         embedding_one = [1.0] * 768
         _result = docstore.filter_documents(filters={"embedding": {"$in": [embedding_one]}})
         result = []
@@ -89,6 +91,18 @@ class TestDocumentStore(DocumentStoreBaseTests):
     def test_deeper_incorrect_filter_nesting(self, docstore: AstraDocumentStore, filterable_docs: List[Document]):
         docstore.write_documents(filterable_docs)
         assert len(docstore.filter_documents(filters={"number": {"page": {"chapter": "intro"}}})) == 0
+
+    @pytest.mark.unit
+    def test_eq_filter_embedding(self, docstore: AstraDocumentStore, filterable_docs: List[Document]):
+        docstore.write_documents(filterable_docs)
+        # 0.0 embedding values not supported in Astra's cosine similarity method
+        embedding = [1.0] * 768
+        _result = docstore.filter_documents(filters={"embedding": embedding})
+        result = []
+        for res in _result:
+            if res.score == 1.0:
+                result.append(res)
+        assert self.contains_same_docs(result, [doc for doc in filterable_docs if [1.0] * 768 == doc.embedding])
 
     @pytest.mark.skip(reason="Unsupported filter operator $lte")
     @pytest.mark.unit
