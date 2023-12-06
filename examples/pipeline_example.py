@@ -1,6 +1,6 @@
 import os
 
-from haystack import Document
+from haystack.preview import Document
 from haystack.preview import Pipeline
 from haystack.preview.components.builders.answer_builder import AnswerBuilder
 from haystack.preview.components.builders.prompt_builder import PromptBuilder
@@ -55,12 +55,12 @@ rag_pipeline.draw("./rag_pipeline.png")
 
 # Add Documents
 documents = [
-    Document("There are over 7,000 languages spoken around the world today."),
+    Document(text="There are over 7,000 languages spoken around the world today."),
     Document(
-        "Elephants have been observed to behave in a way that indicates a high level of self-awareness, such as recognizing themselves in mirrors."
+        text="Elephants have been observed to behave in a way that indicates a high level of self-awareness, such as recognizing themselves in mirrors."
     ),
     Document(
-        "In certain parts of the world, like the Maldives, Puerto Rico, and San Diego, you can witness the phenomenon of bioluminescent waves."
+        text="In certain parts of the world, like the Maldives, Puerto Rico, and San Diego, you can witness the phenomenon of bioluminescent waves."
     ),
 ]
 rag_pipeline.get_component("retriever").document_store.write_documents(documents)

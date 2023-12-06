@@ -155,7 +155,11 @@ class AstraDocumentStore:
                 if "embedding" not in document_dict.keys():
                     document_dict["$vector"] = self.embeddings.encode(document_dict["text"]).tolist()
                 else:
-                    document_dict["$vector"] = document_dict.pop("embedding")
+                    if document_dict["embedding"] == None:
+                        document_dict.pop("embedding")
+                        document_dict["$vector"] = self.embeddings.encode(document_dict["text"]).tolist()
+                    else:
+                        document_dict["$vector"] = document_dict.pop("embedding")
             else:
                 document_dict["$vector"] = None
 
