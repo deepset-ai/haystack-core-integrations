@@ -8,7 +8,6 @@ from cohere import COHERE_API_URL
 
 from cohere_haystack.generator import CohereGenerator
 
-
 pytestmark = pytest.mark.generators
 
 

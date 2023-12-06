@@ -6,11 +6,9 @@ import os
 import sys
 from typing import Any, Callable, Dict, List, Optional, cast
 
-from haystack import DeserializationError, component, default_from_dict, default_to_dict
-from haystack.lazy_imports import LazyImport
-
 from cohere import COHERE_API_URL, Client
 from cohere.responses import Generations
+from haystack import DeserializationError, component, default_from_dict, default_to_dict
 
 logger = logging.getLogger(__name__)
 

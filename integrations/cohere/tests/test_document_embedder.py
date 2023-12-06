@@ -2,15 +2,12 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 import os
-from unittest.mock import MagicMock
 
-import numpy as np
 import pytest
-from haystack import Document
 from cohere import COHERE_API_URL
+from haystack import Document
 
 from cohere_haystack.embedders.document_embedder import CohereDocumentEmbedder
-
 
 pytestmark = pytest.mark.embedders
 

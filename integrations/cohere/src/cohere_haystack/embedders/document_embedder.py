@@ -5,7 +5,7 @@ import asyncio
 import os
 from typing import Any, Dict, List, Optional
 
-from cohere import AsyncClient, Client, COHERE_API_URL
+from cohere import COHERE_API_URL, AsyncClient, Client
 from haystack import Document, component, default_to_dict
 
 from cohere_haystack.embedders.utils import get_async_response, get_response

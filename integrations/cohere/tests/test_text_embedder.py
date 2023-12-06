@@ -2,13 +2,11 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 import os
-from unittest.mock import MagicMock
 
 import pytest
 from cohere import COHERE_API_URL
 
 from cohere_haystack.embedders.text_embedder import CohereTextEmbedder
-
 
 pytestmark = pytest.mark.embedders
 
