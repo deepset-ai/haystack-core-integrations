@@ -160,7 +160,8 @@ exclude_lines = [
 module = [
   "cohere.*",
   "haystack.*",
-  "pytest.*"
+  "pytest.*",
+  "numpy.*",
 ]
 ignore_missing_imports = true
 
@@ -168,13 +169,7 @@ ignore_missing_imports = true
 addopts = "--strict-markers"
 markers = [
   "integration: integration tests",
+  "embedders: embedders tests",
+  "generators: generators tests",
 ]
 log_cli = true
-
-[[tool.mypy.overrides]]
-module = [
-  "haystack.*",
-  "pytest.*",
-  "numpy.*",
-]
-ignore_missing_imports = true
