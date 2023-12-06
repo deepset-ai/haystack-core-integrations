@@ -108,7 +108,7 @@ class TestCohereTextEmbedder:
     )
     @pytest.mark.integration
     def test_run(self):
-        embedder = MagicMock()
+        embedder = CohereTextEmbedder()
         text = "The food was delicious"
         result = embedder.run(text)
         assert all(isinstance(x, float) for x in result["embedding"])

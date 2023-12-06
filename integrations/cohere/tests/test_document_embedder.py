@@ -119,13 +119,13 @@ class TestCohereDocumentEmbedder:
         ]
 
         result = embedder.run(docs)
-        embeddings = result["documents"]
+        docs_with_embeddings = result["documents"]
 
-        assert isinstance(embeddings, list)
-        assert len(embeddings) == len(docs)
-        for embedding in embeddings:
-            assert isinstance(embedding, list)
-            assert isinstance(embedding[0], float)
+        assert isinstance(docs_with_embeddings, list)
+        assert len(docs_with_embeddings) == len(docs)
+        for doc in docs_with_embeddings:
+            assert isinstance(doc.embedding, list)
+            assert isinstance(doc.embedding[0], float)
 
     def test_run_wrong_input_format(self):
         embedder = CohereDocumentEmbedder(api_key="test-api-key")

@@ -101,4 +101,4 @@ class CohereTextEmbedder:
             )
             embedding, metadata = get_response(cohere_client, [text], self.model_name, self.truncate)
 
-        return {"embedding": embedding, "metadata": metadata}
+        return {"embedding": embedding[0], "metadata": metadata}
