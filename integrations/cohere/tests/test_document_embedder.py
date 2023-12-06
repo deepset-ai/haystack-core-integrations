@@ -128,10 +128,9 @@ class TestCohereDocumentEmbedder:
     def test_run_wrong_input_format(self):
         embedder = CohereDocumentEmbedder(api_key="test-api-key")
 
-        string_input = "text"
-        list_integers_input = [1, 2, 3]
+        with pytest.raises(TypeError, match="CohereDocumentEmbedder expects a list of Documents as input"):
+            embedder.run(documents="text")
+        with pytest.raises(TypeError, match="CohereDocumentEmbedder expects a list of Documents as input"):
+            embedder.run(documents=[1, 2, 3])
 
-        with pytest.raises(TypeError, match="CohereDocumentEmbedder expects a list of Documents as input"):
-            embedder.run(documents=string_input)
-        with pytest.raises(TypeError, match="CohereDocumentEmbedder expects a list of Documents as input"):
-            embedder.run(documents=list_integers_input)
+        assert embedder.run(documents=[]) == {"documents": [], "metadata": {}}

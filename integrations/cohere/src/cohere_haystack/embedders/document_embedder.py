@@ -119,12 +119,16 @@ class CohereDocumentEmbedder:
         :param documents: A list of Documents to embed.
         """
 
-        if not isinstance(documents, list) or not isinstance(documents[0], Document):
+        if not isinstance(documents, list) or documents and not isinstance(documents[0], Document):
             msg = (
                 "CohereDocumentEmbedder expects a list of Documents as input."
                 "In case you want to embed a string, please use the CohereTextEmbedder."
             )
             raise TypeError(msg)
+
+        if not documents:
+            # return early if we were passed an empty list
+            return {"documents": [], "metadata": {}}
 
         texts_to_embed = self._prepare_texts_to_embed(documents)
 
