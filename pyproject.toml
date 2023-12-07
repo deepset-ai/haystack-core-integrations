@@ -25,11 +25,8 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
 dependencies = [
-  # Uncomment the haystack version required
   # we distribute the preview version of Haystack 2.0 under the package "haystack-ai"
-  # "haystack-ai",
-  # and Haystack 1.x is distributed under farm-haystack.
-  "farm-haystack==1.22.1",
+  "haystack-ai",
   "typing_extensions",
 ]
 

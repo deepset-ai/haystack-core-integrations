@@ -4,6 +4,7 @@ on:
   push:
     branches:
     - main
+    - '2.0-main'
   pull_request:
   workflow_call:
 

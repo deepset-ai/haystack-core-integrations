@@ -7,13 +7,12 @@ from dataclasses import asdict
 from typing import Any, Dict, List, Optional, Union
 
 import pandas as pd
-from haystack.preview.dataclasses import Document
-from haystack.preview.document_stores.decorator import document_store
-from haystack.preview.document_stores.errors import (
+from haystack.dataclasses.document import Document
+from haystack.document_stores.errors import (
     DuplicateDocumentError,
     MissingDocumentError,
 )
-from haystack.preview.document_stores.protocols import DuplicatePolicy
+from haystack.document_stores.protocol import DuplicatePolicy
 from pydantic import validate_arguments
 from sentence_transformers import SentenceTransformer
 
@@ -24,7 +23,6 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
 
-@document_store
 class AstraDocumentStore:
     """
     An AstraDocumentStore document store for Haystack.

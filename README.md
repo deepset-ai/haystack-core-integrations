@@ -24,7 +24,6 @@ hatch run test
 
 Similarly, to run the linters:
 
-<<<<<<< HEAD
 ```sh
 hatch run lint:all
 ```
