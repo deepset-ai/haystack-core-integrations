@@ -34,11 +34,6 @@ document_store = AstraDocumentStore(
     embedding_dim=384,
 )
 
-#document_store.delete_documents(delete_all=True)
-#print("count:")
-#print(document_store.count_documents())
-#add_example_data(document_store, "examples/data")
-
 
 indexing = Pipeline()
 indexing.add_component("converter", TextFileToDocument())
@@ -71,7 +66,14 @@ print(document_store.search(["Is black and white text boring?"], 3, {"mime_type"
 print("get_document_by_id and embeddings *********")
 print(document_store.get_document_by_id("92e095d5bfd66e31bb099de89bab9101474660904818fa428a8b889996c14a62"))
 print("get_documents_by_ids and embeddings *********")
-print(document_store.get_documents_by_id(["1df1b4b0b21e4015cf1d0976db1185b81fe9d3c07b630d6abac582ccd2b38a37", "9f11bd49e9ca4f895ac3062f01ae7332ae3e1cabd13a42ff8db41d6e83fd6479"]))
+print(
+    document_store.get_documents_by_id(
+        [
+            "1df1b4b0b21e4015cf1d0976db1185b81fe9d3c07b630d6abac582ccd2b38a37",
+            "9f11bd49e9ca4f895ac3062f01ae7332ae3e1cabd13a42ff8db41d6e83fd6479",
+        ]
+    )
+)
 
 document_store.delete_documents(["7830332ffa979794b03cdaa6d3660bc0aa44f463014da9746ba7f3b987641967"])
 

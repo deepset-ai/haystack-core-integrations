@@ -168,7 +168,6 @@ class PreProcessor(BasePreProcessor):
             "split_respect_sentence_boundary": split_respect_sentence_boundary,
         }
 
-
         if isinstance(documents, (Document, dict)):
             ret = self._process_single(document=documents, id_hash_keys=id_hash_keys, **kwargs)  # type: ignore
         elif isinstance(documents, list):
