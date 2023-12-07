@@ -97,7 +97,6 @@ select = [
   "E",
   "EM",
   "F",
-  "FBT",
   "I",
   "ICN",
   "ISC",
@@ -118,8 +117,6 @@ select = [
 ignore = [
   # Allow non-abstract empty methods in abstract base classes
   "B027",
-  # Allow boolean positional values in function calls, like `dict.get(... True)`
-  "FBT003",
   # Ignore checks for possible passwords
   "S105", "S106", "S107",
   # Ignore complexity
@@ -163,6 +160,16 @@ exclude_lines = [
 module = [
   "cohere.*",
   "haystack.*",
-  "pytest.*"
+  "pytest.*",
+  "numpy.*",
 ]
 ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+addopts = "--strict-markers"
+markers = [
+  "integration: integration tests",
+  "embedders: embedders tests",
+  "generators: generators tests",
+]
+log_cli = true

@@ -7,13 +7,54 @@
 
 **Table of Contents**
 
-- [Installation](#installation)
-- [License](#license)
+- [cohere-haystack](#cohere-haystack)
+  - [Installation](#installation)
+  - [Contributing](#contributing)
+  - [License](#license)
 
 ## Installation
 
 ```console
 pip install cohere-haystack
+```
+
+## Contributing
+
+`hatch` is the best way to interact with this project, to install it:
+```sh
+pip install hatch
+```
+
+With `hatch` installed, to run all the tests:
+```
+hatch run test
+```
+> Note: integration tests will be skipped unless the env var COHERE_API_KEY is set. The api key needs to be valid
+> in order to pass the tests.
+
+To only run unit tests:
+```
+hatch run test -m"not integration"
+```
+
+To only run embedders tests:
+```
+hatch run test -m"embedders"
+```
+
+To only run generators tests:
+```
+hatch run test -m"generators"
+```
+
+Markers can be combined, for example you can run only integration tests for embedders with:
+```
+hatch run test -m"integrations and embedders"
+```
+
+To run the linters `ruff` and `mypy`:
+```
+hatch run lint:all
 ```
 
 ## License
