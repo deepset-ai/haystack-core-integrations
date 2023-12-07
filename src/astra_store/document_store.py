@@ -93,6 +93,7 @@ class AstraDocumentStore:
         index: Optional[str] = None,
         batch_size: Optional[int] = 20,
         policy: DuplicatePolicy = None,
+        embed: bool = False,
     ):
         """
         Indexes documents for later queries.
@@ -152,14 +153,13 @@ class AstraDocumentStore:
             if "dataframe" in document_dict and document_dict["dataframe"] is not None:
                 document_dict["dataframe"] = document_dict.pop("dataframe").to_json()
             if "text" in document_dict and document_dict["text"] is not None:
-                if "embedding" not in document_dict.keys():
-                    document_dict["$vector"] = self.embeddings.encode(document_dict["text"]).tolist()
-                else:
+                if "embedding" in document_dict.keys():
                     if document_dict["embedding"] == None:
                         document_dict.pop("embedding")
-                        document_dict["$vector"] = self.embeddings.encode(document_dict["text"]).tolist()
                     else:
                         document_dict["$vector"] = document_dict.pop("embedding")
+                if embed == True:
+                    document_dict["$vector"] = self.embeddings.encode(document_dict["text"]).tolist()
             else:
                 document_dict["$vector"] = None
 
