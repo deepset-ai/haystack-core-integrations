@@ -1,11 +1,8 @@
 import logging
 from typing import Any, Dict, List, Optional
 
+from gradientai import Gradient
 from haystack import component, default_to_dict
-from haystack.lazy_imports import LazyImport
-
-with LazyImport(message="Run 'pip install gradientai'") as gradientai_import:
-    from gradientai import Gradient
 
 logger = logging.getLogger(__name__)
 
@@ -57,8 +54,6 @@ class GradientGenerator:
         :param workspace_id: The Gradient workspace ID. If not provided it's read from the environment
                              variable GRADIENT_WORKSPACE_ID.
         """
-        gradientai_import.check()
-
         self._access_token = access_token
         self._base_model_slug = base_model_slug
         self._host = host
