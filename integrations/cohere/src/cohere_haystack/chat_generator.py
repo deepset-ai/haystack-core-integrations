@@ -1,4 +1,3 @@
-import dataclasses
 import logging
 import os
 from typing import Optional, List, Callable, Dict, Any
@@ -7,7 +6,7 @@ from haystack import component, default_from_dict, default_to_dict
 from haystack.components.generators.utils import serialize_callback_handler, deserialize_callback_handler
 from haystack.dataclasses import StreamingChunk
 from haystack.lazy_imports import LazyImport
-from cohere_haystack.chat_message import ChatMessage, ChatRole
+from haystack.dataclasses.chat_message import ChatMessage
 
 with LazyImport(message="Run 'pip install cohere'") as cohere_import:
     import cohere
@@ -94,7 +93,7 @@ class CohereChatGenerator:
                 if chunk.event_type == "text-generation":
                     stream_chunk = self._build_chunk(chunk)
                     self.streaming_callback(stream_chunk) 
-            message = ChatMessage(content=response.texts, role=ChatRole.CHATBOT, name = None)
+            message = ChatMessage(content=response.texts, role=None, name = None)
             message.metadata.update(
                 {
                     "token_count": response.token_count,
@@ -132,7 +131,7 @@ class CohereChatGenerator:
         :return: The ChatMessage.
         """
         content = cohere_response.text
-        message = ChatMessage(content=content, role=ChatRole.CHATBOT, name=None)
+        message = ChatMessage(content=content, role=None, name=None)
         message.metadata.update(
             {
             "token_count": cohere_response.token_count,
