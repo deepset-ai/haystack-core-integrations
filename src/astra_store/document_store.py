@@ -7,12 +7,12 @@ from dataclasses import asdict
 from typing import Any, Dict, List, Optional, Union
 
 import pandas as pd
-from haystack.dataclasses.document import Document
-from haystack.document_stores.errors import (
+from haystack.dataclasses import Document
+from haystack.document_stores import (
     DuplicateDocumentError,
+    DuplicatePolicy,
     MissingDocumentError,
 )
-from haystack.document_stores.protocol import DuplicatePolicy
 from pydantic import validate_arguments
 from sentence_transformers import SentenceTransformer
 
@@ -139,7 +139,7 @@ class AstraDocumentStore:
                 data = document
             else:
                 raise ValueError(f"Unsupported type for documents, documents is of type {type(document)}.")
-            meta = data.pop("metadata")
+            meta = data.pop("meta")
             document_dict = {**data, **meta}
             if "id" in document_dict:
                 if "_id" not in document_dict:
@@ -150,14 +150,14 @@ class AstraDocumentStore:
                     )
             if "dataframe" in document_dict and document_dict["dataframe"] is not None:
                 document_dict["dataframe"] = document_dict.pop("dataframe").to_json()
-            if "text" in document_dict and document_dict["text"] is not None:
+            if "content" in document_dict and document_dict["content"] is not None:
                 if "embedding" in document_dict.keys():
-                    if document_dict["embedding"] == None:
+                    if document_dict["embedding"] is None:
                         document_dict.pop("embedding")
                     else:
                         document_dict["$vector"] = document_dict.pop("embedding")
-                if embed == True:
-                    document_dict["$vector"] = self.embeddings.encode(document_dict["text"]).tolist()
+                if embed:
+                    document_dict["$vector"] = self.embeddings.encode(document_dict["content"]).tolist()
             else:
                 document_dict["$vector"] = None
 
@@ -272,10 +272,10 @@ class AstraDocumentStore:
         documents = []
         for match in results.matches:
             document = Document(
-                text=match.text,
+                content=match.text,
                 id=match.id,
                 embedding=match.values,
-                metadata=match.metadata,
+                meta=match.metadata,
                 score=match.score,
             )
             documents.append(document)
@@ -376,13 +376,11 @@ class AstraDocumentStore:
         Deletes all documents with a matching document_ids from the document store.
         Fails with `MissingDocumentError` if no document with this id is present in the store.
 
-        :param document_ids: the document_ids to delete
-        :param delete_all: delete all documents
+        :param document_ids: the document_ids to delete.
+        :param delete_all: delete all documents.
         """
         response = self.index.delete(ids=document_ids, delete_all=delete_all)
         response_dict = json.loads(response.text)
 
-        if response.status_code != 200:
-            raise Exception("Error querying Astra DB")
         if response_dict["status"]["deletedCount"] == 0 and document_ids is not None:
             raise MissingDocumentError(f"Document {document_ids} does not exist")

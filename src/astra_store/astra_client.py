@@ -65,33 +65,29 @@ class AstraClient:
     def find_index(self):
         find_query = {"findCollections": {"options": {"explain": True}}}
         response = requests.request("POST", self.create_url, headers=self.request_header, data=json.dumps(find_query))
+        response.raise_for_status()
         response_dict = json.loads(response.text)
 
-        if response.status_code == 200:
-            if "status" in response_dict:
-                collection_name_matches = list(
-                    filter(lambda d: d['name'] == self.collection_name, response_dict["status"]["collections"])
+        if "status" in response_dict:
+            collection_name_matches = list(
+                filter(lambda d: d['name'] == self.collection_name, response_dict["status"]["collections"])
+            )
+
+            if len(collection_name_matches) == 0:
+                logger.warning(
+                    f"Astra collection {self.collection_name} not found under {self.keyspace_name}. Will be created."
+                )
+                return False
+
+            collection_embedding_dim = collection_name_matches[0]["options"]["vector"]["dimension"]
+            if collection_embedding_dim != self.embedding_dim:
+                raise Exception(
+                    f"Collection vector dimension is not valid, expected {self.embedding_dim}, "
+                    f"found {collection_embedding_dim}"
                 )
 
-                if len(collection_name_matches) == 0:
-                    logger.warning(
-                        f"Astra collection {self.collection_name} not found under {self.keyspace_name}. Will be created."
-                    )
-                    return False
-
-                collection_embedding_dim = collection_name_matches[0]["options"]["vector"]["dimension"]
-                if collection_embedding_dim != self.embedding_dim:
-                    raise Exception(
-                        f"Collection vector dimension is not valid, expected {self.embedding_dim}, "
-                        f"found {collection_embedding_dim}"
-                    )
-
-            else:
-                raise Exception(f"status not in response: {response.text}")
-
         else:
-            raise Exception(f"Astra DB not available. Status code: {response.status_code}, {response.text}")
-            # Retry or handle error better
+            raise Exception(f"status not in response: {response.text}")
 
         return True
 
@@ -162,7 +158,7 @@ class AstraClient:
             _id = response.pop("_id")
             score = response.pop("$similarity") if "$similarity" in response else None
             _values = response.pop("$vector") if "$vector" in response else None
-            text = response.pop("text") if "text" in response else None
+            text = response.pop("content") if "content" in response else None
             values = _values if include_values else []
             # TODO double check
             metadata = response.pop("metadata") if "metadata" in response and include_metadata else dict()
@@ -185,14 +181,12 @@ class AstraClient:
             headers=self.request_header,
             data=query,
         )
+        response.raise_for_status()
         response_dict = json.loads(response.text)
-        if response.status_code == 200:
-            if "data" in response_dict and "documents" in response_dict["data"]:
-                return response_dict["data"]["documents"]
-            else:
-                logger.warning("No documents found", response_dict)
+        if "data" in response_dict and "documents" in response_dict["data"]:
+            return response_dict["data"]["documents"]
         else:
-            raise Exception(f"Astra DB request error - status code: {response.status_code} response {response.text}")
+            logger.warning("No documents found", response_dict)
 
     def get_documents(self, ids: List[str], batch_size: int = 20) -> QueryResponse:
         document_batch = []
@@ -216,19 +210,17 @@ class AstraClient:
             headers=self.request_header,
             data=query,
         )
+        response.raise_for_status()
         response_dict = json.loads(response.text)
 
-        if response.status_code == 200:
-            inserted_ids = (
-                response_dict["status"]["insertedIds"]
-                if "status" in response_dict and "insertedIds" in response_dict["status"]
-                else []
-            )
-            if "errors" in response_dict:
-                logger.error(response_dict["errors"])
-            return inserted_ids
-        else:
-            raise Exception(f"Astra DB request error - status code: {response.status_code} response {response.text}")
+        inserted_ids = (
+            response_dict["status"]["insertedIds"]
+            if "status" in response_dict and "insertedIds" in response_dict["status"]
+            else []
+        )
+        if "errors" in response_dict:
+            logger.error(response_dict["errors"])
+        return inserted_ids
 
     def update_document(self, document: Dict, id_key: str):
         document_id = document.pop(id_key)
@@ -247,18 +239,16 @@ class AstraClient:
             headers=self.request_header,
             data=query,
         )
+        response.raise_for_status()
         response_dict = json.loads(response.text)
         document[id_key] = document_id
 
-        if response.status_code == 200:
-            if "status" in response_dict and "errors" not in response_dict:
-                if "matchedCount" in response_dict["status"] and "modifiedCount" in response_dict["status"]:
-                    if response_dict["status"]["matchedCount"] == 1 and response_dict["status"]["modifiedCount"] == 1:
-                        return True
-            logger.warning(f"Documents {document_id} not updated in Astra {response.text}")
-            return False
-        else:
-            raise Exception(f"Astra DB request error - status code: {response.status_code} response {response.text}")
+        if "status" in response_dict and "errors" not in response_dict:
+            if "matchedCount" in response_dict["status"] and "modifiedCount" in response_dict["status"]:
+                if response_dict["status"]["matchedCount"] == 1 and response_dict["status"]["modifiedCount"] == 1:
+                    return True
+        logger.warning(f"Documents {document_id} not updated in Astra {response.text}")
+        return False
 
     def delete(
         self,
@@ -278,16 +268,18 @@ class AstraClient:
             headers=self.request_header,
             data=json.dumps(query),
         )
+        response.raise_for_status()
         return response
 
     def count_documents(self) -> int:
         """
         Returns how many documents are present in the document store.
         """
-        count = requests.request(
+        response = requests.request(
             "POST",
             self.request_url,
             headers=self.request_header,
             data=json.dumps({"countDocuments": {}}),
-        ).json()["status"]["count"]
-        return count
+        )
+        response.raise_for_status()
+        return response.json()["status"]["count"]

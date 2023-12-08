@@ -2,12 +2,11 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 import os
-from typing import List
 
 import pytest
-from haystack.dataclasses.document import Document
-from haystack.document_stores.protocol import DuplicatePolicy
+from haystack.document_stores import DuplicatePolicy
 from haystack.testing.document_store import DocumentStoreBaseTests
+
 from astra_store.document_store import AstraDocumentStore
 
 
@@ -18,7 +17,7 @@ class TestDocumentStore(DocumentStoreBaseTests):
     """
 
     @pytest.fixture
-    def docstore(self) -> AstraDocumentStore:
+    def document_store(self) -> AstraDocumentStore:
         """
         This is the most basic requirement for the child class: provide
         an instance of this document store so the base class can use it.
@@ -47,10 +46,9 @@ class TestDocumentStore(DocumentStoreBaseTests):
         return astra_store
 
     @pytest.fixture(autouse=True)
-    def run_before_and_after_tests(self, docstore: AstraDocumentStore):
+    def run_before_and_after_tests(self, document_store: AstraDocumentStore):
         """
         Cleaning up document store
         """
-        docstore.delete_documents(delete_all=True)
-        assert docstore.count_documents() == 0
-
+        document_store.delete_documents(delete_all=True)
+        assert document_store.count_documents() == 0
