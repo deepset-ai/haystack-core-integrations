@@ -48,7 +48,7 @@ class CohereTextEmbedder:
         :param api_key: The Cohere API key. It can be explicitly provided or automatically read from the environment
             variable COHERE_API_KEY (recommended).
         :param model_name: The name of the model to use, defaults to `"embed-english-v2.0"`. Supported Models are:
-            `"embed-english-v3.0"`, `"embed-english-light-3.0"`, `"embed-multilingual-v3.0"`,
+            `"embed-english-v3.0"`, `"embed-english-light-v3.0"`, `"embed-multilingual-v3.0"`,
             `"embed-multilingual-light-v3.0"`, `"embed-english-v2.0"`, `"embed-english-light-v2.0"`,
             `"embed-multilingual-v2.0"`. This list of all supported models can be found on the
             [model documentation](https://docs.cohere.com/docs/models#representation).
