@@ -15,12 +15,27 @@ from cohere_haystack.embedders.utils import get_async_response, get_response
 class CohereTextEmbedder:
     """
     A component for embedding strings using Cohere models.
+
+    Usage Example:
+    ```python
+    from cohere_haystack.embedders.text_embedder import CohereTextEmbedder
+
+    text_to_embed = "I love pizza!"
+
+    text_embedder = CohereTextEmbedder()
+
+    print(text_embedder.run(text_to_embed))
+
+    # {'embedding': [-0.453125, 1.2236328, 2.0058594, ...]
+    # 'metadata': {'api_version': {'version': '1'}, 'billed_units': {'input_tokens': 4}}}
+    ```
     """
 
     def __init__(
         self,
         api_key: Optional[str] = None,
         model_name: str = "embed-english-v2.0",
+        input_type: Optional[str] = "search_document",
         api_base_url: str = COHERE_API_URL,
         truncate: str = "END",
         use_async_client: bool = False,
@@ -32,9 +47,15 @@ class CohereTextEmbedder:
 
         :param api_key: The Cohere API key. It can be explicitly provided or automatically read from the environment
             variable COHERE_API_KEY (recommended).
-        :param model_name: The name of the model to use, defaults to `"embed-english-v2.0"`. Supported Models are
-            `"embed-english-v2.0"`/ `"large"`, `"embed-english-light-v2.0"`/ `"small"`,
-            `"embed-multilingual-v2.0"`/ `"multilingual-22-12"`.
+        :param model_name: The name of the model to use, defaults to `"embed-english-v2.0"`. Supported Models are:
+            `"embed-english-v3.0"`, `"embed-english-light-3.0"`, `"embed-multilingual-v3.0"`,
+            `"embed-multilingual-light-v3.0"`, `"embed-english-v2.0"`, `"embed-english-light-v2.0"`,
+            `"embed-multilingual-v2.0"`. This list of all supported models can be found on the
+            [model documentation](https://docs.cohere.com/docs/models#representation).
+        :param input_type: Specifies the type of input you're giving to the model. Supported values are
+        "search_document", "search_query", "classification" and "clustering". Defaults to "search_document". Not
+        required for older versions of the embedding models (i.e. anything lower than v3), but is required for more
+        recent versions (i.e. anything bigger than v2).
         :param api_base_url: The Cohere API Base url, defaults to `https://api.cohere.ai/v1/embed`.
         :param truncate: Truncate embeddings that are too long from start or end, ("NONE"|"START"|"END"), defaults to
             `"END"`. Passing START will discard the start of the input. END will discard the end of the input. In both
@@ -58,6 +79,7 @@ class CohereTextEmbedder:
 
         self.api_key = api_key
         self.model_name = model_name
+        self.input_type = input_type
         self.api_base_url = api_base_url
         self.truncate = truncate
         self.use_async_client = use_async_client
@@ -71,6 +93,7 @@ class CohereTextEmbedder:
         return default_to_dict(
             self,
             model_name=self.model_name,
+            input_type=self.input_type,
             api_base_url=self.api_base_url,
             truncate=self.truncate,
             use_async_client=self.use_async_client,
@@ -94,11 +117,13 @@ class CohereTextEmbedder:
             cohere_client = AsyncClient(
                 self.api_key, api_url=self.api_base_url, max_retries=self.max_retries, timeout=self.timeout
             )
-            embedding, metadata = asyncio.run(get_async_response(cohere_client, [text], self.model_name, self.truncate))
+            embedding, metadata = asyncio.run(
+                get_async_response(cohere_client, [text], self.model_name, self.input_type, self.truncate)
+            )
         else:
             cohere_client = Client(
                 self.api_key, api_url=self.api_base_url, max_retries=self.max_retries, timeout=self.timeout
             )
-            embedding, metadata = get_response(cohere_client, [text], self.model_name, self.truncate)
+            embedding, metadata = get_response(cohere_client, [text], self.model_name, self.input_type, self.truncate)
 
         return {"embedding": embedding[0], "metadata": metadata}
