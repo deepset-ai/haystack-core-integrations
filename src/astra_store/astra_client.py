@@ -161,7 +161,7 @@ class AstraClient:
             text = response.pop("content") if "content" in response else None
             values = _values if include_values else []
             # TODO double check
-            metadata = response.pop("metadata") if "metadata" in response and include_metadata else dict()
+            metadata = response if include_metadata else dict()
             rsp = Response(_id, text, values, metadata, score)
             final_res.append(rsp)
         return QueryResponse(final_res)

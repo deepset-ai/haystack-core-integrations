@@ -2,9 +2,11 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 import os
+from typing import List
 
 import pytest
-from haystack.document_stores import DuplicatePolicy
+from haystack import Document
+from haystack.document_stores import DuplicatePolicy, MissingDocumentError
 from haystack.testing.document_store import DocumentStoreBaseTests
 
 from astra_store.document_store import AstraDocumentStore
@@ -52,3 +54,67 @@ class TestDocumentStore(DocumentStoreBaseTests):
         """
         document_store.delete_documents(delete_all=True)
         assert document_store.count_documents() == 0
+
+    def assert_documents_are_equal(self, received: List[Document], expected: List[Document]):
+        """
+        Assert that two lists of Documents are equal.
+        This is used in every test, if a Document Store implementation has a different behaviour
+        it should override this method.
+
+        This can happen for example when the Document Store sets a score to returned Documents.
+        Since we can't know what the score will be, we can't compare the Documents reliably.
+        """
+        import operator
+
+        received.sort(key=operator.attrgetter('content'))
+        assert received == expected
+
+    def test_delete_documents_non_existing_document(self, document_store: AstraDocumentStore):
+        """
+        Test delete_documents() doesn't delete any Document when called with non existing id.
+        """
+        doc = Document(content="test doc")
+        document_store.write_documents([doc])
+        assert document_store.count_documents() == 1
+
+        with pytest.raises(MissingDocumentError):
+            document_store.delete_documents(["non_existing_id"])
+
+        # No Document has been deleted
+        assert document_store.count_documents() == 1
+
+    # @pytest.mark.skip(reason="Unsupported filter operator not in.")
+    # def test_comparison_not_in(self, document_store, filterable_docs):
+    #     pass
+    #
+    # @pytest.mark.skip(reason="Unsupported filter operator not in.")
+    # def test_comparison_not_in_with_with_non_list(self, document_store, filterable_docs):
+    #     pass
+    #
+    # @pytest.mark.skip(reason="Unsupported filter operator not in.")
+    # def test_comparison_not_in_with_with_non_list_iterable(self, document_store, filterable_docs):
+    #     pass
+
+    # @pytest.mark.skip(reason="Unsupported filter operator $gt.")
+    # def test_comparison_greater_than_with_iso_date(self, document_store, filterable_docs):
+    #     pass
+
+    # @pytest.mark.skip(reason="Unsupported filter operator $gt.")
+    # def test_comparison_greater_than_with_string(self, document_store, filterable_docs):
+    #     pass
+
+    # @pytest.mark.skip(reason="Unsupported filter operator $gt.")
+    # def test_comparison_greater_than_with_dataframe(self, document_store, filterable_docs):
+    #     pass
+
+    # @pytest.mark.skip(reason="Unsupported filter operator $gt.")
+    # def test_comparison_greater_than_with_list(self, document_store, filterable_docs):
+    #     pass
+
+    # @pytest.mark.skip(reason="Unsupported filter operator $gt.")
+    # def test_comparison_greater_than_with_none(self, document_store, filterable_docs):
+    #     pass
+
+    # @pytest.mark.skip(reason="Unsupported filter operator $gte.")
+    # def test_comparison_greater_than_equal(self, document_store, filterable_docs):
+    #     pass
