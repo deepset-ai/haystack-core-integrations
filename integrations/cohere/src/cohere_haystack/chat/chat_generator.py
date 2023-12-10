@@ -27,7 +27,7 @@ class CohereChatGenerator:
         if not api_key:
             api_key = os.environ.get("COHERE_API_KEY")
         if not api_key:
-            error = "CohereChatGenerator needs an API key to run. Either provide it as init parameter or set the env var COHERE_API_KEY." # noqa: E501
+            error = "CohereChatGenerator needs an API key to run. Either provide it as init parameter or set the env var COHERE_API_KEY."  # noqa: E501
             raise ValueError(error)
 
         if not api_base_url:
@@ -81,31 +81,28 @@ class CohereChatGenerator:
         generation_kwargs = {**self.generation_kwargs, **(generation_kwargs or {})}
         message = [message.content for message in messages]
         response = self.client.chat(
-            message = message[0],
-            model=self.model_name,
-            stream=self.streaming_callback is not None,
-            **generation_kwargs
-            )
+            message=message[0], model=self.model_name, stream=self.streaming_callback is not None, **generation_kwargs
+        )
         if self.streaming_callback:
             for chunk in response:
                 if chunk.event_type == "text-generation":
                     stream_chunk = self._build_chunk(chunk)
                     self.streaming_callback(stream_chunk)
-            message = ChatMessage(content=response.texts, role=None, name = None)
-            message.metadata.update(
+            chat_message = ChatMessage(content=response.texts, role=None, name=None)
+            chat_message.metadata.update(
                 {
                     "token_count": response.token_count,
                     "finish_reason": response.finish_reason,
                     "documents": response.documents,
                     "citations": response.citations,
-                    "chat-history": response.chat_history
+                    "chat-history": response.chat_history,
                 }
             )
         else:
-            message = self._build_message(response)
-        return {"replies": [message]}
+            chat_message = self._build_message(response)
+        return {"replies": [chat_message]}
 
-    def _build_chunk(self, chunk)-> StreamingChunk:
+    def _build_chunk(self, chunk) -> StreamingChunk:
         """
         Converts the response from the Cohere API to a StreamingChunk.
         :param chunk: The chunk returned by the OpenAI API.
@@ -114,12 +111,8 @@ class CohereChatGenerator:
         """
         # if chunk.event_type == "text-generation":
         chat_message = StreamingChunk(
-                content = chunk.text,
-                metadata={
-                    "index": chunk.index,
-                    "event_type": chunk.event_type
-                }
-                )
+            content=chunk.text, metadata={"index": chunk.index, "event_type": chunk.event_type}
+        )
         return chat_message
 
     def _build_message(self, cohere_response):
@@ -132,11 +125,11 @@ class CohereChatGenerator:
         message = ChatMessage(content=content, role=None, name=None)
         message.metadata.update(
             {
-            "token_count": cohere_response.token_count,
-            "meta": cohere_response.meta,
-            "citations": cohere_response.citations,
-            "documents": cohere_response.documents,
-            "chat-history": cohere_response.chat_history
+                "token_count": cohere_response.token_count,
+                "meta": cohere_response.meta,
+                "citations": cohere_response.citations,
+                "documents": cohere_response.documents,
+                "chat-history": cohere_response.chat_history,
             }
         )
         return message
