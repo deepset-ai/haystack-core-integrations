@@ -1,12 +1,11 @@
 import logging
 import os
-from typing import Optional, List, Callable, Dict, Any
+from typing import Any, Callable, Dict, List, Optional
 
 from haystack import component, default_from_dict, default_to_dict
-from haystack.components.generators.utils import serialize_callback_handler, deserialize_callback_handler
-from haystack.dataclasses import StreamingChunk
+from haystack.components.generators.utils import deserialize_callback_handler, serialize_callback_handler
+from haystack.dataclasses import ChatMessage, StreamingChunk
 from haystack.lazy_imports import LazyImport
-from haystack.dataclasses.chat_message import ChatMessage
 
 with LazyImport(message="Run 'pip install cohere'") as cohere_import:
     import cohere
@@ -19,8 +18,8 @@ class CohereChatGenerator:
         api_key: Optional[str] = None,
         model_name: str = "command",
         streaming_callback: Optional[Callable[[StreamingChunk], None]] = None,
-        api_base_url: str = None,
-        generation_kwargs: Optional[Dict[str, Any]] = {},
+        api_base_url: Optional[str] = None,
+        generation_kwargs: Optional[Dict[str, Any]] = None,
         **kwargs,
     ):
         cohere_import.check()
@@ -28,13 +27,13 @@ class CohereChatGenerator:
         if not api_key:
             api_key = os.environ.get("COHERE_API_KEY")
         if not api_key:
-            raise ValueError(
-                "CohereChatGenerator needs an API key to run. Either provide it as init parameter or set the env var COHERE_API_KEY."
-            )
+            error = "CohereChatGenerator needs an API key to run. Either provide it as init parameter or set the env var COHERE_API_KEY." # noqa: E501
+            raise ValueError(error)
 
         if not api_base_url:
             api_base_url = cohere.COHERE_API_URL
-
+        if generation_kwargs is None:
+            generation_kwargs = {}
         self.api_key = api_key
         self.model_name = model_name
         self.streaming_callback = streaming_callback
@@ -77,13 +76,12 @@ class CohereChatGenerator:
         return default_from_dict(cls, data)
 
     @component.output_types(replies=List[ChatMessage])
-    def run(self, messages: List[ChatMessage], generation_kwargs: Optional[Dict[str, Any]] = {}):
-        
+    def run(self, messages: List[ChatMessage], generation_kwargs: Optional[Dict[str, Any]] = None):
         # update generation kwargs by merging with the generation kwargs passed to the run method
         generation_kwargs = {**self.generation_kwargs, **(generation_kwargs or {})}
         message = [message.content for message in messages]
         response = self.client.chat(
-            message = message[0], 
+            message = message[0],
             model=self.model_name,
             stream=self.streaming_callback is not None,
             **generation_kwargs
@@ -92,7 +90,7 @@ class CohereChatGenerator:
             for chunk in response:
                 if chunk.event_type == "text-generation":
                     stream_chunk = self._build_chunk(chunk)
-                    self.streaming_callback(stream_chunk) 
+                    self.streaming_callback(stream_chunk)
             message = ChatMessage(content=response.texts, role=None, name = None)
             message.metadata.update(
                 {

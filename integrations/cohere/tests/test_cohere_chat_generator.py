@@ -1,12 +1,12 @@
 import os
-from unittest.mock import patch, Mock
+from unittest.mock import Mock, patch
 
-import pytest
 import cohere
+import pytest
+from haystack.components.generators.utils import default_streaming_callback
+from haystack.dataclasses import ChatMessage, StreamingChunk
 
 from cohere_haystack.chat.chat_generator import CohereChatGenerator
-from haystack.dataclasses import ChatMessage, StreamingChunk
-from haystack.components.generators.utils import default_streaming_callback
 
 pytestmark = pytest.mark.chat_generators
 
@@ -20,8 +20,8 @@ def mock_chat_response():
 
         mock_response = Mock()
         mock_response.text = "I'm fine, thanks."
-        mock_response.token_count =  {"prompt_tokens": 66, "response_tokens": 78, "total_tokens": 144, "billed_tokens": 133}
-        mock_response.meta = {"api_version": {"version": "1"}, "billed_units": {"input_tokens": 55, "output_tokens": 78}}
+        mock_response.token_count={"prompt_tokens":66, "response_tokens": 78, "total_tokens": 144, "billed_tokens": 133}
+        mock_response.meta={"api_version": {"version": "1"}, "billed_units": {"input_tokens": 55, "output_tokens": 78}}
         mock_chat_response.return_value = mock_response
         yield mock_chat_response
 
@@ -56,7 +56,7 @@ class TestCohereChatGenerator:
     @pytest.mark.unit
     def test_init_fail_wo_api_key(self, monkeypatch):
         monkeypatch.delenv("COHERE_API_KEY", raising=False)
-        with pytest.raises(ValueError, match="CohereChatGenerator needs an API key to run. Either provide it as init parameter or set the env var COHERE_API_KEY."):
+        with pytest.raises(ValueError, match=r"^CohereChatGenerator needs an API key to run. (.+)$"):
             CohereChatGenerator()
 
     @pytest.mark.unit
@@ -83,7 +83,7 @@ class TestCohereChatGenerator:
             "init_parameters": {
                 "model_name":"command",
                 "streaming_callback": None,
-                "api_base_url": "https://api.cohere.ai",
+                "api_base_url":"https://api.cohere.ai",
                 "generation_kwargs": {}
             }
         }
@@ -158,11 +158,11 @@ class TestCohereChatGenerator:
                 "generation_kwargs": {"max_tokens": 10, "some_test_param": "test-params"},
             },
         }
-        with pytest.raises(ValueError, match="CohereChatGenerator needs an API key to run. Either provide it as init parameter or set the env var COHERE_API_KEY."):
+        with pytest.raises(ValueError, match=r"^CohereChatGenerator needs an API key to run. (.+)$"):
             CohereChatGenerator.from_dict(data)
 
     @pytest.mark.unit
-    def test_run(self, chat_messages, mock_chat_response):
+    def test_run(self, chat_messages, mock_chat_response): # noqa: ARG002
         component = CohereChatGenerator(api_key="test-api-key")
         response = component.run(chat_messages)
 
@@ -175,7 +175,10 @@ class TestCohereChatGenerator:
 
     @pytest.mark.unit
     def test_run_with_params(self, chat_messages, mock_chat_response):
-        component = CohereChatGenerator(api_key="test-api-key", generation_kwargs={"max_tokens": 10, "temperature": 0.5})
+        component = CohereChatGenerator(
+            api_key="test-api-key",
+            generation_kwargs={"max_tokens": 10, "temperature": 0.5}
+            )
         response = component.run(chat_messages)
 
         # check that the component calls the Cohere API with the correct parameters
@@ -204,7 +207,7 @@ class TestCohereChatGenerator:
 
         # Create a fake streamed response
         # self needed here, don't remove
-        def mock_iter(self):
+        def mock_iter(self): # noqa: ARG001
             yield streaming_chunk("Hello")
             yield streaming_chunk("How are you?")
 
@@ -244,8 +247,11 @@ class TestCohereChatGenerator:
     )
     @pytest.mark.integration
     def test_live_run_wrong_model(self, chat_messages):
-        component = CohereChatGenerator(model_name="something-obviously-wrong", api_key=os.environ.get("COHERE_API_KEY"))
-        with pytest.raises(cohere.CohereAPIError, match="model not found, make sure the correct model ID was used and that you have access to the model."):
+        component = CohereChatGenerator(
+            model_name="something-obviously-wrong",
+            api_key=os.environ.get("COHERE_API_KEY")
+        )
+        with pytest.raises(cohere.CohereAPIError, match=r"^Model not found (.+)$"):
             component.run(chat_messages)
 
     @pytest.mark.skipif(
@@ -265,7 +271,15 @@ class TestCohereChatGenerator:
 
         callback = Callback()
         component = CohereChatGenerator(os.environ.get("COHERE_API_KEY"), streaming_callback=callback)
-        results = component.run([ChatMessage(content="What's the capital of France? answer in a word", role=None, name=None)])
+        results = component.run(
+            [
+                ChatMessage(
+                     content="What's the capital of France? answer in a word",
+                     role=None,
+                     name=None
+            )
+        ]
+    )
 
         assert len(results["replies"]) == 1
         message: ChatMessage = results["replies"][0]
