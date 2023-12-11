@@ -17,7 +17,7 @@ class JinaTextEmbedder:
 
     Usage example:
     ```python
-    from haystack.components.embedders import JinaTextEmbedder
+    from jina_haystack import JinaTextEmbedder
 
     text_to_embed = "I love pizza!"
 
