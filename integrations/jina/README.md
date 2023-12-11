@@ -1,7 +1,7 @@
 # jina-haystack
 
-[![PyPI - Version](https://img.shields.io/pypi/v/cohere-haystack.svg)](https://pypi.org/project/jina-haystack)
-[![PyPI - Python Version](https://img.shields.io/pypi/pyversions/cohere-haystack.svg)](https://pypi.org/project/jina-haystack)
+[![PyPI - Version](https://img.shields.io/pypi/v/jina-haystack.svg)](https://pypi.org/project/jina-haystack)
+[![PyPI - Python Version](https://img.shields.io/pypi/pyversions/jina-haystack.svg)](https://pypi.org/project/jina-haystack)
 
 -----
 

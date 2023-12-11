@@ -15,7 +15,7 @@ defaults:
     working-directory: integrations/jina
 
 concurrency:
-  group: cohere-${{ github.head_ref }}
+  group: jina-${{ github.head_ref }}
   cancel-in-progress: true
 
 env:

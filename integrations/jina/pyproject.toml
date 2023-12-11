@@ -27,9 +27,9 @@ classifiers = [
 dependencies = ["requests", "haystack-ai"]
 
 [project.urls]
-Documentation = "https://github.com/unknown/jina-haystack#readme"
-Issues = "https://github.com/unknown/jina-haystack/issues"
-Source = "https://github.com/unknown/jina-haystack"
+Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/jina/jina-haystack#readme"
+Issues = "https://github.com/deepset-ai/haystack-core-integrations/issues"
+Source = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/jina/jina-haystack"
 
 [tool.hatch.version]
 path = "src/jina_haystack/__about__.py"
