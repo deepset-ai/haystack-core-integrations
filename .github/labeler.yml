@@ -1,5 +1,5 @@
 # Integrations
-integration:chroma:
+"integration:chroma":
 - any:
   - changed-files:
     - any-glob-to-any-file: 'integrations/chroma/**/*'
