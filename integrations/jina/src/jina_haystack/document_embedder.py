@@ -20,7 +20,7 @@ class JinaDocumentEmbedder:
     Usage example:
     ```python
     from haystack import Document
-    from haystack.components.embedders import JinaDocumentEmbedder
+    from jina_haystack import JinaDocumentEmbedder
 
     doc = Document(content="I love pizza!")
 
