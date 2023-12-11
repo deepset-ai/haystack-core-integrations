@@ -35,7 +35,7 @@ class CohereTextEmbedder:
         self,
         api_key: Optional[str] = None,
         model_name: str = "embed-english-v2.0",
-        input_type: Optional[str] = "search_document",
+        input_type: str = "search_document",
         api_base_url: str = COHERE_API_URL,
         truncate: str = "END",
         use_async_client: bool = False,
