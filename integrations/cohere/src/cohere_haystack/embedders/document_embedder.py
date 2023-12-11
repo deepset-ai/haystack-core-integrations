@@ -56,12 +56,12 @@ class CohereDocumentEmbedder:
         :param model_name: The name of the model to use, defaults to `"embed-english-v2.0"`. Supported Models are:
             `"embed-english-v3.0"`, `"embed-english-light-v3.0"`, `"embed-multilingual-v3.0"`,
             `"embed-multilingual-light-v3.0"`, `"embed-english-v2.0"`, `"embed-english-light-v2.0"`,
-            `"embed-multilingual-v2.0"`. This list of all supported models can be found on the
+            `"embed-multilingual-v2.0"`. This list of all supported models can be found in the
             [model documentation](https://docs.cohere.com/docs/models#representation).
         :param input_type: Specifies the type of input you're giving to the model. Supported values are
         "search_document", "search_query", "classification" and "clustering". Defaults to "search_document". Not
-        required for older versions of the embedding models (i.e. anything lower than v3), but is required for more
-        recent versions (i.e. anything bigger than v2).
+        required for older versions of the embedding models (meaning anything lower than v3), but is required for more
+        recent versions (meaning anything bigger than v2).
         :param api_base_url: The Cohere API Base url, defaults to `https://api.cohere.ai/v1/embed`.
         :param truncate: Truncate embeddings that are too long from start or end, ("NONE"|"START"|"END"), defaults to
             `"END"`. Passing START will discard the start of the input. END will discard the end of the input. In both
