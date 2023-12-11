@@ -48,7 +48,7 @@ class JinaDocumentEmbedder:
         Create a JinaDocumentEmbedder component.
         :param api_key: The Jina API key. It can be explicitly provided or automatically read from the
             environment variable JINA_API_KEY (recommended).
-        :param model_name: The name of the Jina model to use.
+        :param model_name: The name of the Jina model to use. Check the list of available models on `https://jina.ai/embeddings/`
         :param prefix: A string to add to the beginning of each text.
         :param suffix: A string to add to the end of each text.
         :param batch_size: Number of Documents to encode at once.
@@ -123,7 +123,6 @@ class JinaDocumentEmbedder:
                 self.prefix + self.embedding_separator.join([*meta_values_to_embed, doc.content or ""]) + self.suffix
             )
 
-            text_to_embed = text_to_embed.replace("\n", " ")
             texts_to_embed.append(text_to_embed)
         return texts_to_embed
 
@@ -138,14 +137,12 @@ class JinaDocumentEmbedder:
             range(0, len(texts_to_embed), batch_size), disable=not self.progress_bar, desc="Calculating embeddings"
         ):
             batch = texts_to_embed[i : i + batch_size]
-            response = self._session.post(  # type: ignore
-                JINA_API_URL, json={"input": batch, "model": self.model_name}
-            ).json()
+            response = self._session.post(JINA_API_URL, json={"input": batch, "model": self.model_name}).json()
             if "data" not in response:
                 raise RuntimeError(response["detail"])
 
             # Sort resulting embeddings by index
-            sorted_embeddings = sorted(response["data"], key=lambda e: e["index"])  # type: ignore
+            sorted_embeddings = sorted(response["data"], key=lambda e: e["index"])
             embeddings = [result["embedding"] for result in sorted_embeddings]
             all_embeddings.extend(embeddings)
             if "model" not in metadata:

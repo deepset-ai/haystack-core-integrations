@@ -43,7 +43,7 @@ class JinaTextEmbedder:
 
         :param api_key: The Jina API key. It can be explicitly provided or automatically read from the
             environment variable JINA_API_KEY (recommended).
-        :param model_name: The name of the Jina model to use.
+        :param model_name: The name of the Jina model to use. Check the list of available models on `https://jina.ai/embeddings/`
         :param prefix: A string to add to the beginning of each text.
         :param suffix: A string to add to the end of each text.
         """
@@ -96,9 +96,7 @@ class JinaTextEmbedder:
 
         text_to_embed = self.prefix + text + self.suffix
 
-        resp = self._session.post(  # type: ignore
-            JINA_API_URL, json={"input": [text_to_embed], "model": self.model_name}
-        ).json()
+        resp = self._session.post(JINA_API_URL, json={"input": [text_to_embed], "model": self.model_name}).json()
         if "data" not in resp:
             raise RuntimeError(resp["detail"])
 

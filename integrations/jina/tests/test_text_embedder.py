@@ -7,7 +7,7 @@ from unittest.mock import patch
 import pytest
 import requests
 
-from jina_haystack.text_embedder import JinaTextEmbedder
+from jina_haystack import JinaTextEmbedder
 
 
 class TestJinaTextEmbedder:

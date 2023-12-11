@@ -8,7 +8,7 @@ import pytest
 import requests
 from haystack import Document
 
-from jina_haystack.document_embedder import JinaDocumentEmbedder
+from jina_haystack import JinaDocumentEmbedder
 
 
 def mock_session_post_response(*args, **kwargs):  # noqa: ARG001
@@ -57,7 +57,7 @@ class TestJinaDocumentEmbedder:
         assert embedder.embedding_separator == " | "
 
     def test_init_fail_wo_api_key(self, monkeypatch):
-        monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+        monkeypatch.delenv("JINA_API_KEY", raising=False)
         with pytest.raises(ValueError, match="JinaDocumentEmbedder expects a Jina API key"):
             JinaDocumentEmbedder()
 
@@ -115,11 +115,11 @@ class TestJinaDocumentEmbedder:
 
         # note that newline is replaced by space
         assert prepared_texts == [
-            "meta_value 0 | document number 0: content",
-            "meta_value 1 | document number 1: content",
-            "meta_value 2 | document number 2: content",
-            "meta_value 3 | document number 3: content",
-            "meta_value 4 | document number 4: content",
+            "meta_value 0 | document number 0:\ncontent",
+            "meta_value 1 | document number 1:\ncontent",
+            "meta_value 2 | document number 2:\ncontent",
+            "meta_value 3 | document number 3:\ncontent",
+            "meta_value 4 | document number 4:\ncontent",
         ]
 
     def test_prepare_texts_to_embed_w_suffix(self):
