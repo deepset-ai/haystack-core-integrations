@@ -1,24 +1,35 @@
 # Integrations
 integration:chroma:
-- integrations/chroma/**/*
+- changed-files:
+  - any-glob-to-any-file: 'integrations/chroma/**/*'
+
 integration:elasticsearch:
-- integrations/elasticsearch/**/*
+- changed-files:
+  - any-glob-to-any-file: 'integrations/elasticsearch/**/*'
+
 integration:gradient:
-- integrations/gradient/**/*
+- changed-files:
+  - any-glob-to-any-file: 'integrations/gradient/**/*'
+
 integration:instructor-embedders:
-- integrations/instructor-embedders/**/*
+- changed-files:
+  - any-glob-to-any-file: 'integrations/instructor-embedders/**/*'
+
 integration:opensearch:
-- integrations/opensearch/**/*
+- changed-files:
+  - any-glob-to-any-file: 'integrations/opensearch/**/*'
+
 integration:unstructured-fileconverter:
-- integrations/unstructured/fileconverter/**/*
+- changed-files:
+  - any-glob-to-any-file: 'integrations/unstructured/fileconverter/**/*'
+
 # Topics
 topic:CI:
-- .github/*
-- .github/**/*
+- changed-files:
+  - any-glob-to-any-file: ['.github/*', '.github/**/*']
 topic:DX:
-- CONTRIBUTING.md
-- .pre-commit-config.yaml
-- .gitignore
-- requirements.txt
+- changed-files:
+  - any-glob-to-any-file: ['CONTRIBUTING.md', '.pre-commit-config.yaml', '.gitignore', 'requirements.txt']
 topic:security:
-- SECURITY.md
+- changed-files:
+  - any-glob-to-any-file: ['SECURITY.md']
