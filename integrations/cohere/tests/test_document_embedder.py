@@ -17,6 +17,7 @@ class TestCohereDocumentEmbedder:
         embedder = CohereDocumentEmbedder(api_key="test-api-key")
         assert embedder.api_key == "test-api-key"
         assert embedder.model_name == "embed-english-v2.0"
+        assert embedder.input_type == "search_document"
         assert embedder.api_base_url == COHERE_API_URL
         assert embedder.truncate == "END"
         assert embedder.use_async_client is False
@@ -31,6 +32,7 @@ class TestCohereDocumentEmbedder:
         embedder = CohereDocumentEmbedder(
             api_key="test-api-key",
             model_name="embed-multilingual-v2.0",
+            input_type="search_query",
             api_base_url="https://custom-api-base-url.com",
             truncate="START",
             use_async_client=True,
@@ -43,6 +45,7 @@ class TestCohereDocumentEmbedder:
         )
         assert embedder.api_key == "test-api-key"
         assert embedder.model_name == "embed-multilingual-v2.0"
+        assert embedder.input_type == "search_query"
         assert embedder.api_base_url == "https://custom-api-base-url.com"
         assert embedder.truncate == "START"
         assert embedder.use_async_client is True
@@ -60,6 +63,7 @@ class TestCohereDocumentEmbedder:
             "type": "cohere_haystack.embedders.document_embedder.CohereDocumentEmbedder",
             "init_parameters": {
                 "model_name": "embed-english-v2.0",
+                "input_type": "search_document",
                 "api_base_url": COHERE_API_URL,
                 "truncate": "END",
                 "use_async_client": False,
@@ -76,6 +80,7 @@ class TestCohereDocumentEmbedder:
         embedder_component = CohereDocumentEmbedder(
             api_key="test-api-key",
             model_name="embed-multilingual-v2.0",
+            input_type="search_query",
             api_base_url="https://custom-api-base-url.com",
             truncate="START",
             use_async_client=True,
@@ -91,6 +96,7 @@ class TestCohereDocumentEmbedder:
             "type": "cohere_haystack.embedders.document_embedder.CohereDocumentEmbedder",
             "init_parameters": {
                 "model_name": "embed-multilingual-v2.0",
+                "input_type": "search_query",
                 "api_base_url": "https://custom-api-base-url.com",
                 "truncate": "START",
                 "use_async_client": True,
