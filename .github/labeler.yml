@@ -3,6 +3,10 @@ integration:chroma:
 - changed-files:
   - any-glob-to-any-file: 'integrations/chroma/**/*'
 
+integration:cohere:
+- changed-files:
+  - any-glob-to-any-file: 'integrations/cohere/**/*'
+
 integration:elasticsearch:
 - changed-files:
   - any-glob-to-any-file: 'integrations/elasticsearch/**/*'
@@ -14,6 +18,10 @@ integration:gradient:
 integration:instructor-embedders:
 - changed-files:
   - any-glob-to-any-file: 'integrations/instructor-embedders/**/*'
+
+integration:jina:
+- changed-files:
+  - any-glob-to-any-file: 'integrations/jina/**/*'
 
 integration:opensearch:
 - changed-files:
