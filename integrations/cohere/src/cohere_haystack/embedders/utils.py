@@ -6,8 +6,6 @@ from typing import Any, Dict, List, Tuple
 from cohere import AsyncClient, Client, CohereError
 from tqdm import tqdm
 
-API_BASE_URL = "https://api.cohere.ai/v1/embed"
-
 
 async def get_async_response(cohere_async_client: AsyncClient, texts: List[str], model_name, truncate):
     all_embeddings: List[List[float]] = []
