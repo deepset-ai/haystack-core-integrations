@@ -1,6 +1,5 @@
 from unittest.mock import patch
 
-
 from instructor_embedders_haystack.embedding_backend.instructor_backend import _InstructorEmbeddingBackendFactory
 
 
