@@ -367,8 +367,10 @@ class AstraDocumentStore:
         :param document_ids: the document_ids to delete.
         :param delete_all: delete all documents.
         """
-        response = self.index.delete(ids=document_ids, delete_all=delete_all)
-        response_dict = json.loads(response.text)
 
-        if response_dict["status"]["deletedCount"] == 0 and document_ids is not None:
-            raise MissingDocumentError(f"Document {document_ids} does not exist")
+        if self.index.count_documents() > 0:
+            response = self.index.delete(ids=document_ids, delete_all=delete_all)
+            response_dict = json.loads(response.text)
+
+            if response_dict["status"]["deletedCount"] == 0 and document_ids is not None:
+                raise MissingDocumentError(f"Document {document_ids} does not exist")
