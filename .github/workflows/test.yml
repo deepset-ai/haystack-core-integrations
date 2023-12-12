@@ -67,4 +67,4 @@ jobs:
       env:
         ASTRA_DB_ID: ${{ secrets.ASTRA_DB_ID }}
         ASTRA_DB_APPLICATION_TOKEN: ${{ secrets.ASTRA_DB_APPLICATION_TOKEN }}
-      run: pytest -ssv --cov-report xml:coverage.xml --cov="haystack" -m "unit" tests/${{ matrix.topic }}
+      run: pytest -ssv --cov-report xml:coverage.xml --cov="haystack" tests/${{ matrix.topic }}
