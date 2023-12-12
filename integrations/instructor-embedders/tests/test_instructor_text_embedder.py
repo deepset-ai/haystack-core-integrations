@@ -3,11 +3,10 @@ from unittest.mock import MagicMock, patch
 import numpy as np
 import pytest
 
-from instructor_embedders.instructor_text_embedder import InstructorTextEmbedder
+from instructor_embedders_haystack.instructor_text_embedder import InstructorTextEmbedder
 
 
 class TestInstructorTextEmbedder:
-    @pytest.mark.unit
     def test_init_default(self):
         """
         Test default initialization parameters for InstructorTextEmbedder.
@@ -21,7 +20,6 @@ class TestInstructorTextEmbedder:
         assert embedder.progress_bar is True
         assert embedder.normalize_embeddings is False
 
-    @pytest.mark.unit
     def test_init_with_parameters(self):
         """
         Test custom initialization parameters for InstructorTextEmbedder.
@@ -43,7 +41,6 @@ class TestInstructorTextEmbedder:
         assert embedder.progress_bar is False
         assert embedder.normalize_embeddings is True
 
-    @pytest.mark.unit
     def test_to_dict(self):
         """
         Test serialization of InstructorTextEmbedder to a dictionary, using default initialization parameters.
@@ -51,7 +48,7 @@ class TestInstructorTextEmbedder:
         embedder = InstructorTextEmbedder(model_name_or_path="hkunlp/instructor-base")
         embedder_dict = embedder.to_dict()
         assert embedder_dict == {
-            "type": "instructor_embedders.instructor_text_embedder.InstructorTextEmbedder",
+            "type": "instructor_embedders_haystack.instructor_text_embedder.InstructorTextEmbedder",
             "init_parameters": {
                 "model_name_or_path": "hkunlp/instructor-base",
                 "device": "cpu",
@@ -63,7 +60,6 @@ class TestInstructorTextEmbedder:
             },
         }
 
-    @pytest.mark.unit
     def test_to_dict_with_custom_init_parameters(self):
         """
         Test serialization of InstructorTextEmbedder to a dictionary, using custom initialization parameters.
@@ -79,7 +75,7 @@ class TestInstructorTextEmbedder:
         )
         embedder_dict = embedder.to_dict()
         assert embedder_dict == {
-            "type": "instructor_embedders.instructor_text_embedder.InstructorTextEmbedder",
+            "type": "instructor_embedders_haystack.instructor_text_embedder.InstructorTextEmbedder",
             "init_parameters": {
                 "model_name_or_path": "hkunlp/instructor-base",
                 "device": "cuda",
@@ -91,13 +87,12 @@ class TestInstructorTextEmbedder:
             },
         }
 
-    @pytest.mark.unit
     def test_from_dict(self):
         """
         Test deserialization of InstructorTextEmbedder from a dictionary, using default initialization parameters.
         """
         embedder_dict = {
-            "type": "instructor_embedders.instructor_text_embedder.InstructorTextEmbedder",
+            "type": "instructor_embedders_haystack.instructor_text_embedder.InstructorTextEmbedder",
             "init_parameters": {
                 "model_name_or_path": "hkunlp/instructor-base",
                 "device": "cpu",
@@ -117,13 +112,12 @@ class TestInstructorTextEmbedder:
         assert embedder.progress_bar is True
         assert embedder.normalize_embeddings is False
 
-    @pytest.mark.unit
     def test_from_dict_with_custom_init_parameters(self):
         """
         Test deserialization of InstructorTextEmbedder from a dictionary, using custom initialization parameters.
         """
         embedder_dict = {
-            "type": "instructor_embedders.instructor_text_embedder.InstructorTextEmbedder",
+            "type": "instructor_embedders_haystack.instructor_text_embedder.InstructorTextEmbedder",
             "init_parameters": {
                 "model_name_or_path": "hkunlp/instructor-base",
                 "device": "cuda",
@@ -143,8 +137,7 @@ class TestInstructorTextEmbedder:
         assert embedder.progress_bar is False
         assert embedder.normalize_embeddings is True
 
-    @pytest.mark.unit
-    @patch("instructor_embedders.instructor_text_embedder._InstructorEmbeddingBackendFactory")
+    @patch("instructor_embedders_haystack.instructor_text_embedder._InstructorEmbeddingBackendFactory")
     def test_warmup(self, mocked_factory):
         """
         Test for checking embedder instances after warm-up.
@@ -156,8 +149,7 @@ class TestInstructorTextEmbedder:
             model_name_or_path="hkunlp/instructor-base", device="cpu", use_auth_token=None
         )
 
-    @pytest.mark.unit
-    @patch("instructor_embedders.instructor_text_embedder._InstructorEmbeddingBackendFactory")
+    @patch("instructor_embedders_haystack.instructor_text_embedder._InstructorEmbeddingBackendFactory")
     def test_warmup_does_not_reload(self, mocked_factory):
         """
         Test for checking backend instances after multiple warm-ups.
@@ -168,7 +160,6 @@ class TestInstructorTextEmbedder:
         embedder.warm_up()
         mocked_factory.get_embedding_backend.assert_called_once()
 
-    @pytest.mark.unit
     def test_embed(self):
         """
         Test for checking output dimensions and embedding dimensions.
@@ -185,7 +176,6 @@ class TestInstructorTextEmbedder:
         assert isinstance(embedding, list)
         assert all(isinstance(emb, float) for emb in embedding)
 
-    @pytest.mark.unit
     def test_run_wrong_incorrect_format(self):
         """
         Test for checking incorrect input format when creating embedding.
