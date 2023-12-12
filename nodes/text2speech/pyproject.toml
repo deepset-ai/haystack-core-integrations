@@ -43,9 +43,9 @@ dynamic = ["version"]
 dev = ["pytest", "pylint", "black"]
 
 [project.urls]
-Documentation = "https://github.com/deepset-ai/haystack-extras/tree/main/nodes/text2speech#readme"
-Issues = "https://github.com/deepset-ai/haystack-extras/issues"
-Source = "https://github.com/deepset-ai/haystack-extras/tree/main/nodes/text2speech"
+Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/nodes/text2speech#readme"
+Issues = "https://github.com/deepset-ai/haystack-core-integrations/issues"
+Source = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/nodes/text2speech"
 
 [tool.hatch.version]
 path = "text2speech/__about__.py"
