@@ -30,9 +30,9 @@ dependencies = [
 ]
 
 [project.urls]
-Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/components/converters/unstructured_fileconverter#readme"
+Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/unstructured/fileconverter#readme"
 Issues = "https://github.com/deepset-ai/haystack-core-integrations/issues"
-Source = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/components/converters/unstructured_fileconverter"
+Source = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/unstructured/fileconverter"
 
 [tool.hatch.version]
 path = "src/unstructured_fileconverter_haystack/__about__.py"
