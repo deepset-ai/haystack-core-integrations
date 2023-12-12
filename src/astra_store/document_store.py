@@ -37,9 +37,8 @@ class AstraDocumentStore:
         astra_keyspace: str,
         astra_collection: str,
         embedding_dim: int,
-        duplicates_policy: Optional[DuplicatePolicy],
+        duplicates_policy: Optional[DuplicatePolicy] = None,
         similarity: str = "cosine",
-        model_name: str = "intfloat/multilingual-e5-small",
     ):
         """
         The connection to Astra DB is established and managed through the JSON API.
@@ -71,7 +70,6 @@ class AstraDocumentStore:
         self.astra_collection = astra_collection
         self.embedding_dim = embedding_dim
         self.similarity = similarity
-        self.model_name = model_name
 
         self.index = AstraClient(
             astra_id=self.astra_id,
@@ -83,24 +81,17 @@ class AstraDocumentStore:
             similarity_function=self.similarity,
         )
 
-        self.embeddings = SentenceTransformer(self.model_name)
-
     def write_documents(
         self,
-        documents: Union[List[dict], List[Document]],
+        documents: List[Document],
         index: Optional[str] = None,
         batch_size: Optional[int] = 20,
-        policy: DuplicatePolicy = None,
-        embed: bool = False,
+        policy: DuplicatePolicy = DuplicatePolicy.NONE,
     ):
         """
         Indexes documents for later queries.
 
-        :param documents: a list of Python dictionaries or a list of Haystack Document objects.
-                          For documents as dictionaries, the format is {"text": "<the-actual-text>"}.
-                          Optionally: Include metadata via {"text": "<the-actual-text>",
-                          "meta":{"name": "<some-document-name>, "author": "somebody", ...}}
-                          It can be used for filtering and is accessible in the responses of the Finder.
+        :param documents: a list of Haystack Document objects.
         :param index: Optional name of index where the documents shall be written to.
                       If None, the DocumentStore's default index (self.index) will be used.
         :param batch_size: Number of documents that are passed to bulk function at a time.
@@ -110,10 +101,7 @@ class AstraDocumentStore:
                         overwrite: Update any existing documents with the same ID when adding documents.
                         fail: an error is raised if the document ID of the document being added already
                         exists.
-        # :param headers: Custom HTTP headers to pass to document store client if supported (e.g.
-        {'Authorization': 'Basic YWRtaW46cm9vdA=='} for basic authentication)
-
-        :return: None
+        :return: int
         """
 
         if index is None:
@@ -135,8 +123,6 @@ class AstraDocumentStore:
         def _convert_input_document(document: Union[dict, Document]):
             if isinstance(document, Document):
                 data = asdict(document)
-            elif isinstance(document, dict):
-                data = document
             else:
                 raise ValueError(f"Unsupported type for documents, documents is of type {type(document)}.")
             meta = data.pop("meta")
@@ -152,14 +138,9 @@ class AstraDocumentStore:
                 document_dict["dataframe"] = document_dict.pop("dataframe").to_json()
             if "content" in document_dict and document_dict["content"] is not None:
                 if "embedding" in document_dict.keys():
-                    if document_dict["embedding"] is None:
-                        document_dict.pop("embedding")
-                    else:
-                        document_dict["$vector"] = document_dict.pop("embedding")
-                if embed:
-                    document_dict["$vector"] = self.embeddings.encode(document_dict["content"]).tolist()
-            else:
-                document_dict["$vector"] = None
+                    document_dict["$vector"] = document_dict.pop("embedding")
+                else:
+                    document_dict["$vector"] = None
 
             return document_dict
 
@@ -185,10 +166,12 @@ class AstraDocumentStore:
             for ndx in range(0, input_length, batch_size):
                 yield input_list[ndx : min(ndx + batch_size, input_length)]
 
+        ninserted = 0
         if policy == DuplicatePolicy.SKIP:
             if len(new_documents) > 0:
                 for batch in _batches(new_documents, batch_size):
                     inserted_ids = index.insert(batch)
+                    ninserted = ninserted + len(inserted_ids)
                     logger.info(f"write_documents inserted documents with id {inserted_ids}")
             else:
                 logger.warning("No documents written. Argument policy set to SKIP")
@@ -197,6 +180,7 @@ class AstraDocumentStore:
             if len(new_documents) > 0:
                 for batch in _batches(new_documents, batch_size):
                     inserted_ids = index.insert(batch)
+                    ninserted = ninserted + len(inserted_ids)
                     logger.info(f"write_documents inserted documents with id {inserted_ids}")
             else:
                 logger.warning("No documents written. Argument policy set to OVERWRITE")
@@ -207,6 +191,7 @@ class AstraDocumentStore:
                     updated = index.update_document(duplicate_doc, "_id")
                     if updated:
                         updated_ids.append(duplicate_doc["_id"])
+                ninserted = ninserted + len(updated_ids)
                 logger.info(f"write_documents updated documents with id {updated_ids}")
             else:
                 logger.info("No documents updated. Argument policy set to OVERWRITE")
@@ -215,9 +200,12 @@ class AstraDocumentStore:
             if len(new_documents) > 0:
                 for batch in _batches(new_documents, batch_size):
                     inserted_ids = index.insert(batch)
+                    ninserted = ninserted + len(inserted_ids)
                     logger.info(f"write_documents inserted documents with id {inserted_ids}")
             else:
                 logger.warning("No documents written. Argument policy set to FAIL")
+
+        return ninserted
 
     def count_documents(self) -> int:
         """
