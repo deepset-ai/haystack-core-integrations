@@ -107,8 +107,8 @@ class AstraDocumentStore:
         if index is None:
             index = self.index
 
-        if policy is None:
-            if self.duplicates_policy is not None:
+        if policy == None or policy == DuplicatePolicy.NONE:
+            if self.duplicates_policy is not None and self.duplicates_policy != DuplicatePolicy.NONE:
                 policy = self.duplicates_policy
             else:
                 policy = DuplicatePolicy.SKIP
