@@ -17,7 +17,7 @@ pip install qdrant-haystack
 ```
 
 ## Testing
-The test suites use Qdran't in-memory instance. No additional steps required.
+The test suites use Qdrant's in-memory instance. No additional steps required.
 
 ```console
 hatch run test
