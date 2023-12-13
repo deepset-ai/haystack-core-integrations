@@ -11,7 +11,8 @@ requires-python = ">=3.7"
 license = "Apache-2.0"
 keywords = []
 authors = [
-  { name = "deepset GmbH", email = "info@deepset.ai" },
+  { name = "Kacper Łukawski", email = "kacper.lukawski@qdrant.com" },
+  { name = "Anush Shetty", email = "anush.shetty@qdrant.com" },
 ]
 classifiers = [
   "Development Status :: 4 - Beta",
@@ -30,9 +31,9 @@ dependencies = [
 ]
 
 [project.urls]
+Source = "https://github.com/deepset-ai/haystack-core-integrations"
 Documentation = "https://github.com/deepset-ai/haystack-core-integrations/blob/main/integrations/qdrant/README.md"
 Issues = "https://github.com/deepset-ai/haystack-core-integrations/issues"
-Source = "https://github.com/deepset-ai/haystack-core-integrations"
 
 [tool.hatch.version]
 path = "src/qdrant_haystack/__about__.py"
