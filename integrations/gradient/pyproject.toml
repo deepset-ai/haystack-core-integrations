@@ -30,9 +30,9 @@ dependencies = [
 ]
 
 [project.urls]
-Documentation = "https://github.com/unknown/gradient-haystack#readme"
-Issues = "https://github.com/unknown/gradient-haystack/issues"
-Source = "https://github.com/unknown/gradient-haystack"
+Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/gradient#readme"
+Issues = "https://github.com/deepset-ai/haystack-core-integrations/issues"
+Source = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/gradient"
 
 [tool.hatch.version]
 path = "src/gradient_haystack/__about__.py"

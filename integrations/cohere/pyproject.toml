@@ -30,9 +30,9 @@ dependencies = [
 ]
 
 [project.urls]
-Documentation = "https://github.com/unknown/cohere-haystack#readme"
-Issues = "https://github.com/unknown/cohere-haystack/issues"
-Source = "https://github.com/unknown/cohere-haystack"
+Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/cohere#readme"
+Issues = "https://github.com/deepset-ai/haystack-core-integrations/issues"
+Source = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/cohere"
 
 [tool.hatch.version]
 path = "src/cohere_haystack/__about__.py"

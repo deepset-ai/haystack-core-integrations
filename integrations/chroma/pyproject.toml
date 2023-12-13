@@ -28,9 +28,9 @@ dependencies = [
 ]
 
 [project.urls]
-Documentation = "https://github.com/masci/chroma-haystack#readme"
-Issues = "https://github.com/masci/chroma-haystack/issues"
-Source = "https://github.com/masci/chroma-haystack"
+Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/chroma#readme"
+Issues = "https://github.com/deepset-ai/haystack-core-integrations/issues"
+Source = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/chroma"
 
 [tool.hatch.version]
 path = "src/chroma_haystack/__about__.py"

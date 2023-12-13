@@ -3,19 +3,20 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "elasticsearch-haystack"
+name = "jina-haystack"
 dynamic = ["version"]
-description = 'Haystack 2.x Document Store for ElasticSearch'
+description = ''
 readme = "README.md"
-requires-python = ">=3.8"
+requires-python = ">=3.7"
 license = "Apache-2.0"
 keywords = []
 authors = [
-  { name = "Silvano Cerza", email = "silvanocerza@gmail.com" },
+  { name = "Joan Fontanals Martinez", email = "joan.fontanals.martinez@jina.ai" },
 ]
 classifiers = [
   "Development Status :: 4 - Beta",
   "Programming Language :: Python",
+  "Programming Language :: Python :: 3.7",
   "Programming Language :: Python :: 3.8",
   "Programming Language :: Python :: 3.9",
   "Programming Language :: Python :: 3.10",
@@ -23,24 +24,20 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
-dependencies = [
-  "haystack-ai",
-  "elasticsearch>=8,<9",
-]
+dependencies = ["requests", "haystack-ai"]
 
 [project.urls]
-Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/elasticsearch#readme"
+Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/jina#readme"
 Issues = "https://github.com/deepset-ai/haystack-core-integrations/issues"
-Source = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/elasticsearch"
+Source = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/jina"
 
 [tool.hatch.version]
-path = "src/elasticsearch_haystack/__about__.py"
+path = "src/jina_haystack/__about__.py"
 
 [tool.hatch.envs.default]
 dependencies = [
   "coverage[toml]>=6.5",
   "pytest",
-  "pytest-xdist",
 ]
 [tool.hatch.envs.default.scripts]
 test = "pytest {args:tests}"
@@ -55,7 +52,7 @@ cov = [
 ]
 
 [[tool.hatch.envs.all.matrix]]
-python = ["3.8", "3.9", "3.10", "3.11"]
+python = ["3.7", "3.8", "3.9", "3.10", "3.11"]
 
 [tool.hatch.envs.lint]
 detached = true
@@ -65,7 +62,7 @@ dependencies = [
   "ruff>=0.0.243",
 ]
 [tool.hatch.envs.lint.scripts]
-typing = "mypy --install-types --non-interactive {args:src/elasticsearch_haystack tests}"
+typing = "mypy --install-types --non-interactive {args:src/jina_haystack tests}"
 style = [
   "ruff {args:.}",
   "black --check --diff {args:.}",
@@ -79,9 +76,6 @@ all = [
   "style",
   "typing",
 ]
-
-[tool.hatch.metadata]
-allow-direct-references = true
 
 [tool.black]
 target-version = ["py37"]
@@ -100,7 +94,6 @@ select = [
   "E",
   "EM",
   "F",
-  "FBT",
   "I",
   "ICN",
   "ISC",
@@ -121,8 +114,6 @@ select = [
 ignore = [
   # Allow non-abstract empty methods in abstract base classes
   "B027",
-  # Allow boolean positional values in function calls, like `dict.get(... True)`
-  "FBT003",
   # Ignore checks for possible passwords
   "S105", "S106", "S107",
   # Ignore complexity
@@ -134,7 +125,7 @@ unfixable = [
 ]
 
 [tool.ruff.isort]
-known-first-party = ["elasticsearch_haystack"]
+known-first-party = ["jina_haystack"]
 
 [tool.ruff.flake8-tidy-imports]
 ban-relative-imports = "all"
@@ -144,29 +135,22 @@ ban-relative-imports = "all"
 "tests/**/*" = ["PLR2004", "S101", "TID252"]
 
 [tool.coverage.run]
-source_pkgs = ["elasticsearch_haystack", "tests"]
+source_pkgs = ["jina_haystack", "tests"]
 branch = true
 parallel = true
 omit = [
-  "src/elasticsearch_haystack/__about__.py",
+  "src/jina_haystack/__about__.py",
 ]
 
 [tool.coverage.paths]
-elasticsearch_haystack = ["src/elasticsearch_haystack", "*/elasticsearch-haystack/src/elasticsearch_haystack"]
-tests = ["tests", "*/elasticsearch-haystack/tests"]
+jina_haystack = ["src/jina_haystack", "*/jina-haystack/src/jina_haystack"]
+tests = ["tests", "*/jina-haystack/tests"]
 
 [tool.coverage.report]
 exclude_lines = [
   "no cov",
   "if __name__ == .__main__.:",
   "if TYPE_CHECKING:",
-]
-
-[tool.pytest.ini_options]
-minversion = "6.0"
-markers = [
-  "unit: unit tests",
-  "integration: integration tests"
 ]
 
 [[tool.mypy.overrides]]
