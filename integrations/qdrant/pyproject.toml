@@ -30,9 +30,9 @@ dependencies = [
 ]
 
 [project.urls]
-Documentation = "https://github.com/unknown/qdrant-haystack#readme"
-Issues = "https://github.com/unknown/qdrant-haystack/issues"
-Source = "https://github.com/unknown/qdrant-haystack"
+Documentation = "https://github.com/deepset-ai/haystack-core-integrations/blob/main/integrations/qdrant/README.md"
+Issues = "https://github.com/deepset-ai/haystack-core-integrations/issues"
+Source = "https://github.com/deepset-ai/haystack-core-integrations"
 
 [tool.hatch.version]
 path = "src/qdrant_haystack/__about__.py"
@@ -158,3 +158,13 @@ exclude_lines = [
   "if __name__ == .__main__.:",
   "if TYPE_CHECKING:",
 ]
+
+[[tool.mypy.overrides]]
+module = [
+  "haystack.*",
+  "pytest.*",
+  "qdrant_client.*",
+  "numpy",
+  "grpc"
+]
+ignore_missing_imports = true

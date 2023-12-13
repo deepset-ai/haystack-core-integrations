@@ -16,6 +16,13 @@
 pip install qdrant-haystack
 ```
 
+## Testing
+The test suites use Qdran't in-memory instance. No additional steps required.
+
+```console
+hatch run test
+```
+
 ## License
 
 `qdrant-haystack` is distributed under the terms of the [Apache-2.0](https://spdx.org/licenses/Apache-2.0.html) license.
