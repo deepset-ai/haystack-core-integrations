@@ -11,5 +11,5 @@ document_store = AstraDocumentStore()
 indexing_pipeline = build_indexing_pipeline(
     document_store=document_store, embedding_model="sentence-transformers/all-mpnet-base-v2"
 )
-result = indexing_pipeline.run(files=list(Path("../../test/test_files").iterdir()))
+result = indexing_pipeline.run(files=list(Path("data").iterdir()))
 print(result)

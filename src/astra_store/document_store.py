@@ -14,10 +14,10 @@ from haystack.document_stores import (
     MissingDocumentError,
 )
 from pydantic import validate_arguments
-from sentence_transformers import SentenceTransformer
 
 from astra_store.astra_client import AstraClient
 from astra_store.errors import AstraDocumentStoreFilterError
+from astra_store.filters import _convert_filters
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -59,7 +59,6 @@ class AstraDocumentStore:
         :param astra_collection: The current collection in the keyspace in the current Astra DB.
         :param embedding_dim: Dimension of embedding vector.
         :param similarity: The similarity function used to compare document vectors.
-        :param model_name: SentenceTransformer model name.
         :param duplicates_policy: Handle duplicate documents based on DuplicatePolicy parameter options.
                                   Parameter options : (SKIP,OVERWRITE,FAIL)
                                   skip: Ignore the duplicates documents
@@ -113,7 +112,7 @@ class AstraDocumentStore:
         if index is None:
             index = self.index
 
-        if policy == None or policy == DuplicatePolicy.NONE:
+        if policy is None or policy == DuplicatePolicy.NONE:
             if self.duplicates_policy is not None and self.duplicates_policy != DuplicatePolicy.NONE:
                 policy = self.duplicates_policy
             else:
@@ -128,11 +127,11 @@ class AstraDocumentStore:
 
         def _convert_input_document(document: Union[dict, Document]):
             if isinstance(document, Document):
-                data = asdict(document)
+                document_dict = asdict(document)
+            elif isinstance(document, dict):
+                document_dict = document
             else:
                 raise ValueError(f"Unsupported type for documents, documents is of type {type(document)}.")
-            meta = data.pop("meta")
-            document_dict = {**data, **meta}
 
             if "id" in document_dict:
                 if "_id" not in document_dict:
@@ -142,16 +141,15 @@ class AstraDocumentStore:
                         f"Duplicate id definitions, both 'id' and '_id' present in document {document_dict}"
                     )
             if "_id" in document_dict:
-                if not isinstance(document_dict["_id"],str):
-                    raise Exception(f"Document id {document_dict['_id']} is not a string, but is of type {type(document_dict['_id'])}")
+                if not isinstance(document_dict["_id"], str):
+                    raise Exception(
+                        f"Document id {document_dict['_id']} is not a string, "
+                        f"but is of type {type(document_dict['_id'])}"
+                    )
 
             if "dataframe" in document_dict and document_dict["dataframe"] is not None:
                 document_dict["dataframe"] = document_dict.pop("dataframe").to_json()
-            if "content" in document_dict and document_dict["content"] is not None:
-                if "embedding" in document_dict.keys():
-                    document_dict["$vector"] = document_dict.pop("embedding")
-                else:
-                    document_dict["$vector"] = None
+            document_dict["$vector"] = document_dict.pop("embedding", None)
 
             return document_dict
 
@@ -171,12 +169,12 @@ class AstraDocumentStore:
                 new_documents.append(doc)
             i = i + 1
 
-        ninserted = 0
+        insertion_counter = 0
         if policy == DuplicatePolicy.SKIP:
             if len(new_documents) > 0:
                 for batch in _batches(new_documents, batch_size):
                     inserted_ids = index.insert(batch)
-                    ninserted = ninserted + len(inserted_ids)
+                    insertion_counter += len(inserted_ids)
                     logger.info(f"write_documents inserted documents with id {inserted_ids}")
             else:
                 logger.warning("No documents written. Argument policy set to SKIP")
@@ -185,7 +183,7 @@ class AstraDocumentStore:
             if len(new_documents) > 0:
                 for batch in _batches(new_documents, batch_size):
                     inserted_ids = index.insert(batch)
-                    ninserted = ninserted + len(inserted_ids)
+                    insertion_counter += len(inserted_ids)
                     logger.info(f"write_documents inserted documents with id {inserted_ids}")
             else:
                 logger.warning("No documents written. Argument policy set to OVERWRITE")
@@ -196,7 +194,7 @@ class AstraDocumentStore:
                     updated = index.update_document(duplicate_doc, "_id")
                     if updated:
                         updated_ids.append(duplicate_doc["_id"])
-                ninserted = ninserted + len(updated_ids)
+                insertion_counter = insertion_counter + len(updated_ids)
                 logger.info(f"write_documents updated documents with id {updated_ids}")
             else:
                 logger.info("No documents updated. Argument policy set to OVERWRITE")
@@ -205,12 +203,12 @@ class AstraDocumentStore:
             if len(new_documents) > 0:
                 for batch in _batches(new_documents, batch_size):
                     inserted_ids = index.insert(batch)
-                    ninserted = ninserted + len(inserted_ids)
+                    insertion_counter = insertion_counter + len(inserted_ids)
                     logger.info(f"write_documents inserted documents with id {inserted_ids}")
             else:
                 logger.warning("No documents written. Argument policy set to FAIL")
 
-        return ninserted
+        return insertion_counter
 
     def count_documents(self) -> int:
         """
@@ -247,13 +245,13 @@ class AstraDocumentStore:
                 vectors = [filters.pop("$vector")]
             documents = []
             for vector in vectors:
-                converted_filters = self._convert_filters(filters)
+                converted_filters = _convert_filters(filters)
                 results = self.index.query(
                     vector=vector, filter=converted_filters, top_k=1000, include_values=True, include_metadata=True
                 )
                 documents.extend(self._get_result_to_documents(results))
         else:
-            converted_filters = self._convert_filters(filters)
+            converted_filters = _convert_filters(filters)
             results = self.index.query(
                 vector=vector, filter=converted_filters, top_k=1000, include_values=True, include_metadata=True
             )
@@ -264,11 +262,18 @@ class AstraDocumentStore:
     def _get_result_to_documents(results) -> List[Document]:
         documents = []
         for match in results.matches:
+            dataframe = match.metadata.pop("dataframe", None)
+            if dataframe is not None:
+                df = pd.DataFrame.from_dict(json.loads(dataframe))
+            else:
+                df = None
             document = Document(
                 content=match.text,
                 id=match.id,
                 embedding=match.values,
-                meta=match.metadata,
+                dataframe=df,
+                blob=match.metadata.pop("blob", None),
+                meta=match.metadata.pop("meta", None),
                 score=match.score,
             )
             documents.append(document)
@@ -308,8 +313,9 @@ class AstraDocumentStore:
             List[List[Document]]: A list of matching documents for each query.
         """
         results = []
-        converted_filters = self._convert_filters(filters)
+        converted_filters = _convert_filters(filters)
         for query in queries:
+            # TODO
             vector = self.embeddings.encode(query).tolist()
 
             result = self._get_result_to_documents(
@@ -320,50 +326,6 @@ class AstraDocumentStore:
 
         return results
 
-    def _convert_filters(self, filters: Optional[Dict[str, Any]] = None) -> Optional[Dict[str, Any]]:
-        """
-        Convert haystack filters to astra filterstring capturing all boolean operators
-        """
-        if not filters:
-            return None
-        filter_statements = {}
-        for key, value in filters.items():
-            if key in {"$and", "$or"}:
-                filt = []
-                if type(value) is not list:
-                    filt.append(self._convert_filters(filters=value))
-                    filter_statements[key] = filt
-                else:
-                    for row in value:
-                        filt.append(self._convert_filters(filters=row))
-                    filter_statements[key] = filt
-            else:
-                if key == "id":
-                    filter_statements[key] = {"_id": value}
-                if key != "$in" and type(value) is list:
-                    filter_statements[key] = {"$in": value}
-                else:
-                    if type(value) is pd.DataFrame:
-                        filter_statements[key] = value.to_json()
-                    elif type(value) is dict:
-                        for dkey, dvalue in value.items():
-                            converted = dict()
-                            if type(dvalue) is list:
-                                elts = []
-                                for elt in dvalue:
-                                    if type(elt) is pd.DataFrame:
-                                        elts.append(elt.to_json())
-                                    else:
-                                        elts.append(elt)
-                                converted[dkey] = elts
-                            else:
-                                converted[dkey] = dvalue
-                        filter_statements[key] = converted
-                    else:
-                        filter_statements[key] = value
-
-        return filter_statements
-
     def delete_documents(self, document_ids: List[str] = None, delete_all: Optional[bool] = None) -> None:
         """
         Deletes all documents with a matching document_ids from the document store.
@@ -373,15 +335,16 @@ class AstraDocumentStore:
         :param delete_all: delete all documents.
         """
 
+        deletion_counter = 0
         if self.index.count_documents() > 0:
-            ndeleted = 0
             if document_ids is not None:
                 for batch in _batches(document_ids, 20):
-                    ndeleted = ndeleted + self.index.delete(ids=batch)
+                    deletion_counter += self.index.delete(ids=batch)
             else:
-                ndeleted = self.index.delete(delete_all=delete_all)
+                deletion_counter = self.index.delete(delete_all=delete_all)
+            logger.info(f"{deletion_counter} documents deleted")
 
-            logger.info(f"{ndeleted} documents deleted")
-
-            if document_ids is not None and ndeleted == 0:
+            if document_ids is not None and deletion_counter == 0:
                 raise MissingDocumentError(f"Document {document_ids} does not exist")
+        else:
+            logger.info("No documents in document store")

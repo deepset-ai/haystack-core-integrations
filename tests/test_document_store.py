@@ -25,7 +25,7 @@ class TestDocumentStore(DocumentStoreBaseTests):
         an instance of this document store so the base class can use it.
         """
         astra_id = os.getenv("ASTRA_DB_ID", "")
-        astra_region = os.getenv("ASTRA_DB_REGION", "us-east1")
+        astra_region = os.getenv("ASTRA_DB_REGION", "us-east-2")
 
         astra_application_token = os.getenv(
             "ASTRA_DB_APPLICATION_TOKEN",
@@ -33,7 +33,7 @@ class TestDocumentStore(DocumentStoreBaseTests):
         )
 
         keyspace_name = "astra_haystack_test"
-        collection_name = "test_collection_new"
+        collection_name = "haystack_integration"
 
         astra_store = AstraDocumentStore(
             astra_id=astra_id,
@@ -65,8 +65,15 @@ class TestDocumentStore(DocumentStoreBaseTests):
         """
         import operator
 
-        received.sort(key=operator.attrgetter('content'))
+        received.sort(key=operator.attrgetter('id'))
+        expected.sort(key=operator.attrgetter('id'))
         assert received == expected
+
+    def test_comparison_equal_with_none(self, document_store, filterable_docs):
+        document_store.write_documents(filterable_docs)
+        result = document_store.filter_documents(filters={"field": "meta.number", "operator": "==", "value": None})
+        # Astra does not support filtering on None, it returns empty list
+        self.assert_documents_are_equal(result, [])
 
     def test_delete_documents_non_existing_document(self, document_store: AstraDocumentStore):
         """
@@ -89,7 +96,7 @@ class TestDocumentStore(DocumentStoreBaseTests):
         documents in one call for Astra.
         """
         docs = []
-        for i in range(1,26):
+        for i in range(1, 26):
             doc = Document(content=f"test doc {i}", id=str(i))
             docs.append(doc)
         document_store.write_documents(docs)
@@ -101,6 +108,7 @@ class TestDocumentStore(DocumentStoreBaseTests):
 
     def test_delete_documents_more_than_twenty_delete_ids(self, document_store: AstraDocumentStore):
         import random
+
         """
         Test delete_documents() deletes all documents when called on an Astra DB with
         more than 20 documents. Twenty documents is the maximum number of deleted
@@ -108,7 +116,7 @@ class TestDocumentStore(DocumentStoreBaseTests):
         """
         docs = []
         document_ids = []
-        for i in range(1,26):
+        for i in range(1, 26):
             doc = Document(content=f"test doc {i}", id=str(i))
             docs.append(doc)
             document_ids.append(str(i))
@@ -120,38 +128,126 @@ class TestDocumentStore(DocumentStoreBaseTests):
         # No Document has been deleted
         assert document_store.count_documents() == 0
 
-    # @pytest.mark.skip(reason="Unsupported filter operator not in.")
-    # def test_comparison_not_in(self, document_store, filterable_docs):
-    #     pass
-    #
-    # @pytest.mark.skip(reason="Unsupported filter operator not in.")
-    # def test_comparison_not_in_with_with_non_list(self, document_store, filterable_docs):
-    #     pass
-    #
-    # @pytest.mark.skip(reason="Unsupported filter operator not in.")
-    # def test_comparison_not_in_with_with_non_list_iterable(self, document_store, filterable_docs):
-    #     pass
+    @pytest.mark.skip(reason="Unsupported filter operator not.")
+    def test_not_operator(self, document_store, filterable_docs):
+        pass
 
-    # @pytest.mark.skip(reason="Unsupported filter operator $gt.")
-    # def test_comparison_greater_than_with_iso_date(self, document_store, filterable_docs):
-    #     pass
+    @pytest.mark.skip(reason="Unsupported filter operator $neq.")
+    def test_comparison_not_equal_with_none(self, document_store, filterable_docs):
+        pass
 
-    # @pytest.mark.skip(reason="Unsupported filter operator $gt.")
-    # def test_comparison_greater_than_with_string(self, document_store, filterable_docs):
-    #     pass
+    @pytest.mark.skip(reason="Unsupported filter operator $neq.")
+    def test_comparison_not_equal(self, document_store, filterable_docs):
+        pass
 
-    # @pytest.mark.skip(reason="Unsupported filter operator $gt.")
-    # def test_comparison_greater_than_with_dataframe(self, document_store, filterable_docs):
-    #     pass
+    @pytest.mark.skip(reason="Unsupported filter operator $neq.")
+    def test_comparison_not_equal_with_dataframe(self, document_store, filterable_docs):
+        pass
 
-    # @pytest.mark.skip(reason="Unsupported filter operator $gt.")
-    # def test_comparison_greater_than_with_list(self, document_store, filterable_docs):
-    #     pass
+    @pytest.mark.skip(reason="Unsupported filter operator $nin.")
+    def test_comparison_not_in(self, document_store, filterable_docs):
+        pass
 
-    # @pytest.mark.skip(reason="Unsupported filter operator $gt.")
-    # def test_comparison_greater_than_with_none(self, document_store, filterable_docs):
-    #     pass
+    @pytest.mark.skip(reason="Unsupported filter operator $nin.")
+    def test_comparison_not_in_with_with_non_list(self, document_store, filterable_docs):
+        pass
 
-    # @pytest.mark.skip(reason="Unsupported filter operator $gte.")
-    # def test_comparison_greater_than_equal(self, document_store, filterable_docs):
-    #     pass
+    @pytest.mark.skip(reason="Unsupported filter operator $nin.")
+    def test_comparison_not_in_with_with_non_list_iterable(self, document_store, filterable_docs):
+        pass
+
+    @pytest.mark.skip(reason="Unsupported filter operator $gt.")
+    def test_comparison_greater_than_with_iso_date(self, document_store, filterable_docs):
+        pass
+
+    @pytest.mark.skip(reason="Unsupported filter operator $gt.")
+    def test_comparison_greater_than_with_string(self, document_store, filterable_docs):
+        pass
+
+    @pytest.mark.skip(reason="Unsupported filter operator $gt.")
+    def test_comparison_greater_than_with_dataframe(self, document_store, filterable_docs):
+        pass
+
+    @pytest.mark.skip(reason="Unsupported filter operator $gt.")
+    def test_comparison_greater_than_with_list(self, document_store, filterable_docs):
+        pass
+
+    @pytest.mark.skip(reason="Unsupported filter operator $gt.")
+    def test_comparison_greater_than_with_none(self, document_store, filterable_docs):
+        pass
+
+    @pytest.mark.skip(reason="Unsupported filter operator $gt.")
+    def test_comparison_greater_than(self, document_store, filterable_docs):
+        pass
+
+    @pytest.mark.skip(reason="Unsupported filter operator $gte.")
+    def test_comparison_greater_than_equal(self, document_store, filterable_docs):
+        pass
+
+    @pytest.mark.skip(reason="Unsupported filter operator $gte.")
+    def test_comparison_greater_than_equal_with_none(self, document_store, filterable_docs):
+        pass
+
+    @pytest.mark.skip(reason="Unsupported filter operator $gte.")
+    def test_comparison_greater_than_equal_with_list(self, document_store, filterable_docs):
+        pass
+
+    @pytest.mark.skip(reason="Unsupported filter operator $gte.")
+    def test_comparison_greater_than_equal_with_dataframe(self, document_store, filterable_docs):
+        pass
+
+    @pytest.mark.skip(reason="Unsupported filter operator $gte.")
+    def test_comparison_greater_than_equal_with_string(self, document_store, filterable_docs):
+        pass
+
+    @pytest.mark.skip(reason="Unsupported filter operator $gte.")
+    def test_comparison_greater_than_equal_with_iso_date(self, document_store, filterable_docs):
+        pass
+
+    @pytest.mark.skip(reason="Unsupported filter operator $lte.")
+    def test_comparison_less_than_equal(self, document_store, filterable_docs):
+        pass
+
+    @pytest.mark.skip(reason="Unsupported filter operator $lte.")
+    def test_comparison_less_than_equal_with_string(self, document_store, filterable_docs):
+        pass
+
+    @pytest.mark.skip(reason="Unsupported filter operator $lte.")
+    def test_comparison_less_than_equal_with_dataframe(self, document_store, filterable_docs):
+        pass
+
+    @pytest.mark.skip(reason="Unsupported filter operator $lte.")
+    def test_comparison_less_than_equal_with_list(self, document_store, filterable_docs):
+        pass
+
+    @pytest.mark.skip(reason="Unsupported filter operator $lte.")
+    def test_comparison_less_than_equal_with_iso_date(self, document_store, filterable_docs):
+        pass
+
+    @pytest.mark.skip(reason="Unsupported filter operator $lte.")
+    def test_comparison_less_than_equal_with_none(self, document_store, filterable_docs):
+        pass
+
+    @pytest.mark.skip(reason="Unsupported filter operator $lt.")
+    def test_comparison_less_than_with_none(self, document_store, filterable_docs):
+        pass
+
+    @pytest.mark.skip(reason="Unsupported filter operator $lt.")
+    def test_comparison_less_than_with_list(self, document_store, filterable_docs):
+        pass
+
+    @pytest.mark.skip(reason="Unsupported filter operator $lt.")
+    def test_comparison_less_than_with_dataframe(self, document_store, filterable_docs):
+        pass
+
+    @pytest.mark.skip(reason="Unsupported filter operator $lt.")
+    def test_comparison_less_than_with_string(self, document_store, filterable_docs):
+        pass
+
+    @pytest.mark.skip(reason="Unsupported filter operator $lt.")
+    def test_comparison_less_than_with_iso_date(self, document_store, filterable_docs):
+        pass
+
+    @pytest.mark.skip(reason="Unsupported filter operator $lt.")
+    def test_comparison_less_than(self, document_store, filterable_docs):
+        pass

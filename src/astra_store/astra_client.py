@@ -1,6 +1,6 @@
 import json
 import logging
-from typing import Any, Dict, List, Optional, Union
+from typing import Dict, List, Optional, Union
 
 import requests
 from pydantic.dataclasses import dataclass
@@ -99,13 +99,11 @@ class AstraClient:
             }
         }
         response = requests.request("POST", self.create_url, headers=self.request_header, data=json.dumps(create_query))
+        response.raise_for_status()
         response_dict = json.loads(response.text)
-        if response.status_code == 200 and "status" in response_dict:
-            logger.info(f"Collection {self.collection_name} created: {response.text}")
-        else:
-            raise Exception(
-                f"Create Astra collection ailed with the following error: status code {response.status_code}, {response.text}"
-            )
+        if "errors" in response_dict:
+            raise Exception(response_dict["errors"])
+        logger.info(f"Collection {self.collection_name} created: {response.text}")
 
     def query(
         self,
@@ -123,7 +121,7 @@ class AstraClient:
         Args:
             vector (List[float]): The query vector. This should be the same length as the dimension of the index
                                   being queried. Each `query()` request can contain only one of the parameters
-                                  `queries`, `id` or `vector`.. [optional]
+                                  `queries`, `id` or `vector`... [optional]
             top_k (int): The number of results to return for each query. Must be an integer greater than 1.
             filter (Dict[str, Union[str, float, int, bool, List, dict]):
                     The filter to apply. You can use vector metadata to limit your search. [optional]
@@ -154,14 +152,14 @@ class AstraClient:
     @staticmethod
     def _format_query_response(responses, include_metadata, include_values):
         final_res = []
+        if responses is None:
+            return QueryResponse(matches=[])
         for response in responses:
             _id = response.pop("_id")
-            score = response.pop("$similarity") if "$similarity" in response else None
-            _values = response.pop("$vector") if "$vector" in response else None
-            text = response.pop("content") if "content" in response else None
-            values = _values if include_values else []
-            # TODO double check
-            metadata = response if include_metadata else dict()
+            score = response.pop("$similarity", None)
+            text = response.pop("content", None)
+            values = response.pop("$vector", None) if include_values else []
+            metadata = response if include_metadata else dict()  # Add all remaining fields to the metadata
             rsp = Response(_id, text, values, metadata, score)
             final_res.append(rsp)
         return QueryResponse(final_res)
@@ -183,6 +181,8 @@ class AstraClient:
         )
         response.raise_for_status()
         response_dict = json.loads(response.text)
+        if "errors" in response_dict:
+            raise Exception(response_dict["errors"])
         if "data" in response_dict and "documents" in response_dict["data"]:
             return response_dict["data"]["documents"]
         else:
@@ -255,8 +255,7 @@ class AstraClient:
         ids: Optional[List[str]] = None,
         delete_all: Optional[bool] = None,
         filter: Optional[Dict[str, Union[str, float, int, bool, List, dict]]] = None,
-    ) -> Response:
-
+    ) -> int:
         if delete_all:
             query = {"deleteMany": {}}
         if ids is not None:
@@ -264,7 +263,7 @@ class AstraClient:
         if filter is not None:
             query = {"deleteMany": {"filter": filter}}
 
-        ndeleted = 0
+        deletion_counter = 0
         moredata = True
         while moredata:
             response = requests.request(
@@ -274,15 +273,14 @@ class AstraClient:
                 data=json.dumps(query),
             )
             response.raise_for_status()
-            if "status" in response.json():
-                if "moreData" not in response.json()["status"]:
-                    moredata = False
-                if "deletedCount" in response.json()["status"]:
-                    ndeleted = ndeleted + int(response.json()["status"]["deletedCount"])
-            else:
+            response_dict = response.json()
+            if "errors" in response_dict:
+                raise Exception(response_dict["errors"])
+            if "moreData" not in response_dict.get("status", {}):
                 moredata = False
+            deletion_counter += int(response_dict["status"].get("deletedCount", 0))
 
-        return ndeleted
+        return deletion_counter
 
     def count_documents(self) -> int:
         """
@@ -295,4 +293,6 @@ class AstraClient:
             data=json.dumps({"countDocuments": {}}),
         )
         response.raise_for_status()
+        if "errors" in response.json():
+            raise Exception(response.json()["errors"])
         return response.json()["status"]["count"]
