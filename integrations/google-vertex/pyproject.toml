@@ -25,7 +25,7 @@ classifiers = [
 ]
 dependencies = [
   "haystack-ai",
-  "google-cloud-aiplatform",
+  "google-cloud-aiplatform>=1.38",
 ]
 
 [project.urls]

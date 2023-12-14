@@ -3,9 +3,9 @@ from typing import Any, Dict, List, Optional, Union
 
 import vertexai
 from haystack.core.component import component
-from haystack.core.component.types import Variadic
 from haystack.core.serialization import default_from_dict, default_to_dict
 from haystack.dataclasses.byte_stream import ByteStream
+from haystack.dataclasses.chat_message import ChatMessage, ChatRole
 from vertexai.preview.generative_models import (
     Content,
     FunctionDeclaration,
@@ -21,11 +21,11 @@ logger = logging.getLogger(__name__)
 
 
 @component
-class GeminiGenerator:
+class GeminiChatGenerator:
     def __init__(
         self,
         *,
-        model: str = "gemini-pro-vision",
+        model: str = "gemini-pro",
         project_id: str,
         location: Optional[str] = None,
         generation_config: Optional[Union[GenerationConfig, Dict[str, Any]]] = None,
@@ -43,19 +43,8 @@ class GeminiGenerator:
         :param model: Name of the model to use, defaults to "gemini-pro-vision".
         :param location: The default location to use when making API calls, if not set uses us-central-1.
             Defaults to None.
-        :param generation_config: The generation config to use, defaults to None.
-            Can either be a GenerationConfig object or a dictionary of parameters.
-            Accepted fields are:
-                - temperature
-                - top_p
-                - top_k
-                - candidate_count
-                - max_output_tokens
-                - stop_sequences
-        :param safety_settings: The safety settings to use, defaults to None.
-            A dictionary of HarmCategory to HarmBlockThreshold.
-        :param tools: The tools to use, defaults to None.
-            A list of Tool objects that can be used to modify the generation process.
+        :param kwargs: Additional keyword arguments to pass to the model.
+            For a list of supported arguments see the `GenerativeModel.generate_content()` documentation.
         """
 
         # Login to GCP. This will fail if user has not set up their gcloud SDK
@@ -111,7 +100,7 @@ class GeminiGenerator:
         return data
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "GeminiGenerator":
+    def from_dict(cls, data: Dict[str, Any]) -> "GeminiChatGenerator":
         if (tools := data["init_parameters"].get("tools")) is not None:
             data["init_parameters"]["tools"] = [Tool.from_dict(t) for t in tools]
         if (generation_config := data["init_parameters"].get("generation_config")) is not None:
@@ -130,28 +119,61 @@ class GeminiGenerator:
             msg = f"Unsupported type {type(part)} for part {part}"
             raise ValueError(msg)
 
-    @component.output_types(answers=List[Union[str, Dict[str, str]]])
-    def run(self, parts: Variadic[List[Union[str, ByteStream, Part]]]):
-        converted_parts = [self._convert_part(p) for p in parts]
+    def _message_to_part(self, message: ChatMessage) -> Part:
+        if message.role == ChatRole.SYSTEM and message.name:
+            p = Part.from_dict({"function_call": {"name": message.name, "args": {}}})
+            for k, v in message.content.items():
+                p.function_call.args[k] = v
+            return p
+        elif message.role == ChatRole.SYSTEM:
+            return Part.from_text(message.content)
+        elif message.role == ChatRole.FUNCTION:
+            return Part.from_function_response(name=message.name, response=message.content)
+        elif message.role == ChatRole.USER:
+            return self._convert_part(message.content)
 
-        contents = [Content(parts=converted_parts, role="user")]
-        res = self._model.generate_content(
-            contents=contents,
+    def _message_to_content(self, message: ChatMessage) -> Content:
+        if message.role == ChatRole.SYSTEM and message.name:
+            part = Part.from_dict({"function_call": {"name": message.name, "args": {}}})
+            for k, v in message.content.items():
+                part.function_call.args[k] = v
+        elif message.role == ChatRole.SYSTEM:
+            part = Part.from_text(message.content)
+        elif message.role == ChatRole.FUNCTION:
+            part = Part.from_function_response(name=message.name, response=message.content)
+        elif message.role == ChatRole.USER:
+            part = self._convert_part(message.content)
+        else:
+            msg = f"Unsupported message role {message.role}"
+            raise ValueError(msg)
+        role = "user" if message.role in [ChatRole.USER, ChatRole.FUNCTION] else "model"
+        return Content(parts=[part], role=role)
+
+    @component.output_types(replies=List[ChatMessage])
+    def run(self, messages: List[ChatMessage]):
+        history = [self._message_to_content(m) for m in messages[:-1]]
+        session = self._model.start_chat(history=history)
+
+        new_message = self._message_to_part(messages[-1])
+        res = session.send_message(
+            content=new_message,
             generation_config=self._generation_config,
             safety_settings=self._safety_settings,
             tools=self._tools,
         )
-        self._model.start_chat()
-        answers = []
+
+        replies = []
         for candidate in res.candidates:
             for part in candidate.content.parts:
                 if part._raw_part.text != "":
-                    answers.append(part.text)
+                    replies.append(ChatMessage.from_system(part.text))
                 elif part.function_call is not None:
-                    function_call = {
-                        "name": part.function_call.name,
-                        "args": dict(part.function_call.args.items()),
-                    }
-                    answers.append(function_call)
+                    replies.append(
+                        ChatMessage(
+                            content=dict(part.function_call.args.items()),
+                            role=ChatRole.SYSTEM,
+                            name=part.function_call.name,
+                        )
+                    )
 
-        return {"answers": answers}
+        return {"replies": replies}
