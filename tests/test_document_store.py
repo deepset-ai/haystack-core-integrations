@@ -82,6 +82,44 @@ class TestDocumentStore(DocumentStoreBaseTests):
         # No Document has been deleted
         assert document_store.count_documents() == 1
 
+    def test_delete_documents_more_than_twenty_delete_all(self, document_store: AstraDocumentStore):
+        """
+        Test delete_documents() deletes all documents when called on an Astra DB with
+        more than 20 documents. Twenty documents is the maximum number of deleted
+        documents in one call for Astra.
+        """
+        docs = []
+        for i in range(1,26):
+            doc = Document(content=f"test doc {i}", id=str(i))
+            docs.append(doc)
+        document_store.write_documents(docs)
+        assert document_store.count_documents() == 25
+
+        document_store.delete_documents(delete_all=True)
+
+        assert document_store.count_documents() == 0
+
+    def test_delete_documents_more_than_twenty_delete_ids(self, document_store: AstraDocumentStore):
+        import random
+        """
+        Test delete_documents() deletes all documents when called on an Astra DB with
+        more than 20 documents. Twenty documents is the maximum number of deleted
+        documents in one call for Astra.
+        """
+        docs = []
+        document_ids = []
+        for i in range(1,26):
+            doc = Document(content=f"test doc {i}", id=str(i))
+            docs.append(doc)
+            document_ids.append(str(i))
+        document_store.write_documents(docs)
+        assert document_store.count_documents() == 25
+
+        document_store.delete_documents(document_ids=document_ids)
+
+        # No Document has been deleted
+        assert document_store.count_documents() == 0
+
     # @pytest.mark.skip(reason="Unsupported filter operator not in.")
     # def test_comparison_not_in(self, document_store, filterable_docs):
     #     pass

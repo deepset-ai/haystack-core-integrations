@@ -23,6 +23,12 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
 
+def _batches(input_list, batch_size):
+    input_length = len(input_list)
+    for ndx in range(0, input_length, batch_size):
+        yield input_list[ndx : min(ndx + batch_size, input_length)]
+
+
 class AstraDocumentStore:
     """
     An AstraDocumentStore document store for Haystack.
@@ -164,12 +170,6 @@ class AstraDocumentStore:
             else:
                 new_documents.append(doc)
             i = i + 1
-
-        # TODO batch generator exists also in astra_client
-        def _batches(input_list, batch_size):
-            input_length = len(input_list)
-            for ndx in range(0, input_length, batch_size):
-                yield input_list[ndx : min(ndx + batch_size, input_length)]
 
         ninserted = 0
         if policy == DuplicatePolicy.SKIP:
@@ -374,8 +374,14 @@ class AstraDocumentStore:
         """
 
         if self.index.count_documents() > 0:
-            response = self.index.delete(ids=document_ids, delete_all=delete_all)
-            response_dict = json.loads(response.text)
+            ndeleted = 0
+            if document_ids is not None:
+                for batch in _batches(document_ids, 20):
+                    ndeleted = ndeleted + self.index.delete(ids=batch)
+            else:
+                ndeleted = self.index.delete(delete_all=delete_all)
 
-            if response_dict["status"]["deletedCount"] == 0 and document_ids is not None:
+            logger.info(f"{ndeleted} documents deleted")
+
+            if document_ids is not None and ndeleted == 0:
                 raise MissingDocumentError(f"Document {document_ids} does not exist")

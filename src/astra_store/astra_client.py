@@ -256,20 +256,33 @@ class AstraClient:
         delete_all: Optional[bool] = None,
         filter: Optional[Dict[str, Union[str, float, int, bool, List, dict]]] = None,
     ) -> Response:
+
         if delete_all:
             query = {"deleteMany": {}}
         if ids is not None:
             query = {"deleteMany": {"filter": {"_id": {"$in": ids}}}}
         if filter is not None:
             query = {"deleteMany": {"filter": filter}}
-        response = requests.request(
-            "POST",
-            self.request_url,
-            headers=self.request_header,
-            data=json.dumps(query),
-        )
-        response.raise_for_status()
-        return response
+
+        ndeleted = 0
+        moredata = True
+        while moredata:
+            response = requests.request(
+                "POST",
+                self.request_url,
+                headers=self.request_header,
+                data=json.dumps(query),
+            )
+            response.raise_for_status()
+            if "status" in response.json():
+                if "moreData" not in response.json()["status"]:
+                    moredata = False
+                if "deletedCount" in response.json()["status"]:
+                    ndeleted = ndeleted + int(response.json()["status"]["deletedCount"])
+            else:
+                moredata = False
+
+        return ndeleted
 
     def count_documents(self) -> int:
         """
