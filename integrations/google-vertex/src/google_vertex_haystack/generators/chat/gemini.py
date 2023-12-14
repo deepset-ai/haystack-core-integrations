@@ -8,13 +8,13 @@ from haystack.dataclasses.byte_stream import ByteStream
 from haystack.dataclasses.chat_message import ChatMessage, ChatRole
 from vertexai.preview.generative_models import (
     Content,
-    GenerativeModel,
-    Part,
-    GenerationConfig,
-    HarmCategory,
-    HarmBlockThreshold,
-    Tool,
     FunctionDeclaration,
+    GenerationConfig,
+    GenerativeModel,
+    HarmBlockThreshold,
+    HarmCategory,
+    Part,
+    Tool,
 )
 
 logger = logging.getLogger(__name__)
@@ -119,43 +119,13 @@ class GeminiChatGenerator:
             msg = f"Unsupported type {type(part)} for part {part}"
             raise ValueError(msg)
 
-    def _message_to_content(self, message: ChatMessage) -> Content:
-        if message.role == ChatRole.USER:
-            if isinstance(message.content, list):
-                pass
-                # parts = [self._convert_part(p.content) for p in message.content]
-            else:
-                parts = [self._convert_part(message.content)]
-            return Content(parts=parts, role="user")
-        elif message.role == ChatRole.FUNCTION:
-            part = Part.from_function_response(name=message.name, response=message.content)
-            return Content(parts=[part], role="user")
-        elif message.role == ChatRole.SYSTEM:
-            part = Part.from_text(message.content)
-            return Content(parts=[part], role="model")
-
-    def _message_to_part(self, message: ChatMessage) -> Part:
-        if isinstance(message.content, str):
-            return Part.from_text(message.content)
-        elif isinstance(message.content, ByteStream):
-            return Part.from_data(message.content.data, message.content.mime_type)
-        elif isinstance(message.content, Part):
-            return message.content
-        elif isinstance(message.content, dict) and message.role == ChatRole.FUNCTION:
-            return Part.from_function_response(name=message.name, response=message.content)
-        else:
-            msg = f"Unsupported type {type(message)} for part {message}"
-            raise ValueError(msg)
-
     def _message_to_part(self, message: ChatMessage) -> Part:
         if message.role == ChatRole.SYSTEM and message.name:
-            # TODO: This is a function call from the model
             p = Part.from_dict({"function_call": {"name": message.name, "args": {}}})
             for k, v in message.content.items():
                 p.function_call.args[k] = v
             return p
         elif message.role == ChatRole.SYSTEM:
-            # TODO: Just a string from the model
             return Part.from_text(message.content)
         elif message.role == ChatRole.FUNCTION:
             return Part.from_function_response(name=message.name, response=message.content)
@@ -191,17 +161,6 @@ class GeminiChatGenerator:
             safety_settings=self._safety_settings,
             tools=self._tools,
         )
-
-        # history = [self._message_to_content(m) for m in messages[:-1]]
-        # session = self._model.start_chat(history=history)
-
-        # new_message = self._message_to_part(messages[-1])
-        # res = session.send_message(
-        #     content=new_message,
-        #     generation_config=self._generation_config,
-        #     safety_settings=self._safety_settings,
-        #     tools=self._tools,
-        # )
 
         replies = []
         for candidate in res.candidates:

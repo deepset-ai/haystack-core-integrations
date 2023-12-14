@@ -8,13 +8,13 @@ from haystack.core.serialization import default_from_dict, default_to_dict
 from haystack.dataclasses.byte_stream import ByteStream
 from vertexai.preview.generative_models import (
     Content,
-    GenerativeModel,
-    Part,
-    GenerationConfig,
-    HarmCategory,
-    HarmBlockThreshold,
-    Tool,
     FunctionDeclaration,
+    GenerationConfig,
+    GenerativeModel,
+    HarmBlockThreshold,
+    HarmCategory,
+    Part,
+    Tool,
 )
 
 logger = logging.getLogger(__name__)
