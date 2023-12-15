@@ -9,8 +9,12 @@ try:
 except ImportError:
     tqdm = None
 
+
 logger = logging.getLogger(__name__)
 
+
+def _alt_progress_bar(x: Any) -> Any:
+        return x
 
 @component
 class GradientDocumentEmbedder:
@@ -89,9 +93,9 @@ class GradientDocumentEmbedder:
             progress_bar = tqdm
         else:
             # no progress bar
-            progress_bar = lambda x: x
+            progress_bar = _alt_progress_bar
             batches = [documents]
-        
+
         embeddings = []
         for batch in progress_bar(batches):
             response = self._embedding_model.embed(inputs=[{"input": doc.content} for doc in batch])
