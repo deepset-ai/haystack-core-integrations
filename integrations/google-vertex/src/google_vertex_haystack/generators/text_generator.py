@@ -1,5 +1,6 @@
 import importlib
 import logging
+import os
 from dataclasses import fields
 from typing import Any, Dict, List, Optional
 
@@ -36,6 +37,7 @@ class VertexAITextGenerator:
 
         self._model_name = model
         self._project_id = project_id
+        self._api_key = api_key
         self._location = location
         self._kwargs = kwargs
 
@@ -43,7 +45,12 @@ class VertexAITextGenerator:
 
     def to_dict(self) -> Dict[str, Any]:
         data = default_to_dict(
-            self, model=self._model_name, project_id=self._project_id, location=self._location, **self._kwargs
+            self,
+            model=self._model_name,
+            project_id=self._project_id,
+            api_key=self._api_key,
+            location=self._location,
+            **self._kwargs,
         )
 
         if (grounding_source := data["init_parameters"].get("grounding_source")) is not None:
@@ -54,6 +61,8 @@ class VertexAITextGenerator:
                 "type": class_type,
                 "init_parameters": init_fields,
             }
+        if data["init_parameters"].get("api_key"):
+            data["init_parameters"]["api_key"] = "GOOGLE_API_KEY"
 
         return data
 
@@ -65,6 +74,8 @@ class VertexAITextGenerator:
             data["init_parameters"]["grounding_source"] = getattr(module, class_name)(
                 **grounding_source["init_parameters"]
             )
+        if (api_key := data["init_parameters"].get("api_key")) in os.environ:
+            data["init_parameters"]["api_key"] = os.environ[api_key]
         return default_from_dict(cls, data)
 
     @component.output_types(answers=List[str], safety_attributes=Dict[str, float], citations=List[Dict[str, Any]])

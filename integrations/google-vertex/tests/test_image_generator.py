@@ -5,19 +5,21 @@ from vertexai.preview.vision_models import ImageGenerationResponse
 from google_vertex_haystack.generators.image_generator import VertexAIImageGenerator
 
 
-@patch("google_vertex_haystack.generators.image_generator.vertexai")
+@patch("google_vertex_haystack.generators.image_generator.authenticate")
 @patch("google_vertex_haystack.generators.image_generator.ImageGenerationModel")
-def test_init(mock_model_class, mock_vertexai):
+def test_init(mock_model_class, mock_authenticate):
     generator = VertexAIImageGenerator(
         model="imagetext",
         project_id="myproject-123456",
+        api_key="my_api_key",
         guidance_scale=12,
         number_of_images=3,
     )
-    mock_vertexai.init.assert_called_once_with(project="myproject-123456", location=None)
+    mock_authenticate.assert_called_once_with(project_id="myproject-123456", api_key="my_api_key", location=None)
     mock_model_class.from_pretrained.assert_called_once_with("imagetext")
     assert generator._model_name == "imagetext"
     assert generator._project_id == "myproject-123456"
+    assert generator._api_key == "my_api_key"
     assert generator._location is None
     assert generator._kwargs == {
         "guidance_scale": 12,
@@ -25,9 +27,9 @@ def test_init(mock_model_class, mock_vertexai):
     }
 
 
-@patch("google_vertex_haystack.generators.image_generator.vertexai")
+@patch("google_vertex_haystack.generators.image_generator.authenticate")
 @patch("google_vertex_haystack.generators.image_generator.ImageGenerationModel")
-def test_to_dict(_mock_model_class, _mock_vertexai):
+def test_to_dict(_mock_model_class, _mock_authenticate):
     generator = VertexAIImageGenerator(
         model="imagetext",
         project_id="myproject-123456",
@@ -39,6 +41,7 @@ def test_to_dict(_mock_model_class, _mock_vertexai):
         "init_parameters": {
             "model": "imagetext",
             "project_id": "myproject-123456",
+            "api_key": "",
             "location": None,
             "guidance_scale": 12,
             "number_of_images": 3,
@@ -46,15 +49,16 @@ def test_to_dict(_mock_model_class, _mock_vertexai):
     }
 
 
-@patch("google_vertex_haystack.generators.image_generator.vertexai")
+@patch("google_vertex_haystack.generators.image_generator.authenticate")
 @patch("google_vertex_haystack.generators.image_generator.ImageGenerationModel")
-def test_from_dict(_mock_model_class, _mock_vertexai):
+def test_from_dict(_mock_model_class, _mock_authenticate):
     generator = VertexAIImageGenerator.from_dict(
         {
             "type": "google_vertex_haystack.generators.image_generator.VertexAIImageGenerator",
             "init_parameters": {
                 "model": "imagetext",
                 "project_id": "myproject-123456",
+                "api_key": "",
                 "location": None,
                 "guidance_scale": 12,
                 "number_of_images": 3,
@@ -63,6 +67,7 @@ def test_from_dict(_mock_model_class, _mock_vertexai):
     )
     assert generator._model_name == "imagetext"
     assert generator._project_id == "myproject-123456"
+    assert generator._api_key == ""
     assert generator._location is None
     assert generator._kwargs == {
         "guidance_scale": 12,
@@ -70,9 +75,9 @@ def test_from_dict(_mock_model_class, _mock_vertexai):
     }
 
 
-@patch("google_vertex_haystack.generators.image_generator.vertexai")
+@patch("google_vertex_haystack.generators.image_generator.authenticate")
 @patch("google_vertex_haystack.generators.image_generator.ImageGenerationModel")
-def test_run_calls_generate_images(mock_model_class, _mock_vertexai):
+def test_run_calls_generate_images(mock_model_class, _mock_authenticate):
     mock_model = Mock()
     mock_model.generate_images.return_value = ImageGenerationResponse(images=[])
     mock_model_class.from_pretrained.return_value = mock_model

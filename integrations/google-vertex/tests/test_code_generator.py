@@ -5,23 +5,24 @@ from vertexai.language_models import TextGenerationResponse
 from google_vertex_haystack.generators.code_generator import VertexAICodeGenerator
 
 
-@patch("google_vertex_haystack.generators.code_generator.vertexai")
+@patch("google_vertex_haystack.generators.code_generator.authenticate")
 @patch("google_vertex_haystack.generators.code_generator.CodeGenerationModel")
-def test_init(mock_model_class, mock_vertexai):
+def test_init(mock_model_class, mock_authenticate):
     generator = VertexAICodeGenerator(
-        model="code-bison", project_id="myproject-123456", candidate_count=3, temperature=0.5
+        model="code-bison", project_id="myproject-123456", api_key="my_api_key", candidate_count=3, temperature=0.5
     )
-    mock_vertexai.init.assert_called_once_with(project="myproject-123456", location=None)
+    mock_authenticate.assert_called_once_with(project_id="myproject-123456", api_key="my_api_key", location=None)
     mock_model_class.from_pretrained.assert_called_once_with("code-bison")
     assert generator._model_name == "code-bison"
     assert generator._project_id == "myproject-123456"
+    assert generator._api_key == "my_api_key"
     assert generator._location is None
     assert generator._kwargs == {"candidate_count": 3, "temperature": 0.5}
 
 
-@patch("google_vertex_haystack.generators.code_generator.vertexai")
+@patch("google_vertex_haystack.generators.code_generator.authenticate")
 @patch("google_vertex_haystack.generators.code_generator.CodeGenerationModel")
-def test_to_dict(_mock_model_class, _mock_vertexai):
+def test_to_dict(_mock_model_class, _mock_authenticate):
     generator = VertexAICodeGenerator(
         model="code-bison", project_id="myproject-123456", candidate_count=3, temperature=0.5
     )
@@ -31,21 +32,23 @@ def test_to_dict(_mock_model_class, _mock_vertexai):
             "model": "code-bison",
             "project_id": "myproject-123456",
             "location": None,
+            "api_key": "",
             "candidate_count": 3,
             "temperature": 0.5,
         },
     }
 
 
-@patch("google_vertex_haystack.generators.code_generator.vertexai")
+@patch("google_vertex_haystack.generators.code_generator.authenticate")
 @patch("google_vertex_haystack.generators.code_generator.CodeGenerationModel")
-def test_from_dict(_mock_model_class, _mock_vertexai):
+def test_from_dict(_mock_model_class, _mock_authenticate):
     generator = VertexAICodeGenerator.from_dict(
         {
             "type": "google_vertex_haystack.generators.code_generator.VertexAICodeGenerator",
             "init_parameters": {
                 "model": "code-bison",
                 "project_id": "myproject-123456",
+                "api_key": "",
                 "candidate_count": 2,
                 "temperature": 0.5,
             },
@@ -53,14 +56,15 @@ def test_from_dict(_mock_model_class, _mock_vertexai):
     )
     assert generator._model_name == "code-bison"
     assert generator._project_id == "myproject-123456"
+    assert generator._api_key == ""
     assert generator._location is None
     assert generator._kwargs == {"candidate_count": 2, "temperature": 0.5}
     assert generator._model is not None
 
 
-@patch("google_vertex_haystack.generators.code_generator.vertexai")
+@patch("google_vertex_haystack.generators.code_generator.authenticate")
 @patch("google_vertex_haystack.generators.code_generator.CodeGenerationModel")
-def test_run_calls_predict(mock_model_class, _mock_vertexai):
+def test_run_calls_predict(mock_model_class, _mock_authenticate):
     mock_model = Mock()
     mock_model.predict.return_value = TextGenerationResponse("answer", None)
     mock_model_class.from_pretrained.return_value = mock_model
