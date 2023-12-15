@@ -1,7 +1,6 @@
 import logging
 from typing import Any, Dict, List, Optional, Union
 
-import vertexai
 from haystack.core.component import component
 from haystack.core.component.types import Variadic
 from haystack.core.serialization import default_from_dict, default_to_dict
@@ -17,6 +16,8 @@ from vertexai.preview.generative_models import (
     Tool,
 )
 
+from google_vertex_haystack.generators.utils import authenticate
+
 logger = logging.getLogger(__name__)
 
 
@@ -27,6 +28,7 @@ class GeminiGenerator:
         *,
         model: str = "gemini-pro-vision",
         project_id: str,
+        api_key: str = "",
         location: Optional[str] = None,
         generation_config: Optional[Union[GenerationConfig, Dict[str, Any]]] = None,
         safety_settings: Optional[Dict[HarmCategory, HarmBlockThreshold]] = None,
@@ -35,11 +37,11 @@ class GeminiGenerator:
         """
         Multi modal generator using Gemini model via Google Vertex AI.
 
-        Authenticates using Google Cloud Application Default Credentials (ADCs).
-        For more information see the official Google documentation:
-        https://cloud.google.com/docs/authentication/provide-credentials-adc
-
         :param project_id: ID of the GCP project to use.
+        :param api_key: API key to use for authentication, if not set uses `GOOGLE_API_KEY` environment variable.
+            If neither are set, will attempt to use Application Default Credentials (ADCs).
+            For more information on ADC see the official Google documentation:
+            https://cloud.google.com/docs/authentication/provide-credentials-adc
         :param model: Name of the model to use, defaults to "gemini-pro-vision".
         :param location: The default location to use when making API calls, if not set uses us-central-1.
             Defaults to None.
@@ -58,8 +60,7 @@ class GeminiGenerator:
             A list of Tool objects that can be used to modify the generation process.
         """
 
-        # Login to GCP. This will fail if user has not set up their gcloud SDK
-        vertexai.init(project=project_id, location=location)
+        authenticate(api_key=api_key, project_id=project_id, location=location)
 
         self._model_name = model
         self._project_id = project_id

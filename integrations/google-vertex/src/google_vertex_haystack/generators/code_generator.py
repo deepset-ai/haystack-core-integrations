@@ -1,25 +1,29 @@
 import logging
 from typing import Any, Dict, List, Optional
 
-import vertexai
 from haystack.core.component import component
 from haystack.core.serialization import default_from_dict, default_to_dict
 from vertexai.language_models import CodeGenerationModel
+
+from google_vertex_haystack.generators.utils import authenticate
 
 logger = logging.getLogger(__name__)
 
 
 @component
 class VertexAICodeGenerator:
-    def __init__(self, *, model: str = "code-bison", project_id: str, location: Optional[str] = None, **kwargs):
+    def __init__(
+        self, *, model: str = "code-bison", project_id: str, api_key: str = "", location: Optional[str] = None, **kwargs
+    ):
         """
         Generate code using a Google Vertex AI model.
 
-        Authenticates using Google Cloud Application Default Credentials (ADCs).
-        For more information see the official Google documentation:
-        https://cloud.google.com/docs/authentication/provide-credentials-adc
 
         :param project_id: ID of the GCP project to use.
+        :param api_key: API key to use for authentication, if not set uses `GOOGLE_API_KEY` environment variable.
+            If neither are set, will attempt to use Application Default Credentials (ADCs).
+            For more information on ADC see the official Google documentation:
+            https://cloud.google.com/docs/authentication/provide-credentials-adc
         :param model: Name of the model to use, defaults to "text-bison".
         :param location: The default location to use when making API calls, if not set uses us-central-1.
             Defaults to None.
@@ -27,8 +31,7 @@ class VertexAICodeGenerator:
             For a list of supported arguments see the `TextGenerationModel.predict()` documentation.
         """
 
-        # Login to GCP. This will fail if user has not set up their gcloud SDK
-        vertexai.init(project=project_id, location=location)
+        authenticate(api_key=api_key, project_id=project_id, location=location)
 
         self._model_name = model
         self._project_id = project_id
