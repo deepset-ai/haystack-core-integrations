@@ -13,6 +13,17 @@ logger = logging.getLogger(__name__)
 
 
 class CohereChatGenerator:
+    """Enables text generation using Cohere's chat endpoint. This component is designed to inference
+    Cohere's chat models.
+
+    Users can pass any text generation parameters valid for the `cohere.Client,chat` method
+    directly to this component via the `**generation_kwargs` parameter in __init__ or the `**generation_kwargs`
+    parameter in `run` method.
+
+    Invocations are made using 'cohere' package.
+    See [Cohere API](https://docs.cohere.com/reference/chat) for more details.
+    """
+
     def __init__(
         self,
         api_key: Optional[str] = None,
@@ -22,6 +33,39 @@ class CohereChatGenerator:
         generation_kwargs: Optional[Dict[str, Any]] = None,
         **kwargs,
     ):
+        """
+        Initialize the CohereChatGenerator instance.
+
+        :param api_key: The API key for the Cohere API. If not set, it will be read from the COHERE_API_KEY env var.
+        :param model_name: The name of the model to use. Available models are: [command, command-light, command-nightly,
+            command-nightly-light]. Defaults to "command".
+        :param streaming_callback: A callback function to be called with the streaming response. Defaults to None.
+        :param api_base_url: The base URL of the Cohere API. Defaults to "https://api.cohere.ai".
+        :param generation_kwargs: Additional model parameters. These will be used during generation. Refer to
+            https://docs.cohere.com/reference/chat for more details.
+            Some of the parameters are:
+            - 'chat_history': A list of previous messages between the user and the model, meant to give the model
+               conversational context for responding to the user's message.
+            - 'preamble_override': When specified, the default Cohere preamble will be replaced with the provided one.
+            - 'conversation_id': An alternative to chat_history. Previous conversations can be resumed by providing
+               the conversation's identifier. The contents of message and the model's response will be stored
+               as part of this conversation.If a conversation with this id does not already exist,
+               a new conversation will be created.
+            - 'prompt_truncation': Defaults to AUTO when connectors are specified and OFF in all other cases.
+               Dictates how the prompt will be constructed.
+            - 'connectors': Accepts {"id": "web-search"}, and/or the "id" for a custom connector, if you've created one.
+                When specified, the model's reply will be enriched with information found by
+                quering each of the connectors (RAG).
+            - 'documents': A list of relevant documents that the model can use to enrich its reply.
+            - 'search_queries_only': Defaults to false. When true, the response will only contain a
+               list of generated search queries, but no search will take place, and no reply from the model to the
+               user's message will be generated.
+            - 'citation_quality': Defaults to "accurate". Dictates the approach taken to generating citations
+                as part of the RAG flow by allowing the user to specify whether they want
+                "accurate" results or "fast" results.
+            - 'temperature': A non-negative float that tunes the degree of randomness in generation. Lower temperatures
+                mean less random generations.
+        """
         cohere_import.check()
 
         if not api_key:
@@ -77,6 +121,16 @@ class CohereChatGenerator:
 
     @component.output_types(replies=List[ChatMessage])
     def run(self, messages: List[ChatMessage], generation_kwargs: Optional[Dict[str, Any]] = None):
+        """
+        Invoke the text generation inference based on the provided messages and generation parameters.
+
+        :param messages: A list of ChatMessage instances representing the input messages.
+        :param generation_kwargs: Additional keyword arguments for text generation. These parameters will
+        potentially override the parameters passed in the __init__ method.
+        For more details on the parameters supported by the Cohere API, refer to the
+        Cohere [documentation](https://docs.cohere.com/reference/chat).
+        :return: A list containing the generated responses as ChatMessage instances.
+        """
         # update generation kwargs by merging with the generation kwargs passed to the run method
         generation_kwargs = {**self.generation_kwargs, **(generation_kwargs or {})}
         message = [message.content for message in messages]
@@ -91,7 +145,9 @@ class CohereChatGenerator:
             chat_message = ChatMessage(content=response.texts, role=None, name=None)
             chat_message.metadata.update(
                 {
-                    "token_count": response.token_count,
+                    "model": self.model_name,
+                    "usage": response.token_count,
+                    "index": 0,
                     "finish_reason": response.finish_reason,
                     "documents": response.documents,
                     "citations": response.citations,
@@ -125,10 +181,12 @@ class CohereChatGenerator:
         message = ChatMessage(content=content, role=None, name=None)
         message.metadata.update(
             {
-                "token_count": cohere_response.token_count,
-                "meta": cohere_response.meta,
-                "citations": cohere_response.citations,
+                "model": self.model_name,
+                "usage": cohere_response.token_count,
+                "index": 0,
+                "finish_reason": None,
                 "documents": cohere_response.documents,
+                "citations": cohere_response.citations,
                 "chat-history": cohere_response.chat_history,
             }
         )
