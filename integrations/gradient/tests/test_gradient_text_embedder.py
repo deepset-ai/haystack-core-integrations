@@ -92,9 +92,7 @@ class TestGradientTextEmbedder:
 
         with pytest.raises(RuntimeError):
             _result = embedder.run(text="The food was delicious")
-            embedder._embedding_model.embed.assert_called_once_with(
-                inputs=[{"input": "The food was delicious"}]
-            )
+            embedder._embedding_model.embed.assert_called_once_with(inputs=[{"input": "The food was delicious"}])
 
     @pytest.mark.unit
     def test_run_empty_string(self):
@@ -119,9 +117,7 @@ class TestGradientTextEmbedder:
         )
 
         result = embedder.run(text="The food was delicious")
-        embedder._embedding_model.embed.assert_called_once_with(
-            inputs=[{"input": "The food was delicious"}]
-        )
+        embedder._embedding_model.embed.assert_called_once_with(inputs=[{"input": "The food was delicious"}])
 
         assert len(result["embedding"]) == 1024  # 1024 is the bge-large embedding size
         assert all(isinstance(x, float) for x in result["embedding"])

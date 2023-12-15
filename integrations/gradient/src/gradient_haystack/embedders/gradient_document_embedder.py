@@ -14,7 +14,8 @@ logger = logging.getLogger(__name__)
 
 
 def _alt_progress_bar(x: Any) -> Any:
-        return x
+    return x
+
 
 @component
 class GradientDocumentEmbedder:
