@@ -131,7 +131,7 @@ class GeminiGenerator:
             raise ValueError(msg)
 
     @component.output_types(answers=List[Union[str, Dict[str, str]]])
-    def run(self, parts: Variadic[List[Union[str, ByteStream, Part]]]):
+    def run(self, parts: Variadic[Union[str, ByteStream, Part]]):
         converted_parts = [self._convert_part(p) for p in parts]
 
         contents = [Content(parts=converted_parts, role="user")]
