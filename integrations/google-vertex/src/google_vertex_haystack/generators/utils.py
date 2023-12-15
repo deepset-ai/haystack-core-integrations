@@ -17,5 +17,5 @@ def authenticate(api_key: str = "", project_id: str = "", location: Optional[str
     """
     credentials = None
     if not api_key and "GOOGLE_API_KEY" in os.environ:
-        Credentials(token=os.environ["GOOGLE_API_KEY"])
+        credentials = Credentials(token=os.environ["GOOGLE_API_KEY"])
     vertexai.init(project=project_id, location=location, credentials=credentials)
