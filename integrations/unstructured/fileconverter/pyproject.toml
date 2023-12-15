@@ -1,5 +1,5 @@
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling", "hatch-vcs"]
 build-backend = "hatchling.build"
 
 [project]
@@ -35,7 +35,12 @@ Issues = "https://github.com/deepset-ai/haystack-core-integrations/issues"
 Source = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/unstructured/fileconverter"
 
 [tool.hatch.version]
-path = "src/unstructured_fileconverter_haystack/__about__.py"
+source = "vcs"
+tag-pattern = 'integrations\/unstructured-fileconverter-v(?P<version>.*)'
+
+[tool.hatch.version.raw-options]
+root = "../../.."
+git_describe_command = 'git describe --tags --match="integrations/unstructured-fileconverter-v[0-9]*"'
 
 [tool.hatch.envs.default]
 dependencies = [
