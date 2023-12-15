@@ -1,21 +1,22 @@
 [build-system]
-requires = ["hatchling", "hatch-vcs"]
+requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "chroma-haystack"
+name = "google-vertex-haystack"
 dynamic = ["version"]
 description = ''
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.7"
 license = "Apache-2.0"
 keywords = []
 authors = [
-  { name = "John Doe", email = "jd@example.com" },
+  { name = "deepset GmbH", email = "info@deepset.ai" },
 ]
 classifiers = [
   "Development Status :: 4 - Beta",
   "Programming Language :: Python",
+  "Programming Language :: Python :: 3.8",
   "Programming Language :: Python :: 3.9",
   "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
@@ -24,16 +25,16 @@ classifiers = [
 ]
 dependencies = [
   "haystack-ai",
-  "chromadb<0.4.20",  #  FIXME: investigate why filtering tests broke on 0.4.20
+  "google-cloud-aiplatform>=1.38",
 ]
 
 [project.urls]
-Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/chroma#readme"
+Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/google-vertex#readme"
 Issues = "https://github.com/deepset-ai/haystack-core-integrations/issues"
-Source = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/chroma"
+Source = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/google-vertex"
 
 [tool.hatch.version]
-path = "src/chroma_haystack/__about__.py"
+path = "src/google_vertex_haystack/__about__.py"
 
 [tool.hatch.envs.default]
 dependencies = [
@@ -53,7 +54,7 @@ cov = [
 ]
 
 [[tool.hatch.envs.all.matrix]]
-python = ["3.9", "3.10"]
+python = ["3.7", "3.8", "3.9", "3.10", "3.11"]
 
 [tool.hatch.envs.lint]
 detached = true
@@ -61,10 +62,9 @@ dependencies = [
   "black>=23.1.0",
   "mypy>=1.0.0",
   "ruff>=0.0.243",
-  "numpy",  # we need the stubs from the main package
 ]
 [tool.hatch.envs.lint.scripts]
-typing = "mypy --install-types --non-interactive {args:src/chroma_haystack tests}"
+typing = "mypy --install-types --non-interactive {args:src/google_vertex_haystack tests}"
 style = [
   "ruff {args:.}",
   "black --check --diff {args:.}",
@@ -78,9 +78,6 @@ all = [
   "style",
   "typing",
 ]
-
-[tool.hatch.metadata]
-allow-direct-references = true
 
 [tool.black]
 target-version = ["py37"]
@@ -99,7 +96,6 @@ select = [
   "E",
   "EM",
   "F",
-  "FBT",
   "I",
   "ICN",
   "ISC",
@@ -120,23 +116,18 @@ select = [
 ignore = [
   # Allow non-abstract empty methods in abstract base classes
   "B027",
-  # Allow boolean positional values in function calls, like `dict.get(... True)`
-  "FBT003",
   # Ignore checks for possible passwords
   "S105", "S106", "S107",
   # Ignore complexity
   "C901", "PLR0911", "PLR0912", "PLR0913", "PLR0915",
-  # Ignore unused params
-  "ARG002",
 ]
 unfixable = [
   # Don't touch unused imports
   "F401",
 ]
-exclude = ["example"]
 
 [tool.ruff.isort]
-known-first-party = ["chroma_haystack"]
+known-first-party = ["google_vertex_haystack"]
 
 [tool.ruff.flake8-tidy-imports]
 ban-relative-imports = "all"
@@ -146,17 +137,16 @@ ban-relative-imports = "all"
 "tests/**/*" = ["PLR2004", "S101", "TID252"]
 
 [tool.coverage.run]
-source_pkgs = ["chroma_haystack", "tests"]
+source_pkgs = ["google_vertex_haystack", "tests"]
 branch = true
 parallel = true
 omit = [
-  "src/chroma_haystack/__about__.py",
-  "example"
+  "src/google_vertex_haystack/__about__.py",
 ]
 
 [tool.coverage.paths]
-chroma_haystack = ["src/chroma_haystack", "*/chroma-haystack/src/chroma_haystack"]
-tests = ["tests"]
+google_vertex_haystack = ["src/google_vertex_haystack", "*/google-vertex-haystack/src/google_vertex_haystack"]
+tests = ["tests", "*/google-vertex-haystack/tests"]
 
 [tool.coverage.report]
 exclude_lines = [
@@ -165,17 +155,20 @@ exclude_lines = [
   "if TYPE_CHECKING:",
 ]
 
-[tool.pytest.ini_options]
-minversion = "6.0"
-markers = [
-  "unit: unit tests",
-  "integration: integration tests"
-]
-
 [[tool.mypy.overrides]]
 module = [
-  "chromadb.*",
+  "vertexai.*",
   "haystack.*",
-  "pytest.*"
+  "pytest.*",
+  "numpy.*",
 ]
 ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+addopts = "--strict-markers"
+markers = [
+  "integration: integration tests",
+  "embedders: embedders tests",
+  "generators: generators tests",
+]
+log_cli = true
