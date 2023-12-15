@@ -1,5 +1,5 @@
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling", "hatch-vcs"]
 build-backend = "hatchling.build"
 
 [project]
@@ -36,7 +36,12 @@ Documentation = "https://github.com/deepset-ai/haystack-core-integrations/blob/m
 Issues = "https://github.com/deepset-ai/haystack-core-integrations/issues"
 
 [tool.hatch.version]
-path = "src/qdrant_haystack/__about__.py"
+source = "vcs"
+tag-pattern = 'integrations\/qdrant-v(?P<version>.*)'
+
+[tool.hatch.version.raw-options]
+root = "../.."
+git_describe_command = 'git describe --tags --match="integrations/qdrant-v[0-9]*"'
 
 [tool.hatch.envs.default]
 dependencies = [
