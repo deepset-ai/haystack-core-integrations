@@ -5,7 +5,7 @@ from typing import Any, Dict, List, Optional, Union
 
 from haystack import Document, component, default_from_dict, default_to_dict
 
-from instructor_embedders.embedding_backend.instructor_backend import _InstructorEmbeddingBackendFactory
+from instructor_embedders_haystack.embedding_backend.instructor_backend import _InstructorEmbeddingBackendFactory
 
 
 @component
@@ -19,7 +19,7 @@ class InstructorDocumentEmbedder:
     # To use this component, install the "instructor-embedders-haystack" package.
     # pip install instructor-embedders-haystack
 
-    from instructor_embedders.instructor_document_embedder import InstructorDocumentEmbedder
+    from instructor_embedders_haystack.instructor_document_embedder import InstructorDocumentEmbedder
     from haystack.dataclasses import Document
 
 

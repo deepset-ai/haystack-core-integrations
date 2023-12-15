@@ -1,5 +1,5 @@
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling", "hatch-vcs"]
 build-backend = "hatchling.build"
 
 [project]
@@ -26,16 +26,21 @@ classifiers = [
 dependencies = [
   # we distribute the preview version of Haystack 2.0 under the package "haystack-ai"
   "haystack-ai",
-  "unstructured",
+  "unstructured<0.11.4", #  FIXME: investigate why 0.11.4 broke the tests
 ]
 
 [project.urls]
-Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/components/converters/unstructured_fileconverter#readme"
+Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/unstructured/fileconverter#readme"
 Issues = "https://github.com/deepset-ai/haystack-core-integrations/issues"
-Source = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/components/converters/unstructured_fileconverter"
+Source = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/unstructured/fileconverter"
 
 [tool.hatch.version]
-path = "src/unstructured_fileconverter_haystack/__about__.py"
+source = "vcs"
+tag-pattern = 'integrations\/unstructured-fileconverter-v(?P<version>.*)'
+
+[tool.hatch.version.raw-options]
+root = "../../.."
+git_describe_command = 'git describe --tags --match="integrations/unstructured-fileconverter-v[0-9]*"'
 
 [tool.hatch.envs.default]
 dependencies = [

@@ -3,7 +3,7 @@ requires = ["hatchling", "hatch-vcs"]
 build-backend = "hatchling.build"
 
 [project]
-name = "jina-haystack"
+name = "google-vertex-haystack"
 dynamic = ["version"]
 description = ''
 readme = "README.md"
@@ -11,12 +11,11 @@ requires-python = ">=3.7"
 license = "Apache-2.0"
 keywords = []
 authors = [
-  { name = "Joan Fontanals Martinez", email = "joan.fontanals.martinez@jina.ai" },
+  { name = "deepset GmbH", email = "info@deepset.ai" },
 ]
 classifiers = [
   "Development Status :: 4 - Beta",
   "Programming Language :: Python",
-  "Programming Language :: Python :: 3.7",
   "Programming Language :: Python :: 3.8",
   "Programming Language :: Python :: 3.9",
   "Programming Language :: Python :: 3.10",
@@ -24,20 +23,23 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
-dependencies = ["requests", "haystack-ai"]
+dependencies = [
+  "haystack-ai",
+  "google-cloud-aiplatform>=1.38",
+]
 
 [project.urls]
-Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/jina#readme"
+Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/google-vertex#readme"
 Issues = "https://github.com/deepset-ai/haystack-core-integrations/issues"
-Source = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/jina"
+Source = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/google-vertex"
 
 [tool.hatch.version]
 source = "vcs"
-tag-pattern = 'integrations\/jina-v(?P<version>.*)'
+tag-pattern = 'integrations\/google-vertex-v(?P<version>.*)'
 
 [tool.hatch.version.raw-options]
 root = "../.."
-git_describe_command = 'git describe --tags --match="integrations/jina-v[0-9]*"'
+git_describe_command = 'git describe --tags --match="integrations/google-vertex-v[0-9]*"'
 
 [tool.hatch.envs.default]
 dependencies = [
@@ -67,7 +69,7 @@ dependencies = [
   "ruff>=0.0.243",
 ]
 [tool.hatch.envs.lint.scripts]
-typing = "mypy --install-types --non-interactive {args:src/jina_haystack tests}"
+typing = "mypy --install-types --non-interactive {args:src/google_vertex_haystack tests}"
 style = [
   "ruff {args:.}",
   "black --check --diff {args:.}",
@@ -130,7 +132,7 @@ unfixable = [
 ]
 
 [tool.ruff.isort]
-known-first-party = ["jina_haystack"]
+known-first-party = ["google_vertex_haystack"]
 
 [tool.ruff.flake8-tidy-imports]
 ban-relative-imports = "all"
@@ -140,16 +142,16 @@ ban-relative-imports = "all"
 "tests/**/*" = ["PLR2004", "S101", "TID252"]
 
 [tool.coverage.run]
-source_pkgs = ["jina_haystack", "tests"]
+source_pkgs = ["google_vertex_haystack", "tests"]
 branch = true
 parallel = true
 omit = [
-  "src/jina_haystack/__about__.py",
+  "src/google_vertex_haystack/__about__.py",
 ]
 
 [tool.coverage.paths]
-jina_haystack = ["src/jina_haystack", "*/jina-haystack/src/jina_haystack"]
-tests = ["tests", "*/jina-haystack/tests"]
+google_vertex_haystack = ["src/google_vertex_haystack", "*/google-vertex-haystack/src/google_vertex_haystack"]
+tests = ["tests", "*/google-vertex-haystack/tests"]
 
 [tool.coverage.report]
 exclude_lines = [
@@ -160,7 +162,18 @@ exclude_lines = [
 
 [[tool.mypy.overrides]]
 module = [
+  "vertexai.*",
   "haystack.*",
-  "pytest.*"
+  "pytest.*",
+  "numpy.*",
 ]
 ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+addopts = "--strict-markers"
+markers = [
+  "integration: integration tests",
+  "embedders: embedders tests",
+  "generators: generators tests",
+]
+log_cli = true

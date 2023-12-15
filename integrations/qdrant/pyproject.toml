@@ -3,15 +3,16 @@ requires = ["hatchling", "hatch-vcs"]
 build-backend = "hatchling.build"
 
 [project]
-name = "jina-haystack"
+name = "qdrant-haystack"
 dynamic = ["version"]
-description = ''
+description = 'An integration of Qdrant ANN vector database backend with Haystack'
 readme = "README.md"
 requires-python = ">=3.7"
 license = "Apache-2.0"
 keywords = []
 authors = [
-  { name = "Joan Fontanals Martinez", email = "joan.fontanals.martinez@jina.ai" },
+  { name = "Kacper Łukawski", email = "kacper.lukawski@qdrant.com" },
+  { name = "Anush Shetty", email = "anush.shetty@qdrant.com" },
 ]
 classifiers = [
   "Development Status :: 4 - Beta",
@@ -24,20 +25,23 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
-dependencies = ["requests", "haystack-ai"]
+dependencies = [
+  "haystack-ai",
+  "qdrant-client",
+]
 
 [project.urls]
-Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/jina#readme"
+Source = "https://github.com/deepset-ai/haystack-core-integrations"
+Documentation = "https://github.com/deepset-ai/haystack-core-integrations/blob/main/integrations/qdrant/README.md"
 Issues = "https://github.com/deepset-ai/haystack-core-integrations/issues"
-Source = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/jina"
 
 [tool.hatch.version]
 source = "vcs"
-tag-pattern = 'integrations\/jina-v(?P<version>.*)'
+tag-pattern = 'integrations\/qdrant-v(?P<version>.*)'
 
 [tool.hatch.version.raw-options]
 root = "../.."
-git_describe_command = 'git describe --tags --match="integrations/jina-v[0-9]*"'
+git_describe_command = 'git describe --tags --match="integrations/qdrant-v[0-9]*"'
 
 [tool.hatch.envs.default]
 dependencies = [
@@ -67,7 +71,7 @@ dependencies = [
   "ruff>=0.0.243",
 ]
 [tool.hatch.envs.lint.scripts]
-typing = "mypy --install-types --non-interactive {args:src/jina_haystack tests}"
+typing = "mypy --install-types --non-interactive {args:src/qdrant_haystack tests}"
 style = [
   "ruff {args:.}",
   "black --check --diff {args:.}",
@@ -99,6 +103,7 @@ select = [
   "E",
   "EM",
   "F",
+  "FBT",
   "I",
   "ICN",
   "ISC",
@@ -119,6 +124,8 @@ select = [
 ignore = [
   # Allow non-abstract empty methods in abstract base classes
   "B027",
+  # Allow boolean positional values in function calls, like `dict.get(... True)`
+  "FBT003",
   # Ignore checks for possible passwords
   "S105", "S106", "S107",
   # Ignore complexity
@@ -130,7 +137,7 @@ unfixable = [
 ]
 
 [tool.ruff.isort]
-known-first-party = ["jina_haystack"]
+known-first-party = ["qdrant_haystack"]
 
 [tool.ruff.flake8-tidy-imports]
 ban-relative-imports = "all"
@@ -140,16 +147,16 @@ ban-relative-imports = "all"
 "tests/**/*" = ["PLR2004", "S101", "TID252"]
 
 [tool.coverage.run]
-source_pkgs = ["jina_haystack", "tests"]
+source_pkgs = ["qdrant_haystack", "tests"]
 branch = true
 parallel = true
 omit = [
-  "src/jina_haystack/__about__.py",
+  "src/qdrant_haystack/__about__.py",
 ]
 
 [tool.coverage.paths]
-jina_haystack = ["src/jina_haystack", "*/jina-haystack/src/jina_haystack"]
-tests = ["tests", "*/jina-haystack/tests"]
+qdrant_haystack = ["src/qdrant_haystack", "*/qdrant-haystack/src/qdrant_haystack"]
+tests = ["tests", "*/qdrant-haystack/tests"]
 
 [tool.coverage.report]
 exclude_lines = [
@@ -161,6 +168,9 @@ exclude_lines = [
 [[tool.mypy.overrides]]
 module = [
   "haystack.*",
-  "pytest.*"
+  "pytest.*",
+  "qdrant_client.*",
+  "numpy",
+  "grpc"
 ]
 ignore_missing_imports = true

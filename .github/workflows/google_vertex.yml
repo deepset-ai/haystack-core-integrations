@@ -1,17 +1,21 @@
 # This workflow comes from https://github.com/ofek/hatch-mypyc
 # https://github.com/ofek/hatch-mypyc/blob/5a198c0ba8660494d02716cfc9d79ce4adfb1442/.github/workflows/test.yml
-name: Test / unstructured / fileconverter
+name: Test / google-vertex
 
 on:
   schedule:
     - cron: "0 0 * * *"
   pull_request:
     paths:
-      - "integrations/unstructured/fileconverter/**"
-      - ".github/workflows/unstructured_fileconverter.yml"
+      - "integrations/google-vertex/**"
+      - ".github/workflows/google-vertex.yml"
+
+defaults:
+  run:
+    working-directory: integrations/google-vertex
 
 concurrency:
-  group: unstructured_fileconverter-${{ github.head_ref }}
+  group: google-vertex-${{ github.head_ref }}
   cancel-in-progress: true
 
 env:
@@ -25,20 +29,15 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest]
-        python-version: ["3.8", "3.9", "3.10", "3.11"]
-    services:
-      unstructured-api:
-        image: "quay.io/unstructured-io/unstructured-api:latest"
-        ports:
-          - 8000:8000
-        options: >-
-          --health-cmd "curl --fail http://localhost:8000/healthcheck || exit 1"
-          --health-interval 10s
-          --health-timeout 1s
-          --health-retries 10
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        python-version: ["3.9", "3.10"]
 
     steps:
+      - name: Support longpaths
+        if: matrix.os == 'windows-latest'
+        working-directory: .
+        run: git config --system core.longpaths true
+
       - uses: actions/checkout@v4
 
       - name: Set up Python ${{ matrix.python-version }}
@@ -50,10 +49,8 @@ jobs:
         run: pip install --upgrade hatch
 
       - name: Lint
-        working-directory: integrations/unstructured/fileconverter
-        if: matrix.python-version == '3.9'
+        if: matrix.python-version == '3.9' && runner.os == 'Linux'
         run: hatch run lint:all
 
       - name: Run tests
-        working-directory: integrations/unstructured/fileconverter
         run: hatch run cov

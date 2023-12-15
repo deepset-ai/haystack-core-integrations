@@ -1,43 +1,67 @@
 # Integrations
 integration:chroma:
-- changed-files:
-  - any-glob-to-any-file: 'integrations/chroma/**/*'
+  - changed-files:
+      - any-glob-to-any-file: "integrations/chroma/**/*"
+      - any-glob-to-any-file: ".github/workflows/chroma.yml"
 
 integration:cohere:
-- changed-files:
-  - any-glob-to-any-file: 'integrations/cohere/**/*'
+  - changed-files:
+      - any-glob-to-any-file: "integrations/cohere/**/*"
+      - any-glob-to-any-file: ".github/workflows/cohere.yml"
 
 integration:elasticsearch:
-- changed-files:
-  - any-glob-to-any-file: 'integrations/elasticsearch/**/*'
+  - changed-files:
+      - any-glob-to-any-file: "integrations/elasticsearch/**/*"
+      - any-glob-to-any-file: ".github/workflows/elasticsearch.yml"
+
+integration:google-vertex:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/google-vertex/**/*"
+      - any-glob-to-any-file: ".github/workflows/google_vertex.yml"
 
 integration:gradient:
-- changed-files:
-  - any-glob-to-any-file: 'integrations/gradient/**/*'
+  - changed-files:
+      - any-glob-to-any-file: "integrations/gradient/**/*"
+      - any-glob-to-any-file: ".github/workflows/gradient.yml"
 
 integration:instructor-embedders:
-- changed-files:
-  - any-glob-to-any-file: 'integrations/instructor-embedders/**/*'
+  - changed-files:
+      - any-glob-to-any-file: "integrations/instructor-embedders/**/*"
+      - any-glob-to-any-file: ".github/workflows/instructor_embedders.yml"
 
 integration:jina:
-- changed-files:
-  - any-glob-to-any-file: 'integrations/jina/**/*'
+  - changed-files:
+      - any-glob-to-any-file: "integrations/jina/**/*"
+      - any-glob-to-any-file: ".github/workflows/jina.yml"
 
 integration:opensearch:
-- changed-files:
-  - any-glob-to-any-file: 'integrations/opensearch/**/*'
+  - changed-files:
+      - any-glob-to-any-file: "integrations/opensearch/**/*"
+      - any-glob-to-any-file: ".github/workflows/opensearch.yml"
+
+integration:qdrant:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/qdrant/**/*"
+      - any-glob-to-any-file: ".github/workflows/qdrant.yml"
 
 integration:unstructured-fileconverter:
-- changed-files:
-  - any-glob-to-any-file: 'integrations/unstructured/fileconverter/**/*'
+  - changed-files:
+      - any-glob-to-any-file: "integrations/unstructured/fileconverter/**/*"
+      - any-glob-to-any-file: ".github/workflows/unstructured_fileconverter.yml"
 
 # Topics
 topic:CI:
-- changed-files:
-  - any-glob-to-any-file: ['.github/*', '.github/**/*']
+  - changed-files:
+      - any-glob-to-any-file: [".github/*", ".github/**/*"]
 topic:DX:
-- changed-files:
-  - any-glob-to-any-file: ['CONTRIBUTING.md', '.pre-commit-config.yaml', '.gitignore', 'requirements.txt']
+  - changed-files:
+      - any-glob-to-any-file:
+          [
+            "CONTRIBUTING.md",
+            ".pre-commit-config.yaml",
+            ".gitignore",
+            "requirements.txt",
+          ]
 topic:security:
-- changed-files:
-  - any-glob-to-any-file: ['SECURITY.md']
+  - changed-files:
+      - any-glob-to-any-file: ["SECURITY.md"]
