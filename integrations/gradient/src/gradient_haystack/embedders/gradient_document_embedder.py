@@ -5,7 +5,7 @@ from gradientai import Gradient
 from haystack import Document, component, default_to_dict
 
 try:
-    from tqdm import tqdm
+    from tqdm import tqdm # type: ignore
 except ImportError:
     tqdm = None
 
