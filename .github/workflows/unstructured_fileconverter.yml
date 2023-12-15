@@ -29,14 +29,14 @@ jobs:
         python-version: ["3.8", "3.9", "3.10", "3.11"]
     services:
       unstructured-api:
-        image: "quay.io/unstructured-io/unstructured-api:latest"
+        image: "quay.io/unstructured-io/unstructured-api:0.0.59"
         ports:
           - 8000:8000
         options: >-
           --health-cmd "curl --fail http://localhost:8000/healthcheck || exit 1"
           --health-interval 10s
           --health-timeout 1s
-          --health-retries 10                  
+          --health-retries 10
 
     steps:
       - uses: actions/checkout@v4
