@@ -88,11 +88,11 @@ class TestGradientTextEmbedder:
     def test_run_fail_when_no_embeddings_returned(self):
         embedder = GradientTextEmbedder(access_token=access_token, workspace_id=workspace_id)
         embedder._embedding_model = NonCallableMagicMock()
-        embedder._embedding_model.generate_embeddings.return_value = GenerateEmbeddingSuccess(embeddings=[])
+        embedder._embedding_model.embed.return_value = GenerateEmbeddingSuccess(embeddings=[])
 
         with pytest.raises(RuntimeError):
             _result = embedder.run(text="The food was delicious")
-            embedder._embedding_model.generate_embeddings.assert_called_once_with(
+            embedder._embedding_model.embed.assert_called_once_with(
                 inputs=[{"input": "The food was delicious"}]
             )
 
@@ -100,12 +100,12 @@ class TestGradientTextEmbedder:
     def test_run_empty_string(self):
         embedder = GradientTextEmbedder(access_token=access_token, workspace_id=workspace_id)
         embedder._embedding_model = NonCallableMagicMock()
-        embedder._embedding_model.generate_embeddings.return_value = GenerateEmbeddingSuccess(
+        embedder._embedding_model.embed.return_value = GenerateEmbeddingSuccess(
             embeddings=[{"embedding": np.random.rand(1024).tolist(), "index": 0}]
         )
 
         result = embedder.run(text="")
-        embedder._embedding_model.generate_embeddings.assert_called_once_with(inputs=[{"input": ""}])
+        embedder._embedding_model.embed.assert_called_once_with(inputs=[{"input": ""}])
 
         assert len(result["embedding"]) == 1024  # 1024 is the bge-large embedding size
         assert all(isinstance(x, float) for x in result["embedding"])
@@ -114,12 +114,12 @@ class TestGradientTextEmbedder:
     def test_run(self):
         embedder = GradientTextEmbedder(access_token=access_token, workspace_id=workspace_id)
         embedder._embedding_model = NonCallableMagicMock()
-        embedder._embedding_model.generate_embeddings.return_value = GenerateEmbeddingSuccess(
+        embedder._embedding_model.embed.return_value = GenerateEmbeddingSuccess(
             embeddings=[{"embedding": np.random.rand(1024).tolist(), "index": 0}]
         )
 
         result = embedder.run(text="The food was delicious")
-        embedder._embedding_model.generate_embeddings.assert_called_once_with(
+        embedder._embedding_model.embed.assert_called_once_with(
             inputs=[{"input": "The food was delicious"}]
         )
 

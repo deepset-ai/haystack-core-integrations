@@ -4,6 +4,11 @@ from typing import Any, Dict, List, Optional
 from gradientai import Gradient
 from haystack import Document, component, default_to_dict
 
+try:
+    from tqdm import tqdm
+except ImportError:
+    tqdm = None
+
 logger = logging.getLogger(__name__)
 
 
@@ -31,15 +36,17 @@ class GradientDocumentEmbedder:
         self,
         *,
         model_name: str = "bge-large",
-        batch_size: int = 100,
+        batch_size: int = 32768,
         access_token: Optional[str] = None,
         workspace_id: Optional[str] = None,
         host: Optional[str] = None,
+        progress_bar: bool = True,
     ) -> None:
         """
         Create a GradientDocumentEmbedder component.
 
         :param model_name: The name of the model to use.
+        :param batch_size: Update cycle for tqdm progress bar, default is 32768.
         :param access_token: The Gradient access token. If not provided it's read from the environment
                              variable GRADIENT_ACCESS_TOKEN.
         :param workspace_id: The Gradient workspace ID. If not provided it's read from the environment
@@ -49,6 +56,7 @@ class GradientDocumentEmbedder:
         self._batch_size = batch_size
         self._host = host
         self._model_name = model_name
+        self._progress_bar = progress_bar
 
         self._gradient = Gradient(access_token=access_token, host=host, workspace_id=workspace_id)
 
@@ -75,11 +83,17 @@ class GradientDocumentEmbedder:
         """
         Batches the documents and generates the embeddings.
         """
-        batches = [documents[i : i + batch_size] for i in range(0, len(documents), batch_size)]
-
+        if self._progress_bar and tqdm is not None:
+            batches = [documents[i : i + batch_size] for i in range(0, len(documents), batch_size)]
+            progress_bar = tqdm
+        else:
+            # no progress bar
+            progress_bar = lambda x: x
+            batches = [documents]
+        
         embeddings = []
-        for batch in batches:
-            response = self._embedding_model.generate_embeddings(inputs=[{"input": doc.content} for doc in batch])
+        for batch in progress_bar(batches):
+            response = self._embedding_model.embed(inputs=[{"input": doc.content} for doc in batch])
             embeddings.extend([e.embedding for e in response.embeddings])
 
         return embeddings
