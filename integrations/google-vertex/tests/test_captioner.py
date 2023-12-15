@@ -1,6 +1,5 @@
 from unittest.mock import Mock, patch
 
-import pytest
 from haystack.dataclasses.byte_stream import ByteStream
 
 from google_vertex_haystack.generators.captioner import VertexAIImageCaptioner
