@@ -1,10 +1,11 @@
 import os
+from typing import Optional
 
 import vertexai
 from google.auth.api_key import Credentials
 
 
-def authenticate(api_key: str = "", project_id: str = "", location: str = ""):
+def authenticate(api_key: str = "", project_id: str = "", location: Optional[str] = None):
     """
     Authenticates using the provided API key, project ID, and location.
 

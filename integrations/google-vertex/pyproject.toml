@@ -157,6 +157,7 @@ exclude_lines = [
 
 [[tool.mypy.overrides]]
 module = [
+  "google.*",
   "vertexai.*",
   "haystack.*",
   "pytest.*",
