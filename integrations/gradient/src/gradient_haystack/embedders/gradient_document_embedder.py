@@ -52,6 +52,7 @@ class GradientDocumentEmbedder:
         :param workspace_id: The Gradient workspace ID. If not provided it's read from the environment
                              variable GRADIENT_WORKSPACE_ID.
         :param host: The Gradient host. By default it uses https://api.gradient.ai/.
+        :param progress_bar: Whether to show a progress bar while embedding the documents.
         """
         self._batch_size = batch_size
         self._host = host
