@@ -5,7 +5,7 @@ from typing import Any, Dict, List, Optional, Union
 
 from haystack import component, default_from_dict, default_to_dict
 
-from instructor_embedders.embedding_backend.instructor_backend import _InstructorEmbeddingBackendFactory
+from instructor_embedders_haystack.embedding_backend.instructor_backend import _InstructorEmbeddingBackendFactory
 
 
 @component
@@ -18,7 +18,7 @@ class InstructorTextEmbedder:
     # To use this component, install the "instructor-embedders-haystack" package.
     # pip install instructor-embedders-haystack
 
-    from instructor_embedders.instructor_text_embedder import InstructorTextEmbedder
+    from instructor_embedders_haystack.instructor_text_embedder import InstructorTextEmbedder
 
     text = "It clearly says online this will work on a Mac OS system. The disk comes and it does not, only Windows. Do Not order this if you have a Mac!!"
     instruction = (

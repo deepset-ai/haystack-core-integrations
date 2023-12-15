@@ -2,6 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+from qdrant_haystack.document_store import QdrantDocumentStore
 
-def test_instructor_embedders():
-    assert True
+__all__ = ("QdrantDocumentStore",)

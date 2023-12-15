@@ -20,6 +20,7 @@ class TestCohereTextEmbedder:
 
         assert embedder.api_key == "test-api-key"
         assert embedder.model_name == "embed-english-v2.0"
+        assert embedder.input_type == "search_query"
         assert embedder.api_base_url == COHERE_API_URL
         assert embedder.truncate == "END"
         assert embedder.use_async_client is False
@@ -33,6 +34,7 @@ class TestCohereTextEmbedder:
         embedder = CohereTextEmbedder(
             api_key="test-api-key",
             model_name="embed-multilingual-v2.0",
+            input_type="classification",
             api_base_url="https://custom-api-base-url.com",
             truncate="START",
             use_async_client=True,
@@ -41,6 +43,7 @@ class TestCohereTextEmbedder:
         )
         assert embedder.api_key == "test-api-key"
         assert embedder.model_name == "embed-multilingual-v2.0"
+        assert embedder.input_type == "classification"
         assert embedder.api_base_url == "https://custom-api-base-url.com"
         assert embedder.truncate == "START"
         assert embedder.use_async_client is True
@@ -57,6 +60,7 @@ class TestCohereTextEmbedder:
             "type": "cohere_haystack.embedders.text_embedder.CohereTextEmbedder",
             "init_parameters": {
                 "model_name": "embed-english-v2.0",
+                "input_type": "search_query",
                 "api_base_url": COHERE_API_URL,
                 "truncate": "END",
                 "use_async_client": False,
@@ -72,6 +76,7 @@ class TestCohereTextEmbedder:
         embedder_component = CohereTextEmbedder(
             api_key="test-api-key",
             model_name="embed-multilingual-v2.0",
+            input_type="classification",
             api_base_url="https://custom-api-base-url.com",
             truncate="START",
             use_async_client=True,
@@ -83,6 +88,7 @@ class TestCohereTextEmbedder:
             "type": "cohere_haystack.embedders.text_embedder.CohereTextEmbedder",
             "init_parameters": {
                 "model_name": "embed-multilingual-v2.0",
+                "input_type": "classification",
                 "api_base_url": "https://custom-api-base-url.com",
                 "truncate": "START",
                 "use_async_client": True,

@@ -4,11 +4,10 @@ import numpy as np
 import pytest
 from haystack import Document
 
-from instructor_embedders.instructor_document_embedder import InstructorDocumentEmbedder
+from instructor_embedders_haystack.instructor_document_embedder import InstructorDocumentEmbedder
 
 
 class TestInstructorDocumentEmbedder:
-    @pytest.mark.unit
     def test_init_default(self):
         """
         Test default initialization parameters for InstructorDocumentEmbedder.
@@ -24,7 +23,6 @@ class TestInstructorDocumentEmbedder:
         assert embedder.metadata_fields_to_embed == []
         assert embedder.embedding_separator == "\n"
 
-    @pytest.mark.unit
     def test_init_with_parameters(self):
         """
         Test custom initialization parameters for InstructorDocumentEmbedder.
@@ -50,7 +48,6 @@ class TestInstructorDocumentEmbedder:
         assert embedder.metadata_fields_to_embed == ["test_field"]
         assert embedder.embedding_separator == " | "
 
-    @pytest.mark.unit
     def test_to_dict(self):
         """
         Test serialization of InstructorDocumentEmbedder to a dictionary, using default initialization parameters.
@@ -58,7 +55,7 @@ class TestInstructorDocumentEmbedder:
         embedder = InstructorDocumentEmbedder(model_name_or_path="hkunlp/instructor-base")
         embedder_dict = embedder.to_dict()
         assert embedder_dict == {
-            "type": "instructor_embedders.instructor_document_embedder.InstructorDocumentEmbedder",
+            "type": "instructor_embedders_haystack.instructor_document_embedder.InstructorDocumentEmbedder",
             "init_parameters": {
                 "model_name_or_path": "hkunlp/instructor-base",
                 "device": "cpu",
@@ -72,7 +69,6 @@ class TestInstructorDocumentEmbedder:
             },
         }
 
-    @pytest.mark.unit
     def test_to_dict_with_custom_init_parameters(self):
         """
         Test serialization of InstructorDocumentEmbedder to a dictionary, using custom initialization parameters.
@@ -90,7 +86,7 @@ class TestInstructorDocumentEmbedder:
         )
         embedder_dict = embedder.to_dict()
         assert embedder_dict == {
-            "type": "instructor_embedders.instructor_document_embedder.InstructorDocumentEmbedder",
+            "type": "instructor_embedders_haystack.instructor_document_embedder.InstructorDocumentEmbedder",
             "init_parameters": {
                 "model_name_or_path": "hkunlp/instructor-base",
                 "device": "cuda",
@@ -104,13 +100,12 @@ class TestInstructorDocumentEmbedder:
             },
         }
 
-    @pytest.mark.unit
     def test_from_dict(self):
         """
         Test deserialization of InstructorDocumentEmbedder from a dictionary, using default initialization parameters.
         """
         embedder_dict = {
-            "type": "instructor_embedders.instructor_document_embedder.InstructorDocumentEmbedder",
+            "type": "instructor_embedders_haystack.instructor_document_embedder.InstructorDocumentEmbedder",
             "init_parameters": {
                 "model_name_or_path": "hkunlp/instructor-base",
                 "device": "cpu",
@@ -134,13 +129,12 @@ class TestInstructorDocumentEmbedder:
         assert embedder.metadata_fields_to_embed == []
         assert embedder.embedding_separator == "\n"
 
-    @pytest.mark.unit
     def test_from_dict_with_custom_init_parameters(self):
         """
         Test deserialization of InstructorDocumentEmbedder from a dictionary, using custom initialization parameters.
         """
         embedder_dict = {
-            "type": "instructor_embedders.instructor_document_embedder.InstructorDocumentEmbedder",
+            "type": "instructor_embedders_haystack.instructor_document_embedder.InstructorDocumentEmbedder",
             "init_parameters": {
                 "model_name_or_path": "hkunlp/instructor-base",
                 "device": "cuda",
@@ -164,8 +158,7 @@ class TestInstructorDocumentEmbedder:
         assert embedder.metadata_fields_to_embed == ["test_field"]
         assert embedder.embedding_separator == " | "
 
-    @pytest.mark.unit
-    @patch("instructor_embedders.instructor_document_embedder._InstructorEmbeddingBackendFactory")
+    @patch("instructor_embedders_haystack.instructor_document_embedder._InstructorEmbeddingBackendFactory")
     def test_warmup(self, mocked_factory):
         """
         Test for checking embedder instances after warm-up.
@@ -177,8 +170,7 @@ class TestInstructorDocumentEmbedder:
             model_name_or_path="hkunlp/instructor-base", device="cpu", use_auth_token=None
         )
 
-    @pytest.mark.unit
-    @patch("instructor_embedders.instructor_document_embedder._InstructorEmbeddingBackendFactory")
+    @patch("instructor_embedders_haystack.instructor_document_embedder._InstructorEmbeddingBackendFactory")
     def test_warmup_does_not_reload(self, mocked_factory):
         """
         Test for checking backend instances after multiple warm-ups.
@@ -189,7 +181,6 @@ class TestInstructorDocumentEmbedder:
         embedder.warm_up()
         mocked_factory.get_embedding_backend.assert_called_once()
 
-    @pytest.mark.unit
     def test_embed(self):
         """
         Test for checking output dimensions and embedding dimensions.
@@ -209,7 +200,6 @@ class TestInstructorDocumentEmbedder:
             assert isinstance(doc.embedding, list)
             assert isinstance(doc.embedding[0], float)
 
-    @pytest.mark.unit
     def test_embed_incorrect_input_format(self):
         """
         Test for checking incorrect input format when creating embedding.
@@ -225,7 +215,6 @@ class TestInstructorDocumentEmbedder:
         with pytest.raises(TypeError, match="InstructorDocumentEmbedder expects a list of Documents as input."):
             embedder.run(documents=list_integers_input)
 
-    @pytest.mark.unit
     def test_embed_metadata(self):
         """
         Test for checking output dimensions and embedding dimensions for documents

@@ -6,14 +6,14 @@ from typing import Any, Dict, List, Tuple
 from cohere import AsyncClient, Client, CohereError
 from tqdm import tqdm
 
-API_BASE_URL = "https://api.cohere.ai/v1/embed"
 
-
-async def get_async_response(cohere_async_client: AsyncClient, texts: List[str], model_name, truncate):
+async def get_async_response(cohere_async_client: AsyncClient, texts: List[str], model_name, input_type, truncate):
     all_embeddings: List[List[float]] = []
     metadata: Dict[str, Any] = {}
     try:
-        response = await cohere_async_client.embed(texts=texts, model=model_name, truncate=truncate)
+        response = await cohere_async_client.embed(
+            texts=texts, model=model_name, input_type=input_type, truncate=truncate
+        )
         if response.meta is not None:
             metadata = response.meta
         for emb in response.embeddings:
@@ -27,7 +27,7 @@ async def get_async_response(cohere_async_client: AsyncClient, texts: List[str],
 
 
 def get_response(
-    cohere_client: Client, texts: List[str], model_name, truncate, batch_size=32, progress_bar=False
+    cohere_client: Client, texts: List[str], model_name, input_type, truncate, batch_size=32, progress_bar=False
 ) -> Tuple[List[List[float]], Dict[str, Any]]:
     """
     We support batching with the sync client.
@@ -42,7 +42,7 @@ def get_response(
             desc="Calculating embeddings",
         ):
             batch = texts[i : i + batch_size]
-            response = cohere_client.embed(batch, model=model_name, truncate=truncate)
+            response = cohere_client.embed(batch, model=model_name, input_type=input_type, truncate=truncate)
             for emb in response.embeddings:
                 all_embeddings.append(emb)
             embeddings = [list(map(float, emb)) for emb in response.embeddings]
