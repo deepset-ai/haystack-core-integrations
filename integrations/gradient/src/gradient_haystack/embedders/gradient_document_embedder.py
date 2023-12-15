@@ -36,7 +36,7 @@ class GradientDocumentEmbedder:
         self,
         *,
         model_name: str = "bge-large",
-        batch_size: int = 32768,
+        batch_size: int = 32_768,
         access_token: Optional[str] = None,
         workspace_id: Optional[str] = None,
         host: Optional[str] = None,
@@ -46,7 +46,7 @@ class GradientDocumentEmbedder:
         Create a GradientDocumentEmbedder component.
 
         :param model_name: The name of the model to use.
-        :param batch_size: Update cycle for tqdm progress bar, default is 32768.
+        :param batch_size: Update cycle for tqdm progress bar, default is to update every 32_768 docs.
         :param access_token: The Gradient access token. If not provided it's read from the environment
                              variable GRADIENT_ACCESS_TOKEN.
         :param workspace_id: The Gradient workspace ID. If not provided it's read from the environment
