@@ -33,7 +33,12 @@ Issues = "https://github.com/deepset-ai/haystack-core-integrations/issues"
 Source = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/chroma"
 
 [tool.hatch.version]
-path = "src/chroma_haystack/__about__.py"
+source = "vcs"
+tag-pattern = 'integrations\/chroma-v(?P<version>.*)'
+
+[tool.hatch.version.raw-options]
+root = "../.."
+git_describe_command = 'git describe --tags --match="integrations/chroma-v[0-9]*"'
 
 [tool.hatch.envs.default]
 dependencies = [
