@@ -86,6 +86,22 @@ class AstraDocumentStore:
             similarity_function=self.similarity,
         )
 
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "AstraDocumentStore":
+        return AstraDocumentStore(**data)
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "duplicates_policy": self.duplicates_policy,
+            "astra_id": self.astra_id,
+            "astra_region": self.astra_region,
+            "astra_application_token": self.astra_application_token,
+            "astra_keyspace": self.astra_keyspace,
+            "astra_collection": self.astra_collection,
+            "embedding_dim": self.embedding_dim,
+            "similarity": self.similarity,
+        }
+
     def write_documents(
         self,
         documents: List[Document],
