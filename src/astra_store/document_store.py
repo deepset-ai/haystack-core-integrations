@@ -316,8 +316,8 @@ class AstraDocumentStore:
         return ret[0]
 
     def search(
-        self, queries: List[Union[str, Dict[str, float]]], top_k: int, filters: Optional[Dict[str, Any]] = None
-    ) -> List[List[Document]]:
+        self, query_embedding: List[float], top_k: int, filters: Optional[Dict[str, Any]] = None
+    ) -> List[Document]:
         """Perform a search for a list of queries.
 
         Args:
@@ -330,15 +330,12 @@ class AstraDocumentStore:
         """
         results = []
         converted_filters = _convert_filters(filters)
-        for query in queries:
-            # TODO
-            vector = self.embeddings.encode(query).tolist()
 
-            result = self._get_result_to_documents(
-                self.index.query(vector=vector, top_k=top_k, filter=converted_filters, include_metadata=True)
-            )
-            results.append(result)
-            logger.debug(f"Raw responses: {result}")  # leaving for debugging
+        result = self._get_result_to_documents(
+            self.index.query(vector=query_embedding, top_k=top_k, filter=converted_filters, include_metadata=True, include_values=True)
+        )
+        results.append(result)
+        logger.debug(f"Raw responses: {result}")  # leaving for debugging
 
         return results
 

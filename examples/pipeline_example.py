@@ -5,9 +5,11 @@ from haystack.components.builders.answer_builder import AnswerBuilder
 from haystack.components.builders.prompt_builder import PromptBuilder
 from haystack.components.generators import GPTGenerator
 from haystack.document_stores import DuplicatePolicy
+from haystack.components.embedders import SentenceTransformersDocumentEmbedder, SentenceTransformersTextEmbedder
+from haystack.components.writers import DocumentWriter
 
 from astra_store.document_store import AstraDocumentStore
-from astra_store.retriever import AstraSingleRetriever
+from astra_store.retriever import AstraRetriever
 
 # Create a RAG query pipeline
 prompt_template = """
@@ -27,7 +29,7 @@ astra_application_token = os.getenv("ASTRA_DB_APPLICATION_TOKEN", "")
 collection_name = os.getenv("COLLECTION_NAME", "haystack_vector_search")
 keyspace_name = os.getenv("KEYSPACE_NAME", "recommender_demo")
 
-# We support many different databases. Here, we load a simple and lightweight in-memory database.
+
 document_store = AstraDocumentStore(
     astra_id=astra_id,
     astra_region=astra_region,
@@ -38,19 +40,6 @@ document_store = AstraDocumentStore(
     embedding_dim=384,
 )
 
-rag_pipeline = Pipeline()
-rag_pipeline.add_component(instance=AstraSingleRetriever(document_store=document_store), name="retriever")
-rag_pipeline.add_component(instance=PromptBuilder(template=prompt_template), name="prompt_builder")
-rag_pipeline.add_component(instance=GPTGenerator(api_key=os.environ.get("OPENAI_API_KEY")), name="llm")
-rag_pipeline.add_component(instance=AnswerBuilder(), name="answer_builder")
-rag_pipeline.connect("retriever", "prompt_builder.documents")
-rag_pipeline.connect("prompt_builder", "llm")
-rag_pipeline.connect("llm.replies", "answer_builder.replies")
-rag_pipeline.connect("llm.metadata", "answer_builder.metadata")
-rag_pipeline.connect("retriever", "answer_builder.documents")
-
-# Draw the pipeline
-rag_pipeline.draw("./rag_pipeline.png")
 
 # Add Documents
 documents = [
@@ -62,11 +51,42 @@ documents = [
         content="In certain parts of the world, like the Maldives, Puerto Rico, and San Diego, you can witness the phenomenon of bioluminescent waves."
     ),
 ]
-rag_pipeline.get_component("retriever").document_store.write_documents(documents)
+p = Pipeline()
+p.add_component(
+    instance=SentenceTransformersDocumentEmbedder(model_name_or_path="sentence-transformers/all-MiniLM-L6-v2"),
+    name="embedder",
+)
+p.add_component(instance=DocumentWriter(document_store=document_store, policy=DuplicatePolicy.SKIP), name="writer")
+p.connect("embedder.documents", "writer.documents")
+
+p.run({"embedder": {"documents": documents}})
+
+
+# Construct rag pipeline
+rag_pipeline = Pipeline()
+rag_pipeline.add_component(
+    instance=SentenceTransformersTextEmbedder(model_name_or_path="sentence-transformers/all-MiniLM-L6-v2"),
+    name="embedder",
+)
+rag_pipeline.add_component(instance=AstraRetriever(document_store=document_store), name="retriever")
+rag_pipeline.add_component(instance=PromptBuilder(template=prompt_template), name="prompt_builder")
+rag_pipeline.add_component(instance=GPTGenerator(api_key=os.environ.get("OPENAI_API_KEY")), name="llm")
+rag_pipeline.add_component(instance=AnswerBuilder(), name="answer_builder")
+rag_pipeline.connect("embedder", "retriever")
+rag_pipeline.connect("retriever", "prompt_builder.documents")
+rag_pipeline.connect("prompt_builder", "llm")
+rag_pipeline.connect("llm.replies", "answer_builder.replies")
+rag_pipeline.connect("llm.metadata", "answer_builder.metadata")
+rag_pipeline.connect("retriever", "answer_builder.documents")
+
+
+# Draw the pipeline
+rag_pipeline.draw("./rag_pipeline.png")
+
 
 # Run the pipeline
-question = "How many languages are there?"
+question = "How many languages are there in the world today?"
 result = rag_pipeline.run(
-    {"retriever": {"query": question}, "prompt_builder": {"question": question}, "answer_builder": {"query": question}}
+    {"embedder": {"text": question}, "retriever": {"top_k": 1}, "prompt_builder": {"question": question}, "answer_builder": {"query": question}}
 )
-print(result["answer_builder"]["answers"][0].data)
+print(result)
