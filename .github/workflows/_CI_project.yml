@@ -1,4 +1,4 @@
-name: Track issues with Github project
+name: Core / Add issues to Github project
 
 on:
   issues:
