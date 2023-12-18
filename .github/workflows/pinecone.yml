@@ -32,7 +32,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
 
@@ -40,10 +40,10 @@ jobs:
         run: pip install --upgrade hatch
 
       - name: Lint
-        working-directory: pinecone
+        working-directory: integrations/pinecone
         if: matrix.python-version == '3.9'
         run: hatch run lint:all
 
       - name: Run tests
-        working-directory: pinecone
+        working-directory: integrations/pinecone
         run: hatch run cov
