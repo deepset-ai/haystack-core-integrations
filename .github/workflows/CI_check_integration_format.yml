@@ -1,0 +1,16 @@
+name: Core / Check Integration Format
+on:
+- pull_request
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Ensure no hyphens
+        run: |
+          set +e
+          find -name "*-*" -type d -maxdepth 2 | grep integrations
+          test "$?" -eq 1 && exit 0 || echo "::error::Names of folders in ./integrations must not contain hyphens" && exit 1
