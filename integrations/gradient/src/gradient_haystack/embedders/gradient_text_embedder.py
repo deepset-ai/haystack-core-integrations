@@ -76,7 +76,7 @@ class GradientTextEmbedder:
             msg = "The embedding model has not been loaded. Please call warm_up() before running."
             raise RuntimeError(msg)
 
-        result = self._embedding_model.generate_embeddings(inputs=[{"input": text}])
+        result = self._embedding_model.embed(inputs=[{"input": text}])
 
         if (not result) or (result.embeddings is None) or (len(result.embeddings) == 0):
             msg = "The embedding model did not return any embeddings."

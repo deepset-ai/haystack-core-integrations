@@ -7,11 +7,13 @@ name = "gradient-haystack"
 dynamic = ["version"]
 description = ''
 readme = "README.md"
-requires-python = ">=3.7"
+requires-python = ">=3.8"
 license = "Apache-2.0"
 keywords = []
 authors = [
-  { name = "Mateusz Haligowski", email = "mhaligowski@gmail.com" },
+  { name = "Mateusz Haligowski", email = "contact@gradient.ai" },
+  { name = "Michael Feil", email = "contact@gradient.ai" },
+  { name = "Hayden Wilson", email = "contact@gradient.ai" },
 ]
 classifiers = [
   "Development Status :: 4 - Beta",
@@ -26,8 +28,9 @@ classifiers = [
 ]
 dependencies = [
   "haystack-ai",
-  "gradientai",
+  "gradientai>=1.4.0",
 ]
+optional-dependencies = { tqdm = ["tqdm"] }
 
 [project.urls]
 Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/gradient#readme"
