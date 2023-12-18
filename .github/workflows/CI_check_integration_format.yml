@@ -13,4 +13,4 @@ jobs:
         run: |
           set +e
           find -name "*-*" -type d -maxdepth 2 | grep integrations
-          test "$?" -eq 1 || echo "::error::Names of folders in ./integrations must not contain hyphens" && exit 1
+          test "$?" -eq 1 && exit 0 || echo "::error::Names of folders in ./integrations must not contain hyphens" && exit 1
