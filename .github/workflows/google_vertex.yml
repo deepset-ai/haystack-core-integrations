@@ -7,12 +7,12 @@ on:
     - cron: "0 0 * * *"
   pull_request:
     paths:
-      - "integrations/google-vertex/**"
-      - ".github/workflows/google-vertex.yml"
+      - "integrations/google_vertex/**"
+      - ".github/workflows/google_vertex.yml"
 
 defaults:
   run:
-    working-directory: integrations/google-vertex
+    working-directory: integrations/google_vertex
 
 concurrency:
   group: google-vertex-${{ github.head_ref }}

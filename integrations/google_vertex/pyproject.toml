@@ -29,17 +29,17 @@ dependencies = [
 ]
 
 [project.urls]
-Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/google-vertex#readme"
+Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/google_vertex#readme"
 Issues = "https://github.com/deepset-ai/haystack-core-integrations/issues"
-Source = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/google-vertex"
+Source = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/google_vertex"
 
 [tool.hatch.version]
 source = "vcs"
-tag-pattern = 'integrations\/google-vertex-v(?P<version>.*)'
+tag-pattern = 'integrations\/google_vertex-v(?P<version>.*)'
 
 [tool.hatch.version.raw-options]
 root = "../.."
-git_describe_command = 'git describe --tags --match="integrations/google-vertex-v[0-9]*"'
+git_describe_command = 'git describe --tags --match="integrations/google_vertex-v[0-9]*"'
 
 [tool.hatch.envs.default]
 dependencies = [
@@ -150,8 +150,8 @@ omit = [
 ]
 
 [tool.coverage.paths]
-google_vertex_haystack = ["src/google_vertex_haystack", "*/google-vertex-haystack/src/google_vertex_haystack"]
-tests = ["tests", "*/google-vertex-haystack/tests"]
+google_vertex_haystack = ["src/google_vertex_haystack", "*/google_vertex/src/google_vertex_haystack"]
+tests = ["tests", "*/google_vertex_haystack/tests"]
 
 [tool.coverage.report]
 exclude_lines = [
