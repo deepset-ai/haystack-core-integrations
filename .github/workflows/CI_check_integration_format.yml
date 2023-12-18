@@ -1,0 +1,12 @@
+name: Core / Labeler
+on:
+- pull_request_target
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+
+    - name: Ensure no hyphens
+      run: |
+        find . -name "*-*" -type d -maxdepth 2 | grep integrations
