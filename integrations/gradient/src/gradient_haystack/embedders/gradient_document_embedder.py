@@ -4,10 +4,11 @@ from typing import Any, Dict, List, Optional
 from gradientai import Gradient
 from haystack import Document, component, default_to_dict
 
+tqdm_imported: bool = True
 try:
     from tqdm import tqdm
 except ImportError:
-    tqdm = None
+    tqdm_imported = False
 
 
 logger = logging.getLogger(__name__)
@@ -89,12 +90,12 @@ class GradientDocumentEmbedder:
         """
         Batches the documents and generates the embeddings.
         """
-        if self._progress_bar and tqdm is not None:
+        if self._progress_bar and tqdm_imported:
             batches = [documents[i : i + batch_size] for i in range(0, len(documents), batch_size)]
             progress_bar = tqdm
         else:
             # no progress bar
-            progress_bar = _alt_progress_bar
+            progress_bar = _alt_progress_bar  # type: ignore
             batches = [documents]
 
         embeddings = []
