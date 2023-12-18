@@ -1,4 +1,4 @@
-name: Core / Labeler
+name: Core / Check Integration Format
 on:
 - pull_request
 
@@ -12,6 +12,7 @@ jobs:
       - name: Ensure no hyphens
         run: |
           set +e
-          exitcode=$(find -name "*-*" -type d -maxdepth 2 | grep integrations)
+          find -name "*-*" -type d -maxdepth 2 | grep integrations
+          exitcode="$?"
           test $exitcode -eq 1 || echo "Names of folders in ./integrations must not contain hyphens"
           exit "$exitcode"
