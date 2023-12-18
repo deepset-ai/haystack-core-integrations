@@ -1,17 +1,13 @@
 import os
 from pathlib import Path
 
-from haystack.preview import Document
-from haystack.preview import Pipeline
-from haystack.preview.components.file_converters import TextFileToDocument
-from haystack.preview.components.writers import DocumentWriter
-from haystack.preview.document_stores import DuplicatePolicy
-from haystack.utils import add_example_data
+from haystack import Pipeline
+from haystack.components.converters import TextFileToDocument
+from haystack.document_stores import DuplicatePolicy
+from preprocessor import PreProcessor
 
 from astra_store.document_store import AstraDocumentStore
 from astra_store.retriever import AstraRetriever
-
-from preprocessor import PreProcessor
 
 HERE = Path(__file__).resolve().parent
 file_paths = [HERE / "data" / Path(name) for name in os.listdir("examples/data")]

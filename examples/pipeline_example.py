@@ -1,14 +1,13 @@
 import os
 
-from haystack.preview import Document
-from haystack.preview import Pipeline
-from haystack.preview.components.builders.answer_builder import AnswerBuilder
-from haystack.preview.components.builders.prompt_builder import PromptBuilder
-from haystack.preview.components.generators.openai.gpt import GPTGenerator
-from haystack.preview.document_stores import DuplicatePolicy
+from haystack import Document, Pipeline
+from haystack.components.builders.answer_builder import AnswerBuilder
+from haystack.components.builders.prompt_builder import PromptBuilder
+from haystack.components.generators import GPTGenerator
+from haystack.document_stores import DuplicatePolicy
 
 from astra_store.document_store import AstraDocumentStore
-from astra_store.retriever import AstraRetriever, AstraSingleRetriever
+from astra_store.retriever import AstraSingleRetriever
 
 # Create a RAG query pipeline
 prompt_template = """
@@ -55,12 +54,12 @@ rag_pipeline.draw("./rag_pipeline.png")
 
 # Add Documents
 documents = [
-    Document(text="There are over 7,000 languages spoken around the world today."),
+    Document(content="There are over 7,000 languages spoken around the world today."),
     Document(
-        text="Elephants have been observed to behave in a way that indicates a high level of self-awareness, such as recognizing themselves in mirrors."
+        content="Elephants have been observed to behave in a way that indicates a high level of self-awareness, such as recognizing themselves in mirrors."
     ),
     Document(
-        text="In certain parts of the world, like the Maldives, Puerto Rico, and San Diego, you can witness the phenomenon of bioluminescent waves."
+        content="In certain parts of the world, like the Maldives, Puerto Rico, and San Diego, you can witness the phenomenon of bioluminescent waves."
     ),
 ]
 rag_pipeline.get_component("retriever").document_store.write_documents(documents)

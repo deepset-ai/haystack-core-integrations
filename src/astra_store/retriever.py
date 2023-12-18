@@ -4,7 +4,7 @@
 
 from typing import Any, Dict, List, Optional
 
-from haystack.preview import Document, component
+from haystack import Document, component
 
 from astra_store.document_store import AstraDocumentStore
 
