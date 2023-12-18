@@ -11,5 +11,7 @@ jobs:
 
       - name: Ensure no hyphens
         run: |
-          out=$(find -name "*-*" -type d -maxdepth 2 | grep integrations)
-          test $out -eq 1 || echo "Names of folders in ./integrations must not contain hyphens"
+          set +e
+          exitcode=$(find -name "*-*" -type d -maxdepth 2 | grep integrations)
+          test $exitcode -eq 1 || echo "Names of folders in ./integrations must not contain hyphens"
+          exit "$exitcode"
