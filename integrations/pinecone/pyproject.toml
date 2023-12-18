@@ -7,7 +7,7 @@ name = "pinecone_haystack"
 dynamic = ["version"]
 description = ''
 readme = "README.md"
-requires-python = ">=3.7"
+requires-python = ">=3.8"
 license = "Apache-2.0"
 keywords = []
 authors = [
@@ -16,7 +16,6 @@ authors = [
 classifiers = [
   "Development Status :: 4 - Beta",
   "Programming Language :: Python",
-  "Programming Language :: Python :: 3.7",
   "Programming Language :: Python :: 3.8",
   "Programming Language :: Python :: 3.9",
   "Programming Language :: Python :: 3.10",
@@ -25,23 +24,28 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
 dependencies = [
-  # we distribute the preview version of Haystack 2.0 under the package "haystack-ai"
   "haystack-ai",
   "pinecone-client",
 ]
 
 [project.urls]
-Documentation = "https://github.com/unknown/example-store#readme"
-Issues = "https://github.com/unknown/example-store/issues"
-Source = "https://github.com/unknown/example-store"
+Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/pinecone#readme"
+Issues = "https://github.com/deepset-ai/haystack-core-integrations/issues"
+Source = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/pinecone"
 
 [tool.hatch.version]
-path = "src/pinecone_haystack/__about__.py"
+source = "vcs"
+tag-pattern = 'integrations\/pinecone-v(?P<version>.*)'
+
+[tool.hatch.version.raw-options]
+root = "../.."
+git_describe_command = 'git describe --tags --match="integrations/pinecone-v[0-9]*"'
 
 [tool.hatch.envs.default]
 dependencies = [
   "coverage[toml]>=6.5",
   "pytest",
+  "pytest-xdist",
 ]
 [tool.hatch.envs.default.scripts]
 test = "pytest {args:tests}"
@@ -56,7 +60,7 @@ cov = [
 ]
 
 [[tool.hatch.envs.all.matrix]]
-python = ["3.7", "3.8", "3.9", "3.10", "3.11"]
+python = ["3.8", "3.9", "3.10", "3.11"]
 
 [tool.hatch.envs.lint]
 detached = true
@@ -150,7 +154,6 @@ source_pkgs = ["pinecone_haystack", "tests"]
 branch = true
 parallel = true
 omit = [
-  "src/pinecone_haystack/__about__.py",
   "example"
 ]
 
