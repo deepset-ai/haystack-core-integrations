@@ -36,13 +36,13 @@ jobs:
           --health-cmd "curl --fail http://localhost:8000/healthcheck || exit 1"
           --health-interval 10s
           --health-timeout 1s
-          --health-retries 10                  
+          --health-retries 10
 
     steps:
       - uses: actions/checkout@v4
 
       - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
 

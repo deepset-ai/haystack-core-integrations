@@ -1,5 +1,5 @@
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling", "hatch-vcs"]
 build-backend = "hatchling.build"
 
 [project]
@@ -34,7 +34,12 @@ Issues = "https://github.com/deepset-ai/haystack-core-integrations/issues"
 Source = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/opensearch"
 
 [tool.hatch.version]
-path = "src/opensearch_haystack/__about__.py"
+source = "vcs"
+tag-pattern = 'integrations\/opensearch-v(?P<version>.*)'
+
+[tool.hatch.version.raw-options]
+root = "../.."
+git_describe_command = 'git describe --tags --match="integrations/opensearch-v[0-9]*"'
 
 [tool.hatch.envs.default]
 dependencies = [
