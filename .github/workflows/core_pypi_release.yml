@@ -1,13 +1,12 @@
-name: Project release on PyPi
+name: Core / Project release on PyPi
 
 # The pushed tag must be formatted like so:
-# * nodes/speech2text-v1.0.0
-# * stores/foo-documentstore-v1.2.3
+# * integrations/<INTEGRATION_FOLDER_NAME>-v1.0.0
 #
-# The first part must be the path of the project being released.
-# If we want to release version 1.0.0 of project text2speech
-# that lives in path nodes/text2speech we'd have to push a
-# nodes/text2speech-v1.0.0 tag.
+# For example, if we want to release version 1.0.99
+# of the google-vertex-haystack integration we'd have to push the tag:
+#
+# integrations/google_vertex-v1.0.99
 
 on:
   push:
