@@ -182,6 +182,25 @@ class TestDocumentStore(DocumentStoreBaseTests):
         assert "functional" in res[1].content
         assert "functional" in res[2].content
 
+    def test_bm25_not_all_terms_must_match(self, document_store: ElasticsearchDocumentStore):
+        """
+        Test that not all terms must mandatorily match for BM25 retrieval to return a result.
+        """
+        documents = [
+            Document(content="There are over 7,000 languages spoken around the world today."),
+            Document(
+                content="Elephants have been observed to behave in a way that indicates a high level of self-awareness, such as recognizing themselves in mirrors."
+            ),
+            Document(
+                content="In certain parts of the world, like the Maldives, Puerto Rico, and San Diego, you can witness the phenomenon of bioluminescent waves."
+            ),
+        ]
+        document_store.write_documents(documents)
+
+        res = document_store._bm25_retrieval("How much self awareness do elephants have?", top_k=3)
+        assert len(res) == 1
+        assert res[0] == documents[1]
+
     def test_embedding_retrieval(self, document_store: ElasticsearchDocumentStore):
         docs = [
             Document(content="Most similar document", embedding=[1.0, 1.0, 1.0, 1.0]),
