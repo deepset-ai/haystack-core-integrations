@@ -6,7 +6,7 @@ import pytest
 from pinecone_haystack.document_store import PineconeDocumentStore
 
 # This is the approximate time it takes for the documents to be available
-SLEEP_TIME = 17
+SLEEP_TIME = 20
 
 
 @pytest.fixture()
