@@ -13,14 +13,17 @@ from astra_store.retriever import AstraRetriever
 
 # Create a RAG query pipeline
 prompt_template = """
-    Given these documents, answer the question.\nDocuments:
-    {% for doc in documents %}
-        {{ doc.text }}
-    {% endfor %}
+                Given these documents, answer the question.
 
-    \nQuestion: {{question}}
-    \nAnswer:
-    """
+                Documents:
+                {% for doc in documents[0] %}
+                    {{ doc.content }}
+                {% endfor %}
+
+                Question: {{question}}
+
+                Answer:
+                """
 
 astra_id = os.getenv("ASTRA_DB_ID", "")
 astra_region = os.getenv("ASTRA_DB_REGION", "us-east1")
@@ -29,7 +32,7 @@ astra_application_token = os.getenv("ASTRA_DB_APPLICATION_TOKEN", "")
 collection_name = os.getenv("COLLECTION_NAME", "haystack_vector_search")
 keyspace_name = os.getenv("KEYSPACE_NAME", "recommender_demo")
 
-
+# We support many different databases. Here, we load a simple and lightweight in-memory database.
 document_store = AstraDocumentStore(
     astra_id=astra_id,
     astra_region=astra_region,
@@ -85,13 +88,8 @@ rag_pipeline.draw("./rag_pipeline.png")
 
 
 # Run the pipeline
-question = "How many languages are there spoken around the world today?"
+question = "How many languages are there in the world today?"
 result = rag_pipeline.run(
-    {
-        "embedder": {"text": question},
-        "retriever": {"top_k": 1},
-        "prompt_builder": {"question": question},
-        "answer_builder": {"query": question},
-    }
+    {"embedder": {"text": question}, "retriever": {"top_k": 2}, "prompt_builder": {"question": question}, "answer_builder": {"query": question}}
 )
 print(result)
