@@ -190,11 +190,17 @@ class TestDocumentStore(DocumentStoreBaseTests):
             Document(id=1, content="There are over 7,000 languages spoken around the world today."),
             Document(
                 id=2,
-                content="Elephants have been observed to behave in a way that indicates a high level of self-awareness, such as recognizing themselves in mirrors.",
+                content=(
+                    "Elephants have been observed to behave in a way that indicates a high level of self-awareness"
+                    " such as recognizing themselves in mirrors."
+                ),
             ),
             Document(
                 id=3,
-                content="In certain parts of the world, like the Maldives, Puerto Rico, and San Diego, you can witness the phenomenon of bioluminescent waves.",
+                content=(
+                    "In certain parts of the world, like the Maldives, Puerto Rico, and San Diego, you can witness"
+                    " the phenomenon of bioluminescent waves."
+                ),
             ),
         ]
         document_store.write_documents(documents)
