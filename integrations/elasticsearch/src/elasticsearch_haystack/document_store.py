@@ -108,8 +108,6 @@ class ElasticsearchDocumentStore:
         if top_k is None and "knn" in kwargs and "k" in kwargs["knn"]:
             top_k = kwargs["knn"]["k"]
 
-        print(top_k)
-
         documents: List[Document] = []
         from_ = 0
         # Handle pagination
@@ -119,8 +117,6 @@ class ElasticsearchDocumentStore:
                 from_=from_,
                 **kwargs,
             )
-
-            print(res)
 
             documents.extend(self._deserialize_document(hit) for hit in res["hits"]["hits"])
             from_ = len(documents)
@@ -267,7 +263,7 @@ class ElasticsearchDocumentStore:
                                 "query": query,
                                 "fuzziness": fuzziness,
                                 "type": "most_fields",
-                                "operator": "AND",
+                                "operator": "OR",
                             }
                         }
                     ]
