@@ -1,10 +1,12 @@
 import os
+
 # from pathlib import Path
 
 # from haystack import Pipeline
 # from haystack.components.converters import TextFileToDocument
 # from haystack.components.embedders import SentenceTransformersDocumentEmbedder
 from haystack.document_stores import DuplicatePolicy
+
 # from preprocessor import PreProcessor
 
 from astra_store.document_store import AstraDocumentStore
@@ -43,7 +45,7 @@ document_store = AstraDocumentStore(
     embedding_dim=384,
 )
 
-# Create components and an indexing pipeline that converts txt files to documents, 
+# Create components and an indexing pipeline that converts txt files to documents,
 # cleans and splits them, and indexes them
 p = Pipeline()
 p.add_component(instance=FileTypeRouter(mime_types=["text/plain", "application/pdf"]), name="file_type_router")
@@ -82,8 +84,19 @@ print("count:")
 print(document_store.count_documents())
 assert document_store.count_documents() == 9
 
-# print("filter:")
-# print(document_store.filter_documents({"field": "source_id", "operator": "==", "value":"dbd006074935e340be994cf2db0c9d58c04cce11a639afdea1ee901c5fa8167b"}))
+print("filter:")
+print(
+    document_store.filter_documents(
+        {
+            "field": "meta",
+            "operator": "==",
+            "value": {
+                "file_path": "/workspace/astra-haystack/examples/data/usr_01.txt",
+                "source_id": "5b2d27de79bba97da6fc446180d0d99e1024bc7dd6a757037f0934162cfb0916",
+            },
+        }
+    )
+)
 
 print("get_document_by_id")
 print(document_store.get_document_by_id("afce9044d7f610aa28b335c4694da52248460a6a19a57f8522a7665142aa2aa7"))

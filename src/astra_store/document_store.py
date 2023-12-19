@@ -332,7 +332,13 @@ class AstraDocumentStore:
         converted_filters = _convert_filters(filters)
 
         result = self._get_result_to_documents(
-            self.index.query(vector=query_embedding, top_k=top_k, filter=converted_filters, include_metadata=True, include_values=True)
+            self.index.query(
+                vector=query_embedding,
+                top_k=top_k,
+                filter=converted_filters,
+                include_metadata=True,
+                include_values=True,
+            )
         )
         results.append(result)
         logger.debug(f"Raw responses: {result}")  # leaving for debugging
