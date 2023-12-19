@@ -90,6 +90,11 @@ rag_pipeline.draw("./rag_pipeline.png")
 # Run the pipeline
 question = "How many languages are there in the world today?"
 result = rag_pipeline.run(
-    {"embedder": {"text": question}, "retriever": {"top_k": 2}, "prompt_builder": {"question": question}, "answer_builder": {"query": question}}
+    {
+        "embedder": {"text": question},
+        "retriever": {"top_k": 2},
+        "prompt_builder": {"question": question},
+        "answer_builder": {"query": question},
+    }
 )
 print(result)
