@@ -181,7 +181,7 @@ class PineconeDocumentStore:
         self,
         query_embedding: List[float],
         *,
-        filters: Optional[Dict[str, Any]] = None,  # noqa: ARG002
+        filters: Optional[Dict[str, Any]] = None,  # noqa: ARG002 (filters to be implemented)
         top_k: int = 10,
     ) -> List[Document]:
         """
