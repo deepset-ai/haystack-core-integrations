@@ -158,6 +158,8 @@ class PineconeDocumentStore:
         if not filters:
             # in this case, we try to return all documents but Pinecone has some limits
             documents = self._embedding_retrieval(query_embedding=self._dummy_vector, top_k=TOP_K_LIMIT)
+            for doc in documents:
+                doc.score = None
 
             total_docs_number = self.count_documents()
             if total_docs_number > TOP_K_LIMIT:
