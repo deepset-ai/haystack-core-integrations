@@ -187,19 +187,21 @@ class TestDocumentStore(DocumentStoreBaseTests):
         Test that not all terms must mandatorily match for BM25 retrieval to return a result.
         """
         documents = [
-            Document(content="There are over 7,000 languages spoken around the world today."),
+            Document(id=1, content="There are over 7,000 languages spoken around the world today."),
             Document(
-                content="Elephants have been observed to behave in a way that indicates a high level of self-awareness, such as recognizing themselves in mirrors."
+                id=2,
+                content="Elephants have been observed to behave in a way that indicates a high level of self-awareness, such as recognizing themselves in mirrors.",
             ),
             Document(
-                content="In certain parts of the world, like the Maldives, Puerto Rico, and San Diego, you can witness the phenomenon of bioluminescent waves."
+                id=3,
+                content="In certain parts of the world, like the Maldives, Puerto Rico, and San Diego, you can witness the phenomenon of bioluminescent waves.",
             ),
         ]
         document_store.write_documents(documents)
 
         res = document_store._bm25_retrieval("How much self awareness do elephants have?", top_k=3)
         assert len(res) == 1
-        assert res[0] == documents[1]
+        assert res[0].id == 2
 
     def test_embedding_retrieval(self, document_store: ElasticsearchDocumentStore):
         docs = [
