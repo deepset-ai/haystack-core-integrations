@@ -247,10 +247,6 @@ class ChromaDocumentStore:
                 # if the list contains multiple items, we need an $or chain
                 for v in value:
                     where["$or"].append({field: v})
-            elif field == "mime_type":
-                # Schedule for removal the original key, we're going to change it
-                keys_to_remove.append(field)
-                where["_mime_type"] = value
 
         for k in keys_to_remove:
             del filters[k]
@@ -310,8 +306,7 @@ class ChromaDocumentStore:
 
                 # prepare metadata
                 if metadatas := result.get("metadatas"):
-                    document_dict["metadata"] = dict(metadatas[i][j])
-                    document_dict["mime_type"] = document_dict["metadata"].pop("_mime_type")
+                    document_dict["meta"] = dict(metadatas[i][j])
 
                 if embeddings := result.get("embeddings"):
                     document_dict["embedding"] = np.array(embeddings[i][j])
