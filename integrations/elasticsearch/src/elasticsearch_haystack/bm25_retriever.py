@@ -48,12 +48,12 @@ class ElasticsearchBM25Retriever:
         return default_from_dict(cls, data)
 
     @component.output_types(documents=List[Document])
-    def run(self, query: str):
+    def run(self, query: str, top_k: int=None):
         docs = self._document_store._bm25_retrieval(
             query=query,
             filters=self._filters,
             fuzziness=self._fuzziness,
-            top_k=self._top_k,
+            top_k=self._top_k if top_k == None else top_k,
             scale_score=self._scale_score,
         )
         return {"documents": docs}
