@@ -53,15 +53,13 @@ class PineconeDocumentStore:
             [API reference](https://docs.pinecone.io/reference/create_index-1).
 
         """
-        if api_key is None:
-            try:
-                api_key = os.environ["PINECONE_API_KEY"]
-            except KeyError as e:
-                msg = (
-                    "PineconeDocumentStore expects a Pinecone API key. "
-                    "Set the PINECONE_API_KEY environment variable (recommended) or pass it explicitly."
-                )
-                raise ValueError(msg) from e
+        api_key = api_key or os.environ.get("PINECONE_API_KEY", None)
+        if not api_key:
+            msg = (
+                "PineconeDocumentStore expects a Pinecone API key. "
+                "Set the PINECONE_API_KEY environment variable (recommended) or pass it explicitly."
+            )
+            raise ValueError(msg)
 
         pinecone.init(api_key=api_key, environment=environment)
 

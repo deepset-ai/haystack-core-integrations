@@ -36,11 +36,11 @@ def document_store(request):
     # Override the count_documents method to wait for the documents to be available
     original_count_documents = store.count_documents
 
-    def count_documents_sleep():
+    def wait_and_count_documents():
         time.sleep(SLEEP_TIME)
         return original_count_documents()
 
-    store.count_documents = count_documents_sleep
+    store.count_documents = wait_and_count_documents
 
     yield store
     store._index.delete(delete_all=True, namespace=namespace)
