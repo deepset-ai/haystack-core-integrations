@@ -1,5 +1,4 @@
 import time
-from random import randint
 
 import pytest
 
@@ -23,7 +22,7 @@ def document_store(request):
     environment = "gcp-starter"
     index = "default"
     # Use a different namespace for each test so we can run them in parallel
-    namespace = f"{request.node.name}-{randint(0, 1000)}"  # noqa: S311  Ruff complains about using random numbers for cryptographic purposes
+    namespace = f"{request.node.name}-{int(time.time())}"
     dimension = 10
 
     store = PineconeDocumentStore(

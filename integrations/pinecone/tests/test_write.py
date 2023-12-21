@@ -31,10 +31,10 @@ class TestWriteDocuments(WriteDocumentsTest):
         time.sleep(sleep_time)
         self.assert_documents_are_equal(document_store.filter_documents(), [doc1])
 
-    @pytest.mark.skip(reason="Qdrant only supports UPSERT operations")
+    @pytest.mark.skip(reason="Pinecone only supports UPSERT operations")
     def test_write_documents_duplicate_fail(self, document_store: PineconeDocumentStore):
         ...
 
-    @pytest.mark.skip(reason="Qdrant only supports UPSERT operations")
+    @pytest.mark.skip(reason="Pinecone only supports UPSERT operations")
     def test_write_documents_duplicate_skip(self, document_store: PineconeDocumentStore):
         ...

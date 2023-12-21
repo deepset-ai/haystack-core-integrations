@@ -8,7 +8,7 @@ from typing import Any, Dict, List, Optional
 
 import pandas as pd
 import pinecone
-from haystack import default_from_dict, default_to_dict
+from haystack import default_to_dict
 from haystack.dataclasses import Document
 from haystack.document_stores import DuplicatePolicy
 
@@ -53,7 +53,7 @@ class PineconeDocumentStore:
             [API reference](https://docs.pinecone.io/reference/create_index-1).
 
         """
-        api_key = api_key or os.environ.get("PINECONE_API_KEY", None)
+        api_key = api_key or os.environ.get("PINECONE_API_KEY")
         if not api_key:
             msg = (
                 "PineconeDocumentStore expects a Pinecone API key. "
@@ -64,10 +64,22 @@ class PineconeDocumentStore:
         pinecone.init(api_key=api_key, environment=environment)
 
         if index not in pinecone.list_indexes():
+            logger.info(f"Index {index} does not exist. Creating a new index.")
             pinecone.create_index(name=index, dimension=dimension, **index_creation_kwargs)
+        else:
+            logger.info(f"Index {index} already exists. Connecting to it.")
 
         self._index = pinecone.Index(index_name=index)
-        self.dimension = self._index.describe_index_stats()["dimension"]
+
+        actual_dimension = self._index.describe_index_stats().get("dimension")
+        if actual_dimension and actual_dimension != dimension:
+            logger.warning(
+                f"Dimension of index {index} is {actual_dimension}, but {dimension} was specified. "
+                "The specified dimension will be ignored."
+                "If you need an index with a different dimension, please create a new one."
+            )
+        self.dimension = actual_dimension or dimension
+
         self._dummy_vector = [0.0] * self.dimension
         self.environment = environment
         self.index = index
@@ -85,10 +97,6 @@ class PineconeDocumentStore:
             batch_size=self.batch_size,
             **self.index_creation_kwargs,
         )
-
-    @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "PineconeDocumentStore":
-        return default_from_dict(cls, data)
 
     def count_documents(self) -> int:
         """
@@ -110,10 +118,12 @@ class PineconeDocumentStore:
 
         :return: The number of documents written to the document store.
         """
-        if len(documents) > 0:
+        try:
             if not isinstance(documents[0], Document):
-                msg = "param 'documents' must contain a list of objects of type Document"
-                raise ValueError(msg)
+                raise TypeError()
+        except (TypeError, KeyError) as e:
+            msg = "param 'documents' must contain a list of objects of type Document"
+            raise TypeError(msg) from e
 
         if policy not in [DuplicatePolicy.NONE, DuplicatePolicy.OVERWRITE]:
             logger.warning(
@@ -139,8 +149,9 @@ class PineconeDocumentStore:
                 doc_for_pinecone["metadata"]["dataframe"] = document.dataframe.to_json()
             if document.blob is not None:
                 logger.warning(
-                    f"Document {document.id} has a blob. Currently, storing blob in Pinecone is not supported. "
-                    "The blob will be ignored."
+                    f"Document {document.id} has the `blob` field set, but storing `ByteStream` "
+                    "objects in Pinecone is not supported. "
+                    "The content of the `blob` field will be ignored."
                 )
 
             documents_for_pinecone.append(doc_for_pinecone)
