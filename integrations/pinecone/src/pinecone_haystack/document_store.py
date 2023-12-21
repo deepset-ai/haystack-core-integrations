@@ -4,6 +4,7 @@
 import io
 import logging
 import os
+from copy import deepcopy
 from typing import Any, Dict, List, Optional
 
 import pandas as pd
@@ -118,12 +119,9 @@ class PineconeDocumentStore:
 
         :return: The number of documents written to the document store.
         """
-        try:
-            if not isinstance(documents[0], Document):
-                raise TypeError()
-        except (TypeError, KeyError) as e:
+        if len(documents) > 0 and not isinstance(documents[0], Document):
             msg = "param 'documents' must contain a list of objects of type Document"
-            raise TypeError(msg) from e
+            raise TypeError(msg)
 
         if policy not in [DuplicatePolicy.NONE, DuplicatePolicy.OVERWRITE]:
             logger.warning(
@@ -132,7 +130,7 @@ class PineconeDocumentStore:
             )
 
         documents_for_pinecone = []
-        for document in documents:
+        for document in deepcopy(documents):
             if document.embedding is None:
                 logger.warning(
                     f"Document {document.id} has no embedding. Pinecone is a purely vector database. "
