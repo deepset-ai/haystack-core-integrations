@@ -12,7 +12,6 @@ class TestWriteDocuments(WriteDocumentsTest):
         docs = [Document(id="1")]
         assert document_store.write_documents(docs) == 1
 
-
     @pytest.mark.skip(reason="Pinecone only supports UPSERT operations")
     def test_write_documents_duplicate_fail(self, document_store: PineconeDocumentStore):
         ...

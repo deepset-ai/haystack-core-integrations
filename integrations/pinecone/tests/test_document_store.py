@@ -1,7 +1,7 @@
 from unittest.mock import patch
 
-import pytest
 import numpy as np
+import pytest
 from haystack import Document
 
 from pinecone_haystack.document_store import PineconeDocumentStore
@@ -79,10 +79,10 @@ class TestDocumentStore:
         }
 
     def test_embedding_retrieval(self, document_store: PineconeDocumentStore):
-        query_embedding=[0.1] * 768
-        most_similar_embedding=[0.8] * 768
-        second_best_embedding=[0.8] * 700 + [0.1] * 3 + [0.2]* 65
-        another_embedding=np.random.rand(768).tolist()
+        query_embedding = [0.1] * 768
+        most_similar_embedding = [0.8] * 768
+        second_best_embedding = [0.8] * 700 + [0.1] * 3 + [0.2] * 65
+        another_embedding = np.random.rand(768).tolist()
 
         docs = [
             Document(content="Most similar document", embedding=most_similar_embedding),
