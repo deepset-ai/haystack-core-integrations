@@ -234,12 +234,18 @@ class PineconeDocumentStore:
             if dataframe_string:
                 dataframe = pd.read_json(io.StringIO(dataframe_string))
 
+            # we always store vectors during writing
+            # but we don't want to return them if they are dummy vectors
+            embedding = None
+            if pinecone_doc["values"] != self._dummy_vector:
+                embedding = pinecone_doc["values"]
+
             doc = Document(
                 id=pinecone_doc["id"],
                 content=content,
                 dataframe=dataframe,
                 meta=pinecone_doc["metadata"],
-                embedding=pinecone_doc["values"],
+                embedding=embedding,
                 score=pinecone_doc["score"],
             )
             documents.append(doc)

@@ -1,7 +1,7 @@
-import time
 from unittest.mock import patch
 
 import pytest
+import numpy as np
 from haystack import Document
 
 from pinecone_haystack.document_store import PineconeDocumentStore
@@ -78,15 +78,21 @@ class TestDocumentStore:
             },
         }
 
-    def test_embedding_retrieval(self, document_store: PineconeDocumentStore, sleep_time):
+    def test_embedding_retrieval(self, document_store: PineconeDocumentStore):
+        query_embedding=[0.1] * 768
+        most_similar_embedding=[0.8] * 768
+        second_best_embedding=[0.8] * 700 + [0.1] * 3 + [0.2]* 65
+        another_embedding=np.random.rand(768).tolist()
+
         docs = [
-            Document(content="Most similar document", embedding=[1.0] * 10),
-            Document(content="2nd best document", embedding=[0.8, 0.8, 0.8, 0.8, 0.5, 0.8, 0.8, 0.8, 0.8, 0.5]),
-            Document(content="Not very similar document", embedding=[0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]),
+            Document(content="Most similar document", embedding=most_similar_embedding),
+            Document(content="2nd best document", embedding=second_best_embedding),
+            Document(content="Not very similar document", embedding=another_embedding),
         ]
+
         document_store.write_documents(docs)
-        time.sleep(sleep_time)
-        results = document_store._embedding_retrieval(query_embedding=[0.1] * 10, top_k=2, filters={})
+
+        results = document_store._embedding_retrieval(query_embedding=query_embedding, top_k=2, filters={})
         assert len(results) == 2
         assert results[0].content == "Most similar document"
         assert results[1].content == "2nd best document"
