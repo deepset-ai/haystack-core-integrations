@@ -121,7 +121,7 @@ class PineconeDocumentStore:
         """
         if len(documents) > 0 and not isinstance(documents[0], Document):
             msg = "param 'documents' must contain a list of objects of type Document"
-            raise TypeError(msg)
+            raise ValueError(msg)
 
         if policy not in [DuplicatePolicy.NONE, DuplicatePolicy.OVERWRITE]:
             logger.warning(
