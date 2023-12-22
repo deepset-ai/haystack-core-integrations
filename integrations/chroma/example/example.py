@@ -3,7 +3,7 @@ import os
 from pathlib import Path
 
 from haystack import Pipeline
-from haystack.components.file_converters import TextFileToDocument
+from haystack.components.converters import TextFileToDocument
 from haystack.components.writers import DocumentWriter
 
 from chroma_haystack import ChromaDocumentStore
@@ -19,11 +19,11 @@ indexing = Pipeline()
 indexing.add_component("converter", TextFileToDocument())
 indexing.add_component("writer", DocumentWriter(document_store))
 indexing.connect("converter", "writer")
-indexing.run({"converter": {"paths": file_paths}})
+indexing.run({"converter": {"sources": file_paths}})
 
 querying = Pipeline()
 querying.add_component("retriever", ChromaQueryRetriever(document_store))
 results = querying.run({"retriever": {"queries": ["Variable declarations"], "top_k": 3}})
 
-for d in results["retriever"][0]:
-    print(d.metadata, d.score)
+for d in results["retriever"]["documents"][0]:
+    print(d.meta, d.score)

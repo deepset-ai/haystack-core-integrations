@@ -263,7 +263,7 @@ class ElasticsearchDocumentStore:
                                 "query": query,
                                 "fuzziness": fuzziness,
                                 "type": "most_fields",
-                                "operator": "AND",
+                                "operator": "OR",
                             }
                         }
                     ]
