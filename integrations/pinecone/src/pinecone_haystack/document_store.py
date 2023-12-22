@@ -186,7 +186,7 @@ class PineconeDocumentStore:
 
         This method is not mean to be part of the public interface of
         `PineconeDocumentStore` nor called directly.
-        `PineconeEmbeddingRetriever` uses this method directly and is the public interface for it.
+        `PineconeDenseRetriever` uses this method directly and is the public interface for it.
 
         :param query_embedding: Embedding of the query.
         :param namespace: Pinecone namespace to query. Defaults the namespace of the document store.

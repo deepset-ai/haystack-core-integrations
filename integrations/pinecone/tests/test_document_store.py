@@ -35,6 +35,8 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, WriteDocumentsT
             metric="euclidean",
         )
 
+        mock_pinecone.init.assert_called_with(api_key="fake-api-key", environment="gcp-starter")
+
         assert document_store.environment == "gcp-starter"
         assert document_store.index == "my_index"
         assert document_store.namespace == "test"
@@ -43,7 +45,7 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, WriteDocumentsT
         assert document_store.index_creation_kwargs == {"metric": "euclidean"}
 
     @patch("pinecone_haystack.document_store.pinecone")
-    def test_init_api_key_in_environment_variable(self, monkeypatch):
+    def test_init_api_key_in_environment_variable(self, mock_pinecone, monkeypatch):
         monkeypatch.setenv("PINECONE_API_KEY", "fake-api-key")
 
         PineconeDocumentStore(
@@ -55,7 +57,7 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, WriteDocumentsT
             metric="euclidean",
         )
 
-        assert True
+        mock_pinecone.init.assert_called_with(api_key="fake-api-key", environment="gcp-starter")
 
     def test_init_fails_wo_api_key(self, monkeypatch):
         api_key = None
