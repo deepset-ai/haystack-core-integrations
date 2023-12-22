@@ -129,30 +129,7 @@ class PineconeDocumentStore:
                 f"but got {policy}. Overwriting duplicates is enabled by default."
             )
 
-        documents_for_pinecone = []
-        for document in deepcopy(documents):
-            if document.embedding is None:
-                logger.warning(
-                    f"Document {document.id} has no embedding. Pinecone is a purely vector database. "
-                    "A dummy embedding will be used, but this can affect the search results. "
-                )
-                document.embedding = self._dummy_vector
-            doc_for_pinecone = {"id": document.id, "values": document.embedding, "metadata": document.meta}
-
-            # we save content/dataframe as metadata
-            # currently, storing blob in Pinecone is not supported
-            if document.content is not None:
-                doc_for_pinecone["metadata"]["content"] = document.content
-            if document.dataframe is not None:
-                doc_for_pinecone["metadata"]["dataframe"] = document.dataframe.to_json()
-            if document.blob is not None:
-                logger.warning(
-                    f"Document {document.id} has the `blob` field set, but storing `ByteStream` "
-                    "objects in Pinecone is not supported. "
-                    "The content of the `blob` field will be ignored."
-                )
-
-            documents_for_pinecone.append(doc_for_pinecone)
+        documents_for_pinecone = self._convert_documents_to_pinecone_format(documents)
 
         result = self._index.upsert(
             vectors=documents_for_pinecone, namespace=self.namespace, batch_size=self.batch_size
@@ -261,3 +238,30 @@ class PineconeDocumentStore:
             documents.append(doc)
 
         return documents
+
+    def _convert_documents_to_pinecone_format(self, documents: List[Document]) -> List[Dict[str, Any]]:
+        documents_for_pinecone = []
+        for document in documents:
+            embedding = document.embedding
+            if embedding is None:
+                logger.warning(
+                    f"Document {document.id} has no embedding. Pinecone is a purely vector database. "
+                    "A dummy embedding will be used, but this can affect the search results. "
+                )
+                embedding = self._dummy_vector
+            doc_for_pinecone = {"id": document.id, "values": embedding, "metadata": document.meta}
+
+            # we save content/dataframe as metadata
+            # currently, storing blob in Pinecone is not supported
+            if document.content is not None:
+                doc_for_pinecone["metadata"]["content"] = document.content
+            if document.dataframe is not None:
+                doc_for_pinecone["metadata"]["dataframe"] = document.dataframe.to_json()
+            if document.blob is not None:
+                logger.warning(
+                    f"Document {document.id} has the `blob` field set, but storing `ByteStream` "
+                    "objects in Pinecone is not supported. "
+                    "The content of the `blob` field will be ignored."
+                )
+
+            documents_for_pinecone.append(doc_for_pinecone)
