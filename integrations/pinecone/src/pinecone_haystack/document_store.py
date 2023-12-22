@@ -4,8 +4,8 @@
 import io
 import logging
 import os
-from typing import Any, Dict, List, Optional
 from copy import copy
+from typing import Any, Dict, List, Optional
 
 import pandas as pd
 import pinecone
