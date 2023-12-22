@@ -46,19 +46,6 @@ def _parse_comparison_condition(condition: Dict[str, Any]) -> Dict[str, Any]:
         return _parse_logical_condition(condition)
 
     field: str = condition["field"]
-
-    if field.startswith("meta."):
-        # Remove the "meta." prefix if present.
-        # Documents are flattened when using the PineconeDocumentStore
-        # so we don't need to specify the "meta." prefix.
-        # Instead of raising an error we handle it gracefully.
-        field = field[5:]
-
-    # if field == "content":
-    #     field = "meta.content"
-    # if field == "dataframe":
-    #     field = "meta.dataframe"
-
     if "operator" not in condition:
         msg = f"'operator' key missing in {condition}"
         raise FilterError(msg)
@@ -66,9 +53,16 @@ def _parse_comparison_condition(condition: Dict[str, Any]) -> Dict[str, Any]:
         msg = f"'value' key missing in {condition}"
         raise FilterError(msg)
     operator: str = condition["operator"]
+    if field.startswith("meta."):
+        # Remove the "meta." prefix if present.
+        # Documents are flattened when using the PineconeDocumentStore
+        # so we don't need to specify the "meta." prefix.
+        # Instead of raising an error we handle it gracefully.
+        field = field[5:]
+
     value: Any = condition["value"]
     if isinstance(value, DataFrame):
-        value = value.to_json()
+        value = value.to_json() 
 
     return COMPARISON_OPERATORS[operator](field, value)
 
