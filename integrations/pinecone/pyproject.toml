@@ -48,8 +48,9 @@ dependencies = [
   "pytest-xdist",
 ]
 [tool.hatch.envs.default.scripts]
-test = "pytest {args:tests}"
-test-cov = "coverage run -m pytest {args:tests}"
+# Pinecone tests are slow (require HTTP requests), so we run them in parallel
+test = "pytest -n auto --dist worksteal {args:tests}"
+test-cov = "coverage run -m pytest -n auto --dist worksteal {args:tests}"
 cov-report = [
   "- coverage combine",
   "coverage report",
