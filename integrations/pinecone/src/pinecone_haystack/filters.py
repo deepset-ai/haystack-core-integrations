@@ -83,7 +83,7 @@ def _not_equal(field: str, value: Any) -> Dict[str, Any]:
     supported_types = (str, int, float, bool)
     if not isinstance(value, supported_types):
         msg = (
-            f"Unsupported type for 'inequal' comparison: {type(value)}. "
+            f"Unsupported type for 'not equal' comparison: {type(value)}. "
             f"Types supported by Pinecone are: {supported_types}"
         )
         raise FilterError(msg)
