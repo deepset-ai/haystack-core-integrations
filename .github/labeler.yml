@@ -44,6 +44,11 @@ integration:qdrant:
       - any-glob-to-any-file: "integrations/qdrant/**/*"
       - any-glob-to-any-file: ".github/workflows/qdrant.yml"
 
+integration:pinecone:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/pinecone/**/*"
+      - any-glob-to-any-file: ".github/workflows/pinecone.yml"      
+
 integration:unstructured-fileconverter:
   - changed-files:
       - any-glob-to-any-file: "integrations/unstructured/fileconverter/**/*"
