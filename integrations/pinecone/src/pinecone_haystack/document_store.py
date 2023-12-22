@@ -264,3 +264,4 @@ class PineconeDocumentStore:
                 )
 
             documents_for_pinecone.append(doc_for_pinecone)
+        return documents_for_pinecone
