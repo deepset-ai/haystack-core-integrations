@@ -3,11 +3,24 @@ from unittest.mock import patch
 import numpy as np
 import pytest
 from haystack import Document
+from haystack.testing.document_store import CountDocumentsTest, DeleteDocumentsTest, WriteDocumentsTest
 
 from pinecone_haystack.document_store import PineconeDocumentStore
 
 
-class TestDocumentStore:
+class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, WriteDocumentsTest):
+    def test_write_documents(self, document_store: PineconeDocumentStore):
+        docs = [Document(id="1")]
+        assert document_store.write_documents(docs) == 1
+
+    @pytest.mark.skip(reason="Pinecone only supports UPSERT operations")
+    def test_write_documents_duplicate_fail(self, document_store: PineconeDocumentStore):
+        ...
+
+    @pytest.mark.skip(reason="Pinecone only supports UPSERT operations")
+    def test_write_documents_duplicate_skip(self, document_store: PineconeDocumentStore):
+        ...
+
     @patch("pinecone_haystack.document_store.pinecone")
     def test_init(self, mock_pinecone):
         mock_pinecone.Index.return_value.describe_index_stats.return_value = {"dimension": 30}

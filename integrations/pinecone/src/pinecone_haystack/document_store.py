@@ -164,7 +164,7 @@ class PineconeDocumentStore:
     def filter_documents(self, filters: Optional[Dict[str, Any]] = None) -> List[Document]:
         if not filters:
             # in this case, we try to return all documents but Pinecone has some limits
-            documents = self._embedding_retrieval(query_embedding=self._dummy_vector, top_k=TOP_K_LIMIT)
+            documents = self._embedding_retrieval(query_embedding=self._dummy_vector, namespace=self.namespace, top_k=TOP_K_LIMIT)
             for doc in documents:
                 doc.score = None
 
@@ -190,6 +190,7 @@ class PineconeDocumentStore:
         self,
         query_embedding: List[float],
         *,
+        namespace: Optional[str]=None,
         filters: Optional[Dict[str, Any]] = None,  # noqa: ARG002 (filters to be implemented)
         top_k: int = 10,
     ) -> List[Document]:
@@ -214,7 +215,7 @@ class PineconeDocumentStore:
         result = self._index.query(
             vector=query_embedding,
             top_k=top_k,
-            namespace=self.namespace,
+            namespace=namespace,
             include_values=True,
             include_metadata=True,
         )
