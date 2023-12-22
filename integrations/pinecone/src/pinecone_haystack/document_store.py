@@ -165,17 +165,17 @@ class PineconeDocumentStore:
         """
         Returns the documents that match the filters provided.
 
-        For a detailed specification of the filters, 
+        For a detailed specification of the filters,
         refer to the [documentation](https://docs.haystack.deepset.ai/v2.0/docs/metadata-filtering)
 
         :param filters: The filters to apply to the document list.
         :return: A list of Documents that match the given filters.
         """
-        
+
         # Pinecone only performs vector similarity search
         # here we are querying with a dummy vector and the max compatible top_k
         documents = self._embedding_retrieval(query_embedding=self._dummy_vector, filters=filters, top_k=TOP_K_LIMIT)
-        
+
         # when simply filtering, we don't want to return any scores
         # furthermore, we are querying with a dummy vector, so the scores are meaningless
         for doc in documents:
