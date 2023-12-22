@@ -162,23 +162,31 @@ class PineconeDocumentStore:
         return written_docs
 
     def filter_documents(self, filters: Optional[Dict[str, Any]] = None) -> List[Document]:
-        if not filters:
-            # in this case, we try to return all documents but Pinecone has some limits
-            documents = self._embedding_retrieval(
-                query_embedding=self._dummy_vector, namespace=self.namespace, top_k=TOP_K_LIMIT
+        """
+        Returns the documents that match the filters provided.
+
+        For a detailed specification of the filters, 
+        refer to the [documentation](https://docs.haystack.deepset.ai/v2.0/docs/metadata-filtering)
+
+        :param filters: The filters to apply to the document list.
+        :return: A list of Documents that match the given filters.
+        """
+        
+        # Pinecone only performs vector similarity search
+        # here we are querying with a dummy vector and the max compatible top_k
+        documents = self._embedding_retrieval(query_embedding=self._dummy_vector, filters=filters, top_k=TOP_K_LIMIT)
+        
+        # when simply filtering, we don't want to return any scores
+        # furthermore, we are querying with a dummy vector, so the scores are meaningless
+        for doc in documents:
+            doc.score = None
+
+        if len(documents) == TOP_K_LIMIT:
+            logger.warning(
+                f"PineconeDocumentStore can return at most {TOP_K_LIMIT} documents and the query has hit this limit. "
+                f"It is likely that there are more matching documents in the document store. "
             )
-            for doc in documents:
-                doc.score = None
-
-            total_docs_number = self.count_documents()
-            if total_docs_number > TOP_K_LIMIT:
-                logger.warning(
-                    f"PineconeDocumentStore can only return {TOP_K_LIMIT} documents. "
-                    f"However, there are {total_docs_number} documents in the namespace. "
-                )
-            return documents
-
-        return []
+        return documents
 
     def delete_documents(self, document_ids: List[str]) -> None:
         """
@@ -204,6 +212,7 @@ class PineconeDocumentStore:
         `PineconeEmbeddingRetriever` uses this method directly and is the public interface for it.
 
         :param query_embedding: Embedding of the query.
+        :param namespace: Pinecone namespace to query. Defaults the namespace of the document store.
         :param filters: Filters applied to the retrieved Documents. Defaults to None.
         :param top_k: Maximum number of Documents to return, defaults to 10
 
