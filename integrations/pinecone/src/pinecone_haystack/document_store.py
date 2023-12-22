@@ -5,6 +5,7 @@ import io
 import logging
 import os
 from typing import Any, Dict, List, Optional
+from copy import copy
 
 import pandas as pd
 import pinecone
@@ -241,14 +242,14 @@ class PineconeDocumentStore:
     def _convert_documents_to_pinecone_format(self, documents: List[Document]) -> List[Dict[str, Any]]:
         documents_for_pinecone = []
         for document in documents:
-            embedding = document.embedding
+            embedding = copy(document.embedding)
             if embedding is None:
                 logger.warning(
                     f"Document {document.id} has no embedding. Pinecone is a purely vector database. "
                     "A dummy embedding will be used, but this can affect the search results. "
                 )
                 embedding = self._dummy_vector
-            doc_for_pinecone = {"id": document.id, "values": embedding, "metadata": document.meta}
+            doc_for_pinecone = {"id": document.id, "values": embedding, "metadata": dict(document.meta)}
 
             # we save content/dataframe as metadata
             # currently, storing blob in Pinecone is not supported
