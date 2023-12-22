@@ -252,11 +252,11 @@ class PineconeDocumentStore:
             doc_for_pinecone = {"id": document.id, "values": embedding, "metadata": dict(document.meta)}
 
             # we save content/dataframe as metadata
-            # currently, storing blob in Pinecone is not supported
             if document.content is not None:
                 doc_for_pinecone["metadata"]["content"] = document.content
             if document.dataframe is not None:
                 doc_for_pinecone["metadata"]["dataframe"] = document.dataframe.to_json()
+            # currently, storing blob in Pinecone is not supported
             if document.blob is not None:
                 logger.warning(
                     f"Document {document.id} has the `blob` field set, but storing `ByteStream` "
