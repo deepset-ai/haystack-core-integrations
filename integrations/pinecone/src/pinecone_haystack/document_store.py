@@ -217,7 +217,7 @@ class PineconeDocumentStore:
         result = self._index.query(
             vector=query_embedding,
             top_k=top_k,
-            namespace=namespace,
+            namespace=namespace or self.namespace,
             include_values=True,
             include_metadata=True,
         )
