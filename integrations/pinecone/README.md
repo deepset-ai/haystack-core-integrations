@@ -1,17 +1,23 @@
-[![test](https://github.com/deepset-ai/document-store/actions/workflows/test.yml/badge.svg)](https://github.com/deepset-ai/document-store/actions/workflows/test.yml)
+[![test](https://github.com/deepset-ai/haystack-core-integrations/actions/workflows/pinecone.yml/badge.svg)](https://github.com/deepset-ai/haystack-core-integrations/actions/workflows/pinecone.yml)
+
+[![PyPI - Version](https://img.shields.io/pypi/v/pinecone-haystack.svg)](https://pypi.org/project/pinecone-haystack)
+[![PyPI - Python Version](https://img.shields.io/pypi/pyversions/pinecone-haystack.svg)](https://pypi.org/project/pinecone-haystack)
 
 # Pinecone Document Store
 
-This Github repository is a template that can be used to create custom document stores to extend
-the new [Haystack](https://github.com/deepset-ai/haystack/) API available under the `preview`
-package starting from version 1.15.
-
-While the new API is still under active development, the new "Store" architecture is quite stable
-and we are encouraging early adopters to contribute their custom document stores.
+Document Store for Haystack 2.x, supports Pinecone.
 
 ## Installation
 
-## Examples
+```console
+pip install pinecone-haystack
+```
+
+## Testing
+
+```console
+hatch run test
+```
 
 ## License
 
