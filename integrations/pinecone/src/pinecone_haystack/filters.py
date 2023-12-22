@@ -62,7 +62,7 @@ def _parse_comparison_condition(condition: Dict[str, Any]) -> Dict[str, Any]:
 
     value: Any = condition["value"]
     if isinstance(value, DataFrame):
-        value = value.to_json() 
+        value = value.to_json()
 
     return COMPARISON_OPERATORS[operator](field, value)
 
