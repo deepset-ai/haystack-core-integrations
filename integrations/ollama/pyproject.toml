@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "ollama"
+name = "ollama-haystack"
 dynamic = ["version"]
 description = 'An integration between the Ollama LLM framework and Haystack'
 readme = "README.md"
@@ -66,12 +66,10 @@ check = "mypy --install-types --non-interactive {args:src/ollama_haystack tests}
 source_pkgs = ["ollama_haystack", "tests"]
 branch = true
 parallel = true
-omit = [
-  "src/ollama_haystack/__about__.py",
-]
+
 
 [tool.coverage.paths]
-ollama_haystack = ["src/ollama_haystack", "*/ollama/src/ollama_haystack"]
+ollama_haystack = ["src/ollama_haystack", "*/ollama-haystack/src/ollama_haystack"]
 tests = ["tests", "*/ollama-haystack/tests"]
 
 [tool.coverage.report]
@@ -79,4 +77,9 @@ exclude_lines = [
   "no cov",
   "if __name__ == .__main__.:",
   "if TYPE_CHECKING:",
+]
+
+[tool.pytest.ini_options]
+markers = [
+    "integration: marks tests as slow (deselect with '-m \"not integration\"')",
 ]
