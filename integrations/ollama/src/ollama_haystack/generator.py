@@ -1,10 +1,11 @@
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass
 from datetime import datetime
-from typing import Optional, Any, Dict, List, Union
+from typing import Optional, Any, Dict, List
 from urllib.parse import urljoin
 
 import requests
 from haystack import component
+
 
 @dataclass
 class OllamaResponse:
@@ -21,12 +22,13 @@ class OllamaResponse:
     eval_duration: int
 
     def __post_init__(self):
-        self.metadata = {key: value for key, value in self.__dict__ if key != 'response'}
+        self.metadata = {
+            key: value for key, value in self.__dict__.items() if key != "response"
+        }
 
     def as_haystack_generator_response(self) -> Dict[str, List]:
         """Returns replies and metadata in the format required by haystack"""
-        return {'replies': [self.response],
-                'metadata': [self.metadata]}
+        return {"replies": [self.response], "metadata": [self.metadata]}
 
 
 @component
@@ -53,10 +55,12 @@ class OllamaGenerator:
         """
         return {"model": self.model_name}
 
-    def _post_args(self, prompt: str, generation_kwargs: Optional[Dict[str, Any]]):
+    def _post_args(self, prompt: str, generation_kwargs=None):
+        if generation_kwargs is None:
+            generation_kwargs = {}
         return {
-            'url': urljoin(self.url, '/api/generate'),
-            'json': {
+            "url": urljoin(self.url, "/api/generate"),
+            "json": {
                 "prompt": prompt,
                 "model": self.model_name,
                 "stream": False,
@@ -67,7 +71,6 @@ class OllamaGenerator:
 
     @component.output_types(replies=List[str], metadata=List[Dict[str, Any]])
     def run(self, prompt: str, generation_kwargs: Optional[Dict[str, Any]] = None):
-
         generation_kwargs = {**self.generation_kwargs, **(generation_kwargs or {})}
 
         response = requests.post(**self._post_args(prompt, generation_kwargs))
