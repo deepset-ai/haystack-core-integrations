@@ -4,7 +4,7 @@ from typing import Any, Callable, Dict, List, Optional
 
 from haystack import component, default_from_dict, default_to_dict
 from haystack.components.generators.utils import deserialize_callback_handler, serialize_callback_handler
-from haystack.dataclasses import ChatMessage, StreamingChunk
+from haystack.dataclasses import ChatMessage, ChatRole, StreamingChunk
 from haystack.lazy_imports import LazyImport
 
 with LazyImport(message="Run 'pip install cohere'") as cohere_import:
@@ -119,6 +119,14 @@ class CohereChatGenerator:
             data["init_parameters"]["streaming_callback"] = deserialize_callback_handler(serialized_callback_handler)
         return default_from_dict(cls, data)
 
+    def _message_to_dict(self, message: ChatMessage) -> Dict[str, str]:
+        if message.role == ChatRole.USER:
+            role = "User"
+        elif message.role == ChatRole.ASSISTANT:
+            role = "Chatbot"
+        chat_message = {"user_name": role, "text": message.content}
+        return chat_message
+
     @component.output_types(replies=List[ChatMessage])
     def run(self, messages: List[ChatMessage], generation_kwargs: Optional[Dict[str, Any]] = None):
         """
@@ -133,16 +141,20 @@ class CohereChatGenerator:
         """
         # update generation kwargs by merging with the generation kwargs passed to the run method
         generation_kwargs = {**self.generation_kwargs, **(generation_kwargs or {})}
-        message = [message.content for message in messages]
+        chat_history = [self._message_to_dict(m) for m in messages[:-1]]
         response = self.client.chat(
-            message=message[0], model=self.model_name, stream=self.streaming_callback is not None, **generation_kwargs
+            message=messages[-1].content,
+            model=self.model_name,
+            stream=self.streaming_callback is not None,
+            chat_history=chat_history,
+            **generation_kwargs,
         )
         if self.streaming_callback:
             for chunk in response:
                 if chunk.event_type == "text-generation":
                     stream_chunk = self._build_chunk(chunk)
                     self.streaming_callback(stream_chunk)
-            chat_message = ChatMessage(content=response.texts, role=None, name=None)
+            chat_message = ChatMessage.from_assistant(content=response.texts)
             chat_message.metadata.update(
                 {
                     "model": self.model_name,
@@ -151,7 +163,6 @@ class CohereChatGenerator:
                     "finish_reason": response.finish_reason,
                     "documents": response.documents,
                     "citations": response.citations,
-                    "chat-history": response.chat_history,
                 }
             )
         else:
@@ -178,7 +189,7 @@ class CohereChatGenerator:
         :return: The ChatMessage.
         """
         content = cohere_response.text
-        message = ChatMessage(content=content, role=None, name=None)
+        message = ChatMessage.from_assistant(content=content)
         message.metadata.update(
             {
                 "model": self.model_name,
@@ -187,7 +198,6 @@ class CohereChatGenerator:
                 "finish_reason": None,
                 "documents": cohere_response.documents,
                 "citations": cohere_response.citations,
-                "chat-history": cohere_response.chat_history,
             }
         )
         return message

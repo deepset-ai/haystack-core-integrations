@@ -4,7 +4,7 @@ from unittest.mock import Mock, patch
 import cohere
 import pytest
 from haystack.components.generators.utils import default_streaming_callback
-from haystack.dataclasses import ChatMessage, StreamingChunk
+from haystack.dataclasses import ChatMessage, ChatRole, StreamingChunk
 
 from cohere_haystack.chat.chat_generator import CohereChatGenerator
 
@@ -49,7 +49,7 @@ def streaming_chunk(text: str):
 
 @pytest.fixture
 def chat_messages():
-    return [ChatMessage(content="What's the capital of France", role=None, name=None)]
+    return [ChatMessage(content="What's the capital of France", role=ChatRole.ASSISTANT, name=None)]
 
 
 class TestCohereChatGenerator:
@@ -183,6 +183,12 @@ class TestCohereChatGenerator:
         assert [isinstance(reply, ChatMessage) for reply in response["replies"]]
 
     @pytest.mark.unit
+    def test_message_to_dict(self, chat_messages):
+        obj = CohereChatGenerator(api_key="api-key")
+        dictionary = [obj._message_to_dict(message) for message in chat_messages]
+        assert dictionary == [{"user_name": "Chatbot", "text": "What's the capital of France"}]
+
+    @pytest.mark.unit
     def test_run_with_params(self, chat_messages, mock_chat_response):
         component = CohereChatGenerator(
             api_key="test-api-key", generation_kwargs={"max_tokens": 10, "temperature": 0.5}
@@ -239,7 +245,7 @@ class TestCohereChatGenerator:
     )
     @pytest.mark.integration
     def test_live_run(self):
-        chat_messages = [ChatMessage(content="What's the capital of France", role=None, name="", metadata={})]
+        chat_messages = [ChatMessage(content="What's the capital of France", role=ChatRole.USER, name="", metadata={})]
         component = CohereChatGenerator(
             api_key=os.environ.get("COHERE_API_KEY"), generation_kwargs={"temperature": 0.8}
         )
@@ -257,7 +263,7 @@ class TestCohereChatGenerator:
         component = CohereChatGenerator(
             model_name="something-obviously-wrong", api_key=os.environ.get("COHERE_API_KEY")
         )
-        with pytest.raises(cohere.CohereAPIError, match=r"^Model not found (.+)$"):
+        with pytest.raises(cohere.CohereAPIError, match="finetuned model something-obviously-wrong is not valid"):
             component.run(chat_messages)
 
     @pytest.mark.skipif(
@@ -278,7 +284,7 @@ class TestCohereChatGenerator:
         callback = Callback()
         component = CohereChatGenerator(os.environ.get("COHERE_API_KEY"), streaming_callback=callback)
         results = component.run(
-            [ChatMessage(content="What's the capital of France? answer in a word", role=None, name=None)]
+            [ChatMessage(content="What's the capital of France? answer in a word", role=ChatRole.USER, name=None)]
         )
 
         assert len(results["replies"]) == 1
@@ -296,7 +302,7 @@ class TestCohereChatGenerator:
     )
     @pytest.mark.integration
     def test_live_run_with_connector(self):
-        chat_messages = [ChatMessage(content="What's the capital of France", role=None, name="", metadata={})]
+        chat_messages = [ChatMessage(content="What's the capital of France", role=ChatRole.USER, name="", metadata={})]
         component = CohereChatGenerator(
             api_key=os.environ.get("COHERE_API_KEY"), generation_kwargs={"temperature": 0.8}
         )
