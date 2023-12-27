@@ -53,7 +53,7 @@ class ElasticsearchBM25Retriever:
         Retrieve documents using the BM25 keyword-based algorithm.
 
         :param query: String to search in Documents' text.
-        :param top_k: Maximum number of Documents to return
+        :param top_k: Maximum number of Documents to return.
         :return: List of Documents that match the query.
         """
         docs = self._document_store._bm25_retrieval(
