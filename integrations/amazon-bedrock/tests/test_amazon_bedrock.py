@@ -29,7 +29,9 @@ def mock_boto3_session():
 
 @pytest.fixture
 def mock_prompt_handler():
-    with patch("haystack.components.generators.amazon_bedrock_handlers.DefaultPromptHandler") as mock_prompt_handler:
+    with patch(
+        "haystack.components.generators.amazon_bedrock_handlers.DefaultPromptHandler"
+    ) as mock_prompt_handler:
         yield mock_prompt_handler
 
 
@@ -69,11 +71,15 @@ def test_default_constructor(mock_auto_tokenizer, mock_boto3_session):
 
 
 @pytest.mark.unit
-def test_constructor_prompt_handler_initialized(mock_auto_tokenizer, mock_boto3_session):
+def test_constructor_prompt_handler_initialized(
+    mock_auto_tokenizer, mock_boto3_session
+):
     """
     Test that the constructor sets the prompt_handler correctly, with the correct model_max_length for llama-2
     """
-    layer = AmazonBedrockGenerator(model_name_or_path="anthropic.claude-v2", prompt_handler=mock_prompt_handler)
+    layer = AmazonBedrockGenerator(
+        model_name_or_path="anthropic.claude-v2", prompt_handler=mock_prompt_handler
+    )
     assert layer.prompt_handler is not None
     assert layer.prompt_handler.model_max_length == 4096
 
@@ -85,7 +91,9 @@ def test_constructor_with_model_kwargs(mock_auto_tokenizer, mock_boto3_session):
     """
     model_kwargs = {"temperature": 0.7}
 
-    layer = AmazonBedrockGenerator(model_name_or_path="anthropic.claude-v2", **model_kwargs)
+    layer = AmazonBedrockGenerator(
+        model_name_or_path="anthropic.claude-v2", **model_kwargs
+    )
     assert "temperature" in layer.model_adapter.model_kwargs
     assert layer.model_adapter.model_kwargs["temperature"] == 0.7
 
@@ -105,7 +113,9 @@ def test_invoke_with_no_kwargs(mock_auto_tokenizer, mock_boto3_session):
     Test invoke raises an error if no prompt is provided
     """
     layer = AmazonBedrockGenerator(model_name_or_path="anthropic.claude-v2")
-    with pytest.raises(ValueError, match="The model anthropic.claude-v2 requires a valid prompt."):
+    with pytest.raises(
+        ValueError, match="The model anthropic.claude-v2 requires a valid prompt."
+    ):
         layer.invoke()
 
 
@@ -128,9 +138,13 @@ def test_short_prompt_is_not_truncated(mock_boto3_session):
     max_length_generated_text = 3
     total_model_max_length = 10
 
-    with patch("transformers.AutoTokenizer.from_pretrained", return_value=mock_tokenizer):
+    with patch(
+        "transformers.AutoTokenizer.from_pretrained", return_value=mock_tokenizer
+    ):
         layer = AmazonBedrockGenerator(
-            "anthropic.claude-v2", max_length=max_length_generated_text, model_max_length=total_model_max_length
+            "anthropic.claude-v2",
+            max_length=max_length_generated_text,
+            model_max_length=total_model_max_length,
         )
         prompt_after_resize = layer._ensure_token_limit(mock_prompt_text)
 
@@ -161,9 +175,13 @@ def test_long_prompt_is_truncated(mock_boto3_session):
     max_length_generated_text = 3
     total_model_max_length = 10
 
-    with patch("transformers.AutoTokenizer.from_pretrained", return_value=mock_tokenizer):
+    with patch(
+        "transformers.AutoTokenizer.from_pretrained", return_value=mock_tokenizer
+    ):
         layer = AmazonBedrockGenerator(
-            "anthropic.claude-v2", max_length=max_length_generated_text, model_max_length=total_model_max_length
+            "anthropic.claude-v2",
+            max_length=max_length_generated_text,
+            model_max_length=total_model_max_length,
         )
         prompt_after_resize = layer._ensure_token_limit(long_prompt_text)
 
@@ -184,7 +202,8 @@ def test_supports_for_valid_aws_configuration():
         return_value=mock_session,
     ):
         supported = AmazonBedrockGenerator.supports(
-            model_name_or_path="anthropic.claude-v2", aws_profile_name="some_real_profile"
+            model_name_or_path="anthropic.claude-v2",
+            aws_profile_name="some_real_profile",
         )
     args, kwargs = mock_session.client("bedrock").list_foundation_models.call_args
     assert kwargs["byOutputModality"] == "TEXT"
@@ -196,9 +215,12 @@ def test_supports_for_valid_aws_configuration():
 def test_supports_raises_on_invalid_aws_profile_name():
     with patch("boto3.Session") as mock_boto3_session:
         mock_boto3_session.side_effect = BotoCoreError()
-        with pytest.raises(AmazonBedrockConfigurationError, match="Failed to initialize the session"):
+        with pytest.raises(
+            AmazonBedrockConfigurationError, match="Failed to initialize the session"
+        ):
             AmazonBedrockGenerator.supports(
-                model_name_or_path="anthropic.claude-v2", aws_profile_name="some_fake_profile"
+                model_name_or_path="anthropic.claude-v2",
+                aws_profile_name="some_fake_profile",
             )
 
 
@@ -211,9 +233,12 @@ def test_supports_for_invalid_bedrock_config():
     with patch(
         "haystack.components.generators.AmazonBedrockGenerator.get_aws_session",
         return_value=mock_session,
-    ), pytest.raises(AmazonBedrockConfigurationError, match="Could not connect to Amazon Bedrock."):
+    ), pytest.raises(
+        AmazonBedrockConfigurationError, match="Could not connect to Amazon Bedrock."
+    ):
         AmazonBedrockGenerator.supports(
-            model_name_or_path="anthropic.claude-v2", aws_profile_name="some_real_profile"
+            model_name_or_path="anthropic.claude-v2",
+            aws_profile_name="some_real_profile",
         )
 
 
@@ -226,15 +251,20 @@ def test_supports_for_invalid_bedrock_config_error_on_list_models():
     with patch(
         "haystack.components.generators.AmazonBedrockGenerator.get_aws_session",
         return_value=mock_session,
-    ), pytest.raises(AmazonBedrockConfigurationError, match="Could not connect to Amazon Bedrock."):
+    ), pytest.raises(
+        AmazonBedrockConfigurationError, match="Could not connect to Amazon Bedrock."
+    ):
         AmazonBedrockGenerator.supports(
-            model_name_or_path="anthropic.claude-v2", aws_profile_name="some_real_profile"
+            model_name_or_path="anthropic.claude-v2",
+            aws_profile_name="some_real_profile",
         )
 
 
 @pytest.mark.unit
 def test_supports_for_no_aws_params():
-    supported = AmazonBedrockGenerator.supports(model_name_or_path="anthropic.claude-v2")
+    supported = AmazonBedrockGenerator.supports(
+        model_name_or_path="anthropic.claude-v2"
+    )
 
     assert supported == False
 
@@ -252,7 +282,9 @@ def test_supports_for_unknown_model():
 def test_supports_with_stream_true_for_model_that_supports_streaming():
     mock_session = MagicMock()
     mock_session.client("bedrock").list_foundation_models.return_value = {
-        "modelSummaries": [{"modelId": "anthropic.claude-v2", "responseStreamingSupported": True}]
+        "modelSummaries": [
+            {"modelId": "anthropic.claude-v2", "responseStreamingSupported": True}
+        ]
     }
 
     # Patch the class method to return the mock session
@@ -261,7 +293,9 @@ def test_supports_with_stream_true_for_model_that_supports_streaming():
         return_value=mock_session,
     ):
         supported = AmazonBedrockGenerator.supports(
-            model_name_or_path="anthropic.claude-v2", aws_profile_name="some_real_profile", stream=True
+            model_name_or_path="anthropic.claude-v2",
+            aws_profile_name="some_real_profile",
+            stream=True,
         )
 
         assert supported
@@ -271,16 +305,23 @@ def test_supports_with_stream_true_for_model_that_supports_streaming():
 def test_supports_with_stream_true_for_model_that_does_not_support_streaming():
     mock_session = MagicMock()
     mock_session.client("bedrock").list_foundation_models.return_value = {
-        "modelSummaries": [{"modelId": "ai21.j2-mid-v1", "responseStreamingSupported": False}]
+        "modelSummaries": [
+            {"modelId": "ai21.j2-mid-v1", "responseStreamingSupported": False}
+        ]
     }
 
     # Patch the class method to return the mock session
     with patch(
         "haystack.components.generators.AmazonBedrockGenerator.get_aws_session",
         return_value=mock_session,
-    ), pytest.raises(AmazonBedrockConfigurationError, match="The model ai21.j2-mid-v1 doesn't support streaming."):
+    ), pytest.raises(
+        AmazonBedrockConfigurationError,
+        match="The model ai21.j2-mid-v1 doesn't support streaming.",
+    ):
         AmazonBedrockGenerator.supports(
-            model_name_or_path="ai21.j2-mid-v1", aws_profile_name="some_real_profile", stream=True
+            model_name_or_path="ai21.j2-mid-v1",
+            aws_profile_name="some_real_profile",
+            stream=True,
         )
 
 
@@ -308,11 +349,15 @@ def test_supports_with_stream_true_for_model_that_does_not_support_streaming():
         ("unknown_model", None),
     ],
 )
-def test_get_model_adapter(model_name_or_path: str, expected_model_adapter: Optional[Type[BedrockModelAdapter]]):
+def test_get_model_adapter(
+    model_name_or_path: str, expected_model_adapter: Optional[Type[BedrockModelAdapter]]
+):
     """
     Test that the correct model adapter is returned for a given model_name_or_path
     """
-    model_adapter = AmazonBedrockGenerator.get_model_adapter(model_name_or_path=model_name_or_path)
+    model_adapter = AmazonBedrockGenerator.get_model_adapter(
+        model_name_or_path=model_name_or_path
+    )
     assert model_adapter == expected_model_adapter
 
 
@@ -401,7 +446,9 @@ class TestAnthropicClaudeAdapter:
             "top_k": 5,
         }
 
-        body = layer.prepare_body(prompt, temperature=0.7, top_p=0.8, top_k=5, max_tokens_to_sample=50)
+        body = layer.prepare_body(
+            prompt, temperature=0.7, top_p=0.8, top_k=5, max_tokens_to_sample=50
+        )
 
         assert body == expected_body
 
@@ -429,11 +476,16 @@ class TestAnthropicClaudeAdapter:
             {"chunk": {"bytes": b'{"completion": " response."}'}},
         ]
 
-        stream_handler_mock.side_effect = lambda token_received, **kwargs: token_received
+        stream_handler_mock.side_effect = (
+            lambda token_received, **kwargs: token_received
+        )
 
         adapter = AnthropicClaudeAdapter(model_kwargs={}, max_length=99)
         expected_responses = ["This is a single response."]
-        assert adapter.get_stream_responses(stream_mock, stream_handler_mock) == expected_responses
+        assert (
+            adapter.get_stream_responses(stream_mock, stream_handler_mock)
+            == expected_responses
+        )
 
         stream_handler_mock.assert_has_calls(
             [
@@ -451,11 +503,16 @@ class TestAnthropicClaudeAdapter:
 
         stream_mock.__iter__.return_value = []
 
-        stream_handler_mock.side_effect = lambda token_received, **kwargs: token_received
+        stream_handler_mock.side_effect = (
+            lambda token_received, **kwargs: token_received
+        )
 
         adapter = AnthropicClaudeAdapter(model_kwargs={}, max_length=99)
         expected_responses = [""]
-        assert adapter.get_stream_responses(stream_mock, stream_handler_mock) == expected_responses
+        assert (
+            adapter.get_stream_responses(stream_mock, stream_handler_mock)
+            == expected_responses
+        )
 
         stream_handler_mock.assert_not_called()
 
@@ -601,9 +658,15 @@ class TestCohereCommandAdapter:
     def test_get_responses_multiple_responses(self) -> None:
         adapter = CohereCommandAdapter(model_kwargs={}, max_length=99)
         response_body = {
-            "generations": [{"text": "This is a single response."}, {"text": "This is a second response."}]
+            "generations": [
+                {"text": "This is a single response."},
+                {"text": "This is a second response."},
+            ]
         }
-        expected_responses = ["This is a single response.", "This is a second response."]
+        expected_responses = [
+            "This is a single response.",
+            "This is a second response.",
+        ]
         assert adapter.get_responses(response_body) == expected_responses
 
     def test_get_stream_responses(self) -> None:
@@ -616,14 +679,23 @@ class TestCohereCommandAdapter:
             {"chunk": {"bytes": b'{"text": " a"}'}},
             {"chunk": {"bytes": b'{"text": " single"}'}},
             {"chunk": {"bytes": b'{"text": " response."}'}},
-            {"chunk": {"bytes": b'{"finish_reason": "MAX_TOKENS", "is_finished": true}'}},
+            {
+                "chunk": {
+                    "bytes": b'{"finish_reason": "MAX_TOKENS", "is_finished": true}'
+                }
+            },
         ]
 
-        stream_handler_mock.side_effect = lambda token_received, **kwargs: token_received
+        stream_handler_mock.side_effect = (
+            lambda token_received, **kwargs: token_received
+        )
 
         adapter = CohereCommandAdapter(model_kwargs={}, max_length=99)
         expected_responses = ["This is a single response."]
-        assert adapter.get_stream_responses(stream_mock, stream_handler_mock) == expected_responses
+        assert (
+            adapter.get_stream_responses(stream_mock, stream_handler_mock)
+            == expected_responses
+        )
 
         stream_handler_mock.assert_has_calls(
             [
@@ -632,7 +704,9 @@ class TestCohereCommandAdapter:
                 call(" a", event_data={"text": " a"}),
                 call(" single", event_data={"text": " single"}),
                 call(" response.", event_data={"text": " response."}),
-                call("", event_data={"finish_reason": "MAX_TOKENS", "is_finished": True}),
+                call(
+                    "", event_data={"finish_reason": "MAX_TOKENS", "is_finished": True}
+                ),
             ]
         )
 
@@ -642,11 +716,16 @@ class TestCohereCommandAdapter:
 
         stream_mock.__iter__.return_value = []
 
-        stream_handler_mock.side_effect = lambda token_received, **kwargs: token_received
+        stream_handler_mock.side_effect = (
+            lambda token_received, **kwargs: token_received
+        )
 
         adapter = CohereCommandAdapter(model_kwargs={}, max_length=99)
         expected_responses = [""]
-        assert adapter.get_stream_responses(stream_mock, stream_handler_mock) == expected_responses
+        assert (
+            adapter.get_stream_responses(stream_mock, stream_handler_mock)
+            == expected_responses
+        )
 
         stream_handler_mock.assert_not_called()
 
@@ -766,13 +845,17 @@ class TestAI21LabsJurassic2Adapter:
 
     def test_get_responses(self) -> None:
         adapter = AI21LabsJurassic2Adapter(model_kwargs={}, max_length=99)
-        response_body = {"completions": [{"data": {"text": "This is a single response."}}]}
+        response_body = {
+            "completions": [{"data": {"text": "This is a single response."}}]
+        }
         expected_responses = ["This is a single response."]
         assert adapter.get_responses(response_body) == expected_responses
 
     def test_get_responses_leading_whitespace(self) -> None:
         adapter = AI21LabsJurassic2Adapter(model_kwargs={}, max_length=99)
-        response_body = {"completions": [{"data": {"text": "\n\t This is a single response."}}]}
+        response_body = {
+            "completions": [{"data": {"text": "\n\t This is a single response."}}]
+        }
         expected_responses = ["This is a single response."]
         assert adapter.get_responses(response_body) == expected_responses
 
@@ -784,7 +867,10 @@ class TestAI21LabsJurassic2Adapter:
                 {"data": {"text": "This is a second response."}},
             ]
         }
-        expected_responses = ["This is a single response.", "This is a second response."]
+        expected_responses = [
+            "This is a single response.",
+            "This is a second response.",
+        ]
         assert adapter.get_responses(response_body) == expected_responses
 
 
@@ -792,7 +878,10 @@ class TestAmazonTitanAdapter:
     def test_prepare_body_with_default_params(self) -> None:
         layer = AmazonTitanAdapter(model_kwargs={}, max_length=99)
         prompt = "Hello, how are you?"
-        expected_body = {"inputText": "Hello, how are you?", "textGenerationConfig": {"maxTokenCount": 99}}
+        expected_body = {
+            "inputText": "Hello, how are you?",
+            "textGenerationConfig": {"maxTokenCount": 99},
+        }
 
         body = layer.prepare_body(prompt)
 
@@ -888,9 +977,15 @@ class TestAmazonTitanAdapter:
     def test_get_responses_multiple_responses(self) -> None:
         adapter = AmazonTitanAdapter(model_kwargs={}, max_length=99)
         response_body = {
-            "results": [{"outputText": "This is a single response."}, {"outputText": "This is a second response."}]
+            "results": [
+                {"outputText": "This is a single response."},
+                {"outputText": "This is a second response."},
+            ]
         }
-        expected_responses = ["This is a single response.", "This is a second response."]
+        expected_responses = [
+            "This is a single response.",
+            "This is a second response.",
+        ]
         assert adapter.get_responses(response_body) == expected_responses
 
     def test_get_stream_responses(self) -> None:
@@ -905,11 +1000,16 @@ class TestAmazonTitanAdapter:
             {"chunk": {"bytes": b'{"outputText": " response."}'}},
         ]
 
-        stream_handler_mock.side_effect = lambda token_received, **kwargs: token_received
+        stream_handler_mock.side_effect = (
+            lambda token_received, **kwargs: token_received
+        )
 
         adapter = AmazonTitanAdapter(model_kwargs={}, max_length=99)
         expected_responses = ["This is a single response."]
-        assert adapter.get_stream_responses(stream_mock, stream_handler_mock) == expected_responses
+        assert (
+            adapter.get_stream_responses(stream_mock, stream_handler_mock)
+            == expected_responses
+        )
 
         stream_handler_mock.assert_has_calls(
             [
@@ -927,11 +1027,16 @@ class TestAmazonTitanAdapter:
 
         stream_mock.__iter__.return_value = []
 
-        stream_handler_mock.side_effect = lambda token_received, **kwargs: token_received
+        stream_handler_mock.side_effect = (
+            lambda token_received, **kwargs: token_received
+        )
 
         adapter = AmazonTitanAdapter(model_kwargs={}, max_length=99)
         expected_responses = [""]
-        assert adapter.get_stream_responses(stream_mock, stream_handler_mock) == expected_responses
+        assert (
+            adapter.get_stream_responses(stream_mock, stream_handler_mock)
+            == expected_responses
+        )
 
         stream_handler_mock.assert_not_called()
 
@@ -949,19 +1054,40 @@ class TestMetaLlama2ChatAdapter:
     def test_prepare_body_with_custom_inference_params(self) -> None:
         layer = MetaLlama2ChatAdapter(model_kwargs={}, max_length=99)
         prompt = "Hello, how are you?"
-        expected_body = {"prompt": "Hello, how are you?", "max_gen_len": 50, "temperature": 0.7, "top_p": 0.8}
+        expected_body = {
+            "prompt": "Hello, how are you?",
+            "max_gen_len": 50,
+            "temperature": 0.7,
+            "top_p": 0.8,
+        }
 
-        body = layer.prepare_body(prompt, temperature=0.7, top_p=0.8, max_gen_len=50, unknown_arg="unknown_value")
+        body = layer.prepare_body(
+            prompt,
+            temperature=0.7,
+            top_p=0.8,
+            max_gen_len=50,
+            unknown_arg="unknown_value",
+        )
 
         assert body == expected_body
 
     def test_prepare_body_with_model_kwargs(self) -> None:
         layer = MetaLlama2ChatAdapter(
-            model_kwargs={"temperature": 0.7, "top_p": 0.8, "max_gen_len": 50, "unknown_arg": "unknown_value"},
+            model_kwargs={
+                "temperature": 0.7,
+                "top_p": 0.8,
+                "max_gen_len": 50,
+                "unknown_arg": "unknown_value",
+            },
             max_length=99,
         )
         prompt = "Hello, how are you?"
-        expected_body = {"prompt": "Hello, how are you?", "max_gen_len": 50, "temperature": 0.7, "top_p": 0.8}
+        expected_body = {
+            "prompt": "Hello, how are you?",
+            "max_gen_len": 50,
+            "temperature": 0.7,
+            "top_p": 0.8,
+        }
 
         body = layer.prepare_body(prompt)
 
@@ -969,10 +1095,21 @@ class TestMetaLlama2ChatAdapter:
 
     def test_prepare_body_with_model_kwargs_and_custom_inference_params(self) -> None:
         layer = MetaLlama2ChatAdapter(
-            model_kwargs={"temperature": 0.6, "top_p": 0.7, "top_k": 4, "max_gen_len": 49}, max_length=99
+            model_kwargs={
+                "temperature": 0.6,
+                "top_p": 0.7,
+                "top_k": 4,
+                "max_gen_len": 49,
+            },
+            max_length=99,
         )
         prompt = "Hello, how are you?"
-        expected_body = {"prompt": "Hello, how are you?", "max_gen_len": 50, "temperature": 0.7, "top_p": 0.7}
+        expected_body = {
+            "prompt": "Hello, how are you?",
+            "max_gen_len": 50,
+            "temperature": 0.7,
+            "top_p": 0.7,
+        }
 
         body = layer.prepare_body(prompt, temperature=0.7, max_gen_len=50)
 
@@ -1002,11 +1139,16 @@ class TestMetaLlama2ChatAdapter:
             {"chunk": {"bytes": b'{"generation": " response."}'}},
         ]
 
-        stream_handler_mock.side_effect = lambda token_received, **kwargs: token_received
+        stream_handler_mock.side_effect = (
+            lambda token_received, **kwargs: token_received
+        )
 
         adapter = MetaLlama2ChatAdapter(model_kwargs={}, max_length=99)
         expected_responses = ["This is a single response."]
-        assert adapter.get_stream_responses(stream_mock, stream_handler_mock) == expected_responses
+        assert (
+            adapter.get_stream_responses(stream_mock, stream_handler_mock)
+            == expected_responses
+        )
 
         stream_handler_mock.assert_has_calls(
             [
@@ -1024,10 +1166,15 @@ class TestMetaLlama2ChatAdapter:
 
         stream_mock.__iter__.return_value = []
 
-        stream_handler_mock.side_effect = lambda token_received, **kwargs: token_received
+        stream_handler_mock.side_effect = (
+            lambda token_received, **kwargs: token_received
+        )
 
         adapter = MetaLlama2ChatAdapter(model_kwargs={}, max_length=99)
         expected_responses = [""]
-        assert adapter.get_stream_responses(stream_mock, stream_handler_mock) == expected_responses
+        assert (
+            adapter.get_stream_responses(stream_mock, stream_handler_mock)
+            == expected_responses
+        )
 
         stream_handler_mock.assert_not_called()

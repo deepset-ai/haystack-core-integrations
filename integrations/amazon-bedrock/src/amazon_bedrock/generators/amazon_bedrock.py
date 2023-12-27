@@ -3,11 +3,24 @@ import logging
 import re
 from typing import Dict, Type, Optional, Union, List, Any
 
-from haystack.components.generators.amazon_bedrock_adapters import BedrockModelAdapter, AmazonTitanAdapter, \
-    AI21LabsJurassic2Adapter, CohereCommandAdapter, AnthropicClaudeAdapter, MetaLlama2ChatAdapter
-from haystack.components.generators.amazon_bedrock_handlers import DefaultPromptHandler, DefaultTokenStreamingHandler, \
-    TokenStreamingHandler
-from haystack.errors import AmazonBedrockConfigurationError, AWSConfigurationError, AmazonBedrockInferenceError
+from haystack.components.generators.amazon_bedrock_adapters import (
+    BedrockModelAdapter,
+    AmazonTitanAdapter,
+    AI21LabsJurassic2Adapter,
+    CohereCommandAdapter,
+    AnthropicClaudeAdapter,
+    MetaLlama2ChatAdapter,
+)
+from haystack.components.generators.amazon_bedrock_handlers import (
+    DefaultPromptHandler,
+    DefaultTokenStreamingHandler,
+    TokenStreamingHandler,
+)
+from haystack.errors import (
+    AmazonBedrockConfigurationError,
+    AWSConfigurationError,
+    AmazonBedrockInferenceError,
+)
 
 from haystack.lazy_imports import LazyImport
 from haystack import component
@@ -101,17 +114,25 @@ class AmazonBedrockGenerator:
         # It is hard to determine which tokenizer to use for the SageMaker model
         # so we use GPT2 tokenizer which will likely provide good token count approximation
         self.prompt_handler = DefaultPromptHandler(
-            model_name_or_path="gpt2", model_max_length=model_max_length, max_length=self.max_length or 100
+            model_name_or_path="gpt2",
+            model_max_length=model_max_length,
+            max_length=self.max_length or 100,
         )
 
-        model_apapter_cls = self.get_model_adapter(model_name_or_path=model_name_or_path)
+        model_apapter_cls = self.get_model_adapter(
+            model_name_or_path=model_name_or_path
+        )
         if not model_apapter_cls:
             raise AmazonBedrockConfigurationError(
                 f"AmazonBedrockGenerator doesn't support the model {model_name_or_path}."
             )
-        self.model_adapter = model_apapter_cls(model_kwargs=model_input_kwargs, max_length=self.max_length)
+        self.model_adapter = model_apapter_cls(
+            model_kwargs=model_input_kwargs, max_length=self.max_length
+        )
 
-    def _ensure_token_limit(self, prompt: Union[str, List[Dict[str, str]]]) -> Union[str, List[Dict[str, str]]]:
+    def _ensure_token_limit(
+        self, prompt: Union[str, List[Dict[str, str]]]
+    ) -> Union[str, List[Dict[str, str]]]:
         # the prompt for this model will be of the type str
         if isinstance(prompt, List):
             raise ValueError(
@@ -141,15 +162,22 @@ class AmazonBedrockGenerator:
         try:
             session = cls.get_aws_session(**kwargs)
             bedrock = session.client("bedrock")
-            foundation_models_response = bedrock.list_foundation_models(byOutputModality="TEXT")
-            available_model_ids = [entry["modelId"] for entry in foundation_models_response.get("modelSummaries", [])]
+            foundation_models_response = bedrock.list_foundation_models(
+                byOutputModality="TEXT"
+            )
+            available_model_ids = [
+                entry["modelId"]
+                for entry in foundation_models_response.get("modelSummaries", [])
+            ]
             model_ids_supporting_streaming = [
                 entry["modelId"]
                 for entry in foundation_models_response.get("modelSummaries", [])
                 if entry.get("responseStreamingSupported", False)
             ]
         except AWSConfigurationError as exception:
-            raise AmazonBedrockConfigurationError(message=exception.message) from exception
+            raise AmazonBedrockConfigurationError(
+                message=exception.message
+            ) from exception
         except Exception as exception:
             raise AmazonBedrockConfigurationError(
                 "Could not connect to Amazon Bedrock. Make sure the AWS environment is configured correctly. "
@@ -175,7 +203,9 @@ class AmazonBedrockGenerator:
     def invoke(self, *args, **kwargs):
         kwargs = kwargs.copy()
         prompt: str = kwargs.pop("prompt", None)
-        stream: bool = kwargs.get("stream", self.model_adapter.model_kwargs.get("stream", False))
+        stream: bool = kwargs.get(
+            "stream", self.model_adapter.model_kwargs.get("stream", False)
+        )
 
         if not prompt or not isinstance(prompt, (str, list)):
             raise ValueError(
@@ -195,9 +225,13 @@ class AmazonBedrockGenerator:
                 response_stream = response["body"]
                 handler: TokenStreamingHandler = kwargs.get(
                     "stream_handler",
-                    self.model_adapter.model_kwargs.get("stream_handler", DefaultTokenStreamingHandler()),
+                    self.model_adapter.model_kwargs.get(
+                        "stream_handler", DefaultTokenStreamingHandler()
+                    ),
                 )
-                responses = self.model_adapter.get_stream_responses(stream=response_stream, stream_handler=handler)
+                responses = self.model_adapter.get_stream_responses(
+                    stream=response_stream, stream_handler=handler
+                )
             else:
                 response = self.client.invoke_model(
                     body=json.dumps(body),
@@ -206,7 +240,9 @@ class AmazonBedrockGenerator:
                     contentType="application/json",
                 )
                 response_body = json.loads(response.get("body").read().decode("utf-8"))
-                responses = self.model_adapter.get_responses(response_body=response_body)
+                responses = self.model_adapter.get_responses(
+                    response_body=response_body
+                )
         except ClientError as exception:
             raise AmazonBedrockInferenceError(
                 f"Could not connect to Amazon Bedrock model {self.model_name_or_path}. "
@@ -221,7 +257,9 @@ class AmazonBedrockGenerator:
         pass
 
     @classmethod
-    def get_model_adapter(cls, model_name_or_path: str) -> Optional[Type[BedrockModelAdapter]]:
+    def get_model_adapter(
+        cls, model_name_or_path: str
+    ) -> Optional[Type[BedrockModelAdapter]]:
         for pattern, adapter in cls.SUPPORTED_MODEL_PATTERNS.items():
             if re.fullmatch(pattern, model_name_or_path):
                 return adapter
@@ -239,13 +277,13 @@ class AmazonBedrockGenerator:
 
     @classmethod
     def get_aws_session(
-            cls,
-            aws_access_key_id: Optional[str] = None,
-            aws_secret_access_key: Optional[str] = None,
-            aws_session_token: Optional[str] = None,
-            aws_region_name: Optional[str] = None,
-            aws_profile_name: Optional[str] = None,
-            **kwargs,
+        cls,
+        aws_access_key_id: Optional[str] = None,
+        aws_secret_access_key: Optional[str] = None,
+        aws_session_token: Optional[str] = None,
+        aws_region_name: Optional[str] = None,
+        aws_profile_name: Optional[str] = None,
+        **kwargs,
     ):
         """
         Creates an AWS Session with the given parameters.
@@ -271,7 +309,9 @@ class AmazonBedrockGenerator:
                 profile_name=aws_profile_name,
             )
         except BotoCoreError as e:
-            provided_aws_config = {k: v for k, v in kwargs.items() if k in AWS_CONFIGURATION_KEYS}
+            provided_aws_config = {
+                k: v for k, v in kwargs.items() if k in AWS_CONFIGURATION_KEYS
+            }
             raise AWSConfigurationError(
                 f"Failed to initialize the session with provided AWS credentials {provided_aws_config}"
             ) from e

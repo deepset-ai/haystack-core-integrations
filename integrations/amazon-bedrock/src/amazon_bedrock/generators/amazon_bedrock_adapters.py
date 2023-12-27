@@ -24,7 +24,9 @@ class BedrockModelAdapter(ABC):
         responses = [completion.lstrip() for completion in completions]
         return responses
 
-    def get_stream_responses(self, stream, stream_handler: TokenStreamingHandler) -> List[str]:
+    def get_stream_responses(
+        self, stream, stream_handler: TokenStreamingHandler
+    ) -> List[str]:
         tokens: List[str] = []
         for event in stream:
             chunk = event.get("chunk")
@@ -35,7 +37,9 @@ class BedrockModelAdapter(ABC):
         responses = ["".join(tokens).lstrip()]
         return responses
 
-    def _get_params(self, inference_kwargs: Dict[str, Any], default_params: Dict[str, Any]) -> Dict[str, Any]:
+    def _get_params(
+        self, inference_kwargs: Dict[str, Any], default_params: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """
         Merges the default params with the inference kwargs and model kwargs.
 
@@ -50,7 +54,9 @@ class BedrockModelAdapter(ABC):
         }
 
     @abstractmethod
-    def _extract_completions_from_response(self, response_body: Dict[str, Any]) -> List[str]:
+    def _extract_completions_from_response(
+        self, response_body: Dict[str, Any]
+    ) -> List[str]:
         """Extracts the responses from the Amazon Bedrock response."""
 
     @abstractmethod
@@ -76,7 +82,9 @@ class AnthropicClaudeAdapter(BedrockModelAdapter):
         body = {"prompt": f"\n\nHuman: {prompt}\n\nAssistant:", **params}
         return body
 
-    def _extract_completions_from_response(self, response_body: Dict[str, Any]) -> List[str]:
+    def _extract_completions_from_response(
+        self, response_body: Dict[str, Any]
+    ) -> List[str]:
         return [response_body["completion"]]
 
     def _extract_token_from_stream(self, chunk: Dict[str, Any]) -> str:
@@ -106,7 +114,9 @@ class CohereCommandAdapter(BedrockModelAdapter):
         body = {"prompt": prompt, **params}
         return body
 
-    def _extract_completions_from_response(self, response_body: Dict[str, Any]) -> List[str]:
+    def _extract_completions_from_response(
+        self, response_body: Dict[str, Any]
+    ) -> List[str]:
         responses = [generation["text"] for generation in response_body["generations"]]
         return responses
 
@@ -135,12 +145,18 @@ class AI21LabsJurassic2Adapter(BedrockModelAdapter):
         body = {"prompt": prompt, **params}
         return body
 
-    def _extract_completions_from_response(self, response_body: Dict[str, Any]) -> List[str]:
-        responses = [completion["data"]["text"] for completion in response_body["completions"]]
+    def _extract_completions_from_response(
+        self, response_body: Dict[str, Any]
+    ) -> List[str]:
+        responses = [
+            completion["data"]["text"] for completion in response_body["completions"]
+        ]
         return responses
 
     def _extract_token_from_stream(self, chunk: Dict[str, Any]) -> str:
-        raise NotImplementedError("Streaming is not supported for AI21 Jurassic 2 models.")
+        raise NotImplementedError(
+            "Streaming is not supported for AI21 Jurassic 2 models."
+        )
 
 
 class AmazonTitanAdapter(BedrockModelAdapter):
@@ -149,13 +165,20 @@ class AmazonTitanAdapter(BedrockModelAdapter):
     """
 
     def prepare_body(self, prompt: str, **inference_kwargs) -> Dict[str, Any]:
-        default_params = {"maxTokenCount": self.max_length, "stopSequences": None, "temperature": None, "topP": None}
+        default_params = {
+            "maxTokenCount": self.max_length,
+            "stopSequences": None,
+            "temperature": None,
+            "topP": None,
+        }
         params = self._get_params(inference_kwargs, default_params)
 
         body = {"inputText": prompt, "textGenerationConfig": params}
         return body
 
-    def _extract_completions_from_response(self, response_body: Dict[str, Any]) -> List[str]:
+    def _extract_completions_from_response(
+        self, response_body: Dict[str, Any]
+    ) -> List[str]:
         responses = [result["outputText"] for result in response_body["results"]]
         return responses
 
@@ -169,13 +192,19 @@ class MetaLlama2ChatAdapter(BedrockModelAdapter):
     """
 
     def prepare_body(self, prompt: str, **inference_kwargs) -> Dict[str, Any]:
-        default_params = {"max_gen_len": self.max_length, "temperature": None, "top_p": None}
+        default_params = {
+            "max_gen_len": self.max_length,
+            "temperature": None,
+            "top_p": None,
+        }
         params = self._get_params(inference_kwargs, default_params)
 
         body = {"prompt": prompt, **params}
         return body
 
-    def _extract_completions_from_response(self, response_body: Dict[str, Any]) -> List[str]:
+    def _extract_completions_from_response(
+        self, response_body: Dict[str, Any]
+    ) -> List[str]:
         return [response_body["generation"]]
 
     def _extract_token_from_stream(self, chunk: Dict[str, Any]) -> str:

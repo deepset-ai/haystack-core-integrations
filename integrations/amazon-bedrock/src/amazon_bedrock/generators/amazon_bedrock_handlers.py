@@ -10,7 +10,9 @@ class DefaultPromptHandler:
     are within the model_max_length.
     """
 
-    def __init__(self, model_name_or_path: str, model_max_length: int, max_length: int = 100):
+    def __init__(
+        self, model_name_or_path: str, model_max_length: int, max_length: int = 100
+    ):
         self.tokenizer = AutoTokenizer.from_pretrained(model_name_or_path)
         self.tokenizer.model_max_length = model_max_length
         self.model_max_length = model_max_length
@@ -38,7 +40,9 @@ class DefaultPromptHandler:
                 resized_prompt = self.tokenizer.convert_tokens_to_string(
                     tokenized_prompt[: self.model_max_length - self.max_length]
                 )
-                new_prompt_length = len(tokenized_prompt[: self.model_max_length - self.max_length])
+                new_prompt_length = len(
+                    tokenized_prompt[: self.model_max_length - self.max_length]
+                )
 
         return {
             "resized_prompt": resized_prompt,
