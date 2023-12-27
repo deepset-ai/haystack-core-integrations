@@ -69,8 +69,8 @@ class ElasticsearchEmbeddingRetriever:
         Retrieve documents using a vector similarity metric.
 
         :param query_embedding: Embedding of the query.
-        :param top_k: Maximum number of Documents to return
-        :return: List of Document similar to `query_embedding`.
+        :param top_k: Maximum number of Documents to return.
+        :return: List of Documents similar to `query_embedding`.
         """
         docs = self._document_store._embedding_retrieval(
             query_embedding=query_embedding,
