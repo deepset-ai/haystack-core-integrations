@@ -50,11 +50,11 @@ class ElasticsearchBM25Retriever:
     @component.output_types(documents=List[Document])
     def run(self, query: str, top_k: Optional[int] = None):
         """
-        Retrieve documents using a vector similarity metric.
+        Retrieve documents using the BM25 keyword-based algorithm.
 
-        :param query_embedding: Embedding of the query.
+        :param query: String to search in Documents' text.
         :param top_k: Maximum number of Documents to return
-        :return: List of Document similar to `query_embedding`.
+        :return: List of Documents that match the query.
         """
         docs = self._document_store._bm25_retrieval(
             query=query,
