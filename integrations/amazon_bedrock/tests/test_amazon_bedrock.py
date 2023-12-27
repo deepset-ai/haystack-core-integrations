@@ -2,12 +2,8 @@ from typing import Optional, Type
 from unittest.mock import call, patch, MagicMock
 
 import pytest
-
-from haystack.components.generators.amazon_bedrock import AmazonBedrockGenerator
-from haystack.lazy_imports import LazyImport
-
-from haystack.errors import AmazonBedrockConfigurationError
-from haystack.components.generators.amazon_bedrock_adapters import (
+from amazon_bedrock_haystack.generators.amazon_bedrock import AmazonBedrockGenerator
+from amazon_bedrock_haystack.generators.amazon_bedrock_adapters import (
     AI21LabsJurassic2Adapter,
     AnthropicClaudeAdapter,
     BedrockModelAdapter,
@@ -15,9 +11,8 @@ from haystack.components.generators.amazon_bedrock_adapters import (
     AmazonTitanAdapter,
     MetaLlama2ChatAdapter,
 )
-
-with LazyImport() as boto3_import:
-    from botocore.exceptions import BotoCoreError
+from botocore.exceptions import BotoCoreError
+from haystack.errors import AmazonBedrockConfigurationError
 
 
 # create a fixture with mocked boto3 client and session
@@ -30,7 +25,7 @@ def mock_boto3_session():
 @pytest.fixture
 def mock_prompt_handler():
     with patch(
-        "haystack.components.generators.amazon_bedrock_handlers.DefaultPromptHandler"
+            "amazon_bedrock_haystack.generators.amazon_bedrock_handlers.DefaultPromptHandler"
     ) as mock_prompt_handler:
         yield mock_prompt_handler
 
@@ -72,7 +67,7 @@ def test_default_constructor(mock_auto_tokenizer, mock_boto3_session):
 
 @pytest.mark.unit
 def test_constructor_prompt_handler_initialized(
-    mock_auto_tokenizer, mock_boto3_session
+        mock_auto_tokenizer, mock_boto3_session
 ):
     """
     Test that the constructor sets the prompt_handler correctly, with the correct model_max_length for llama-2
@@ -114,7 +109,7 @@ def test_invoke_with_no_kwargs(mock_auto_tokenizer, mock_boto3_session):
     """
     layer = AmazonBedrockGenerator(model_name_or_path="anthropic.claude-v2")
     with pytest.raises(
-        ValueError, match="The model anthropic.claude-v2 requires a valid prompt."
+            ValueError, match="The model anthropic.claude-v2 requires a valid prompt."
     ):
         layer.invoke()
 
@@ -139,7 +134,7 @@ def test_short_prompt_is_not_truncated(mock_boto3_session):
     total_model_max_length = 10
 
     with patch(
-        "transformers.AutoTokenizer.from_pretrained", return_value=mock_tokenizer
+            "transformers.AutoTokenizer.from_pretrained", return_value=mock_tokenizer
     ):
         layer = AmazonBedrockGenerator(
             "anthropic.claude-v2",
@@ -176,7 +171,7 @@ def test_long_prompt_is_truncated(mock_boto3_session):
     total_model_max_length = 10
 
     with patch(
-        "transformers.AutoTokenizer.from_pretrained", return_value=mock_tokenizer
+            "transformers.AutoTokenizer.from_pretrained", return_value=mock_tokenizer
     ):
         layer = AmazonBedrockGenerator(
             "anthropic.claude-v2",
@@ -198,8 +193,8 @@ def test_supports_for_valid_aws_configuration():
 
     # Patch the class method to return the mock session
     with patch(
-        "haystack.components.generators.AmazonBedrockGenerator.get_aws_session",
-        return_value=mock_session,
+            "amazon_bedrock_haystack.generators.AmazonBedrockGenerator.get_aws_session",
+            return_value=mock_session,
     ):
         supported = AmazonBedrockGenerator.supports(
             model_name_or_path="anthropic.claude-v2",
@@ -216,7 +211,7 @@ def test_supports_raises_on_invalid_aws_profile_name():
     with patch("boto3.Session") as mock_boto3_session:
         mock_boto3_session.side_effect = BotoCoreError()
         with pytest.raises(
-            AmazonBedrockConfigurationError, match="Failed to initialize the session"
+                AmazonBedrockConfigurationError, match="Failed to initialize the session"
         ):
             AmazonBedrockGenerator.supports(
                 model_name_or_path="anthropic.claude-v2",
@@ -231,8 +226,8 @@ def test_supports_for_invalid_bedrock_config():
 
     # Patch the class method to return the mock session
     with patch(
-        "haystack.components.generators.AmazonBedrockGenerator.get_aws_session",
-        return_value=mock_session,
+            "amazon_bedrock_haystack.generators.AmazonBedrockGenerator.get_aws_session",
+            return_value=mock_session,
     ), pytest.raises(
         AmazonBedrockConfigurationError, match="Could not connect to Amazon Bedrock."
     ):
@@ -249,8 +244,8 @@ def test_supports_for_invalid_bedrock_config_error_on_list_models():
 
     # Patch the class method to return the mock session
     with patch(
-        "haystack.components.generators.AmazonBedrockGenerator.get_aws_session",
-        return_value=mock_session,
+            "amazon_bedrock_haystack.generators.AmazonBedrockGenerator.get_aws_session",
+            return_value=mock_session,
     ), pytest.raises(
         AmazonBedrockConfigurationError, match="Could not connect to Amazon Bedrock."
     ):
@@ -289,8 +284,8 @@ def test_supports_with_stream_true_for_model_that_supports_streaming():
 
     # Patch the class method to return the mock session
     with patch(
-        "haystack.components.generators.AmazonBedrockGenerator.get_aws_session",
-        return_value=mock_session,
+            "amazon_bedrock_haystack.generators.AmazonBedrockGenerator.get_aws_session",
+            return_value=mock_session,
     ):
         supported = AmazonBedrockGenerator.supports(
             model_name_or_path="anthropic.claude-v2",
@@ -312,8 +307,8 @@ def test_supports_with_stream_true_for_model_that_does_not_support_streaming():
 
     # Patch the class method to return the mock session
     with patch(
-        "haystack.components.generators.AmazonBedrockGenerator.get_aws_session",
-        return_value=mock_session,
+            "amazon_bedrock_haystack.generators.AmazonBedrockGenerator.get_aws_session",
+            return_value=mock_session,
     ), pytest.raises(
         AmazonBedrockConfigurationError,
         match="The model ai21.j2-mid-v1 doesn't support streaming.",
@@ -350,7 +345,7 @@ def test_supports_with_stream_true_for_model_that_does_not_support_streaming():
     ],
 )
 def test_get_model_adapter(
-    model_name_or_path: str, expected_model_adapter: Optional[Type[BedrockModelAdapter]]
+        model_name_or_path: str, expected_model_adapter: Optional[Type[BedrockModelAdapter]]
 ):
     """
     Test that the correct model adapter is returned for a given model_name_or_path
@@ -483,8 +478,8 @@ class TestAnthropicClaudeAdapter:
         adapter = AnthropicClaudeAdapter(model_kwargs={}, max_length=99)
         expected_responses = ["This is a single response."]
         assert (
-            adapter.get_stream_responses(stream_mock, stream_handler_mock)
-            == expected_responses
+                adapter.get_stream_responses(stream_mock, stream_handler_mock)
+                == expected_responses
         )
 
         stream_handler_mock.assert_has_calls(
@@ -510,8 +505,8 @@ class TestAnthropicClaudeAdapter:
         adapter = AnthropicClaudeAdapter(model_kwargs={}, max_length=99)
         expected_responses = [""]
         assert (
-            adapter.get_stream_responses(stream_mock, stream_handler_mock)
-            == expected_responses
+                adapter.get_stream_responses(stream_mock, stream_handler_mock)
+                == expected_responses
         )
 
         stream_handler_mock.assert_not_called()
@@ -693,8 +688,8 @@ class TestCohereCommandAdapter:
         adapter = CohereCommandAdapter(model_kwargs={}, max_length=99)
         expected_responses = ["This is a single response."]
         assert (
-            adapter.get_stream_responses(stream_mock, stream_handler_mock)
-            == expected_responses
+                adapter.get_stream_responses(stream_mock, stream_handler_mock)
+                == expected_responses
         )
 
         stream_handler_mock.assert_has_calls(
@@ -723,8 +718,8 @@ class TestCohereCommandAdapter:
         adapter = CohereCommandAdapter(model_kwargs={}, max_length=99)
         expected_responses = [""]
         assert (
-            adapter.get_stream_responses(stream_mock, stream_handler_mock)
-            == expected_responses
+                adapter.get_stream_responses(stream_mock, stream_handler_mock)
+                == expected_responses
         )
 
         stream_handler_mock.assert_not_called()
@@ -1007,8 +1002,8 @@ class TestAmazonTitanAdapter:
         adapter = AmazonTitanAdapter(model_kwargs={}, max_length=99)
         expected_responses = ["This is a single response."]
         assert (
-            adapter.get_stream_responses(stream_mock, stream_handler_mock)
-            == expected_responses
+                adapter.get_stream_responses(stream_mock, stream_handler_mock)
+                == expected_responses
         )
 
         stream_handler_mock.assert_has_calls(
@@ -1034,8 +1029,8 @@ class TestAmazonTitanAdapter:
         adapter = AmazonTitanAdapter(model_kwargs={}, max_length=99)
         expected_responses = [""]
         assert (
-            adapter.get_stream_responses(stream_mock, stream_handler_mock)
-            == expected_responses
+                adapter.get_stream_responses(stream_mock, stream_handler_mock)
+                == expected_responses
         )
 
         stream_handler_mock.assert_not_called()
@@ -1146,8 +1141,8 @@ class TestMetaLlama2ChatAdapter:
         adapter = MetaLlama2ChatAdapter(model_kwargs={}, max_length=99)
         expected_responses = ["This is a single response."]
         assert (
-            adapter.get_stream_responses(stream_mock, stream_handler_mock)
-            == expected_responses
+                adapter.get_stream_responses(stream_mock, stream_handler_mock)
+                == expected_responses
         )
 
         stream_handler_mock.assert_has_calls(
@@ -1173,8 +1168,8 @@ class TestMetaLlama2ChatAdapter:
         adapter = MetaLlama2ChatAdapter(model_kwargs={}, max_length=99)
         expected_responses = [""]
         assert (
-            adapter.get_stream_responses(stream_mock, stream_handler_mock)
-            == expected_responses
+                adapter.get_stream_responses(stream_mock, stream_handler_mock)
+                == expected_responses
         )
 
         stream_handler_mock.assert_not_called()

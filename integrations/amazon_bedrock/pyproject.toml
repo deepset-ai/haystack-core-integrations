@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "amazon-bedrock"
+name = "amazon-bedrock-haystack"
 dynamic = ["version"]
 description = 'An integration of Amazon Bedrock as an AmazonBedrockGenerator component.'
 readme = "README.md"
@@ -25,16 +25,22 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
 dependencies = [
+  "haystack-ai",
   "boto3>=1.28.57",
 ]
 
 [project.urls]
-Documentation = "https://github.com/unknown/amazon-bedrock#readme"
-Issues = "https://github.com/unknown/amazon-bedrock/issues"
-Source = "https://github.com/unknown/amazon-bedrock"
+Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/amazon_bedrock#readme"
+Issues = "https://github.com/deepset-ai/haystack-core-integrations/issues"
+Source = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/amazon_bedrock"
 
 [tool.hatch.version]
-path = "src/amazon_bedrock/__about__.py"
+source = "vcs"
+tag-pattern = 'integrations\/amazon_bedrock-v(?P<version>.*)'
+
+[tool.hatch.version.raw-options]
+root = "../.."
+git_describe_command = 'git describe --tags --match="integrations/amazon_bedrock-v[0-9]*"'
 
 [tool.hatch.envs.default]
 dependencies = [
@@ -64,16 +70,16 @@ dependencies = [
 check = "mypy --install-types --non-interactive {args:src/amazon_bedrock tests}"
 
 [tool.coverage.run]
-source_pkgs = ["amazon_bedrock", "tests"]
+source_pkgs = ["amazon_bedrock_haystack", "tests"]
 branch = true
 parallel = true
 omit = [
-  "src/amazon_bedrock/__about__.py",
+  "src/amazon_bedrock_haystack/__about__.py",
 ]
 
 [tool.coverage.paths]
-amazon_bedrock = ["src/amazon_bedrock", "*/amazon-bedrock/src/amazon_bedrock"]
-tests = ["tests", "*/amazon-bedrock/tests"]
+amazon_bedrock_haystack = ["src/amazon_bedrock_haystack", "*/amazon_bedrock/src/amazon_bedrock_haystack"]
+tests = ["tests", "*/amazon_bedrock_haystack/tests"]
 
 [tool.coverage.report]
 exclude_lines = [

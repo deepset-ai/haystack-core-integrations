@@ -3,34 +3,30 @@ import logging
 import re
 from typing import Dict, Type, Optional, Union, List, Any
 
-from haystack.components.generators.amazon_bedrock_adapters import (
+import boto3
+from amazon_bedrock_haystack.generators.amazon_bedrock_adapters import (
     BedrockModelAdapter,
-    AmazonTitanAdapter,
     AI21LabsJurassic2Adapter,
+    AmazonTitanAdapter,
     CohereCommandAdapter,
     AnthropicClaudeAdapter,
     MetaLlama2ChatAdapter,
 )
-from haystack.components.generators.amazon_bedrock_handlers import (
+from amazon_bedrock_haystack.generators.amazon_bedrock_handlers import (
     DefaultPromptHandler,
     DefaultTokenStreamingHandler,
     TokenStreamingHandler,
 )
+from botocore.exceptions import BotoCoreError
+from botocore.exceptions import ClientError
+from haystack import component
 from haystack.errors import (
     AmazonBedrockConfigurationError,
     AWSConfigurationError,
     AmazonBedrockInferenceError,
 )
 
-from haystack.lazy_imports import LazyImport
-from haystack import component
-
 logger = logging.getLogger(__name__)
-
-with LazyImport(message="Run 'pip install boto3>=1.28.57'") as boto3_import:
-    from botocore.exceptions import ClientError
-    import boto3
-    from botocore.exceptions import BotoCoreError
 
 AWS_CONFIGURATION_KEYS = [
     "aws_access_key_id",
@@ -74,15 +70,15 @@ class AmazonBedrockGenerator:
     }
 
     def __init__(
-        self,
-        model_name_or_path: str,
-        aws_access_key_id: Optional[str] = None,
-        aws_secret_access_key: Optional[str] = None,
-        aws_session_token: Optional[str] = None,
-        aws_region_name: Optional[str] = None,
-        aws_profile_name: Optional[str] = None,
-        max_length: Optional[int] = 100,
-        **kwargs,
+            self,
+            model_name_or_path: str,
+            aws_access_key_id: Optional[str] = None,
+            aws_secret_access_key: Optional[str] = None,
+            aws_session_token: Optional[str] = None,
+            aws_region_name: Optional[str] = None,
+            aws_profile_name: Optional[str] = None,
+            max_length: Optional[int] = 100,
+            **kwargs,
     ):
         if model_name_or_path is None or len(model_name_or_path) == 0:
             raise ValueError("model_name_or_path cannot be None or empty string")
@@ -131,7 +127,7 @@ class AmazonBedrockGenerator:
         )
 
     def _ensure_token_limit(
-        self, prompt: Union[str, List[Dict[str, str]]]
+            self, prompt: Union[str, List[Dict[str, str]]]
     ) -> Union[str, List[Dict[str, str]]]:
         # the prompt for this model will be of the type str
         if isinstance(prompt, List):
@@ -258,7 +254,7 @@ class AmazonBedrockGenerator:
 
     @classmethod
     def get_model_adapter(
-        cls, model_name_or_path: str
+            cls, model_name_or_path: str
     ) -> Optional[Type[BedrockModelAdapter]]:
         for pattern, adapter in cls.SUPPORTED_MODEL_PATTERNS.items():
             if re.fullmatch(pattern, model_name_or_path):
@@ -277,13 +273,13 @@ class AmazonBedrockGenerator:
 
     @classmethod
     def get_aws_session(
-        cls,
-        aws_access_key_id: Optional[str] = None,
-        aws_secret_access_key: Optional[str] = None,
-        aws_session_token: Optional[str] = None,
-        aws_region_name: Optional[str] = None,
-        aws_profile_name: Optional[str] = None,
-        **kwargs,
+            cls,
+            aws_access_key_id: Optional[str] = None,
+            aws_secret_access_key: Optional[str] = None,
+            aws_session_token: Optional[str] = None,
+            aws_region_name: Optional[str] = None,
+            aws_profile_name: Optional[str] = None,
+            **kwargs,
     ):
         """
         Creates an AWS Session with the given parameters.
@@ -299,7 +295,6 @@ class AmazonBedrockGenerator:
         :raises AWSConfigurationError: If the provided AWS credentials are invalid.
         :return: The created AWS session.
         """
-        boto3_import.check()
         try:
             return boto3.Session(
                 aws_access_key_id=aws_access_key_id,

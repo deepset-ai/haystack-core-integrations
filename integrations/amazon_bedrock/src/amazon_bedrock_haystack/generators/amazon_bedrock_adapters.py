@@ -2,7 +2,7 @@ import json
 from abc import ABC, abstractmethod
 from typing import Dict, Any, List, Optional
 
-from haystack.components.generators.amazon_bedrock_handlers import TokenStreamingHandler
+from amazon_bedrock_haystack.generators.amazon_bedrock_handlers import TokenStreamingHandler
 
 
 class BedrockModelAdapter(ABC):
