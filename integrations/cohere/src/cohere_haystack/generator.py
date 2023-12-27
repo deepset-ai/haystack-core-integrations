@@ -135,7 +135,7 @@ class CohereGenerator:
             data["init_parameters"]["streaming_callback"] = streaming_callback
         return default_from_dict(cls, data)
 
-    @component.output_types(replies=List[str], metadata=List[Dict[str, Any]])
+    @component.output_types(replies=List[str], meta=List[Dict[str, Any]])
     def run(self, prompt: str):
         """
         Queries the LLM with the prompts to produce replies.
@@ -153,12 +153,12 @@ class CohereGenerator:
             metadata_dict["finish_reason"] = response.finish_reason
             metadata = [metadata_dict]
             self._check_truncated_answers(metadata)
-            return {"replies": replies, "metadata": metadata}
+            return {"replies": replies, "meta": metadata}
 
         metadata = [{"finish_reason": resp.finish_reason} for resp in cast(Generations, response)]
         replies = [resp.text for resp in response]
         self._check_truncated_answers(metadata)
-        return {"replies": replies, "metadata": metadata}
+        return {"replies": replies, "meta": metadata}
 
     def _check_truncated_answers(self, metadata: List[Dict[str, Any]]):
         """

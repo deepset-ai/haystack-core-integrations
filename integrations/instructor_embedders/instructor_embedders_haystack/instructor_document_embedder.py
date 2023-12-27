@@ -67,7 +67,7 @@ class InstructorDocumentEmbedder:
         batch_size: int = 32,
         progress_bar: bool = True,
         normalize_embeddings: bool = False,
-        metadata_fields_to_embed: Optional[List[str]] = None,
+        meta_fields_to_embed: Optional[List[str]] = None,
         embedding_separator: str = "\n",
     ):
         """
@@ -91,7 +91,7 @@ class InstructorDocumentEmbedder:
         :param batch_size: Number of strings to encode at once.
         :param progress_bar: If true, displays progress bar during embedding.
         :param normalize_embeddings: If set to true, returned vectors will have the length of 1.
-        :param metadata_fields_to_embed: List of meta fields that should be embedded along with the Document content.
+        :param meta_fields_to_embed: List of meta fields that should be embedded along with the Document content.
         :param embedding_separator: Separator used to concatenate the meta fields to the Document content.
         """
 
@@ -103,7 +103,7 @@ class InstructorDocumentEmbedder:
         self.batch_size = batch_size
         self.progress_bar = progress_bar
         self.normalize_embeddings = normalize_embeddings
-        self.metadata_fields_to_embed = metadata_fields_to_embed or []
+        self.meta_fields_to_embed = meta_fields_to_embed or []
         self.embedding_separator = embedding_separator
 
     def to_dict(self) -> Dict[str, Any]:
@@ -119,7 +119,7 @@ class InstructorDocumentEmbedder:
             batch_size=self.batch_size,
             progress_bar=self.progress_bar,
             normalize_embeddings=self.normalize_embeddings,
-            metadata_fields_to_embed=self.metadata_fields_to_embed,
+            meta_fields_to_embed=self.meta_fields_to_embed,
             embedding_separator=self.embedding_separator,
         )
 
@@ -160,9 +160,7 @@ class InstructorDocumentEmbedder:
         texts_to_embed = []
         for doc in documents:
             meta_values_to_embed = [
-                str(doc.meta[key])
-                for key in self.metadata_fields_to_embed
-                if key in doc.meta and doc.meta[key] is not None
+                str(doc.meta[key]) for key in self.meta_fields_to_embed if key in doc.meta and doc.meta[key] is not None
             ]
             text_to_embed = [
                 self.instruction,
