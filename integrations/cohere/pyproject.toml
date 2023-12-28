@@ -174,7 +174,9 @@ ignore_missing_imports = true
 addopts = "--strict-markers"
 markers = [
   "integration: integration tests",
+  "unit: unit tests",
   "embedders: embedders tests",
   "generators: generators tests",
+  "chat_generators: chat_generators tests",
 ]
 log_cli = true
