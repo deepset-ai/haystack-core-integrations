@@ -20,7 +20,7 @@ class TestInstructorDocumentEmbedder:
         assert embedder.batch_size == 32
         assert embedder.progress_bar is True
         assert embedder.normalize_embeddings is False
-        assert embedder.metadata_fields_to_embed == []
+        assert embedder.meta_fields_to_embed == []
         assert embedder.embedding_separator == "\n"
 
     def test_init_with_parameters(self):
@@ -35,7 +35,7 @@ class TestInstructorDocumentEmbedder:
             batch_size=64,
             progress_bar=False,
             normalize_embeddings=True,
-            metadata_fields_to_embed=["test_field"],
+            meta_fields_to_embed=["test_field"],
             embedding_separator=" | ",
         )
         assert embedder.model_name_or_path == "hkunlp/instructor-base"
@@ -45,7 +45,7 @@ class TestInstructorDocumentEmbedder:
         assert embedder.batch_size == 64
         assert embedder.progress_bar is False
         assert embedder.normalize_embeddings is True
-        assert embedder.metadata_fields_to_embed == ["test_field"]
+        assert embedder.meta_fields_to_embed == ["test_field"]
         assert embedder.embedding_separator == " | "
 
     def test_to_dict(self):
@@ -65,7 +65,7 @@ class TestInstructorDocumentEmbedder:
                 "progress_bar": True,
                 "normalize_embeddings": False,
                 "embedding_separator": "\n",
-                "metadata_fields_to_embed": [],
+                "meta_fields_to_embed": [],
             },
         }
 
@@ -81,7 +81,7 @@ class TestInstructorDocumentEmbedder:
             batch_size=64,
             progress_bar=False,
             normalize_embeddings=True,
-            metadata_fields_to_embed=["test_field"],
+            meta_fields_to_embed=["test_field"],
             embedding_separator=" | ",
         )
         embedder_dict = embedder.to_dict()
@@ -95,7 +95,7 @@ class TestInstructorDocumentEmbedder:
                 "batch_size": 64,
                 "progress_bar": False,
                 "normalize_embeddings": True,
-                "metadata_fields_to_embed": ["test_field"],
+                "meta_fields_to_embed": ["test_field"],
                 "embedding_separator": " | ",
             },
         }
@@ -114,7 +114,7 @@ class TestInstructorDocumentEmbedder:
                 "batch_size": 32,
                 "progress_bar": True,
                 "normalize_embeddings": False,
-                "metadata_fields_to_embed": [],
+                "meta_fields_to_embed": [],
                 "embedding_separator": "\n",
             },
         }
@@ -126,7 +126,7 @@ class TestInstructorDocumentEmbedder:
         assert embedder.batch_size == 32
         assert embedder.progress_bar is True
         assert embedder.normalize_embeddings is False
-        assert embedder.metadata_fields_to_embed == []
+        assert embedder.meta_fields_to_embed == []
         assert embedder.embedding_separator == "\n"
 
     def test_from_dict_with_custom_init_parameters(self):
@@ -143,7 +143,7 @@ class TestInstructorDocumentEmbedder:
                 "batch_size": 64,
                 "progress_bar": False,
                 "normalize_embeddings": True,
-                "metadata_fields_to_embed": ["test_field"],
+                "meta_fields_to_embed": ["test_field"],
                 "embedding_separator": " | ",
             },
         }
@@ -155,7 +155,7 @@ class TestInstructorDocumentEmbedder:
         assert embedder.batch_size == 64
         assert embedder.progress_bar is False
         assert embedder.normalize_embeddings is True
-        assert embedder.metadata_fields_to_embed == ["test_field"]
+        assert embedder.meta_fields_to_embed == ["test_field"]
         assert embedder.embedding_separator == " | "
 
     @patch("instructor_embedders_haystack.instructor_document_embedder._InstructorEmbeddingBackendFactory")
@@ -223,7 +223,7 @@ class TestInstructorDocumentEmbedder:
         embedder = InstructorDocumentEmbedder(
             model_name_or_path="model",
             instruction="Represent the financial document for retrieval",
-            metadata_fields_to_embed=["meta_field"],
+            meta_fields_to_embed=["meta_field"],
             embedding_separator="\n",
         )
         embedder.embedding_backend = MagicMock()

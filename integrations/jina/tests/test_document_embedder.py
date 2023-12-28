@@ -34,7 +34,7 @@ class TestJinaDocumentEmbedder:
         assert embedder.suffix == ""
         assert embedder.batch_size == 32
         assert embedder.progress_bar is True
-        assert embedder.metadata_fields_to_embed == []
+        assert embedder.meta_fields_to_embed == []
         assert embedder.embedding_separator == "\n"
 
     def test_init_with_parameters(self):
@@ -45,7 +45,7 @@ class TestJinaDocumentEmbedder:
             suffix="suffix",
             batch_size=64,
             progress_bar=False,
-            metadata_fields_to_embed=["test_field"],
+            meta_fields_to_embed=["test_field"],
             embedding_separator=" | ",
         )
         assert embedder.model_name == "model"
@@ -53,7 +53,7 @@ class TestJinaDocumentEmbedder:
         assert embedder.suffix == "suffix"
         assert embedder.batch_size == 64
         assert embedder.progress_bar is False
-        assert embedder.metadata_fields_to_embed == ["test_field"]
+        assert embedder.meta_fields_to_embed == ["test_field"]
         assert embedder.embedding_separator == " | "
 
     def test_init_fail_wo_api_key(self, monkeypatch):
@@ -72,7 +72,7 @@ class TestJinaDocumentEmbedder:
                 "suffix": "",
                 "batch_size": 32,
                 "progress_bar": True,
-                "metadata_fields_to_embed": [],
+                "meta_fields_to_embed": [],
                 "embedding_separator": "\n",
             },
         }
@@ -85,7 +85,7 @@ class TestJinaDocumentEmbedder:
             suffix="suffix",
             batch_size=64,
             progress_bar=False,
-            metadata_fields_to_embed=["test_field"],
+            meta_fields_to_embed=["test_field"],
             embedding_separator=" | ",
         )
         data = component.to_dict()
@@ -97,7 +97,7 @@ class TestJinaDocumentEmbedder:
                 "suffix": "suffix",
                 "batch_size": 64,
                 "progress_bar": False,
-                "metadata_fields_to_embed": ["test_field"],
+                "meta_fields_to_embed": ["test_field"],
                 "embedding_separator": " | ",
             },
         }
@@ -108,7 +108,7 @@ class TestJinaDocumentEmbedder:
         ]
 
         embedder = JinaDocumentEmbedder(
-            api_key="fake-api-key", metadata_fields_to_embed=["meta_field"], embedding_separator=" | "
+            api_key="fake-api-key", meta_fields_to_embed=["meta_field"], embedding_separator=" | "
         )
 
         prepared_texts = embedder._prepare_texts_to_embed(documents)
@@ -167,14 +167,14 @@ class TestJinaDocumentEmbedder:
                 model_name=model,
                 prefix="prefix ",
                 suffix=" suffix",
-                metadata_fields_to_embed=["topic"],
+                meta_fields_to_embed=["topic"],
                 embedding_separator=" | ",
             )
 
             result = embedder.run(documents=docs)
 
         documents_with_embeddings = result["documents"]
-        metadata = result["metadata"]
+        metadata = result["meta"]
 
         assert isinstance(documents_with_embeddings, list)
         assert len(documents_with_embeddings) == len(docs)
@@ -197,7 +197,7 @@ class TestJinaDocumentEmbedder:
                 model_name=model,
                 prefix="prefix ",
                 suffix=" suffix",
-                metadata_fields_to_embed=["topic"],
+                meta_fields_to_embed=["topic"],
                 embedding_separator=" | ",
                 batch_size=1,
             )
@@ -205,7 +205,7 @@ class TestJinaDocumentEmbedder:
             result = embedder.run(documents=docs)
 
         documents_with_embeddings = result["documents"]
-        metadata = result["metadata"]
+        metadata = result["meta"]
 
         assert isinstance(documents_with_embeddings, list)
         assert len(documents_with_embeddings) == len(docs)

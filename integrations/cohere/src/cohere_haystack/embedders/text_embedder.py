@@ -27,7 +27,7 @@ class CohereTextEmbedder:
     print(text_embedder.run(text_to_embed))
 
     # {'embedding': [-0.453125, 1.2236328, 2.0058594, ...]
-    # 'metadata': {'api_version': {'version': '1'}, 'billed_units': {'input_tokens': 4}}}
+    # 'meta': {'api_version': {'version': '1'}, 'billed_units': {'input_tokens': 4}}}
     ```
     """
 
@@ -101,7 +101,7 @@ class CohereTextEmbedder:
             timeout=self.timeout,
         )
 
-    @component.output_types(embedding=List[float], metadata=Dict[str, Any])
+    @component.output_types(embedding=List[float], meta=Dict[str, Any])
     def run(self, text: str):
         """Embed a string."""
         if not isinstance(text, str):
@@ -126,4 +126,4 @@ class CohereTextEmbedder:
             )
             embedding, metadata = get_response(cohere_client, [text], self.model_name, self.input_type, self.truncate)
 
-        return {"embedding": embedding[0], "metadata": metadata}
+        return {"embedding": embedding[0], "meta": metadata}
