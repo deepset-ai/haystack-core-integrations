@@ -86,7 +86,7 @@ class TestJinaTextEmbedder:
 
         assert len(result["embedding"]) == 3
         assert all(isinstance(x, float) for x in result["embedding"])
-        assert result["metadata"] == {
+        assert result["meta"] == {
             "model": "jina-embeddings-v2-base-en",
             "usage": {"prompt_tokens": 6, "total_tokens": 6},
         }

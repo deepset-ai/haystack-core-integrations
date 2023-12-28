@@ -2,7 +2,7 @@
 name: New Integration Proposal
 about: Track the creation process for a new integration
 title: ''
-labels: New integration request
+labels: new integration
 assignees: ''
 
 ---

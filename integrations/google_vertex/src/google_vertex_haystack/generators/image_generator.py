@@ -51,5 +51,5 @@ class VertexAIImageGenerator:
     def run(self, prompt: str, negative_prompt: Optional[str] = None):
         negative_prompt = negative_prompt or self._kwargs.get("negative_prompt")
         res = self._model.generate_images(prompt=prompt, negative_prompt=negative_prompt, **self._kwargs)
-        images = [ByteStream(data=i._image_bytes, metadata=i.generation_parameters) for i in res.images]
+        images = [ByteStream(data=i._image_bytes, meta=i.generation_parameters) for i in res.images]
         return {"images": images}

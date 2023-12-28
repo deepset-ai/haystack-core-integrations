@@ -16,7 +16,7 @@ integration:elasticsearch:
 
 integration:google-vertex:
   - changed-files:
-      - any-glob-to-any-file: "integrations/google-vertex/**/*"
+      - any-glob-to-any-file: "integrations/google_vertex/**/*"
       - any-glob-to-any-file: ".github/workflows/google_vertex.yml"
 
 integration:gradient:
@@ -26,7 +26,7 @@ integration:gradient:
 
 integration:instructor-embedders:
   - changed-files:
-      - any-glob-to-any-file: "integrations/instructor-embedders/**/*"
+      - any-glob-to-any-file: "integrations/instructor_embedders/**/*"
       - any-glob-to-any-file: ".github/workflows/instructor_embedders.yml"
 
 integration:jina:
@@ -43,6 +43,11 @@ integration:qdrant:
   - changed-files:
       - any-glob-to-any-file: "integrations/qdrant/**/*"
       - any-glob-to-any-file: ".github/workflows/qdrant.yml"
+
+integration:pinecone:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/pinecone/**/*"
+      - any-glob-to-any-file: ".github/workflows/pinecone.yml"      
 
 integration:unstructured-fileconverter:
   - changed-files:

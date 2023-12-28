@@ -1,26 +1,23 @@
 # This workflow comes from https://github.com/ofek/hatch-mypyc
 # https://github.com/ofek/hatch-mypyc/blob/5a198c0ba8660494d02716cfc9d79ce4adfb1442/.github/workflows/test.yml
-name: Test / google-vertex
+name: Test / pinecone
 
 on:
   schedule:
     - cron: "0 0 * * *"
   pull_request:
     paths:
-      - "integrations/google_vertex/**"
-      - ".github/workflows/google_vertex.yml"
-
-defaults:
-  run:
-    working-directory: integrations/google_vertex
+      - "integrations/pinecone/**"
+      - ".github/workflows/pinecone.yml"
 
 concurrency:
-  group: google-vertex-${{ github.head_ref }}
+  group: pinecone-${{ github.head_ref }}
   cancel-in-progress: true
 
 env:
   PYTHONUNBUFFERED: "1"
   FORCE_COLOR: "1"
+  PINECONE_API_KEY: ${{ secrets.PINECONE_API_KEY }}
 
 jobs:
   run:
@@ -29,15 +26,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        # Pinecone tests are time expensive, so the matrix is limited to Python 3.9 and 3.10
+        os: [ubuntu-latest]
         python-version: ["3.9", "3.10"]
 
     steps:
-      - name: Support longpaths
-        if: matrix.os == 'windows-latest'
-        working-directory: .
-        run: git config --system core.longpaths true
-
       - uses: actions/checkout@v4
 
       - name: Set up Python ${{ matrix.python-version }}
@@ -49,8 +42,10 @@ jobs:
         run: pip install --upgrade hatch
 
       - name: Lint
-        if: matrix.python-version == '3.9' && runner.os == 'Linux'
+        working-directory: integrations/pinecone
+        if: matrix.python-version == '3.9'
         run: hatch run lint:all
 
       - name: Run tests
+        working-directory: integrations/pinecone
         run: hatch run cov

@@ -64,17 +64,18 @@ class ElasticsearchEmbeddingRetriever:
         return default_from_dict(cls, data)
 
     @component.output_types(documents=List[Document])
-    def run(self, query_embedding: List[float]):
+    def run(self, query_embedding: List[float], top_k: Optional[int] = None):
         """
         Retrieve documents using a vector similarity metric.
 
         :param query_embedding: Embedding of the query.
-        :return: List of Document similar to `query_embedding`.
+        :param top_k: Maximum number of Documents to return.
+        :return: List of Documents similar to `query_embedding`.
         """
         docs = self._document_store._embedding_retrieval(
             query_embedding=query_embedding,
             filters=self._filters,
-            top_k=self._top_k,
+            top_k=top_k or self._top_k,
             num_candidates=self._num_candidates,
         )
         return {"documents": docs}

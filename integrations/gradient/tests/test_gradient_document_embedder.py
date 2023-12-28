@@ -89,7 +89,7 @@ class TestGradientDocumentEmbedder:
     def test_run(self):
         embedder = GradientDocumentEmbedder(access_token=access_token, workspace_id=workspace_id)
         embedder._embedding_model = NonCallableMagicMock()
-        embedder._embedding_model.generate_embeddings.return_value = GenerateEmbeddingSuccess(
+        embedder._embedding_model.embed.return_value = GenerateEmbeddingSuccess(
             embeddings=[{"embedding": np.random.rand(1024).tolist(), "index": i} for i in range(5)]
         )
 
@@ -97,7 +97,7 @@ class TestGradientDocumentEmbedder:
 
         result = embedder.run(documents=documents)
 
-        assert embedder._embedding_model.generate_embeddings.call_count == 1
+        assert embedder._embedding_model.embed.call_count == 1
         assert isinstance(result["documents"], list)
         assert len(result["documents"]) == len(documents)
         for doc in result["documents"]:
@@ -110,7 +110,7 @@ class TestGradientDocumentEmbedder:
         embedder = GradientDocumentEmbedder(access_token=access_token, workspace_id=workspace_id)
         embedder._embedding_model = NonCallableMagicMock()
 
-        embedder._embedding_model.generate_embeddings.return_value = GenerateEmbeddingSuccess(
+        embedder._embedding_model.embed.return_value = GenerateEmbeddingSuccess(
             embeddings=[{"embedding": np.random.rand(1024).tolist(), "index": i} for i in range(110)]
         )
 
@@ -118,7 +118,7 @@ class TestGradientDocumentEmbedder:
 
         result = embedder.run(documents=documents)
 
-        assert embedder._embedding_model.generate_embeddings.call_count == 2
+        assert embedder._embedding_model.embed.call_count == 1
         assert isinstance(result["documents"], list)
         assert len(result["documents"]) == len(documents)
         for doc in result["documents"]:
@@ -132,7 +132,7 @@ class TestGradientDocumentEmbedder:
         embedder._embedding_model = NonCallableMagicMock()
 
         document_count = 101
-        embedder._embedding_model.generate_embeddings.return_value = GenerateEmbeddingSuccess(
+        embedder._embedding_model.embed.return_value = GenerateEmbeddingSuccess(
             embeddings=[{"embedding": np.random.rand(1024).tolist(), "index": i} for i in range(document_count)]
         )
 
@@ -140,7 +140,7 @@ class TestGradientDocumentEmbedder:
 
         result = embedder.run(documents=documents)
 
-        assert embedder._embedding_model.generate_embeddings.call_count == 6
+        assert embedder._embedding_model.embed.call_count == 6
         assert isinstance(result["documents"], list)
         assert len(result["documents"]) == len(documents)
         for doc in result["documents"]:

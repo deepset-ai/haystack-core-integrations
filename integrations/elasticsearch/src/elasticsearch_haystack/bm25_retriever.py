@@ -48,12 +48,19 @@ class ElasticsearchBM25Retriever:
         return default_from_dict(cls, data)
 
     @component.output_types(documents=List[Document])
-    def run(self, query: str):
+    def run(self, query: str, top_k: Optional[int] = None):
+        """
+        Retrieve documents using the BM25 keyword-based algorithm.
+
+        :param query: String to search in Documents' text.
+        :param top_k: Maximum number of Documents to return.
+        :return: List of Documents that match the query.
+        """
         docs = self._document_store._bm25_retrieval(
             query=query,
             filters=self._filters,
             fuzziness=self._fuzziness,
-            top_k=self._top_k,
+            top_k=top_k or self._top_k,
             scale_score=self._scale_score,
         )
         return {"documents": docs}

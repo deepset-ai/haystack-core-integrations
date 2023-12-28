@@ -90,4 +90,4 @@ def test_gradient_embedding_retrieval_rag_pipeline(tmp_path):
         assert spyword in generated_answer.data
         assert generated_answer.query == question
         assert hasattr(generated_answer, "documents")
-        assert hasattr(generated_answer, "metadata")
+        assert hasattr(generated_answer, "meta")

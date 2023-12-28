@@ -3,17 +3,15 @@ requires = ["hatchling", "hatch-vcs"]
 build-backend = "hatchling.build"
 
 [project]
-name = "gradient-haystack"
+name = "instructor-embedders-haystack"
 dynamic = ["version"]
-description = ''
+description = 'Haystack 2.x component to embed strings and Documents using Instructor embedding model.'
 readme = "README.md"
-requires-python = ">=3.8"
+requires-python = ">=3.7"
 license = "Apache-2.0"
 keywords = []
 authors = [
-  { name = "Mateusz Haligowski", email = "contact@gradient.ai" },
-  { name = "Michael Feil", email = "contact@gradient.ai" },
-  { name = "Hayden Wilson", email = "contact@gradient.ai" },
+  { name = "deepset GmbH", email = "info@deepset.ai" },
 ]
 classifiers = [
   "Development Status :: 4 - Beta",
@@ -28,42 +26,52 @@ classifiers = [
 ]
 dependencies = [
   "haystack-ai",
-  "gradientai>=1.4.0",
+
+  # The following dependencies are copied from https://github.com/xlang-ai/instructor-embedding/blob/main/requirements.txt
+  # since the InstructorEmbedding package does not install them, but they are mandatory.
+  # Commenting some of them to not interfere with the dependencies of Haystack.
+  #"transformers==4.20.0",
+  "datasets>=2.2.0",
+  #"pyarrow==8.0.0",
+  "jsonlines",
+  "numpy",
+  "requests>=2.26.0",
+  "scikit_learn>=1.0.2",
+  "scipy",
+  "sentence_transformers>=2.2.0",
+  "torch",
+  "tqdm",
+  "rich",
+
+  "InstructorEmbedding"
 ]
-optional-dependencies = { tqdm = ["tqdm"] }
+
+[project.optional-dependencies]
+dev = ["pytest"]
 
 [project.urls]
-Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/gradient#readme"
+Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/instructor_embedders#readme"
 Issues = "https://github.com/deepset-ai/haystack-core-integrations/issues"
-Source = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/gradient"
+Source = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/instructor_embedders"
 
 [tool.hatch.version]
 source = "vcs"
-tag-pattern = 'integrations\/gradient-v(?P<version>.*)'
+tag-pattern = 'integrations\/instructor_embedders-v(?P<version>.*)'
 
 [tool.hatch.version.raw-options]
 root = "../.."
-git_describe_command = 'git describe --tags --match="integrations/gradient-v[0-9]*"'
+git_describe_command = 'git describe --tags --match="integrations/instructor_embedders-v[0-9]*"'
 
 [tool.hatch.envs.default]
-dependencies = [
-  "coverage[toml]>=6.5",
-  "pytest",
-]
-[tool.hatch.envs.default.scripts]
-test = "pytest {args:tests}"
-test-cov = "coverage run -m pytest {args:tests}"
-cov-report = [
-  "- coverage combine",
-  "coverage report",
-]
-cov = [
-  "test-cov",
-  "cov-report",
-]
+dependencies = ["pytest", "pytest-cov"]
 
-[[tool.hatch.envs.all.matrix]]
-python = ["3.8", "3.9", "3.10", "3.11"]
+[tool.hatch.envs.default.scripts]
+cov = "pytest --cov-report=term-missing --cov-config=pyproject.toml --cov=instructor-embedders --cov=tests"
+no-cov = "cov --no-cov"
+test = "pytest {args:tests}"
+
+[[tool.hatch.envs.test.matrix]]
+python = ["38", "39", "310", "311"]
 
 [tool.hatch.envs.lint]
 detached = true
@@ -73,7 +81,7 @@ dependencies = [
   "ruff>=0.0.243",
 ]
 [tool.hatch.envs.lint.scripts]
-typing = "mypy --install-types --non-interactive {args:src/gradient_haystack tests}"
+typing = "mypy --install-types --non-interactive {args:instructor_embedders_haystack tests}"
 style = [
   "ruff {args:.}",
   "black --check --diff {args:.}",
@@ -88,10 +96,13 @@ all = [
   "typing",
 ]
 
-[tool.black]
-target-version = ["py38"]
-line-length = 120
-skip-string-normalization = true
+[tool.coverage.run]
+branch = true
+parallel = true
+omit = ["instructor_embedders/__about__.py"]
+
+[tool.coverage.report]
+exclude_lines = ["no cov", "if __name__ == .__main__.:", "if TYPE_CHECKING:"]
 
 [tool.ruff]
 target-version = "py38"
@@ -105,7 +116,6 @@ select = [
   "E",
   "EM",
   "F",
-  "FBT",
   "I",
   "ICN",
   "ISC",
@@ -139,7 +149,7 @@ unfixable = [
 ]
 
 [tool.ruff.isort]
-known-first-party = ["gradient_haystack"]
+known-first-party = ["instructor_embedders"]
 
 [tool.ruff.flake8-tidy-imports]
 ban-relative-imports = "all"
@@ -148,28 +158,19 @@ ban-relative-imports = "all"
 # Tests can use magic values, assertions, and relative imports
 "tests/**/*" = ["PLR2004", "S101", "TID252"]
 
-[tool.coverage.run]
-source_pkgs = ["gradient_haystack", "tests"]
-branch = true
-parallel = true
-omit = [
-  "src/gradient_haystack/__about__.py",
-]
+[tool.pytest.ini_options]
+minversion = "6.0"
+addopts = "--strict-markers"
+markers = ["integration: integration tests"]
+log_cli = true
 
-[tool.coverage.paths]
-gradient_haystack = ["src/gradient_haystack", "*/gradient-haystack/src/gradient_haystack"]
-tests = ["tests", "*/gradient-haystack/tests"]
-
-[tool.coverage.report]
-exclude_lines = [
-  "no cov",
-  "if __name__ == .__main__.:",
-  "if TYPE_CHECKING:",
-]
+[tool.black]
+line-length = 120
 
 [[tool.mypy.overrides]]
 module = [
-  "gradientai.*",
+  "instructor_embedders_haystack.*",
+  "InstructorEmbedding.*",
   "haystack.*",
   "pytest.*",
   "numpy.*",

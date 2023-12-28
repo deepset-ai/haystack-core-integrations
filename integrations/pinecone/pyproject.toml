@@ -3,11 +3,11 @@ requires = ["hatchling", "hatch-vcs"]
 build-backend = "hatchling.build"
 
 [project]
-name = "instructor-embedders-haystack"
+name = "pinecone_haystack"
 dynamic = ["version"]
-description = 'Haystack 2.x component to embed strings and Documents using Instructor embedding model.'
+description = ''
 readme = "README.md"
-requires-python = ">=3.7"
+requires-python = ">=3.8"
 license = "Apache-2.0"
 keywords = []
 authors = [
@@ -16,7 +16,6 @@ authors = [
 classifiers = [
   "Development Status :: 4 - Beta",
   "Programming Language :: Python",
-  "Programming Language :: Python :: 3.7",
   "Programming Language :: Python :: 3.8",
   "Programming Language :: Python :: 3.9",
   "Programming Language :: Python :: 3.10",
@@ -26,52 +25,44 @@ classifiers = [
 ]
 dependencies = [
   "haystack-ai",
-
-  # The following dependencies are copied from https://github.com/xlang-ai/instructor-embedding/blob/main/requirements.txt
-  # since the InstructorEmbedding package does not install them, but they are mandatory.
-  # Commenting some of them to not interfere with the dependencies of Haystack.
-  #"transformers==4.20.0",
-  "datasets>=2.2.0",
-  #"pyarrow==8.0.0",
-  "jsonlines",
-  "numpy",
-  "requests>=2.26.0",
-  "scikit_learn>=1.0.2",
-  "scipy",
-  "sentence_transformers>=2.2.0",
-  "torch",
-  "tqdm",
-  "rich",
-
-  "InstructorEmbedding"
+  "pinecone-client",
 ]
 
-[project.optional-dependencies]
-dev = ["pytest"]
-
 [project.urls]
-Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/components/instructor-embedders#readme"
+Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/pinecone#readme"
 Issues = "https://github.com/deepset-ai/haystack-core-integrations/issues"
-Source = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/components/instructor-embedders"
+Source = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/pinecone"
 
 [tool.hatch.version]
 source = "vcs"
-tag-pattern = 'integrations\/instructor-embedders-v(?P<version>.*)'
+tag-pattern = 'integrations\/pinecone-v(?P<version>.*)'
 
 [tool.hatch.version.raw-options]
 root = "../.."
-git_describe_command = 'git describe --tags --match="integrations/instructor-embedders-v[0-9]*"'
+git_describe_command = 'git describe --tags --match="integrations/pinecone-v[0-9]*"'
 
 [tool.hatch.envs.default]
-dependencies = ["pytest", "pytest-cov"]
-
+dependencies = [
+  "coverage[toml]>=6.5",
+  "pytest",
+  "pytest-xdist",
+]
 [tool.hatch.envs.default.scripts]
-cov = "pytest --cov-report=term-missing --cov-config=pyproject.toml --cov=instructor-embedders --cov=tests"
-no-cov = "cov --no-cov"
-test = "pytest {args:tests}"
+# Pinecone tests are slow (require HTTP requests), so we run them in parallel
+# with pytest-xdist (https://pytest-xdist.readthedocs.io/en/stable/distribution.html)
+test = "pytest -n auto --maxprocesses=3 {args:tests}"
+test-cov = "coverage run -m pytest -n auto --maxprocesses=3 {args:tests}"
+cov-report = [
+  "- coverage combine",
+  "coverage report",
+]
+cov = [
+  "test-cov",
+  "cov-report",
+]
 
-[[tool.hatch.envs.test.matrix]]
-python = ["38", "39", "310", "311"]
+[[tool.hatch.envs.all.matrix]]
+python = ["3.8", "3.9", "3.10", "3.11"]
 
 [tool.hatch.envs.lint]
 detached = true
@@ -79,9 +70,10 @@ dependencies = [
   "black>=23.1.0",
   "mypy>=1.0.0",
   "ruff>=0.0.243",
+  "numpy",
 ]
 [tool.hatch.envs.lint.scripts]
-typing = "mypy --install-types --non-interactive {args:instructor_embedders_haystack tests}"
+typing = "mypy --install-types --non-interactive {args:src/pinecone_haystack tests}"
 style = [
   "ruff {args:.}",
   "black --check --diff {args:.}",
@@ -96,16 +88,16 @@ all = [
   "typing",
 ]
 
-[tool.coverage.run]
-branch = true
-parallel = true
-omit = ["instructor_embedders/__about__.py"]
+[tool.hatch.metadata]
+allow-direct-references = true
 
-[tool.coverage.report]
-exclude_lines = ["no cov", "if __name__ == .__main__.:", "if TYPE_CHECKING:"]
+[tool.black]
+target-version = ["py37"]
+line-length = 120
+skip-string-normalization = true
 
 [tool.ruff]
-target-version = "py38"
+target-version = "py37"
 line-length = 120
 select = [
   "A",
@@ -116,6 +108,7 @@ select = [
   "E",
   "EM",
   "F",
+  "FBT",
   "I",
   "ICN",
   "ISC",
@@ -149,7 +142,7 @@ unfixable = [
 ]
 
 [tool.ruff.isort]
-known-first-party = ["instructor_embedders"]
+known-first-party = ["pinecone_haystack"]
 
 [tool.ruff.flake8-tidy-imports]
 ban-relative-imports = "all"
@@ -158,21 +151,36 @@ ban-relative-imports = "all"
 # Tests can use magic values, assertions, and relative imports
 "tests/**/*" = ["PLR2004", "S101", "TID252"]
 
+[tool.coverage.run]
+source_pkgs = ["pinecone_haystack", "tests"]
+branch = true
+parallel = true
+omit = [
+  "example"
+]
+
+[tool.coverage.paths]
+pinecone_haystack = ["src/pinecone_haystack", "*/pinecone_haystack/src/pinecone_haystack"]
+tests = ["tests", "*/pinecone_haystack/tests"]
+
+[tool.coverage.report]
+exclude_lines = [
+  "no cov",
+  "if __name__ == .__main__.:",
+  "if TYPE_CHECKING:",
+]
+
 [tool.pytest.ini_options]
 minversion = "6.0"
-addopts = "--strict-markers"
-markers = ["integration: integration tests"]
-log_cli = true
-
-[tool.black]
-line-length = 120
+markers = [
+  "unit: unit tests",
+  "integration: integration tests"
+]
 
 [[tool.mypy.overrides]]
 module = [
-  "instructor_embedders_haystack.*",
-  "InstructorEmbedding.*",
+  "pinecone.*",
   "haystack.*",
-  "pytest.*",
-  "numpy.*",
+  "pytest.*"
 ]
 ignore_missing_imports = true

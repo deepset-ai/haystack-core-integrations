@@ -119,8 +119,8 @@ class TestCohereGenerator:
 
     def test_check_truncated_answers(self, caplog):
         component = CohereGenerator(api_key="test-api-key")
-        metadata = [{"finish_reason": "MAX_TOKENS"}]
-        component._check_truncated_answers(metadata)
+        meta = [{"finish_reason": "MAX_TOKENS"}]
+        component._check_truncated_answers(meta)
         assert caplog.records[0].message == (
             "Responses have been truncated before reaching a natural stopping point. "
             "Increase the max_tokens parameter to allow for longer completions."
@@ -136,8 +136,8 @@ class TestCohereGenerator:
         results = component.run(prompt="What's the capital of France?")
         assert len(results["replies"]) == 1
         assert "Paris" in results["replies"][0]
-        assert len(results["metadata"]) == 1
-        assert results["metadata"][0]["finish_reason"] == "COMPLETE"
+        assert len(results["meta"]) == 1
+        assert results["meta"][0]["finish_reason"] == "COMPLETE"
 
     @pytest.mark.skipif(
         not os.environ.get("COHERE_API_KEY", None),
@@ -174,6 +174,6 @@ class TestCohereGenerator:
 
         assert len(results["replies"]) == 1
         assert "Paris" in results["replies"][0]
-        assert len(results["metadata"]) == 1
-        assert results["metadata"][0]["finish_reason"] == "COMPLETE"
+        assert len(results["meta"]) == 1
+        assert results["meta"][0]["finish_reason"] == "COMPLETE"
         assert callback.responses == results["replies"][0]
