@@ -70,7 +70,7 @@ dependencies = [
   "ruff>=0.0.243",
 ]
 [tool.hatch.envs.lint.scripts]
-typing = "mypy --install-types --non-interactive {args:src/google_vertex_haystack tests}"
+typing = "mypy --install-types --non-interactive {args:src/amazon_bedrock_haystack tests}"
 style = [
   "ruff {args:.}",
   "black --check --diff {args:.}",
@@ -133,7 +133,7 @@ unfixable = [
 ]
 
 [tool.ruff.isort]
-known-first-party = ["google_vertex_haystack"]
+known-first-party = ["amazon_bedrock_haystack"]
 
 [tool.ruff.flake8-tidy-imports]
 ban-relative-imports = "all"
