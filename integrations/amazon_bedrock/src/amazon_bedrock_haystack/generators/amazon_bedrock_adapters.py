@@ -1,6 +1,6 @@
 import json
 from abc import ABC, abstractmethod
-from typing import Dict, Any, List, Optional
+from typing import Any, Dict, List, Optional
 
 from amazon_bedrock_haystack.generators.amazon_bedrock_handlers import TokenStreamingHandler
 
@@ -154,9 +154,8 @@ class AI21LabsJurassic2Adapter(BedrockModelAdapter):
         return responses
 
     def _extract_token_from_stream(self, chunk: Dict[str, Any]) -> str:
-        raise NotImplementedError(
-            "Streaming is not supported for AI21 Jurassic 2 models."
-        )
+        msg = "Streaming is not supported for AI21 Jurassic 2 models."
+        raise NotImplementedError(msg)
 
 
 class AmazonTitanAdapter(BedrockModelAdapter):

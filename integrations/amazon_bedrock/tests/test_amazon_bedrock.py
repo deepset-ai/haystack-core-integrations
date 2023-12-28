@@ -1,14 +1,14 @@
 from typing import Optional, Type
-from unittest.mock import call, patch, MagicMock
+from unittest.mock import MagicMock, call, patch
 
 import pytest
 from amazon_bedrock_haystack.generators.amazon_bedrock import AmazonBedrockGenerator
 from amazon_bedrock_haystack.generators.amazon_bedrock_adapters import (
     AI21LabsJurassic2Adapter,
+    AmazonTitanAdapter,
     AnthropicClaudeAdapter,
     BedrockModelAdapter,
     CohereCommandAdapter,
-    AmazonTitanAdapter,
     MetaLlama2ChatAdapter,
 )
 from botocore.exceptions import BotoCoreError
@@ -261,7 +261,7 @@ def test_supports_for_no_aws_params():
         model_name_or_path="anthropic.claude-v2"
     )
 
-    assert supported == False
+    assert supported is False
 
 
 @pytest.mark.unit
@@ -270,7 +270,7 @@ def test_supports_for_unknown_model():
         model_name_or_path="unknown_model", aws_profile_name="some_real_profile"
     )
 
-    assert supported == False
+    assert supported is False
 
 
 @pytest.mark.unit

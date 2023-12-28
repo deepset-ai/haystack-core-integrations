@@ -1,15 +1,15 @@
 import json
 import logging
 import re
-from typing import Dict, Type, Optional, Union, List, Any
+from typing import Any, Dict, List, Optional, Type, Union
 
 import boto3
 from amazon_bedrock_haystack.generators.amazon_bedrock_adapters import (
-    BedrockModelAdapter,
     AI21LabsJurassic2Adapter,
     AmazonTitanAdapter,
-    CohereCommandAdapter,
     AnthropicClaudeAdapter,
+    BedrockModelAdapter,
+    CohereCommandAdapter,
     MetaLlama2ChatAdapter,
 )
 from amazon_bedrock_haystack.generators.amazon_bedrock_handlers import (
@@ -17,13 +17,12 @@ from amazon_bedrock_haystack.generators.amazon_bedrock_handlers import (
     DefaultTokenStreamingHandler,
     TokenStreamingHandler,
 )
-from botocore.exceptions import BotoCoreError
-from botocore.exceptions import ClientError
+from botocore.exceptions import BotoCoreError, ClientError
 from haystack import component
 from haystack.errors import (
     AmazonBedrockConfigurationError,
-    AWSConfigurationError,
     AmazonBedrockInferenceError,
+    AWSConfigurationError,
 )
 
 logger = logging.getLogger(__name__)
@@ -81,7 +80,8 @@ class AmazonBedrockGenerator:
             **kwargs,
     ):
         if model_name_or_path is None or len(model_name_or_path) == 0:
-            raise ValueError("model_name_or_path cannot be None or empty string")
+            msg = "model_name_or_path cannot be None or empty string"
+            raise ValueError(msg)
         self.model_name_or_path = model_name_or_path
         self.max_length = max_length
 
@@ -95,10 +95,9 @@ class AmazonBedrockGenerator:
             )
             self.client = session.client("bedrock-runtime")
         except Exception as exception:
-            raise AmazonBedrockConfigurationError(
-                "Could not connect to Amazon Bedrock. Make sure the AWS environment is configured correctly. "
-                "See https://boto3.amazonaws.com/v1/documentation/api/latest/guide/quickstart.html#configuration"
-            ) from exception
+            msg = ("Could not connect to Amazon Bedrock. Make sure the AWS environment is configured correctly. "
+                   "See https://boto3.amazonaws.com/v1/documentation/api/latest/guide/quickstart.html#configuration")
+            raise AmazonBedrockConfigurationError(msg) from exception
 
         model_input_kwargs = kwargs
         # We pop the model_max_length as it is not sent to the model
@@ -119,9 +118,8 @@ class AmazonBedrockGenerator:
             model_name_or_path=model_name_or_path
         )
         if not model_apapter_cls:
-            raise AmazonBedrockConfigurationError(
-                f"AmazonBedrockGenerator doesn't support the model {model_name_or_path}."
-            )
+            msg = f"AmazonBedrockGenerator doesn't support the model {model_name_or_path}."
+            raise AmazonBedrockConfigurationError(msg)
         self.model_adapter = model_apapter_cls(
             model_kwargs=model_input_kwargs, max_length=self.max_length
         )
@@ -131,10 +129,9 @@ class AmazonBedrockGenerator:
     ) -> Union[str, List[Dict[str, str]]]:
         # the prompt for this model will be of the type str
         if isinstance(prompt, List):
-            raise ValueError(
-                "AmazonBedrockGenerator only supports a string as a prompt, "
-                "while currently, the prompt is of type List."
-            )
+            msg = ("AmazonBedrockGenerator only supports a string as a prompt, "
+                   "while currently, the prompt is of type List.")
+            raise ValueError(msg)
 
         resize_info = self.prompt_handler(prompt)
         if resize_info["prompt_length"] != resize_info["new_prompt_length"]:
@@ -175,24 +172,21 @@ class AmazonBedrockGenerator:
                 message=exception.message
             ) from exception
         except Exception as exception:
-            raise AmazonBedrockConfigurationError(
-                "Could not connect to Amazon Bedrock. Make sure the AWS environment is configured correctly. "
-                "See https://boto3.amazonaws.com/v1/documentation/api/latest/guide/quickstart.html#configuration"
-            ) from exception
+            msg = ("Could not connect to Amazon Bedrock. Make sure the AWS environment is configured correctly. "
+                   "See https://boto3.amazonaws.com/v1/documentation/api/latest/guide/quickstart.html#configuration")
+            raise AmazonBedrockConfigurationError(msg) from exception
 
         model_available = model_name_or_path in available_model_ids
         if not model_available:
-            raise AmazonBedrockConfigurationError(
-                f"The model {model_name_or_path} is not available in Amazon Bedrock. "
-                f"Make sure the model you want to use is available in the configured AWS region and you have access."
-            )
+            msg = (f"The model {model_name_or_path} is not available in Amazon Bedrock. "
+                   f"Make sure the model you want to use is available in the configured AWS region and you have access.")
+            raise AmazonBedrockConfigurationError(msg)
 
         stream: bool = kwargs.get("stream", False)
         model_supports_streaming = model_name_or_path in model_ids_supporting_streaming
         if stream and not model_supports_streaming:
-            raise AmazonBedrockConfigurationError(
-                f"The model {model_name_or_path} doesn't support streaming. Remove the `stream` parameter."
-            )
+            msg = f"The model {model_name_or_path} doesn't support streaming. Remove the `stream` parameter."
+            raise AmazonBedrockConfigurationError(msg)
 
         return model_supported
 
@@ -204,10 +198,9 @@ class AmazonBedrockGenerator:
         )
 
         if not prompt or not isinstance(prompt, (str, list)):
-            raise ValueError(
-                f"The model {self.model_name_or_path} requires a valid prompt, but currently, it has no prompt. "
-                f"Make sure to provide a prompt in the format that the model expects."
-            )
+            msg = (f"The model {self.model_name_or_path} requires a valid prompt, but currently, it has no prompt. "
+                   f"Make sure to provide a prompt in the format that the model expects.")
+            raise ValueError(msg)
 
         body = self.model_adapter.prepare_body(prompt=prompt, **kwargs)
         try:
@@ -240,11 +233,10 @@ class AmazonBedrockGenerator:
                     response_body=response_body
                 )
         except ClientError as exception:
-            raise AmazonBedrockInferenceError(
-                f"Could not connect to Amazon Bedrock model {self.model_name_or_path}. "
-                "Make sure your AWS environment is configured correctly, "
-                "the model is available in the configured AWS region, and you have access."
-            ) from exception
+            msg = (f"Could not connect to Amazon Bedrock model {self.model_name_or_path}. "
+                   f"Make sure your AWS environment is configured correctly, "
+                   f"the model is available in the configured AWS region, and you have access.")
+            raise AmazonBedrockInferenceError(msg) from exception
 
         return responses
 
@@ -307,6 +299,5 @@ class AmazonBedrockGenerator:
             provided_aws_config = {
                 k: v for k, v in kwargs.items() if k in AWS_CONFIGURATION_KEYS
             }
-            raise AWSConfigurationError(
-                f"Failed to initialize the session with provided AWS credentials {provided_aws_config}"
-            ) from e
+            msg = f"Failed to initialize the session with provided AWS credentials {provided_aws_config}"
+            raise AWSConfigurationError(msg) from e
