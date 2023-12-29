@@ -32,13 +32,13 @@ class OllamaResponse:
 @component
 class OllamaGenerator:
     def __init__(
-        self,
-        model_name: str = "orca-mini",
-        url: str = "http://localhost:11434/",
-        generation_kwargs: Optional[Dict[str, Any]] = None,
-        system_prompt: Optional[str] = None,
-        template: Optional[str] = None,
-        raw: bool = False,
+            self,
+            model_name: str = "orca-mini",
+            url: str = "http://localhost:11434/api/generate",
+            generation_kwargs: Optional[Dict[str, Any]] = None,
+            system_prompt: Optional[str] = None,
+            template: Optional[str] = None,
+            raw: bool = False,
     ):
         self.raw = raw
         self.template = template
