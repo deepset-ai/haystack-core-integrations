@@ -22,13 +22,11 @@ class OllamaResponse:
     eval_duration: int
 
     def __post_init__(self):
-        self.metadata = {
-            key: value for key, value in self.__dict__.items() if key != "response"
-        }
+        self.meta = {key: value for key, value in self.__dict__.items() if key != "response"}
 
     def as_haystack_generator_response(self) -> Dict[str, List]:
         """Returns replies and metadata in the format required by haystack"""
-        return {"replies": [self.response], "metadata": [self.metadata]}
+        return {"replies": [self.response], "meta": [self.meta]}
 
 
 @component
