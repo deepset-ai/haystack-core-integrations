@@ -16,6 +16,14 @@ from amazon_bedrock_haystack.generators.amazon_bedrock_adapters import (
 )
 
 
+@pytest.fixture
+def mock_auto_tokenizer():
+    with patch("transformers.AutoTokenizer.from_pretrained", autospec=True) as mock_from_pretrained:
+        mock_tokenizer = MagicMock()
+        mock_from_pretrained.return_value = mock_tokenizer
+        yield mock_tokenizer
+
+
 # create a fixture with mocked boto3 client and session
 @pytest.fixture
 def mock_boto3_session():
@@ -182,7 +190,7 @@ def test_supports_for_valid_aws_configuration():
 
     # Patch the class method to return the mock session
     with patch(
-        "amazon_bedrock_haystack.generators.AmazonBedrockGenerator.get_aws_session",
+        "amazon_bedrock_haystack.generators.amazon_bedrock.AmazonBedrockGenerator.get_aws_session",
         return_value=mock_session,
     ):
         supported = AmazonBedrockGenerator.supports(
@@ -213,7 +221,7 @@ def test_supports_for_invalid_bedrock_config():
 
     # Patch the class method to return the mock session
     with patch(
-        "amazon_bedrock_haystack.generators.AmazonBedrockGenerator.get_aws_session",
+        "amazon_bedrock_haystack.generators.amazon_bedrock.AmazonBedrockGenerator.get_aws_session",
         return_value=mock_session,
     ), pytest.raises(AmazonBedrockConfigurationError, match="Could not connect to Amazon Bedrock."):
         AmazonBedrockGenerator.supports(
@@ -229,7 +237,7 @@ def test_supports_for_invalid_bedrock_config_error_on_list_models():
 
     # Patch the class method to return the mock session
     with patch(
-        "amazon_bedrock_haystack.generators.AmazonBedrockGenerator.get_aws_session",
+        "amazon_bedrock_haystack.generators.amazon_bedrock.AmazonBedrockGenerator.get_aws_session",
         return_value=mock_session,
     ), pytest.raises(AmazonBedrockConfigurationError, match="Could not connect to Amazon Bedrock."):
         AmazonBedrockGenerator.supports(
@@ -263,7 +271,7 @@ def test_supports_with_stream_true_for_model_that_supports_streaming():
 
     # Patch the class method to return the mock session
     with patch(
-        "amazon_bedrock_haystack.generators.AmazonBedrockGenerator.get_aws_session",
+        "amazon_bedrock_haystack.generators.amazon_bedrock.AmazonBedrockGenerator.get_aws_session",
         return_value=mock_session,
     ):
         supported = AmazonBedrockGenerator.supports(
@@ -284,7 +292,7 @@ def test_supports_with_stream_true_for_model_that_does_not_support_streaming():
 
     # Patch the class method to return the mock session
     with patch(
-        "amazon_bedrock_haystack.generators.AmazonBedrockGenerator.get_aws_session",
+        "amazon_bedrock_haystack.generators.amazon_bedrock.AmazonBedrockGenerator.get_aws_session",
         return_value=mock_session,
     ), pytest.raises(
         AmazonBedrockConfigurationError,
