@@ -2,6 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from integrations.ollama.src.ollama_haystack.generator import OllamaGenerator
+from ollama_haystack.generator import OllamaGenerator
 
 __all__ = ["OllamaGenerator"]
