@@ -6,12 +6,12 @@ from typing import Any, ClassVar, Dict, List, Optional, Type, Union
 import boto3
 from botocore.exceptions import BotoCoreError, ClientError
 from haystack import component
-from haystack.errors import (
+
+from amazon_bedrock_haystack.errors import (
     AmazonBedrockConfigurationError,
     AmazonBedrockInferenceError,
     AWSConfigurationError,
 )
-
 from amazon_bedrock_haystack.generators.amazon_bedrock_adapters import (
     AI21LabsJurassic2Adapter,
     AmazonTitanAdapter,

@@ -3,8 +3,8 @@ from unittest.mock import MagicMock, call, patch
 
 import pytest
 from botocore.exceptions import BotoCoreError
-from haystack.errors import AmazonBedrockConfigurationError
 
+from amazon_bedrock_haystack.errors import AmazonBedrockConfigurationError
 from amazon_bedrock_haystack.generators.amazon_bedrock import AmazonBedrockGenerator
 from amazon_bedrock_haystack.generators.amazon_bedrock_adapters import (
     AI21LabsJurassic2Adapter,
