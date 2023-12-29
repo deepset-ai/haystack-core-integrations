@@ -40,24 +40,24 @@ class TestOllamaGenerator:
         "configuration, prompt",
         [
             (
-                {
-                    "model_name": "some_model",
-                    "url": "https://localhost:11434/api/generate",
-                    "raw": True,
-                    "system_prompt": "You are mario from Super Mario Bros.",
-                    "template": None,
-                },
-                "hello",
+                    {
+                        "model_name": "some_model",
+                        "url": "https://localhost:11434/api/generate",
+                        "raw": True,
+                        "system_prompt": "You are mario from Super Mario Bros.",
+                        "template": None,
+                    },
+                    "hello",
             ),
             (
-                {
-                    "model_name": "some_model2",
-                    "url": "https://localhost:11434/api/generate",
-                    "raw": False,
-                    "system_prompt": None,
-                    "template": "some template",
-                },
-                "hello",
+                    {
+                        "model_name": "some_model2",
+                        "url": "https://localhost:11434/api/generate",
+                        "raw": False,
+                        "system_prompt": None,
+                        "template": "some template",
+                    },
+                    "hello",
             ),
         ],
     )
@@ -73,9 +73,9 @@ class TestOllamaGenerator:
                 "prompt": prompt,
                 "model": configuration["model_name"],
                 "stream": False,
-                "system": configuration['system_prompt'],
+                "system": configuration["system_prompt"],
                 "raw": configuration["raw"],
-                "template": configuration['template'],
+                "template": configuration["template"],
                 "options": {},
             },
         }
