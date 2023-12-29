@@ -170,3 +170,10 @@ markers = [
 addopts = [
     "--import-mode=importlib",
 ]
+
+[[tool.mypy.overrides]]
+module = [
+    "haystack.*",
+    "pytest.*"
+]
+ignore_missing_imports = true
