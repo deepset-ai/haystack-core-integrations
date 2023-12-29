@@ -166,6 +166,8 @@ exclude_lines = [
 [[tool.mypy.overrides]]
 module = [
   "botocore.*",
+  "transformers.*",
+  "boto3.*",
   "haystack.*",
   "pytest.*",
   "numpy.*",
