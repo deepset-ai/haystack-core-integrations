@@ -300,9 +300,7 @@ def test_supports_for_no_aws_params():
 
 @pytest.mark.unit
 def test_supports_for_unknown_model():
-    supported = AmazonBedrockGenerator.supports(
-        model_name="unknown_model", aws_profile_name="some_real_profile"
-    )
+    supported = AmazonBedrockGenerator.supports(model_name="unknown_model", aws_profile_name="some_real_profile")
 
     assert supported is False
 
