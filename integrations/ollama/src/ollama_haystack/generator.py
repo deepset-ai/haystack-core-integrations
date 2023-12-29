@@ -73,7 +73,6 @@ class OllamaGenerator:
             generation_kwargs = {}
         return {
             "url": self.url,
-            "timeout": 30,
             "json": {
                 "prompt": prompt,
                 "model": self.model_name,
@@ -89,7 +88,7 @@ class OllamaGenerator:
     def run(self, prompt: str, generation_kwargs: Optional[Dict[str, Any]] = None):
         generation_kwargs = {**self.generation_kwargs, **(generation_kwargs or {})}
 
-        response = requests.post(**self._post_args(prompt, generation_kwargs))
+        response = requests.post(**self._post_args(prompt, generation_kwargs), timeout=30)
 
         response.raise_for_status()
 

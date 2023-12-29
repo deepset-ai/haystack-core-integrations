@@ -68,7 +68,6 @@ class TestOllamaGenerator:
 
         expected = {
             "url": "https://localhost:11434/api/generate",
-            "timeout": 30,
             "json": {
                 "prompt": prompt,
                 "model": configuration["model_name"],
