@@ -178,6 +178,7 @@ ignore_missing_imports = true
 [tool.pytest.ini_options]
 addopts = "--strict-markers"
 markers = [
+  "unit: unit tests",
   "integration: integration tests",
   "embedders: embedders tests",
   "generators: generators tests",
