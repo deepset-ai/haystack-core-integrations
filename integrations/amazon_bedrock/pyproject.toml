@@ -27,6 +27,7 @@ classifiers = [
 dependencies = [
   "haystack-ai",
   "boto3>=1.28.57",
+  "transformers"
 ]
 
 [project.urls]
