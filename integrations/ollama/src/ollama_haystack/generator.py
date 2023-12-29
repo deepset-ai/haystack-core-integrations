@@ -1,7 +1,6 @@
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Optional, Any, Dict, List
-from urllib.parse import urljoin
+from typing import Any, Dict, List, Optional
 
 import requests
 from haystack import component
@@ -40,6 +39,16 @@ class OllamaGenerator:
             template: Optional[str] = None,
             raw: bool = False,
     ):
+        """
+
+        :param model_name: The name of the LLM to use (from Ollama)
+        :param url: The URL to a running Ollama instance
+        :param generation_kwargs: Optional arguments to pass to the Ollama generate function
+        :param system_prompt: Optional system message to (overrides what is defined in the Modelfile)
+        :param template: The full prompt or prompt template (overrides what is defined in the Modelfile)
+        :param raw: If True, no formatting will be applied to the prompt. You may choose to use the raw parameter
+        if you are specifying a full templated prompt in your request to the API.
+        """
         self.raw = raw
         self.template = template
         self.system_prompt = system_prompt
@@ -53,21 +62,30 @@ class OllamaGenerator:
         """
         return {"model": self.model_name}
 
-    def _post_args(self, prompt: str, generation_kwargs=None):
+    def _post_args(self, prompt: str, generation_kwargs=None) -> Dict[str, Any]:
+        """
+        Returns A dictionary of arguments for a POST request to an Ollama service
+        :param prompt: the prompt to generate a response for
+        :param generation_kwargs:
+        :return: A dictionary of arguments for a POST request to an Ollama service
+        """
         if generation_kwargs is None:
             generation_kwargs = {}
         return {
-            "url": urljoin(self.url, "/api/generate"),
+            "url": self.url,
+            "timeout": 30,
             "json": {
                 "prompt": prompt,
                 "model": self.model_name,
                 "stream": False,
                 "raw": self.raw,
+                "template": self.template,
+                "system": self.system_prompt,
                 "options": generation_kwargs,
             },
         }
 
-    @component.output_types(replies=List[str], metadata=List[Dict[str, Any]])
+    @component.output_types(replies=List[str], metadata=List[dict[str, Any]])
     def run(self, prompt: str, generation_kwargs: Optional[Dict[str, Any]] = None):
         generation_kwargs = {**self.generation_kwargs, **(generation_kwargs or {})}
 
