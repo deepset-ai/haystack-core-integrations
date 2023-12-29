@@ -70,15 +70,15 @@ class AmazonBedrockGenerator:
     }
 
     def __init__(
-            self,
-            model_name_or_path: str,
-            aws_access_key_id: Optional[str] = None,
-            aws_secret_access_key: Optional[str] = None,
-            aws_session_token: Optional[str] = None,
-            aws_region_name: Optional[str] = None,
-            aws_profile_name: Optional[str] = None,
-            max_length: Optional[int] = 100,
-            **kwargs,
+        self,
+        model_name_or_path: str,
+        aws_access_key_id: Optional[str] = None,
+        aws_secret_access_key: Optional[str] = None,
+        aws_session_token: Optional[str] = None,
+        aws_region_name: Optional[str] = None,
+        aws_profile_name: Optional[str] = None,
+        max_length: Optional[int] = 100,
+        **kwargs,
     ):
         if model_name_or_path is None or len(model_name_or_path) == 0:
             msg = "model_name_or_path cannot be None or empty string"
@@ -96,8 +96,10 @@ class AmazonBedrockGenerator:
             )
             self.client = session.client("bedrock-runtime")
         except Exception as exception:
-            msg = ("Could not connect to Amazon Bedrock. Make sure the AWS environment is configured correctly. "
-                   "See https://boto3.amazonaws.com/v1/documentation/api/latest/guide/quickstart.html#configuration")
+            msg = (
+                "Could not connect to Amazon Bedrock. Make sure the AWS environment is configured correctly. "
+                "See https://boto3.amazonaws.com/v1/documentation/api/latest/guide/quickstart.html#configuration"
+            )
             raise AmazonBedrockConfigurationError(msg) from exception
 
         model_input_kwargs = kwargs
@@ -115,23 +117,19 @@ class AmazonBedrockGenerator:
             max_length=self.max_length or 100,
         )
 
-        model_apapter_cls = self.get_model_adapter(
-            model_name_or_path=model_name_or_path
-        )
+        model_apapter_cls = self.get_model_adapter(model_name_or_path=model_name_or_path)
         if not model_apapter_cls:
             msg = f"AmazonBedrockGenerator doesn't support the model {model_name_or_path}."
             raise AmazonBedrockConfigurationError(msg)
-        self.model_adapter = model_apapter_cls(
-            model_kwargs=model_input_kwargs, max_length=self.max_length
-        )
+        self.model_adapter = model_apapter_cls(model_kwargs=model_input_kwargs, max_length=self.max_length)
 
-    def _ensure_token_limit(
-            self, prompt: Union[str, List[Dict[str, str]]]
-    ) -> Union[str, List[Dict[str, str]]]:
+    def _ensure_token_limit(self, prompt: Union[str, List[Dict[str, str]]]) -> Union[str, List[Dict[str, str]]]:
         # the prompt for this model will be of the type str
         if isinstance(prompt, List):
-            msg = ("AmazonBedrockGenerator only supports a string as a prompt, "
-                   "while currently, the prompt is of type List.")
+            msg = (
+                "AmazonBedrockGenerator only supports a string as a prompt, "
+                "while currently, the prompt is of type List."
+            )
             raise ValueError(msg)
 
         resize_info = self.prompt_handler(prompt)
@@ -156,32 +154,29 @@ class AmazonBedrockGenerator:
         try:
             session = cls.get_aws_session(**kwargs)
             bedrock = session.client("bedrock")
-            foundation_models_response = bedrock.list_foundation_models(
-                byOutputModality="TEXT"
-            )
-            available_model_ids = [
-                entry["modelId"]
-                for entry in foundation_models_response.get("modelSummaries", [])
-            ]
+            foundation_models_response = bedrock.list_foundation_models(byOutputModality="TEXT")
+            available_model_ids = [entry["modelId"] for entry in foundation_models_response.get("modelSummaries", [])]
             model_ids_supporting_streaming = [
                 entry["modelId"]
                 for entry in foundation_models_response.get("modelSummaries", [])
                 if entry.get("responseStreamingSupported", False)
             ]
         except AWSConfigurationError as exception:
-            raise AmazonBedrockConfigurationError(
-                message=exception.message
-            ) from exception
+            raise AmazonBedrockConfigurationError(message=exception.message) from exception
         except Exception as exception:
-            msg = ("Could not connect to Amazon Bedrock. Make sure the AWS environment is configured correctly. "
-                   "See https://boto3.amazonaws.com/v1/documentation/api/latest/guide/quickstart.html#configuration")
+            msg = (
+                "Could not connect to Amazon Bedrock. Make sure the AWS environment is configured correctly. "
+                "See https://boto3.amazonaws.com/v1/documentation/api/latest/guide/quickstart.html#configuration"
+            )
             raise AmazonBedrockConfigurationError(msg) from exception
 
         model_available = model_name_or_path in available_model_ids
         if not model_available:
-            msg = (f"The model {model_name_or_path} is not available in Amazon Bedrock. "
-                   f"Make sure the model you want to use is available in the configured AWS region and "
-                   f"you have access.")
+            msg = (
+                f"The model {model_name_or_path} is not available in Amazon Bedrock. "
+                f"Make sure the model you want to use is available in the configured AWS region and "
+                f"you have access."
+            )
             raise AmazonBedrockConfigurationError(msg)
 
         stream: bool = kwargs.get("stream", False)
@@ -195,13 +190,13 @@ class AmazonBedrockGenerator:
     def invoke(self, *args, **kwargs):
         kwargs = kwargs.copy()
         prompt: str = kwargs.pop("prompt", None)
-        stream: bool = kwargs.get(
-            "stream", self.model_adapter.model_kwargs.get("stream", False)
-        )
+        stream: bool = kwargs.get("stream", self.model_adapter.model_kwargs.get("stream", False))
 
         if not prompt or not isinstance(prompt, (str, list)):
-            msg = (f"The model {self.model_name_or_path} requires a valid prompt, but currently, it has no prompt. "
-                   f"Make sure to provide a prompt in the format that the model expects.")
+            msg = (
+                f"The model {self.model_name_or_path} requires a valid prompt, but currently, it has no prompt. "
+                f"Make sure to provide a prompt in the format that the model expects."
+            )
             raise ValueError(msg)
 
         body = self.model_adapter.prepare_body(prompt=prompt, **kwargs)
@@ -216,13 +211,9 @@ class AmazonBedrockGenerator:
                 response_stream = response["body"]
                 handler: TokenStreamingHandler = kwargs.get(
                     "stream_handler",
-                    self.model_adapter.model_kwargs.get(
-                        "stream_handler", DefaultTokenStreamingHandler()
-                    ),
+                    self.model_adapter.model_kwargs.get("stream_handler", DefaultTokenStreamingHandler()),
                 )
-                responses = self.model_adapter.get_stream_responses(
-                    stream=response_stream, stream_handler=handler
-                )
+                responses = self.model_adapter.get_stream_responses(stream=response_stream, stream_handler=handler)
             else:
                 response = self.client.invoke_model(
                     body=json.dumps(body),
@@ -231,13 +222,13 @@ class AmazonBedrockGenerator:
                     contentType="application/json",
                 )
                 response_body = json.loads(response.get("body").read().decode("utf-8"))
-                responses = self.model_adapter.get_responses(
-                    response_body=response_body
-                )
+                responses = self.model_adapter.get_responses(response_body=response_body)
         except ClientError as exception:
-            msg = (f"Could not connect to Amazon Bedrock model {self.model_name_or_path}. "
-                   f"Make sure your AWS environment is configured correctly, "
-                   f"the model is available in the configured AWS region, and you have access.")
+            msg = (
+                f"Could not connect to Amazon Bedrock model {self.model_name_or_path}. "
+                f"Make sure your AWS environment is configured correctly, "
+                f"the model is available in the configured AWS region, and you have access."
+            )
             raise AmazonBedrockInferenceError(msg) from exception
 
         return responses
@@ -247,9 +238,7 @@ class AmazonBedrockGenerator:
         pass
 
     @classmethod
-    def get_model_adapter(
-            cls, model_name_or_path: str
-    ) -> Optional[Type[BedrockModelAdapter]]:
+    def get_model_adapter(cls, model_name_or_path: str) -> Optional[Type[BedrockModelAdapter]]:
         for pattern, adapter in cls.SUPPORTED_MODEL_PATTERNS.items():
             if re.fullmatch(pattern, model_name_or_path):
                 return adapter
@@ -267,13 +256,13 @@ class AmazonBedrockGenerator:
 
     @classmethod
     def get_aws_session(
-            cls,
-            aws_access_key_id: Optional[str] = None,
-            aws_secret_access_key: Optional[str] = None,
-            aws_session_token: Optional[str] = None,
-            aws_region_name: Optional[str] = None,
-            aws_profile_name: Optional[str] = None,
-            **kwargs,
+        cls,
+        aws_access_key_id: Optional[str] = None,
+        aws_secret_access_key: Optional[str] = None,
+        aws_session_token: Optional[str] = None,
+        aws_region_name: Optional[str] = None,
+        aws_profile_name: Optional[str] = None,
+        **kwargs,
     ):
         """
         Creates an AWS Session with the given parameters.
@@ -298,8 +287,6 @@ class AmazonBedrockGenerator:
                 profile_name=aws_profile_name,
             )
         except BotoCoreError as e:
-            provided_aws_config = {
-                k: v for k, v in kwargs.items() if k in AWS_CONFIGURATION_KEYS
-            }
+            provided_aws_config = {k: v for k, v in kwargs.items() if k in AWS_CONFIGURATION_KEYS}
             msg = f"Failed to initialize the session with provided AWS credentials {provided_aws_config}"
             raise AWSConfigurationError(msg) from e

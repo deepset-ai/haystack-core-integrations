@@ -11,7 +11,8 @@ class AmazonBedrockError(Exception):
     """
 
     def __init__(
-        self, message: Optional[str] = None,
+        self,
+        message: Optional[str] = None,
     ):
         super().__init__()
         if message:
