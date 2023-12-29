@@ -114,9 +114,14 @@ class GeminiChatGenerator:
                 p.function_call.args[k] = v
             return p
         elif message.role == ChatRole.SYSTEM:
-            return Part().text(message.content)
+            p = Part()
+            p.text = message.content
+            return p
         elif message.role == ChatRole.FUNCTION:
-            return Part().function_response(name=message.name, response=message.content)
+            p = Part()
+            p.function_response.name = message.name
+            p.function_response.response = message.content
+            return p
         elif message.role == ChatRole.USER:
             return self._convert_part(message.content)
 
@@ -128,9 +133,14 @@ class GeminiChatGenerator:
             for k, v in message.content.items():
                 part.function_call.args[k] = v
         elif message.role == ChatRole.SYSTEM:
-            part = Part().text=message.content
+            part = Part()
+            part.text = message.content
+            return part
         elif message.role == ChatRole.FUNCTION:
-            part = Part().function_response(name=message.name, response=message.content)
+            part = Part()
+            part.function_response.name = message.name
+            part.function_response.response = message.content
+            return part
         elif message.role == ChatRole.USER:
             part = self._convert_part(message.content)
         else:
