@@ -81,5 +81,5 @@ class DefaultTokenStreamingHandler(TokenStreamingHandler):
         :param kwargs: Additional keyword arguments passed to the handler.
         :return: The token to be sent to the stream.
         """
-        print(token_received, flush=True, end="")
+        print(token_received, flush=True, end="")  # noqa: T201
         return token_received

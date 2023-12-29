@@ -1,9 +1,17 @@
 import json
 import logging
 import re
-from typing import Any, Dict, List, Optional, Type, Union
+from typing import Any, ClassVar, Dict, List, Optional, Type, Union
 
 import boto3
+from botocore.exceptions import BotoCoreError, ClientError
+from haystack import component
+from haystack.errors import (
+    AmazonBedrockConfigurationError,
+    AmazonBedrockInferenceError,
+    AWSConfigurationError,
+)
+
 from amazon_bedrock_haystack.generators.amazon_bedrock_adapters import (
     AI21LabsJurassic2Adapter,
     AmazonTitanAdapter,
@@ -16,13 +24,6 @@ from amazon_bedrock_haystack.generators.amazon_bedrock_handlers import (
     DefaultPromptHandler,
     DefaultTokenStreamingHandler,
     TokenStreamingHandler,
-)
-from botocore.exceptions import BotoCoreError, ClientError
-from haystack import component
-from haystack.errors import (
-    AmazonBedrockConfigurationError,
-    AmazonBedrockInferenceError,
-    AWSConfigurationError,
 )
 
 logger = logging.getLogger(__name__)
@@ -60,7 +61,7 @@ class AmazonBedrockGenerator:
     ```
     """
 
-    SUPPORTED_MODEL_PATTERNS: Dict[str, Type[BedrockModelAdapter]] = {
+    SUPPORTED_MODEL_PATTERNS: ClassVar[Dict[str, Type[BedrockModelAdapter]]] = {
         r"amazon.titan-text.*": AmazonTitanAdapter,
         r"ai21.j2.*": AI21LabsJurassic2Adapter,
         r"cohere.command.*": CohereCommandAdapter,
@@ -179,7 +180,8 @@ class AmazonBedrockGenerator:
         model_available = model_name_or_path in available_model_ids
         if not model_available:
             msg = (f"The model {model_name_or_path} is not available in Amazon Bedrock. "
-                   f"Make sure the model you want to use is available in the configured AWS region and you have access.")
+                   f"Make sure the model you want to use is available in the configured AWS region and "
+                   f"you have access.")
             raise AmazonBedrockConfigurationError(msg)
 
         stream: bool = kwargs.get("stream", False)

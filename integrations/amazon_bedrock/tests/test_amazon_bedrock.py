@@ -2,6 +2,9 @@ from typing import Optional, Type
 from unittest.mock import MagicMock, call, patch
 
 import pytest
+from botocore.exceptions import BotoCoreError
+from haystack.errors import AmazonBedrockConfigurationError
+
 from amazon_bedrock_haystack.generators.amazon_bedrock import AmazonBedrockGenerator
 from amazon_bedrock_haystack.generators.amazon_bedrock_adapters import (
     AI21LabsJurassic2Adapter,
@@ -11,8 +14,6 @@ from amazon_bedrock_haystack.generators.amazon_bedrock_adapters import (
     CohereCommandAdapter,
     MetaLlama2ChatAdapter,
 )
-from botocore.exceptions import BotoCoreError
-from haystack.errors import AmazonBedrockConfigurationError
 
 
 # create a fixture with mocked boto3 client and session
