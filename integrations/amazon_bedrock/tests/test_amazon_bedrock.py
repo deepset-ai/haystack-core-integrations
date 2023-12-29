@@ -40,13 +40,58 @@ def mock_prompt_handler():
 
 
 @pytest.mark.unit
+def test_to_dict(mock_auto_tokenizer, mock_boto3_session):
+    """
+    Test that the to_dict method returns the correct dictionary without aws credentials
+    """
+    generator = AmazonBedrockGenerator(
+        model_name="anthropic.claude-v2",
+        max_length=99,
+        aws_access_key_id="some_fake_id",
+        aws_secret_access_key="some_fake_key",
+        aws_session_token="some_fake_token",
+        aws_profile_name="some_fake_profile",
+        aws_region_name="fake_region",
+    )
+
+    expected_dict = {
+        "type": "amazon_bedrock_haystack.generators.amazon_bedrock.AmazonBedrockGenerator",
+        "init_parameters": {
+            "model_name": "anthropic.claude-v2",
+            "max_length": 99,
+        },
+    }
+
+    assert generator.to_dict() == expected_dict
+
+
+@pytest.mark.unit
+def test_from_dict(mock_auto_tokenizer, mock_boto3_session):
+    """
+    Test that the from_dict method returns the correct object
+    """
+    generator = AmazonBedrockGenerator.from_dict(
+        {
+            "type": "amazon_bedrock_haystack.generators.amazon_bedrock.AmazonBedrockGenerator",
+            "init_parameters": {
+                "model_name": "anthropic.claude-v2",
+                "max_length": 99,
+            },
+        }
+    )
+
+    assert generator.max_length == 99
+    assert generator.model_name == "anthropic.claude-v2"
+
+
+@pytest.mark.unit
 def test_default_constructor(mock_auto_tokenizer, mock_boto3_session):
     """
     Test that the default constructor sets the correct values
     """
 
     layer = AmazonBedrockGenerator(
-        model_name_or_path="anthropic.claude-v2",
+        model_name="anthropic.claude-v2",
         max_length=99,
         aws_access_key_id="some_fake_id",
         aws_secret_access_key="some_fake_key",
@@ -56,7 +101,7 @@ def test_default_constructor(mock_auto_tokenizer, mock_boto3_session):
     )
 
     assert layer.max_length == 99
-    assert layer.model_name_or_path == "anthropic.claude-v2"
+    assert layer.model_name == "anthropic.claude-v2"
 
     assert layer.prompt_handler is not None
     assert layer.prompt_handler.model_max_length == 4096
@@ -79,7 +124,7 @@ def test_constructor_prompt_handler_initialized(mock_auto_tokenizer, mock_boto3_
     """
     Test that the constructor sets the prompt_handler correctly, with the correct model_max_length for llama-2
     """
-    layer = AmazonBedrockGenerator(model_name_or_path="anthropic.claude-v2", prompt_handler=mock_prompt_handler)
+    layer = AmazonBedrockGenerator(model_name="anthropic.claude-v2", prompt_handler=mock_prompt_handler)
     assert layer.prompt_handler is not None
     assert layer.prompt_handler.model_max_length == 4096
 
@@ -91,7 +136,7 @@ def test_constructor_with_model_kwargs(mock_auto_tokenizer, mock_boto3_session):
     """
     model_kwargs = {"temperature": 0.7}
 
-    layer = AmazonBedrockGenerator(model_name_or_path="anthropic.claude-v2", **model_kwargs)
+    layer = AmazonBedrockGenerator(model_name="anthropic.claude-v2", **model_kwargs)
     assert "temperature" in layer.model_adapter.model_kwargs
     assert layer.model_adapter.model_kwargs["temperature"] == 0.7
 
@@ -99,10 +144,10 @@ def test_constructor_with_model_kwargs(mock_auto_tokenizer, mock_boto3_session):
 @pytest.mark.unit
 def test_constructor_with_empty_model_name():
     """
-    Test that the constructor raises an error when the model_name_or_path is empty
+    Test that the constructor raises an error when the model_name is empty
     """
     with pytest.raises(ValueError, match="cannot be None or empty string"):
-        AmazonBedrockGenerator(model_name_or_path="")
+        AmazonBedrockGenerator(model_name="")
 
 
 @pytest.mark.unit
@@ -110,7 +155,7 @@ def test_invoke_with_no_kwargs(mock_auto_tokenizer, mock_boto3_session):
     """
     Test invoke raises an error if no prompt is provided
     """
-    layer = AmazonBedrockGenerator(model_name_or_path="anthropic.claude-v2")
+    layer = AmazonBedrockGenerator(model_name="anthropic.claude-v2")
     with pytest.raises(ValueError, match="The model anthropic.claude-v2 requires a valid prompt."):
         layer.invoke()
 
@@ -194,7 +239,7 @@ def test_supports_for_valid_aws_configuration():
         return_value=mock_session,
     ):
         supported = AmazonBedrockGenerator.supports(
-            model_name_or_path="anthropic.claude-v2",
+            model_name="anthropic.claude-v2",
             aws_profile_name="some_real_profile",
         )
     args, kwargs = mock_session.client("bedrock").list_foundation_models.call_args
@@ -209,7 +254,7 @@ def test_supports_raises_on_invalid_aws_profile_name():
         mock_boto3_session.side_effect = BotoCoreError()
         with pytest.raises(AmazonBedrockConfigurationError, match="Failed to initialize the session"):
             AmazonBedrockGenerator.supports(
-                model_name_or_path="anthropic.claude-v2",
+                model_name="anthropic.claude-v2",
                 aws_profile_name="some_fake_profile",
             )
 
@@ -225,7 +270,7 @@ def test_supports_for_invalid_bedrock_config():
         return_value=mock_session,
     ), pytest.raises(AmazonBedrockConfigurationError, match="Could not connect to Amazon Bedrock."):
         AmazonBedrockGenerator.supports(
-            model_name_or_path="anthropic.claude-v2",
+            model_name="anthropic.claude-v2",
             aws_profile_name="some_real_profile",
         )
 
@@ -241,14 +286,14 @@ def test_supports_for_invalid_bedrock_config_error_on_list_models():
         return_value=mock_session,
     ), pytest.raises(AmazonBedrockConfigurationError, match="Could not connect to Amazon Bedrock."):
         AmazonBedrockGenerator.supports(
-            model_name_or_path="anthropic.claude-v2",
+            model_name="anthropic.claude-v2",
             aws_profile_name="some_real_profile",
         )
 
 
 @pytest.mark.unit
 def test_supports_for_no_aws_params():
-    supported = AmazonBedrockGenerator.supports(model_name_or_path="anthropic.claude-v2")
+    supported = AmazonBedrockGenerator.supports(model_name="anthropic.claude-v2")
 
     assert supported is False
 
@@ -256,7 +301,7 @@ def test_supports_for_no_aws_params():
 @pytest.mark.unit
 def test_supports_for_unknown_model():
     supported = AmazonBedrockGenerator.supports(
-        model_name_or_path="unknown_model", aws_profile_name="some_real_profile"
+        model_name="unknown_model", aws_profile_name="some_real_profile"
     )
 
     assert supported is False
@@ -275,7 +320,7 @@ def test_supports_with_stream_true_for_model_that_supports_streaming():
         return_value=mock_session,
     ):
         supported = AmazonBedrockGenerator.supports(
-            model_name_or_path="anthropic.claude-v2",
+            model_name="anthropic.claude-v2",
             aws_profile_name="some_real_profile",
             stream=True,
         )
@@ -299,7 +344,7 @@ def test_supports_with_stream_true_for_model_that_does_not_support_streaming():
         match="The model ai21.j2-mid-v1 doesn't support streaming.",
     ):
         AmazonBedrockGenerator.supports(
-            model_name_or_path="ai21.j2-mid-v1",
+            model_name="ai21.j2-mid-v1",
             aws_profile_name="some_real_profile",
             stream=True,
         )
@@ -307,7 +352,7 @@ def test_supports_with_stream_true_for_model_that_does_not_support_streaming():
 
 @pytest.mark.unit
 @pytest.mark.parametrize(
-    "model_name_or_path, expected_model_adapter",
+    "model_name, expected_model_adapter",
     [
         ("anthropic.claude-v1", AnthropicClaudeAdapter),
         ("anthropic.claude-v2", AnthropicClaudeAdapter),
@@ -329,11 +374,11 @@ def test_supports_with_stream_true_for_model_that_does_not_support_streaming():
         ("unknown_model", None),
     ],
 )
-def test_get_model_adapter(model_name_or_path: str, expected_model_adapter: Optional[Type[BedrockModelAdapter]]):
+def test_get_model_adapter(model_name: str, expected_model_adapter: Optional[Type[BedrockModelAdapter]]):
     """
-    Test that the correct model adapter is returned for a given model_name_or_path
+    Test that the correct model adapter is returned for a given model_name
     """
-    model_adapter = AmazonBedrockGenerator.get_model_adapter(model_name_or_path=model_name_or_path)
+    model_adapter = AmazonBedrockGenerator.get_model_adapter(model_name=model_name)
     assert model_adapter == expected_model_adapter
 
 

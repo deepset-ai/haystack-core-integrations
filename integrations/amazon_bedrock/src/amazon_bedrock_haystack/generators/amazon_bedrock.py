@@ -5,7 +5,7 @@ from typing import Any, ClassVar, Dict, List, Optional, Type, Union
 
 import boto3
 from botocore.exceptions import BotoCoreError, ClientError
-from haystack import component
+from haystack import component, default_from_dict, default_to_dict
 
 from amazon_bedrock_haystack.errors import (
     AmazonBedrockConfigurationError,
@@ -45,10 +45,10 @@ class AmazonBedrockGenerator:
 
     Usage example:
     ```python
-    from amazon_bedrock_haystack import AmazonBedrockGenerator
+    from amazon_bedrock_haystack.generators.amazon_bedrock import AmazonBedrockGenerator
 
     generator = AmazonBedrockGenerator(
-        model_name_or_path="anthropic.claude-v2",
+        model_name="anthropic.claude-v2",
         max_length=99,
         aws_access_key_id="...",
         aws_secret_access_key="...",
@@ -71,7 +71,7 @@ class AmazonBedrockGenerator:
 
     def __init__(
         self,
-        model_name_or_path: str,
+        model_name: str,
         aws_access_key_id: Optional[str] = None,
         aws_secret_access_key: Optional[str] = None,
         aws_session_token: Optional[str] = None,
@@ -80,10 +80,10 @@ class AmazonBedrockGenerator:
         max_length: Optional[int] = 100,
         **kwargs,
     ):
-        if model_name_or_path is None or len(model_name_or_path) == 0:
-            msg = "model_name_or_path cannot be None or empty string"
+        if model_name is None or len(model_name) == 0:
+            msg = "model_name cannot be None or empty string"
             raise ValueError(msg)
-        self.model_name_or_path = model_name_or_path
+        self.model_name = model_name
         self.max_length = max_length
 
         try:
@@ -112,16 +112,16 @@ class AmazonBedrockGenerator:
         # It is hard to determine which tokenizer to use for the SageMaker model
         # so we use GPT2 tokenizer which will likely provide good token count approximation
         self.prompt_handler = DefaultPromptHandler(
-            model_name_or_path="gpt2",
+            model_name="gpt2",
             model_max_length=model_max_length,
             max_length=self.max_length or 100,
         )
 
-        model_apapter_cls = self.get_model_adapter(model_name_or_path=model_name_or_path)
-        if not model_apapter_cls:
-            msg = f"AmazonBedrockGenerator doesn't support the model {model_name_or_path}."
+        model_adapter_cls = self.get_model_adapter(model_name=model_name)
+        if not model_adapter_cls:
+            msg = f"AmazonBedrockGenerator doesn't support the model {model_name}."
             raise AmazonBedrockConfigurationError(msg)
-        self.model_adapter = model_apapter_cls(model_kwargs=model_input_kwargs, max_length=self.max_length)
+        self.model_adapter = model_adapter_cls(model_kwargs=model_input_kwargs, max_length=self.max_length)
 
     def _ensure_token_limit(self, prompt: Union[str, List[Dict[str, str]]]) -> Union[str, List[Dict[str, str]]]:
         # the prompt for this model will be of the type str
@@ -146,8 +146,8 @@ class AmazonBedrockGenerator:
         return str(resize_info["resized_prompt"])
 
     @classmethod
-    def supports(cls, model_name_or_path, **kwargs):
-        model_supported = cls.get_model_adapter(model_name_or_path) is not None
+    def supports(cls, model_name, **kwargs):
+        model_supported = cls.get_model_adapter(model_name) is not None
         if not model_supported or not cls.aws_configured(**kwargs):
             return False
 
@@ -170,19 +170,19 @@ class AmazonBedrockGenerator:
             )
             raise AmazonBedrockConfigurationError(msg) from exception
 
-        model_available = model_name_or_path in available_model_ids
+        model_available = model_name in available_model_ids
         if not model_available:
             msg = (
-                f"The model {model_name_or_path} is not available in Amazon Bedrock. "
+                f"The model {model_name} is not available in Amazon Bedrock. "
                 f"Make sure the model you want to use is available in the configured AWS region and "
                 f"you have access."
             )
             raise AmazonBedrockConfigurationError(msg)
 
         stream: bool = kwargs.get("stream", False)
-        model_supports_streaming = model_name_or_path in model_ids_supporting_streaming
+        model_supports_streaming = model_name in model_ids_supporting_streaming
         if stream and not model_supports_streaming:
-            msg = f"The model {model_name_or_path} doesn't support streaming. Remove the `stream` parameter."
+            msg = f"The model {model_name} doesn't support streaming. Remove the `stream` parameter."
             raise AmazonBedrockConfigurationError(msg)
 
         return model_supported
@@ -194,7 +194,7 @@ class AmazonBedrockGenerator:
 
         if not prompt or not isinstance(prompt, (str, list)):
             msg = (
-                f"The model {self.model_name_or_path} requires a valid prompt, but currently, it has no prompt. "
+                f"The model {self.model_name} requires a valid prompt, but currently, it has no prompt. "
                 f"Make sure to provide a prompt in the format that the model expects."
             )
             raise ValueError(msg)
@@ -204,7 +204,7 @@ class AmazonBedrockGenerator:
             if stream:
                 response = self.client.invoke_model_with_response_stream(
                     body=json.dumps(body),
-                    modelId=self.model_name_or_path,
+                    modelId=self.model_name,
                     accept="application/json",
                     contentType="application/json",
                 )
@@ -217,7 +217,7 @@ class AmazonBedrockGenerator:
             else:
                 response = self.client.invoke_model(
                     body=json.dumps(body),
-                    modelId=self.model_name_or_path,
+                    modelId=self.model_name,
                     accept="application/json",
                     contentType="application/json",
                 )
@@ -225,7 +225,7 @@ class AmazonBedrockGenerator:
                 responses = self.model_adapter.get_responses(response_body=response_body)
         except ClientError as exception:
             msg = (
-                f"Could not connect to Amazon Bedrock model {self.model_name_or_path}. "
+                f"Could not connect to Amazon Bedrock model {self.model_name}. "
                 f"Make sure your AWS environment is configured correctly, "
                 f"the model is available in the configured AWS region, and you have access."
             )
@@ -235,12 +235,12 @@ class AmazonBedrockGenerator:
 
     @component.output_types(replies=List[str], metadata=List[Dict[str, Any]])
     def run(self, prompt: str, generation_kwargs: Optional[Dict[str, Any]] = None):
-        pass
+        return {"replies": self.invoke(prompt=prompt, **(generation_kwargs or {}))}
 
     @classmethod
-    def get_model_adapter(cls, model_name_or_path: str) -> Optional[Type[BedrockModelAdapter]]:
+    def get_model_adapter(cls, model_name: str) -> Optional[Type[BedrockModelAdapter]]:
         for pattern, adapter in cls.SUPPORTED_MODEL_PATTERNS.items():
-            if re.fullmatch(pattern, model_name_or_path):
+            if re.fullmatch(pattern, model_name):
                 return adapter
         return None
 
@@ -290,3 +290,23 @@ class AmazonBedrockGenerator:
             provided_aws_config = {k: v for k, v in kwargs.items() if k in AWS_CONFIGURATION_KEYS}
             msg = f"Failed to initialize the session with provided AWS credentials {provided_aws_config}"
             raise AWSConfigurationError(msg) from e
+
+    def to_dict(self) -> Dict[str, Any]:
+        """
+        Serialize this component to a dictionary.
+        :return: The serialized component as a dictionary.
+        """
+        return default_to_dict(
+            self,
+            model_name=self.model_name,
+            max_length=self.max_length,
+        )
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "AmazonBedrockGenerator":
+        """
+        Deserialize this component from a dictionary.
+        :param data: The dictionary representation of this component.
+        :return: The deserialized component instance.
+        """
+        return default_from_dict(cls, data)

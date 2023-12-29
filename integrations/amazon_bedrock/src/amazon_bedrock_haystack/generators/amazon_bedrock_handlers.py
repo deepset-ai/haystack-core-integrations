@@ -10,8 +10,8 @@ class DefaultPromptHandler:
     are within the model_max_length.
     """
 
-    def __init__(self, model_name_or_path: str, model_max_length: int, max_length: int = 100):
-        self.tokenizer = AutoTokenizer.from_pretrained(model_name_or_path)
+    def __init__(self, model_name: str, model_max_length: int, max_length: int = 100):
+        self.tokenizer = AutoTokenizer.from_pretrained(model_name)
         self.tokenizer.model_max_length = model_max_length
         self.model_max_length = model_max_length
         self.max_length = max_length
