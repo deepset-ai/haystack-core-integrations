@@ -84,7 +84,7 @@ class OllamaGenerator:
             },
         }
 
-    @component.output_types(replies=List[str], metadata=List[dict[str, Any]])
+    @component.output_types(replies=List[str], metadata=List[Dict[str, Any]])
     def run(self, prompt: str, generation_kwargs: Optional[Dict[str, Any]] = None):
         generation_kwargs = {**self.generation_kwargs, **(generation_kwargs or {})}
 
