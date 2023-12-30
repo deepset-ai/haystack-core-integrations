@@ -22,6 +22,9 @@ class TestOllamaGenerator:
         component = OllamaGenerator()
         results = component.run(prompt=prompt)
         response = results["replies"][0]
+
+        assert "replies" in results.keys()
+        assert "meta" in results.keys()
         assert answer in response
 
     @pytest.mark.integration
