@@ -112,6 +112,11 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, LegacyFilterDoc
         assert ds._embedding_function == function_name
         assert ds._embedding_function_params == {"api_key": "1234567890"}
 
+    @pytest.mark.integration
+    def test_same_collection_name_reinitialization(self):
+        ds = ChromaDocumentStore("test_name")
+        ds = ChromaDocumentStore("test_name")
+
     @pytest.mark.skip(reason="Filter on array contents is not supported.")
     @pytest.mark.unit
     def test_filter_document_array(self, document_store: ChromaDocumentStore, filterable_docs: List[Document]):

@@ -41,7 +41,7 @@ class ChromaDocumentStore:
         self._embedding_function_params = embedding_function_params
         # Create the client instance
         self._chroma_client = chromadb.Client()
-        self._collection = self._chroma_client.create_collection(
+        self._collection = self._chroma_client.get_or_create_collection(
             name=collection_name,
             embedding_function=get_embedding_function(embedding_function, **embedding_function_params),
         )
