@@ -44,9 +44,12 @@ jobs:
         if: matrix.python-version == '3.9'
         run: hatch run lint:all
 
-      - name: Run Ollama container
+      - name: Run Ollama
         working-directory: integrations/ollama
-        run: docker-compose up -d
+        run: |
+          curl https://ollama.ai/install.sh | sh
+          ollama pull orca-mini
+          ollama serve
 
       - name: Run tests
         working-directory: integrations/ollama
