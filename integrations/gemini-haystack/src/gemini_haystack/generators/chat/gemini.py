@@ -3,13 +3,12 @@ from typing import Any, Dict, List, Optional, Union
 
 import google.generativeai as genai
 from haystack.core.component import component
-from haystack.core.component.types import Variadic
 from haystack.core.serialization import default_from_dict, default_to_dict
 from haystack.dataclasses.byte_stream import ByteStream
+from haystack.dataclasses.chat_message import ChatMessage, ChatRole
 from google.generativeai import GenerationConfig, GenerativeModel
 from google.generativeai.types import HarmBlockThreshold, HarmCategory
-from haystack.dataclasses.chat_message import ChatMessage, ChatRole
-from google.ai.generativelanguage import FunctionDeclaration, Tool, Part, Content
+from google.ai.generativelanguage import Tool, Part, Content
 
 logger = logging.getLogger(__name__)
 
@@ -19,9 +18,8 @@ class GoogleAIGeminiChatGenerator:
     def __init__(
         self,
         *,
-        api_key: str,
+        api_key: Optional[str] = None,
         model: str = "gemini-pro-vision",
-        project_id: str,
         generation_config: Optional[Union[GenerationConfig, Dict[str, Any]]] = None,
         safety_settings: Optional[Dict[HarmCategory, HarmBlockThreshold]] = None,
         tools: Optional[List[Tool]] = None,
@@ -30,28 +28,14 @@ class GoogleAIGeminiChatGenerator:
         Multi modal generator using Gemini model via Makersuite
         """
 
-        # Login to GCP. This will fail if user has not set up their gcloud SDK
+        # Authenticate, if api_key is None it will use the GOOGLE_API_KEY env variable
         genai.configure(api_key=api_key)
 
         self._model_name = model
-        self._project_id = project_id
-
         self._generation_config = generation_config
         self._safety_settings = safety_settings
         self._tools = tools
         self._model = GenerativeModel(self._model_name, tools=self._tools)
-
-    def _function_to_dict(self, function: FunctionDeclaration) -> Dict[str, Any]:
-        return {
-            "name": function.name,
-            "parameters": function.parameters,
-            "description": function.description,
-        }
-
-    def _tool_to_dict(self, tool: Tool) -> Dict[str, Any]:
-        return {
-            "function_declarations": [self._function_to_dict(f) for f in tool.function_declarations],
-        }
 
     def _generation_config_to_dict(self, config: Union[GenerationConfig, Dict[str, Any]]) -> Dict[str, Any]:
         if isinstance(config, dict):
@@ -69,24 +53,28 @@ class GoogleAIGeminiChatGenerator:
         data = default_to_dict(
             self,
             model=self._model_name,
-            project_id=self._project_id,
             generation_config=self._generation_config,
             safety_settings=self._safety_settings,
             tools=self._tools,
         )
         if (tools := data["init_parameters"].get("tools")) is not None:
-            data["init_parameters"]["tools"] = [self._tool_to_dict(t) for t in tools]
+            data["init_parameters"]["tools"] = [Tool.serialize(t) for t in tools]
         if (generation_config := data["init_parameters"].get("generation_config")) is not None:
             data["init_parameters"]["generation_config"] = self._generation_config_to_dict(generation_config)
+        if (safety_settings := data["init_parameters"].get("safety_settings")) is not None:
+            data["init_parameters"]["safety_settings"] = {k.value: v.value for k, v in safety_settings.items()}
         return data
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "GoogleAIGeminiChatGenerator":
         if (tools := data["init_parameters"].get("tools")) is not None:
-            data["init_parameters"]["tools"] = [Tool(t) for t in tools]
+            data["init_parameters"]["tools"] = [Tool.deserialize(t) for t in tools]
         if (generation_config := data["init_parameters"].get("generation_config")) is not None:
-            data["init_parameters"]["generation_config"] = GenerationConfig.from_dict(generation_config)
-
+            data["init_parameters"]["generation_config"] = GenerationConfig(**generation_config)
+        if (safety_settings := data["init_parameters"].get("safety_settings")) is not None:
+            data["init_parameters"]["safety_settings"] = {
+                HarmCategory(k): HarmBlockThreshold(v) for k, v in safety_settings.items()
+            }
         return default_from_dict(cls, data)
 
     def _convert_part(self, part: Union[str, ByteStream, Part]) -> Part:
@@ -104,7 +92,7 @@ class GoogleAIGeminiChatGenerator:
         else:
             msg = f"Unsupported type {type(part)} for part {part}"
             raise ValueError(msg)
-        
+
     def _message_to_part(self, message: ChatMessage) -> Part:
         if message.role == ChatRole.SYSTEM and message.name:
             p = Part()
@@ -149,7 +137,6 @@ class GoogleAIGeminiChatGenerator:
         role = "user" if message.role in [ChatRole.USER, ChatRole.FUNCTION] else "model"
         return Content(parts=[part], role=role)
 
-
     @component.output_types(replies=List[ChatMessage])
     def run(self, messages: List[ChatMessage]):
         history = [self._message_to_content(m) for m in messages[:-1]]
@@ -177,4 +164,3 @@ class GoogleAIGeminiChatGenerator:
                     )
 
         return {"replies": replies}
-
