@@ -41,7 +41,7 @@ jobs:
 
       - name: Lint
         working-directory: integrations/ollama
-        if: matrix.python-version == '3.10'
+        if: matrix.python-version == '3.9'
         run: hatch run lint:all
 
       - name: Run Ollama
@@ -49,8 +49,8 @@ jobs:
         run: |
           curl -L https://ollama.ai/download/ollama-linux-amd64 -o ollama
           chmod +x ollama
-          ollama pull orca-mini
-          ollama serve
+          ./ollama pull orca-mini
+          ./ollama serve
 
       - name: Run tests
         working-directory: integrations/ollama
