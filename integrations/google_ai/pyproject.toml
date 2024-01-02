@@ -3,7 +3,7 @@ requires = ["hatchling", "hatch-vcs"]
 build-backend = "hatchling.build"
 
 [project]
-name = "gemini-haystack"
+name = "google-ai-haystack"
 dynamic = ["version"]
 description = 'Use models like Gemini via Makersuite'
 readme = "README.md"
@@ -30,17 +30,17 @@ dependencies = [
 ]
 
 [project.urls]
-Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/gemini-haystack#readme"
-Issues = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/gemini-haystack/issues"
-Source = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/gemini-haystack"
+Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/google_ai_haystack#readme"
+Issues = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/google_ai_haystack/issues"
+Source = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/google_ai_haystack"
 
 [tool.hatch.version]
 source = "vcs"
-tag-pattern = 'integrations\/gemini-v(?P<version>.*)'
+tag-pattern = 'integrations\/google-ai-v(?P<version>.*)'
 
 [tool.hatch.version.raw-options]
 root = "../.."
-git_describe_command = 'git describe --tags --match="integrations/gemini-v[0-9]*"'
+git_describe_command = 'git describe --tags --match="integrations/google-ai-v[0-9]*"'
 
 [tool.hatch.envs.default]
 dependencies = [
@@ -70,7 +70,7 @@ dependencies = [
   "ruff>=0.0.243",
 ]
 [tool.hatch.envs.lint.scripts]
-typing = "mypy --install-types --non-interactive {args:src/gemini_haystack tests}"
+typing = "mypy --install-types --non-interactive {args:src/google_ai_haystack tests}"
 style = [
   "ruff {args:.}",
   "black --check --diff {args:.}",
@@ -136,7 +136,7 @@ unfixable = [
 ]
 
 [tool.ruff.isort]
-known-first-party = ["gemini_haystack"]
+known-first-party = ["google_ai_haystack"]
 
 [tool.ruff.flake8-tidy-imports]
 ban-relative-imports = "all"
@@ -146,16 +146,16 @@ ban-relative-imports = "all"
 "tests/**/*" = ["PLR2004", "S101", "TID252"]
 
 [tool.coverage.run]
-source_pkgs = ["gemini_haystack", "tests"]
+source_pkgs = ["google_ai_haystack", "tests"]
 branch = true
 parallel = true
 omit = [
-  "src/gemini_haystack/__about__.py",
+  "src/google_ai_haystack/__about__.py",
 ]
 
 [tool.coverage.paths]
-gemini_haystack = ["src/gemini_haystack", "*/gemini-haystack/src/gemini_haystack"]
-tests = ["tests", "*/gemini-haystack/tests"]
+google_ai_haystack = ["src/google_ai_haystack", "*/google_ai_haystack/src/google_ai_haystack"]
+tests = ["tests", "*/google_ai_haystack/tests"]
 
 [tool.coverage.report]
 exclude_lines = [
