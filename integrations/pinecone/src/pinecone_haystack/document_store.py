@@ -60,7 +60,7 @@ class PineconeDocumentStore:
         api_key = api_key or os.environ.get("PINECONE_API_KEY")
         if not api_key:
             msg = (
-                "PineconeDocumentStore expects a Pinecone API key. "
+                "PineconeDocumentStore expects an API key. "
                 "Set the PINECONE_API_KEY environment variable (recommended) or pass it explicitly."
             )
             raise ValueError(msg)

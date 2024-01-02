@@ -57,20 +57,17 @@ class JinaDocumentEmbedder:
         :param meta_fields_to_embed: List of meta fields that should be embedded along with the Document text.
         :param embedding_separator: Separator used to concatenate the meta fields to the Document text.
         """
-        # if the user does not provide the API key, check if it is set in the module client
-        if api_key is None:
-            try:
-                api_key = os.environ["JINA_API_KEY"]
-            except KeyError as e:
-                msg = (
-                    "JinaDocumentEmbedder expects a Jina API key. "
-                    "Set the JINA_API_KEY environment variable (recommended) or pass it explicitly."
-                )
-                raise ValueError(msg) from e
+
+        api_key = api_key or os.environ.get("JINA_API_KEY")
+        # we check whether api_key is None or an empty string
+        if not api_key:
+            msg = (
+                "JinaDocumentEmbedder expects an API key. "
+                "Set the JINA_API_KEY environment variable (recommended) or pass it explicitly."
+            )
+            raise ValueError(msg)
 
         self.model_name = model_name
-        self.prefix = prefix
-        self.suffix = suffix
         self.prefix = prefix
         self.suffix = suffix
         self.batch_size = batch_size

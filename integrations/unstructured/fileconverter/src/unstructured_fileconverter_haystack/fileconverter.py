@@ -60,15 +60,16 @@ class UnstructuredFileConverter:
         self.progress_bar = progress_bar
 
         is_hosted_api = api_url == UNSTRUCTURED_HOSTED_API_URL
-        if api_key is None and is_hosted_api:
-            try:
-                api_key = os.environ["UNSTRUCTURED_API_KEY"]
-            except KeyError as e:
-                msg = (
-                    "To use the hosted version of Unstructured, you need to set the environment variable "
-                    "UNSTRUCTURED_API_KEY (recommended) or explictly pass the parameter api_key."
-                )
-                raise ValueError(msg) from e
+
+        api_key = api_key or os.environ.get("UNSTRUCTURED_API_KEY")
+        # we check whether api_key is None or an empty string
+        if is_hosted_api and not api_key:
+            msg = (
+                "To use the hosted version of Unstructured, you need to set the environment variable "
+                "UNSTRUCTURED_API_KEY (recommended) or explictly pass the parameter api_key."
+            )
+            raise ValueError(msg)
+
         self.api_key = api_key
 
     def to_dict(self) -> Dict[str, Any]:

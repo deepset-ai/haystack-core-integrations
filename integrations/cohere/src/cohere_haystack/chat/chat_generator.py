@@ -68,11 +68,14 @@ class CohereChatGenerator:
         """
         cohere_import.check()
 
+        api_key = api_key or os.environ.get("COHERE_API_KEY")
+        # we check whether api_key is None or an empty string
         if not api_key:
-            api_key = os.environ.get("COHERE_API_KEY")
-        if not api_key:
-            error = "CohereChatGenerator needs an API key to run. Either provide it as init parameter or set the env var COHERE_API_KEY."  # noqa: E501
-            raise ValueError(error)
+            msg = (
+                "CohereChatGenerator expects an API key. "
+                "Set the COHERE_API_KEY environment variable (recommended) or pass it explicitly."
+            )
+            raise ValueError(msg)
 
         if not api_base_url:
             api_base_url = cohere.COHERE_API_URL
