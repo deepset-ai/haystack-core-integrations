@@ -1,12 +1,5 @@
 services:
   ollama:
     image: "ollama/ollama:latest"
-    environment:
-      MODEL_NAME: orca-mini
     ports:
       - "11434:11434"
-    volumes:
-      - ollama:/root/.ollama
-    entrypoint: [ "/bin/bash", "-c", "exec ollama serve && ollama run $$MODEL_NAME" ]
-volumes:
-  ollama:
