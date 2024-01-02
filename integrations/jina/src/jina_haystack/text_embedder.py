@@ -47,7 +47,7 @@ class JinaTextEmbedder:
         :param prefix: A string to add to the beginning of each text.
         :param suffix: A string to add to the end of each text.
         """
-        
+
         api_key = api_key or os.environ.get("JINA_API_KEY")
         # we check whether api_key is None or an empty string
         if not api_key:
