@@ -48,8 +48,8 @@ jobs:
       - name: Run Ollama container
         working-directory: integrations/ollama
         run: |
-          docker-compose up -d
-          docker-compose exec ollama ollama pull ${{ env.LLM_FOR_TESTS }}
+          docker run -d -p 11434:11434 --name ollama ollama/ollama:latest
+          docker exec ollama ollama pull ${{ env.LLM_FOR_TESTS }}
 
       - name: Run tests
         working-directory: integrations/ollama
