@@ -17,6 +17,7 @@ concurrency:
 env:
   PYTHONUNBUFFERED: "1"
   FORCE_COLOR: "1"
+  LLM_FOR_TESTS: "orca-mini"
 
 jobs:
   run:
@@ -26,7 +27,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest]
-        python-version: ["3.10"]
+        python-version: ["3.9","3.10","3.11"]
 
     steps:
       - uses: actions/checkout@v4
@@ -44,13 +45,11 @@ jobs:
         if: matrix.python-version == '3.9'
         run: hatch run lint:all
 
-      - name: Run Ollama
+      - name: Run Ollama container
         working-directory: integrations/ollama
         run: |
-          curl -L https://ollama.ai/download/ollama-linux-amd64 -o ollama
-          chmod +x ollama
-          ./ollama serve
-          ./ollama pull orca-mini
+          docker-compose up
+          docker-compose exec ollama ollama pull ${{ env.LLM_FOR_TESTS }}
 
       - name: Run tests
         working-directory: integrations/ollama
