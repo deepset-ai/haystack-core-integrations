@@ -49,8 +49,8 @@ jobs:
         run: |
           curl -L https://ollama.ai/download/ollama-linux-amd64 -o ollama
           chmod +x ollama
-          ./ollama pull orca-mini
           ./ollama serve
+          ./ollama pull orca-mini
 
       - name: Run tests
         working-directory: integrations/ollama
