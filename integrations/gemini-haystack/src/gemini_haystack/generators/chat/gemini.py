@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 
 @component
-class GeminiChatGenerator:
+class GoogleAIGeminiChatGenerator:
     def __init__(
         self,
         *,
@@ -81,7 +81,7 @@ class GeminiChatGenerator:
         return data
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "GeminiGenerator":
+    def from_dict(cls, data: Dict[str, Any]) -> "GoogleAIGeminiChatGenerator":
         if (tools := data["init_parameters"].get("tools")) is not None:
             data["init_parameters"]["tools"] = [Tool(t) for t in tools]
         if (generation_config := data["init_parameters"].get("generation_config")) is not None:
