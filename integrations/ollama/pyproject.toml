@@ -28,9 +28,9 @@ classifiers = [
 dependencies = ["haystack-ai", "requests"]
 
 [project.urls]
-Documentation = "https://github.com/unknown/ollama-haystack#readme"
-Issues = "https://github.com/unknown/ollama-haystack/issues"
-Source = "https://github.com/unknown/ollama-haystack"
+Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/ollama#readme"
+Issues = "https://github.com/deepset-ai/haystack-core-integrations/issues"
+Source = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/ollama"
 
 [tool.hatch.version]
 source = "vcs"
