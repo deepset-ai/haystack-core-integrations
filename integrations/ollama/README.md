@@ -22,10 +22,12 @@ pip install ollama-haystack
 
 ## Testing
 
-To run tests first start a Docker container running Ollama. We provide a utility `docker-compose.yml` for that:
+To run tests first start a Docker container running Ollama and pull a model for integration testing
+It's recommended to use the smallest model possible for testing purposes - see https://ollama.ai/library for a list that Ollama supportd
 
 ```console
-docker-compose up -d
+docker run -d -p 11434:11434 --name ollama ollama/ollama:latest
+docker exec ollama ollama pull <your model here>
 ```
 
 Then run tests:
