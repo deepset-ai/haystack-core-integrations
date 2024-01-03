@@ -36,11 +36,11 @@ Source = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/int
 
 [tool.hatch.version]
 source = "vcs"
-tag-pattern = 'integrations\/google-ai-v(?P<version>.*)'
+tag-pattern = 'integrations\/google_ai-v(?P<version>.*)'
 
 [tool.hatch.version.raw-options]
 root = "../.."
-git_describe_command = 'git describe --tags --match="integrations/google-ai-v[0-9]*"'
+git_describe_command = 'git describe --tags --match="integrations/google_ai-v[0-9]*"'
 
 [tool.hatch.envs.default]
 dependencies = [
