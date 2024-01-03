@@ -1,11 +1,11 @@
 import os
 from unittest.mock import patch
 
-from haystack.dataclasses.chat_message import ChatMessage
+import pytest
+from google.ai.generativelanguage import FunctionDeclaration, Tool
 from google.generativeai import GenerationConfig, GenerativeModel
 from google.generativeai.types import HarmBlockThreshold, HarmCategory
-from google.ai.generativelanguage import FunctionDeclaration, Tool
-import pytest
+from haystack.dataclasses.chat_message import ChatMessage
 
 from google_ai_haystack.generators.chat.gemini import GoogleAIGeminiChatGenerator
 
@@ -105,7 +105,9 @@ def test_to_dict():
             },
             "safety_settings": {6: 3},
             "tools": [
-                b"\n\xad\x01\n\x13get_current_weather\x12+Get the current weather in a given location\x1ai\x08\x06:\x1f\n\x04unit\x12\x17\x08\x01*\x07celsius*\nfahrenheit::\n\x08location\x12.\x08\x01\x1a*The city and state, e.g. San Francisco, CAB\x08location"
+                b"\n\xad\x01\n\x13get_current_weather\x12+Get the current weather in a given location\x1ai"
+                b"\x08\x06:\x1f\n\x04unit\x12\x17\x08\x01*\x07celsius*\nfahrenheit::\n\x08location\x12.\x08"
+                b"\x01\x1a*The city and state, e.g. San Francisco, CAB\x08location"
             ],
         },
     }
@@ -128,7 +130,9 @@ def test_from_dict():
                     },
                     "safety_settings": {6: 3},
                     "tools": [
-                        b"\n\xad\x01\n\x13get_current_weather\x12+Get the current weather in a given location\x1ai\x08\x06:\x1f\n\x04unit\x12\x17\x08\x01*\x07celsius*\nfahrenheit::\n\x08location\x12.\x08\x01\x1a*The city and state, e.g. San Francisco, CAB\x08location"
+                        b"\n\xad\x01\n\x13get_current_weather\x12+Get the current weather in a given location\x1ai"
+                        b"\x08\x06:\x1f\n\x04unit\x12\x17\x08\x01*\x07celsius*\nfahrenheit::\n\x08location\x12.\x08"
+                        b"\x01\x1a*The city and state, e.g. San Francisco, CAB\x08location"
                     ],
                 },
             }
@@ -176,7 +180,9 @@ def test_from_dict():
 
 @pytest.mark.skipif("GOOGLE_API_KEY" not in os.environ, reason="GOOGLE_API_KEY not set")
 def test_run():
-    def get_current_weather(location: str, unit: str = "celsius"):
+    # We're ignoring the unused function argument check since we must have that argument for the test
+    # to run successfully, but we don't actually use it.
+    def get_current_weather(location: str, unit: str = "celsius"):  # noqa: ARG001
         return {"weather": "sunny", "temperature": 21.8, "unit": unit}
 
     get_current_weather_func = FunctionDeclaration(

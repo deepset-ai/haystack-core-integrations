@@ -2,13 +2,13 @@ import logging
 from typing import Any, Dict, List, Optional, Union
 
 import google.generativeai as genai
+from google.ai.generativelanguage import Content, Part, Tool
+from google.generativeai import GenerationConfig, GenerativeModel
+from google.generativeai.types import HarmBlockThreshold, HarmCategory
 from haystack.core.component import component
 from haystack.core.component.types import Variadic
 from haystack.core.serialization import default_from_dict, default_to_dict
 from haystack.dataclasses.byte_stream import ByteStream
-from google.generativeai import GenerationConfig, GenerativeModel
-from google.generativeai.types import HarmBlockThreshold, HarmCategory
-from google.ai.generativelanguage import Tool, Part, Content
 
 logger = logging.getLogger(__name__)
 
