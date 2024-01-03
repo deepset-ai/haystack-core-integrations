@@ -50,13 +50,13 @@ class OllamaGenerator:
         self.url = url
         self.generation_kwargs = generation_kwargs or {}
 
-    def _get_telemetry_data(self) -> Dict[str, Any]:
+    def _get_telemetry_data(self) -> Dict[str, str]:
         """
         Data that is sent to Posthog for usage analytics.
         """
         return {"model": self.model_name}
 
-    def _post_args(self, prompt: str, generation_kwargs=None) -> Dict[str, Any]:
+    def _post_args(self, prompt: str, generation_kwargs=None) -> Dict[str, Union[str, dict]]:
         """
         Returns A dictionary of arguments for a POST request to an Ollama service
         :param prompt: the prompt to generate a response for
