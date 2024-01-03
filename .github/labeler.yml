@@ -64,6 +64,11 @@ integration:unstructured-fileconverter:
       - any-glob-to-any-file: "integrations/unstructured/fileconverter/**/*"
       - any-glob-to-any-file: ".github/workflows/unstructured_fileconverter.yml"
 
+integration:ollama:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/ollama/**/*"
+      - any-glob-to-any-file: ".github/workflows/ollama.yml"
+
 # Topics
 topic:CI:
   - changed-files:
