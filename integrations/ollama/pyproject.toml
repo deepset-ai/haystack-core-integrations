@@ -12,7 +12,8 @@ license = "Apache-2.0"
 keywords = []
 authors = [
     { name = "Alistair Rogers", email = "alistairlr112@gmail.com" },
-    { name = "Sachin Sachdeva", email = "emailforsachinsachdeva@gmail.com" }
+    { name = "Sachin Sachdeva", email = "emailforsachinsachdeva@gmail.com" },
+    { name = "deepset GmbH", email = "info@deepset.ai" },
 ]
 classifiers = [
     "Development Status :: 4 - Beta",
