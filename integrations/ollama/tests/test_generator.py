@@ -34,10 +34,15 @@ class TestOllamaGenerator:
         with pytest.raises(HTTPError):
             component.run(prompt="Why is Alistair so great?")
 
-    def test__get_telemetry_data(self):
-        component = OllamaGenerator(model_name="some_model")
-        observed = component._get_telemetry_data()
-        assert observed == {"model": "some_model"}
+    def test_init_default(self):
+        component = OllamaGenerator()
+        assert component.model_name == "orca-mini"
+        assert component.url == "http://localhost:11434/api/generate"
+        assert component.generation_kwargs == {}
+        assert component.system_prompt is None
+        assert component.template is None
+        assert component.raw is False
+        assert component.timeout == 30
 
     @pytest.mark.parametrize(
         "configuration, prompt",
