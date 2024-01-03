@@ -10,7 +10,7 @@ from ollama_haystack import OllamaGenerator
 
 class TestOllamaGenerator:
     @pytest.mark.integration
-    def test_run_capital_cities(self, prompt, answer):
+    def test_run_capital_cities(self):
         prompts_and_answers = [
             ("What's the capital of France?", "Paris"),
             ("What is the capital of Canada?", "Ottawa"),
