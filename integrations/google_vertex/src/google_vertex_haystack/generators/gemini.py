@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 
 @component
-class GeminiGenerator:
+class VertexAIGeminiGenerator:
     def __init__(
         self,
         *,
@@ -111,7 +111,7 @@ class GeminiGenerator:
         return data
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "GeminiGenerator":
+    def from_dict(cls, data: Dict[str, Any]) -> "VertexAIGeminiGenerator":
         if (tools := data["init_parameters"].get("tools")) is not None:
             data["init_parameters"]["tools"] = [Tool.from_dict(t) for t in tools]
         if (generation_config := data["init_parameters"].get("generation_config")) is not None:

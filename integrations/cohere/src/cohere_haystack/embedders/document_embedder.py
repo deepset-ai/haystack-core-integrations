@@ -45,7 +45,7 @@ class CohereDocumentEmbedder:
         timeout: int = 120,
         batch_size: int = 32,
         progress_bar: bool = True,
-        metadata_fields_to_embed: Optional[List[str]] = None,
+        meta_fields_to_embed: Optional[List[str]] = None,
         embedding_separator: str = "\n",
     ):
         """
@@ -74,7 +74,7 @@ class CohereDocumentEmbedder:
         :param batch_size: Number of Documents to encode at once.
         :param progress_bar: Whether to show a progress bar or not. Can be helpful to disable in production deployments
                              to keep the logs clean.
-        :param metadata_fields_to_embed: List of meta fields that should be embedded along with the Document text.
+        :param meta_fields_to_embed: List of meta fields that should be embedded along with the Document text.
         :param embedding_separator: Separator used to concatenate the meta fields to the Document text.
         """
 
@@ -98,7 +98,7 @@ class CohereDocumentEmbedder:
         self.timeout = timeout
         self.batch_size = batch_size
         self.progress_bar = progress_bar
-        self.metadata_fields_to_embed = metadata_fields_to_embed or []
+        self.meta_fields_to_embed = meta_fields_to_embed or []
         self.embedding_separator = embedding_separator
 
     def to_dict(self) -> Dict[str, Any]:
@@ -116,7 +116,7 @@ class CohereDocumentEmbedder:
             timeout=self.timeout,
             batch_size=self.batch_size,
             progress_bar=self.progress_bar,
-            metadata_fields_to_embed=self.metadata_fields_to_embed,
+            meta_fields_to_embed=self.meta_fields_to_embed,
             embedding_separator=self.embedding_separator,
         )
 
@@ -127,14 +127,14 @@ class CohereDocumentEmbedder:
         texts_to_embed: List[str] = []
         for doc in documents:
             meta_values_to_embed = [
-                str(doc.meta[key]) for key in self.metadata_fields_to_embed if doc.meta.get(key) is not None
+                str(doc.meta[key]) for key in self.meta_fields_to_embed if doc.meta.get(key) is not None
             ]
 
             text_to_embed = self.embedding_separator.join(meta_values_to_embed + [doc.content or ""])  # noqa: RUF005
             texts_to_embed.append(text_to_embed)
         return texts_to_embed
 
-    @component.output_types(documents=List[Document], metadata=Dict[str, Any])
+    @component.output_types(documents=List[Document], meta=Dict[str, Any])
     def run(self, documents: List[Document]):
         """
         Embed a list of Documents.
@@ -152,7 +152,7 @@ class CohereDocumentEmbedder:
 
         if not documents:
             # return early if we were passed an empty list
-            return {"documents": [], "metadata": {}}
+            return {"documents": [], "meta": {}}
 
         texts_to_embed = self._prepare_texts_to_embed(documents)
 
@@ -180,4 +180,4 @@ class CohereDocumentEmbedder:
         for doc, embeddings in zip(documents, all_embeddings):
             doc.embedding = embeddings
 
-        return {"documents": documents, "metadata": metadata}
+        return {"documents": documents, "meta": metadata}

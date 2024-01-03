@@ -26,8 +26,8 @@ class JinaTextEmbedder:
     print(text_embedder.run(text_to_embed))
 
     # {'embedding': [0.017020374536514282, -0.023255806416273117, ...],
-    # 'metadata': {'model': 'jina-embeddings-v2-base-en',
-    #              'usage': {'prompt_tokens': 4, 'total_tokens': 4}}}
+    # 'meta': {'model': 'jina-embeddings-v2-base-en',
+    #          'usage': {'prompt_tokens': 4, 'total_tokens': 4}}}
     ```
     """
 
@@ -84,7 +84,7 @@ class JinaTextEmbedder:
 
         return default_to_dict(self, model_name=self.model_name, prefix=self.prefix, suffix=self.suffix)
 
-    @component.output_types(embedding=List[float], metadata=Dict[str, Any])
+    @component.output_types(embedding=List[float], meta=Dict[str, Any])
     def run(self, text: str):
         """Embed a string."""
         if not isinstance(text, str):
@@ -103,4 +103,4 @@ class JinaTextEmbedder:
         metadata = {"model": resp["model"], "usage": dict(resp["usage"].items())}
         embedding = resp["data"][0]["embedding"]
 
-        return {"embedding": embedding, "metadata": metadata}
+        return {"embedding": embedding, "meta": metadata}

@@ -25,7 +25,7 @@ class TestCohereDocumentEmbedder:
         assert embedder.timeout == 120
         assert embedder.batch_size == 32
         assert embedder.progress_bar is True
-        assert embedder.metadata_fields_to_embed == []
+        assert embedder.meta_fields_to_embed == []
         assert embedder.embedding_separator == "\n"
 
     def test_init_with_parameters(self):
@@ -40,7 +40,7 @@ class TestCohereDocumentEmbedder:
             timeout=60,
             batch_size=64,
             progress_bar=False,
-            metadata_fields_to_embed=["test_field"],
+            meta_fields_to_embed=["test_field"],
             embedding_separator="-",
         )
         assert embedder.api_key == "test-api-key"
@@ -53,7 +53,7 @@ class TestCohereDocumentEmbedder:
         assert embedder.timeout == 60
         assert embedder.batch_size == 64
         assert embedder.progress_bar is False
-        assert embedder.metadata_fields_to_embed == ["test_field"]
+        assert embedder.meta_fields_to_embed == ["test_field"]
         assert embedder.embedding_separator == "-"
 
     def test_to_dict(self):
@@ -71,7 +71,7 @@ class TestCohereDocumentEmbedder:
                 "timeout": 120,
                 "batch_size": 32,
                 "progress_bar": True,
-                "metadata_fields_to_embed": [],
+                "meta_fields_to_embed": [],
                 "embedding_separator": "\n",
             },
         }
@@ -88,7 +88,7 @@ class TestCohereDocumentEmbedder:
             timeout=60,
             batch_size=64,
             progress_bar=False,
-            metadata_fields_to_embed=["text_field"],
+            meta_fields_to_embed=["text_field"],
             embedding_separator="-",
         )
         component_dict = embedder_component.to_dict()
@@ -104,7 +104,7 @@ class TestCohereDocumentEmbedder:
                 "timeout": 60,
                 "batch_size": 64,
                 "progress_bar": False,
-                "metadata_fields_to_embed": ["text_field"],
+                "meta_fields_to_embed": ["text_field"],
                 "embedding_separator": "-",
             },
         }
@@ -139,4 +139,4 @@ class TestCohereDocumentEmbedder:
         with pytest.raises(TypeError, match="CohereDocumentEmbedder expects a list of Documents as input"):
             embedder.run(documents=[1, 2, 3])
 
-        assert embedder.run(documents=[]) == {"documents": [], "metadata": {}}
+        assert embedder.run(documents=[]) == {"documents": [], "meta": {}}

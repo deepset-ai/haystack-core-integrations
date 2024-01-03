@@ -1,118 +1,92 @@
 import logging
 from typing import Any, Dict, List, Optional, Union
 
-import vertexai
+import google.generativeai as genai
+from google.ai.generativelanguage import Content, Part, Tool
+from google.generativeai import GenerationConfig, GenerativeModel
+from google.generativeai.types import HarmBlockThreshold, HarmCategory
 from haystack.core.component import component
 from haystack.core.serialization import default_from_dict, default_to_dict
 from haystack.dataclasses.byte_stream import ByteStream
 from haystack.dataclasses.chat_message import ChatMessage, ChatRole
-from vertexai.preview.generative_models import (
-    Content,
-    FunctionDeclaration,
-    GenerationConfig,
-    GenerativeModel,
-    HarmBlockThreshold,
-    HarmCategory,
-    Part,
-    Tool,
-)
 
 logger = logging.getLogger(__name__)
 
 
 @component
-class VertexAIGeminiChatGenerator:
+class GoogleAIGeminiChatGenerator:
     def __init__(
         self,
         *,
-        model: str = "gemini-pro",
-        project_id: str,
-        location: Optional[str] = None,
+        api_key: Optional[str] = None,
+        model: str = "gemini-pro-vision",
         generation_config: Optional[Union[GenerationConfig, Dict[str, Any]]] = None,
         safety_settings: Optional[Dict[HarmCategory, HarmBlockThreshold]] = None,
         tools: Optional[List[Tool]] = None,
     ):
         """
-        Multi modal generator using Gemini model via Google Vertex AI.
-
-        Authenticates using Google Cloud Application Default Credentials (ADCs).
-        For more information see the official Google documentation:
-        https://cloud.google.com/docs/authentication/provide-credentials-adc
-
-        :param project_id: ID of the GCP project to use.
-        :param model: Name of the model to use, defaults to "gemini-pro-vision".
-        :param location: The default location to use when making API calls, if not set uses us-central-1.
-            Defaults to None.
-        :param kwargs: Additional keyword arguments to pass to the model.
-            For a list of supported arguments see the `GenerativeModel.generate_content()` documentation.
+        Multi modal generator using Gemini model via Makersuite
         """
 
-        # Login to GCP. This will fail if user has not set up their gcloud SDK
-        vertexai.init(project=project_id, location=location)
+        # Authenticate, if api_key is None it will use the GOOGLE_API_KEY env variable
+        genai.configure(api_key=api_key)
 
         self._model_name = model
-        self._project_id = project_id
-        self._location = location
-        self._model = GenerativeModel(self._model_name)
-
         self._generation_config = generation_config
         self._safety_settings = safety_settings
         self._tools = tools
-
-    def _function_to_dict(self, function: FunctionDeclaration) -> Dict[str, Any]:
-        return {
-            "name": function._raw_function_declaration.name,
-            "parameters": function._raw_function_declaration.parameters,
-            "description": function._raw_function_declaration.description,
-        }
-
-    def _tool_to_dict(self, tool: Tool) -> Dict[str, Any]:
-        return {
-            "function_declarations": [self._function_to_dict(f) for f in tool._raw_tool.function_declarations],
-        }
+        self._model = GenerativeModel(self._model_name, tools=self._tools)
 
     def _generation_config_to_dict(self, config: Union[GenerationConfig, Dict[str, Any]]) -> Dict[str, Any]:
         if isinstance(config, dict):
             return config
         return {
-            "temperature": config._raw_generation_config.temperature,
-            "top_p": config._raw_generation_config.top_p,
-            "top_k": config._raw_generation_config.top_k,
-            "candidate_count": config._raw_generation_config.candidate_count,
-            "max_output_tokens": config._raw_generation_config.max_output_tokens,
-            "stop_sequences": config._raw_generation_config.stop_sequences,
+            "temperature": config.temperature,
+            "top_p": config.top_p,
+            "top_k": config.top_k,
+            "candidate_count": config.candidate_count,
+            "max_output_tokens": config.max_output_tokens,
+            "stop_sequences": config.stop_sequences,
         }
 
     def to_dict(self) -> Dict[str, Any]:
         data = default_to_dict(
             self,
             model=self._model_name,
-            project_id=self._project_id,
-            location=self._location,
             generation_config=self._generation_config,
             safety_settings=self._safety_settings,
             tools=self._tools,
         )
         if (tools := data["init_parameters"].get("tools")) is not None:
-            data["init_parameters"]["tools"] = [self._tool_to_dict(t) for t in tools]
+            data["init_parameters"]["tools"] = [Tool.serialize(t) for t in tools]
         if (generation_config := data["init_parameters"].get("generation_config")) is not None:
             data["init_parameters"]["generation_config"] = self._generation_config_to_dict(generation_config)
+        if (safety_settings := data["init_parameters"].get("safety_settings")) is not None:
+            data["init_parameters"]["safety_settings"] = {k.value: v.value for k, v in safety_settings.items()}
         return data
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "VertexAIGeminiChatGenerator":
+    def from_dict(cls, data: Dict[str, Any]) -> "GoogleAIGeminiChatGenerator":
         if (tools := data["init_parameters"].get("tools")) is not None:
-            data["init_parameters"]["tools"] = [Tool.from_dict(t) for t in tools]
+            data["init_parameters"]["tools"] = [Tool.deserialize(t) for t in tools]
         if (generation_config := data["init_parameters"].get("generation_config")) is not None:
-            data["init_parameters"]["generation_config"] = GenerationConfig.from_dict(generation_config)
-
+            data["init_parameters"]["generation_config"] = GenerationConfig(**generation_config)
+        if (safety_settings := data["init_parameters"].get("safety_settings")) is not None:
+            data["init_parameters"]["safety_settings"] = {
+                HarmCategory(k): HarmBlockThreshold(v) for k, v in safety_settings.items()
+            }
         return default_from_dict(cls, data)
 
     def _convert_part(self, part: Union[str, ByteStream, Part]) -> Part:
         if isinstance(part, str):
-            return Part.from_text(part)
+            converted_part = Part()
+            converted_part.text = part
+            return converted_part
         elif isinstance(part, ByteStream):
-            return Part.from_data(part.data, part.mime_type)
+            converted_part = Part()
+            converted_part.inline_data.data = part.data
+            converted_part.inline_data.mime_type = part.mime_type
+            return converted_part
         elif isinstance(part, Part):
             return part
         else:
@@ -121,26 +95,40 @@ class VertexAIGeminiChatGenerator:
 
     def _message_to_part(self, message: ChatMessage) -> Part:
         if message.role == ChatRole.SYSTEM and message.name:
-            p = Part.from_dict({"function_call": {"name": message.name, "args": {}}})
+            p = Part()
+            p.function_call.name = message.name
+            p.function_call.args = {}
             for k, v in message.content.items():
                 p.function_call.args[k] = v
             return p
         elif message.role == ChatRole.SYSTEM:
-            return Part.from_text(message.content)
+            p = Part()
+            p.text = message.content
+            return p
         elif message.role == ChatRole.FUNCTION:
-            return Part.from_function_response(name=message.name, response=message.content)
+            p = Part()
+            p.function_response.name = message.name
+            p.function_response.response = message.content
+            return p
         elif message.role == ChatRole.USER:
             return self._convert_part(message.content)
 
     def _message_to_content(self, message: ChatMessage) -> Content:
         if message.role == ChatRole.SYSTEM and message.name:
-            part = Part.from_dict({"function_call": {"name": message.name, "args": {}}})
+            part = Part()
+            part.function_call.name = message.name
+            part.function_call.args = {}
             for k, v in message.content.items():
                 part.function_call.args[k] = v
         elif message.role == ChatRole.SYSTEM:
-            part = Part.from_text(message.content)
+            part = Part()
+            part.text = message.content
+            return part
         elif message.role == ChatRole.FUNCTION:
-            part = Part.from_function_response(name=message.name, response=message.content)
+            part = Part()
+            part.function_response.name = message.name
+            part.function_response.response = message.content
+            return part
         elif message.role == ChatRole.USER:
             part = self._convert_part(message.content)
         else:
@@ -159,13 +147,12 @@ class VertexAIGeminiChatGenerator:
             content=new_message,
             generation_config=self._generation_config,
             safety_settings=self._safety_settings,
-            tools=self._tools,
         )
 
         replies = []
         for candidate in res.candidates:
             for part in candidate.content.parts:
-                if part._raw_part.text != "":
+                if part.text != "":
                     replies.append(ChatMessage.from_system(part.text))
                 elif part.function_call is not None:
                     replies.append(

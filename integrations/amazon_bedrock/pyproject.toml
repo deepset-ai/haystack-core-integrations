@@ -3,11 +3,11 @@ requires = ["hatchling", "hatch-vcs"]
 build-backend = "hatchling.build"
 
 [project]
-name = "cohere-haystack"
+name = "amazon-bedrock-haystack"
 dynamic = ["version"]
-description = ''
+description = 'An integration of Amazon Bedrock as an AmazonBedrockGenerator component.'
 readme = "README.md"
-requires-python = ">=3.7"
+requires-python = ">=3.8"
 license = "Apache-2.0"
 keywords = []
 authors = [
@@ -16,31 +16,32 @@ authors = [
 classifiers = [
   "Development Status :: 4 - Beta",
   "Programming Language :: Python",
-  "Programming Language :: Python :: 3.7",
   "Programming Language :: Python :: 3.8",
   "Programming Language :: Python :: 3.9",
   "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
 dependencies = [
   "haystack-ai",
-  "cohere",
+  "boto3>=1.28.57",
+  "transformers"
 ]
 
 [project.urls]
-Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/cohere#readme"
+Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/amazon_bedrock#readme"
 Issues = "https://github.com/deepset-ai/haystack-core-integrations/issues"
-Source = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/cohere"
+Source = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/amazon_bedrock"
 
 [tool.hatch.version]
 source = "vcs"
-tag-pattern = 'integrations\/cohere-v(?P<version>.*)'
+tag-pattern = 'integrations\/amazon_bedrock-v(?P<version>.*)'
 
 [tool.hatch.version.raw-options]
 root = "../.."
-git_describe_command = 'git describe --tags --match="integrations/cohere-v[0-9]*"'
+git_describe_command = 'git describe --tags --match="integrations/amazon_bedrock-v[0-9]*"'
 
 [tool.hatch.envs.default]
 dependencies = [
@@ -60,7 +61,7 @@ cov = [
 ]
 
 [[tool.hatch.envs.all.matrix]]
-python = ["3.7", "3.8", "3.9", "3.10", "3.11"]
+python = ["3.8", "3.9", "3.10", "3.11", "3.12"]
 
 [tool.hatch.envs.lint]
 detached = true
@@ -70,7 +71,7 @@ dependencies = [
   "ruff>=0.0.243",
 ]
 [tool.hatch.envs.lint.scripts]
-typing = "mypy --install-types --non-interactive {args:src/cohere_haystack tests}"
+typing = "mypy --install-types --non-interactive {args:src/amazon_bedrock_haystack tests}"
 style = [
   "ruff {args:.}",
   "black --check --diff {args:.}",
@@ -126,6 +127,8 @@ ignore = [
   "S105", "S106", "S107",
   # Ignore complexity
   "C901", "PLR0911", "PLR0912", "PLR0913", "PLR0915",
+  # Ignore unused params
+  "ARG001", "ARG002", "ARG005"
 ]
 unfixable = [
   # Don't touch unused imports
@@ -133,7 +136,7 @@ unfixable = [
 ]
 
 [tool.ruff.isort]
-known-first-party = ["cohere_haystack"]
+known-first-party = ["amazon_bedrock_haystack"]
 
 [tool.ruff.flake8-tidy-imports]
 ban-relative-imports = "all"
@@ -143,16 +146,16 @@ ban-relative-imports = "all"
 "tests/**/*" = ["PLR2004", "S101", "TID252"]
 
 [tool.coverage.run]
-source_pkgs = ["cohere_haystack", "tests"]
+source_pkgs = ["amazon_bedrock_haystack", "tests"]
 branch = true
 parallel = true
 omit = [
-  "src/cohere_haystack/__about__.py",
+  "src/amazon_bedrock_haystack/__about__.py",
 ]
 
 [tool.coverage.paths]
-cohere_haystack = ["src/cohere_haystack", "*/cohere-haystack/src/cohere_haystack"]
-tests = ["tests", "*/cohere-haystack/tests"]
+amazon_bedrock_haystack = ["src/amazon_bedrock_haystack", "*/amazon_bedrock/src/amazon_bedrock_haystack"]
+tests = ["tests", "*/amazon_bedrock_haystack/tests"]
 
 [tool.coverage.report]
 exclude_lines = [
@@ -163,7 +166,9 @@ exclude_lines = [
 
 [[tool.mypy.overrides]]
 module = [
-  "cohere.*",
+  "botocore.*",
+  "transformers.*",
+  "boto3.*",
   "haystack.*",
   "pytest.*",
   "numpy.*",
@@ -173,10 +178,9 @@ ignore_missing_imports = true
 [tool.pytest.ini_options]
 addopts = "--strict-markers"
 markers = [
-  "integration: integration tests",
   "unit: unit tests",
+  "integration: integration tests",
   "embedders: embedders tests",
   "generators: generators tests",
-  "chat_generators: chat_generators tests",
 ]
 log_cli = true

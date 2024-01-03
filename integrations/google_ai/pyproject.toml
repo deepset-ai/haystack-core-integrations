@@ -3,9 +3,9 @@ requires = ["hatchling", "hatch-vcs"]
 build-backend = "hatchling.build"
 
 [project]
-name = "cohere-haystack"
+name = "google-ai-haystack"
 dynamic = ["version"]
-description = ''
+description = 'Use models like Gemini via Makersuite'
 readme = "README.md"
 requires-python = ">=3.7"
 license = "Apache-2.0"
@@ -25,22 +25,22 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
 dependencies = [
-  "haystack-ai",
-  "cohere",
+ "haystack-ai",
+ "google-generativeai>=0.3.1"
 ]
 
 [project.urls]
-Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/cohere#readme"
-Issues = "https://github.com/deepset-ai/haystack-core-integrations/issues"
-Source = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/cohere"
+Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/google_ai_haystack#readme"
+Issues = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/google_ai_haystack/issues"
+Source = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/google_ai_haystack"
 
 [tool.hatch.version]
 source = "vcs"
-tag-pattern = 'integrations\/cohere-v(?P<version>.*)'
+tag-pattern = 'integrations\/google_ai-v(?P<version>.*)'
 
 [tool.hatch.version.raw-options]
 root = "../.."
-git_describe_command = 'git describe --tags --match="integrations/cohere-v[0-9]*"'
+git_describe_command = 'git describe --tags --match="integrations/google_ai-v[0-9]*"'
 
 [tool.hatch.envs.default]
 dependencies = [
@@ -70,7 +70,7 @@ dependencies = [
   "ruff>=0.0.243",
 ]
 [tool.hatch.envs.lint.scripts]
-typing = "mypy --install-types --non-interactive {args:src/cohere_haystack tests}"
+typing = "mypy --install-types --non-interactive {args:src/google_ai_haystack tests}"
 style = [
   "ruff {args:.}",
   "black --check --diff {args:.}",
@@ -102,6 +102,7 @@ select = [
   "E",
   "EM",
   "F",
+  "FBT",
   "I",
   "ICN",
   "ISC",
@@ -122,6 +123,8 @@ select = [
 ignore = [
   # Allow non-abstract empty methods in abstract base classes
   "B027",
+  # Allow boolean positional values in function calls, like `dict.get(... True)`
+  "FBT003",
   # Ignore checks for possible passwords
   "S105", "S106", "S107",
   # Ignore complexity
@@ -133,7 +136,7 @@ unfixable = [
 ]
 
 [tool.ruff.isort]
-known-first-party = ["cohere_haystack"]
+known-first-party = ["google_ai_haystack"]
 
 [tool.ruff.flake8-tidy-imports]
 ban-relative-imports = "all"
@@ -143,16 +146,16 @@ ban-relative-imports = "all"
 "tests/**/*" = ["PLR2004", "S101", "TID252"]
 
 [tool.coverage.run]
-source_pkgs = ["cohere_haystack", "tests"]
+source_pkgs = ["google_ai_haystack", "tests"]
 branch = true
 parallel = true
 omit = [
-  "src/cohere_haystack/__about__.py",
+  "src/google_ai_haystack/__about__.py",
 ]
 
 [tool.coverage.paths]
-cohere_haystack = ["src/cohere_haystack", "*/cohere-haystack/src/cohere_haystack"]
-tests = ["tests", "*/cohere-haystack/tests"]
+google_ai_haystack = ["src/google_ai_haystack", "*/google_ai_haystack/src/google_ai_haystack"]
+tests = ["tests", "*/google_ai_haystack/tests"]
 
 [tool.coverage.report]
 exclude_lines = [
@@ -160,23 +163,11 @@ exclude_lines = [
   "if __name__ == .__main__.:",
   "if TYPE_CHECKING:",
 ]
-
 [[tool.mypy.overrides]]
 module = [
-  "cohere.*",
+  "google.*",
   "haystack.*",
   "pytest.*",
   "numpy.*",
 ]
 ignore_missing_imports = true
-
-[tool.pytest.ini_options]
-addopts = "--strict-markers"
-markers = [
-  "integration: integration tests",
-  "unit: unit tests",
-  "embedders: embedders tests",
-  "generators: generators tests",
-  "chat_generators: chat_generators tests",
-]
-log_cli = true

@@ -1,4 +1,9 @@
 # Integrations
+integration:amazon-bedrock:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/amazon_bedrock/**/*"
+      - any-glob-to-any-file: ".github/workflows/amazon_bedrock.yml"
+
 integration:chroma:
   - changed-files:
       - any-glob-to-any-file: "integrations/chroma/**/*"
@@ -13,6 +18,11 @@ integration:elasticsearch:
   - changed-files:
       - any-glob-to-any-file: "integrations/elasticsearch/**/*"
       - any-glob-to-any-file: ".github/workflows/elasticsearch.yml"
+
+integration:google-ai:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/google_ai/**/*"
+      - any-glob-to-any-file: ".github/workflows/google_ai.yml"
 
 integration:google-vertex:
   - changed-files:
@@ -47,7 +57,7 @@ integration:qdrant:
 integration:pinecone:
   - changed-files:
       - any-glob-to-any-file: "integrations/pinecone/**/*"
-      - any-glob-to-any-file: ".github/workflows/pinecone.yml"      
+      - any-glob-to-any-file: ".github/workflows/pinecone.yml"
 
 integration:unstructured-fileconverter:
   - changed-files:

@@ -12,6 +12,9 @@ import pinecone
 from haystack import default_to_dict
 from haystack.dataclasses import Document
 from haystack.document_stores import DuplicatePolicy
+from haystack.utils.filters import convert
+
+from pinecone_haystack.filters import _normalize_filters
 
 logger = logging.getLogger(__name__)
 
@@ -178,7 +181,7 @@ class PineconeDocumentStore:
         query_embedding: List[float],
         *,
         namespace: Optional[str] = None,
-        filters: Optional[Dict[str, Any]] = None,  # noqa: ARG002 (filters to be implemented)
+        filters: Optional[Dict[str, Any]] = None,
         top_k: int = 10,
     ) -> List[Document]:
         """
@@ -200,10 +203,15 @@ class PineconeDocumentStore:
             msg = "query_embedding must be a non-empty list of floats"
             raise ValueError(msg)
 
+        if filters and "operator" not in filters and "conditions" not in filters:
+            filters = convert(filters)
+        filters = _normalize_filters(filters) if filters else None
+
         result = self._index.query(
             vector=query_embedding,
             top_k=top_k,
             namespace=namespace or self.namespace,
+            filter=filters,
             include_values=True,
             include_metadata=True,
         )

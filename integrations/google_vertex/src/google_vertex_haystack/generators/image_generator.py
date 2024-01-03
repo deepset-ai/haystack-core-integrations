@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 @component
 class VertexAIImageGenerator:
-    def __init__(self, *, model: str = "imagetext", project_id: str, location: Optional[str] = None, **kwargs):
+    def __init__(self, *, model: str = "imagegeneration", project_id: str, location: Optional[str] = None, **kwargs):
         """
         Generates images using a Google Vertex AI model.
 
@@ -21,7 +21,7 @@ class VertexAIImageGenerator:
         https://cloud.google.com/docs/authentication/provide-credentials-adc
 
         :param project_id: ID of the GCP project to use.
-        :param model: Name of the model to use, defaults to "imagetext".
+        :param model: Name of the model to use, defaults to "imagegeneration".
         :param location: The default location to use when making API calls, if not set uses us-central-1.
             Defaults to None.
         :param kwargs: Additional keyword arguments to pass to the model.
@@ -51,5 +51,5 @@ class VertexAIImageGenerator:
     def run(self, prompt: str, negative_prompt: Optional[str] = None):
         negative_prompt = negative_prompt or self._kwargs.get("negative_prompt")
         res = self._model.generate_images(prompt=prompt, negative_prompt=negative_prompt, **self._kwargs)
-        images = [ByteStream(data=i._image_bytes, metadata=i.generation_parameters) for i in res.images]
+        images = [ByteStream(data=i._image_bytes, meta=i.generation_parameters) for i in res.images]
         return {"images": images}
