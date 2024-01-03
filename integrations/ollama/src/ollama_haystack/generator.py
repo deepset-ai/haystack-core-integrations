@@ -1,31 +1,22 @@
-from dataclasses import dataclass
-from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 import requests
 from haystack import component
+from requests import Response
 
 
-@dataclass
-class OllamaResponse:
-    model: str
-    created_at: datetime
-    response: str
-    context: List[int]
-    done: bool
-    total_duration: int
-    load_duration: int
-    prompt_eval_count: int
-    prompt_eval_duration: int
-    eval_count: int
-    eval_duration: int
+def convert_to_haystack_response(ollama_response: Response) -> Dict[str, List[Any]]:
+    """
+    Convert a response from the Ollama API to the required Haystack format
+    :param ollama_response: A response (requests library) from the Ollama API
+    :return: A dictionary of the returned responses and metadata
+    """
+    json = ollama_response.json()
 
-    def __post_init__(self):
-        self.meta = {key: value for key, value in self.__dict__.items() if key != "response"}
+    replies = json["response"]
+    meta = {key: value for key, value in json.items() if key != "response"}
 
-    def as_haystack_generator_response(self) -> Dict[str, List]:
-        """Returns replies and metadata in the format required by haystack"""
-        return {"replies": [self.response], "meta": [self.meta]}
+    return {"replies": [replies], "meta": [meta]}
 
 
 @component
@@ -109,6 +100,4 @@ class OllamaGenerator:
         # Throw error on unsuccessful response
         response.raise_for_status()
 
-        ollama_response = OllamaResponse(**response.json())
-
-        return ollama_response.as_haystack_generator_response()
+        return convert_to_haystack_response(response)
