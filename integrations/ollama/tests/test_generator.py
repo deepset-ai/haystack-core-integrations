@@ -75,16 +75,13 @@ class TestOllamaGenerator:
         observed = component._json_payload(prompt=prompt)
 
         expected = {
-            "url": "https://localhost:11434/api/generate",
-            "json": {
-                "prompt": prompt,
-                "model": configuration["model_name"],
-                "stream": False,
-                "system": configuration["system_prompt"],
-                "raw": configuration["raw"],
-                "template": configuration["template"],
-                "options": {},
-            },
+            "prompt": prompt,
+            "model": configuration["model_name"],
+            "stream": False,
+            "system": configuration["system_prompt"],
+            "raw": configuration["raw"],
+            "template": configuration["template"],
+            "options": {},
         }
 
         assert observed == expected
