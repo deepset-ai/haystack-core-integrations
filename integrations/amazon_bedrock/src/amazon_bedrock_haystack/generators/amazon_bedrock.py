@@ -80,7 +80,7 @@ class AmazonBedrockGenerator:
         max_length: Optional[int] = 100,
         **kwargs,
     ):
-        if model_name is None or len(model_name) == 0:
+        if not model_name:
             msg = "model_name cannot be None or empty string"
             raise ValueError(msg)
         self.model_name = model_name
