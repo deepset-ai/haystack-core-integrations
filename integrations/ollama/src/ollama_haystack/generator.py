@@ -88,12 +88,25 @@ class OllamaGenerator:
         }
 
     @component.output_types(replies=List[str], metadata=List[Dict[str, Any]])
-    def run(self, prompt: str, generation_kwargs: Optional[Dict[str, Any]] = None):
+    def run(
+        self,
+        prompt: str,
+        generation_kwargs: Optional[Dict[str, Any]] = None,
+    ):
+        """
+        Run an Ollama Model against a given prompt
+        :param prompt: The prompt to generate a response for
+        :param generation_kwargs: Additional model parameters listed in the documentation for the Ollama
+            Modelfile such as temperature
+        :return: A dictionary of the response and returned metadata
+        """
         generation_kwargs = {**self.generation_kwargs, **(generation_kwargs or {})}
+
         post_arguments = self._post_args(prompt, generation_kwargs)
 
         response = requests.post(url=post_arguments["url"], json=post_arguments["json"], timeout=self.timeout)
 
+        # Throw error on unsuccessful response
         response.raise_for_status()
 
         ollama_response = OllamaResponse(**response.json())
