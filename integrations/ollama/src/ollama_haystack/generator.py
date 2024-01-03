@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional
 
 import requests
 from haystack import component
@@ -56,9 +56,9 @@ class OllamaGenerator:
         """
         return {"model": self.model_name}
 
-    def _post_args(self, prompt: str, generation_kwargs=None) -> Dict[str, Union[str, dict]]:
+    def _json_payload(self, prompt: str, generation_kwargs=None) -> Dict[str, Any]:
         """
-        Returns A dictionary of arguments for a POST request to an Ollama service
+        Returns A dictionary of JSON arguments for a POST request to an Ollama service
         :param prompt: the prompt to generate a response for
         :param generation_kwargs:
         :return: A dictionary of arguments for a POST request to an Ollama service
@@ -66,16 +66,13 @@ class OllamaGenerator:
         if generation_kwargs is None:
             generation_kwargs = {}
         return {
-            "url": self.url,
-            "json": {
-                "prompt": prompt,
-                "model": self.model_name,
-                "stream": False,
-                "raw": self.raw,
-                "template": self.template,
-                "system": self.system_prompt,
-                "options": generation_kwargs,
-            },
+            "prompt": prompt,
+            "model": self.model_name,
+            "stream": False,
+            "raw": self.raw,
+            "template": self.template,
+            "system": self.system_prompt,
+            "options": generation_kwargs,
         }
 
     @component.output_types(replies=List[str], metadata=List[Dict[str, Any]])
@@ -93,9 +90,9 @@ class OllamaGenerator:
         """
         generation_kwargs = {**self.generation_kwargs, **(generation_kwargs or {})}
 
-        post_arguments = self._post_args(prompt, generation_kwargs)
+        json_payload = self._json_payload(prompt, generation_kwargs)
 
-        response = requests.post(url=post_arguments["url"], json=post_arguments["json"], timeout=self.timeout)
+        response = requests.post(url=self.url, json=json_payload, timeout=self.timeout)
 
         # Throw error on unsuccessful response
         response.raise_for_status()

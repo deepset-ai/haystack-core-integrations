@@ -69,10 +69,10 @@ class TestOllamaGenerator:
             ),
         ],
     )
-    def test__post_args(self, configuration, prompt):
+    def test__json_payload(self, configuration, prompt):
         component = OllamaGenerator(**configuration)
 
-        observed = component._post_args(prompt=prompt)
+        observed = component._json_payload(prompt=prompt)
 
         expected = {
             "url": "https://localhost:11434/api/generate",
