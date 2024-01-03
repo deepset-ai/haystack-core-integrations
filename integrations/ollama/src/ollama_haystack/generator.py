@@ -38,17 +38,20 @@ class OllamaGenerator:
         system_prompt: Optional[str] = None,
         template: Optional[str] = None,
         raw: bool = False,
+        timeout: int = 30,
     ):
         """
 
-        :param model_name: The name of the LLM to use (from Ollama)
-        :param url: The URL to a running Ollama instance
+        :param model_name: The name of the LLM to use (from Ollama). Default is orca-mini
+        :param url: The URL to a running Ollama instance. Default is http://localhost:11434/api/generate
         :param generation_kwargs: Optional arguments to pass to the Ollama generate function
         :param system_prompt: Optional system message to (overrides what is defined in the Modelfile)
         :param template: The full prompt or prompt template (overrides what is defined in the Modelfile)
         :param raw: If True, no formatting will be applied to the prompt. You may choose to use the raw parameter
-        if you are specifying a full templated prompt in your request to the API.
+            if you are specifying a full templated prompt in your request to the API.\
+        :param timeout: The number of seconds before throwing a timeout error from the Ollama API. Default 3-
         """
+        self.timeout = timeout
         self.raw = raw
         self.template = template
         self.system_prompt = system_prompt
@@ -88,7 +91,7 @@ class OllamaGenerator:
     def run(self, prompt: str, generation_kwargs: Optional[Dict[str, Any]] = None):
         generation_kwargs = {**self.generation_kwargs, **(generation_kwargs or {})}
 
-        response = requests.post(**self._post_args(prompt, generation_kwargs), timeout=30)
+        response = requests.post(url=post_arguments["url"], json=post_arguments["json"], timeout=self.timeout)
 
         response.raise_for_status()
 
