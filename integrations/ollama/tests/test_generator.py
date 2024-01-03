@@ -10,33 +10,33 @@ from ollama_haystack import OllamaGenerator
 
 class TestOllamaGenerator:
     @pytest.mark.integration
-    @pytest.mark.parametrize(
-        "prompt, answer",
-        [
+    def test_run_capital_cities(self, prompt, answer):
+        prompts_and_answers = [
             ("What's the capital of France?", "Paris"),
             ("What is the capital of Canada?", "Ottawa"),
             ("What is the capital of Ghana?", "Accra"),
-        ],
-    )
-    def test_run_capital_cities(self, prompt, answer):
-        component = OllamaGenerator()
-        results = component.run(prompt=prompt)
-        response = results["replies"][0]
+        ]
 
-        assert "replies" in results.keys()
-        assert "meta" in results.keys()
-        assert answer in response
+        component = OllamaGenerator()
+
+        for prompt, answer in prompts_and_answers:
+            results = component.run(prompt=prompt)
+            response = results["replies"][0]
+
+            assert "replies" in results
+            assert "meta" in results
+            assert answer in response
 
     @pytest.mark.integration
     def test_run_model_unavailable(self):
-        component = OllamaGenerator(model_name="Alistair_is_great")
+        component = OllamaGenerator(model="Alistair_is_great")
 
         with pytest.raises(HTTPError):
             component.run(prompt="Why is Alistair so great?")
 
     def test_init_default(self):
         component = OllamaGenerator()
-        assert component.model_name == "orca-mini"
+        assert component.model == "orca-mini"
         assert component.url == "http://localhost:11434/api/generate"
         assert component.generation_kwargs == {}
         assert component.system_prompt is None
@@ -44,39 +44,51 @@ class TestOllamaGenerator:
         assert component.raw is False
         assert component.timeout == 30
 
+    def test_init(self):
+        component = OllamaGenerator(
+            model="llama2",
+            url="http://my-custom-endpoint:11434/api/generate",
+            generation_kwargs={"temperature": 0.5},
+            system_prompt="You are Luigi from Super Mario Bros.",
+            timeout=5,
+        )
+
+        assert component.model == "llama2"
+        assert component.url == "http://my-custom-endpoint:11434/api/generate"
+        assert component.generation_kwargs == {"temperature": 0.5}
+        assert component.system_prompt == "You are Luigi from Super Mario Bros."
+        assert component.template is None
+        assert component.raw is False
+        assert component.timeout == 5
+
     @pytest.mark.parametrize(
-        "configuration, prompt",
+        "configuration",
         [
-            (
-                {
-                    "model_name": "some_model",
-                    "url": "https://localhost:11434/api/generate",
-                    "raw": True,
-                    "system_prompt": "You are mario from Super Mario Bros.",
-                    "template": None,
-                },
-                "hello",
-            ),
-            (
-                {
-                    "model_name": "some_model2",
-                    "url": "https://localhost:11434/api/generate",
-                    "raw": False,
-                    "system_prompt": None,
-                    "template": "some template",
-                },
-                "hello",
-            ),
+            {
+                "model": "some_model",
+                "url": "https://localhost:11434/api/generate",
+                "raw": True,
+                "system_prompt": "You are mario from Super Mario Bros.",
+                "template": None,
+            },
+            {
+                "model": "some_model2",
+                "url": "https://localhost:11434/api/generate",
+                "raw": False,
+                "system_prompt": None,
+                "template": "some template",
+            },
         ],
     )
-    def test__json_payload(self, configuration, prompt):
+    def test_create_json_payload(self, configuration):
+        prompt = "hello"
         component = OllamaGenerator(**configuration)
 
-        observed = component._json_payload(prompt=prompt)
+        observed = component._create_json_payload(prompt=prompt)
 
         expected = {
             "prompt": prompt,
-            "model": configuration["model_name"],
+            "model": configuration["model"],
             "stream": False,
             "system": configuration["system_prompt"],
             "raw": configuration["raw"],

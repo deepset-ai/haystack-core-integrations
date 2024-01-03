@@ -52,6 +52,7 @@ class OllamaGenerator:
         :param generation_kwargs:
         :return: A dictionary of arguments for a POST request to an Ollama service
         """
+        generation_kwargs = generation_kwargs or {}
         return {
             "prompt": prompt,
             "model": self.model,
