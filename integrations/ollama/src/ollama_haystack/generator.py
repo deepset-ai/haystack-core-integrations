@@ -28,12 +28,12 @@ class OllamaGenerator:
         :param url: The URL of the generation endpoint of a running Ollama instance.
             Default is "http://localhost:11434/api/generate".
         :param generation_kwargs: Optional arguments to pass to the Ollama generation endpoint, such as temperature,
-            top_p, etc. See the
+            top_p, and others. See the available arguments in
             [Ollama docs](https://github.com/jmorganca/ollama/blob/main/docs/modelfile.md#valid-parameters-and-values).
         :param system_prompt: Optional system message (overrides what is defined in the Ollama Modelfile).
         :param template: The full prompt template (overrides what is defined in the Ollama Modelfile).
         :param raw: If True, no formatting will be applied to the prompt. You may choose to use the raw parameter
-            if you are specifying a full templated prompt in your request to the API.
+            if you are specifying a full templated prompt in your API request.
         :param timeout: The number of seconds before throwing a timeout error from the Ollama API.
             Default is 30 seconds.
         """
@@ -47,10 +47,12 @@ class OllamaGenerator:
 
     def _create_json_payload(self, prompt: str, generation_kwargs=None) -> Dict[str, Any]:
         """
-        Returns A dictionary of JSON arguments for a POST request to an Ollama service
-        :param prompt: the prompt to generate a response for
-        :param generation_kwargs:
-        :return: A dictionary of arguments for a POST request to an Ollama service
+        Returns a dictionary of JSON arguments for a POST request to an Ollama service.
+        :param prompt: The prompt to generate a response for.
+        :param generation_kwargs: Optional arguments to pass to the Ollama generation endpoint, such as temperature,
+            top_p, and others. See the available arguments in
+            [Ollama docs](https://github.com/jmorganca/ollama/blob/main/docs/modelfile.md#valid-parameters-and-values).
+        :return: A dictionary of arguments for a POST request to an Ollama service.
         """
         generation_kwargs = generation_kwargs or {}
         return {
@@ -65,9 +67,9 @@ class OllamaGenerator:
 
     def _convert_to_haystack_response(self, ollama_response: Response) -> Dict[str, List[Any]]:
         """
-        Convert a response from the Ollama API to the required Haystack format
-        :param ollama_response: A response (requests library) from the Ollama API
-        :return: A dictionary of the returned responses and metadata
+        Convert a response from the Ollama API to the required Haystack format.
+        :param ollama_response: A response (requests library) from the Ollama API.
+        :return: A dictionary of the returned responses and metadata.
         """
         resp_dict = ollama_response.json()
 
@@ -83,10 +85,10 @@ class OllamaGenerator:
         generation_kwargs: Optional[Dict[str, Any]] = None,
     ):
         """
-        Run an Ollama Model on the a given prompt.
+        Run an Ollama Model on the given prompt.
         :param prompt: The prompt to generate a response for.
         :param generation_kwargs: Optional arguments to pass to the Ollama generation endpoint, such as temperature,
-            top_p, etc. See the
+            top_p, and others. See the available arguments in
             [Ollama docs](https://github.com/jmorganca/ollama/blob/main/docs/modelfile.md#valid-parameters-and-values).
         :return: A dictionary of the response and returned metadata
         """
