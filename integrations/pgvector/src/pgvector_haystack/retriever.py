@@ -5,26 +5,26 @@ from typing import Any, Dict, Optional
 
 from haystack import component
 
-from pgvector_haystack import pgvectorDocumentStore
+from pgvector_haystack import PGvectorDocumentStore
 
 
 @component
-class pgvectorQueryRetriever:
+class PGvectorQueryRetriever:
     """
-    A component for retrieving documents from an pgvectorDocumentStore.
+    A component for retrieving documents from an PGvectorDocumentStore.
     """
 
     def __init__(
-        self, 
+        self,
         *,
-        document_store: pgvectorDocumentStore, 
-        filters: Optional[Dict[str, Any]] = None, 
+        document_store: PGvectorDocumentStore,
+        filters: Optional[Dict[str, Any]] = None,
         top_k: int = 10,
     ):
         """
-        Create an pgvectorRetriever component.
+        Create an PGvectorRetriever component.
 
-        :param document_store: An instance of pgvectorDocumentStore
+        :param document_store: An instance of PGvectorDocumentStore
         :param filters: A dictionary with filters to narrow down the search space (default is None).
         :param top_k: The maximum number of documents to retrieve default is 10.
 
