@@ -1,0 +1,59 @@
+# This workflow comes from https://github.com/ofek/hatch-mypyc
+# https://github.com/ofek/hatch-mypyc/blob/5a198c0ba8660494d02716cfc9d79ce4adfb1442/.github/workflows/test.yml
+name: Test / ollama
+
+on:
+  schedule:
+    - cron: "0 0 * * *"
+  pull_request:
+    paths:
+      - "integrations/ollama/**"
+      - ".github/workflows/ollama.yml"
+
+concurrency:
+  group: ollama-${{ github.head_ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHONUNBUFFERED: "1"
+  FORCE_COLOR: "1"
+  LLM_FOR_TESTS: "orca-mini"
+
+jobs:
+  run:
+    name: Python ${{ matrix.python-version }} on ${{ startsWith(matrix.os, 'macos-') && 'macOS' || startsWith(matrix.os, 'windows-') && 'Windows' || 'Linux' }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest]
+        python-version: ["3.9","3.10","3.11"]
+    services:
+      ollama:
+        image: ollama/ollama:latest
+        ports:
+          - 11434:11434
+        options: --name ollama
+        
+    steps:
+      - name: Pull the LLM in the Ollama service
+        run: docker exec ollama ollama pull ${{ env.LLM_FOR_TESTS }}
+    
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install Hatch
+        run: pip install --upgrade hatch
+
+      - name: Lint
+        working-directory: integrations/ollama
+        if: matrix.python-version == '3.9'
+        run: hatch run lint:all
+
+      - name: Run tests
+        working-directory: integrations/ollama
+        run: hatch run cov
