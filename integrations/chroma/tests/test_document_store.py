@@ -114,8 +114,8 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, LegacyFilterDoc
 
     @pytest.mark.integration
     def test_same_collection_name_reinitialization(self):
-        ds = ChromaDocumentStore("test_name")
-        ds = ChromaDocumentStore("test_name")
+        ChromaDocumentStore("test_name")
+        ChromaDocumentStore("test_name")
 
     @pytest.mark.skip(reason="Filter on array contents is not supported.")
     @pytest.mark.unit
