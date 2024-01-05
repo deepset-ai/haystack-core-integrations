@@ -36,6 +36,11 @@ Source = "https://github.com/unknown/example-store"
 
 [tool.hatch.version]
 source = "vcs"
+tag-pattern = 'integrations\/pgvector-v(?P<version>.*)'
+
+[tool.hatch.version.raw-options]
+root = "../.."
+git_describe_command = 'git describe --tags --match="integrations/pgvector-v[0-9]*"'
 
 [tool.hatch.envs.default]
 dependencies = [
