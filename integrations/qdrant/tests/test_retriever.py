@@ -7,13 +7,13 @@ from haystack.testing.document_store import (
 )
 
 from qdrant_haystack import QdrantDocumentStore
-from qdrant_haystack.retriever import QdrantRetriever
+from qdrant_haystack.retriever import QdrantEmbeddingRetriever
 
 
 class TestQdrantRetriever(FilterableDocsFixtureMixin):
     def test_init_default(self):
         document_store = QdrantDocumentStore(location=":memory:", index="test")
-        retriever = QdrantRetriever(document_store=document_store)
+        retriever = QdrantEmbeddingRetriever(document_store=document_store)
         assert retriever._document_store == document_store
         assert retriever._filters is None
         assert retriever._top_k == 10
@@ -21,10 +21,10 @@ class TestQdrantRetriever(FilterableDocsFixtureMixin):
 
     def test_to_dict(self):
         document_store = QdrantDocumentStore(location=":memory:", index="test")
-        retriever = QdrantRetriever(document_store=document_store)
+        retriever = QdrantEmbeddingRetriever(document_store=document_store)
         res = retriever.to_dict()
         assert res == {
-            "type": "qdrant_haystack.retriever.QdrantRetriever",
+            "type": "qdrant_haystack.retriever.QdrantEmbeddingRetriever",
             "init_parameters": {
                 "document_store": {
                     "type": "qdrant_haystack.document_store.QdrantDocumentStore",
@@ -74,7 +74,7 @@ class TestQdrantRetriever(FilterableDocsFixtureMixin):
 
     def test_from_dict(self):
         data = {
-            "type": "qdrant_haystack.retriever.QdrantRetriever",
+            "type": "qdrant_haystack.retriever.QdrantEmbeddingRetriever",
             "init_parameters": {
                 "document_store": {
                     "init_parameters": {"location": ":memory:", "index": "test"},
@@ -86,7 +86,7 @@ class TestQdrantRetriever(FilterableDocsFixtureMixin):
                 "return_embedding": True,
             },
         }
-        retriever = QdrantRetriever.from_dict(data)
+        retriever = QdrantEmbeddingRetriever.from_dict(data)
         assert isinstance(retriever._document_store, QdrantDocumentStore)
         assert retriever._document_store.index == "test"
         assert retriever._filters is None
@@ -99,7 +99,7 @@ class TestQdrantRetriever(FilterableDocsFixtureMixin):
 
         document_store.write_documents(filterable_docs)
 
-        retriever = QdrantRetriever(document_store=document_store)
+        retriever = QdrantEmbeddingRetriever(document_store=document_store)
 
         results: List[Document] = retriever.run(query_embedding=_random_embeddings(768))
 
