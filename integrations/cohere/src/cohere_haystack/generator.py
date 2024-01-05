@@ -73,12 +73,12 @@ class CohereGenerator:
             - 'logit_bias': Used to prevent the model from generating unwanted tokens or to incentivize it to include
                 desired tokens. The format is {token_id: bias} where bias is a float between -10 and 10.
         """
-        if not api_key:
-            api_key = os.environ.get("COHERE_API_KEY")
+        api_key = api_key or os.environ.get("COHERE_API_KEY")
+        # we check whether api_key is None or an empty string
         if not api_key:
             msg = (
-                "CohereGenerator needs an API key to run."
-                "Either provide it as init parameter or set the env var COHERE_API_KEY."
+                "CohereGenerator expects an API key. "
+                "Set the COHERE_API_KEY environment variable (recommended) or pass it explicitly."
             )
             raise ValueError(msg)
 
