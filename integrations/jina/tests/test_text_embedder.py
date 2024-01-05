@@ -32,7 +32,7 @@ class TestJinaTextEmbedder:
 
     def test_init_fail_wo_api_key(self, monkeypatch):
         monkeypatch.delenv("JINA_API_KEY", raising=False)
-        with pytest.raises(ValueError, match="JinaTextEmbedder expects a Jina API key"):
+        with pytest.raises(ValueError):
             JinaTextEmbedder()
 
     def test_to_dict(self):

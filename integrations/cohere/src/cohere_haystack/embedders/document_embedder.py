@@ -78,15 +78,14 @@ class CohereDocumentEmbedder:
         :param embedding_separator: Separator used to concatenate the meta fields to the Document text.
         """
 
-        if api_key is None:
-            try:
-                api_key = os.environ["COHERE_API_KEY"]
-            except KeyError as error_msg:
-                msg = (
-                    "CohereDocumentEmbedder expects an Cohere API key. Please provide one by setting the environment "
-                    "variable COHERE_API_KEY (recommended) or by passing it explicitly."
-                )
-                raise ValueError(msg) from error_msg
+        api_key = api_key or os.environ.get("COHERE_API_KEY")
+        # we check whether api_key is None or an empty string
+        if not api_key:
+            msg = (
+                "CohereDocumentEmbedder expects an API key. "
+                "Set the COHERE_API_KEY environment variable (recommended) or pass it explicitly."
+            )
+            raise ValueError(msg)
 
         self.api_key = api_key
         self.model_name = model_name

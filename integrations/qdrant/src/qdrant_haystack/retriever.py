@@ -6,7 +6,7 @@ from qdrant_haystack import QdrantDocumentStore
 
 
 @component
-class QdrantRetriever:
+class QdrantEmbeddingRetriever:
     """
     A component for retrieving documents from an QdrantDocumentStore.
     """
@@ -20,7 +20,7 @@ class QdrantRetriever:
         return_embedding: bool = False,  # noqa: FBT001, FBT002
     ):
         """
-        Create a QdrantRetriever component.
+        Create a QdrantEmbeddingRetriever component.
 
         :param document_store: An instance of QdrantDocumentStore.
         :param filters: A dictionary with filters to narrow down the search space. Default is None.
@@ -59,7 +59,7 @@ class QdrantRetriever:
         return d
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "QdrantRetriever":
+    def from_dict(cls, data: Dict[str, Any]) -> "QdrantEmbeddingRetriever":
         """
         Deserialize this component from a dictionary.
         """
