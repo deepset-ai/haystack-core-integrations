@@ -15,6 +15,83 @@ logger = logging.getLogger(__name__)
 
 @component
 class GoogleAIGeminiChatGenerator:
+    """
+    GoogleAIGeminiGenerator is a multi modal generator supporting Gemini via Google Makersuite.
+
+    Sample usage:
+    ```python
+    from haystack.dataclasses.chat_message import ChatMessage
+    from google_ai_haystack.generators.chat.gemini import GoogleAIGeminiChatGenerator
+
+
+    gemini_chat = GoogleAIGeminiChatGenerator(model="gemini-pro", api_key="<MY_API_KEY>")
+
+    messages = [ChatMessage.from_user("What is the most interesting thing you know?")]
+    res = gemini_chat.run(messages=messages)
+    for reply in res["replies"]:
+        print(reply.content)
+
+    messages += res["replies"] + [ChatMessage.from_user("Tell me more about it")]
+    res = gemini_chat.run(messages=messages)
+    for reply in res["replies"]:
+        print(reply.content)
+    ```
+
+
+    This is a more advanced usage that also uses function calls:
+    ```python
+    from haystack.dataclasses.chat_message import ChatMessage
+    from google.ai.generativelanguage import FunctionDeclaration, Tool
+
+    from google_ai_haystack.generators.chat.gemini import GoogleAIGeminiChatGenerator
+
+    # Example function to get the current weather
+    def get_current_weather(location: str, unit: str = "celsius") -> str:
+        # Call a weather API and return some text
+        ...
+
+    # Define the function interface so that Gemini can call it
+    get_current_weather_func = FunctionDeclaration(
+        name="get_current_weather",
+        description="Get the current weather in a given location",
+        parameters={
+            "type": "object",
+            "properties": {
+                "location": {"type": "string", "description": "The city and state, e.g. San Francisco, CA"},
+                "unit": {
+                    "type": "string",
+                    "enum": [
+                        "celsius",
+                        "fahrenheit",
+                    ],
+                },
+            },
+            "required": ["location"],
+        },
+    )
+    tool = Tool([get_current_weather_func])
+
+    messages = [ChatMessage.from_user("What is the most interesting thing you know?")]
+
+    gemini_chat = GoogleAIGeminiChatGenerator(model="gemini-pro", api_key="<MY_API_KEY>", tools=[tool])
+
+    messages = [ChatMessage.from_user(content = "What is the temperature in celsius in Berlin?")]
+    res = gemini_chat.run(messages=messages)
+
+    weather = get_current_weather(**res["replies"][0].content)
+    messages += res["replies"] + [ChatMessage.from_function(content=weather, name="get_current_weather")]
+    res = gemini_chat.run(messages=messages)
+    for reply in res["replies"]:
+        print(reply.content)
+    ```
+
+    Input:
+    - **messages** A list of ChatMessage objects.
+
+    Output:
+    - **replies** A list of ChatMessage objects containing the one or more replies from the model.
+    """
+
     def __init__(
         self,
         *,
@@ -25,7 +102,31 @@ class GoogleAIGeminiChatGenerator:
         tools: Optional[List[Tool]] = None,
     ):
         """
-        Multi modal generator using Gemini model via Makersuite
+        Initialize a GoogleAIGeminiChatGenerator instance.
+        If `api_key` is `None` it will use the `GOOGLE_API_KEY` env variable for authentication.
+
+        To get an API key, visit: https://makersuite.google.com
+
+        It supports the following models:
+        * `gemini-pro`
+        * `gemini-pro-vision`
+        * `gemini-ultra`
+
+        :param api_key: Google Makersuite API key, defaults to None
+        :param model: Name of the model to use, defaults to "gemini-pro-vision"
+        :param generation_config: The generation config to use, defaults to None.
+            Can either be a GenerationConfig object or a dictionary of parameters.
+            Accepted fields are:
+                - temperature
+                - top_p
+                - top_k
+                - candidate_count
+                - max_output_tokens
+                - stop_sequences
+        :param safety_settings: The safety settings to use, defaults to None.
+            A dictionary of HarmCategory to HarmBlockThreshold.
+        :param tools: The tools to use, defaults to None.
+            A list of Tool objects that can be used to modify the generation process.
         """
 
         # Authenticate, if api_key is None it will use the GOOGLE_API_KEY env variable
