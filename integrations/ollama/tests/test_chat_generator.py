@@ -26,6 +26,29 @@ def list_of_chat_messages(user_chat_message, assistant_chat_message):
 
 
 class TestOllamaChatGenerator:
+    def test_init_default(self):
+        component = OllamaChatGenerator()
+        assert component.model == "orca-mini"
+        assert component.url == "http://localhost:11434/api/chat"
+        assert component.generation_kwargs == {}
+        assert component.template is None
+        assert component.timeout == 30
+        assert component.streaming_callback is None
+
+    def test_init(self):
+        component = OllamaChatGenerator(
+            model="llama2",
+            url="http://my-custom-endpoint:11434/api/chat",
+            generation_kwargs={"temperature": 0.5},
+            timeout=5,
+        )
+
+        assert component.model == "llama2"
+        assert component.url == "http://my-custom-endpoint:11434/api/chat"
+        assert component.generation_kwargs == {"temperature": 0.5}
+        assert component.template is None
+        assert component.timeout == 5
+
     def test_user_message_to_dict(self, user_chat_message):
         observed = OllamaChatGenerator()._message_to_dict(user_chat_message)
         expected = {"role": "user", "content": "Tell me about why Super Mario is the greatest superhero"}
@@ -101,4 +124,6 @@ class TestOllamaChatGenerator:
 
             response = chat_generator.run([message])
 
+            assert isinstance(response, dict)
+            assert isinstance(response["replies"], list)
             assert answer in response["replies"][0].content
