@@ -3,5 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from ollama_haystack.generator import OllamaGenerator
+from ollama_haystack.chat.chat_generator import OllamaChatGenerator
 
-__all__ = ["OllamaGenerator"]
+
+__all__ = ["OllamaGenerator", "OllamaChatGenerator"]
