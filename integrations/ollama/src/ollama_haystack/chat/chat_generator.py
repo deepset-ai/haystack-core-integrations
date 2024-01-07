@@ -2,7 +2,7 @@ from typing import Any, Callable, Dict, List, Optional
 
 import requests
 from haystack import component
-from haystack.dataclasses import ChatMessage, ChatRole, StreamingChunk
+from haystack.dataclasses import ChatMessage, StreamingChunk
 from requests import Response
 
 
@@ -36,18 +36,20 @@ class OllamaChatGenerator:
         return {"model": self.model}
 
     def _message_to_dict(self, message: ChatMessage) -> Dict[str, str]:
-        role = "user"
-        if message.role == ChatRole.ASSISTANT:
-            role = "assistant"
-        return {"role": role, "content": message.content}
+        return {"role": message.role.value, "content": message.content}
 
     def _chat_history_to_dict(self, messages: List[ChatMessage]) -> List[Dict[str, str]]:
+        """
+        Returns A dictionary of JSON arguments for a POST request to an Ollama service
+        :param messages: A list of chat messages
+        :return: A list of chat messages as dictionaries
+        """
         return [self._message_to_dict(message) for message in messages]
 
     def _create_json_payload(self, messages: List[ChatMessage], generation_kwargs=None) -> Dict[str, Any]:
         """
         Returns A dictionary of JSON arguments for a POST request to an Ollama service
-        :param messages: A history of chat messages
+        :param messages: A history/list of chat messages
         :param generation_kwargs:
         :return: A dictionary of arguments for a POST request to an Ollama service
         """
