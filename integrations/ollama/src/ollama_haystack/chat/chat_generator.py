@@ -1,8 +1,8 @@
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 import requests
 from haystack import component
-from haystack.dataclasses import ChatMessage, StreamingChunk
+from haystack.dataclasses import ChatMessage
 from requests import Response
 
 
@@ -20,9 +20,7 @@ class OllamaChatGenerator:
         generation_kwargs: Optional[Dict[str, Any]] = None,
         template: Optional[str] = None,
         timeout: int = 30,
-        streaming_callback: Optional[Callable[[StreamingChunk], None]] = None,
     ):
-        self.streaming_callback = streaming_callback
         self.timeout = timeout
         self.template = template
         self.generation_kwargs = generation_kwargs or {}
@@ -57,7 +55,7 @@ class OllamaChatGenerator:
         return {
             "messages": self._chat_history_to_dict(messages),
             "model": self.model,
-            "stream": bool(self.streaming_callback),
+            "stream": False,
             "template": self.template,
             "options": generation_kwargs,
         }
@@ -95,9 +93,5 @@ class OllamaChatGenerator:
 
         # throw error on unsuccessful response
         response.raise_for_status()
-
-        # Todo: Implement streaming
-        if self.streaming_callback:
-            raise NotImplementedError
 
         return {"replies": [self._build_message(response)]}
