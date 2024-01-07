@@ -1,7 +1,7 @@
 from unittest.mock import Mock
 
 import pytest
-from haystack.dataclasses import ChatMessage
+from haystack.dataclasses import ChatMessage, ChatRole
 from requests import Response
 
 from ollama_haystack import OllamaChatGenerator
@@ -127,3 +127,23 @@ class TestOllamaChatGenerator:
             assert isinstance(response, dict)
             assert isinstance(response["replies"], list)
             assert answer in response["replies"][0].content
+
+    @pytest.mark.integration
+    def test_run_with_chat_history(self):
+        chat_generator = OllamaChatGenerator()
+
+        chat_history = [
+            {"role": "user", "content": "What is the largest city in the United Kingdom by population?"},
+            {"role": "assistant", "content": "London is the largest city in the United Kingdom by population"},
+            {"role": "user", "content": "And what is the second largest?"},
+        ]
+
+        chat_messages = [
+            ChatMessage(role=ChatRole(message["role"]), content=message["content"], name=None)
+            for message in chat_history
+        ]
+        response = chat_generator.run(chat_messages)
+
+        assert isinstance(response, dict)
+        assert isinstance(response["replies"], list)
+        assert "Manchester" in response["replies"][-1].content
