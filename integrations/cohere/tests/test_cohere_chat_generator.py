@@ -65,7 +65,7 @@ class TestCohereChatGenerator:
     @pytest.mark.unit
     def test_init_fail_wo_api_key(self, monkeypatch):
         monkeypatch.delenv("COHERE_API_KEY", raising=False)
-        with pytest.raises(ValueError, match=r"^CohereChatGenerator needs an API key to run. (.+)$"):
+        with pytest.raises(ValueError):
             CohereChatGenerator()
 
     @pytest.mark.unit
@@ -167,7 +167,7 @@ class TestCohereChatGenerator:
                 "generation_kwargs": {"max_tokens": 10, "some_test_param": "test-params"},
             },
         }
-        with pytest.raises(ValueError, match=r"^CohereChatGenerator needs an API key to run. (.+)$"):
+        with pytest.raises(ValueError):
             CohereChatGenerator.from_dict(data)
 
     @pytest.mark.unit

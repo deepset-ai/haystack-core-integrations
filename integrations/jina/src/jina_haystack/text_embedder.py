@@ -47,16 +47,15 @@ class JinaTextEmbedder:
         :param prefix: A string to add to the beginning of each text.
         :param suffix: A string to add to the end of each text.
         """
-        # if the user does not provide the API key, check if it is set in the module client
-        if api_key is None:
-            try:
-                api_key = os.environ["JINA_API_KEY"]
-            except KeyError as e:
-                msg = (
-                    "JinaTextEmbedder expects a Jina API key. "
-                    "Set the JINA_API_KEY environment variable (recommended) or pass it explicitly."
-                )
-                raise ValueError(msg) from e
+
+        api_key = api_key or os.environ.get("JINA_API_KEY")
+        # we check whether api_key is None or an empty string
+        if not api_key:
+            msg = (
+                "JinaTextEmbedder expects an API key. "
+                "Set the JINA_API_KEY environment variable (recommended) or pass it explicitly."
+            )
+            raise ValueError(msg)
 
         self.model_name = model_name
         self.prefix = prefix
