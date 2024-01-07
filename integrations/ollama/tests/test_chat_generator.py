@@ -64,8 +64,8 @@ class TestOllamaChatGenerator:
     def test__chat_history_to_dict(self, list_of_chat_messages):
         observed = OllamaChatGenerator()._chat_history_to_dict(list_of_chat_messages)
         expected = [
-            {"role": "assistant", "content": "Super Mario has prevented Bowser from destroying the world"},
             {"role": "user", "content": "Tell me about why Super Mario is the greatest superhero"},
+            {"role": "assistant", "content": "Super Mario has prevented Bowser from destroying the world"},
         ]
 
         assert observed == expected
@@ -76,8 +76,8 @@ class TestOllamaChatGenerator:
         )
         expected = {
             "messages": [
-                {"role": "assistant", "content": "Super Mario has prevented Bowser from destroying the world"},
                 {"role": "user", "content": "Tell me about why Super Mario is the greatest superhero"},
+                {"role": "assistant", "content": "Super Mario has prevented Bowser from destroying the world"},
             ],
             "model": "some_model",
             "stream": False,

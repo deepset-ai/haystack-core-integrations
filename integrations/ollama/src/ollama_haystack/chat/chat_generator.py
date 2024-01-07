@@ -42,7 +42,7 @@ class OllamaChatGenerator:
         return {"role": role, "content": message.content}
 
     def _chat_history_to_dict(self, messages: List[ChatMessage]) -> List[Dict[str, str]]:
-        return [self._message_to_dict(message) for message in reversed(messages)]
+        return [self._message_to_dict(message) for message in messages]
 
     def _create_json_payload(self, messages: List[ChatMessage], generation_kwargs=None) -> Dict[str, Any]:
         """
