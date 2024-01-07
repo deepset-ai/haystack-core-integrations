@@ -1,3 +1,4 @@
+from typing import List
 from unittest.mock import Mock
 
 import pytest
@@ -8,20 +9,20 @@ from ollama_haystack import OllamaChatGenerator
 
 
 @pytest.fixture
-def user_chat_message():
+def user_chat_message() -> ChatMessage:
     msg = "Tell me about why Super Mario is the greatest superhero"
     return ChatMessage.from_user(msg)
 
 
 @pytest.fixture
-def assistant_chat_message():
+def assistant_chat_message() -> ChatMessage:
     msg = "Super Mario has prevented Bowser from destroying the world"
     metadata = {"something": "something"}
     return ChatMessage.from_assistant(msg, metadata)
 
 
 @pytest.fixture
-def list_of_chat_messages(user_chat_message, assistant_chat_message):
+def list_of_chat_messages(user_chat_message, assistant_chat_message) -> List[ChatMessage]:
     return [user_chat_message, assistant_chat_message]
 
 
