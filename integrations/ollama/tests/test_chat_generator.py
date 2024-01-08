@@ -9,21 +9,13 @@ from ollama_haystack import OllamaChatGenerator
 
 
 @pytest.fixture
-def user_chat_message() -> ChatMessage:
-    msg = "Tell me about why Super Mario is the greatest superhero"
-    return ChatMessage.from_user(msg)
-
-
-@pytest.fixture
-def assistant_chat_message() -> ChatMessage:
-    msg = "Super Mario has prevented Bowser from destroying the world"
-    metadata = {"something": "something"}
-    return ChatMessage.from_assistant(msg, metadata)
-
-
-@pytest.fixture
-def list_of_chat_messages(user_chat_message, assistant_chat_message) -> List[ChatMessage]:
-    return [user_chat_message, assistant_chat_message]
+def chat_messages() -> List[ChatMessage]:
+    return [
+        ChatMessage.from_user("Tell me about why Super Mario is the greatest superhero"),
+        ChatMessage.from_assistant(
+            "Super Mario has prevented Bowser from destroying the world", {"something": "something"}
+        ),
+    ]
 
 
 class TestOllamaChatGenerator:
@@ -49,10 +41,8 @@ class TestOllamaChatGenerator:
         assert component.template is None
         assert component.timeout == 5
 
-    def test__create_json_payload(self, list_of_chat_messages):
-        observed = OllamaChatGenerator(model="some_model")._create_json_payload(
-            list_of_chat_messages, {"temperature": 0.1}
-        )
+    def test__create_json_payload(self, chat_messages):
+        observed = OllamaChatGenerator(model="some_model")._create_json_payload(chat_messages, {"temperature": 0.1})
         expected = {
             "messages": [
                 {"role": "user", "content": "Tell me about why Super Mario is the greatest superhero"},
