@@ -60,7 +60,7 @@ class OllamaChatGenerator:
             "options": generation_kwargs,
         }
 
-    def _build_message(self, ollama_response: Response) -> ChatMessage:
+    def _build_message_from_ollama_response(self, ollama_response: Response) -> ChatMessage:
         """
         Converts the non-streaming response from the Ollama API to a ChatMessage.
         :param ollama_response: The completion returned by the Ollama API.
