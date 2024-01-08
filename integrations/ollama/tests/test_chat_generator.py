@@ -25,7 +25,7 @@ class TestOllamaChatGenerator:
         assert component.url == "http://localhost:11434/api/chat"
         assert component.generation_kwargs == {}
         assert component.template is None
-        assert component.timeout == 30
+        assert component.timeout == 120
 
     def test_init(self):
         component = OllamaChatGenerator(
