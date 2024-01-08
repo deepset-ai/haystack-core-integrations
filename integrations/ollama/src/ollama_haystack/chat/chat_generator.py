@@ -81,4 +81,4 @@ class OllamaChatGenerator:
         # throw error on unsuccessful response
         response.raise_for_status()
 
-        return {"replies": [self._build_message(response)]}
+        return {"replies": [self._build_message_from_ollama_response(response)]}
