@@ -42,7 +42,7 @@ class TestOllamaGenerator:
         assert component.system_prompt is None
         assert component.template is None
         assert component.raw is False
-        assert component.timeout == 30
+        assert component.timeout == 120
 
     def test_init(self):
         component = OllamaGenerator(
