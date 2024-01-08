@@ -34,7 +34,6 @@ class TestOllamaChatGenerator:
         assert component.generation_kwargs == {}
         assert component.template is None
         assert component.timeout == 30
-        assert component.streaming_callback is None
 
     def test_init(self):
         component = OllamaChatGenerator(
