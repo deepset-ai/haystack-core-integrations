@@ -1,30 +1,19 @@
 import os
-
-# from pathlib import Path
-
-# from haystack import Pipeline
-# from haystack.components.converters import TextFileToDocument
-# from haystack.components.embedders import SentenceTransformersDocumentEmbedder
-from haystack.document_stores import DuplicatePolicy
-
-# from preprocessor import PreProcessor
-
-from astra_store.document_store import AstraDocumentStore
-from astra_store.retriever import AstraRetriever
-
 from pathlib import Path
 
 from haystack import Pipeline
-from haystack import Document
+from haystack.components.converters import TextFileToDocument
 from haystack.components.embedders import SentenceTransformersDocumentEmbedder, SentenceTransformersTextEmbedder
-from haystack.components.converters import PyPDFToDocument, TextFileToDocument
 from haystack.components.preprocessors import DocumentCleaner, DocumentSplitter
-from haystack.components.routers import FileTypeRouter, DocumentJoiner
+from haystack.components.routers import FileTypeRouter
 from haystack.components.writers import DocumentWriter
-from haystack.document_stores import InMemoryDocumentStore
+from haystack.document_stores import DuplicatePolicy
+
+from astra_haystack.document_store import AstraDocumentStore
+from astra_haystack.retriever import AstraRetriever
 
 HERE = Path(__file__).resolve().parent
-file_paths = [HERE / "data" / Path(name) for name in os.listdir("examples/data")]
+file_paths = [HERE / "data" / Path(name) for name in os.listdir("integrations/astra/examples/data")]
 print(file_paths)
 
 astra_id = os.getenv("ASTRA_DB_ID", "")
@@ -99,18 +88,18 @@ print(
 )
 
 print("get_document_by_id")
-print(document_store.get_document_by_id("afce9044d7f610aa28b335c4694da52248460a6a19a57f8522a7665142aa2aa7"))
+print(document_store.get_document_by_id("92ef055fbae55b2b0fc79d34cbf8a80b0ad7700ca526053223b0cc6d1351df10"))
 print("get_documents_by_ids")
 print(
     document_store.get_documents_by_id(
         [
-            "afce9044d7f610aa28b335c4694da52248460a6a19a57f8522a7665142aa2aa7",
+            "92ef055fbae55b2b0fc79d34cbf8a80b0ad7700ca526053223b0cc6d1351df10",
             "6f2450a51eaa3eeb9239d875402bcfe24b2d3534ff27f26c1f3fc8133b04e756",
         ]
     )
 )
 
-document_store.delete_documents(["afce9044d7f610aa28b335c4694da52248460a6a19a57f8522a7665142aa2aa7"])
+document_store.delete_documents(["92ef055fbae55b2b0fc79d34cbf8a80b0ad7700ca526053223b0cc6d1351df10"])
 
 print("count:")
 print(document_store.count_documents())

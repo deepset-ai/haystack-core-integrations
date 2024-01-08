@@ -1,12 +1,12 @@
-# SPDX-FileCopyrightText: 2023-present John Doe <jd@example.com>
+# SPDX-FileCopyrightText: 2023-present Anant Corporation <support@anant.us>
 #
 # SPDX-License-Identifier: Apache-2.0
 
 from typing import Any, Dict, List, Optional
 
-from haystack import Document, component
+from haystack import Document, component, default_from_dict, default_to_dict
 
-from astra_store.document_store import AstraDocumentStore
+from astra_haystack.document_store import AstraDocumentStore
 
 
 @component
@@ -35,7 +35,7 @@ class AstraRetriever:
         """Run the retriever on the given list of queries.
 
         Args:
-            queries (List[str]): An input list of queries
+            query_embedding (List[str]): An input list of queries
             filters (Optional[Dict[str, Any]], optional): A dictionary with filters to narrow down the search space. Defaults to None.
             top_k (Optional[int], optional): The maximum number of documents to retrieve. Defaults to None.
         """
@@ -47,3 +47,17 @@ class AstraRetriever:
             filters = self.filters
 
         return {"documents": self.document_store.search(query_embedding, top_k, filters=filters)}
+
+    def to_dict(self) -> Dict[str, Any]:
+        return default_to_dict(
+            self,
+            filters=self.filters,
+            top_k=self.top_k,
+            document_store=self.document_store.to_dict(),
+        )
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "AstraRetriever":
+        document_store = AstraDocumentStore.from_dict(data["init_parameters"]["document_store"])
+        data["init_parameters"]["document_store"] = document_store
+        return default_from_dict(cls, data)

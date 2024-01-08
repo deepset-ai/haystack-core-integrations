@@ -1,7 +1,6 @@
-# SPDX-FileCopyrightText: 2023-present John Doe <jd@example.com>
+# SPDX-FileCopyrightText: 2023-present Anant Corporation <support@anant.us>
 #
 # SPDX-License-Identifier: Apache-2.0
-import os
 from typing import List
 
 import pytest
@@ -9,7 +8,7 @@ from haystack import Document
 from haystack.document_stores import DuplicatePolicy, MissingDocumentError
 from haystack.testing.document_store import DocumentStoreBaseTests
 
-from astra_store.document_store import AstraDocumentStore
+from astra_haystack.document_store import AstraDocumentStore
 
 
 class TestDocumentStore(DocumentStoreBaseTests):
@@ -19,32 +18,9 @@ class TestDocumentStore(DocumentStoreBaseTests):
     """
 
     @pytest.fixture
-    def document_store(self) -> AstraDocumentStore:
-        """
-        This is the most basic requirement for the child class: provide
-        an instance of this document store so the base class can use it.
-        """
-        astra_id = os.getenv("ASTRA_DB_ID", "")
-        astra_region = os.getenv("ASTRA_DB_REGION", "us-east-2")
-
-        astra_application_token = os.getenv(
-            "ASTRA_DB_APPLICATION_TOKEN",
-            "",
-        )
-
-        keyspace_name = "astra_haystack_test"
-        collection_name = "haystack_integration"
-
-        astra_store = AstraDocumentStore(
-            astra_id=astra_id,
-            astra_region=astra_region,
-            astra_application_token=astra_application_token,
-            astra_keyspace=keyspace_name,
-            astra_collection=collection_name,
-            duplicates_policy=DuplicatePolicy.OVERWRITE,
-            embedding_dim=768,
-        )
-        return astra_store
+    @pytest.mark.usefixtures
+    def document_store(self, document_store) -> AstraDocumentStore:
+        return document_store
 
     @pytest.fixture(autouse=True)
     def run_before_and_after_tests(self, document_store: AstraDocumentStore):
@@ -65,8 +41,8 @@ class TestDocumentStore(DocumentStoreBaseTests):
         """
         import operator
 
-        received.sort(key=operator.attrgetter('id'))
-        expected.sort(key=operator.attrgetter('id'))
+        received.sort(key=operator.attrgetter("id"))
+        expected.sort(key=operator.attrgetter("id"))
         assert received == expected
 
     def test_comparison_equal_with_none(self, document_store, filterable_docs):
@@ -120,8 +96,6 @@ class TestDocumentStore(DocumentStoreBaseTests):
         assert document_store.count_documents() == 0
 
     def test_delete_documents_more_than_twenty_delete_ids(self, document_store: AstraDocumentStore):
-        import random
-
         """
         Test delete_documents() deletes all documents when called on an Astra DB with
         more than 20 documents. Twenty documents is the maximum number of deleted

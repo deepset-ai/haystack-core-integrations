@@ -28,6 +28,18 @@ Similarly, to run the linters:
 hatch run lint:all
 ```
 
+## Usage
+
+This package includes Astra Document Store and Astra Retriever classes that integrate with Haystack 2.0, allowing you to easily perform document retrieval or RAG with Astra, and include those functions in Haystack pipelines.
+
+### In order to use the Document Store directly:
+
+Import the Document Store:
+```
+from astra_haystack.document_store import AstraDocumentStore
+from haystack.document_stores import DuplicatePolicy
+```
+
 ### Create a new integration
 
 > Core integrations follow the naming convention `PREFIX-haystack`, where `PREFIX` can be the name of the technology

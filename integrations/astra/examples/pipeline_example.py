@@ -3,20 +3,20 @@ import os
 from haystack import Document, Pipeline
 from haystack.components.builders.answer_builder import AnswerBuilder
 from haystack.components.builders.prompt_builder import PromptBuilder
-from haystack.components.generators import GPTGenerator
-from haystack.document_stores import DuplicatePolicy
 from haystack.components.embedders import SentenceTransformersDocumentEmbedder, SentenceTransformersTextEmbedder
+from haystack.components.generators import OpenAIGenerator
 from haystack.components.writers import DocumentWriter
+from haystack.document_stores import DuplicatePolicy
 
-from astra_store.document_store import AstraDocumentStore
-from astra_store.retriever import AstraRetriever
+from astra_haystack.document_store import AstraDocumentStore
+from astra_haystack.retriever import AstraRetriever
 
 # Create a RAG query pipeline
 prompt_template = """
                 Given these documents, answer the question.
 
                 Documents:
-                {% for doc in documents[0] %}
+                {% for doc in documents %}
                     {{ doc.content }}
                 {% endfor %}
 
@@ -73,13 +73,13 @@ rag_pipeline.add_component(
 )
 rag_pipeline.add_component(instance=AstraRetriever(document_store=document_store), name="retriever")
 rag_pipeline.add_component(instance=PromptBuilder(template=prompt_template), name="prompt_builder")
-rag_pipeline.add_component(instance=GPTGenerator(api_key=os.environ.get("OPENAI_API_KEY")), name="llm")
+rag_pipeline.add_component(instance=OpenAIGenerator(api_key=os.environ.get("OPENAI_API_KEY")), name="llm")
 rag_pipeline.add_component(instance=AnswerBuilder(), name="answer_builder")
 rag_pipeline.connect("embedder", "retriever")
 rag_pipeline.connect("retriever", "prompt_builder.documents")
 rag_pipeline.connect("prompt_builder", "llm")
 rag_pipeline.connect("llm.replies", "answer_builder.replies")
-rag_pipeline.connect("llm.metadata", "answer_builder.metadata")
+rag_pipeline.connect("llm.meta", "answer_builder.meta")
 rag_pipeline.connect("retriever", "answer_builder.documents")
 
 

@@ -6,7 +6,6 @@ import requests
 from pydantic.dataclasses import dataclass
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
 
 
 @dataclass
@@ -70,7 +69,7 @@ class AstraClient:
 
         if "status" in response_dict:
             collection_name_matches = list(
-                filter(lambda d: d['name'] == self.collection_name, response_dict["status"]["collections"])
+                filter(lambda d: d["name"] == self.collection_name, response_dict["status"]["collections"])
             )
 
             if len(collection_name_matches) == 0:

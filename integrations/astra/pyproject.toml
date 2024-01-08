@@ -1,9 +1,9 @@
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling", "hatch-vcs"]
 build-backend = "hatchling.build"
 
 [project]
-name = "astra-store"
+name = "astra-haystack"
 dynamic = ["version"]
 description = ''
 readme = "README.md"
@@ -11,7 +11,7 @@ requires-python = ">=3.7"
 license = "Apache-2.0"
 keywords = []
 authors = [
-  { name = "John Doe", email = "jd@example.com" },
+  { name = "Anant Corporation", email = "support@anant.us" },
 ]
 classifiers = [
   "Development Status :: 4 - Beta",
@@ -25,18 +25,22 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
 dependencies = [
-  # we distribute the preview version of Haystack 2.0 under the package "haystack-ai"
   "haystack-ai",
   "typing_extensions",
 ]
 
 [project.urls]
-Documentation = "https://github.com/Anant/astra-haystack/tree/main#readme"
-Issues = "https://github.com/Anant/astra-haystack/issues"
-Source = "https://github.com/Anant/astra-haystack"
+Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/astra#readme"
+Issues = "https://github.com/deepset-ai/haystack-core-integrations/issues"
+Source = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/astra"
 
 [tool.hatch.version]
-path = "src/astra_store/__about__.py"
+source = "vcs"
+tag-pattern = 'integrations\/astra-v(?P<version>.*)'
+
+[tool.hatch.version.raw-options]
+root = "../.."
+git_describe_command = 'git describe --tags --match="integrations/astra-v[0-9]*"'
 
 [tool.hatch.envs.default]
 dependencies = [
@@ -66,7 +70,7 @@ dependencies = [
   "ruff>=0.0.243",
 ]
 [tool.hatch.envs.lint.scripts]
-typing = "mypy --install-types --non-interactive {args:src/astra_store tests}"
+typing = "mypy --install-types --non-interactive {args:src/astra_haystack tests}"
 style = [
   "ruff {args:.}",
   "black --check --diff {args:.}",
@@ -140,7 +144,7 @@ unfixable = [
 ]
 
 [tool.ruff.isort]
-known-first-party = ["astra_store"]
+known-first-party = ["astra_haystack"]
 
 [tool.ruff.flake8-tidy-imports]
 ban-relative-imports = "all"
@@ -150,15 +154,12 @@ ban-relative-imports = "all"
 "tests/**/*" = ["PLR2004", "S101", "TID252"]
 
 [tool.coverage.run]
-source_pkgs = ["astra_store", "tests"]
+source_pkgs = ["astra_haystack", "tests"]
 branch = true
 parallel = true
-omit = [
-  "src/astra_store/__about__.py",
-]
 
 [tool.coverage.paths]
-astra_store = ["src/astra_store", "*/astra-store/src/astra_store"]
+astra_haystack = ["src/astra_haystack", "*/astra-store/src/astra_haystack"]
 tests = ["tests", "*/astra-store/tests"]
 
 [tool.coverage.report]
