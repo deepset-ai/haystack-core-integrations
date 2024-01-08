@@ -27,11 +27,6 @@ class OllamaChatGenerator:
         self.url = url
         self.model = model
 
-    def _get_telemetry_data(self) -> Dict[str, str]:
-        """
-        Data that is sent to Posthog for usage analytics.
-        """
-        return {"model": self.model}
 
     def _message_to_dict(self, message: ChatMessage) -> Dict[str, str]:
         return {"role": message.role.value, "content": message.content}
