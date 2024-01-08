@@ -48,7 +48,7 @@ class OllamaChatGenerator:
         """
         generation_kwargs = generation_kwargs or {}
         return {
-            "messages": self._chat_history_to_dict(messages),
+            "messages": [self._message_to_dict(message) for message in messages],
             "model": self.model,
             "stream": False,
             "template": self.template,
