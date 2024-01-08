@@ -21,6 +21,19 @@ class OllamaChatGenerator:
         template: Optional[str] = None,
         timeout: int = 120,
     ):
+        """
+        :param model: The name of the model to use. The model should be available in the running Ollama instance.
+            Default is "orca-mini".
+        :param url: The URL of the chat endpoint of a running Ollama instance.
+            Default is "http://localhost:11434/api/chat".
+        :param generation_kwargs: Optional arguments to pass to the Ollama generation endpoint, such as temperature,
+            top_p, and others. See the available arguments in
+            [Ollama docs](https://github.com/jmorganca/ollama/blob/main/docs/modelfile.md#valid-parameters-and-values).
+        :param template: The full prompt template (overrides what is defined in the Ollama Modelfile).
+        :param timeout: The number of seconds before throwing a timeout error from the Ollama API.
+            Default is 120 seconds.
+        """
+
         self.timeout = timeout
         self.template = template
         self.generation_kwargs = generation_kwargs or {}
