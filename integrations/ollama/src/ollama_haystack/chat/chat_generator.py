@@ -55,7 +55,7 @@ class OllamaChatGenerator:
         """
         json_content = ollama_response.json()
         message = ChatMessage.from_assistant(content=json_content["message"]["content"])
-        message.metadata.update({key: value for key, value in json_content.items() if key != "message"})
+        message.meta.update({key: value for key, value in json_content.items() if key != "message"})
         return message
 
     @component.output_types(replies=List[ChatMessage])
