@@ -19,7 +19,7 @@ class OllamaChatGenerator:
         url: str = "http://localhost:11434/api/chat",
         generation_kwargs: Optional[Dict[str, Any]] = None,
         template: Optional[str] = None,
-        timeout: int = 30,
+        timeout: int = 120,
     ):
         self.timeout = timeout
         self.template = template
