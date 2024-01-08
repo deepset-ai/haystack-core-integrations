@@ -31,14 +31,6 @@ class OllamaChatGenerator:
     def _message_to_dict(self, message: ChatMessage) -> Dict[str, str]:
         return {"role": message.role.value, "content": message.content}
 
-    def _chat_history_to_dict(self, messages: List[ChatMessage]) -> List[Dict[str, str]]:
-        """
-        Returns A dictionary of JSON arguments for a POST request to an Ollama service
-        :param messages: A list of chat messages
-        :return: A list of chat messages as dictionaries
-        """
-        return [self._message_to_dict(message) for message in messages]
-
     def _create_json_payload(self, messages: List[ChatMessage], generation_kwargs=None) -> Dict[str, Any]:
         """
         Returns A dictionary of JSON arguments for a POST request to an Ollama service
