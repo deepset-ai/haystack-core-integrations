@@ -35,7 +35,7 @@ pip install llama-cpp-haystack
 
 ## Usage
 
-You can utilize the [`LlamaCppGenerator`](https://github.com/awinml/llama-cpp-haystack/blob/main/src/llama_cpp_haystack/generator.py) to load models quantized using llama.cpp (GGUF) for text generation.
+You can utilize the [`LlamaCppGenerator`](https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/llama_cpp/src/llama_cpp_haystack/generator.py) to load models quantized using llama.cpp (GGUF) for text generation.
 
 Information about the supported models and model parameters can be found on the llama.cpp [documentation](https://llama-cpp-python.readthedocs.io/en/latest).
 
@@ -97,7 +97,7 @@ print(generated_text)
 
 ## Example
 
-Below is the example Retrieval Augmented Generation pipeline that uses the [Simple Wikipedia](https://huggingface.co/datasets/pszemraj/simple_wikipedia) Dataset from HuggingFace. You can find more examples in the [`examples`](https://github.com/awinml/llama-cpp-haystack/tree/main/examples) folder.
+Below is the example Retrieval Augmented Generation pipeline that uses the [Simple Wikipedia](https://huggingface.co/datasets/pszemraj/simple_wikipedia) Dataset from HuggingFace. You can find more examples in the [`examples`](https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/llama_cpp/examples) folder.
 
 
 Load the dataset:
