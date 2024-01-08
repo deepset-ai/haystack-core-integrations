@@ -69,6 +69,11 @@ integration:ollama:
       - any-glob-to-any-file: "integrations/ollama/**/*"
       - any-glob-to-any-file: ".github/workflows/ollama.yml"
 
+integration:llama_cpp:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/llama_cpp/**/*"
+      - any-glob-to-any-file: ".github/workflows/llama_cpp.yml"
+
 # Topics
 topic:CI:
   - changed-files:
