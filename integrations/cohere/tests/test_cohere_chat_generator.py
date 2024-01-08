@@ -245,7 +245,7 @@ class TestCohereChatGenerator:
     )
     @pytest.mark.integration
     def test_live_run(self):
-        chat_messages = [ChatMessage(content="What's the capital of France", role=ChatRole.USER, name="", metadata={})]
+        chat_messages = [ChatMessage(content="What's the capital of France", role=ChatRole.USER, name="", meta={})]
         component = CohereChatGenerator(
             api_key=os.environ.get("COHERE_API_KEY"), generation_kwargs={"temperature": 0.8}
         )
@@ -291,7 +291,7 @@ class TestCohereChatGenerator:
         message: ChatMessage = results["replies"][0]
         assert "Paris" in message.content[0]
 
-        assert message.metadata["finish_reason"] == "COMPLETE"
+        assert message.meta["finish_reason"] == "COMPLETE"
 
         assert callback.counter > 1
         assert "Paris" in callback.responses
@@ -302,7 +302,7 @@ class TestCohereChatGenerator:
     )
     @pytest.mark.integration
     def test_live_run_with_connector(self):
-        chat_messages = [ChatMessage(content="What's the capital of France", role=ChatRole.USER, name="", metadata={})]
+        chat_messages = [ChatMessage(content="What's the capital of France", role=ChatRole.USER, name="", meta={})]
         component = CohereChatGenerator(
             api_key=os.environ.get("COHERE_API_KEY"), generation_kwargs={"temperature": 0.8}
         )
@@ -310,8 +310,8 @@ class TestCohereChatGenerator:
         assert len(results["replies"]) == 1
         message: ChatMessage = results["replies"][0]
         assert "Paris" in message.content
-        assert message.metadata["documents"] is not None
-        assert message.metadata["citations"] is not None
+        assert message.meta["documents"] is not None
+        assert message.meta["citations"] is not None
 
     @pytest.mark.skipif(
         not os.environ.get("COHERE_API_KEY", None),
@@ -337,10 +337,10 @@ class TestCohereChatGenerator:
         message: ChatMessage = results["replies"][0]
         assert "Paris" in message.content[0]
 
-        assert message.metadata["finish_reason"] == "COMPLETE"
+        assert message.meta["finish_reason"] == "COMPLETE"
 
         assert callback.counter > 1
         assert "Paris" in callback.responses
 
-        assert message.metadata["documents"] is not None
-        assert message.metadata["citations"] is not None
+        assert message.meta["documents"] is not None
+        assert message.meta["citations"] is not None
