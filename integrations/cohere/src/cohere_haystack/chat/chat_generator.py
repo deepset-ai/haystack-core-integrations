@@ -158,7 +158,7 @@ class CohereChatGenerator:
                     stream_chunk = self._build_chunk(chunk)
                     self.streaming_callback(stream_chunk)
             chat_message = ChatMessage.from_assistant(content=response.texts)
-            chat_message.metadata.update(
+            chat_message.meta.update(
                 {
                     "model": self.model_name,
                     "usage": response.token_count,
@@ -180,9 +180,7 @@ class CohereChatGenerator:
         :return: The StreamingChunk.
         """
         # if chunk.event_type == "text-generation":
-        chat_message = StreamingChunk(
-            content=chunk.text, metadata={"index": chunk.index, "event_type": chunk.event_type}
-        )
+        chat_message = StreamingChunk(content=chunk.text, meta={"index": chunk.index, "event_type": chunk.event_type})
         return chat_message
 
     def _build_message(self, cohere_response):
@@ -193,7 +191,7 @@ class CohereChatGenerator:
         """
         content = cohere_response.text
         message = ChatMessage.from_assistant(content=content)
-        message.metadata.update(
+        message.meta.update(
             {
                 "model": self.model_name,
                 "usage": cohere_response.token_count,
