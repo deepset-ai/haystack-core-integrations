@@ -41,7 +41,7 @@ class TestOllamaChatGenerator:
         assert component.template is None
         assert component.timeout == 5
 
-    def test__create_json_payload(self, chat_messages):
+    def test_create_json_payload(self, chat_messages):
         observed = OllamaChatGenerator(model="some_model")._create_json_payload(chat_messages, {"temperature": 0.1})
         expected = {
             "messages": [
@@ -56,7 +56,7 @@ class TestOllamaChatGenerator:
 
         assert observed == expected
 
-    def test__build_message_from_ollama_response(self):
+    def test_build_message_from_ollama_response(self):
         model = "some_model"
 
         mock_ollama_response = Mock(Response)
