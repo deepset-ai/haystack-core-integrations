@@ -68,6 +68,32 @@ prompt = f"GPT4 Correct User: {input} <|end_of_turn|> GPT4 Correct Assistant:"
 result = generator.run(prompt, generation_kwargs={"max_tokens": 128})
 generated_text = result["replies"][0]
 
+print(generated_text)
+```
+### Passing generation parameters
+
+The `generation_kwargs` parameter can be used to pass additional generation arguments like `max_tokens`, `temperature`, `top_k`, `top_p`, etc to the model during inference. 
+
+See Llama.cpp's [`create_completion` documentation](https://llama-cpp-python.readthedocs.io/en/latest/api-reference/#llama_cpp.Llama.create_completion) for more information on the available generation arguments.
+
+For example, to set the `max_tokens` and `temperature`:
+
+```python
+from llama_cpp_haystack import LlamaCppGenerator
+
+generator = LlamaCppGenerator(
+    model_path="/content/openchat-3.5-1210.Q3_K_S.gguf",
+    n_ctx=512,
+    n_batch=128,
+    generation_kwargs={"max_tokens": 128, "temperature": 0.1},
+)
+generator.warm_up()
+
+input = "Who is the best American actor?"
+prompt = f"GPT4 Correct User: {input} <|end_of_turn|> GPT4 Correct Assistant:"
+
+result = generator.run(prompt)
+generated_text = result["replies"][0]
 
 print(generated_text)
 ```
