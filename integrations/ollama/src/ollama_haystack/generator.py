@@ -20,7 +20,7 @@ class OllamaGenerator:
         system_prompt: Optional[str] = None,
         template: Optional[str] = None,
         raw: bool = False,
-        timeout: int = 30,
+        timeout: int = 120,
     ):
         """
         :param model: The name of the model to use. The model should be available in the running Ollama instance.
@@ -35,7 +35,7 @@ class OllamaGenerator:
         :param raw: If True, no formatting will be applied to the prompt. You may choose to use the raw parameter
             if you are specifying a full templated prompt in your API request.
         :param timeout: The number of seconds before throwing a timeout error from the Ollama API.
-            Default is 30 seconds.
+            Default is 120 seconds.
         """
         self.timeout = timeout
         self.raw = raw
