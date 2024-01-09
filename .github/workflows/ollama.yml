@@ -33,7 +33,12 @@ jobs:
         image: ollama/ollama:latest
         ports:
           - 11434:11434
-        options: --name ollama
+        options: >-
+          --name ollama
+          --health-cmd "curl --fail http://localhost:11434/ || exit 1"
+          --health-interval 10s
+          --health-timeout 1s
+          --health-retries 10 
         
     steps:
       - name: Pull the LLM in the Ollama service
