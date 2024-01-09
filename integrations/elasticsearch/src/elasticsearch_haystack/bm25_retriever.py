@@ -52,18 +52,13 @@ class ElasticsearchBM25Retriever:
         Initialize ElasticsearchBM25Retriever with an instance ElasticsearchDocumentStore.
 
         :param document_store: An instance of ElasticsearchDocumentStore.
-        :type document_store: ElasticsearchDocumentStore
         :param filters: Filters applied to the retrieved Documents, for more info
                         see `ElasticsearchDocumentStore.filter_documents`, defaults to None
-        :type filters: Optional[Dict[str, Any]], optional
         :param fuzziness: Fuzziness parameter passed to Elasticsearch, defaults to "AUTO".
                           see the official documentation for valid values:
                           https://www.elastic.co/guide/en/elasticsearch/reference/current/common-options.html#fuzziness
-        :type fuzziness: str, optional
         :param top_k: Maximum number of Documents to return, defaults to 10
-        :type top_k: int, optional
         :param scale_score: If `True` scales the Document`s scores between 0 and 1, defaults to False
-        :type scale_score: bool, optional
         """
 
         if not isinstance(document_store, ElasticsearchDocumentStore):
