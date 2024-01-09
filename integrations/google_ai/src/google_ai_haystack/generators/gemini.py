@@ -15,6 +15,54 @@ logger = logging.getLogger(__name__)
 
 @component
 class GoogleAIGeminiGenerator:
+    """
+    GoogleAIGeminiGenerator is a multi modal generator supporting Gemini via Google Makersuite.
+
+    Sample usage:
+    ```python
+    from google_ai_haystack.generators.gemini import GoogleAIGeminiGenerator
+
+    gemini = GoogleAIGeminiGenerator(model="gemini-pro", api_key="<MY_API_KEY>")
+    res = gemini.run(parts = ["What is the most interesting thing you know?"])
+    for answer in res["answers"]:
+        print(answer)
+    ```
+
+    This is a more advanced usage that also uses text and images as input:
+    ```python
+    import requests
+    from haystack.dataclasses.byte_stream import ByteStream
+    from google_ai_haystack.generators.gemini import GoogleAIGeminiGenerator
+
+    BASE_URL = (
+        "https://raw.githubusercontent.com/deepset-ai/haystack-core-integrations"
+        "/main/integrations/google_ai/example_assets"
+    )
+
+    URLS = [
+        f"{BASE_URL}/robot1.jpg",
+        f"{BASE_URL}/robot2.jpg",
+        f"{BASE_URL}/robot3.jpg",
+        f"{BASE_URL}/robot4.jpg"
+    ]
+    images = [
+        ByteStream(data=requests.get(url).content, mime_type="image/jpeg")
+        for url in URLS
+    ]
+
+    gemini = GoogleAIGeminiGenerator(model="gemini-pro-vision", api_key="<MY_API_KEY>")
+    result = gemini.run(parts = ["What can you tell me about this robots?", *images])
+    for answer in result["answers"]:
+        print(answer)
+    ```
+
+    Input:
+    - **parts** A eterogeneous list of strings, ByteStream or Part objects.
+
+    Output:
+    - **answers** A list of strings or dictionaries with function calls.
+    """
+
     def __init__(
         self,
         *,
@@ -25,9 +73,32 @@ class GoogleAIGeminiGenerator:
         tools: Optional[List[Tool]] = None,
     ):
         """
-        Multi modal generator using Gemini model via Makersuite
-        """
+        Initialize a GoogleAIGeminiGenerator instance.
+        If `api_key` is `None` it will use the `GOOGLE_API_KEY` env variable for authentication.
 
+        To get an API key, visit: https://makersuite.google.com
+
+        It supports the following models:
+        * `gemini-pro`
+        * `gemini-pro-vision`
+        * `gemini-ultra`
+
+        :param api_key: Google Makersuite API key, defaults to None
+        :param model: Name of the model to use, defaults to "gemini-pro-vision"
+        :param generation_config: The generation config to use, defaults to None.
+            Can either be a GenerationConfig object or a dictionary of parameters.
+            Accepted parameters are:
+                - temperature
+                - top_p
+                - top_k
+                - candidate_count
+                - max_output_tokens
+                - stop_sequences
+        :param safety_settings: The safety settings to use, defaults to None.
+            A dictionary of HarmCategory to HarmBlockThreshold.
+        :param tools: The tools to use, defaults to None.
+            A list of Tool objects that can be used to modify the generation process.
+        """
         # Authenticate, if api_key is None it will use the GOOGLE_API_KEY env variable
         genai.configure(api_key=api_key)
 
