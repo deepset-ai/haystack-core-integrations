@@ -33,17 +33,8 @@ jobs:
         image: ollama/ollama:latest
         ports:
           - 11434:11434
-        options: >-
-          --name ollama
-          --health-cmd "curl --fail http://localhost:11434 || exit 1"
-          --health-interval 20s
-          --health-timeout 3s
-          --health-retries 10 
         
-    steps:
-      - name: Pull the LLM in the Ollama service
-        run: docker exec ollama ollama pull ${{ env.LLM_FOR_TESTS }}
-    
+    steps:   
       - uses: actions/checkout@v4
 
       - name: Set up Python ${{ matrix.python-version }}
@@ -58,6 +49,9 @@ jobs:
         working-directory: integrations/ollama
         if: matrix.python-version == '3.9'
         run: hatch run lint:all
+
+      - name: Pull the LLM in the Ollama service
+        run: docker exec ollama ollama pull ${{ env.LLM_FOR_TESTS }}        
 
       - name: Run tests
         working-directory: integrations/ollama
