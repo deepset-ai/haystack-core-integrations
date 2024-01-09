@@ -28,7 +28,8 @@ class AstraRetriever:
         self.document_store = document_store
 
         if not isinstance(document_store, AstraDocumentStore):
-            raise Exception("document_store must be an instance of AstraDocumentStore")
+            message = "document_store must be an instance of AstraDocumentStore"
+            raise Exception(message)
 
     @component.output_types(documents=List[Document])
     def run(self, query_embedding: List[float], filters: Optional[Dict[str, Any]] = None, top_k: Optional[int] = None):
@@ -36,7 +37,8 @@ class AstraRetriever:
 
         Args:
             query_embedding (List[str]): An input list of queries
-            filters (Optional[Dict[str, Any]], optional): A dictionary with filters to narrow down the search space. Defaults to None.
+            filters (Optional[Dict[str, Any]], optional): A dictionary with filters to narrow down the search space.
+                Defaults to None.
             top_k (Optional[int], optional): The maximum number of documents to retrieve. Defaults to None.
         """
 

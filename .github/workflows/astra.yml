@@ -54,4 +54,7 @@ jobs:
       run: hatch run lint:all
 
     - name: Run tests
+      env:
+        ASTRA_DB_APPLICATION_TOKEN: ${{ secrets.ASTRA_DB_APPLICATION_TOKEN }}
+        ASTRA_DB_ID: ${{ secrets.ASTRA_DB_ID }}
       run: hatch run cov

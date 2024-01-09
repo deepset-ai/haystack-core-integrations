@@ -26,6 +26,7 @@ classifiers = [
 ]
 dependencies = [
   "haystack-ai",
+  "pydantic",
   "typing_extensions",
 ]
 
@@ -93,11 +94,6 @@ target-version = ["py37"]
 line-length = 120
 skip-string-normalization = true
 
-[tool.isort]
-profile = 'black'
-line_length = 79
-skip_gitignore = true
-
 [tool.ruff]
 target-version = "py37"
 line-length = 120
@@ -142,6 +138,7 @@ unfixable = [
   # Don't touch unused imports
   "F401",
 ]
+exclude = ["example"]
 
 [tool.ruff.isort]
 known-first-party = ["astra_haystack"]
@@ -157,10 +154,13 @@ ban-relative-imports = "all"
 source_pkgs = ["astra_haystack", "tests"]
 branch = true
 parallel = true
+omit = [
+  "example"
+]
 
 [tool.coverage.paths]
 astra_haystack = ["src/astra_haystack", "*/astra-store/src/astra_haystack"]
-tests = ["tests", "*/astra-store/tests"]
+tests = ["tests"]
 
 [tool.coverage.report]
 exclude_lines = [
@@ -178,6 +178,9 @@ markers = [
 
 [[tool.mypy.overrides]]
 module = [
+  "astra_haystack.*",
+  "astra_client.*",
+  "pydantic.*",
   "haystack.*",
   "pytest.*"
 ]

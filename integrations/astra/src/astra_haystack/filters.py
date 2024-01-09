@@ -32,19 +32,19 @@ def _convert_filters(filters: Optional[Dict[str, Any]] = None) -> Optional[Dict[
         else:
             if key == "id":
                 filter_statements[key] = {"_id": value}
-            if key != "$in" and type(value) is list:
+            if key != "$in" and isinstance(value, list):
                 filter_statements[key] = {"$in": value}
+            elif isinstance(value, pd.DataFrame):
+                filter_statements[key] = value.to_json()
+            elif isinstance(value, dict):
+                for dkey, dvalue in value.items():
+                    if dkey == "$in" and not isinstance(dvalue, list):
+                        exception_message = f"$in operator must have `ARRAY`, got {dvalue} of type {type(dvalue)}"
+                        raise FilterError(exception_message)
+                    converted = {dkey: dvalue}
+                filter_statements[key] = converted
             else:
-                if type(value) is pd.DataFrame:
-                    filter_statements[key] = value.to_json()
-                elif type(value) is dict:
-                    for dkey, dvalue in value.items():
-                        if dkey == "$in" and type(dvalue) is not list:
-                            raise FilterError(f"$in operator must have `ARRAY`, got {dvalue} of type {type(dvalue)}")
-                        converted = {dkey: dvalue}
-                    filter_statements[key] = converted
-                else:
-                    filter_statements[key] = value
+                filter_statements[key] = value
 
     return filter_statements
 
@@ -77,7 +77,8 @@ def _parse_logical_condition(condition: Dict[str, Any]) -> Dict[str, Any]:
     if len(conditions) > 1:
         conditions = _normalize_ranges(conditions)
     if operator not in OPERATORS:
-        raise FilterError(f"Unknown operator {operator}")
+        msg = f"Unknown operator {operator}"
+        raise FilterError(msg)
     return {OPERATORS[operator]: conditions}
 
 

@@ -14,14 +14,15 @@ from haystack.document_stores import (
     DuplicatePolicy,
     MissingDocumentError,
 )
-from pydantic import validate_arguments
 
 from astra_haystack.astra_client import AstraClient
 from astra_haystack.errors import AstraDocumentStoreFilterError
 from astra_haystack.filters import _convert_filters
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
+
+
+MAX_BATCH_SIZE = 20
 
 
 def _batches(input_list, batch_size):
@@ -35,7 +36,6 @@ class AstraDocumentStore:
     An AstraDocumentStore document store for Haystack.
     """
 
-    @validate_arguments
     def __init__(
         self,
         astra_id: str,
@@ -44,7 +44,7 @@ class AstraDocumentStore:
         astra_keyspace: str,
         astra_collection: str,
         embedding_dim: Optional[int] = 768,
-        duplicates_policy: Optional[DuplicatePolicy] = DuplicatePolicy.NONE,
+        duplicates_policy: DuplicatePolicy = DuplicatePolicy.NONE,
         similarity: str = "cosine",
     ):
         """
@@ -62,7 +62,8 @@ class AstraDocumentStore:
         :param similarity: The similarity function used to compare document vectors.
         :param duplicates_policy: Handle duplicate documents based on DuplicatePolicy parameter options.
               Parameter options : (SKIP, OVERWRITE, FAIL, NONE)
-              - `DuplicatePolicy.NONE`: Default policy, If a Document with the same id already exists, it is skipped and not written.
+              - `DuplicatePolicy.NONE`: Default policy, If a Document with the same id already exists,
+                    it is skipped and not written.
               - `DuplicatePolicy.SKIP`: If a Document with the same id already exists, it is skipped and not written.
               - `DuplicatePolicy.OVERWRITE`: If a Document with the same id already exists, it is overwritten.
               - `DuplicatePolicy.FAIL`: If a Document with the same id already exists, an error is raised.
@@ -107,7 +108,7 @@ class AstraDocumentStore:
         self,
         documents: List[Document],
         index: Optional[str] = None,
-        batch_size: Optional[int] = 20,
+        batch_size: int = 20,
         policy: DuplicatePolicy = DuplicatePolicy.NONE,
     ):
         """
@@ -119,12 +120,18 @@ class AstraDocumentStore:
         :param batch_size: Number of documents that are passed to bulk function at a time.
         :param policy:  Handle duplicate documents based on DuplicatePolicy parameter options.
                       Parameter options : (SKIP, OVERWRITE, FAIL, NONE)
-                      - `DuplicatePolicy.NONE`: Default policy, If a Document with the same id already exists, it is skipped and not written.
-                      - `DuplicatePolicy.SKIP`: If a Document with the same id already exists, it is skipped and not written.
+                      - `DuplicatePolicy.NONE`: Default policy, If a Document with the same id already exists,
+                            it is skipped and not written.
+                      - `DuplicatePolicy.SKIP`: If a Document with the same id already exists,
+                            it is skipped and not written.
                       - `DuplicatePolicy.OVERWRITE`: If a Document with the same id already exists, it is overwritten.
                       - `DuplicatePolicy.FAIL`: If a Document with the same id already exists, an error is raised.
         :return: int
         """
+
+        if index is None and self.index is None:
+            msg = "No Astra client provided"
+            raise ValueError(msg)
 
         if index is None:
             index = self.index
@@ -135,12 +142,12 @@ class AstraDocumentStore:
             else:
                 policy = DuplicatePolicy.SKIP
 
-        if batch_size > 20:
+        if batch_size > MAX_BATCH_SIZE:
             logger.warning(
                 f"batch_size set to {batch_size}, "
                 f"but maximum batch_size for Astra when using the JSON API is 20. batch_size set to 20."
             )
-            batch_size = 20
+            batch_size = MAX_BATCH_SIZE
 
         def _convert_input_document(document: Union[dict, Document]):
             if isinstance(document, Document):
@@ -148,21 +155,22 @@ class AstraDocumentStore:
             elif isinstance(document, dict):
                 document_dict = document
             else:
-                raise ValueError(f"Unsupported type for documents, documents is of type {type(document)}.")
+                msg = f"Unsupported type for documents, documents is of type {type(document)}."
+                raise ValueError(msg)
 
             if "id" in document_dict:
                 if "_id" not in document_dict:
                     document_dict["_id"] = document_dict.pop("id")
                 elif "_id" in document_dict:
-                    raise Exception(
-                        f"Duplicate id definitions, both 'id' and '_id' present in document {document_dict}"
-                    )
+                    msg = f"Duplicate id definitions, both 'id' and '_id' present in document {document_dict}"
+                    raise Exception(msg)
             if "_id" in document_dict:
                 if not isinstance(document_dict["_id"], str):
-                    raise Exception(
+                    msg = (
                         f"Document id {document_dict['_id']} is not a string, "
                         f"but is of type {type(document_dict['_id'])}"
                     )
+                    raise Exception(msg)
 
             if "dataframe" in document_dict and document_dict["dataframe"] is not None:
                 document_dict["dataframe"] = document_dict.pop("dataframe").to_json()
@@ -180,7 +188,8 @@ class AstraDocumentStore:
             response = self.index.find_documents({"filter": {"_id": doc["_id"]}})
             if response:
                 if policy == DuplicatePolicy.FAIL:
-                    raise DuplicateDocumentError(f"ID '{doc['_id']}' already exists.")
+                    msg = f"ID '{doc['_id']}' already exists."
+                    raise DuplicateDocumentError(msg)
                 duplicate_documents.append(doc)
             else:
                 new_documents.append(doc)
@@ -190,7 +199,7 @@ class AstraDocumentStore:
         if policy == DuplicatePolicy.SKIP:
             if len(new_documents) > 0:
                 for batch in _batches(new_documents, batch_size):
-                    inserted_ids = index.insert(batch)
+                    inserted_ids = index.insert(batch)  # type: ignore
                     insertion_counter += len(inserted_ids)
                     logger.info(f"write_documents inserted documents with id {inserted_ids}")
             else:
@@ -199,7 +208,7 @@ class AstraDocumentStore:
         elif policy == DuplicatePolicy.OVERWRITE:
             if len(new_documents) > 0:
                 for batch in _batches(new_documents, batch_size):
-                    inserted_ids = index.insert(batch)
+                    inserted_ids = index.insert(batch)  # type: ignore
                     insertion_counter += len(inserted_ids)
                     logger.info(f"write_documents inserted documents with id {inserted_ids}")
             else:
@@ -208,7 +217,7 @@ class AstraDocumentStore:
             if len(duplicate_documents) > 0:
                 updated_ids = []
                 for duplicate_doc in duplicate_documents:
-                    updated = index.update_document(duplicate_doc, "_id")
+                    updated = index.update_document(duplicate_doc, "_id")  # type: ignore
                     if updated:
                         updated_ids.append(duplicate_doc["_id"])
                 insertion_counter = insertion_counter + len(updated_ids)
@@ -219,7 +228,7 @@ class AstraDocumentStore:
         elif policy == DuplicatePolicy.FAIL:
             if len(new_documents) > 0:
                 for batch in _batches(new_documents, batch_size):
-                    inserted_ids = index.insert(batch)
+                    inserted_ids = index.insert(batch)  # type: ignore
                     insertion_counter = insertion_counter + len(inserted_ids)
                     logger.info(f"write_documents inserted documents with id {inserted_ids}")
             else:
@@ -264,13 +273,17 @@ class AstraDocumentStore:
             for vector in vectors:
                 converted_filters = _convert_filters(filters)
                 results = self.index.query(
-                    vector=vector, filter=converted_filters, top_k=1000, include_values=True, include_metadata=True
+                    vector=vector,
+                    query_filter=converted_filters,
+                    top_k=1000,
+                    include_values=True,
+                    include_metadata=True,
                 )
                 documents.extend(self._get_result_to_documents(results))
         else:
             converted_filters = _convert_filters(filters)
             results = self.index.query(
-                vector=vector, filter=converted_filters, top_k=1000, include_values=True, include_metadata=True
+                vector=vector, query_filter=converted_filters, top_k=1000, include_values=True, include_metadata=True
             )
             documents = self._get_result_to_documents(results)
         return documents
@@ -286,7 +299,7 @@ class AstraDocumentStore:
                 df = None
             document = Document(
                 content=match.text,
-                id=match.id,
+                id=match.document_id,
                 embedding=match.values,
                 dataframe=df,
                 blob=match.metadata.pop("blob", None),
@@ -313,7 +326,8 @@ class AstraDocumentStore:
         document = self.index.get_documents(ids=[document_id])
         ret = self._get_result_to_documents(document)
         if not ret:
-            raise MissingDocumentError(f"Document {document_id} does not exist")
+            msg = f"Document {document_id} does not exist"
+            raise MissingDocumentError(msg)
         return ret[0]
 
     def search(
@@ -335,7 +349,7 @@ class AstraDocumentStore:
             self.index.query(
                 vector=query_embedding,
                 top_k=top_k,
-                filter=converted_filters,
+                query_filter=converted_filters,
                 include_metadata=True,
                 include_values=True,
             )
@@ -344,7 +358,7 @@ class AstraDocumentStore:
 
         return result
 
-    def delete_documents(self, document_ids: List[str] = None, delete_all: Optional[bool] = None) -> None:
+    def delete_documents(self, document_ids: Optional[List[str]] = None, delete_all: Optional[bool] = None) -> None:
         """
         Deletes all documents with a matching document_ids from the document store.
         Fails with `MissingDocumentError` if no document with this id is present in the store.
@@ -356,13 +370,14 @@ class AstraDocumentStore:
         deletion_counter = 0
         if self.index.count_documents() > 0:
             if document_ids is not None:
-                for batch in _batches(document_ids, 20):
+                for batch in _batches(document_ids, MAX_BATCH_SIZE):
                     deletion_counter += self.index.delete(ids=batch)
             else:
                 deletion_counter = self.index.delete(delete_all=delete_all)
             logger.info(f"{deletion_counter} documents deleted")
 
             if document_ids is not None and deletion_counter == 0:
-                raise MissingDocumentError(f"Document {document_ids} does not exist")
+                msg = f"Document {document_ids} does not exist"
+                raise MissingDocumentError(msg)
         else:
             logger.info("No documents in document store")

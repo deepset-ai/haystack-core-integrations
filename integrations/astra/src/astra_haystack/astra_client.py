@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class Response:
-    id: str
+    document_id: str
     text: Optional[str]
     values: Optional[list]
     metadata: Optional[dict]
@@ -80,13 +80,15 @@ class AstraClient:
 
             collection_embedding_dim = collection_name_matches[0]["options"]["vector"]["dimension"]
             if collection_embedding_dim != self.embedding_dim:
-                raise Exception(
+                msg = (
                     f"Collection vector dimension is not valid, expected {self.embedding_dim}, "
                     f"found {collection_embedding_dim}"
                 )
+                raise Exception(msg)
 
         else:
-            raise Exception(f"status not in response: {response.text}")
+            msg = f"status not in response: {response.text}"
+            raise Exception(msg)
 
         return True
 
@@ -107,9 +109,8 @@ class AstraClient:
     def query(
         self,
         vector: Optional[List[float]] = None,
-        filter: Optional[Dict[str, Union[str, float, int, bool, List, dict]]] = None,
+        query_filter: Optional[Dict[str, Union[str, float, int, bool, List, dict]]] = None,
         top_k: Optional[int] = None,
-        namespace: Optional[str] = None,
         include_metadata: Optional[bool] = None,
         include_values: Optional[bool] = None,
     ) -> QueryResponse:
@@ -122,7 +123,7 @@ class AstraClient:
                                   being queried. Each `query()` request can contain only one of the parameters
                                   `queries`, `id` or `vector`... [optional]
             top_k (int): The number of results to return for each query. Must be an integer greater than 1.
-            filter (Dict[str, Union[str, float, int, bool, List, dict]):
+            query_filter (Dict[str, Union[str, float, int, bool, List, dict]):
                     The filter to apply. You can use vector metadata to limit your search. [optional]
             include_metadata (bool): Indicates whether metadata is included in the response as well as the ids.
                                      If omitted the server will use the default value of False  [optional]
@@ -134,9 +135,9 @@ class AstraClient:
         """
         # get vector data and scores
         if vector is None:
-            responses = self._query_without_vector(top_k, filter)
+            responses = self._query_without_vector(top_k, query_filter)
         else:
-            responses = self._query(vector, top_k, filter)
+            responses = self._query(vector, top_k, query_filter)
 
         # include_metadata means return all columns in the table (including text that got embedded)
         # include_values means return the vector of the embedding for the searched items
@@ -158,7 +159,7 @@ class AstraClient:
             score = response.pop("$similarity", None)
             text = response.pop("content", None)
             values = response.pop("$vector", None) if include_values else []
-            metadata = response if include_metadata else dict()  # Add all remaining fields to the metadata
+            metadata = response if include_metadata else {}  # Add all remaining fields to the metadata
             rsp = Response(_id, text, values, metadata, score)
             final_res.append(rsp)
         return QueryResponse(final_res)
@@ -185,7 +186,7 @@ class AstraClient:
         if "data" in response_dict and "documents" in response_dict["data"]:
             return response_dict["data"]["documents"]
         else:
-            logger.warning("No documents found", response_dict)
+            logger.warning(f"No documents found: {response_dict}")
 
     def get_documents(self, ids: List[str], batch_size: int = 20) -> QueryResponse:
         document_batch = []
@@ -253,14 +254,14 @@ class AstraClient:
         self,
         ids: Optional[List[str]] = None,
         delete_all: Optional[bool] = None,
-        filter: Optional[Dict[str, Union[str, float, int, bool, List, dict]]] = None,
+        filters: Optional[Dict[str, Union[str, float, int, bool, List, dict]]] = None,
     ) -> int:
         if delete_all:
-            query = {"deleteMany": {}}
+            query = {"deleteMany": {}}  # type: dict
         if ids is not None:
             query = {"deleteMany": {"filter": {"_id": {"$in": ids}}}}
-        if filter is not None:
-            query = {"deleteMany": {"filter": filter}}
+        if filters is not None:
+            query = {"deleteMany": {"filter": filters}}
 
         deletion_counter = 0
         moredata = True

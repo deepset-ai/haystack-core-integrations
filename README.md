@@ -1,84 +1,65 @@
-[![test](https://github.com/deepset-ai/document-store/actions/workflows/test.yml/badge.svg)](https://github.com/deepset-ai/document-store/actions/workflows/test.yml)
+# Haystack 2.x Core Integrations
 
-# Astra Store
+This repository contains integrations to extend the capabilities of [Haystack](https://github.com/deepset-ai/haystack) version 2.0 and
+onwards. The code in this repo is maintained by [deepset](https://www.deepset.ai), see each integration's `README` file for details around installation, usage and support.
 
-## Installation
-install astra-haystack package locally to run integration tests:
+## Contributing
 
-Open in gitpod:
-[![Open in Gitpod](https://gitpod.io/button/open-in-gitpod.svg)](https://gitpod.io/#https://github.com/Anant/astra-haystack/tree/main)
+You will need `hatch` to work on or create new integrations. Run `pip install hatch` to install it.
 
-Switch Python version to 3.9 (Requires 3.8+ but not 3.12)
-```
-pyenv install 3.9
-pyenv local 3.9
-```
+### Local development
 
-Local install for the package
-`pip install -e .`
-To execute integration tests, add needed environment variables
-`ASTRA_DB_ID=<id>`
-`ASTRA_DB_APPLICATION_TOKEN=<token>`
-and execute
-`python examples/example.py`
+All the integrations are self contained, so the first step before working on one is to `cd` into the proper folder.
+For example, to work on the Chroma Document Store, from the root of the repo:
 
-Install requirements
-`pip install -r requirements.txt`
-
-Export environment variables
-```
-export KEYSPACE_NAME=
-export COLLECTION_NAME=
-export OPENAI_API_KEY=
-export ASTRA_DB_ID=
-export ASTRA_DB_REGION=
-export ASTRA_DB_APPLICATION_TOKEN=
+```sh
+$ cd integrations/chroma
 ```
 
-run the python examples
-`python example/example.py`
-or
-`python example/pipeline_example.py`
+From there, you can run the tests with `hatch`, that will take care of setting up an isolated Python environment:
 
-## Usage
-
-This package includes Astra Document Store and Astra Retriever classes that integrate with Haystack, allowing you to easily perform document retrieval or RAG with Astra, and include those functions in Haystack pipelines.
-
-### In order to use the Document Store directly:
-
-Import the Document Store:
-```
-from astra_store.document_store import AstraDocumentStore
-from haystack.preview.document_stores import DuplicatePolicy
+```sh
+hatch run test
 ```
 
-Load in environment variables:
-```
-astra_id = os.getenv("ASTRA_DB_ID", "")
-astra_region = os.getenv("ASTRA_DB_REGION", "us-east1")
+Similarly, to run the linters:
 
-astra_application_token = os.getenv("ASTRA_DB_APPLICATION_TOKEN", "")
-collection_name = os.getenv("COLLECTION_NAME", "haystack_vector_search")
-keyspace_name = os.getenv("KEYSPACE_NAME", "recommender_demo")
+```sh
+hatch run lint:all
 ```
 
-Create the Document Store object:
-```
-document_store = AstraDocumentStore(
-    astra_id=astra_id,
-    astra_region=astra_region,
-    astra_collection=collection_name,
-    astra_keyspace=keyspace_name,
-    astra_application_token=astra_application_token,
-    duplicates_policy=DuplicatePolicy.SKIP,
-    embedding_dim=384,
-)
+### Create a new integration
+
+> Core integrations follow the naming convention `PREFIX-haystack`, where `PREFIX` can be the name of the technology
+> you're integrating Haystack with. For example, a deepset integration would be named as `deepset-haystack`.
+
+To create a new integration, from the root of the repo change directory into `integrations`:
+
+```sh
+cd integrations
 ```
 
-Then you can use the document store functions like count_document below:
-`document_store.count_documents()`
+From there, use `hatch` to create the scaffold of the new integration:
 
-<<<<<<< HEAD
+```sh
+$ hatch --config hatch.toml new -i
+Project name: deepset-haystack
+Description []: An example integration, this text can be edited later
+
+deepset-haystack
+├── src
+│   └── deepset_haystack
+│       ├── __about__.py
+│       └── __init__.py
+├── tests
+│   └── __init__.py
+├── LICENSE.txt
+├── README.md
+└── pyproject.toml
+```
+
+## Inventory
+
 | Package                                                                         | Type                | PyPi Package                                                                                                                                             | Status                                                                                                                                                                                                                                                                   |
 | ------------------------------------------------------------------------------- | ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | [amazon-bedrock-haystack](integrations/amazon-bedrock/)                         | Generator           | [![PyPI - Version](https://img.shields.io/pypi/v/amazon-bedrock-haystack.svg)](https://pypi.org/project/amazon-bedrock-haystack)                         | [![Test / amazon_bedrock](https://github.com/deepset-ai/haystack-core-integrations/actions/workflows/amazon_bedrock.yml/badge.svg)](https://github.com/deepset-ai/haystack-core-integrations/actions/workflows/amazon_bedrock.yml)                                       |
@@ -96,20 +77,3 @@ Then you can use the document store functions like count_document below:
 | [pinecone-haystack](integrations/pinecone/)                                     | Document Store      | [![PyPI - Version](https://img.shields.io/pypi/v/pinecone-haystack.svg?color=orange)](https://pypi.org/project/pinecone-haystack)                        | [![Test / pinecone](https://github.com/deepset-ai/haystack-core-integrations/actions/workflows/pinecone.yml/badge.svg)](https://github.com/deepset-ai/haystack-core-integrations/actions/workflows/pinecone.yml)                                                         |
 | [qdrant-haystack](integrations/qdrant/)                                         | Document Store      | [![PyPI - Version](https://img.shields.io/pypi/v/qdrant-haystack.svg?color=orange)](https://pypi.org/project/qdrant-haystack)                            | [![Test / qdrant](https://github.com/deepset-ai/haystack-core-integrations/actions/workflows/qdrant.yml/badge.svg)](https://github.com/deepset-ai/haystack-core-integrations/actions/workflows/qdrant.yml)                                                               |
 | [unstructured-fileconverter-haystack](integrations/unstructured/fileconverter/) | File converter      | [![PyPI - Version](https://img.shields.io/pypi/v/unstructured-fileconverter-haystack.svg)](https://pypi.org/project/unstructured-fileconverter-haystack) | [![Test / unstructured / fileconverter](https://github.com/deepset-ai/haystack-core-integrations/actions/workflows/unstructured_fileconverter.yml/badge.svg)](https://github.com/deepset-ai/haystack-core-integrations/actions/workflows/unstructured_fileconverter.yml) |
-| [weaviate-haystack](integrations/weaviate/)                                     | Document Store      | [![PyPI - Version](https://img.shields.io/pypi/v/weaviate-haystack.svg?color=orange)](https://pypi.org/project/weaviate-haystack)                        | [![Test / weaviate](https://github.com/deepset-ai/haystack-core-integrations/actions/workflows/weaviate.yml/badge.svg)](https://github.com/deepset-ai/haystack-core-integrations/actions/workflows/weaviate.yml)                                                         |
-=======
-### Using the Astra Retriever with Haystack Pipelines
-
-Create the Document Store object like above, then import and create the Pipeline:
-
-```
-from haystack.preview import Pipeline
-pipeline = Pipeline()
-```
-
-Add your AstraRetriever into the pipeline
-`pipeline.add_component(instance=AstraSingleRetriever(document_store=document_store), name="retriever")`
-
-Add other components and connect them as desired. Then run your pipeline:
-`pipeline.run(...)`
->>>>>>> 3cb6d0d (Linter fixes)

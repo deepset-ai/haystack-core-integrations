@@ -1,3 +1,4 @@
+import logging
 import os
 
 from haystack import Document, Pipeline
@@ -10,6 +11,9 @@ from haystack.document_stores import DuplicatePolicy
 
 from astra_haystack.document_store import AstraDocumentStore
 from astra_haystack.retriever import AstraRetriever
+
+logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO)
 
 # Create a RAG query pipeline
 prompt_template = """
@@ -48,10 +52,12 @@ document_store = AstraDocumentStore(
 documents = [
     Document(content="There are over 7,000 languages spoken around the world today."),
     Document(
-        content="Elephants have been observed to behave in a way that indicates a high level of self-awareness, such as recognizing themselves in mirrors."
+        content="Elephants have been observed to behave in a way that indicates"
+        " a high level of self-awareness, such as recognizing themselves in mirrors."
     ),
     Document(
-        content="In certain parts of the world, like the Maldives, Puerto Rico, and San Diego, you can witness the phenomenon of bioluminescent waves."
+        content="In certain parts of the world, like the Maldives, Puerto Rico, "
+        "and San Diego, you can witness the phenomenon of bioluminescent waves."
     ),
 ]
 p = Pipeline()
@@ -97,4 +103,5 @@ result = rag_pipeline.run(
         "answer_builder": {"query": question},
     }
 )
-print(result)
+
+logger.info(result)
