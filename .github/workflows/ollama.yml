@@ -31,6 +31,7 @@ jobs:
     services:
       ollama:
         image: ollama/ollama:latest
+        options: --name ollama
         ports:
           - 11434:11434
         
