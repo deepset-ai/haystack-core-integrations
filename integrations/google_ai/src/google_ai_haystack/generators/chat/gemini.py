@@ -116,7 +116,7 @@ class GoogleAIGeminiChatGenerator:
         :param model: Name of the model to use, defaults to "gemini-pro-vision"
         :param generation_config: The generation config to use, defaults to None.
             Can either be a GenerationConfig object or a dictionary of parameters.
-            Accepted fields are:
+            Accepted parameters are:
                 - temperature
                 - top_p
                 - top_k
