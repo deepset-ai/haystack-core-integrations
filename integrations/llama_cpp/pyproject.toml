@@ -1,0 +1,185 @@
+[build-system]
+requires = ["hatchling", "hatch-vcs"]
+build-backend = "hatchling.build"
+
+[project]
+name = "llama-cpp-haystack"
+dynamic = ["version"]
+description = 'An integration between the llama.cpp LLM framework and Haystack'
+readme = "README.md"
+requires-python = ">=3.8"
+license = "Apache-2.0"
+keywords = []
+authors = [
+    { name = "deepset GmbH", email = "info@deepset.ai" },
+    { name = "Ashwin Mathur", email = "" },
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: Implementation :: CPython",
+    "Programming Language :: Python :: Implementation :: PyPy",
+]
+dependencies = [
+  "haystack-ai",
+  "llama-cpp-python"
+]
+
+[project.urls]
+Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/llama_cpp#readme"
+Issues = "https://github.com/deepset-ai/haystack-core-integrations/issues"
+Source = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/llama_cpp"
+
+[tool.hatch.version]
+source = "vcs"
+tag-pattern = 'integrations\/llama_cpp-v(?P<version>.*)'
+
+[tool.hatch.version.raw-options]
+root = "../.."
+git_describe_command = 'git describe --tags --match="integrations/llama_cpp-v[0-9]*"'
+
+[tool.hatch.envs.default]
+dependencies = [
+    "coverage[toml]>=6.5",
+    "pytest",
+]
+[tool.hatch.envs.default.scripts]
+test = "pytest {args:tests}"
+test-cov = "coverage run -m pytest {args:tests}"
+cov-report = [
+    "- coverage combine",
+    "coverage report",
+]
+cov = [
+    "test-cov",
+    "cov-report",
+]
+
+[[tool.hatch.envs.all.matrix]]
+python = ["3.8", "3.9", "3.10", "3.11", "3.12"]
+
+
+[tool.hatch.envs.lint]
+detached = true
+dependencies = [
+    "black>=23.1.0",
+    "mypy>=1.0.0",
+    "ruff>=0.0.243",
+]
+
+[tool.hatch.envs.lint.scripts]
+typing = "mypy --install-types --non-interactive {args:src/llama_cpp_haystack tests}"
+style = [
+    "ruff {args:.}",
+    "black --check --diff {args:.}",
+]
+fmt = [
+    "black {args:.}",
+    "ruff --fix {args:.}",
+    "style",
+]
+all = [
+    "style",
+    "typing",
+]
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[tool.ruff.isort]
+known-first-party = ["llama_cpp_haystack"]
+
+[tool.black]
+target-version = ["py37"]
+line-length = 120
+skip-string-normalization = true
+
+[tool.ruff]
+target-version = "py37"
+line-length = 120
+select = [
+    "A",
+    "ARG",
+    "B",
+    "C",
+    "DTZ",
+    "E",
+    "EM",
+    "F",
+    "I",
+    "ICN",
+    "ISC",
+    "N",
+    "PLC",
+    "PLE",
+    "PLR",
+    "PLW",
+    "Q",
+    "RUF",
+    "S",
+    "T",
+    "TID",
+    "UP",
+    "W",
+    "YTT",
+]
+ignore = [
+    # Allow non-abstract empty methods in abstract base classes
+    "B027",
+    # Ignore checks for possible passwords
+    "S105", "S106", "S107",
+    # Ignore complexity
+    "C901", "PLR0911", "PLR0912", "PLR0913", "PLR0915",
+]
+unfixable = [
+    # Don't touch unused imports
+    "F401",
+]
+
+[tool.ruff.flake8-tidy-imports]
+ban-relative-imports = "all"
+
+[tool.ruff.per-file-ignores]
+# Tests can use magic values, assertions, and relative imports
+"tests/**/*" = ["PLR2004", "S101", "TID252"]
+# Examples can print their output
+"examples/**" = ["T201"]
+"tests/**" = ["T201"]
+
+[tool.coverage.run]
+source_pkgs = ["llama_cpp_haystack", "tests"]
+branch = true
+parallel = true
+
+
+[tool.coverage.paths]
+ollama_haystack = ["src/llama_cpp_haystack", "*/llama-cpp-haystack/src/llama_cpp_haystack"]
+tests = ["tests", "*/llama-cpp-haystack/tests"]
+
+[tool.coverage.report]
+exclude_lines = [
+    "no cov",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+]
+
+[tool.pytest.ini_options]
+markers = [
+    "integration: marks tests as slow (deselect with '-m \"not integration\"')",
+]
+addopts = [
+    "--import-mode=importlib",
+]
+
+[[tool.mypy.overrides]]
+module = [
+    "haystack.*",
+    "pytest.*",
+    "llama_cpp.*"
+]
+ignore_missing_imports = true
