@@ -31,6 +31,31 @@ BM25_SCALING_FACTOR = 8
 
 
 class ElasticsearchDocumentStore:
+    """
+    ElasticsearchDocumentStore is a Document Store for Elasticsearch.
+    It can be used with Elastic Cloud or your own Elasticsearch cluster.
+
+    Simple usage with Elastic Cloud:
+    ```python
+    from haystack.document_store.elasticsearch import ElasticsearchDocumentStore
+    document_store = ElasticsearchDocumentStore(cloud_id="YOUR_CLOUD_ID", api_key="YOUR_API_KEY")
+    ```
+
+    One can also connect to a self-hosted Elasticsearch instance:
+    ```python
+    from haystack.document_store.elasticsearch import ElasticsearchDocumentStore
+    document_store = ElasticsearchDocumentStore(hosts="http://localhost:9200")
+    ```
+    In the above example we connect with security disabled just to show the basic usage.
+    We strongly recommend to enable security so that only authorized users can access your data.
+
+    For more details on how to connect to Elasticsearch and configure security,
+    see the official Elasticsearch documentation:
+    https://www.elastic.co/guide/en/elasticsearch/client/python-api/current/connecting.html
+
+    All extra keyword arguments will be passed to the Elasticsearch client.
+    """
+
     def __init__(
         self,
         *,
@@ -41,6 +66,11 @@ class ElasticsearchDocumentStore:
     ):
         """
         Creates a new ElasticsearchDocumentStore instance.
+        When no index is explicitly specified, it will use the default index "default".
+        It will also try to create that index if it doesn't exist yet. Otherwise it will use the existing one.
+
+        One can also set the similarity function used to compare Documents embeddings. This is mostly useful
+        when using the `ElasticsearchDocumentStore` in a Pipeline with an `ElasticsearchEmbeddingRetriever`.
 
         For more information on connection parameters, see the official Elasticsearch documentation:
         https://www.elastic.co/guide/en/elasticsearch/client/python-api/current/connecting.html
