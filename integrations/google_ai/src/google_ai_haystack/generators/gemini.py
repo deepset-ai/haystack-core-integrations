@@ -34,11 +34,16 @@ class GoogleAIGeminiGenerator:
     from haystack.dataclasses.byte_stream import ByteStream
     from google_ai_haystack.generators.gemini import GoogleAIGeminiGenerator
 
+    BASE_URL = (
+        "https://raw.githubusercontent.com/deepset-ai/haystack-core-integrations"
+        "/main/integrations/google_ai/example_assets"
+    )
+
     URLS = [
-        "https://raw.githubusercontent.com/silvanocerza/robots/main/robot1.jpg",
-        "https://raw.githubusercontent.com/silvanocerza/robots/main/robot2.jpg",
-        "https://raw.githubusercontent.com/silvanocerza/robots/main/robot3.jpg",
-        "https://raw.githubusercontent.com/silvanocerza/robots/main/robot4.jpg"
+        f"{BASE_URL}/robot1.jpg",
+        f"{BASE_URL}/robot2.jpg",
+        f"{BASE_URL}/robot3.jpg",
+        f"{BASE_URL}/robot4.jpg"
     ]
     images = [
         ByteStream(data=requests.get(url).content, mime_type="image/jpeg")
@@ -82,7 +87,7 @@ class GoogleAIGeminiGenerator:
         :param model: Name of the model to use, defaults to "gemini-pro-vision"
         :param generation_config: The generation config to use, defaults to None.
             Can either be a GenerationConfig object or a dictionary of parameters.
-            Accepted fields are:
+            Accepted parameters are:
                 - temperature
                 - top_p
                 - top_k
