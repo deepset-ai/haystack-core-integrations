@@ -37,6 +37,7 @@ class ElasticsearchBM25Retriever:
     result = retriever.run(query="Who lives in Berlin?")
     for doc in result["documents"]:
         print(doc.text)
+    ```
     """
 
     def __init__(
