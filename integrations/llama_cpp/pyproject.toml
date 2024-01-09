@@ -179,6 +179,7 @@ addopts = [
 [[tool.mypy.overrides]]
 module = [
     "haystack.*",
-    "pytest.*"
+    "pytest.*",
+    "llama_cpp.*"
 ]
 ignore_missing_imports = true
