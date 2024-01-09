@@ -35,7 +35,7 @@ jobs:
           - 11434:11434
         options: >-
           --name ollama
-          --health-cmd "curl --fail http://localhost:11434/ || exit 1"
+          --health-cmd "curl --fail http://localhost:11434 || exit 1"
           --health-interval 20s
           --health-timeout 3s
           --health-retries 10 
