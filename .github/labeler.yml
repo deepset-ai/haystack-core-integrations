@@ -44,35 +44,40 @@ integration:jina:
       - any-glob-to-any-file: "integrations/jina/**/*"
       - any-glob-to-any-file: ".github/workflows/jina.yml"
 
-integration:opensearch:
+integration:llama_cpp:
   - changed-files:
-      - any-glob-to-any-file: "integrations/opensearch/**/*"
-      - any-glob-to-any-file: ".github/workflows/opensearch.yml"
-
-integration:qdrant:
-  - changed-files:
-      - any-glob-to-any-file: "integrations/qdrant/**/*"
-      - any-glob-to-any-file: ".github/workflows/qdrant.yml"
-
-integration:pinecone:
-  - changed-files:
-      - any-glob-to-any-file: "integrations/pinecone/**/*"
-      - any-glob-to-any-file: ".github/workflows/pinecone.yml"
-
-integration:unstructured-fileconverter:
-  - changed-files:
-      - any-glob-to-any-file: "integrations/unstructured/fileconverter/**/*"
-      - any-glob-to-any-file: ".github/workflows/unstructured_fileconverter.yml"
+      - any-glob-to-any-file: "integrations/llama_cpp/**/*"
+      - any-glob-to-any-file: ".github/workflows/llama_cpp.yml"
 
 integration:ollama:
   - changed-files:
       - any-glob-to-any-file: "integrations/ollama/**/*"
       - any-glob-to-any-file: ".github/workflows/ollama.yml"
 
-integration:llama_cpp:
+integration:opensearch:
   - changed-files:
-      - any-glob-to-any-file: "integrations/llama_cpp/**/*"
-      - any-glob-to-any-file: ".github/workflows/llama_cpp.yml"
+      - any-glob-to-any-file: "integrations/opensearch/**/*"
+      - any-glob-to-any-file: ".github/workflows/opensearch.yml"
+
+integration:pinecone:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/pinecone/**/*"
+      - any-glob-to-any-file: ".github/workflows/pinecone.yml"
+
+integration:qdrant:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/qdrant/**/*"
+      - any-glob-to-any-file: ".github/workflows/qdrant.yml"
+
+integration:unstructured-fileconverter:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/unstructured/fileconverter/**/*"
+      - any-glob-to-any-file: ".github/workflows/unstructured_fileconverter.yml"
+
+integration:weaviate:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/weaviate/**/*"
+      - any-glob-to-any-file: ".github/workflows/weaviate.yml"
 
 # Topics
 topic:CI:
