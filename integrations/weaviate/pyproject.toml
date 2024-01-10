@@ -26,7 +26,7 @@ classifiers = [
 ]
 dependencies = [
   "haystack-ai",
-  "weaviate-client",
+  "weaviate-client==3.*",
 ]
 
 [project.urls]
@@ -46,6 +46,7 @@ git_describe_command = 'git describe --tags --match="integrations/weaviate-v[0-9
 dependencies = [
   "coverage[toml]>=6.5",
   "pytest",
+  "ipython",
 ]
 [tool.hatch.envs.default.scripts]
 test = "pytest {args:tests}"
