@@ -1,0 +1,2 @@
+class WeaviateDocumentStore:
+    pass
