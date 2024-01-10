@@ -1,14 +1,14 @@
 from unittest.mock import patch
 
 from weaviate.auth import AuthApiKey
+from weaviate.config import Config
 from weaviate.embedded import (
-    EmbeddedOptions,
     DEFAULT_BINARY_PATH,
+    DEFAULT_GRPC_PORT,
     DEFAULT_PERSISTENCE_DATA_PATH,
     DEFAULT_PORT,
-    DEFAULT_GRPC_PORT,
+    EmbeddedOptions,
 )
-from weaviate.config import Config
 
 from weaviate_haystack.document_store import WeaviateDocumentStore
 
@@ -109,7 +109,7 @@ class TestWeaviateDocumentStore:
         assert document_store._embedded_options.version == "1.23.0"
         assert document_store._embedded_options.port == DEFAULT_PORT
         assert document_store._embedded_options.hostname == "127.0.0.1"
-        assert document_store._embedded_options.additional_env_vars == None
+        assert document_store._embedded_options.additional_env_vars is None
         assert document_store._embedded_options.grpc_port == DEFAULT_GRPC_PORT
         assert document_store._additional_config.grpc_port_experimental == 12345
         assert document_store._additional_config.connection_config.session_pool_connections == 20

@@ -169,7 +169,7 @@ exclude_lines = [
 module = [
   "haystack.*",
   "pytest.*",
-  "weaviate_client.*",
+  "weaviate.*",
   "numpy",
   "grpc"
 ]
