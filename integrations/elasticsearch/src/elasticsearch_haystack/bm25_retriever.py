@@ -11,6 +11,35 @@ from elasticsearch_haystack.document_store import ElasticsearchDocumentStore
 
 @component
 class ElasticsearchBM25Retriever:
+    """
+    ElasticsearchBM25Retriever is a keyword-based retriever that uses BM25 to find the most
+    similar documents to a user's query.
+    This retriever is only compatible with ElasticsearchDocumentStore.
+
+    Usage example:
+    ```python
+    from haystack import Document
+    from elasticsearch_haystack.document_store import ElasticsearchDocumentStore
+    from elasticsearch_haystack.bm25_retriever import ElasticsearchBM25Retriever
+
+    document_store = ElasticsearchDocumentStore(hosts="http://localhost:9200")
+    retriever = ElasticsearchBM25Retriever(document_store=document_store)
+
+    # Add documents to DocumentStore
+    documents = [
+        Document(text="My name is Carla and I live in Berlin"),
+        Document(text="My name is Paul and I live in New York"),
+        Document(text="My name is Silvano and I live in Matera"),
+        Document(text="My name is Usagi Tsukino and I live in Tokyo"),
+    ]
+    document_store.write_documents(documents)
+
+    result = retriever.run(query="Who lives in Berlin?")
+    for doc in result["documents"]:
+        print(doc.text)
+    ```
+    """
+
     def __init__(
         self,
         *,
@@ -20,6 +49,19 @@ class ElasticsearchBM25Retriever:
         top_k: int = 10,
         scale_score: bool = False,
     ):
+        """
+        Initialize ElasticsearchBM25Retriever with an instance ElasticsearchDocumentStore.
+
+        :param document_store: An instance of ElasticsearchDocumentStore.
+        :param filters: Filters applied to the retrieved Documents, for more info
+                        see `ElasticsearchDocumentStore.filter_documents`, defaults to None
+        :param fuzziness: Fuzziness parameter passed to Elasticsearch, defaults to "AUTO".
+                          see the official documentation for valid values:
+                          https://www.elastic.co/guide/en/elasticsearch/reference/current/common-options.html#fuzziness
+        :param top_k: Maximum number of Documents to return, defaults to 10
+        :param scale_score: If `True` scales the Document`s scores between 0 and 1, defaults to False
+        """
+
         if not isinstance(document_store, ElasticsearchDocumentStore):
             msg = "document_store must be an instance of ElasticsearchDocumentStore"
             raise ValueError(msg)
