@@ -40,10 +40,10 @@ class OpenSearchDocumentStore:
         Creates a new OpenSearchDocumentStore instance.
 
         For more information on connection parameters, see the official OpenSearch documentation:
-        https://www.elastic.co/guide/en/OpenSearch/client/python-api/current/connecting.html
+        https://opensearch.org/docs/latest/clients/python-low-level/#connecting-to-opensearch
 
         For the full list of supported kwargs, see the official OpenSearch reference:
-        https://OpenSearch-py.readthedocs.io/en/stable/api.html#module-OpenSearch
+        https://opensearch-project.github.io/opensearch-py/api-ref/clients/opensearch_client.html
 
         :param hosts: List of hosts running the OpenSearch client. Defaults to None
         :param index: Name of index in OpenSearch, if it doesn't exist it will be created. Defaults to "default"
