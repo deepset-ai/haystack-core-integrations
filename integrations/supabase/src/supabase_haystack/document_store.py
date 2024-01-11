@@ -48,13 +48,13 @@ class SupabaseDocumentStore:
         db_connection = f"postgresql://{user}:{password}@{host}:{port}/{db_name}"
         self._pgvector_client = vecs.create_client(db_connection)
         self._collection = self._pgvector_client.get_or_create_collection(name=collection_name, dimension=dimension, **collection_creation_kwargs)
-        
+
     def count_documents(self) -> int:
         """
         Returns how many documents are present in the document store.
         """
         return self._collection.__len__()
-    
+
     def filter_documents(self, filters: Optional[Dict[str, Any]] = None) -> List[Document]:
         """
         Returns the documents that match the filters provided.
@@ -121,7 +121,7 @@ class SupabaseDocumentStore:
         :param filters: the filters to apply to the document list.
         :return: a list of Documents that match the given filters.
         """
-        filters = self._normalize_filters(filters)
+        filters = _normalize_filters(filters)
 
         # pgvector store performs vector similarity search
         # here we are querying with a dummy vector and the max compatible top_k
@@ -218,7 +218,7 @@ class SupabaseDocumentStore:
             msg = "query_embedding must be a non-empty list of floats"
             raise ValueError(msg)
 
-        filters = self._normalize_filters(filters)
+        filters = _normalize_filters(filters)
 
         results = self._collection.query(
             data=query_embedding,
@@ -229,5 +229,4 @@ class SupabaseDocumentStore:
         )
 
         return self._convert_query_result_to_documents(result=results)
-    
-    
+

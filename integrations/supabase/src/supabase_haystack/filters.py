@@ -139,11 +139,6 @@ def _less_than_equal(field: str, value: Any) -> Dict[str, Any]:
     return {field: {"$lte": value}}
 
 
-def _not_in(field: str, value: Any) -> Dict[str, Any]:
-    msg = f"'not in' operator not supported in Supabase"
-    raise FilterError(msg)
-
-
 def _in(field: str, value: Any) -> Dict[str, Any]:
     if not isinstance(value, list):
         msg = f"{field}'s value must be a list when using 'in' comparator in Supabase"
@@ -168,8 +163,7 @@ COMPARISON_OPERATORS = {
     ">=": _greater_than_equal,
     "<": _less_than,
     "<=": _less_than_equal,
-    "in": _in,
-    "not in": _not_in,
+    "in": _in
 }
 
 LOGICAL_OPERATORS = {"AND": "$and", "OR": "$or"}

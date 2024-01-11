@@ -1,5 +1,5 @@
 [build-system]
-requires = ["hatchling", "hatch-vcs]
+requires = ["hatchling", "hatch-vcs"]
 build-backend = "hatchling.build"
 
 [project]
@@ -181,7 +181,7 @@ markers = [
 
 [[tool.mypy.overrides]]
 module = [
-  "vecs.*"
+  "vecs.*",
   "haystack.*",
   "pytest.*"
 ]

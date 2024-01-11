@@ -18,13 +18,13 @@ class SupabaseEmbeddingRetriever:
     """
 
     def __init__(
-        self, 
+        self,
         *,
-        document_store: SupabaseDocumentStore, 
-        filters: Optional[Dict[str, Any]] = None, 
+        document_store: SupabaseDocumentStore,
+        filters: Optional[Dict[str, Any]] = None,
         top_k: int = 10):
         """
-        Create an SupabaseEmbeddingRetriever component. 
+        Create an SupabaseEmbeddingRetriever component.
 
         :param document_store: An instance of SupabaseDocumentStore.
         :param filters: Filters applied to the retrieved Documents. Defaults to None.
