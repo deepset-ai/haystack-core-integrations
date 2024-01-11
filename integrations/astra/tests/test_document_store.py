@@ -1,6 +1,7 @@
 # SPDX-FileCopyrightText: 2023-present Anant Corporation <support@anant.us>
 #
 # SPDX-License-Identifier: Apache-2.0
+import os
 from typing import List
 
 import pytest
@@ -11,6 +12,10 @@ from haystack.testing.document_store import DocumentStoreBaseTests
 from astra_haystack.document_store import AstraDocumentStore
 
 
+@pytest.mark.skipif(
+    os.environ.get("ASTRA_DB_APPLICATION_TOKEN", "") == "", reason="ASTRA_DB_APPLICATION_TOKEN is not set"
+)
+@pytest.mark.skipif(os.environ.get("ASTRA_DB_ID", "") == "", reason="ASTRA_DB_ID is not set")
 class TestDocumentStore(DocumentStoreBaseTests):
     """
     Common test cases will be provided by `DocumentStoreBaseTests` but
