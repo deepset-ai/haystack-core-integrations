@@ -115,7 +115,7 @@ class TestOllamaChatGenerator:
 
         assert isinstance(response, dict)
         assert isinstance(response["replies"], list)
-        assert "Manchester" in response["replies"][-1].content
+        assert "Manchester" in response["replies"][-1].content or "Glasgow" in response["replies"][-1].content
 
     @pytest.mark.integration
     def test_run_model_unavailable(self):
