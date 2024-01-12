@@ -15,7 +15,7 @@ from chromadb.utils.embedding_functions import (
     Text2VecEmbeddingFunction,
 )
 
-from chroma_haystack.errors import ChromaDocumentStoreConfigError
+from .errors import ChromaDocumentStoreConfigError
 
 FUNCTION_REGISTRY = {
     "default": DefaultEmbeddingFunction,

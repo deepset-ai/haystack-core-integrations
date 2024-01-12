@@ -6,8 +6,8 @@ from haystack import Pipeline
 from haystack.components.converters import TextFileToDocument
 from haystack.components.writers import DocumentWriter
 
-from chroma_haystack import ChromaDocumentStore
-from chroma_haystack.retriever import ChromaQueryRetriever
+from haystack_integrations.document_stores.chroma import ChromaDocumentStore
+from haystack_integrations.components.retrievers.chroma import ChromaQueryRetriever
 
 HERE = Path(__file__).resolve().parent
 file_paths = [HERE / "data" / Path(name) for name in os.listdir("data")]

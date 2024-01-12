@@ -3,8 +3,8 @@
 # SPDX-License-Identifier: Apache-2.0
 import pytest
 
-from chroma_haystack.document_store import ChromaDocumentStore
-from chroma_haystack.retriever import ChromaQueryRetriever
+from haystack_integrations.document_stores.chroma import ChromaDocumentStore
+from haystack_integrations.components.retrievers.chroma import ChromaQueryRetriever
 
 
 @pytest.mark.integration
@@ -14,7 +14,7 @@ def test_retriever_to_json(request):
     )
     retriever = ChromaQueryRetriever(ds, filters={"foo": "bar"}, top_k=99)
     assert retriever.to_dict() == {
-        "type": "chroma_haystack.retriever.ChromaQueryRetriever",
+        "type": "haystack_integrations.components.retrievers.chroma.retriever.ChromaQueryRetriever",
         "init_parameters": {
             "filters": {"foo": "bar"},
             "top_k": 99,
@@ -30,7 +30,7 @@ def test_retriever_to_json(request):
 @pytest.mark.integration
 def test_retriever_from_json(request):
     data = {
-        "type": "chroma_haystack.retriever.ChromaQueryRetriever",
+        "type": "haystack_integrations.components.retrievers.chroma.retriever.ChromaQueryRetriever",
         "init_parameters": {
             "filters": {"bar": "baz"},
             "top_k": 42,
