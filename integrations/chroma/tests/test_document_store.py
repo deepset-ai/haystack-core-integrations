@@ -14,7 +14,6 @@ from haystack.testing.document_store import (
     DeleteDocumentsTest,
     LegacyFilterDocumentsTest,
 )
-
 from haystack_integrations.document_stores.chroma import ChromaDocumentStore
 
 

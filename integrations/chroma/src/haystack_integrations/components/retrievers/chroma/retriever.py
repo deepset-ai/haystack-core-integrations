@@ -4,7 +4,6 @@
 from typing import Any, Dict, List, Optional
 
 from haystack import Document, component, default_from_dict, default_to_dict
-
 from haystack_integrations.document_stores.chroma import ChromaDocumentStore
 
 
