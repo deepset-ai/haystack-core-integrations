@@ -5,8 +5,7 @@ from typing import Any, Dict, List, Optional
 
 from haystack import component, default_from_dict, default_to_dict
 from haystack.dataclasses import Document
-
-from opensearch_haystack.document_store import OpenSearchDocumentStore
+from haystack_integrations.document_stores.opensearch import OpenSearchDocumentStore
 
 
 @component

@@ -8,11 +8,10 @@ from unittest.mock import patch
 import pytest
 from haystack.dataclasses.document import Document
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
-from haystack.document_stores.protocol import DuplicatePolicy
+from haystack.document_stores.types import DuplicatePolicy
 from haystack.testing.document_store import DocumentStoreBaseTests
+from haystack_integrations.document_stores.opensearch import OpenSearchDocumentStore
 from opensearchpy.exceptions import RequestError
-
-from opensearch_haystack.document_store import OpenSearchDocumentStore
 
 
 class TestDocumentStore(DocumentStoreBaseTests):
@@ -88,22 +87,22 @@ class TestDocumentStore(DocumentStoreBaseTests):
 
         super().assert_documents_are_equal(received, expected)
 
-    @patch("opensearch_haystack.document_store.OpenSearch")
+    @patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
     def test_to_dict(self, _mock_opensearch_client):
         document_store = OpenSearchDocumentStore(hosts="some hosts")
         res = document_store.to_dict()
         assert res == {
-            "type": "opensearch_haystack.document_store.OpenSearchDocumentStore",
+            "type": "haystack_integrations.document_stores.opensearch.document_store.OpenSearchDocumentStore",
             "init_parameters": {
                 "hosts": "some hosts",
                 "index": "default",
             },
         }
 
-    @patch("opensearch_haystack.document_store.OpenSearch")
+    @patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
     def test_from_dict(self, _mock_opensearch_client):
         data = {
-            "type": "opensearch_haystack.document_store.OpenSearchDocumentStore",
+            "type": "haystack_integrations.document_stores.opensearch.document_store.OpenSearchDocumentStore",
             "init_parameters": {
                 "hosts": "some hosts",
                 "index": "default",

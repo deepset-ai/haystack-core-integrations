@@ -7,12 +7,12 @@ from typing import Any, Dict, List, Mapping, Optional, Union
 import numpy as np
 from haystack import default_from_dict, default_to_dict
 from haystack.dataclasses import Document
-from haystack.document_stores import DocumentStoreError, DuplicateDocumentError, DuplicatePolicy
+from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
+from haystack.document_stores.types import DuplicatePolicy
 from haystack.utils.filters import convert
+from haystack_integrations.document_stores.opensearch.filters import normalize_filters
 from opensearchpy import OpenSearch
 from opensearchpy.helpers import bulk
-
-from opensearch_haystack.filters import _normalize_filters
 
 logger = logging.getLogger(__name__)
 
@@ -127,7 +127,7 @@ class OpenSearchDocumentStore:
             filters = convert(filters)
 
         if filters:
-            query = {"bool": {"filter": _normalize_filters(filters)}}
+            query = {"bool": {"filter": normalize_filters(filters)}}
             documents = self._search_documents(query=query, size=10_000)
         else:
             documents = self._search_documents(size=10_000)
@@ -272,7 +272,7 @@ class OpenSearchDocumentStore:
         }
 
         if filters:
-            body["query"]["bool"]["filter"] = _normalize_filters(filters)
+            body["query"]["bool"]["filter"] = normalize_filters(filters)
 
         documents = self._search_documents(**body)
 
@@ -332,7 +332,7 @@ class OpenSearchDocumentStore:
         }
 
         if filters:
-            body["query"]["bool"]["filter"] = _normalize_filters(filters)
+            body["query"]["bool"]["filter"] = normalize_filters(filters)
 
         docs = self._search_documents(**body)
         return docs
