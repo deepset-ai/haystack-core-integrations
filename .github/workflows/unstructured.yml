@@ -8,11 +8,7 @@ on:
   pull_request:
     paths:
       - "integrations/unstructured/**"
-      - ".github/workflows/unstructured.yml"
-
-defaults:
-  run:
-    working-directory: integrations/unstructured      
+      - ".github/workflows/unstructured.yml"  
 
 concurrency:
   group: unstructured_-${{ github.head_ref }}
@@ -54,8 +50,10 @@ jobs:
         run: pip install --upgrade hatch
 
       - name: Lint
+        working-directory: integrations/ollama
         if: matrix.python-version == '3.9'
         run: hatch run lint:all
 
       - name: Run tests
+        working-directory: integrations/ollama      
         run: hatch run cov
