@@ -2,6 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from llama_cpp_haystack.generator import LlamaCppGenerator
+from .generator import LlamaCppGenerator
 
 __all__ = ["LlamaCppGenerator"]

@@ -1,4 +1,4 @@
-from llama_cpp_haystack import LlamaCppGenerator
+from haystack_integrations.components.generators.llama_cpp import LlamaCppGenerator
 
 generator = LlamaCppGenerator(model_path="openchat-3.5-1210.Q3_K_S.gguf", n_ctx=512, n_batch=128)
 generator.warm_up()
