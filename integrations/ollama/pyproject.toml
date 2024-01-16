@@ -33,6 +33,9 @@ Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/m
 Issues = "https://github.com/deepset-ai/haystack-core-integrations/issues"
 Source = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/ollama"
 
+[tool.hatch.build.targets.wheel]
+packages = ["src/haystack_integrations"]
+
 [tool.hatch.version]
 source = "vcs"
 tag-pattern = 'integrations\/ollama-v(?P<version>.*)'
@@ -71,7 +74,7 @@ dependencies = [
 ]
 
 [tool.hatch.envs.lint.scripts]
-typing = "mypy --install-types --non-interactive {args:src/ollama_haystack tests}"
+typing = "mypy --install-types --non-interactive --explicit-package-bases {args:src/ tests}"
 style = [
     "ruff {args:.}",
     "black --check --diff {args:.}",
@@ -90,7 +93,7 @@ all = [
 allow-direct-references = true
 
 [tool.ruff.isort]
-known-first-party = ["ollama_haystack"]
+known-first-party = ["src"]
 
 [tool.black]
 target-version = ["py37"]
@@ -140,7 +143,7 @@ unfixable = [
 ]
 
 [tool.ruff.flake8-tidy-imports]
-ban-relative-imports = "all"
+ban-relative-imports = "parents"
 
 [tool.ruff.per-file-ignores]
 # Tests can use magic values, assertions, and relative imports
@@ -150,13 +153,13 @@ ban-relative-imports = "all"
 
 
 [tool.coverage.run]
-source_pkgs = ["ollama_haystack", "tests"]
+source_pkgs = ["src", "tests"]
 branch = true
 parallel = true
 
 
 [tool.coverage.paths]
-ollama_haystack = ["src/ollama_haystack", "*/ollama-haystack/src/ollama_haystack"]
+ollama_haystack = ["src/haystack_integrations", "*/ollama-haystack/src"]
 tests = ["tests", "*/ollama-haystack/tests"]
 
 [tool.coverage.report]
@@ -177,6 +180,7 @@ addopts = [
 [[tool.mypy.overrides]]
 module = [
     "haystack.*",
+    "haystack_integrations.*",
     "pytest.*"
 ]
 ignore_missing_imports = true

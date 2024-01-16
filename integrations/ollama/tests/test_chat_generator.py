@@ -5,7 +5,7 @@ import pytest
 from haystack.dataclasses import ChatMessage, ChatRole
 from requests import HTTPError, Response
 
-from ollama_haystack import OllamaChatGenerator
+from haystack_integrations.components.generators.ollama import OllamaChatGenerator
 
 
 @pytest.fixture

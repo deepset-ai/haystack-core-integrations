@@ -5,8 +5,7 @@
 import pytest
 from requests import HTTPError
 
-from ollama_haystack import OllamaGenerator
-
+from haystack_integrations.components.generators.ollama import OllamaGenerator
 
 class TestOllamaGenerator:
     @pytest.mark.integration

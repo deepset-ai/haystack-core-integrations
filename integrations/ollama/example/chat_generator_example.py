@@ -7,7 +7,7 @@
 
 from haystack.dataclasses import ChatMessage
 
-from ollama_haystack import OllamaChatGenerator
+from haystack_integrations.components.generators.ollama import OllamaChatGenerator
 
 messages = [
     ChatMessage.from_user("What's Natural Language Processing?"),
