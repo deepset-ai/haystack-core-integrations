@@ -1,4 +1,4 @@
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
 from haystack_integrations.document_stores.weaviate.document_store import WeaviateDocumentStore
 from weaviate.auth import AuthApiKey
