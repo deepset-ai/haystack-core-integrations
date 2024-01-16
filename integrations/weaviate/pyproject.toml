@@ -34,6 +34,9 @@ Source = "https://github.com/deepset-ai/haystack-core-integrations"
 Documentation = "https://github.com/deepset-ai/haystack-core-integrations/blob/main/integrations/weaviate/README.md"
 Issues = "https://github.com/deepset-ai/haystack-core-integrations/issues"
 
+[tool.hatch.build.targets.wheel]
+packages = ["src/haystack_integrations"]
+
 [tool.hatch.version]
 source = "vcs"
 tag-pattern = 'integrations\/weaviate-v(?P<version>.*)'
@@ -71,7 +74,7 @@ dependencies = [
   "ruff>=0.0.243",
 ]
 [tool.hatch.envs.lint.scripts]
-typing = "mypy --install-types --non-interactive {args:src/weaviate_haystack tests}"
+typing = "mypy --install-types --non-interactive --explicit-package-bases {args:src/ tests}"
 style = [
   "ruff {args:.}",
   "black --check --diff {args:.}",
@@ -137,25 +140,23 @@ unfixable = [
 ]
 
 [tool.ruff.isort]
-known-first-party = ["weaviate_haystack"]
+known-first-party = ["src"]
 
 [tool.ruff.flake8-tidy-imports]
-ban-relative-imports = "all"
+ban-relative-imports = "parents"
 
 [tool.ruff.per-file-ignores]
 # Tests can use magic values, assertions, and relative imports
 "tests/**/*" = ["PLR2004", "S101", "TID252"]
 
 [tool.coverage.run]
-source_pkgs = ["weaviate_haystack", "tests"]
+source_pkgs = ["src", "tests"]
 branch = true
 parallel = true
-omit = [
-  "src/weaviate_haystack/__about__.py",
-]
+
 
 [tool.coverage.paths]
-weaviate_haystack = ["src/weaviate_haystack", "*/weaviate-haystack/src/weaviate_haystack"]
+weaviate_haystack = ["src/haystack_integrations", "*/weaviate-haystack/src"]
 tests = ["tests", "*/weaviate-haystack/tests"]
 
 [tool.coverage.report]

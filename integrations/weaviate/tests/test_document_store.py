@@ -10,11 +10,11 @@ from weaviate.embedded import (
     EmbeddedOptions,
 )
 
-from weaviate_haystack.document_store import WeaviateDocumentStore
+from haystack_integrations.document_stores.weaviate.document_store import WeaviateDocumentStore
 
 
 class TestWeaviateDocumentStore:
-    @patch("weaviate_haystack.document_store.weaviate")
+    @patch("haystack_integrations.document_stores.weaviate.document_store.weaviate")
     def test_to_dict(self, _mock_weaviate):
         document_store = WeaviateDocumentStore(
             url="http://localhost:8080",
@@ -30,7 +30,7 @@ class TestWeaviateDocumentStore:
             additional_config=Config(grpc_port_experimental=12345),
         )
         assert document_store.to_dict() == {
-            "type": "weaviate_haystack.document_store.WeaviateDocumentStore",
+            "type": "haystack_integrations.document_stores.weaviate.document_store.WeaviateDocumentStore",
             "init_parameters": {
                 "url": "http://localhost:8080",
                 "auth_client_secret": {
@@ -61,11 +61,11 @@ class TestWeaviateDocumentStore:
             },
         }
 
-    @patch("weaviate_haystack.document_store.weaviate")
+    @patch("haystack_integrations.document_stores.weaviate.document_store.weaviate")
     def test_from_dict(self, _mock_weaviate):
         document_store = WeaviateDocumentStore.from_dict(
             {
-                "type": "weaviate_haystack.document_store.WeaviateDocumentStore",
+                "type": "haystack_integrations.document_stores.weaviate.document_store.WeaviateDocumentStore",
                 "init_parameters": {
                     "url": "http://localhost:8080",
                     "auth_client_secret": {
