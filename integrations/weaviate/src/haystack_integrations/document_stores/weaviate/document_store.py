@@ -35,6 +35,7 @@ class WeaviateDocumentStore:
         self,
         *,
         url: Optional[str] = None,
+        collection_name: str = "default",
         auth_client_secret: Optional[AuthCredentials] = None,
         timeout_config: TimeoutType = (10, 60),
         proxies: Optional[Union[Dict, str]] = None,
@@ -79,6 +80,8 @@ class WeaviateDocumentStore:
         :param embedded_options: If set create an embedded Weaviate cluster inside the client, defaults to None.
             For a full list of options see `weaviate.embedded.EmbeddedOptions`.
         :param additional_config: Additional and advanced configuration options for weaviate, defaults to None.
+        :param collection_name: The name of the collection to use, defaults to "default".
+            If the collection does not exist it will be created.
         """
         self._client = weaviate.Client(
             url=url,
@@ -92,7 +95,14 @@ class WeaviateDocumentStore:
             additional_config=additional_config,
         )
 
+        # Test connection, it will raise an exception if it fails.
+        self._client.schema.get()
+
+        if not self._client.schema.exists(collection_name):
+            self._client.schema.create_class({"class": collection_name})
+
         self._url = url
+        self._collection_name = collection_name
         self._auth_client_secret = auth_client_secret
         self._timeout_config = timeout_config
         self._proxies = proxies
@@ -114,6 +124,7 @@ class WeaviateDocumentStore:
         return default_to_dict(
             self,
             url=self._url,
+            collection_name=self._collection_name,
             auth_client_secret=auth_client_secret,
             timeout_config=self._timeout_config,
             proxies=self._proxies,

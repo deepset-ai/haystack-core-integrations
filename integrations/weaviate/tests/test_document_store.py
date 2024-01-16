@@ -1,4 +1,4 @@
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock
 
 from haystack_integrations.document_stores.weaviate.document_store import WeaviateDocumentStore
 from weaviate.auth import AuthApiKey
@@ -13,10 +13,55 @@ from weaviate.embedded import (
 
 
 class TestWeaviateDocumentStore:
+    @patch("haystack_integrations.document_stores.weaviate.document_store.weaviate.Client")
+    def test_init(self, mock_weaviate_client_class):
+        mock_client = MagicMock()
+        mock_client.schema.exists.return_value = False
+        mock_weaviate_client_class.return_value = mock_client
+
+        WeaviateDocumentStore(
+            url="http://localhost:8080",
+            collection_name="my_collection",
+            auth_client_secret=AuthApiKey("my_api_key"),
+            proxies={"http": "http://proxy:1234"},
+            additional_headers={"X-HuggingFace-Api-Key": "MY_HUGGINGFACE_KEY"},
+            embedded_options=EmbeddedOptions(
+                persistence_data_path=DEFAULT_PERSISTENCE_DATA_PATH,
+                binary_path=DEFAULT_BINARY_PATH,
+                version="1.23.0",
+                hostname="127.0.0.1",
+            ),
+            additional_config=Config(grpc_port_experimental=12345),
+        )
+
+        # Verify client is created with correct parameters
+        mock_weaviate_client_class.assert_called_once_with(
+            url="http://localhost:8080",
+            auth_client_secret=AuthApiKey("my_api_key"),
+            timeout_config=(10, 60),
+            proxies={"http": "http://proxy:1234"},
+            trust_env=False,
+            additional_headers={"X-HuggingFace-Api-Key": "MY_HUGGINGFACE_KEY"},
+            startup_period=5,
+            embedded_options=EmbeddedOptions(
+                persistence_data_path=DEFAULT_PERSISTENCE_DATA_PATH,
+                binary_path=DEFAULT_BINARY_PATH,
+                version="1.23.0",
+                hostname="127.0.0.1",
+            ),
+            additional_config=Config(grpc_port_experimental=12345),
+        )
+
+        # Verify collection is created
+        mock_client.schema.get.assert_called_once()
+        mock_client.schema.exists.assert_called_once_with("my_collection")
+        mock_client.schema.create_class.assert_called_once_with({"class": "my_collection"})
+
     @patch("haystack_integrations.document_stores.weaviate.document_store.weaviate")
     def test_to_dict(self, _mock_weaviate):
         document_store = WeaviateDocumentStore(
             url="http://localhost:8080",
+            collection_name="my_collection",
             auth_client_secret=AuthApiKey("my_api_key"),
             proxies={"http": "http://proxy:1234"},
             additional_headers={"X-HuggingFace-Api-Key": "MY_HUGGINGFACE_KEY"},
@@ -32,6 +77,7 @@ class TestWeaviateDocumentStore:
             "type": "haystack_integrations.document_stores.weaviate.document_store.WeaviateDocumentStore",
             "init_parameters": {
                 "url": "http://localhost:8080",
+                "collection_name": "my_collection",
                 "auth_client_secret": {
                     "type": "weaviate.auth.AuthApiKey",
                     "init_parameters": {"api_key": "my_api_key"},
@@ -67,6 +113,7 @@ class TestWeaviateDocumentStore:
                 "type": "haystack_integrations.document_stores.weaviate.document_store.WeaviateDocumentStore",
                 "init_parameters": {
                     "url": "http://localhost:8080",
+                    "collection_name": "my_collection",
                     "auth_client_secret": {
                         "type": "weaviate.auth.AuthApiKey",
                         "init_parameters": {"api_key": "my_api_key"},
@@ -97,6 +144,7 @@ class TestWeaviateDocumentStore:
         )
 
         assert document_store._url == "http://localhost:8080"
+        assert document_store._collection_name == "my_collection"
         assert document_store._auth_client_secret == AuthApiKey("my_api_key")
         assert document_store._timeout_config == (10, 60)
         assert document_store._proxies == {"http": "http://proxy:1234"}
