@@ -3,9 +3,9 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import pytest
+from haystack_integrations.components.generators.ollama import OllamaGenerator
 from requests import HTTPError
 
-from haystack_integrations.components.generators.ollama import OllamaGenerator
 
 class TestOllamaGenerator:
     @pytest.mark.integration
