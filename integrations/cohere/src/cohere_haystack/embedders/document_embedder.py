@@ -36,7 +36,7 @@ class CohereDocumentEmbedder:
     def __init__(
         self,
         api_key: Optional[str] = None,
-        model_name: str = "embed-english-v2.0",
+        model: str = "embed-english-v2.0",
         input_type: str = "search_document",
         api_base_url: str = COHERE_API_URL,
         truncate: str = "END",
@@ -53,7 +53,7 @@ class CohereDocumentEmbedder:
 
         :param api_key: The Cohere API key. It can be explicitly provided or automatically read from the environment
             variable COHERE_API_KEY (recommended).
-        :param model_name: The name of the model to use, defaults to `"embed-english-v2.0"`. Supported Models are:
+        :param model: The name of the model to use, defaults to `"embed-english-v2.0"`. Supported Models are:
             `"embed-english-v3.0"`, `"embed-english-light-v3.0"`, `"embed-multilingual-v3.0"`,
             `"embed-multilingual-light-v3.0"`, `"embed-english-v2.0"`, `"embed-english-light-v2.0"`,
             `"embed-multilingual-v2.0"`. This list of all supported models can be found in the
@@ -88,7 +88,7 @@ class CohereDocumentEmbedder:
             raise ValueError(msg)
 
         self.api_key = api_key
-        self.model_name = model_name
+        self.model = model
         self.input_type = input_type
         self.api_base_url = api_base_url
         self.truncate = truncate
@@ -106,7 +106,7 @@ class CohereDocumentEmbedder:
         """
         return default_to_dict(
             self,
-            model_name=self.model_name,
+            model=self.model,
             input_type=self.input_type,
             api_base_url=self.api_base_url,
             truncate=self.truncate,
@@ -160,7 +160,7 @@ class CohereDocumentEmbedder:
                 self.api_key, api_url=self.api_base_url, max_retries=self.max_retries, timeout=self.timeout
             )
             all_embeddings, metadata = asyncio.run(
-                get_async_response(cohere_client, texts_to_embed, self.model_name, self.input_type, self.truncate)
+                get_async_response(cohere_client, texts_to_embed, self.model, self.input_type, self.truncate)
             )
         else:
             cohere_client = Client(
@@ -169,7 +169,7 @@ class CohereDocumentEmbedder:
             all_embeddings, metadata = get_response(
                 cohere_client,
                 texts_to_embed,
-                self.model_name,
+                self.model,
                 self.input_type,
                 self.truncate,
                 self.batch_size,
