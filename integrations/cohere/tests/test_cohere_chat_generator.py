@@ -57,7 +57,7 @@ class TestCohereChatGenerator:
     def test_init_default(self):
         component = CohereChatGenerator(api_key="test-api-key")
         assert component.api_key == "test-api-key"
-        assert component.model_name == "command"
+        assert component.model == "command"
         assert component.streaming_callback is None
         assert component.api_base_url == cohere.COHERE_API_URL
         assert not component.generation_kwargs
@@ -72,13 +72,13 @@ class TestCohereChatGenerator:
     def test_init_with_parameters(self):
         component = CohereChatGenerator(
             api_key="test-api-key",
-            model_name="command-nightly",
+            model="command-nightly",
             streaming_callback=default_streaming_callback,
             api_base_url="test-base-url",
             generation_kwargs={"max_tokens": 10, "some_test_param": "test-params"},
         )
         assert component.api_key == "test-api-key"
-        assert component.model_name == "command-nightly"
+        assert component.model == "command-nightly"
         assert component.streaming_callback is default_streaming_callback
         assert component.api_base_url == "test-base-url"
         assert component.generation_kwargs == {"max_tokens": 10, "some_test_param": "test-params"}
@@ -90,7 +90,7 @@ class TestCohereChatGenerator:
         assert data == {
             "type": "cohere_haystack.chat.chat_generator.CohereChatGenerator",
             "init_parameters": {
-                "model_name": "command",
+                "model": "command",
                 "streaming_callback": None,
                 "api_base_url": "https://api.cohere.ai",
                 "generation_kwargs": {},
@@ -101,7 +101,7 @@ class TestCohereChatGenerator:
     def test_to_dict_with_parameters(self):
         component = CohereChatGenerator(
             api_key="test-api-key",
-            model_name="command-nightly",
+            model="command-nightly",
             streaming_callback=default_streaming_callback,
             api_base_url="test-base-url",
             generation_kwargs={"max_tokens": 10, "some_test_param": "test-params"},
@@ -110,7 +110,7 @@ class TestCohereChatGenerator:
         assert data == {
             "type": "cohere_haystack.chat.chat_generator.CohereChatGenerator",
             "init_parameters": {
-                "model_name": "command-nightly",
+                "model": "command-nightly",
                 "streaming_callback": "haystack.components.generators.utils.default_streaming_callback",
                 "api_base_url": "test-base-url",
                 "generation_kwargs": {"max_tokens": 10, "some_test_param": "test-params"},
@@ -121,7 +121,7 @@ class TestCohereChatGenerator:
     def test_to_dict_with_lambda_streaming_callback(self):
         component = CohereChatGenerator(
             api_key="test-api-key",
-            model_name="command",
+            model="command",
             streaming_callback=lambda x: x,
             api_base_url="test-base-url",
             generation_kwargs={"max_tokens": 10, "some_test_param": "test-params"},
@@ -130,7 +130,7 @@ class TestCohereChatGenerator:
         assert data == {
             "type": "cohere_haystack.chat.chat_generator.CohereChatGenerator",
             "init_parameters": {
-                "model_name": "command",
+                "model": "command",
                 "api_base_url": "test-base-url",
                 "streaming_callback": "tests.test_cohere_chat_generator.<lambda>",
                 "generation_kwargs": {"max_tokens": 10, "some_test_param": "test-params"},
@@ -143,14 +143,14 @@ class TestCohereChatGenerator:
         data = {
             "type": "cohere_haystack.chat.chat_generator.CohereChatGenerator",
             "init_parameters": {
-                "model_name": "command",
+                "model": "command",
                 "api_base_url": "test-base-url",
                 "streaming_callback": "haystack.components.generators.utils.default_streaming_callback",
                 "generation_kwargs": {"max_tokens": 10, "some_test_param": "test-params"},
             },
         }
         component = CohereChatGenerator.from_dict(data)
-        assert component.model_name == "command"
+        assert component.model == "command"
         assert component.streaming_callback is default_streaming_callback
         assert component.api_base_url == "test-base-url"
         assert component.generation_kwargs == {"max_tokens": 10, "some_test_param": "test-params"}
@@ -161,7 +161,7 @@ class TestCohereChatGenerator:
         data = {
             "type": "cohere_haystack.chat.chat_generator.CohereChatGenerator",
             "init_parameters": {
-                "model_name": "command",
+                "model": "command",
                 "api_base_url": "test-base-url",
                 "streaming_callback": "haystack.components.generators.utils.default_streaming_callback",
                 "generation_kwargs": {"max_tokens": 10, "some_test_param": "test-params"},
@@ -261,7 +261,7 @@ class TestCohereChatGenerator:
     @pytest.mark.integration
     def test_live_run_wrong_model(self, chat_messages):
         component = CohereChatGenerator(
-            model_name="something-obviously-wrong", api_key=os.environ.get("COHERE_API_KEY")
+            model="something-obviously-wrong", api_key=os.environ.get("COHERE_API_KEY")
         )
         with pytest.raises(cohere.CohereAPIError, match="finetuned model something-obviously-wrong is not valid"):
             component.run(chat_messages)
