@@ -32,7 +32,7 @@ class CohereGenerator:
     def __init__(
         self,
         api_key: Optional[str] = None,
-        model_name: str = "command",
+        model: str = "command",
         streaming_callback: Optional[Callable] = None,
         api_base_url: Optional[str] = None,
         **kwargs,
@@ -41,7 +41,7 @@ class CohereGenerator:
         Instantiates a `CohereGenerator` component.
 
         :param api_key: The API key for the Cohere API. If not set, it will be read from the COHERE_API_KEY env var.
-        :param model_name: The name of the model to use. Available models are: [command, command-light, command-nightly,
+        :param model: The name of the model to use. Available models are: [command, command-light, command-nightly,
             command-nightly-light]. Defaults to "command".
         :param streaming_callback: A callback function to be called with the streaming response. Defaults to None.
         :param api_base_url: The base URL of the Cohere API. Defaults to "https://api.cohere.ai".
@@ -86,7 +86,7 @@ class CohereGenerator:
             api_base_url = COHERE_API_URL
 
         self.api_key = api_key
-        self.model_name = model_name
+        self.model = model
         self.streaming_callback = streaming_callback
         self.api_base_url = api_base_url
         self.model_parameters = kwargs
@@ -107,7 +107,7 @@ class CohereGenerator:
 
         return default_to_dict(
             self,
-            model_name=self.model_name,
+            model=self.model,
             streaming_callback=callback_name,
             api_base_url=self.api_base_url,
             **self.model_parameters,
@@ -142,7 +142,7 @@ class CohereGenerator:
         :param prompt: The prompt to be sent to the generative model.
         """
         response = self.client.generate(
-            model=self.model_name, prompt=prompt, stream=self.streaming_callback is not None, **self.model_parameters
+            model=self.model, prompt=prompt, stream=self.streaming_callback is not None, **self.model_parameters
         )
         if self.streaming_callback:
             metadata_dict: Dict[str, Any] = {}
