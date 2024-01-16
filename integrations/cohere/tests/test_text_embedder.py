@@ -19,7 +19,7 @@ class TestCohereTextEmbedder:
         embedder = CohereTextEmbedder(api_key="test-api-key")
 
         assert embedder.api_key == "test-api-key"
-        assert embedder.model_name == "embed-english-v2.0"
+        assert embedder.model == "embed-english-v2.0"
         assert embedder.input_type == "search_query"
         assert embedder.api_base_url == COHERE_API_URL
         assert embedder.truncate == "END"
@@ -33,7 +33,7 @@ class TestCohereTextEmbedder:
         """
         embedder = CohereTextEmbedder(
             api_key="test-api-key",
-            model_name="embed-multilingual-v2.0",
+            model="embed-multilingual-v2.0",
             input_type="classification",
             api_base_url="https://custom-api-base-url.com",
             truncate="START",
@@ -42,7 +42,7 @@ class TestCohereTextEmbedder:
             timeout=60,
         )
         assert embedder.api_key == "test-api-key"
-        assert embedder.model_name == "embed-multilingual-v2.0"
+        assert embedder.model == "embed-multilingual-v2.0"
         assert embedder.input_type == "classification"
         assert embedder.api_base_url == "https://custom-api-base-url.com"
         assert embedder.truncate == "START"
@@ -59,7 +59,7 @@ class TestCohereTextEmbedder:
         assert component_dict == {
             "type": "cohere_haystack.embedders.text_embedder.CohereTextEmbedder",
             "init_parameters": {
-                "model_name": "embed-english-v2.0",
+                "model": "embed-english-v2.0",
                 "input_type": "search_query",
                 "api_base_url": COHERE_API_URL,
                 "truncate": "END",
@@ -75,7 +75,7 @@ class TestCohereTextEmbedder:
         """
         embedder_component = CohereTextEmbedder(
             api_key="test-api-key",
-            model_name="embed-multilingual-v2.0",
+            model="embed-multilingual-v2.0",
             input_type="classification",
             api_base_url="https://custom-api-base-url.com",
             truncate="START",
@@ -87,7 +87,7 @@ class TestCohereTextEmbedder:
         assert component_dict == {
             "type": "cohere_haystack.embedders.text_embedder.CohereTextEmbedder",
             "init_parameters": {
-                "model_name": "embed-multilingual-v2.0",
+                "model": "embed-multilingual-v2.0",
                 "input_type": "classification",
                 "api_base_url": "https://custom-api-base-url.com",
                 "truncate": "START",
