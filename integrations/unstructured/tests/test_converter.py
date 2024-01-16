@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from unstructured_fileconverter_haystack import UnstructuredFileConverter
+from haystack_integrations.components.converters.unstructured import UnstructuredFileConverter
 
 
 @pytest.fixture
