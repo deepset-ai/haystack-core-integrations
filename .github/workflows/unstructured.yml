@@ -1,17 +1,21 @@
 # This workflow comes from https://github.com/ofek/hatch-mypyc
 # https://github.com/ofek/hatch-mypyc/blob/5a198c0ba8660494d02716cfc9d79ce4adfb1442/.github/workflows/test.yml
-name: Test / unstructured / fileconverter
+name: Test / unstructured
 
 on:
   schedule:
     - cron: "0 0 * * *"
   pull_request:
     paths:
-      - "integrations/unstructured/fileconverter/**"
-      - ".github/workflows/unstructured_fileconverter.yml"
+      - "integrations/unstructured/**"
+      - ".github/workflows/unstructured.yml"
+
+defaults:
+  run:
+    working-directory: integrations/unstructured      
 
 concurrency:
-  group: unstructured_fileconverter-${{ github.head_ref }}
+  group: unstructured_-${{ github.head_ref }}
   cancel-in-progress: true
 
 env:
@@ -50,10 +54,8 @@ jobs:
         run: pip install --upgrade hatch
 
       - name: Lint
-        working-directory: integrations/unstructured/fileconverter
         if: matrix.python-version == '3.9'
         run: hatch run lint:all
 
       - name: Run tests
-        working-directory: integrations/unstructured/fileconverter
         run: hatch run cov
