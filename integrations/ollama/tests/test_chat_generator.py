@@ -3,9 +3,8 @@ from unittest.mock import Mock
 
 import pytest
 from haystack.dataclasses import ChatMessage, ChatRole
+from haystack_integrations.components.generators.ollama import OllamaChatGenerator
 from requests import HTTPError, Response
-
-from ollama_haystack import OllamaChatGenerator
 
 
 @pytest.fixture
