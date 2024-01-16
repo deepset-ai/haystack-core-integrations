@@ -48,7 +48,7 @@ class AmazonBedrockGenerator:
     from amazon_bedrock_haystack.generators.amazon_bedrock import AmazonBedrockGenerator
 
     generator = AmazonBedrockGenerator(
-        model_name="anthropic.claude-v2",
+        model="anthropic.claude-v2",
         max_length=99,
         aws_access_key_id="...",
         aws_secret_access_key="...",
@@ -71,7 +71,7 @@ class AmazonBedrockGenerator:
 
     def __init__(
         self,
-        model_name: str,
+        model: str,
         aws_access_key_id: Optional[str] = None,
         aws_secret_access_key: Optional[str] = None,
         aws_session_token: Optional[str] = None,
@@ -80,10 +80,10 @@ class AmazonBedrockGenerator:
         max_length: Optional[int] = 100,
         **kwargs,
     ):
-        if not model_name:
-            msg = "model_name cannot be None or empty string"
+        if not model:
+            msg = "'model' cannot be None or empty string"
             raise ValueError(msg)
-        self.model_name = model_name
+        self.model = model
         self.max_length = max_length
 
         try:
@@ -112,14 +112,14 @@ class AmazonBedrockGenerator:
         # It is hard to determine which tokenizer to use for the SageMaker model
         # so we use GPT2 tokenizer which will likely provide good token count approximation
         self.prompt_handler = DefaultPromptHandler(
-            model_name="gpt2",
+            model="gpt2",
             model_max_length=model_max_length,
             max_length=self.max_length or 100,
         )
 
-        model_adapter_cls = self.get_model_adapter(model_name=model_name)
+        model_adapter_cls = self.get_model_adapter(model=model)
         if not model_adapter_cls:
-            msg = f"AmazonBedrockGenerator doesn't support the model {model_name}."
+            msg = f"AmazonBedrockGenerator doesn't support the model {model}."
             raise AmazonBedrockConfigurationError(msg)
         self.model_adapter = model_adapter_cls(model_kwargs=model_input_kwargs, max_length=self.max_length)
 
@@ -146,8 +146,8 @@ class AmazonBedrockGenerator:
         return str(resize_info["resized_prompt"])
 
     @classmethod
-    def supports(cls, model_name, **kwargs):
-        model_supported = cls.get_model_adapter(model_name) is not None
+    def supports(cls, model, **kwargs):
+        model_supported = cls.get_model_adapter(model) is not None
         if not model_supported or not cls.aws_configured(**kwargs):
             return False
 
@@ -170,19 +170,19 @@ class AmazonBedrockGenerator:
             )
             raise AmazonBedrockConfigurationError(msg) from exception
 
-        model_available = model_name in available_model_ids
+        model_available = model in available_model_ids
         if not model_available:
             msg = (
-                f"The model {model_name} is not available in Amazon Bedrock. "
+                f"The model {model} is not available in Amazon Bedrock. "
                 f"Make sure the model you want to use is available in the configured AWS region and "
                 f"you have access."
             )
             raise AmazonBedrockConfigurationError(msg)
 
         stream: bool = kwargs.get("stream", False)
-        model_supports_streaming = model_name in model_ids_supporting_streaming
+        model_supports_streaming = model in model_ids_supporting_streaming
         if stream and not model_supports_streaming:
-            msg = f"The model {model_name} doesn't support streaming. Remove the `stream` parameter."
+            msg = f"The model {model} doesn't support streaming. Remove the `stream` parameter."
             raise AmazonBedrockConfigurationError(msg)
 
         return model_supported
@@ -194,7 +194,7 @@ class AmazonBedrockGenerator:
 
         if not prompt or not isinstance(prompt, (str, list)):
             msg = (
-                f"The model {self.model_name} requires a valid prompt, but currently, it has no prompt. "
+                f"The model {self.model} requires a valid prompt, but currently, it has no prompt. "
                 f"Make sure to provide a prompt in the format that the model expects."
             )
             raise ValueError(msg)
@@ -204,7 +204,7 @@ class AmazonBedrockGenerator:
             if stream:
                 response = self.client.invoke_model_with_response_stream(
                     body=json.dumps(body),
-                    modelId=self.model_name,
+                    modelId=self.model,
                     accept="application/json",
                     contentType="application/json",
                 )
@@ -217,7 +217,7 @@ class AmazonBedrockGenerator:
             else:
                 response = self.client.invoke_model(
                     body=json.dumps(body),
-                    modelId=self.model_name,
+                    modelId=self.model,
                     accept="application/json",
                     contentType="application/json",
                 )
@@ -225,7 +225,7 @@ class AmazonBedrockGenerator:
                 responses = self.model_adapter.get_responses(response_body=response_body)
         except ClientError as exception:
             msg = (
-                f"Could not connect to Amazon Bedrock model {self.model_name}. "
+                f"Could not connect to Amazon Bedrock model {self.model}. "
                 f"Make sure your AWS environment is configured correctly, "
                 f"the model is available in the configured AWS region, and you have access."
             )
@@ -238,9 +238,9 @@ class AmazonBedrockGenerator:
         return {"replies": self.invoke(prompt=prompt, **(generation_kwargs or {}))}
 
     @classmethod
-    def get_model_adapter(cls, model_name: str) -> Optional[Type[BedrockModelAdapter]]:
+    def get_model_adapter(cls, model: str) -> Optional[Type[BedrockModelAdapter]]:
         for pattern, adapter in cls.SUPPORTED_MODEL_PATTERNS.items():
-            if re.fullmatch(pattern, model_name):
+            if re.fullmatch(pattern, model):
                 return adapter
         return None
 
@@ -298,7 +298,7 @@ class AmazonBedrockGenerator:
         """
         return default_to_dict(
             self,
-            model_name=self.model_name,
+            model=self.model,
             max_length=self.max_length,
         )
 
