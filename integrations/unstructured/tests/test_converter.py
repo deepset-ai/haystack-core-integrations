@@ -4,7 +4,6 @@
 from pathlib import Path
 
 import pytest
-
 from haystack_integrations.components.converters.unstructured import UnstructuredFileConverter
 
 

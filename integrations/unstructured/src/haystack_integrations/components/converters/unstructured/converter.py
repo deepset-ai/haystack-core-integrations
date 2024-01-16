@@ -9,6 +9,7 @@ from typing import Any, Dict, List, Literal, Optional, Union
 
 from haystack import Document, component, default_to_dict
 from tqdm import tqdm
+
 from unstructured.documents.elements import Element  # type: ignore[import]
 from unstructured.partition.api import partition_via_api  # type: ignore[import]
 
