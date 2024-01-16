@@ -1,7 +1,6 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
+from .document_store import WeaviateDocumentStore
 
-from weaviate_haystack.document_store import WeaviateDocumentStore
-
-__all__ = ("WeaviateDocumentStore",)
+__all__ = ["WeaviateDocumentStore"]
