@@ -1,5 +1,6 @@
 from unittest.mock import patch
 
+from haystack_integrations.document_stores.weaviate.document_store import WeaviateDocumentStore
 from weaviate.auth import AuthApiKey
 from weaviate.config import Config
 from weaviate.embedded import (
@@ -9,8 +10,6 @@ from weaviate.embedded import (
     DEFAULT_PORT,
     EmbeddedOptions,
 )
-
-from haystack_integrations.document_stores.weaviate.document_store import WeaviateDocumentStore
 
 
 class TestWeaviateDocumentStore:

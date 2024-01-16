@@ -4,10 +4,11 @@
 from dataclasses import asdict
 from typing import Any, Dict, List, Optional, Tuple, Union
 
-import weaviate
 from haystack.core.serialization import default_from_dict, default_to_dict
 from haystack.dataclasses.document import Document
 from haystack.document_stores.protocol import DuplicatePolicy
+
+import weaviate
 from weaviate.auth import AuthCredentials
 from weaviate.config import Config, ConnectionConfig
 from weaviate.embedded import EmbeddedOptions

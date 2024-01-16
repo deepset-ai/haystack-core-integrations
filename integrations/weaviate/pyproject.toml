@@ -168,7 +168,7 @@ exclude_lines = [
 
 [[tool.mypy.overrides]]
 module = [
-  "haystack.*",
+  "haystack_integrations.*",
   "pytest.*",
   "weaviate.*",
   "numpy",
