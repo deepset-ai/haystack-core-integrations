@@ -33,6 +33,9 @@ Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/m
 Issues = "https://github.com/deepset-ai/haystack-core-integrations/issues"
 Source = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/opensearch"
 
+[tool.hatch.build.targets.wheel]
+packages = ["src/haystack_integrations"]
+
 [tool.hatch.version]
 source = "vcs"
 tag-pattern = 'integrations\/opensearch-v(?P<version>.*)'
@@ -70,7 +73,7 @@ dependencies = [
   "ruff>=0.0.243",
 ]
 [tool.hatch.envs.lint.scripts]
-typing = "mypy --install-types --non-interactive {args:src/opensearch_haystack tests}"
+typing = "mypy --install-types --non-interactive --explicit-package-bases {args:src/ tests}"
 style = [
   "ruff {args:.}",
   "black --check --diff {args:.}",
@@ -139,25 +142,22 @@ unfixable = [
 ]
 
 [tool.ruff.isort]
-known-first-party = ["opensearch_haystack"]
+known-first-party = ["src"]
 
 [tool.ruff.flake8-tidy-imports]
-ban-relative-imports = "all"
+ban-relative-imports = "parents"
 
 [tool.ruff.per-file-ignores]
 # Tests can use magic values, assertions, and relative imports
 "tests/**/*" = ["PLR2004", "S101", "TID252"]
 
 [tool.coverage.run]
-source_pkgs = ["opensearch_haystack", "tests"]
+source_pkgs = ["src", "tests"]
 branch = true
 parallel = true
-omit = [
-  "src/opensearch_haystack/__about__.py",
-]
 
 [tool.coverage.paths]
-opensearch_haystack = ["src/opensearch_haystack", "*/opensearch-haystack/src/opensearch_haystack"]
+opensearch_haystack = ["src/haystack_integrations", "*/opensearch-haystack/src"]
 tests = ["tests", "*/opensearch-haystack/tests"]
 
 [tool.coverage.report]
@@ -177,6 +177,7 @@ markers = [
 [[tool.mypy.overrides]]
 module = [
   "haystack.*",
+  "haystack_integrations.*",
   "pytest.*",
   "opensearchpy.*",
 ]

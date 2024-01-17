@@ -3,8 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 import pytest
 from haystack.errors import FilterError
-
-from opensearch_haystack.filters import _normalize_filters, _normalize_ranges
+from haystack_integrations.document_stores.opensearch.filters import _normalize_ranges, normalize_filters
 
 filters_data = [
     (
@@ -179,35 +178,35 @@ filters_data = [
 
 @pytest.mark.parametrize("filters, expected", filters_data)
 def test_normalize_filters(filters, expected):
-    result = _normalize_filters(filters)
+    result = normalize_filters(filters)
     assert result == expected
 
 
 def test_normalize_filters_invalid_operator():
     with pytest.raises(FilterError):
-        _normalize_filters({"operator": "INVALID", "conditions": []})
+        normalize_filters({"operator": "INVALID", "conditions": []})
 
 
 def test_normalize_filters_malformed():
     # Missing operator
     with pytest.raises(FilterError):
-        _normalize_filters({"conditions": []})
+        normalize_filters({"conditions": []})
 
     # Missing conditions
     with pytest.raises(FilterError):
-        _normalize_filters({"operator": "AND"})
+        normalize_filters({"operator": "AND"})
 
     # Missing comparison field
     with pytest.raises(FilterError):
-        _normalize_filters({"operator": "AND", "conditions": [{"operator": "==", "value": "article"}]})
+        normalize_filters({"operator": "AND", "conditions": [{"operator": "==", "value": "article"}]})
 
     # Missing comparison operator
     with pytest.raises(FilterError):
-        _normalize_filters({"operator": "AND", "conditions": [{"field": "meta.type", "operator": "=="}]})
+        normalize_filters({"operator": "AND", "conditions": [{"field": "meta.type", "operator": "=="}]})
 
     # Missing comparison value
     with pytest.raises(FilterError):
-        _normalize_filters({"operator": "AND", "conditions": [{"field": "meta.type", "value": "article"}]})
+        normalize_filters({"operator": "AND", "conditions": [{"field": "meta.type", "value": "article"}]})
 
 
 def test_normalize_ranges():

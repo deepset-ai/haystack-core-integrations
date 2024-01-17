@@ -8,7 +8,7 @@ from haystack.errors import FilterError
 from pandas import DataFrame
 
 
-def _normalize_filters(filters: Dict[str, Any]) -> Dict[str, Any]:
+def normalize_filters(filters: Dict[str, Any]) -> Dict[str, Any]:
     """
     Converts Haystack filters in OpenSearch compatible filters.
     """
