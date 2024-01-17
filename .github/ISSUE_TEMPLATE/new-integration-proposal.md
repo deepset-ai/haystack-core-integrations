@@ -21,7 +21,7 @@ Also, if there's any new terminology involved, define it here.
 
 If the request is accepted, ensure the following checklist is complete before closing this issue.
 
-- [ ] The code was merged in the `main` branch
+- [ ] The code is documented with docstrings and was merged in the `main` branch
 - [ ] Docs are published at https://docs.haystack.deepset.ai/
 - [ ] There is a Github workflow running the tests for the integration nightly and at every PR
 - [ ] A label named like `integration:<your integration name>` has been added to this repo
