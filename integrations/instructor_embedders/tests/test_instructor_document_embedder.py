@@ -12,8 +12,8 @@ class TestInstructorDocumentEmbedder:
         """
         Test default initialization parameters for InstructorDocumentEmbedder.
         """
-        embedder = InstructorDocumentEmbedder(model_name_or_path="hkunlp/instructor-base")
-        assert embedder.model_name_or_path == "hkunlp/instructor-base"
+        embedder = InstructorDocumentEmbedder(model="hkunlp/instructor-base")
+        assert embedder.model == "hkunlp/instructor-base"
         assert embedder.device == "cpu"
         assert embedder.use_auth_token is None
         assert embedder.instruction == "Represent the document"
@@ -28,7 +28,7 @@ class TestInstructorDocumentEmbedder:
         Test custom initialization parameters for InstructorDocumentEmbedder.
         """
         embedder = InstructorDocumentEmbedder(
-            model_name_or_path="hkunlp/instructor-base",
+            model="hkunlp/instructor-base",
             device="cuda",
             use_auth_token=True,
             instruction="Represent the 'domain' 'text_type' for 'task_objective'",
@@ -38,7 +38,7 @@ class TestInstructorDocumentEmbedder:
             meta_fields_to_embed=["test_field"],
             embedding_separator=" | ",
         )
-        assert embedder.model_name_or_path == "hkunlp/instructor-base"
+        assert embedder.model == "hkunlp/instructor-base"
         assert embedder.device == "cuda"
         assert embedder.use_auth_token is True
         assert embedder.instruction == "Represent the 'domain' 'text_type' for 'task_objective'"
@@ -52,12 +52,12 @@ class TestInstructorDocumentEmbedder:
         """
         Test serialization of InstructorDocumentEmbedder to a dictionary, using default initialization parameters.
         """
-        embedder = InstructorDocumentEmbedder(model_name_or_path="hkunlp/instructor-base")
+        embedder = InstructorDocumentEmbedder(model="hkunlp/instructor-base")
         embedder_dict = embedder.to_dict()
         assert embedder_dict == {
             "type": "instructor_embedders_haystack.instructor_document_embedder.InstructorDocumentEmbedder",
             "init_parameters": {
-                "model_name_or_path": "hkunlp/instructor-base",
+                "model": "hkunlp/instructor-base",
                 "device": "cpu",
                 "use_auth_token": None,
                 "instruction": "Represent the document",
@@ -74,7 +74,7 @@ class TestInstructorDocumentEmbedder:
         Test serialization of InstructorDocumentEmbedder to a dictionary, using custom initialization parameters.
         """
         embedder = InstructorDocumentEmbedder(
-            model_name_or_path="hkunlp/instructor-base",
+            model="hkunlp/instructor-base",
             device="cuda",
             use_auth_token=True,
             instruction="Represent the financial document for retrieval",
@@ -88,7 +88,7 @@ class TestInstructorDocumentEmbedder:
         assert embedder_dict == {
             "type": "instructor_embedders_haystack.instructor_document_embedder.InstructorDocumentEmbedder",
             "init_parameters": {
-                "model_name_or_path": "hkunlp/instructor-base",
+                "model": "hkunlp/instructor-base",
                 "device": "cuda",
                 "use_auth_token": True,
                 "instruction": "Represent the financial document for retrieval",
@@ -107,7 +107,7 @@ class TestInstructorDocumentEmbedder:
         embedder_dict = {
             "type": "instructor_embedders_haystack.instructor_document_embedder.InstructorDocumentEmbedder",
             "init_parameters": {
-                "model_name_or_path": "hkunlp/instructor-base",
+                "model": "hkunlp/instructor-base",
                 "device": "cpu",
                 "use_auth_token": None,
                 "instruction": "Represent the 'domain' 'text_type' for 'task_objective'",
@@ -119,7 +119,7 @@ class TestInstructorDocumentEmbedder:
             },
         }
         embedder = InstructorDocumentEmbedder.from_dict(embedder_dict)
-        assert embedder.model_name_or_path == "hkunlp/instructor-base"
+        assert embedder.model == "hkunlp/instructor-base"
         assert embedder.device == "cpu"
         assert embedder.use_auth_token is None
         assert embedder.instruction == "Represent the 'domain' 'text_type' for 'task_objective'"
@@ -136,7 +136,7 @@ class TestInstructorDocumentEmbedder:
         embedder_dict = {
             "type": "instructor_embedders_haystack.instructor_document_embedder.InstructorDocumentEmbedder",
             "init_parameters": {
-                "model_name_or_path": "hkunlp/instructor-base",
+                "model": "hkunlp/instructor-base",
                 "device": "cuda",
                 "use_auth_token": True,
                 "instruction": "Represent the financial document for retrieval",
@@ -148,7 +148,7 @@ class TestInstructorDocumentEmbedder:
             },
         }
         embedder = InstructorDocumentEmbedder.from_dict(embedder_dict)
-        assert embedder.model_name_or_path == "hkunlp/instructor-base"
+        assert embedder.model == "hkunlp/instructor-base"
         assert embedder.device == "cuda"
         assert embedder.use_auth_token is True
         assert embedder.instruction == "Represent the financial document for retrieval"
@@ -163,7 +163,7 @@ class TestInstructorDocumentEmbedder:
         """
         Test for checking embedder instances after warm-up.
         """
-        embedder = InstructorDocumentEmbedder(model_name_or_path="hkunlp/instructor-base")
+        embedder = InstructorDocumentEmbedder(model="hkunlp/instructor-base")
         mocked_factory.get_embedding_backend.assert_not_called()
         embedder.warm_up()
         mocked_factory.get_embedding_backend.assert_called_once_with(
@@ -175,7 +175,7 @@ class TestInstructorDocumentEmbedder:
         """
         Test for checking backend instances after multiple warm-ups.
         """
-        embedder = InstructorDocumentEmbedder(model_name_or_path="hkunlp/instructor-base")
+        embedder = InstructorDocumentEmbedder(model="hkunlp/instructor-base")
         mocked_factory.get_embedding_backend.assert_not_called()
         embedder.warm_up()
         embedder.warm_up()
@@ -185,7 +185,7 @@ class TestInstructorDocumentEmbedder:
         """
         Test for checking output dimensions and embedding dimensions.
         """
-        embedder = InstructorDocumentEmbedder(model_name_or_path="hkunlp/instructor-large")
+        embedder = InstructorDocumentEmbedder(model="hkunlp/instructor-large")
         embedder.embedding_backend = MagicMock()
         embedder.embedding_backend.embed = lambda x, **kwargs: np.random.rand(len(x), 16).tolist()  # noqa: ARG005
 
@@ -204,7 +204,7 @@ class TestInstructorDocumentEmbedder:
         """
         Test for checking incorrect input format when creating embedding.
         """
-        embedder = InstructorDocumentEmbedder(model_name_or_path="hkunlp/instructor-base")
+        embedder = InstructorDocumentEmbedder(model="hkunlp/instructor-base")
 
         string_input = "text"
         list_integers_input = [1, 2, 3]
@@ -221,7 +221,7 @@ class TestInstructorDocumentEmbedder:
         with a custom instruction and metadata.
         """
         embedder = InstructorDocumentEmbedder(
-            model_name_or_path="model",
+            model="model",
             instruction="Represent the financial document for retrieval",
             meta_fields_to_embed=["meta_field"],
             embedding_separator="\n",
@@ -248,7 +248,7 @@ class TestInstructorDocumentEmbedder:
     @pytest.mark.integration
     def test_run(self):
         embedder = InstructorDocumentEmbedder(
-            model_name_or_path="hkunlp/instructor-base",
+            model="hkunlp/instructor-base",
             device="cpu",
             instruction="Represent the Science document for retrieval",
         )
