@@ -22,7 +22,7 @@ class TestJinaTextEmbedder:
     def test_init_with_parameters(self):
         embedder = JinaTextEmbedder(
             api_key="fake-api-key",
-            model_name="model",
+            model="model",
             prefix="prefix",
             suffix="suffix",
         )
@@ -50,7 +50,7 @@ class TestJinaTextEmbedder:
     def test_to_dict_with_custom_init_parameters(self):
         component = JinaTextEmbedder(
             api_key="fake-api-key",
-            model_name="model",
+            model="model",
             prefix="prefix",
             suffix="suffix",
         )
@@ -58,7 +58,7 @@ class TestJinaTextEmbedder:
         assert data == {
             "type": "jina_haystack.text_embedder.JinaTextEmbedder",
             "init_parameters": {
-                "model_name": "model",
+                "model": "model",
                 "prefix": "prefix",
                 "suffix": "suffix",
             },
@@ -81,7 +81,7 @@ class TestJinaTextEmbedder:
 
             mock_post.return_value = mock_response
 
-            embedder = JinaTextEmbedder(api_key="fake-api-key", model_name=model, prefix="prefix ", suffix=" suffix")
+            embedder = JinaTextEmbedder(api_key="fake-api-key", model=model, prefix="prefix ", suffix=" suffix")
             result = embedder.run(text="The food was delicious")
 
         assert len(result["embedding"]) == 3
