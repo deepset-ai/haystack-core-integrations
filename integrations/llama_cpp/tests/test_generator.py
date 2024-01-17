@@ -9,8 +9,7 @@ from haystack.components.builders.answer_builder import AnswerBuilder
 from haystack.components.builders.prompt_builder import PromptBuilder
 from haystack.components.retrievers import InMemoryBM25Retriever
 from haystack.document_stores import InMemoryDocumentStore
-
-from llama_cpp_haystack import LlamaCppGenerator
+from haystack_integrations.components.generators.llama_cpp import LlamaCppGenerator
 
 
 @pytest.fixture

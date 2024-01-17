@@ -35,6 +35,9 @@ Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/m
 Issues = "https://github.com/deepset-ai/haystack-core-integrations/issues"
 Source = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/llama_cpp"
 
+[tool.hatch.build.targets.wheel]
+packages = ["src/haystack_integrations"]
+
 [tool.hatch.version]
 source = "vcs"
 tag-pattern = 'integrations\/llama_cpp-v(?P<version>.*)'
@@ -73,7 +76,7 @@ dependencies = [
 ]
 
 [tool.hatch.envs.lint.scripts]
-typing = "mypy --install-types --non-interactive {args:src/llama_cpp_haystack tests}"
+typing = "mypy --install-types --non-interactive --explicit-package-bases {args:src/ tests}"
 style = [
     "ruff {args:.}",
     "black --check --diff {args:.}",
@@ -92,7 +95,7 @@ all = [
 allow-direct-references = true
 
 [tool.ruff.isort]
-known-first-party = ["llama_cpp_haystack"]
+known-first-party = ["src"]
 
 [tool.black]
 target-version = ["py37"]
@@ -142,7 +145,7 @@ unfixable = [
 ]
 
 [tool.ruff.flake8-tidy-imports]
-ban-relative-imports = "all"
+ban-relative-imports = "parents"
 
 [tool.ruff.per-file-ignores]
 # Tests can use magic values, assertions, and relative imports
@@ -158,7 +161,7 @@ parallel = true
 
 
 [tool.coverage.paths]
-ollama_haystack = ["src/llama_cpp_haystack", "*/llama-cpp-haystack/src/llama_cpp_haystack"]
+llama_cpp_haystack = ["src/haystack_integrations", "*/llama-cpp-haystack/src"]
 tests = ["tests", "*/llama-cpp-haystack/tests"]
 
 [tool.coverage.report]
@@ -179,6 +182,7 @@ addopts = [
 [[tool.mypy.overrides]]
 module = [
     "haystack.*",
+    "haystack_integrations.*",
     "pytest.*",
     "llama_cpp.*"
 ]

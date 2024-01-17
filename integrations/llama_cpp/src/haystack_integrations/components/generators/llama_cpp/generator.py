@@ -2,6 +2,7 @@ import logging
 from typing import Any, Dict, List, Optional
 
 from haystack import component
+
 from llama_cpp import Llama
 
 logger = logging.getLogger(__name__)
