@@ -4,8 +4,7 @@
 from pathlib import Path
 
 import pytest
-
-from unstructured_fileconverter_haystack import UnstructuredFileConverter
+from haystack_integrations.components.converters.unstructured import UnstructuredFileConverter
 
 
 @pytest.fixture
@@ -43,7 +42,7 @@ class TestUnstructuredFileConverter:
         converter_dict = converter.to_dict()
 
         assert converter_dict == {
-            "type": "unstructured_fileconverter_haystack.fileconverter.UnstructuredFileConverter",
+            "type": "haystack_integrations.components.converters.unstructured.converter.UnstructuredFileConverter",
             "init_parameters": {
                 "api_url": "https://api.unstructured.io/general/v0/general",
                 "document_creation_mode": "one-doc-per-file",

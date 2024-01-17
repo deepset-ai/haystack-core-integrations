@@ -24,23 +24,25 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
 dependencies = [
-  # we distribute the preview version of Haystack 2.0 under the package "haystack-ai"
   "haystack-ai",
   "unstructured<0.11.4", #  FIXME: investigate why 0.11.4 broke the tests
 ]
 
 [project.urls]
-Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/unstructured/fileconverter#readme"
+Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/unstructured#readme"
 Issues = "https://github.com/deepset-ai/haystack-core-integrations/issues"
-Source = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/unstructured/fileconverter"
+Source = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/unstructured"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/haystack_integrations"]
 
 [tool.hatch.version]
 source = "vcs"
-tag-pattern = 'integrations\/unstructured-fileconverter-v(?P<version>.*)'
+tag-pattern = 'integrations\/unstructured-v(?P<version>.*)'
 
 [tool.hatch.version.raw-options]
-root = "../../.."
-git_describe_command = 'git describe --tags --match="integrations/unstructured-fileconverter-v[0-9]*"'
+root = "../.."
+git_describe_command = 'git describe --tags --match="integrations/unstructured-v[0-9]*"'
 
 [tool.hatch.envs.default]
 dependencies = [
@@ -71,7 +73,7 @@ dependencies = [
   "ruff>=0.0.243",
 ]
 [tool.hatch.envs.lint.scripts]
-typing = "mypy --install-types --non-interactive {args:src/unstructured_fileconverter_haystack tests}"
+typing = "mypy --install-types --non-interactive --explicit-package-bases {args:src/ tests}"
 style = [
   "ruff {args:.}",
   "black --check --diff {args:.}",
@@ -140,25 +142,22 @@ unfixable = [
 ]
 
 [tool.ruff.isort]
-known-first-party = ["unstructured_fileconverter_haystack"]
+known-first-party = ["src"]
 
 [tool.ruff.flake8-tidy-imports]
-ban-relative-imports = "all"
+ban-relative-imports = "parents"
 
 [tool.ruff.per-file-ignores]
 # Tests can use magic values, assertions, and relative imports
 "tests/**/*" = ["PLR2004", "S101", "TID252"]
 
 [tool.coverage.run]
-source_pkgs = ["unstructured_fileconverter_haystack", "tests"]
+source_pkgs = ["src", "tests"]
 branch = true
 parallel = true
-omit = [
-  "src/unstructured_fileconverter/__about__.py",
-]
 
 [tool.coverage.paths]
-unstructured_fileconverter_haystack = ["src/unstructured_fileconverter_haystack", "*/unstructured-fileconverter-haystack/src/unstructured_fileconverter_haystack"]
+unstructured_fileconverter_haystack = ["src/haystack_integrations", "*/unstructured-fileconverter-haystack/src"]
 tests = ["tests", "*/unstructured-fileconverter-haystack/tests"]
 
 [tool.coverage.report]
@@ -178,6 +177,7 @@ markers = [
 [[tool.mypy.overrides]]
 module = [
   "haystack.*",
+  "haystack_integrations.*",
   "pytest.*"
 ]
 ignore_missing_imports = true
