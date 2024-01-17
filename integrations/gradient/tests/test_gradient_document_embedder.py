@@ -60,7 +60,7 @@ class TestGradientDocumentEmbedder:
         data = component.to_dict()
         assert data == {
             "type": "gradient_haystack.embedders.gradient_document_embedder.GradientDocumentEmbedder",
-            "init_parameters": {"workspace_id": workspace_id, "model_name": "bge-large"},
+            "init_parameters": {"workspace_id": workspace_id, "model": "bge-large"},
         }
 
     @pytest.mark.unit
