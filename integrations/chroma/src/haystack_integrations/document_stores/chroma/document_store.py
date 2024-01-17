@@ -9,10 +9,10 @@ import chromadb
 import numpy as np
 from chromadb.api.types import GetResult, QueryResult, validate_where, validate_where_document
 from haystack.dataclasses import Document
-from haystack.document_stores.protocol import DuplicatePolicy
+from haystack.document_stores.types import DuplicatePolicy
 
-from chroma_haystack.errors import ChromaDocumentStoreFilterError
-from chroma_haystack.utils import get_embedding_function
+from .errors import ChromaDocumentStoreFilterError
+from .utils import get_embedding_function
 
 logger = logging.getLogger(__name__)
 

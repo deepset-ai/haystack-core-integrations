@@ -32,6 +32,9 @@ Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/m
 Issues = "https://github.com/deepset-ai/haystack-core-integrations/issues"
 Source = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/chroma"
 
+[tool.hatch.build.targets.wheel]
+packages = ["src/haystack_integrations"]
+
 [tool.hatch.version]
 source = "vcs"
 tag-pattern = 'integrations\/chroma-v(?P<version>.*)'
@@ -69,7 +72,7 @@ dependencies = [
   "numpy",  # we need the stubs from the main package
 ]
 [tool.hatch.envs.lint.scripts]
-typing = "mypy --install-types --non-interactive {args:src/chroma_haystack tests}"
+typing = "mypy --install-types --non-interactive --explicit-package-bases {args:src/ tests}"
 style = [
   "ruff {args:.}",
   "black --check --diff {args:.}",
@@ -141,26 +144,25 @@ unfixable = [
 exclude = ["example"]
 
 [tool.ruff.isort]
-known-first-party = ["chroma_haystack"]
+known-first-party = ["src"]
 
 [tool.ruff.flake8-tidy-imports]
-ban-relative-imports = "all"
+ban-relative-imports = "parents"
 
 [tool.ruff.per-file-ignores]
 # Tests can use magic values, assertions, and relative imports
 "tests/**/*" = ["PLR2004", "S101", "TID252"]
 
 [tool.coverage.run]
-source_pkgs = ["chroma_haystack", "tests"]
+source_pkgs = ["src", "tests"]
 branch = true
 parallel = true
 omit = [
-  "src/chroma_haystack/__about__.py",
   "example"
 ]
 
 [tool.coverage.paths]
-chroma_haystack = ["src/chroma_haystack", "*/chroma-haystack/src/chroma_haystack"]
+chroma_haystack = ["src/haystack_integrations", "*/chroma-haystack/src/chroma_haystack"]
 tests = ["tests"]
 
 [tool.coverage.report]
@@ -181,6 +183,7 @@ markers = [
 module = [
   "chromadb.*",
   "haystack.*",
+  "haystack_integrations.*",
   "pytest.*"
 ]
 ignore_missing_imports = true
