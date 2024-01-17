@@ -16,7 +16,7 @@ class TestCohereDocumentEmbedder:
     def test_init_default(self):
         embedder = CohereDocumentEmbedder(api_key="test-api-key")
         assert embedder.api_key == "test-api-key"
-        assert embedder.model_name == "embed-english-v2.0"
+        assert embedder.model == "embed-english-v2.0"
         assert embedder.input_type == "search_document"
         assert embedder.api_base_url == COHERE_API_URL
         assert embedder.truncate == "END"
@@ -31,7 +31,7 @@ class TestCohereDocumentEmbedder:
     def test_init_with_parameters(self):
         embedder = CohereDocumentEmbedder(
             api_key="test-api-key",
-            model_name="embed-multilingual-v2.0",
+            model="embed-multilingual-v2.0",
             input_type="search_query",
             api_base_url="https://custom-api-base-url.com",
             truncate="START",
@@ -44,7 +44,7 @@ class TestCohereDocumentEmbedder:
             embedding_separator="-",
         )
         assert embedder.api_key == "test-api-key"
-        assert embedder.model_name == "embed-multilingual-v2.0"
+        assert embedder.model == "embed-multilingual-v2.0"
         assert embedder.input_type == "search_query"
         assert embedder.api_base_url == "https://custom-api-base-url.com"
         assert embedder.truncate == "START"
@@ -62,7 +62,7 @@ class TestCohereDocumentEmbedder:
         assert component_dict == {
             "type": "cohere_haystack.embedders.document_embedder.CohereDocumentEmbedder",
             "init_parameters": {
-                "model_name": "embed-english-v2.0",
+                "model": "embed-english-v2.0",
                 "input_type": "search_document",
                 "api_base_url": COHERE_API_URL,
                 "truncate": "END",
@@ -79,7 +79,7 @@ class TestCohereDocumentEmbedder:
     def test_to_dict_with_custom_init_parameters(self):
         embedder_component = CohereDocumentEmbedder(
             api_key="test-api-key",
-            model_name="embed-multilingual-v2.0",
+            model="embed-multilingual-v2.0",
             input_type="search_query",
             api_base_url="https://custom-api-base-url.com",
             truncate="START",
@@ -95,7 +95,7 @@ class TestCohereDocumentEmbedder:
         assert component_dict == {
             "type": "cohere_haystack.embedders.document_embedder.CohereDocumentEmbedder",
             "init_parameters": {
-                "model_name": "embed-multilingual-v2.0",
+                "model": "embed-multilingual-v2.0",
                 "input_type": "search_query",
                 "api_base_url": "https://custom-api-base-url.com",
                 "truncate": "START",
