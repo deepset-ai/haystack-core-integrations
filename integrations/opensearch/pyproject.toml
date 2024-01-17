@@ -177,6 +177,7 @@ markers = [
 [[tool.mypy.overrides]]
 module = [
   "haystack.*",
+  "haystack_integrations.*",
   "pytest.*",
   "opensearchpy.*",
 ]
