@@ -67,7 +67,7 @@ class InstructorTextEmbedder:
         :param normalize_embeddings: If set to true, returned vectors will have the length of 1.
         """
 
-        self.model = model
+        self.model_name_or_path = model
         # TODO: remove device parameter and use Haystack's device management once migrated
         self.device = device or "cpu"
         self.use_auth_token = use_auth_token
@@ -82,7 +82,7 @@ class InstructorTextEmbedder:
         """
         return default_to_dict(
             self,
-            model=self.model,
+            model=self.model_name_or_path,
             device=self.device,
             use_auth_token=self.use_auth_token,
             instruction=self.instruction,
@@ -104,7 +104,7 @@ class InstructorTextEmbedder:
         """
         if not hasattr(self, "embedding_backend"):
             self.embedding_backend = _InstructorEmbeddingBackendFactory.get_embedding_backend(
-                model_name_or_path=self.model, device=self.device, use_auth_token=self.use_auth_token
+                model_name_or_path=self.model_name_or_path, device=self.device, use_auth_token=self.use_auth_token
             )
 
     @component.output_types(embedding=List[float])

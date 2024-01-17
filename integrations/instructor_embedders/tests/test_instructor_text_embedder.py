@@ -12,7 +12,7 @@ class TestInstructorTextEmbedder:
         Test default initialization parameters for InstructorTextEmbedder.
         """
         embedder = InstructorTextEmbedder(model="hkunlp/instructor-base")
-        assert embedder.model == "hkunlp/instructor-base"
+        assert embedder.model_name_or_path == "hkunlp/instructor-base"
         assert embedder.device == "cpu"
         assert embedder.use_auth_token is None
         assert embedder.instruction == "Represent the sentence"
@@ -33,7 +33,7 @@ class TestInstructorTextEmbedder:
             progress_bar=False,
             normalize_embeddings=True,
         )
-        assert embedder.model == "hkunlp/instructor-base"
+        assert embedder.model_name_or_path == "hkunlp/instructor-base"
         assert embedder.device == "cuda"
         assert embedder.use_auth_token is True
         assert embedder.instruction == "Represent the 'domain' 'text_type' for 'task_objective'"
@@ -104,7 +104,7 @@ class TestInstructorTextEmbedder:
             },
         }
         embedder = InstructorTextEmbedder.from_dict(embedder_dict)
-        assert embedder.model == "hkunlp/instructor-base"
+        assert embedder.model_name_or_path == "hkunlp/instructor-base"
         assert embedder.device == "cpu"
         assert embedder.use_auth_token is None
         assert embedder.instruction == "Represent the 'domain' 'text_type' for 'task_objective'"
@@ -129,7 +129,7 @@ class TestInstructorTextEmbedder:
             },
         }
         embedder = InstructorTextEmbedder.from_dict(embedder_dict)
-        assert embedder.model == "hkunlp/instructor-base"
+        assert embedder.model_name_or_path == "hkunlp/instructor-base"
         assert embedder.device == "cuda"
         assert embedder.use_auth_token is True
         assert embedder.instruction == "Represent the financial document for retrieval"
