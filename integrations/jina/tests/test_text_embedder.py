@@ -41,7 +41,7 @@ class TestJinaTextEmbedder:
         assert data == {
             "type": "jina_haystack.text_embedder.JinaTextEmbedder",
             "init_parameters": {
-                "model_name": "jina-embeddings-v2-base-en",
+                "model": "jina-embeddings-v2-base-en",
                 "prefix": "",
                 "suffix": "",
             },
