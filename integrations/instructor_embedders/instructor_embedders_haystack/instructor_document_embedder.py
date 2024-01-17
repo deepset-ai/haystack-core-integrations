@@ -26,7 +26,7 @@ class InstructorDocumentEmbedder:
     doc_embedding_instruction = "Represent the Medical Document for retrieval:"
 
     doc_embedder = InstructorDocumentEmbedder(
-        model_name_or_path="hkunlp/instructor-base",
+        model="hkunlp/instructor-base",
         instruction=doc_embedding_instruction,
         batch_size=32,
         device="cpu",
@@ -60,7 +60,7 @@ class InstructorDocumentEmbedder:
 
     def __init__(
         self,
-        model_name_or_path: str = "hkunlp/instructor-base",
+        model: str = "hkunlp/instructor-base",
         device: Optional[str] = None,
         use_auth_token: Union[bool, str, None] = None,
         instruction: str = "Represent the document",
@@ -73,7 +73,7 @@ class InstructorDocumentEmbedder:
         """
         Create an InstructorDocumentEmbedder component.
 
-        :param model_name_or_path: Local path or name of the model in Hugging Face's model hub,
+        :param model: Local path or name of the model in Hugging Face's model hub,
             such as ``'hkunlp/instructor-base'``.
         :param device: Device (like 'cuda' / 'cpu') that should be used for computation.
             If None, checks if a GPU can be used.
@@ -95,7 +95,7 @@ class InstructorDocumentEmbedder:
         :param embedding_separator: Separator used to concatenate the meta fields to the Document content.
         """
 
-        self.model_name_or_path = model_name_or_path
+        self.model_name_or_path = model
         # TODO: remove device parameter and use Haystack's device management once migrated
         self.device = device or "cpu"
         self.use_auth_token = use_auth_token
@@ -112,7 +112,7 @@ class InstructorDocumentEmbedder:
         """
         return default_to_dict(
             self,
-            model_name_or_path=self.model_name_or_path,
+            model=self.model_name_or_path,
             device=self.device,
             use_auth_token=self.use_auth_token,
             instruction=self.instruction,

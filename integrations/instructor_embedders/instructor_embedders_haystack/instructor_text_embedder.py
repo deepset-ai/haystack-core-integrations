@@ -26,7 +26,7 @@ class InstructorTextEmbedder:
     )
 
     text_embedder = InstructorTextEmbedder(
-        model_name_or_path="hkunlp/instructor-base", instruction=instruction,
+        model="hkunlp/instructor-base", instruction=instruction,
         device="cpu"
     )
 
@@ -36,7 +36,7 @@ class InstructorTextEmbedder:
 
     def __init__(
         self,
-        model_name_or_path: str = "hkunlp/instructor-base",
+        model: str = "hkunlp/instructor-base",
         device: Optional[str] = None,
         use_auth_token: Union[bool, str, None] = None,
         instruction: str = "Represent the sentence",
@@ -47,7 +47,7 @@ class InstructorTextEmbedder:
         """
         Create an InstructorTextEmbedder component.
 
-        :param model_name_or_path: Local path or name of the model in Hugging Face's model hub,
+        :param model: Local path or name of the model in Hugging Face's model hub,
             such as ``'hkunlp/instructor-base'``.
         :param device: Device (like 'cuda' / 'cpu') that should be used for computation.
             If None, checks if a GPU can be used.
@@ -67,7 +67,7 @@ class InstructorTextEmbedder:
         :param normalize_embeddings: If set to true, returned vectors will have the length of 1.
         """
 
-        self.model_name_or_path = model_name_or_path
+        self.model_name_or_path = model
         # TODO: remove device parameter and use Haystack's device management once migrated
         self.device = device or "cpu"
         self.use_auth_token = use_auth_token
@@ -82,7 +82,7 @@ class InstructorTextEmbedder:
         """
         return default_to_dict(
             self,
-            model_name_or_path=self.model_name_or_path,
+            model=self.model_name_or_path,
             device=self.device,
             use_auth_token=self.use_auth_token,
             instruction=self.instruction,
