@@ -40,8 +40,8 @@ class ChromaQueryRetriever:
 
         :raises ValueError: If the specified document store is not found or is not a MemoryDocumentStore instance.
         """
-        if not top_k:
-            top_k = 3
+        top_k = top_k or self.top_k
+
         return {"documents": self.document_store.search([query], top_k)[0]}
 
     def to_dict(self) -> Dict[str, Any]:
@@ -77,8 +77,7 @@ class ChromaEmbeddingRetriever(ChromaQueryRetriever):
 
         :raises ValueError: If the specified document store is not found or is not a MemoryDocumentStore instance.
         """
-        if not top_k:
-            top_k = 3
+        top_k = top_k or self.top_k
 
         query_embeddings = [query_embedding]
         return {"documents": self.document_store.search_embeddings(query_embeddings, top_k)[0]}
