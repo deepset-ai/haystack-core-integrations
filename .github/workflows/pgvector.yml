@@ -28,7 +28,7 @@ jobs:
         os: [ubuntu-latest]
         python-version: ["3.9","3.10","3.11"]
     services:
-      ollama:
+      pgvector:
         image: ankane/pgvector:latest
         env:
           POSTGRES_USER: postgres
