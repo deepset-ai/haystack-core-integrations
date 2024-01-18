@@ -90,7 +90,11 @@ class UnstructuredFileConverter:
         )
 
     @component.output_types(documents=List[Document])
-    def run(self, paths: Union[List[str], List[os.PathLike]], meta: Optional[Union[Dict[str, Any], List[Dict[str, Any]]]] = None):
+    def run(
+        self,
+        paths: Union[List[str], List[os.PathLike]],
+        meta: Optional[Union[Dict[str, Any], List[Dict[str, Any]]]] = None,
+    ):
         """
         Convert files to Haystack Documents using the Unstructured API (hosted or running locally).
 

@@ -130,6 +130,7 @@ class TestUnstructuredFileConverter:
             assert doc.meta["page_number"] == i
             assert "custom_meta" in doc.meta
             assert doc.meta["custom_meta"] == "foobar"
+
     @pytest.mark.integration
     def test_run_one_doc_per_element_with_meta(self, samples_path):
         pdf_path = samples_path / "sample_pdf.pdf"
