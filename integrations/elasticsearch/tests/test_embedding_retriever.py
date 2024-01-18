@@ -4,7 +4,6 @@
 from unittest.mock import Mock, patch
 
 from haystack.dataclasses import Document
-
 from haystack_integrations.components.retrievers.elasticsearch import ElasticsearchEmbeddingRetriever
 from haystack_integrations.document_stores.elasticsearch import ElasticsearchDocumentStore
 
@@ -23,8 +22,9 @@ def test_to_dict(_mock_elasticsearch_client):
     document_store = ElasticsearchDocumentStore(hosts="some fake host")
     retriever = ElasticsearchEmbeddingRetriever(document_store=document_store)
     res = retriever.to_dict()
+    t = "haystack_integrations.components.retrievers.elasticsearch.embedding_retriever.ElasticsearchEmbeddingRetriever"
     assert res == {
-        "type": "haystack_integrations.components.retrievers.elasticsearch.embedding_retriever.ElasticsearchEmbeddingRetriever",
+        "type": t,
         "init_parameters": {
             "document_store": {
                 "init_parameters": {
@@ -43,8 +43,9 @@ def test_to_dict(_mock_elasticsearch_client):
 
 @patch("haystack_integrations.document_stores.elasticsearch.document_store.Elasticsearch")
 def test_from_dict(_mock_elasticsearch_client):
+    t = "haystack_integrations.components.retrievers.elasticsearch.embedding_retriever.ElasticsearchEmbeddingRetriever"
     data = {
-        "type": "haystack_integrations.components.retrievers.elasticsearch.embedding_retriever.ElasticsearchEmbeddingRetriever",
+        "type": t,
         "init_parameters": {
             "document_store": {
                 "init_parameters": {"hosts": "some fake host", "index": "default"},
