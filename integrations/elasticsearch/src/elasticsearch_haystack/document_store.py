@@ -11,7 +11,8 @@ from elastic_transport import NodeConfig  # type: ignore[import-not-found]
 from elasticsearch import Elasticsearch, helpers  # type: ignore[import-not-found]
 from haystack import default_from_dict, default_to_dict
 from haystack.dataclasses import Document
-from haystack.document_stores import DocumentStoreError, DuplicateDocumentError, DuplicatePolicy
+from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
+from haystack.document_stores.types import DuplicatePolicy
 from haystack.utils.filters import convert
 
 from elasticsearch_haystack.filters import _normalize_filters
