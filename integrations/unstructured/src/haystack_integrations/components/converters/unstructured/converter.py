@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Literal, Optional, Union
 
 from haystack import Document, component, default_to_dict
+from haystack.components.converters.utils import normalize_metadata
 from tqdm import tqdm
 
 from unstructured.documents.elements import Element  # type: ignore[import]
@@ -89,12 +90,17 @@ class UnstructuredFileConverter:
         )
 
     @component.output_types(documents=List[Document])
-    def run(self, paths: Union[List[str], List[os.PathLike]]):
+    def run(self, paths: Union[List[str], List[os.PathLike]], meta: Optional[Union[Dict[str, Any], List[Dict[str, Any]]]] = None):
         """
         Convert files to Haystack Documents using the Unstructured API (hosted or running locally).
 
         :param paths: List of paths to convert. Paths can be files or directories.
             If a path is a directory, all files in the directory are converted. Subdirectories are ignored.
+        :param meta: Optional metadata to attach to the Documents.
+          This value can be either a list of dictionaries or a single dictionary.
+          If it's a single dictionary, its content is added to the metadata of all produced Documents.
+          If it's a list, the length of the list must match the number of sources, because the two lists will be zipped.
+          Defaults to `None`.
         """
 
         unique_paths = {Path(path) for path in paths}
@@ -107,9 +113,10 @@ class UnstructuredFileConverter:
 
         # currently, the files are converted sequentially to gently handle API failures
         documents = []
+        meta_list = normalize_metadata(meta, sources_count=len(all_filepaths))
 
-        for filepath in tqdm(
-            all_filepaths, desc="Converting files to Haystack Documents", disable=not self.progress_bar
+        for filepath, metadata in tqdm(
+            zip(all_filepaths, meta_list), desc="Converting files to Haystack Documents", disable=not self.progress_bar
         ):
             elements = self._partition_file_into_elements(filepath=filepath)
             docs_for_file = self._create_documents(
@@ -117,6 +124,7 @@ class UnstructuredFileConverter:
                 elements=elements,
                 document_creation_mode=self.document_creation_mode,
                 separator=self.separator,
+                meta=metadata,
             )
             documents.extend(docs_for_file)
 
@@ -128,6 +136,7 @@ class UnstructuredFileConverter:
         elements: List[Element],
         document_creation_mode: Literal["one-doc-per-file", "one-doc-per-page", "one-doc-per-element"],
         separator: str,
+        meta: Optional[Dict[str, Any]] = None,
     ) -> List[Document]:
         """
         Create Haystack Documents from the elements returned by Unstructured.
@@ -136,13 +145,16 @@ class UnstructuredFileConverter:
 
         if document_creation_mode == "one-doc-per-file":
             text = separator.join([str(el) for el in elements])
-            docs = [Document(content=text, meta={"name": str(filepath)})]
+            metadata = meta
+            metadata["name"] = str(filepath)
+            docs = [Document(content=text, meta=metadata)]
 
         elif document_creation_mode == "one-doc-per-page":
             texts_per_page: defaultdict[int, str] = defaultdict(str)
             meta_per_page: defaultdict[int, dict] = defaultdict(dict)
             for el in elements:
-                metadata = {"name": str(filepath)}
+                metadata = meta
+                metadata["name"] = str(filepath)
                 if hasattr(el, "metadata"):
                     metadata.update(el.metadata.to_dict())
                 page_number = int(metadata.get("page_number", 1))
@@ -154,7 +166,8 @@ class UnstructuredFileConverter:
 
         elif document_creation_mode == "one-doc-per-element":
             for el in elements:
-                metadata = {"name": str(filepath)}
+                metadata = meta
+                metadata["name"] = str(filepath)
                 if hasattr(el, "metadata"):
                     metadata.update(el.metadata.to_dict())
                 if hasattr(el, "category"):
