@@ -6,7 +6,7 @@ from typing import Any, Dict, List, Optional
 from haystack import component, default_from_dict, default_to_dict
 from haystack.dataclasses import Document
 
-from elasticsearch_haystack.document_store import ElasticsearchDocumentStore
+from haystack_integrations.document_stores.elasticsearch.document_store import ElasticsearchDocumentStore
 
 
 @component

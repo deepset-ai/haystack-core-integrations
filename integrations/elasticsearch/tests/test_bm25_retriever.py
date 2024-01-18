@@ -5,8 +5,8 @@ from unittest.mock import Mock, patch
 
 from haystack.dataclasses import Document
 
-from elasticsearch_haystack.bm25_retriever import ElasticsearchBM25Retriever
-from elasticsearch_haystack.document_store import ElasticsearchDocumentStore
+from haystack_integrations.components.retrievers.elasticsearch import ElasticsearchBM25Retriever
+from haystack_integrations.document_stores.elasticsearch import ElasticsearchDocumentStore
 
 
 def test_init_default():
@@ -18,13 +18,13 @@ def test_init_default():
     assert not retriever._scale_score
 
 
-@patch("elasticsearch_haystack.document_store.Elasticsearch")
+@patch("haystack_integrations.document_stores.elasticsearch.document_store.Elasticsearch")
 def test_to_dict(_mock_elasticsearch_client):
     document_store = ElasticsearchDocumentStore(hosts="some fake host")
     retriever = ElasticsearchBM25Retriever(document_store=document_store)
     res = retriever.to_dict()
     assert res == {
-        "type": "elasticsearch_haystack.bm25_retriever.ElasticsearchBM25Retriever",
+        "type": "haystack_integrations.components.retrievers.elasticsearch.bm25_retriever.ElasticsearchBM25Retriever",
         "init_parameters": {
             "document_store": {
                 "init_parameters": {
@@ -32,7 +32,7 @@ def test_to_dict(_mock_elasticsearch_client):
                     "index": "default",
                     "embedding_similarity_function": "cosine",
                 },
-                "type": "elasticsearch_haystack.document_store.ElasticsearchDocumentStore",
+                "type": "haystack_integrations.document_stores.elasticsearch.document_store.ElasticsearchDocumentStore",
             },
             "filters": {},
             "fuzziness": "AUTO",
@@ -42,14 +42,14 @@ def test_to_dict(_mock_elasticsearch_client):
     }
 
 
-@patch("elasticsearch_haystack.document_store.Elasticsearch")
+@patch("haystack_integrations.document_stores.elasticsearch.document_store.Elasticsearch")
 def test_from_dict(_mock_elasticsearch_client):
     data = {
-        "type": "elasticsearch_haystack.bm25_retriever.ElasticsearchBM25Retriever",
+        "type": "haystack_integrations.components.retrievers.elasticsearch.bm25_retriever.ElasticsearchBM25Retriever",
         "init_parameters": {
             "document_store": {
                 "init_parameters": {"hosts": "some fake host", "index": "default"},
-                "type": "elasticsearch_haystack.document_store.ElasticsearchDocumentStore",
+                "type": "haystack_integrations.document_stores.elasticsearch.document_store.ElasticsearchDocumentStore",
             },
             "filters": {},
             "fuzziness": "AUTO",

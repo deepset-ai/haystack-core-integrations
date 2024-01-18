@@ -15,7 +15,7 @@ from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumen
 from haystack.document_stores.types import DuplicatePolicy
 from haystack.utils.filters import convert
 
-from elasticsearch_haystack.filters import _normalize_filters
+from .filters import _normalize_filters
 
 logger = logging.getLogger(__name__)
 

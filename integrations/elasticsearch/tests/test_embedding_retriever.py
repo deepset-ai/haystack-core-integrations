@@ -5,8 +5,8 @@ from unittest.mock import Mock, patch
 
 from haystack.dataclasses import Document
 
-from elasticsearch_haystack.document_store import ElasticsearchDocumentStore
-from elasticsearch_haystack.embedding_retriever import ElasticsearchEmbeddingRetriever
+from haystack_integrations.components.retrievers.elasticsearch import ElasticsearchEmbeddingRetriever
+from haystack_integrations.document_stores.elasticsearch import ElasticsearchDocumentStore
 
 
 def test_init_default():
@@ -18,13 +18,13 @@ def test_init_default():
     assert retriever._num_candidates is None
 
 
-@patch("elasticsearch_haystack.document_store.Elasticsearch")
+@patch("haystack_integrations.document_stores.elasticsearch.document_store.Elasticsearch")
 def test_to_dict(_mock_elasticsearch_client):
     document_store = ElasticsearchDocumentStore(hosts="some fake host")
     retriever = ElasticsearchEmbeddingRetriever(document_store=document_store)
     res = retriever.to_dict()
     assert res == {
-        "type": "elasticsearch_haystack.embedding_retriever.ElasticsearchEmbeddingRetriever",
+        "type": "haystack_integrations.components.retrievers.elasticsearch.embedding_retriever.ElasticsearchEmbeddingRetriever",
         "init_parameters": {
             "document_store": {
                 "init_parameters": {
@@ -32,7 +32,7 @@ def test_to_dict(_mock_elasticsearch_client):
                     "index": "default",
                     "embedding_similarity_function": "cosine",
                 },
-                "type": "elasticsearch_haystack.document_store.ElasticsearchDocumentStore",
+                "type": "haystack_integrations.document_stores.elasticsearch.document_store.ElasticsearchDocumentStore",
             },
             "filters": {},
             "top_k": 10,
@@ -41,14 +41,14 @@ def test_to_dict(_mock_elasticsearch_client):
     }
 
 
-@patch("elasticsearch_haystack.document_store.Elasticsearch")
+@patch("haystack_integrations.document_stores.elasticsearch.document_store.Elasticsearch")
 def test_from_dict(_mock_elasticsearch_client):
     data = {
-        "type": "elasticsearch_haystack.embedding_retriever.ElasticsearchEmbeddingRetriever",
+        "type": "haystack_integrations.components.retrievers.elasticsearch.embedding_retriever.ElasticsearchEmbeddingRetriever",
         "init_parameters": {
             "document_store": {
                 "init_parameters": {"hosts": "some fake host", "index": "default"},
-                "type": "elasticsearch_haystack.document_store.ElasticsearchDocumentStore",
+                "type": "haystack_integrations.document_stores.elasticsearch.document_store.ElasticsearchDocumentStore",
             },
             "filters": {},
             "top_k": 10,

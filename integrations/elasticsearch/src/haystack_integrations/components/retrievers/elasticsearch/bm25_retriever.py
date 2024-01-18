@@ -6,7 +6,7 @@ from typing import Any, Dict, List, Optional
 from haystack import component, default_from_dict, default_to_dict
 from haystack.dataclasses import Document
 
-from elasticsearch_haystack.document_store import ElasticsearchDocumentStore
+from haystack_integrations.document_stores.elasticsearch.document_store import ElasticsearchDocumentStore
 
 
 @component
@@ -19,8 +19,8 @@ class ElasticsearchBM25Retriever:
     Usage example:
     ```python
     from haystack import Document
-    from elasticsearch_haystack.document_store import ElasticsearchDocumentStore
-    from elasticsearch_haystack.bm25_retriever import ElasticsearchBM25Retriever
+    from haystack_integrations.document_stores.elasticsearch import ElasticsearchDocumentStore
+    from haystack_integrations.components.retrievers.elasticsearch import ElasticsearchBM25Retriever
 
     document_store = ElasticsearchDocumentStore(hosts="http://localhost:9200")
     retriever = ElasticsearchBM25Retriever(document_store=document_store)
