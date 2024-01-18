@@ -2,7 +2,7 @@ from typing import List
 
 import pytest
 from haystack import Document
-from haystack.document_stores import DocumentStore
+from haystack.document_stores.types import DocumentStore
 from haystack.testing.document_store import LegacyFilterDocumentsTest
 from haystack.utils.filters import FilterError
 
