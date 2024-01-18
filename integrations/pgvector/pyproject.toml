@@ -172,6 +172,8 @@ exclude_lines = [
 module = [
   "haystack.*",
   "haystack_integrations.*",
+  "pgvector.*",
+  "sqlalchemy.*",
   "pytest.*"
 ]
 ignore_missing_imports = true
