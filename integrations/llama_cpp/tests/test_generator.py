@@ -95,18 +95,14 @@ class TestLlamaCppGenerator:
         """
         Test that n_ctx is ignored if already specified in model_kwargs.
         """
-        generator = LlamaCppGenerator(
-            model="test_model.gguf", n_ctx=512, n_batch=512, model_kwargs={"n_ctx": 1024}
-        )
+        generator = LlamaCppGenerator(model="test_model.gguf", n_ctx=512, n_batch=512, model_kwargs={"n_ctx": 1024})
         assert generator.model_kwargs["n_ctx"] == 1024
 
     def test_ignores_n_batch_if_specified_in_model_kwargs(self):
         """
         Test that n_batch is ignored if already specified in model_kwargs.
         """
-        generator = LlamaCppGenerator(
-            model="test_model.gguf", n_ctx=512, n_batch=512, model_kwargs={"n_batch": 1024}
-        )
+        generator = LlamaCppGenerator(model="test_model.gguf", n_ctx=512, n_batch=512, model_kwargs={"n_batch": 1024})
         assert generator.model_kwargs["n_batch"] == 1024
 
     def test_raises_error_without_warm_up(self):
