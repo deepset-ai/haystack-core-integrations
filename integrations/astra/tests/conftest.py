@@ -1,7 +1,7 @@
 import os
 
 import pytest
-from haystack.document_stores import DuplicatePolicy
+from haystack.document_stores.types import DuplicatePolicy
 
 from astra_haystack.document_store import AstraDocumentStore
 

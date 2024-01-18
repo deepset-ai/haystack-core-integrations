@@ -11,7 +11,7 @@ import pandas as pd
 import pinecone
 from haystack import default_to_dict
 from haystack.dataclasses import Document
-from haystack.document_stores import DuplicatePolicy
+from haystack.document_stores.types import DuplicatePolicy
 from haystack.utils.filters import convert
 
 from pinecone_haystack.filters import _normalize_filters

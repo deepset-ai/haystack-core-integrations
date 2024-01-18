@@ -2,8 +2,8 @@ from typing import List
 
 import pytest
 from haystack import Document
-from haystack.document_stores import DuplicatePolicy
 from haystack.document_stores.errors import DuplicateDocumentError
+from haystack.document_stores.types import DuplicatePolicy
 from haystack.testing.document_store import (
     CountDocumentsTest,
     DeleteDocumentsTest,

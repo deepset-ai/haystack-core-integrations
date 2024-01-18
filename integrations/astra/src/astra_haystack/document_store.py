@@ -9,11 +9,8 @@ from typing import Any, Dict, List, Optional, Union
 import pandas as pd
 from haystack import default_from_dict, default_to_dict
 from haystack.dataclasses import Document
-from haystack.document_stores import (
-    DuplicateDocumentError,
-    DuplicatePolicy,
-    MissingDocumentError,
-)
+from haystack.document_stores.errors import DuplicateDocumentError, MissingDocumentError
+from haystack.document_stores.types import DuplicatePolicy
 
 from astra_haystack.astra_client import AstraClient
 from astra_haystack.errors import AstraDocumentStoreFilterError
