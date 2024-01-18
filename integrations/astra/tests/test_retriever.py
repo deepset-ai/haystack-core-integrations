@@ -11,7 +11,7 @@ from astra_haystack.retriever import AstraRetriever
 @pytest.mark.skipif(
     os.environ.get("ASTRA_DB_APPLICATION_TOKEN", "") == "", reason="ASTRA_DB_APPLICATION_TOKEN is not set"
 )
-@pytest.mark.skipif(os.environ.get("ASTRA_DB_ID", "") == "", reason="ASTRA_DB_ID is not set")
+@pytest.mark.skipif(os.environ.get("ASTRA_DB_API_ENDPOINT", "") == "", reason="ASTRA_DB_API_ENDPOINT is not set")
 @pytest.mark.integration
 def test_retriever_to_json(document_store):
     retriever = AstraRetriever(document_store, filters={"foo": "bar"}, top_k=99)
@@ -39,7 +39,7 @@ def test_retriever_to_json(document_store):
 @pytest.mark.skipif(
     os.environ.get("ASTRA_DB_APPLICATION_TOKEN", "") == "", reason="ASTRA_DB_APPLICATION_TOKEN is not set"
 )
-@pytest.mark.skipif(os.environ.get("ASTRA_DB_ID", "") == "", reason="ASTRA_DB_ID is not set")
+@pytest.mark.skipif(os.environ.get("ASTRA_DB_API_ENDPOINT", "") == "", reason="ASTRA_DB_API_ENDPOINT is not set")
 @pytest.mark.integration
 def test_retriever_from_json():
     data = {

@@ -29,8 +29,7 @@ prompt_template = """
                 Answer:
                 """
 
-astra_id = os.getenv("ASTRA_DB_ID", "")
-astra_region = os.getenv("ASTRA_DB_REGION", "us-east1")
+astra_endpoint = os.getenv("ASTRA_DB_API_ENDPOINT", "")
 
 astra_application_token = os.getenv("ASTRA_DB_APPLICATION_TOKEN", "")
 collection_name = os.getenv("COLLECTION_NAME", "haystack_vector_search")
@@ -38,8 +37,7 @@ keyspace_name = os.getenv("KEYSPACE_NAME", "recommender_demo")
 
 # We support many different databases. Here, we load a simple and lightweight in-memory database.
 document_store = AstraDocumentStore(
-    astra_id=astra_id,
-    astra_region=astra_region,
+    astra_endpoint=astra_endpoint,
     astra_collection=collection_name,
     astra_keyspace=keyspace_name,
     astra_application_token=astra_application_token,
@@ -62,7 +60,7 @@ documents = [
 ]
 p = Pipeline()
 p.add_component(
-    instance=SentenceTransformersDocumentEmbedder(model_name_or_path="sentence-transformers/all-MiniLM-L6-v2"),
+    instance=SentenceTransformersDocumentEmbedder("sentence-transformers/all-MiniLM-L6-v2"),
     name="embedder",
 )
 p.add_component(instance=DocumentWriter(document_store=document_store, policy=DuplicatePolicy.SKIP), name="writer")

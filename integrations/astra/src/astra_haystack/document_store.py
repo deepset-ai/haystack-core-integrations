@@ -38,8 +38,7 @@ class AstraDocumentStore:
 
     def __init__(
         self,
-        astra_id: str,
-        astra_region: str,
+        astra_endpoint: str,
         astra_application_token: str,
         astra_keyspace: str,
         astra_collection: str,
@@ -53,8 +52,7 @@ class AstraDocumentStore:
         through the UI by clicking and the connect tab, and then selecting JSON API and
         Generate Configuration.
 
-        :param astra_id: id of the Astra DB instance.
-        :param astra_region: Region of cloud servers (can be found when generating the token).
+        :param astra_endpoint: Endpoint of the Astra DB instance.
         :param astra_application_token: the connection token for Astra.
         :param astra_keyspace: The keyspace for the current Astra DB.
         :param astra_collection: The current collection in the keyspace in the current Astra DB.
@@ -70,8 +68,7 @@ class AstraDocumentStore:
         """
 
         self.duplicates_policy = duplicates_policy
-        self.astra_id = astra_id
-        self.astra_region = astra_region
+        self.astra_endpoint = astra_endpoint
         self.astra_application_token = astra_application_token
         self.astra_keyspace = astra_keyspace
         self.astra_collection = astra_collection
@@ -79,8 +76,7 @@ class AstraDocumentStore:
         self.similarity = similarity
 
         self.index = AstraClient(
-            astra_id=self.astra_id,
-            astra_region=self.astra_region,
+            astra_endpoint=self.astra_endpoint,
             astra_application_token=self.astra_application_token,
             keyspace_name=self.astra_keyspace,
             collection_name=self.astra_collection,
@@ -96,8 +92,7 @@ class AstraDocumentStore:
         return default_to_dict(
             self,
             duplicates_policy=self.duplicates_policy.name,
-            astra_id=self.astra_id,
-            astra_region=self.astra_region,
+            astra_endpoint=self.astra_endpoint,
             astra_keyspace=self.astra_keyspace,
             astra_collection=self.astra_collection,
             embedding_dim=self.embedding_dim,
