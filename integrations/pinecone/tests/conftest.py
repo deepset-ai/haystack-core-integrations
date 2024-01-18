@@ -1,7 +1,7 @@
 import time
 
 import pytest
-from haystack.document_stores import DuplicatePolicy
+from haystack.document_stores.types import DuplicatePolicy
 
 from pinecone_haystack.document_store import PineconeDocumentStore
 
