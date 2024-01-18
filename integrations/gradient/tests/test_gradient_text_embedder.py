@@ -53,7 +53,7 @@ class TestGradientTextEmbedder:
         data = component.to_dict()
         assert data == {
             "type": "gradient_haystack.embedders.gradient_text_embedder.GradientTextEmbedder",
-            "init_parameters": {"workspace_id": workspace_id, "model_name": "bge-large"},
+            "init_parameters": {"workspace_id": workspace_id, "model": "bge-large"},
         }
 
     def test_warmup(self):
