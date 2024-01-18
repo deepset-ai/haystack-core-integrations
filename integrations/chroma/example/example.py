@@ -23,7 +23,7 @@ indexing.run({"converter": {"sources": file_paths}})
 
 querying = Pipeline()
 querying.add_component("retriever", ChromaQueryRetriever(document_store))
-results = querying.run({"retriever": {"queries": ["Variable declarations"], "top_k": 3}})
+results = querying.run({"retriever": {"query": "Variable declarations", "top_k": 3}})
 
-for d in results["retriever"]["documents"][0]:
+for d in results["retriever"]["documents"]:
     print(d.meta, d.score)
