@@ -7,8 +7,8 @@ import pytest
 from haystack import Document, Pipeline
 from haystack.components.builders.answer_builder import AnswerBuilder
 from haystack.components.builders.prompt_builder import PromptBuilder
-from haystack.components.retrievers import InMemoryBM25Retriever
-from haystack.document_stores import InMemoryDocumentStore
+from haystack.components.retrievers.in_memory import InMemoryBM25Retriever
+from haystack.document_stores.in_memory import InMemoryDocumentStore
 from haystack_integrations.components.generators.llama_cpp import LlamaCppGenerator
 
 
