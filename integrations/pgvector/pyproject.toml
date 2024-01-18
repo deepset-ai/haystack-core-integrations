@@ -3,9 +3,9 @@ requires = ["hatchling", "hatch-vcs"]
 build-backend = "hatchling.build"
 
 [project]
-name = "weaviate-haystack"
+name = "pgvector-haystack"
 dynamic = ["version"]
-description = "An integration of Weaviate vector database with Haystack"
+description = "An integration of pgvector (vector search extension for Postgres) with Haystack"
 readme = "README.md"
 requires-python = ">=3.8"
 license = "Apache-2.0"
@@ -26,12 +26,12 @@ classifiers = [
 ]
 dependencies = [
   "haystack-ai",
-  "weaviate-client==3.*",
+  "pgvector",
 ]
 
 [project.urls]
 Source = "https://github.com/deepset-ai/haystack-core-integrations"
-Documentation = "https://github.com/deepset-ai/haystack-core-integrations/blob/main/integrations/weaviate/README.md"
+Documentation = "https://github.com/deepset-ai/haystack-core-integrations/blob/main/integrations/pgvector/README.md"
 Issues = "https://github.com/deepset-ai/haystack-core-integrations/issues"
 
 [tool.hatch.build.targets.wheel]
@@ -39,11 +39,11 @@ packages = ["src/haystack_integrations"]
 
 [tool.hatch.version]
 source = "vcs"
-tag-pattern = 'integrations\/weaviate-v(?P<version>.*)'
+tag-pattern = 'integrations\/pgvector-v(?P<version>.*)'
 
 [tool.hatch.version.raw-options]
 root = "../.."
-git_describe_command = 'git describe --tags --match="integrations/weaviate-v[0-9]*"'
+git_describe_command = 'git describe --tags --match="integrations/pgvector-v[0-9]*"'
 
 [tool.hatch.envs.default]
 dependencies = [
@@ -156,8 +156,8 @@ parallel = true
 
 
 [tool.coverage.paths]
-weaviate_haystack = ["src/haystack_integrations", "*/weaviate-haystack/src"]
-tests = ["tests", "*/weaviate-haystack/tests"]
+weaviate_haystack = ["src/haystack_integrations", "*/pgvector-haystack/src"]
+tests = ["tests", "*/pgvector-haystack/tests"]
 
 [tool.coverage.report]
 exclude_lines = [
@@ -170,9 +170,6 @@ exclude_lines = [
 module = [
   "haystack.*",
   "haystack_integrations.*",
-  "pytest.*",
-  "weaviate.*",
-  "numpy",
-  "grpc"
+  "pytest.*"
 ]
 ignore_missing_imports = true
