@@ -17,7 +17,7 @@ class LlamaCppGenerator:
     Usage example:
     ```python
     from llama_cpp_haystack import LlamaCppGenerator
-    generator = LlamaCppGenerator(model_path="zephyr-7b-beta.Q4_0.gguf", n_ctx=2048, n_batch=512)
+    generator = LlamaCppGenerator(model="zephyr-7b-beta.Q4_0.gguf", n_ctx=2048, n_batch=512)
 
     print(generator.run("Who is the best American actor?", generation_kwargs={"max_tokens": 128}))
     # {'replies': ['John Cusack'], 'meta': [{"object": "text_completion", ...}]}
@@ -26,23 +26,23 @@ class LlamaCppGenerator:
 
     def __init__(
         self,
-        model_path: str,
+        model: str,
         n_ctx: Optional[int] = 0,
         n_batch: Optional[int] = 512,
         model_kwargs: Optional[Dict[str, Any]] = None,
         generation_kwargs: Optional[Dict[str, Any]] = None,
     ):
         """
-        :param model_path: The path of a quantized model for text generation,
+        :param model: The path of a quantized model for text generation,
             for example, "zephyr-7b-beta.Q4_0.gguf".
-            If the model_path is also specified in the `model_kwargs`, this parameter will be ignored.
+            If the model path is also specified in the `model_kwargs`, this parameter will be ignored.
         :param n_ctx: The number of tokens in the context. When set to 0, the context will be taken from the model.
             If the n_ctx is also specified in the `model_kwargs`, this parameter will be ignored.
         :param n_batch: Prompt processing maximum batch size. Defaults to 512.
             If the n_batch is also specified in the `model_kwargs`, this parameter will be ignored.
         :param model_kwargs: Dictionary containing keyword arguments used to initialize the LLM for text generation.
             These keyword arguments provide fine-grained control over the model loading.
-            In case of duplication, these kwargs override `model_path`, `n_ctx`, and `n_batch` init parameters.
+            In case of duplication, these kwargs override `model`, `n_ctx`, and `n_batch` init parameters.
             See Llama.cpp's [documentation](https://llama-cpp-python.readthedocs.io/en/latest/api-reference/#llama_cpp.Llama.__init__)
             for more information on the available kwargs.
         :param generation_kwargs:  A dictionary containing keyword arguments to customize text generation.
@@ -56,11 +56,11 @@ class LlamaCppGenerator:
 
         # check if the huggingface_pipeline_kwargs contain the essential parameters
         # otherwise, populate them with values from init parameters
-        model_kwargs.setdefault("model_path", model_path)
+        model_kwargs.setdefault("model_path", model)
         model_kwargs.setdefault("n_ctx", n_ctx)
         model_kwargs.setdefault("n_batch", n_batch)
 
-        self.model_path = model_path
+        self.model_path = model
         self.n_ctx = n_ctx
         self.n_batch = n_batch
         self.model_kwargs = model_kwargs
