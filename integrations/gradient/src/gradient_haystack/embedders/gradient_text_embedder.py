@@ -13,7 +13,7 @@ class GradientTextEmbedder:
     embedder = GradientTextEmbedder(
         access_token=gradient_access_token,
         workspace_id=gradient_workspace_id,
-        model_name="bge_large")
+        model="bge_large")
     p = Pipeline()
     p.add_component(instance=embedder, name="text_embedder")
     p.add_component(instance=InMemoryEmbeddingRetriever(document_store=InMemoryDocumentStore()), name="retriever")
@@ -25,7 +25,7 @@ class GradientTextEmbedder:
     def __init__(
         self,
         *,
-        model_name: str = "bge-large",
+        model: str = "bge-large",
         access_token: Optional[str] = None,
         workspace_id: Optional[str] = None,
         host: Optional[str] = None,
@@ -33,7 +33,7 @@ class GradientTextEmbedder:
         """
         Create a GradientTextEmbedder component.
 
-        :param model_name: The name of the model to use.
+        :param model: The name of the model to use.
         :param access_token: The Gradient access token. If not provided it's read from the environment
                              variable GRADIENT_ACCESS_TOKEN.
         :param workspace_id: The Gradient workspace ID. If not provided it's read from the environment
@@ -41,7 +41,7 @@ class GradientTextEmbedder:
         :param host: The Gradient host. By default it uses https://api.gradient.ai/.
         """
         self._host = host
-        self._model_name = model_name
+        self._model_name = model
 
         self._gradient = Gradient(access_token=access_token, host=host, workspace_id=workspace_id)
 
@@ -55,7 +55,7 @@ class GradientTextEmbedder:
         """
         Serialize the component to a Python dictionary.
         """
-        return default_to_dict(self, workspace_id=self._gradient.workspace_id, model_name=self._model_name)
+        return default_to_dict(self, workspace_id=self._gradient.workspace_id, model=self._model_name)
 
     def warm_up(self) -> None:
         """

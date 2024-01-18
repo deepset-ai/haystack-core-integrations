@@ -36,7 +36,7 @@ class JinaDocumentEmbedder:
     def __init__(
         self,
         api_key: Optional[str] = None,
-        model_name: str = "jina-embeddings-v2-base-en",
+        model: str = "jina-embeddings-v2-base-en",
         prefix: str = "",
         suffix: str = "",
         batch_size: int = 32,
@@ -48,7 +48,7 @@ class JinaDocumentEmbedder:
         Create a JinaDocumentEmbedder component.
         :param api_key: The Jina API key. It can be explicitly provided or automatically read from the
             environment variable JINA_API_KEY (recommended).
-        :param model_name: The name of the Jina model to use. Check the list of available models on `https://jina.ai/embeddings/`
+        :param model: The name of the Jina model to use. Check the list of available models on `https://jina.ai/embeddings/`
         :param prefix: A string to add to the beginning of each text.
         :param suffix: A string to add to the end of each text.
         :param batch_size: Number of Documents to encode at once.
@@ -67,7 +67,7 @@ class JinaDocumentEmbedder:
             )
             raise ValueError(msg)
 
-        self.model_name = model_name
+        self.model_name = model
         self.prefix = prefix
         self.suffix = suffix
         self.batch_size = batch_size
@@ -96,7 +96,7 @@ class JinaDocumentEmbedder:
         """
         return default_to_dict(
             self,
-            model_name=self.model_name,
+            model=self.model_name,
             prefix=self.prefix,
             suffix=self.suffix,
             batch_size=self.batch_size,
