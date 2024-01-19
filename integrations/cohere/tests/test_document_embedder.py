@@ -60,7 +60,7 @@ class TestCohereDocumentEmbedder:
         embedder_component = CohereDocumentEmbedder(api_key="test-api-key")
         component_dict = embedder_component.to_dict()
         assert component_dict == {
-            "type": "cohere_haystack.embedders.document_embedder.CohereDocumentEmbedder",
+            "type": "haystack_integrations.components.embedders.document_embedder.CohereDocumentEmbedder",
             "init_parameters": {
                 "model": "embed-english-v2.0",
                 "input_type": "search_document",
@@ -93,7 +93,7 @@ class TestCohereDocumentEmbedder:
         )
         component_dict = embedder_component.to_dict()
         assert component_dict == {
-            "type": "cohere_haystack.embedders.document_embedder.CohereDocumentEmbedder",
+            "type": "haystack_integrations.components.embedders.document_embedder.CohereDocumentEmbedder",
             "init_parameters": {
                 "model": "embed-multilingual-v2.0",
                 "input_type": "search_query",
