@@ -8,14 +8,15 @@ import numpy as np
 
 # There are no import stubs for elastic_transport and elasticsearch so mypy fails
 from elastic_transport import NodeConfig  # type: ignore[import-not-found]
-from elasticsearch import Elasticsearch, helpers  # type: ignore[import-not-found]
 from haystack import default_from_dict, default_to_dict
 from haystack.dataclasses import Document
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
 from haystack.utils.filters import convert
 
-from elasticsearch_haystack.filters import _normalize_filters
+from elasticsearch import Elasticsearch, helpers  # type: ignore[import-not-found]
+
+from .filters import _normalize_filters
 
 logger = logging.getLogger(__name__)
 
