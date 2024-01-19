@@ -21,13 +21,13 @@ logger = logging.getLogger(__name__)
 
 TABLE_DEFINITION = [
     ("id", "VARCHAR(128)", "PRIMARY KEY"),
-    ("embedding", "VECTOR({embedding_dimension})"),
-    ("content", "TEXT"),
-    ("dataframe", "JSON"),
-    ("blob_data", "BYTEA"),
-    ("blob_meta", "JSON"),
-    ("blob_mime_type", "VARCHAR(255)"),
-    ("meta", "JSON"),
+    ("embedding", "VECTOR({embedding_dimension})", ""),
+    ("content", "TEXT", ""),
+    ("dataframe", "JSON", ""),
+    ("blob_data", "BYTEA", ""),
+    ("blob_meta", "JSON", ""),
+    ("blob_mime_type", "VARCHAR(255)", ""),
+    ("meta", "JSON", ""),
 ]
 
 SIMILARITY_FUNCTION_TO_POSTGRESQL_OPS = {
@@ -139,10 +139,8 @@ class PgvectorDocumentStore:
         Creates the table to store Haystack documents if it doesn't exist yet.
         """
 
-        table_structure_str = ", ".join(
-            f"{col[0]} {col[1]} {col[2]}" if len(col) == 3 else f"{col[0]} {col[1]}"  # noqa: PLR2004
-            for col in TABLE_DEFINITION
-        )
+        table_structure_str = ", ".join(f"{name} {dtype} {constraint}" for name, dtype, constraint in TABLE_DEFINITION)
+
 
         create_sql = SQL("CREATE TABLE IF NOT EXISTS {table_name} (" + table_structure_str + ")").format(
             table_name=Identifier(self.table_name), embedding_dimension=SQLLiteral(self.embedding_dimension)
