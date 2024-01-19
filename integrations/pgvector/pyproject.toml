@@ -27,8 +27,7 @@ classifiers = [
 dependencies = [
   "haystack-ai",
   "pgvector",
-  "SQLAlchemy>=2",
-  "psycopg2-binary"
+  "psycopg[binary]"
 ]
 
 [project.urls]
@@ -173,7 +172,7 @@ module = [
   "haystack.*",
   "haystack_integrations.*",
   "pgvector.*",
-  "sqlalchemy.*",
+  "psycopg.*",
   "pytest.*"
 ]
 ignore_missing_imports = true

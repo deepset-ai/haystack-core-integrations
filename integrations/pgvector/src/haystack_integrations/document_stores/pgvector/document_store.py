@@ -4,18 +4,15 @@
 import logging
 from typing import Any, Dict, List, Literal, Optional
 
-import sqlalchemy
+import psycopg
 from haystack.dataclasses.document import Document
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
-from sqlalchemy import create_engine, delete, text
-from sqlalchemy.dialects.postgresql import BYTEA, JSON, TEXT, VARCHAR, insert
-from sqlalchemy.engine.reflection import Inspector
-from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy.orm import DeclarativeBase, Session, mapped_column
-from sqlalchemy.schema import Index
+from psycopg.sql import SQL, Identifier
+from psycopg.sql import Literal as SQLLiteral
+from psycopg.types.json import Json
 
-from pgvector.sqlalchemy import Vector
+from pgvector.psycopg import register_vector
 
 logger = logging.getLogger(__name__)
 
@@ -27,28 +24,18 @@ SIMILARITY_FUNCTION_TO_POSTGRESQL_OPS = {
     "l2_distance": "vector_l2_ops",
 }
 
+TABLE_STRUCTURE = [
+    ("id", "VARCHAR(128)", "PRIMARY KEY"),
+    ("embedding", "VECTOR({embedding_dimension})"),
+    ("content", "TEXT"),
+    ("dataframe", "JSON"),
+    ("blob_data", "BYTEA"),
+    ("blob_meta", "JSON"),
+    ("blob_mime_type", "VARCHAR(255)"),
+    ("meta", "JSON"),
+]
 
-class _AbstractDBDocument(DeclarativeBase):
-    # __abstract__ = True means that this class does not correspond to a table in the database
-    # this allows setting dinamically the table name and the embedding dimension
-    __abstract__ = True
-
-    id = mapped_column(VARCHAR(64), primary_key=True)
-    embedding = mapped_column(Vector(), nullable=True)
-    content = mapped_column(TEXT, nullable=True)
-    dataframe = mapped_column(JSON, nullable=True)
-    blob = mapped_column(BYTEA, nullable=True)
-    blob_meta = mapped_column(JSON, nullable=True)
-    blob_mime_type = mapped_column(VARCHAR(255), nullable=True)
-    meta = mapped_column(JSON, nullable=True)
-
-
-def _get_db_document(table_name, embedding_dimension):
-    return type(
-        "DBDocument",
-        (_AbstractDBDocument,),
-        {"__tablename__": table_name, "embedding": mapped_column(Vector(embedding_dimension), nullable=True)},
-    )
+INDEX_NAME = "haystack_hnsw_index"
 
 
 class PgvectorDocumentStore:
@@ -67,69 +54,121 @@ class PgvectorDocumentStore:
         hnsw_index_creation_kwargs: Optional[Dict[str, Any]] = None,
         hnsw_ef_search: Optional[int] = None,
     ):
-        engine = create_engine(connection_string)
-        self._session = Session(engine)
+        self.connection_string = connection_string
+        self.table_name = table_name
+        self.embedding_dimension = embedding_dimension
+        self.embedding_similarity_function = embedding_similarity_function
+        self.recreate_table = recreate_table
+        self.search_strategy = search_strategy
+        self.hnsw_recreate_index_if_exists = hnsw_recreate_index_if_exists
+        self.hnsw_index_creation_kwargs = hnsw_index_creation_kwargs or {}
+        self.hnsw_ef_search = hnsw_ef_search
 
-        self._session.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
-        self._session.commit()
+        connection = psycopg.connect(connection_string)
+        connection.autocommit = True
+        self._connection = connection
+        self._cursor = connection.cursor()
 
-        self._DBDocument = _get_db_document(table_name, embedding_dimension)
+        connection.execute("CREATE EXTENSION IF NOT EXISTS vector")
+        register_vector(connection)
 
         if recreate_table:
-            self._DBDocument.__table__.drop(engine, checkfirst=True)
-            self._DBDocument.__table__.create(engine)
-
-        self._distance = getattr(self._DBDocument.embedding, embedding_similarity_function)
-
-        hnsw_index_creation_kwargs = hnsw_index_creation_kwargs or {}
+            self.delete_table()
+        self._create_table_if_not_exists()
 
         if search_strategy == "hnsw":
-            if hnsw_ef_search:
-                self._session.execute(text("SET hnsw.ef_search = :ef_search"), ef_search=hnsw_ef_search)
+            self._handle_hnsw()
 
-            effective_hnsw_index_creation_kwargs = {}
-            for key, value in hnsw_index_creation_kwargs.items():
-                if key in HNSW_INDEX_CREATION_VALID_KWARGS:
-                    effective_hnsw_index_creation_kwargs[key] = value
-                else:
-                    logger.warning(
-                        "Invalid HNSW index creation keyword argument: %sValid arguments are: %s",
-                        key,
-                        HNSW_INDEX_CREATION_VALID_KWARGS,
-                    )
+    def _execute_sql(self, sql, params: Optional[tuple] = None, error_msg=""):
+        params = params or ()
 
-            inspector = Inspector.from_engine(engine)
-            exists_index = next(
-                (index for index in inspector.get_indexes(table_name=table_name) if index["name"] == "hnsw_index"), None
+        try:
+            result = self._cursor.execute(sql, params)
+            # print(f"query: {self._cursor.last_executed}")
+        except psycopg.Error as e:
+            self._connection.rollback()
+            raise DocumentStoreError(error_msg) from e
+        return result
+
+    def _create_table_if_not_exists(self):
+        table_structure_str = ", ".join(
+            f"{col[0]} {col[1]} {col[2]}" if len(col) == 3 else f"{col[0]} {col[1]}"  # noqa: PLR2004
+            for col in TABLE_STRUCTURE
+        )
+
+        create_sql = SQL("CREATE TABLE IF NOT EXISTS {table_name} (" + table_structure_str + ")").format(
+            table_name=Identifier(self.table_name), embedding_dimension=SQLLiteral(self.embedding_dimension)
+        )
+
+        self._execute_sql(create_sql, error_msg="Could not create table in PgvectorDocumentStore")
+
+    def delete_table(self):
+        delete_sql = SQL("DROP TABLE IF EXISTS {}").format(Identifier(self.table_name))
+
+        self._execute_sql(delete_sql, error_msg="Could not delete table in PgvectorDocumentStore")
+
+    def _handle_hnsw(self):
+        if self.hnsw_ef_search:
+            sql_set_hnsw_ef_search = SQL("SET hnsw.ef_search = {hnsw_ef_search}").format(
+                hnsw_ef_search=SQLLiteral(self.hnsw_ef_search)
             )
+            self._execute_sql(sql_set_hnsw_ef_search, error_msg="Could not set hnsw.ef_search")
 
-            if exists_index:
-                if not hnsw_recreate_index_if_exists:
-                    logger.warning(
-                        "HNSW index already exists and won't be recreated. "
-                        "If you want to recreate it, set hnsw_recreate_index=True"
-                    )
-                    return
-                self._session.execute(text("DROP INDEX hnsw_index"))
-                self._session.commit()
+        index_esists = bool(
+            self._execute_sql(
+                "SELECT 1 FROM pg_indexes WHERE tablename = %s AND indexname = %s",
+                (self.table_name, INDEX_NAME),
+                "Could not check if HNSW index exists",
+            ).fetchone()
+        )
 
-            index = Index(
-                "hnsw_index",
-                self._DBDocument.embedding,
-                postgresql_using="hnsw",
-                postgresql_with=effective_hnsw_index_creation_kwargs,
-                postgresql_ops={"embedding": SIMILARITY_FUNCTION_TO_POSTGRESQL_OPS[embedding_similarity_function]},
+        if index_esists and not self.hnsw_recreate_index_if_exists:
+            logger.warning(
+                "HNSW index already exists and won't be recreated. "
+                "If you want to recreate it, set hnsw_recreate_index=True"
             )
+            return
 
-            index.create(engine)
+        sql_drop_index = SQL("DROP INDEX IF EXISTS {index_name}").format(index_name=Identifier(INDEX_NAME))
+        self._execute_sql(sql_drop_index, error_msg="Could not drop HNSW index")
+
+        self._create_hnsw_index()
+
+    def _create_hnsw_index(self):
+        pg_ops = SIMILARITY_FUNCTION_TO_POSTGRESQL_OPS[self.embedding_similarity_function]
+        effective_hnsw_index_creation_kwargs = {
+            key: value
+            for key, value in self.hnsw_index_creation_kwargs.items()
+            if key in HNSW_INDEX_CREATION_VALID_KWARGS
+        }
+
+        sql_create_index = SQL("CREATE INDEX {index_name} ON {table_name} USING hnsw (embedding {ops}) ").format(
+            index_name=Identifier(INDEX_NAME), table_name=Identifier(self.table_name), ops=SQL(pg_ops)
+        )
+
+        if effective_hnsw_index_creation_kwargs:
+            effective_hnsw_index_creation_kwargs_str = ", ".join(
+                f"{key} = {value}" for key, value in effective_hnsw_index_creation_kwargs.items()
+            )
+            sql_add_creation_kwargs = SQL("WITH ({creation_kwargs_str})").format(
+                creation_kwargs_str=SQL(effective_hnsw_index_creation_kwargs_str)
+            )
+            sql_create_index = sql_create_index + sql_add_creation_kwargs
+
+        self._execute_sql(sql_create_index, error_msg="Could not create HNSW index")
 
     def count_documents(self) -> int:
         """
         Returns how many documents are present in the document store.
         """
-        return self._session.query(self._DBDocument).count()
+        sql_count = SQL("SELECT COUNT(*) FROM {}").format(Identifier(self.table_name))
 
-    def filter_documents(self, filters: Optional[Dict[str, Any]] = None) -> List[Document]:  # noqa: ARG002
+        count = self._execute_sql(sql_count, error_msg="Could not count documents in PgvectorDocumentStore").fetchone()[
+            0
+        ]
+        return count
+
+    def filter_documents(self, filters: Optional[Dict[str, Any]] = None) -> List[Document]:
         return []
 
     def write_documents(self, documents: List[Document], policy: DuplicatePolicy = DuplicatePolicy.NONE) -> int:
@@ -150,44 +189,66 @@ class PgvectorDocumentStore:
         if policy == DuplicatePolicy.NONE:
             policy = DuplicatePolicy.FAIL
 
+        db_documents = self._prepare_documents_for_pg(documents)
+
+        columns_str = "(" + ", ".join(col for col, *_ in TABLE_STRUCTURE) + ")"
+        values_placeholder_str = "VALUES (" + ", ".join(f"%({col})s" for col, *_ in TABLE_STRUCTURE) + ")"
+
+        insert_statement = SQL("INSERT INTO {table_name} " + columns_str + " " + values_placeholder_str).format(
+            table_name=Identifier(self.table_name)
+        )
+
+        if policy == DuplicatePolicy.OVERWRITE:
+            update_statement = SQL(
+                "ON CONFLICT (id) DO UPDATE SET "
+                + ", ".join(f"{col} = EXCLUDED.{col}" for col, *_ in TABLE_STRUCTURE if col != "id")
+            )
+            insert_statement = insert_statement + update_statement
+        elif policy == DuplicatePolicy.SKIP:
+            insert_statement = insert_statement + SQL("ON CONFLICT DO NOTHING")
+
+        try:
+            result = self._cursor.executemany(insert_statement, db_documents, returning=True)
+        except psycopg.Error as e:
+            self._connection.rollback()
+            raise DuplicateDocumentError from e
+
+        return 0
+
+    def _prepare_documents_for_pg(self, documents: List[Document]) -> List[Dict[str, Any]]:
         db_documents = []
         for document in documents:
             db_document = document.to_dict(flatten=False)
             db_document.pop("score")
+            db_document.pop("blob")
+
             blob = document.blob
+
+            blob_data, blob_meta, blob_mime_type = None, None, None
+
             if blob:
+                blob_data = blob.data
                 if blob.meta:
-                    db_document["blob_meta"] = blob.meta
+                    blob_meta = blob.meta
                 if blob.mime_type:
-                    db_document["blob_mime_type"] = blob.mime_type
+                    blob_mime_type = blob.mime_type
+
+            db_document["blob_data"] = blob_data
+            db_document["blob_meta"] = Json(blob_meta)
+            db_document["blob_mime_type"] = blob_mime_type
+
+            db_document["dataframe"] = Json(document.dataframe) if document.dataframe else None
+            db_document["meta"] = Json(document.meta)
+
             db_documents.append(db_document)
 
-        # we use Postgresql insert statements to properly handle the different policies
-        insert_statement = insert(self._DBDocument).values(db_documents)
-        if policy == DuplicatePolicy.OVERWRITE:
-            insert_statement = insert_statement.on_conflict_do_update(
-                constraint=self._DBDocument.__table__.primary_key,
-                set_={k: getattr(insert_statement.excluded, k) for k in db_documents[0].keys() if k != "id"},
-            )
-        elif policy == DuplicatePolicy.SKIP:
-            insert_statement = insert_statement.on_conflict_do_nothing()
-
-        try:
-            result = self._session.execute(insert_statement)
-            self._session.commit()
-        except sqlalchemy.exc.IntegrityError as e:
-            self._session.rollback()
-            raise DuplicateDocumentError from e
-
-        return result.rowcount
+        return db_documents
 
     def delete_documents(self, document_ids: List[str]) -> None:
-        statement = delete(self._DBDocument).where(self._DBDocument.id.in_(document_ids))
+        document_ids_str = ", ".join(f"'{document_id}'" for document_id in document_ids)
 
-        try:
-            self._session.execute(statement)
-            self._session.commit()
-        except SQLAlchemyError as e:
-            self._session.rollback()
-            msg = "Could not delete documents from PgvectorDocumentStore"
-            raise DocumentStoreError(msg) from e
+        delete_sql = SQL("DELETE FROM {table_name} WHERE id IN ({document_ids_str})").format(
+            table_name=Identifier(self.table_name), document_ids_str=SQL(document_ids_str)
+        )
+
+        self._execute_sql(delete_sql, error_msg="Could not delete documents from PgvectorDocumentStore")
