@@ -3,6 +3,9 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import pytest
+from haystack.dataclasses.document import Document
+from haystack.document_stores.errors import DuplicateDocumentError
+from haystack.document_stores.types import DuplicatePolicy
 from haystack.testing.document_store import CountDocumentsTest, DeleteDocumentsTest, WriteDocumentsTest
 from haystack_integrations.document_stores.pgvector import PgvectorDocumentStore
 
@@ -28,3 +31,9 @@ class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsT
         yield store
 
         store.delete_table()
+
+    def test_write_documents(self, document_store: PgvectorDocumentStore):
+        docs = [Document(id="1")]
+        assert document_store.write_documents(docs) == 1
+        with pytest.raises(DuplicateDocumentError):
+            document_store.write_documents(docs, DuplicatePolicy.FAIL)

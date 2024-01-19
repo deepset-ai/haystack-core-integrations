@@ -5,9 +5,10 @@ import logging
 from typing import Any, Dict, List, Literal, Optional
 
 import psycopg
-from haystack.dataclasses.document import Document
+from haystack.dataclasses.document import ByteStream, Document
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
+from psycopg.rows import dict_row
 from psycopg.sql import SQL, Identifier
 from psycopg.sql import Literal as SQLLiteral
 from psycopg.types.json import Json
@@ -16,15 +17,7 @@ from pgvector.psycopg import register_vector
 
 logger = logging.getLogger(__name__)
 
-HNSW_INDEX_CREATION_VALID_KWARGS = ["m", "ef_construction"]
-
-SIMILARITY_FUNCTION_TO_POSTGRESQL_OPS = {
-    "cosine_distance": "vector_cosine_ops",
-    "max_inner_product": "vector_ip_ops",
-    "l2_distance": "vector_l2_ops",
-}
-
-TABLE_STRUCTURE = [
+TABLE_DEFINITION = [
     ("id", "VARCHAR(128)", "PRIMARY KEY"),
     ("embedding", "VECTOR({embedding_dimension})"),
     ("content", "TEXT"),
@@ -35,7 +28,15 @@ TABLE_STRUCTURE = [
     ("meta", "JSON"),
 ]
 
-INDEX_NAME = "haystack_hnsw_index"
+SIMILARITY_FUNCTION_TO_POSTGRESQL_OPS = {
+    "cosine_distance": "vector_cosine_ops",
+    "max_inner_product": "vector_ip_ops",
+    "l2_distance": "vector_l2_ops",
+}
+
+HNSW_INDEX_CREATION_VALID_KWARGS = ["m", "ef_construction"]
+
+HNSW_INDEX_NAME = "haystack_hnsw_index"
 
 
 class PgvectorDocumentStore:
@@ -68,6 +69,7 @@ class PgvectorDocumentStore:
         connection.autocommit = True
         self._connection = connection
         self._cursor = connection.cursor()
+        self._dict_cursor = connection.cursor(row_factory=dict_row)
 
         connection.execute("CREATE EXTENSION IF NOT EXISTS vector")
         register_vector(connection)
@@ -79,12 +81,12 @@ class PgvectorDocumentStore:
         if search_strategy == "hnsw":
             self._handle_hnsw()
 
-    def _execute_sql(self, sql, params: Optional[tuple] = None, error_msg=""):
+    def _execute_sql(self, sql, params: Optional[tuple] = None, error_msg="", cursor=None):
         params = params or ()
+        cursor = cursor or self._cursor
 
         try:
-            result = self._cursor.execute(sql, params)
-            # print(f"query: {self._cursor.last_executed}")
+            result = cursor.execute(sql, params)
         except psycopg.Error as e:
             self._connection.rollback()
             raise DocumentStoreError(error_msg) from e
@@ -93,7 +95,7 @@ class PgvectorDocumentStore:
     def _create_table_if_not_exists(self):
         table_structure_str = ", ".join(
             f"{col[0]} {col[1]} {col[2]}" if len(col) == 3 else f"{col[0]} {col[1]}"  # noqa: PLR2004
-            for col in TABLE_STRUCTURE
+            for col in TABLE_DEFINITION
         )
 
         create_sql = SQL("CREATE TABLE IF NOT EXISTS {table_name} (" + table_structure_str + ")").format(
@@ -117,7 +119,7 @@ class PgvectorDocumentStore:
         index_esists = bool(
             self._execute_sql(
                 "SELECT 1 FROM pg_indexes WHERE tablename = %s AND indexname = %s",
-                (self.table_name, INDEX_NAME),
+                (self.table_name, HNSW_INDEX_NAME),
                 "Could not check if HNSW index exists",
             ).fetchone()
         )
@@ -129,7 +131,7 @@ class PgvectorDocumentStore:
             )
             return
 
-        sql_drop_index = SQL("DROP INDEX IF EXISTS {index_name}").format(index_name=Identifier(INDEX_NAME))
+        sql_drop_index = SQL("DROP INDEX IF EXISTS {index_name}").format(index_name=Identifier(HNSW_INDEX_NAME))
         self._execute_sql(sql_drop_index, error_msg="Could not drop HNSW index")
 
         self._create_hnsw_index()
@@ -143,7 +145,7 @@ class PgvectorDocumentStore:
         }
 
         sql_create_index = SQL("CREATE INDEX {index_name} ON {table_name} USING hnsw (embedding {ops}) ").format(
-            index_name=Identifier(INDEX_NAME), table_name=Identifier(self.table_name), ops=SQL(pg_ops)
+            index_name=Identifier(HNSW_INDEX_NAME), table_name=Identifier(self.table_name), ops=SQL(pg_ops)
         )
 
         if effective_hnsw_index_creation_kwargs:
@@ -168,8 +170,17 @@ class PgvectorDocumentStore:
         ]
         return count
 
-    def filter_documents(self, filters: Optional[Dict[str, Any]] = None) -> List[Document]:
-        return []
+    def filter_documents(self, filters: Optional[Dict[str, Any]] = None) -> List[Document]:  # noqa: ARG002
+        sql_get_docs = SQL("SELECT * FROM {table_name}").format(table_name=Identifier(self.table_name))
+
+        self._execute_sql(
+            sql_get_docs, error_msg="Could not filter documents from PgvectorDocumentStore", cursor=self._dict_cursor
+        )
+
+        # Fetch all the records
+        records = self._dict_cursor.fetchall()
+        docs = self._from_pg_to_haystack_documents(records)
+        return docs
 
     def write_documents(self, documents: List[Document], policy: DuplicatePolicy = DuplicatePolicy.NONE) -> int:
         """
@@ -189,10 +200,10 @@ class PgvectorDocumentStore:
         if policy == DuplicatePolicy.NONE:
             policy = DuplicatePolicy.FAIL
 
-        db_documents = self._prepare_documents_for_pg(documents)
+        db_documents = self._from_haystack_to_pg_documents(documents)
 
-        columns_str = "(" + ", ".join(col for col, *_ in TABLE_STRUCTURE) + ")"
-        values_placeholder_str = "VALUES (" + ", ".join(f"%({col})s" for col, *_ in TABLE_STRUCTURE) + ")"
+        columns_str = "(" + ", ".join(col for col, *_ in TABLE_DEFINITION) + ")"
+        values_placeholder_str = "VALUES (" + ", ".join(f"%({col})s" for col, *_ in TABLE_DEFINITION) + ")"
 
         insert_statement = SQL("INSERT INTO {table_name} " + columns_str + " " + values_placeholder_str).format(
             table_name=Identifier(self.table_name)
@@ -201,21 +212,32 @@ class PgvectorDocumentStore:
         if policy == DuplicatePolicy.OVERWRITE:
             update_statement = SQL(
                 "ON CONFLICT (id) DO UPDATE SET "
-                + ", ".join(f"{col} = EXCLUDED.{col}" for col, *_ in TABLE_STRUCTURE if col != "id")
+                + ", ".join(f"{col} = EXCLUDED.{col}" for col, *_ in TABLE_DEFINITION if col != "id")
             )
-            insert_statement = insert_statement + update_statement
+            insert_statement += update_statement
         elif policy == DuplicatePolicy.SKIP:
-            insert_statement = insert_statement + SQL("ON CONFLICT DO NOTHING")
+            insert_statement += SQL("ON CONFLICT DO NOTHING")
+
+        insert_statement += SQL(" RETURNING id")
 
         try:
-            result = self._cursor.executemany(insert_statement, db_documents, returning=True)
+            self._cursor.executemany(insert_statement, db_documents, returning=True)
         except psycopg.Error as e:
             self._connection.rollback()
             raise DuplicateDocumentError from e
 
-        return 0
+        # get the number of the inserted documents, inspired by psycopg3 docs
+        # https://www.psycopg.org/psycopg3/docs/api/cursors.html#psycopg.Cursor.executemany
+        written_docs = 0
+        while True:
+            if self._cursor.fetchone():
+                written_docs += 1
+            if not self._cursor.nextset():
+                break
 
-    def _prepare_documents_for_pg(self, documents: List[Document]) -> List[Dict[str, Any]]:
+        return written_docs
+
+    def _from_haystack_to_pg_documents(self, documents: List[Document]) -> List[Dict[str, Any]]:
         db_documents = []
         for document in documents:
             db_document = document.to_dict(flatten=False)
@@ -244,7 +266,29 @@ class PgvectorDocumentStore:
 
         return db_documents
 
+    def _from_pg_to_haystack_documents(self, documents: List[Dict[str, Any]]) -> List[Document]:
+        haystack_documents = []
+        for document in documents:
+            haystack_dict = dict(document)
+            blob_data = haystack_dict.pop("blob_data")
+            blob_meta = haystack_dict.pop("blob_meta")
+            blob_mime_type = haystack_dict.pop("blob_mime_type")
+
+            haystack_document = Document.from_dict(haystack_dict)
+
+            blob = None
+            if blob_data:
+                blob = ByteStream(data=blob_data, meta=blob_meta, mime_type=blob_mime_type)
+                haystack_document.blob = blob
+
+            haystack_documents.append(haystack_document)
+
+        return haystack_documents
+
     def delete_documents(self, document_ids: List[str]) -> None:
+        if not document_ids:
+            return
+
         document_ids_str = ", ".join(f"'{document_id}'" for document_id in document_ids)
 
         delete_sql = SQL("DELETE FROM {table_name} WHERE id IN ({document_ids_str})").format(
