@@ -6,7 +6,7 @@ import os
 import pytest
 from cohere import COHERE_API_URL
 
-from cohere_haystack.embedders.text_embedder import CohereTextEmbedder
+from haystack_integrations.components.embedders import CohereTextEmbedder
 
 pytestmark = pytest.mark.embedders
 
