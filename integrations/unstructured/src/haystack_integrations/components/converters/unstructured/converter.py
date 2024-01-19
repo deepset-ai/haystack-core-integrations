@@ -131,7 +131,6 @@ class UnstructuredFileConverter:
                 meta=metadata,
             )
             documents.extend(docs_for_file)
-
         return {"documents": documents}
 
     def _create_documents(
@@ -140,7 +139,7 @@ class UnstructuredFileConverter:
         elements: List[Element],
         document_creation_mode: Literal["one-doc-per-file", "one-doc-per-page", "one-doc-per-element"],
         separator: str,
-        meta: Optional[Dict[str, Any]] = None,
+        meta: Dict[str, Any],
     ) -> List[Document]:
         """
         Create Haystack Documents from the elements returned by Unstructured.
@@ -149,7 +148,7 @@ class UnstructuredFileConverter:
 
         if document_creation_mode == "one-doc-per-file":
             text = separator.join([str(el) for el in elements])
-            metadata = meta
+            metadata = meta.copy()
             metadata["name"] = str(filepath)
             docs = [Document(content=text, meta=metadata)]
 
@@ -157,7 +156,7 @@ class UnstructuredFileConverter:
             texts_per_page: defaultdict[int, str] = defaultdict(str)
             meta_per_page: defaultdict[int, dict] = defaultdict(dict)
             for el in elements:
-                metadata = meta
+                metadata = meta.copy()
                 metadata["name"] = str(filepath)
                 if hasattr(el, "metadata"):
                     metadata.update(el.metadata.to_dict())
@@ -170,7 +169,7 @@ class UnstructuredFileConverter:
 
         elif document_creation_mode == "one-doc-per-element":
             for el in elements:
-                metadata = meta
+                metadata = meta.copy()
                 metadata["name"] = str(filepath)
                 if hasattr(el, "metadata"):
                     metadata.update(el.metadata.to_dict())
@@ -178,7 +177,6 @@ class UnstructuredFileConverter:
                     metadata["category"] = el.category
                 doc = Document(content=str(el), meta=metadata)
                 docs.append(doc)
-
         return docs
 
     def _partition_file_into_elements(self, filepath: Path) -> List[Element]:
