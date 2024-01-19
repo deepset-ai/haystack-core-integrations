@@ -12,10 +12,10 @@ from haystack.dataclasses.document import Document
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
 from haystack.testing.document_store import DocumentStoreBaseTests
+from haystack_integrations.document_stores.elasticsearch import ElasticsearchDocumentStore
 
-from elasticsearch_haystack.document_store import ElasticsearchDocumentStore
 
-
+@pytest.mark.integration
 class TestDocumentStore(DocumentStoreBaseTests):
     """
     Common test cases will be provided by `DocumentStoreBaseTests` but
@@ -67,12 +67,12 @@ class TestDocumentStore(DocumentStoreBaseTests):
 
         super().assert_documents_are_equal(received, expected)
 
-    @patch("elasticsearch_haystack.document_store.Elasticsearch")
+    @patch("haystack_integrations.document_stores.elasticsearch.document_store.Elasticsearch")
     def test_to_dict(self, _mock_elasticsearch_client):
         document_store = ElasticsearchDocumentStore(hosts="some hosts")
         res = document_store.to_dict()
         assert res == {
-            "type": "elasticsearch_haystack.document_store.ElasticsearchDocumentStore",
+            "type": "haystack_integrations.document_stores.elasticsearch.document_store.ElasticsearchDocumentStore",
             "init_parameters": {
                 "hosts": "some hosts",
                 "index": "default",
@@ -80,10 +80,10 @@ class TestDocumentStore(DocumentStoreBaseTests):
             },
         }
 
-    @patch("elasticsearch_haystack.document_store.Elasticsearch")
+    @patch("haystack_integrations.document_stores.elasticsearch.document_store.Elasticsearch")
     def test_from_dict(self, _mock_elasticsearch_client):
         data = {
-            "type": "elasticsearch_haystack.document_store.ElasticsearchDocumentStore",
+            "type": "haystack_integrations.document_stores.elasticsearch.document_store.ElasticsearchDocumentStore",
             "init_parameters": {
                 "hosts": "some hosts",
                 "index": "default",
