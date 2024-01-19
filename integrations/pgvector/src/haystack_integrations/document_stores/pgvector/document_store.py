@@ -4,10 +4,11 @@
 import logging
 from typing import Any, Dict, List, Literal, Optional
 
+from haystack import default_to_dict
 from haystack.dataclasses.document import ByteStream, Document
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
-from psycopg import Error, connect
+from psycopg import Error, IntegrityError, connect
 from psycopg.abc import Query
 from psycopg.cursor import Cursor
 from psycopg.rows import dict_row
@@ -112,6 +113,20 @@ class PgvectorDocumentStore:
         if search_strategy == "hnsw":
             self._handle_hnsw()
 
+    def to_dict(self) -> Dict[str, Any]:
+        return default_to_dict(
+            self,
+            connection_string=self.connection_string,
+            table_name=self.table_name,
+            embedding_dimension=self.embedding_dimension,
+            embedding_similarity_function=self.embedding_similarity_function,
+            recreate_table=self.recreate_table,
+            search_strategy=self.search_strategy,
+            hnsw_recreate_index_if_exists=self.hnsw_recreate_index_if_exists,
+            hnsw_index_creation_kwargs=self.hnsw_index_creation_kwargs,
+            hnsw_ef_search=self.hnsw_ef_search,
+        )
+
     def _execute_sql(
         self, sql_query: Query, params: Optional[tuple] = None, error_msg: str = "", cursor: Optional[Cursor] = None
     ):
@@ -140,7 +155,6 @@ class PgvectorDocumentStore:
         """
 
         table_structure_str = ", ".join(f"{name} {dtype} {constraint}" for name, dtype, constraint in TABLE_DEFINITION)
-
 
         create_sql = SQL("CREATE TABLE IF NOT EXISTS {table_name} (" + table_structure_str + ")").format(
             table_name=Identifier(self.table_name), embedding_dimension=SQLLiteral(self.embedding_dimension)
@@ -212,7 +226,7 @@ class PgvectorDocumentStore:
             sql_add_creation_kwargs = SQL("WITH ({creation_kwargs_str})").format(
                 creation_kwargs_str=SQL(effective_hnsw_index_creation_kwargs_str)
             )
-            sql_create_index = sql_create_index + sql_add_creation_kwargs
+            sql_create_index += sql_add_creation_kwargs
 
         self._execute_sql(sql_create_index, error_msg="Could not create HNSW index")
 
@@ -282,9 +296,12 @@ class PgvectorDocumentStore:
 
         try:
             self._cursor.executemany(insert_statement, db_documents, returning=True)
+        except IntegrityError as ie:
+            self._connection.rollback()
+            raise DuplicateDocumentError from ie
         except Error as e:
             self._connection.rollback()
-            raise DuplicateDocumentError from e
+            raise DocumentStoreError from e
 
         # get the number of the inserted documents, inspired by psycopg3 docs
         # https://www.psycopg.org/psycopg3/docs/api/cursors.html#psycopg.Cursor.executemany

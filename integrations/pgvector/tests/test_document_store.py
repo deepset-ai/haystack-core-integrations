@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+
 import pytest
 from haystack.dataclasses.document import Document
 from haystack.document_stores.errors import DuplicateDocumentError
@@ -37,3 +38,54 @@ class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsT
         assert document_store.write_documents(docs) == 1
         with pytest.raises(DuplicateDocumentError):
             document_store.write_documents(docs, DuplicatePolicy.FAIL)
+
+    def test_init(self):
+        document_store = PgvectorDocumentStore(
+            connection_string="postgresql://postgres:postgres@localhost:5432/postgres",
+            table_name="my_table",
+            embedding_dimension=512,
+            embedding_similarity_function="l2_distance",
+            recreate_table=True,
+            search_strategy="hnsw",
+            hnsw_recreate_index_if_exists=True,
+            hnsw_index_creation_kwargs={"m": 32, "ef_construction": 128},
+            hnsw_ef_search=50,
+        )
+
+        assert document_store.connection_string == "postgresql://postgres:postgres@localhost:5432/postgres"
+        assert document_store.table_name == "my_table"
+        assert document_store.embedding_dimension == 512
+        assert document_store.embedding_similarity_function == "l2_distance"
+        assert document_store.recreate_table
+        assert document_store.search_strategy == "hnsw"
+        assert document_store.hnsw_recreate_index_if_exists
+        assert document_store.hnsw_index_creation_kwargs == {"m": 32, "ef_construction": 128}
+        assert document_store.hnsw_ef_search == 50
+
+    def test_to_dict(self):
+        document_store = PgvectorDocumentStore(
+            connection_string="postgresql://postgres:postgres@localhost:5432/postgres",
+            table_name="my_table",
+            embedding_dimension=512,
+            embedding_similarity_function="l2_distance",
+            recreate_table=True,
+            search_strategy="hnsw",
+            hnsw_recreate_index_if_exists=True,
+            hnsw_index_creation_kwargs={"m": 32, "ef_construction": 128},
+            hnsw_ef_search=50,
+        )
+
+        assert document_store.to_dict() == {
+            "type": "haystack_integrations.document_stores.pgvector.document_store.PgvectorDocumentStore",
+            "init_parameters": {
+                "connection_string": "postgresql://postgres:postgres@localhost:5432/postgres",
+                "table_name": "my_table",
+                "embedding_dimension": 512,
+                "embedding_similarity_function": "l2_distance",
+                "recreate_table": True,
+                "search_strategy": "hnsw",
+                "hnsw_recreate_index_if_exists": True,
+                "hnsw_index_creation_kwargs": {"m": 32, "ef_construction": 128},
+                "hnsw_ef_search": 50,
+            },
+        }
