@@ -5,7 +5,7 @@ import cohere
 import pytest
 from haystack.components.generators.utils import default_streaming_callback
 from haystack.dataclasses import ChatMessage, ChatRole, StreamingChunk
-from haystack_integrations.components.generators.chat import CohereChatGenerator
+from haystack_integrations.components.generators.cohere.chat import CohereChatGenerator
 
 pytestmark = pytest.mark.chat_generators
 
@@ -87,7 +87,7 @@ class TestCohereChatGenerator:
         component = CohereChatGenerator(api_key="test-api-key")
         data = component.to_dict()
         assert data == {
-            "type": "haystack_integrations.components.generators.chat.chat_generator.CohereChatGenerator",
+            "type": "haystack_integrations.components.generators.cohere.chat.chat_generator.CohereChatGenerator",
             "init_parameters": {
                 "model": "command",
                 "streaming_callback": None,
@@ -107,7 +107,7 @@ class TestCohereChatGenerator:
         )
         data = component.to_dict()
         assert data == {
-            "type": "haystack_integrations.components.generators.chat.chat_generator.CohereChatGenerator",
+            "type": "haystack_integrations.components.generators.cohere.chat.chat_generator.CohereChatGenerator",
             "init_parameters": {
                 "model": "command-nightly",
                 "streaming_callback": "haystack.components.generators.utils.default_streaming_callback",
@@ -127,7 +127,7 @@ class TestCohereChatGenerator:
         )
         data = component.to_dict()
         assert data == {
-            "type": "haystack_integrations.components.generators.chat.chat_generator.CohereChatGenerator",
+            "type": "haystack_integrations.components.generators.cohere.chat.chat_generator.CohereChatGenerator",
             "init_parameters": {
                 "model": "command",
                 "api_base_url": "test-base-url",
@@ -140,7 +140,7 @@ class TestCohereChatGenerator:
     def test_from_dict(self, monkeypatch):
         monkeypatch.setenv("COHERE_API_KEY", "fake-api-key")
         data = {
-            "type": "haystack_integrations.components.generators.chat.chat_generator.CohereChatGenerator",
+            "type": "haystack_integrations.components.generators.cohere.chat.chat_generator.CohereChatGenerator",
             "init_parameters": {
                 "model": "command",
                 "api_base_url": "test-base-url",
@@ -158,7 +158,7 @@ class TestCohereChatGenerator:
     def test_from_dict_fail_wo_env_var(self, monkeypatch):
         monkeypatch.delenv("COHERE_API_KEY", raising=False)
         data = {
-            "type": "haystack_integrations.components.generators.chat.chat_generator.CohereChatGenerator",
+            "type": "haystack_integrations.components.generators.cohere.chat.chat_generator.CohereChatGenerator",
             "init_parameters": {
                 "model": "command",
                 "api_base_url": "test-base-url",

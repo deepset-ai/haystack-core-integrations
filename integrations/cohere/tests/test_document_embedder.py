@@ -6,7 +6,7 @@ import os
 import pytest
 from cohere import COHERE_API_URL
 from haystack import Document
-from haystack_integrations.components.embedders import CohereDocumentEmbedder
+from haystack_integrations.components.embedders.cohere import CohereDocumentEmbedder
 
 pytestmark = pytest.mark.embedders
 
@@ -59,7 +59,7 @@ class TestCohereDocumentEmbedder:
         embedder_component = CohereDocumentEmbedder(api_key="test-api-key")
         component_dict = embedder_component.to_dict()
         assert component_dict == {
-            "type": "haystack_integrations.components.embedders.document_embedder.CohereDocumentEmbedder",
+            "type": "haystack_integrations.components.embedders.cohere.document_embedder.CohereDocumentEmbedder",
             "init_parameters": {
                 "model": "embed-english-v2.0",
                 "input_type": "search_document",
@@ -92,7 +92,7 @@ class TestCohereDocumentEmbedder:
         )
         component_dict = embedder_component.to_dict()
         assert component_dict == {
-            "type": "haystack_integrations.components.embedders.document_embedder.CohereDocumentEmbedder",
+            "type": "haystack_integrations.components.embedders.cohere.document_embedder.CohereDocumentEmbedder",
             "init_parameters": {
                 "model": "embed-multilingual-v2.0",
                 "input_type": "search_query",
