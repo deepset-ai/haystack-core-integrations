@@ -1,11 +1,10 @@
 import logging
 import os
-from typing import Any, Callable, Dict, List, Optional
-
 from haystack import component, default_from_dict, default_to_dict
 from haystack.components.generators.utils import deserialize_callback_handler, serialize_callback_handler
 from haystack.dataclasses import ChatMessage, ChatRole, StreamingChunk
 from haystack.lazy_imports import LazyImport
+from typing import Any, Callable, Dict, List, Optional
 
 with LazyImport(message="Run 'pip install cohere'") as cohere_import:
     import cohere

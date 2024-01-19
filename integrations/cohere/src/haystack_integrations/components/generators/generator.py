@@ -4,11 +4,10 @@
 import logging
 import os
 import sys
-from typing import Any, Callable, Dict, List, Optional, cast
-
 from cohere import COHERE_API_URL, Client
 from cohere.responses import Generations
 from haystack import DeserializationError, component, default_from_dict, default_to_dict
+from typing import Any, Callable, Dict, List, Optional, cast
 
 logger = logging.getLogger(__name__)
 
