@@ -3,10 +3,11 @@
 # SPDX-License-Identifier: Apache-2.0
 import asyncio
 import os
+from typing import Any, Dict, List, Optional
+
 from cohere import COHERE_API_URL, AsyncClient, Client
 from haystack import component, default_to_dict
 from haystack_integrations.components.embedders.utils import get_async_response, get_response
-from typing import Any, Dict, List, Optional
 
 
 @component

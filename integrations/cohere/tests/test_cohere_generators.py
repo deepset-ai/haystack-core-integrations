@@ -5,7 +5,6 @@ import os
 
 import pytest
 from cohere import COHERE_API_URL
-
 from haystack_integrations.components.generators import CohereGenerator
 
 pytestmark = pytest.mark.generators
