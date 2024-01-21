@@ -25,24 +25,24 @@ class ChromaQueryRetriever:
         self.top_k = top_k
         self.document_store = document_store
 
-    @component.output_types(documents=List[List[Document]])
+    @component.output_types(documents=List[Document])
     def run(
         self,
-        queries: List[str],
+        query: str,
         _: Optional[Dict[str, Any]] = None,  # filters not yet supported
         top_k: Optional[int] = None,
     ):
         """
         Run the retriever on the given input data.
 
-        :param queries: The input data for the retriever. In this case, a list of queries.
+        :param query: The input data for the retriever. In this case, a plain-text query.
         :return: The retrieved documents.
 
         :raises ValueError: If the specified document store is not found or is not a MemoryDocumentStore instance.
         """
-        if not top_k:
-            top_k = 3
-        return {"documents": self.document_store.search(queries, top_k)}
+        top_k = top_k or self.top_k
+
+        return {"documents": self.document_store.search([query], top_k)[0]}
 
     def to_dict(self) -> Dict[str, Any]:
         """
@@ -58,24 +58,6 @@ class ChromaQueryRetriever:
         document_store = ChromaDocumentStore.from_dict(data["init_parameters"]["document_store"])
         data["init_parameters"]["document_store"] = document_store
         return default_from_dict(cls, data)
-
-
-@component
-class ChromaSingleQueryRetriever(ChromaQueryRetriever):
-    """
-    A convenient wrapper to the standard query retriever that accepts a single query
-    and returns a list of documents
-    """
-
-    @component.output_types(documents=List[Document])
-    def run(
-        self,
-        query: str,
-        filters: Optional[Dict[str, Any]] = None,  # filters not yet supported
-        top_k: Optional[int] = None,
-    ):
-        queries = [query]
-        return super().run(queries, filters, top_k)[0]
 
 
 @component
@@ -95,8 +77,7 @@ class ChromaEmbeddingRetriever(ChromaQueryRetriever):
 
         :raises ValueError: If the specified document store is not found or is not a MemoryDocumentStore instance.
         """
-        if not top_k:
-            top_k = 3
+        top_k = top_k or self.top_k
 
         query_embeddings = [query_embedding]
         return {"documents": self.document_store.search_embeddings(query_embeddings, top_k)[0]}

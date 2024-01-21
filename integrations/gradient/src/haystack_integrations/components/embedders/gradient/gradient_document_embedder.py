@@ -28,7 +28,7 @@ class GradientDocumentEmbedder:
     embedder = GradientDocumentEmbedder(
         access_token=gradient_access_token,
         workspace_id=gradient_workspace_id,
-        model_name="bge_large"))
+        model="bge_large"))
     p = Pipeline()
     p.add_component(embedder, name="document_embedder")
     p.add_component(instance=GradientDocumentEmbedder(
@@ -41,7 +41,7 @@ class GradientDocumentEmbedder:
     def __init__(
         self,
         *,
-        model_name: str = "bge-large",
+        model: str = "bge-large",
         batch_size: int = 32_768,
         access_token: Optional[str] = None,
         workspace_id: Optional[str] = None,
@@ -51,7 +51,7 @@ class GradientDocumentEmbedder:
         """
         Create a GradientDocumentEmbedder component.
 
-        :param model_name: The name of the model to use.
+        :param model: The name of the model to use.
         :param batch_size: Update cycle for tqdm progress bar, default is to update every 32_768 docs.
         :param access_token: The Gradient access token. If not provided it's read from the environment
                              variable GRADIENT_ACCESS_TOKEN.
@@ -62,7 +62,7 @@ class GradientDocumentEmbedder:
         """
         self._batch_size = batch_size
         self._host = host
-        self._model_name = model_name
+        self._model_name = model
         self._progress_bar = progress_bar
 
         self._gradient = Gradient(access_token=access_token, host=host, workspace_id=workspace_id)
@@ -77,7 +77,7 @@ class GradientDocumentEmbedder:
         """
         Serialize the component to a Python dictionary.
         """
-        return default_to_dict(self, workspace_id=self._gradient.workspace_id, model_name=self._model_name)
+        return default_to_dict(self, workspace_id=self._gradient.workspace_id, model=self._model_name)
 
     def warm_up(self) -> None:
         """

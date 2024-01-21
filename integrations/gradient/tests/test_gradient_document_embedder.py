@@ -5,7 +5,7 @@ import pytest
 from gradientai.openapi.client.models.generate_embedding_success import GenerateEmbeddingSuccess
 from haystack import Document
 
-from gradient_haystack.embedders.gradient_document_embedder import GradientDocumentEmbedder
+from haystack_integrations.components.embedders.gradient import GradientDocumentEmbedder
 
 access_token = "access_token"
 workspace_id = "workspace_id"
@@ -52,9 +52,10 @@ class TestGradientDocumentEmbedder:
     def test_to_dict(self):
         component = GradientDocumentEmbedder(access_token=access_token, workspace_id=workspace_id)
         data = component.to_dict()
+        t = "haystack_integrations.components.embedders.gradient.gradient_document_embedder.GradientDocumentEmbedder"
         assert data == {
-            "type": "gradient_haystack.embedders.gradient_document_embedder.GradientDocumentEmbedder",
-            "init_parameters": {"workspace_id": workspace_id, "model_name": "bge-large"},
+            "type": t,
+            "init_parameters": {"workspace_id": workspace_id, "model": "bge-large"},
         }
 
     def test_warmup(self):

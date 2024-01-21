@@ -3,8 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 import pytest
 from haystack.errors import FilterError
-
-from elasticsearch_haystack.filters import _normalize_filters, _normalize_ranges
+from haystack_integrations.document_stores.elasticsearch.filters import _normalize_filters, _normalize_ranges
 
 filters_data = [
     (

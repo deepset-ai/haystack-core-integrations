@@ -37,6 +37,9 @@ Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/m
 Issues = "https://github.com/deepset-ai/haystack-core-integrations/issues"
 Source = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/gradient"
 
+[tool.hatch.build.targets.wheel]
+packages = ["src/haystack_integrations"]
+
 [tool.hatch.version]
 source = "vcs"
 tag-pattern = 'integrations\/gradient-v(?P<version>.*)'
@@ -73,7 +76,7 @@ dependencies = [
   "ruff>=0.0.243",
 ]
 [tool.hatch.envs.lint.scripts]
-typing = "mypy --install-types --non-interactive {args:src/gradient_haystack tests}"
+typing = "mypy --install-types --non-interactive --explicit-package-bases {args:src/ tests}"
 style = [
   "ruff {args:.}",
   "black --check --diff {args:.}",
@@ -139,25 +142,22 @@ unfixable = [
 ]
 
 [tool.ruff.isort]
-known-first-party = ["gradient_haystack"]
+known-first-party = ["haystack_integrations"]
 
 [tool.ruff.flake8-tidy-imports]
-ban-relative-imports = "all"
+ban-relative-imports = "parents"
 
 [tool.ruff.per-file-ignores]
 # Tests can use magic values, assertions, and relative imports
 "tests/**/*" = ["PLR2004", "S101", "TID252"]
 
 [tool.coverage.run]
-source_pkgs = ["gradient_haystack", "tests"]
+source_pkgs = ["src", "tests"]
 branch = true
 parallel = true
-omit = [
-  "src/gradient_haystack/__about__.py",
-]
 
 [tool.coverage.paths]
-gradient_haystack = ["src/gradient_haystack", "*/gradient-haystack/src/gradient_haystack"]
+gradient_haystack = ["src"]
 tests = ["tests", "*/gradient-haystack/tests"]
 
 [tool.coverage.report]
@@ -171,6 +171,7 @@ exclude_lines = [
 module = [
   "gradientai.*",
   "haystack.*",
+  "haystack_integrations.*",
   "pytest.*",
   "numpy.*",
 ]

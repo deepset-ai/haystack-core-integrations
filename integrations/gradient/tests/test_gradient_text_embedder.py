@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 from gradientai.openapi.client.models.generate_embedding_success import GenerateEmbeddingSuccess
 
-from gradient_haystack.embedders.gradient_text_embedder import GradientTextEmbedder
+from haystack_integrations.components.embedders.gradient import GradientTextEmbedder
 
 access_token = "access_token"
 workspace_id = "workspace_id"
@@ -52,8 +52,8 @@ class TestGradientTextEmbedder:
         component = GradientTextEmbedder(access_token=access_token, workspace_id=workspace_id)
         data = component.to_dict()
         assert data == {
-            "type": "gradient_haystack.embedders.gradient_text_embedder.GradientTextEmbedder",
-            "init_parameters": {"workspace_id": workspace_id, "model_name": "bge-large"},
+            "type": "haystack_integrations.components.embedders.gradient.gradient_text_embedder.GradientTextEmbedder",
+            "init_parameters": {"workspace_id": workspace_id, "model": "bge-large"},
         }
 
     def test_warmup(self):
