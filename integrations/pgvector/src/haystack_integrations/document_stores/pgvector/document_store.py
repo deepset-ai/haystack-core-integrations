@@ -167,7 +167,7 @@ class PgvectorDocumentStore:
         Deletes the table used to store Haystack documents.
         """
 
-        delete_sql = SQL("DROP TABLE IF EXISTS {}").format(Identifier(self.table_name))
+        delete_sql = SQL("DROP TABLE IF EXISTS {table_name}").format(table_name=Identifier(self.table_name))
 
         self._execute_sql(delete_sql, error_msg="Could not delete table in PgvectorDocumentStore")
 
@@ -235,7 +235,7 @@ class PgvectorDocumentStore:
         Returns how many documents are present in the document store.
         """
 
-        sql_count = SQL("SELECT COUNT(*) FROM {}").format(Identifier(self.table_name))
+        sql_count = SQL("SELECT COUNT(*) FROM {table_name}").format(table_name=Identifier(self.table_name))
 
         count = self._execute_sql(sql_count, error_msg="Could not count documents in PgvectorDocumentStore").fetchone()[
             0
