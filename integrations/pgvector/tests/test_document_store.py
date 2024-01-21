@@ -4,11 +4,12 @@
 
 
 import pytest
-from haystack.dataclasses.document import Document
+from haystack.dataclasses.document import ByteStream, Document
 from haystack.document_stores.errors import DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
 from haystack.testing.document_store import CountDocumentsTest, DeleteDocumentsTest, WriteDocumentsTest
 from haystack_integrations.document_stores.pgvector import PgvectorDocumentStore
+from pandas import DataFrame
 
 
 class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsTest):
@@ -38,6 +39,25 @@ class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsT
         assert document_store.write_documents(docs) == 1
         with pytest.raises(DuplicateDocumentError):
             document_store.write_documents(docs, DuplicatePolicy.FAIL)
+
+    def test_write_blob(self, document_store: PgvectorDocumentStore):
+        bytestream = ByteStream(b"test", meta={"meta_key": "meta_value"}, mime_type="mime_type")
+        docs = [Document(id="1", blob=bytestream)]
+        document_store.write_documents(docs)
+
+        # TODO: update when filters are implemented
+        retrieved_docs = document_store.filter_documents()
+        assert retrieved_docs == docs
+
+    def test_write_dataframe(self, document_store: PgvectorDocumentStore):
+        dataframe = DataFrame({"col1": [1, 2], "col2": [3, 4]})
+        docs = [Document(id="1", dataframe=dataframe)]
+
+        document_store.write_documents(docs)
+
+        # TODO: update when filters are implemented
+        retrieved_docs = document_store.filter_documents()
+        assert retrieved_docs == docs
 
     def test_init(self):
         document_store = PgvectorDocumentStore(

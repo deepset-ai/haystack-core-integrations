@@ -322,27 +322,15 @@ class PgvectorDocumentStore:
 
         db_documents = []
         for document in documents:
-            db_document = document.to_dict(flatten=False)
-            db_document.pop("score")
-            db_document.pop("blob")
+            db_document = {k: v for k, v in document.to_dict(flatten=False).items() if k not in ["score", "blob"]}
 
             blob = document.blob
+            db_document["blob_data"] = blob.data if blob else None
+            db_document["blob_meta"] = Json(blob.meta) if blob and blob.meta else None
+            db_document["blob_mime_type"] = blob.mime_type if blob and blob.mime_type else None
 
-            blob_data, blob_meta, blob_mime_type = None, None, None
-
-            if blob:
-                blob_data = blob.data
-                if blob.meta:
-                    blob_meta = blob.meta
-                if blob.mime_type:
-                    blob_mime_type = blob.mime_type
-
-            db_document["blob_data"] = blob_data
-            db_document["blob_meta"] = Json(blob_meta)
-            db_document["blob_mime_type"] = blob_mime_type
-
-            db_document["dataframe"] = Json(document.dataframe) if document.dataframe else None
-            db_document["meta"] = Json(document.meta)
+            db_document["dataframe"] = Json(db_document["dataframe"]) if db_document["dataframe"] else None
+            db_document["meta"] = Json(db_document["meta"])
 
             db_documents.append(db_document)
 
@@ -362,7 +350,6 @@ class PgvectorDocumentStore:
 
             haystack_document = Document.from_dict(haystack_dict)
 
-            blob = None
             if blob_data:
                 blob = ByteStream(data=blob_data, meta=blob_meta, mime_type=blob_mime_type)
                 haystack_document.blob = blob
