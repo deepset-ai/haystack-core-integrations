@@ -139,9 +139,6 @@ unfixable = [
   "F401",
 ]
 
-[tool.ruff.isort]
-known-first-party = ["qdrant_haystack"]
-
 [tool.ruff.flake8-tidy-imports]
 ban-relative-imports = "parents"
 
@@ -150,12 +147,10 @@ ban-relative-imports = "parents"
 "tests/**/*" = ["PLR2004", "S101", "TID252"]
 
 [tool.coverage.run]
-source_pkgs = ["qdrant_haystack", "tests"]
+source_pkgs = ["src", "tests"]
 branch = true
 parallel = true
-omit = [
-  "src/qdrant_haystack/__about__.py",
-]
+
 
 [tool.coverage.paths]
 qdrant_haystack = ["src/qdrant_haystack", "*/qdrant-haystack/src/qdrant_haystack"]
