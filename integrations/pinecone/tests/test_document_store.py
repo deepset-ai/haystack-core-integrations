@@ -4,10 +4,10 @@ import numpy as np
 import pytest
 from haystack import Document
 from haystack.testing.document_store import CountDocumentsTest, DeleteDocumentsTest, WriteDocumentsTest
+from haystack_integrations.document_stores.pinecone import PineconeDocumentStore
 
-from pinecone_haystack.document_store import PineconeDocumentStore
 
-
+@pytest.mark.integration
 class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, WriteDocumentsTest):
     def test_write_documents(self, document_store: PineconeDocumentStore):
         docs = [Document(id="1")]

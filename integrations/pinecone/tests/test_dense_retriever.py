@@ -4,9 +4,8 @@
 from unittest.mock import Mock, patch
 
 from haystack.dataclasses import Document
-
-from pinecone_haystack.dense_retriever import PineconeDenseRetriever
-from pinecone_haystack.document_store import PineconeDocumentStore
+from haystack_integrations.components.retrievers.pinecone import PineconeDenseRetriever
+from haystack_integrations.document_stores.pinecone import PineconeDocumentStore
 
 
 def test_init_default():
@@ -17,7 +16,7 @@ def test_init_default():
     assert retriever.top_k == 10
 
 
-@patch("pinecone_haystack.document_store.pinecone")
+@patch("haystack_integrations.document_stores.pinecone.document_store.pinecone")
 def test_to_dict(mock_pinecone):
     mock_pinecone.Index.return_value.describe_index_stats.return_value = {"dimension": 512}
     document_store = PineconeDocumentStore(
@@ -31,7 +30,7 @@ def test_to_dict(mock_pinecone):
     retriever = PineconeDenseRetriever(document_store=document_store)
     res = retriever.to_dict()
     assert res == {
-        "type": "pinecone_haystack.dense_retriever.PineconeDenseRetriever",
+        "type": "haystack_integrations.components.retrievers.pinecone.dense_retriever.PineconeDenseRetriever",
         "init_parameters": {
             "document_store": {
                 "init_parameters": {
@@ -41,7 +40,7 @@ def test_to_dict(mock_pinecone):
                     "batch_size": 50,
                     "dimension": 512,
                 },
-                "type": "pinecone_haystack.document_store.PineconeDocumentStore",
+                "type": "haystack_integrations.document_stores.pinecone.document_store.PineconeDocumentStore",
             },
             "filters": {},
             "top_k": 10,
@@ -49,10 +48,10 @@ def test_to_dict(mock_pinecone):
     }
 
 
-@patch("pinecone_haystack.document_store.pinecone")
+@patch("haystack_integrations.document_stores.pinecone.document_store.pinecone")
 def test_from_dict(mock_pinecone, monkeypatch):
     data = {
-        "type": "pinecone_haystack.dense_retriever.PineconeDenseRetriever",
+        "type": "haystack_integrations.components.retrievers.pinecone.dense_retriever.PineconeDenseRetriever",
         "init_parameters": {
             "document_store": {
                 "init_parameters": {
@@ -62,7 +61,7 @@ def test_from_dict(mock_pinecone, monkeypatch):
                     "batch_size": 50,
                     "dimension": 512,
                 },
-                "type": "pinecone_haystack.document_store.PineconeDocumentStore",
+                "type": "haystack_integrations.document_stores.pinecone.document_store.PineconeDocumentStore",
             },
             "filters": {},
             "top_k": 10,

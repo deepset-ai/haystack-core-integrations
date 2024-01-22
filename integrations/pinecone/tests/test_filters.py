@@ -7,6 +7,7 @@ from haystack.testing.document_store import (
 )
 
 
+@pytest.mark.integration
 class TestFilters(FilterDocumentsTest):
     def assert_documents_are_equal(self, received: List[Document], expected: List[Document]):
         for doc in received:

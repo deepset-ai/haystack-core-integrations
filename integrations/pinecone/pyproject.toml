@@ -34,6 +34,9 @@ Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/m
 Issues = "https://github.com/deepset-ai/haystack-core-integrations/issues"
 Source = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/pinecone"
 
+[tool.hatch.build.targets.wheel]
+packages = ["src/haystack_integrations"]
+
 [tool.hatch.version]
 source = "vcs"
 tag-pattern = 'integrations\/pinecone-v(?P<version>.*)'
@@ -74,7 +77,7 @@ dependencies = [
   "numpy",
 ]
 [tool.hatch.envs.lint.scripts]
-typing = "mypy --install-types --non-interactive {args:src/pinecone_haystack tests}"
+typing = "mypy --install-types --non-interactive --explicit-package-bases {args:src/ tests}"
 style = [
   "ruff {args:.}",
   "black --check --diff {args:.}",
@@ -146,7 +149,7 @@ unfixable = [
 known-first-party = ["pinecone_haystack"]
 
 [tool.ruff.flake8-tidy-imports]
-ban-relative-imports = "all"
+ban-relative-imports = "parents"
 
 [tool.ruff.per-file-ignores]
 # Tests can use magic values, assertions, and relative imports
@@ -157,7 +160,7 @@ source_pkgs = ["pinecone_haystack", "tests"]
 branch = true
 parallel = true
 omit = [
-  "example"
+  "examples"
 ]
 
 [tool.coverage.paths]
@@ -182,6 +185,7 @@ markers = [
 module = [
   "pinecone.*",
   "haystack.*",
+  "haystack_integrations.*",
   "pytest.*"
 ]
 ignore_missing_imports = true
