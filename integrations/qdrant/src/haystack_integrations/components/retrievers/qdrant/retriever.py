@@ -1,8 +1,7 @@
 from typing import Any, Dict, List, Optional
 
 from haystack import Document, component, default_from_dict, default_to_dict
-
-from qdrant_haystack import QdrantDocumentStore
+from haystack_integrations.document_stores.qdrant import QdrantDocumentStore
 
 
 @component

@@ -16,8 +16,8 @@ from qdrant_client.http import models as rest
 from qdrant_client.http.exceptions import UnexpectedResponse
 from tqdm import tqdm
 
-from qdrant_haystack.converters import HaystackToQdrant, QdrantToHaystack
-from qdrant_haystack.filters import QdrantFilterConverter
+from .converters import HaystackToQdrant, QdrantToHaystack
+from .filters import QdrantFilterConverter
 
 logger = logging.getLogger(__name__)
 
