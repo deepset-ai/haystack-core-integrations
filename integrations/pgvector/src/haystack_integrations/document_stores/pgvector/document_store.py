@@ -33,7 +33,7 @@ TABLE_DEFINITION = [
 
 SIMILARITY_FUNCTION_TO_POSTGRESQL_OPS = {
     "cosine_distance": "vector_cosine_ops",
-    "max_inner_product": "vector_ip_ops",
+    "inner_product": "vector_ip_ops",
     "l2_distance": "vector_l2_ops",
 }
 
@@ -50,7 +50,7 @@ class PgvectorDocumentStore:
         table_name: str = "haystack_documents",
         embedding_dimension: int = 768,
         embedding_similarity_function: Literal[
-            "cosine_distance", "max_inner_product", "l2_distance"
+            "cosine_distance", "inner_product", "l2_distance"
         ] = "cosine_distance",
         recreate_table: bool = False,
         search_strategy: Literal["exact_nearest_neighbor", "hnsw"] = "exact_nearest_neighbor",
@@ -69,7 +69,7 @@ class PgvectorDocumentStore:
         :param embedding_dimension: The dimension of the embedding. Defaults to 768.
         :param embedding_similarity_function: The similarity function to use when searching for similar embeddings.
             Defaults to "cosine_distance". Set it to one of the following values:
-        :type embedding_similarity_function: Literal["cosine_distance", "max_inner_product", "l2_distance"]
+        :type embedding_similarity_function: Literal["cosine_distance", "inner_product", "l2_distance"]
         :param recreate_table: Whether to recreate the table if it already exists. Defaults to False.
         :param search_strategy: The search strategy to use when searching for similar embeddings.
             Defaults to "exact_nearest_neighbor". "hnsw" is an approximate nearest neighbor search strategy,
