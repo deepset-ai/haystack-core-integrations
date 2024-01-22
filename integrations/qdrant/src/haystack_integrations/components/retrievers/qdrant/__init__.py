@@ -2,6 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from qdrant_haystack.document_store import QdrantDocumentStore
+from .retriever import QdrantEmbeddingRetriever
 
-__all__ = ("QdrantDocumentStore",)
+__all__ = ("QdrantEmbeddingRetriever",)

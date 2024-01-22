@@ -9,8 +9,7 @@ from haystack.testing.document_store import (
     DeleteDocumentsTest,
     WriteDocumentsTest,
 )
-
-from qdrant_haystack import QdrantDocumentStore
+from haystack_integrations.document_stores.qdrant import QdrantDocumentStore
 
 
 class TestQdrantStoreBaseTests(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsTest):

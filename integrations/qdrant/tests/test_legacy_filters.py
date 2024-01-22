@@ -5,8 +5,7 @@ from haystack import Document
 from haystack.document_stores.types import DocumentStore
 from haystack.testing.document_store import LegacyFilterDocumentsTest
 from haystack.utils.filters import FilterError
-
-from qdrant_haystack import QdrantDocumentStore
+from haystack_integrations.document_stores.qdrant import QdrantDocumentStore
 
 # The tests below are from haystack.testing.document_store.LegacyFilterDocumentsTest
 # Updated to include `meta` prefix for filter keys wherever necessary
