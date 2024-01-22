@@ -4,6 +4,7 @@
 from unittest.mock import Mock, patch
 
 from haystack.dataclasses import Document
+
 from haystack_integrations.components.retrievers.pinecone import PineconeDenseRetriever
 from haystack_integrations.document_stores.pinecone import PineconeDocumentStore
 

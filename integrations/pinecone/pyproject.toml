@@ -146,7 +146,7 @@ unfixable = [
 ]
 
 [tool.ruff.isort]
-known-first-party = ["pinecone_haystack"]
+known-first-party = ["haystack_integrations"]
 
 [tool.ruff.flake8-tidy-imports]
 ban-relative-imports = "parents"
@@ -156,7 +156,7 @@ ban-relative-imports = "parents"
 "tests/**/*" = ["PLR2004", "S101", "TID252"]
 
 [tool.coverage.run]
-source_pkgs = ["pinecone_haystack", "tests"]
+source_pkgs = ["src", "tests"]
 branch = true
 parallel = true
 omit = [
@@ -164,8 +164,8 @@ omit = [
 ]
 
 [tool.coverage.paths]
-pinecone_haystack = ["src/pinecone_haystack", "*/pinecone_haystack/src/pinecone_haystack"]
-tests = ["tests", "*/pinecone_haystack/tests"]
+pinecone_haystack = ["src/*"]
+tests = ["tests"]
 
 [tool.coverage.report]
 exclude_lines = [
