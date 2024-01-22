@@ -1,10 +1,9 @@
 import pytest
-from haystack.document_stores.types import DuplicatePolicy
 
 from haystack_integrations.document_stores.pgvector import PgvectorDocumentStore
 
 @pytest.fixture
-def document_store(self, request):
+def document_store(request):
     connection_string = "postgresql://postgres:postgres@localhost:5432/postgres"
     table_name = f"haystack_{request.node.name}"
     embedding_dimension = 768
