@@ -5,7 +5,7 @@ from typing import Any, Dict, List, Optional, Union
 
 from haystack import component, default_from_dict, default_to_dict
 
-from instructor_embedders_haystack.embedding_backend.instructor_backend import _InstructorEmbeddingBackendFactory
+from .embedding_backend.instructor_backend import _InstructorEmbeddingBackendFactory
 
 
 @component
