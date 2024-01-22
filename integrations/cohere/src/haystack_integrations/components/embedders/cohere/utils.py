@@ -3,8 +3,9 @@
 # SPDX-License-Identifier: Apache-2.0
 from typing import Any, Dict, List, Tuple
 
-from cohere import AsyncClient, Client, CohereError
 from tqdm import tqdm
+
+from cohere import AsyncClient, Client, CohereError
 
 
 async def get_async_response(cohere_async_client: AsyncClient, texts: List[str], model_name, input_type, truncate):
