@@ -7,8 +7,7 @@ from unittest.mock import patch
 import pytest
 import requests
 from haystack import Document
-
-from jina_haystack import JinaDocumentEmbedder
+from haystack_integrations.components.embedders.jina import JinaDocumentEmbedder
 
 
 def mock_session_post_response(*args, **kwargs):  # noqa: ARG001
@@ -65,7 +64,7 @@ class TestJinaDocumentEmbedder:
         component = JinaDocumentEmbedder(api_key="fake-api-key")
         data = component.to_dict()
         assert data == {
-            "type": "jina_haystack.document_embedder.JinaDocumentEmbedder",
+            "type": "haystack_integrations.components.embedders.jina.document_embedder.JinaDocumentEmbedder",
             "init_parameters": {
                 "model": "jina-embeddings-v2-base-en",
                 "prefix": "",
@@ -90,7 +89,7 @@ class TestJinaDocumentEmbedder:
         )
         data = component.to_dict()
         assert data == {
-            "type": "jina_haystack.document_embedder.JinaDocumentEmbedder",
+            "type": "haystack_integrations.components.embedders.jina.document_embedder.JinaDocumentEmbedder",
             "init_parameters": {
                 "model": "model",
                 "prefix": "prefix",
