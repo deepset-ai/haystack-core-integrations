@@ -40,4 +40,3 @@ class TestOllamaTextEmbedder:
 
         assert isinstance(reply, dict)
         assert all(isinstance(element, float) for element in reply["embedding"])
-
