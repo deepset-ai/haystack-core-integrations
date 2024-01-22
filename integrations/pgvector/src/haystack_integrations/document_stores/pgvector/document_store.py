@@ -8,6 +8,8 @@ from haystack import default_to_dict
 from haystack.dataclasses.document import ByteStream, Document
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
+from haystack.utils.filters import convert
+
 from psycopg import Error, IntegrityError, connect
 from psycopg.abc import Query
 from psycopg.cursor import Cursor
@@ -17,6 +19,8 @@ from psycopg.sql import Literal as SQLLiteral
 from psycopg.types.json import Json
 
 from pgvector.psycopg import register_vector
+
+from .filters import _normalize_filters
 
 logger = logging.getLogger(__name__)
 
@@ -242,8 +246,21 @@ class PgvectorDocumentStore:
         ]
         return count
 
-    def filter_documents(self, filters: Optional[Dict[str, Any]] = None) -> List[Document]:  # noqa: ARG002
+    def filter_documents(self, filters: Optional[Dict[str, Any]] = None) -> List[Document]:
+        """
+        Returns the documents that match the filters provided.
+
+        For a detailed specification of the filters,
+        refer to the [documentation](https://docs.haystack.deepset.ai/v2.0/docs/metadata-filtering)
+
+        :param filters: The filters to apply to the document list.
+        :return: A list of Documents that match the given filters.
+        """        
         # TODO: implement filters
+        if filters and "operator" not in filters and "conditions" not in filters:
+            filters = convert(filters)
+        filters = _normalize_filters(filters) if filters else None
+
         sql_get_docs = SQL("SELECT * FROM {table_name}").format(table_name=Identifier(self.table_name))
 
         result = self._execute_sql(
