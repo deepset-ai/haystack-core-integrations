@@ -48,6 +48,31 @@ def test_init_api_key_in_environment_variable(mock_pinecone, monkeypatch):
     mock_pinecone.init.assert_called_with(api_key="fake-api-key", environment="gcp-starter")
 
 
+@patch("haystack_integrations.document_stores.pinecone.document_store.pinecone")
+def test_to_dict(mock_pinecone):
+    mock_pinecone.Index.return_value.describe_index_stats.return_value = {"dimension": 30}
+    document_store = PineconeDocumentStore(
+        api_key="fake-api-key",
+        environment="gcp-starter",
+        index="my_index",
+        namespace="test",
+        batch_size=50,
+        dimension=30,
+        metric="euclidean",
+    )
+    assert document_store.to_dict() == {
+        "type": "haystack_integrations.document_stores.pinecone.document_store.PineconeDocumentStore",
+        "init_parameters": {
+            "environment": "gcp-starter",
+            "index": "my_index",
+            "dimension": 30,
+            "namespace": "test",
+            "batch_size": 50,
+            "metric": "euclidean",
+        },
+    }
+
+
 @pytest.mark.integration
 class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, WriteDocumentsTest):
     def test_write_documents(self, document_store: PineconeDocumentStore):
@@ -71,30 +96,6 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, WriteDocumentsT
                 environment="gcp-starter",
                 index="my_index",
             )
-
-    @patch("pinecone_haystack.document_store.pinecone")
-    def test_to_dict(self, mock_pinecone):
-        mock_pinecone.Index.return_value.describe_index_stats.return_value = {"dimension": 30}
-        document_store = PineconeDocumentStore(
-            api_key="fake-api-key",
-            environment="gcp-starter",
-            index="my_index",
-            namespace="test",
-            batch_size=50,
-            dimension=30,
-            metric="euclidean",
-        )
-        assert document_store.to_dict() == {
-            "type": "pinecone_haystack.document_store.PineconeDocumentStore",
-            "init_parameters": {
-                "environment": "gcp-starter",
-                "index": "my_index",
-                "dimension": 30,
-                "namespace": "test",
-                "batch_size": 50,
-                "metric": "euclidean",
-            },
-        }
 
     def test_embedding_retrieval(self, document_store: PineconeDocumentStore):
         query_embedding = [0.1] * 768
