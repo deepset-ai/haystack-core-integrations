@@ -2,8 +2,7 @@ from unittest.mock import MagicMock, patch
 
 import numpy as np
 import pytest
-
-from instructor_embedders_haystack.instructor_text_embedder import InstructorTextEmbedder
+from haystack_integrations.components.embedders.instructor_embedders import InstructorTextEmbedder
 
 
 class TestInstructorTextEmbedder:
@@ -48,7 +47,7 @@ class TestInstructorTextEmbedder:
         embedder = InstructorTextEmbedder(model="hkunlp/instructor-base")
         embedder_dict = embedder.to_dict()
         assert embedder_dict == {
-            "type": "instructor_embedders_haystack.instructor_text_embedder.InstructorTextEmbedder",
+            "type": "haystack_integrations.components.embedders.instructor_embedders.instructor_text_embedder.InstructorTextEmbedder",  # noqa
             "init_parameters": {
                 "model": "hkunlp/instructor-base",
                 "device": "cpu",
@@ -75,7 +74,7 @@ class TestInstructorTextEmbedder:
         )
         embedder_dict = embedder.to_dict()
         assert embedder_dict == {
-            "type": "instructor_embedders_haystack.instructor_text_embedder.InstructorTextEmbedder",
+            "type": "haystack_integrations.components.embedders.instructor_embedders.instructor_text_embedder.InstructorTextEmbedder",  # noqa
             "init_parameters": {
                 "model": "hkunlp/instructor-base",
                 "device": "cuda",
@@ -92,7 +91,7 @@ class TestInstructorTextEmbedder:
         Test deserialization of InstructorTextEmbedder from a dictionary, using default initialization parameters.
         """
         embedder_dict = {
-            "type": "instructor_embedders_haystack.instructor_text_embedder.InstructorTextEmbedder",
+            "type": "haystack_integrations.components.embedders.instructor_embedders.instructor_text_embedder.InstructorTextEmbedder",  # noqa
             "init_parameters": {
                 "model": "hkunlp/instructor-base",
                 "device": "cpu",
@@ -117,7 +116,7 @@ class TestInstructorTextEmbedder:
         Test deserialization of InstructorTextEmbedder from a dictionary, using custom initialization parameters.
         """
         embedder_dict = {
-            "type": "instructor_embedders_haystack.instructor_text_embedder.InstructorTextEmbedder",
+            "type": "haystack_integrations.components.embedders.instructor_embedders.instructor_text_embedder.InstructorTextEmbedder",  # noqa
             "init_parameters": {
                 "model": "hkunlp/instructor-base",
                 "device": "cuda",
@@ -137,7 +136,9 @@ class TestInstructorTextEmbedder:
         assert embedder.progress_bar is False
         assert embedder.normalize_embeddings is True
 
-    @patch("instructor_embedders_haystack.instructor_text_embedder._InstructorEmbeddingBackendFactory")
+    @patch(
+        "haystack_integrations.components.embedders.instructor_embedders.instructor_text_embedder._InstructorEmbeddingBackendFactory"
+    )
     def test_warmup(self, mocked_factory):
         """
         Test for checking embedder instances after warm-up.
@@ -149,7 +150,9 @@ class TestInstructorTextEmbedder:
             model_name_or_path="hkunlp/instructor-base", device="cpu", use_auth_token=None
         )
 
-    @patch("instructor_embedders_haystack.instructor_text_embedder._InstructorEmbeddingBackendFactory")
+    @patch(
+        "haystack_integrations.components.embedders.instructor_embedders.instructor_text_embedder._InstructorEmbeddingBackendFactory"
+    )
     def test_warmup_does_not_reload(self, mocked_factory):
         """
         Test for checking backend instances after multiple warm-ups.

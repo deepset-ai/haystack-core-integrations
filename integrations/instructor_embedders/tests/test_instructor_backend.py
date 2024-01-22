@@ -1,9 +1,13 @@
 from unittest.mock import patch
 
-from instructor_embedders_haystack.embedding_backend.instructor_backend import _InstructorEmbeddingBackendFactory
+from haystack_integrations.components.embedders.instructor_embedders.embedding_backend.instructor_backend import (
+    _InstructorEmbeddingBackendFactory,
+)
 
 
-@patch("instructor_embedders_haystack.embedding_backend.instructor_backend.INSTRUCTOR")
+@patch(
+    "haystack_integrations.components.embedders.instructor_embedders.embedding_backend.instructor_backend.INSTRUCTOR"
+)
 def test_factory_behavior(mock_instructor):  # noqa: ARG001
     embedding_backend = _InstructorEmbeddingBackendFactory.get_embedding_backend(
         model_name_or_path="hkunlp/instructor-large", device="cpu"
@@ -20,7 +24,9 @@ def test_factory_behavior(mock_instructor):  # noqa: ARG001
     _InstructorEmbeddingBackendFactory._instances = {}
 
 
-@patch("instructor_embedders_haystack.embedding_backend.instructor_backend.INSTRUCTOR")
+@patch(
+    "haystack_integrations.components.embedders.instructor_embedders.embedding_backend.instructor_backend.INSTRUCTOR"
+)
 def test_model_initialization(mock_instructor):
     _InstructorEmbeddingBackendFactory.get_embedding_backend(
         model_name_or_path="hkunlp/instructor-base", device="cpu", use_auth_token="huggingface_auth_token"
@@ -32,7 +38,9 @@ def test_model_initialization(mock_instructor):
     _InstructorEmbeddingBackendFactory._instances = {}
 
 
-@patch("instructor_embedders_haystack.embedding_backend.instructor_backend.INSTRUCTOR")
+@patch(
+    "haystack_integrations.components.embedders.instructor_embedders.embedding_backend.instructor_backend.INSTRUCTOR"
+)
 def test_embedding_function_with_kwargs(mock_instructor):  # noqa: ARG001
     embedding_backend = _InstructorEmbeddingBackendFactory.get_embedding_backend(
         model_name_or_path="hkunlp/instructor-base"
