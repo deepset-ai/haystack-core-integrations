@@ -169,3 +169,22 @@ class TestUnstructuredFileConverter:
             assert "category" in doc.meta
             assert "common_meta" in doc.meta
             assert doc.meta["common_meta"] == "common"
+
+    @pytest.mark.integration
+    def test_run_one_doc_per_element_with_meta_list_folder(self, samples_path):
+        pdf_path = [samples_path]
+        meta = [{"custom_meta": "foobar", "common_meta": "common"}, {"other_meta": "barfoo", "common_meta": "common"}]
+        local_converter = UnstructuredFileConverter(
+            api_url="http://localhost:8000/general/v0/general", document_creation_mode="one-doc-per-element"
+        )
+
+        documents = local_converter.run(paths=pdf_path, meta=meta)["documents"]
+
+        assert len(documents) > 4
+        for doc in documents:
+            assert "name" in doc.meta
+            assert "page_number" in doc.meta
+            # elements have a category attribute that is saved in the document meta
+            assert "category" in doc.meta
+            assert "common_meta" in doc.meta
+            assert doc.meta["common_meta"] == "common"
