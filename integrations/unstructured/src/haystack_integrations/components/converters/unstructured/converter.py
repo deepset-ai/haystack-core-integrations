@@ -156,7 +156,7 @@ class UnstructuredFileConverter:
             texts_per_page: defaultdict[int, str] = defaultdict(str)
             meta_per_page: defaultdict[int, dict] = defaultdict(dict)
             for el in elements:
-                metadata = meta.copy()
+                metadata = copy.deepcopy(meta)
                 metadata["name"] = str(filepath)
                 if hasattr(el, "metadata"):
                     metadata.update(el.metadata.to_dict())
