@@ -8,11 +8,7 @@ from haystack import default_to_dict
 from haystack.dataclasses.document import ByteStream, Document
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
-<<<<<<< HEAD
 from haystack.utils.filters import convert
-
-=======
->>>>>>> main
 from psycopg import Error, IntegrityError, connect
 from psycopg.abc import Query
 from psycopg.cursor import Cursor
@@ -23,11 +19,8 @@ from psycopg.types.json import Jsonb
 
 from pgvector.psycopg import register_vector
 
-<<<<<<< HEAD
-from .filters import _normalize_filters, _build_where_clause
+from .filters import _build_where_clause, _normalize_filters
 
-=======
->>>>>>> main
 logger = logging.getLogger(__name__)
 
 CREATE_TABLE_STATEMENT = """
@@ -169,15 +162,15 @@ class PgvectorDocumentStore:
         cursor = cursor or self._cursor
 
         try:
-            if not isinstance(sql_query, str):
-                print("***QUERY: "+sql_query.as_string(cursor))
-            print("***PARAMS: "+str(params))
+            print("***QUERY: " + sql_query.as_string(cursor))
+            print("***PARAMS: " + str(params))
             result = cursor.execute(sql_query, params)
         except Error as e:
             self._connection.rollback()
-            # print(cursor._query)
-            raise DocumentStoreError(error_msg) from e
-        
+            sql_query_str = sql_query.as_string(cursor) if not isinstance(sql_query, str) else sql_query
+            detailed_error_msg = f"{error_msg}.\nSQL query: {sql_query_str}\n Parameters: {params}"
+            raise DocumentStoreError(detailed_error_msg) from e
+
         return result
 
     def _create_table_if_not_exists(self):
@@ -281,13 +274,13 @@ class PgvectorDocumentStore:
 
         :param filters: The filters to apply to the document list.
         :return: A list of Documents that match the given filters.
-        """        
+        """
         # TODO: implement filters
         if filters and "operator" not in filters and "conditions" not in filters:
             filters = convert(filters)
-        
+
         params = ()
-           
+
         sql_get_docs = SQL("SELECT * FROM {table_name}").format(table_name=Identifier(self.table_name))
 
         if filters:
@@ -295,7 +288,10 @@ class PgvectorDocumentStore:
             sql_get_docs += sql_where_clause
 
         result = self._execute_sql(
-            sql_get_docs, params, error_msg="Could not filter documents from PgvectorDocumentStore", cursor=self._dict_cursor
+            sql_get_docs,
+            params,
+            error_msg="Could not filter documents from PgvectorDocumentStore",
+            cursor=self._dict_cursor,
         )
 
         # Fetch all the records
@@ -342,7 +338,9 @@ class PgvectorDocumentStore:
             raise DuplicateDocumentError from ie
         except Error as e:
             self._connection.rollback()
-            raise DocumentStoreError from e
+            sql_query_str = sql_insert.as_string(self._cursor)
+            error_msg = f"Could not write documents to PgvectorDocumentStore. \nSQL query: {sql_query_str} \nParameters: {db_documents}"
+            raise DocumentStoreError(error_msg) from e
 
         # get the number of the inserted documents, inspired by psycopg3 docs
         # https://www.psycopg.org/psycopg3/docs/api/cursors.html#psycopg.Cursor.executemany

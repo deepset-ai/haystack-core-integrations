@@ -2,13 +2,10 @@ from typing import List
 
 import pytest
 from haystack.dataclasses.document import Document
-from haystack.testing.document_store import (
-    FilterDocumentsTest
-)
+from haystack.testing.document_store import FilterDocumentsTest
 
 
 class TestFilters(FilterDocumentsTest):
-
     def assert_documents_are_equal(self, received: List[Document], expected: List[Document]):
         assert len(received) == len(expected)
         received.sort(key=lambda x: x.id)
@@ -23,8 +20,6 @@ class TestFilters(FilterDocumentsTest):
             received_doc.embedding, expected_doc.embedding = None, None
             assert received_doc == expected_doc
 
-  
-
     def test_complex_filter(self, document_store, filterable_docs):
         document_store.write_documents(filterable_docs)
         filters = {
@@ -33,15 +28,15 @@ class TestFilters(FilterDocumentsTest):
                 {
                     "operator": "AND",
                     "conditions": [
-                    {"field": "meta.number", "operator": "==", "value": 100},
-                    {"field": "meta.name", "operator": "==", "value": "name_0"},
+                        {"field": "meta.number", "operator": "==", "value": 100},
+                        {"field": "meta.name", "operator": "==", "value": "name_0"},
                     ],
                 },
                 {
                     "operator": "AND",
                     "conditions": [
-                    {"field": "meta.page", "operator": "==", "value": 90},
-                    {"field": "meta.chapter", "operator": "==", "value": "conclusion"},
+                        {"field": "meta.page", "operator": "==", "value": 90},
+                        {"field": "meta.chapter", "operator": "==", "value": "conclusion"},
                     ],
                 },
             ],
@@ -49,8 +44,11 @@ class TestFilters(FilterDocumentsTest):
 
         result = document_store.filter_documents(filters=filters)
         self.assert_documents_are_equal(
-            result, [d for d in filterable_docs if 
-                     (d.meta.get("number") == 100 and d.meta.get("name") == "name_0")
-                        or (d.meta.get("page") == 90 and d.meta.get("chapter") == "conclusion")
-                     ]
+            result,
+            [
+                d
+                for d in filterable_docs
+                if (d.meta.get("number") == 100 and d.meta.get("name") == "name_0")
+                or (d.meta.get("page") == 90 and d.meta.get("chapter") == "conclusion")
+            ],
         )

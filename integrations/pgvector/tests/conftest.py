@@ -1,6 +1,6 @@
 import pytest
-
 from haystack_integrations.document_stores.pgvector import PgvectorDocumentStore
+
 
 @pytest.fixture
 def document_store(request):
@@ -20,6 +20,5 @@ def document_store(request):
         search_strategy=search_strategy,
     )
     yield store
-
 
     # store.delete_table()

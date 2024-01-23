@@ -1,18 +1,16 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
+from datetime import datetime
 from typing import Any, Dict
 
 from haystack.errors import FilterError
 from pandas import DataFrame
-from datetime import datetime
-
 from psycopg.sql import SQL
 from psycopg.types.json import Jsonb
 
 
 def _build_where_clause(filters: Dict[str, Any], cursor) -> str:
-
     normalized_filters = _normalize_filters(filters)
     print("normalized_filters", normalized_filters)
 
@@ -24,9 +22,9 @@ def _build_where_clause(filters: Dict[str, Any], cursor) -> str:
 
     if isinstance(sql_query, str):
         sql_query = SQL(sql_query)
-    where_clause = SQL(" WHERE ")+ sql_query
+    where_clause = SQL(" WHERE ") + sql_query
     # condtions = condition[top_level_operator]
-        
+
     # if top_level_operator == "NOT":
     #     where_clause += SQL("NOT (")
 
@@ -38,7 +36,7 @@ def _build_where_clause(filters: Dict[str, Any], cursor) -> str:
     #     where_clause+= SQL(query_part)
 
     #     if value != "do_not_append_value":
-    #         params = params + (value,)      
+    #         params = params + (value,)
 
     #     if i< len(conditions) - 1:
     #         if top_level_operator == "OR":
@@ -50,13 +48,14 @@ def _build_where_clause(filters: Dict[str, Any], cursor) -> str:
     #     where_clause += SQL(")")
     # if not isinstance(params, tuple):
     #     params = (params,)
-    
+
     actual_params = ()
     for i, param in enumerate(params):
         if param != "no_value":
             actual_params = actual_params + (param,)
 
     return where_clause, actual_params
+
 
 def _normalize_filters(filters: Dict[str, Any]) -> Dict[str, Any]:
     """
@@ -89,12 +88,12 @@ def _parse_logical_condition(condition: Dict[str, Any]) -> Dict[str, Any]:
         values.append(c[1])
 
     print("query_parts", query_parts)
-  
-    if operator=="AND":
+
+    if operator == "AND":
         return SQL(" AND ").join(query_parts), values
-    elif operator=="OR":
+    elif operator == "OR":
         return SQL(" OR ").join(query_parts), values
-    elif operator=="NOT":
+    elif operator == "NOT":
         query_parts = [SQL("NOT (") + query_part + SQL(")") for query_part in query_parts]
         return SQL(" AND ").join(query_parts), values
     else:
@@ -120,7 +119,7 @@ def _parse_comparison_condition(condition: Dict[str, Any]) -> Dict[str, Any]:
     if field.startswith("meta."):
         meta = True
         # Remove the "meta." prefix if present.
-        k,_,v = field.partition(".")
+        k, _, v = field.partition(".")
         field = f"{k}->>'{v}'"
 
     value: Any = condition["value"]
@@ -132,17 +131,17 @@ def _parse_comparison_condition(condition: Dict[str, Any]) -> Dict[str, Any]:
     type_value = None
     if meta and not isinstance(value, (str, type(None))):
         python_types_to_pg_types = {
-                int: "integer",
-                float: "real",
-                bool: "boolean",
-            }
+            int: "integer",
+            float: "real",
+            bool: "boolean",
+        }
 
         if type(value) in python_types_to_pg_types:
             type_value = python_types_to_pg_types[type(value)]
         elif isinstance(value, list):
-            if not(isinstance(value[0], str)):
-                type_value = python_types_to_pg_types[type(value[0])]           
-        
+            if not (isinstance(value[0], str)):
+                type_value = python_types_to_pg_types[type(value[0])]
+
         if type_value:
             field = f"({field})::{type_value}"
 

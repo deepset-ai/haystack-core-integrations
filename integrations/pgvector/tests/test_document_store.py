@@ -14,7 +14,6 @@ from pandas import DataFrame
 
 
 class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsTest):
-
     def test_write_documents(self, document_store: PgvectorDocumentStore):
         docs = [Document(id="1")]
         assert document_store.write_documents(docs) == 1
