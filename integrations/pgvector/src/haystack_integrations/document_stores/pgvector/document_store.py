@@ -168,7 +168,7 @@ class PgvectorDocumentStore:
         except Error as e:
             self._connection.rollback()
             sql_query_str = sql_query.as_string(cursor) if not isinstance(sql_query, str) else sql_query
-            detailed_error_msg = f"{error_msg}.\nSQL query: {sql_query_str}\n Parameters: {params}"
+            detailed_error_msg = f"{error_msg}.\nSQL query: {sql_query_str} \nParameters: {params}"
             raise DocumentStoreError(detailed_error_msg) from e
 
         return result

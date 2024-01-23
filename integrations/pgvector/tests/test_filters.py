@@ -7,6 +7,8 @@ from haystack.testing.document_store import FilterDocumentsTest
 
 class TestFilters(FilterDocumentsTest):
     def assert_documents_are_equal(self, received: List[Document], expected: List[Document]):
+        print("received", received)
+        print("expected", expected)
         assert len(received) == len(expected)
         received.sort(key=lambda x: x.id)
         expected.sort(key=lambda x: x.id)
@@ -29,13 +31,13 @@ class TestFilters(FilterDocumentsTest):
                     "operator": "AND",
                     "conditions": [
                         {"field": "meta.number", "operator": "==", "value": 100},
-                        {"field": "meta.name", "operator": "==", "value": "name_0"},
+                        {"field": "meta.chapter", "operator": "==", "value": "intro"},
                     ],
                 },
                 {
                     "operator": "AND",
                     "conditions": [
-                        {"field": "meta.page", "operator": "==", "value": 90},
+                        {"field": "meta.page", "operator": "==", "value": "90"},
                         {"field": "meta.chapter", "operator": "==", "value": "conclusion"},
                     ],
                 },
@@ -43,12 +45,9 @@ class TestFilters(FilterDocumentsTest):
         }
 
         result = document_store.filter_documents(filters=filters)
+
         self.assert_documents_are_equal(
             result,
-            [
-                d
-                for d in filterable_docs
-                if (d.meta.get("number") == 100 and d.meta.get("name") == "name_0")
-                or (d.meta.get("page") == 90 and d.meta.get("chapter") == "conclusion")
-            ],
-        )
+            [d for d in filterable_docs if 
+             (d.meta.get("number") == 100 and d.meta.get("chapter") == "intro")
+                or (d.meta.get("page") == "90" and d.meta.get("chapter") == "conclusion")])

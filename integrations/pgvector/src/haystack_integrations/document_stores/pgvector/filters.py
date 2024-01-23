@@ -8,6 +8,7 @@ from haystack.errors import FilterError
 from pandas import DataFrame
 from psycopg.sql import SQL
 from psycopg.types.json import Jsonb
+from itertools import chain
 
 
 def _build_where_clause(filters: Dict[str, Any], cursor) -> str:
@@ -84,21 +85,36 @@ def _parse_logical_condition(condition: Dict[str, Any]) -> Dict[str, Any]:
     query_parts = []
     values = []
     for c in conditions:
-        query_parts.append(SQL(c[0]))
+        print("c0", c[0])
+
+        query_parts.append(c[0])
         values.append(c[1])
 
+    # values = list(chain.from_iterable(values))
+
     print("query_parts", query_parts)
+    # if isinstance(query_parts[0], list):
+        # query_parts = list(chain.from_iterable(query_parts))
+        # print("chained", query_parts)
+    sql_query_parts = [SQL(q) if isinstance(q, str) else q for q in query_parts]
+    if isinstance(values[0], list):
+        values = list(chain.from_iterable(values))
 
     if operator == "AND":
-        return SQL(" AND ").join(query_parts), values
+        sql_query = SQL("(") + SQL(" AND ").join(sql_query_parts)+ SQL(")")
+
     elif operator == "OR":
-        return SQL(" OR ").join(query_parts), values
+        sql_query = SQL("(") + SQL(" OR ").join(sql_query_parts)+ SQL(")")
+
     elif operator == "NOT":
-        query_parts = [SQL("NOT (") + query_part + SQL(")") for query_part in query_parts]
-        return SQL(" AND ").join(query_parts), values
+        joined_query_parts = SQL(" AND ").join(sql_query_parts)
+        sql_query = SQL("NOT (") + joined_query_parts + SQL(")")
+        
     else:
         msg = f"Unknown logical operator '{operator}'"
         raise FilterError(msg)
+    
+    return sql_query, values
 
 
 def _parse_comparison_condition(condition: Dict[str, Any]) -> Dict[str, Any]:
