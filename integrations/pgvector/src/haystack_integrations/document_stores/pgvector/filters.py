@@ -17,6 +17,10 @@ def _build_where_clause(filters: Dict[str, Any], cursor) -> str:
     print("normalized_filters", normalized_filters)
 
     sql_query, params = normalized_filters
+    if isinstance(params, list):
+        params = tuple(params)
+    else:
+        params = (params,)
 
     if isinstance(sql_query, str):
         sql_query = SQL(sql_query)
@@ -44,12 +48,12 @@ def _build_where_clause(filters: Dict[str, Any], cursor) -> str:
 
     # if top_level_operator == "NOT":
     #     where_clause += SQL(")")
-    if not isinstance(params, tuple):
-        params = (params,)
+    # if not isinstance(params, tuple):
+    #     params = (params,)
     
     actual_params = ()
     for i, param in enumerate(params):
-        if param != "do_not_append_value":
+        if param != "no_value":
             actual_params = actual_params + (param,)
 
     return where_clause, actual_params
@@ -79,17 +83,20 @@ def _parse_logical_condition(condition: Dict[str, Any]) -> Dict[str, Any]:
     conditions = [_parse_comparison_condition(c) for c in condition["conditions"]]
 
     query_parts = []
-    values = ()
+    values = []
     for c in conditions:
-        query_parts.append(c[0])
-        values = values + (c[1], )
+        query_parts.append(SQL(c[0]))
+        values.append(c[1])
+
+    print("query_parts", query_parts)
   
     if operator=="AND":
         return SQL(" AND ").join(query_parts), values
     elif operator=="OR":
         return SQL(" OR ").join(query_parts), values
     elif operator=="NOT":
-        return SQL(" NOT ") + SQL(" ").join(query_parts), values
+        query_parts = [SQL("NOT (") + query_part + SQL(")") for query_part in query_parts]
+        return SQL(" AND ").join(query_parts), values
     else:
         msg = f"Unknown logical operator '{operator}'"
         raise FilterError(msg)
@@ -144,7 +151,7 @@ def _parse_comparison_condition(condition: Dict[str, Any]) -> Dict[str, Any]:
 
 def _equal(field: str, value: Any) -> Dict[str, Any]:
     if value is None:
-        return f"{field} IS NULL", "do_not_append_value"
+        return f"{field} IS NULL", "no_value"
 
     return f"{field} = %s", value
 
