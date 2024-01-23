@@ -282,7 +282,7 @@ class PgvectorDocumentStore:
         sql_get_docs = SQL("SELECT * FROM {table_name}").format(table_name=Identifier(self.table_name))
 
         if filters:
-            sql_where_clause, params = _build_where_clause(filters, self._cursor)
+            sql_where_clause, params = _build_where_clause(filters)
             sql_get_docs += sql_where_clause
 
         result = self._execute_sql(

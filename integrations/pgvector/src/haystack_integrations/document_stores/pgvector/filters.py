@@ -13,6 +13,7 @@ from psycopg.types.json import Jsonb
 
 def _build_where_clause(filters: Dict[str, Any]) -> str:
     normalized_filters = _normalize_filters(filters)
+    print("normalized_filters", normalized_filters)
 
     sql_query, params = normalized_filters
     if isinstance(params, list):
@@ -20,39 +21,16 @@ def _build_where_clause(filters: Dict[str, Any]) -> str:
     else:
         params = (params,)
 
+    print("params", params)
+
     if isinstance(sql_query, str):
         sql_query = SQL(sql_query)
     where_clause = SQL(" WHERE ") + sql_query
-    # condtions = condition[top_level_operator]
-
-    # if top_level_operator == "NOT":
-    #     where_clause += SQL("NOT (")
-
-    # params = ()
-    # for i, condition in enumerate(conditions):
-    #     print("condition", condition)
-    #     query_part,value = condition[0] if isinstance(condition, list) else condition
-
-    #     where_clause+= SQL(query_part)
-
-    #     if value != "do_not_append_value":
-    #         params = params + (value,)
-
-    #     if i< len(conditions) - 1:
-    #         if top_level_operator == "OR":
-    #             where_clause += SQL(" OR ")
-    #         else:
-    #             where_clause += SQL(" AND ")
-
-    # if top_level_operator == "NOT":
-    #     where_clause += SQL(")")
-    # if not isinstance(params, tuple):
-    #     params = (params,)
 
     actual_params = ()
-    for param in enumerate(params):
+    for param in params:
         if param != "no_value":
-            actual_params = (*actual_params, param)
+            actual_params = actual_params + (param,)
 
     return where_clause, actual_params
 
@@ -88,8 +66,9 @@ def _parse_logical_condition(condition: Dict[str, Any]) -> Dict[str, Any]:
         values.append(c[1])
 
     sql_query_parts = [SQL(q) if isinstance(q, str) else q for q in query_parts]
+    print("values", values)
     if isinstance(values[0], list):
-        values = [list(chain.from_iterable(values))]
+        values = list(chain.from_iterable(values))
 
     if operator == "AND":
         sql_query = SQL("(") + SQL(" AND ").join(sql_query_parts) + SQL(")")
@@ -155,14 +134,16 @@ def _parse_comparison_condition(condition: Dict[str, Any]) -> Dict[str, Any]:
     return COMPARISON_OPERATORS[operator](field, value)
 
 
-def _equal(field: str, value: Any) -> Dict[str, Any]:
+def _equal(field: str, value: Any) -> tuple[str, Any]:
+    print("value", value)
     if value is None:
+        # no_value is a placeholder that will be removed in _build_where_clause
         return f"{field} IS NULL", "no_value"
-
     return f"{field} = %s", value
 
-
-def _not_equal(field: str, value: Any) -> Dict[str, Any]:
+def _not_equal(field: str, value: Any) -> tuple[str, Any]:
+    # we use IS DISTINCT FROM to also consider NULL values as different
+    # (not handled by !=)
     return f"{field} IS DISTINCT FROM %s", value
 
 
