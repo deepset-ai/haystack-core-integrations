@@ -354,6 +354,11 @@ class PgvectorDocumentStore:
             blob_meta = haystack_dict.pop("blob_meta")
             blob_mime_type = haystack_dict.pop("blob_mime_type")
 
+            # postgresql returns the embedding as a string
+            # so we need to convert it to a list of floats
+            if "embedding" in document and document["embedding"]:
+                haystack_dict["embedding"] = [float(el) for el in document["embedding"].strip("[]").split(",")]
+
             haystack_document = Document.from_dict(haystack_dict)
 
             if blob_data:
