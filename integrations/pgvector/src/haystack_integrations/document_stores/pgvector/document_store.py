@@ -36,9 +36,24 @@ blob_mime_type VARCHAR(255),
 meta JSONB)
 """
 
-COLUMNS = [el.split()[0] for el in CREATE_TABLE_STATEMENT.splitlines()[2:]]
+INSERT_STATEMENT = """
+INSERT INTO {table_name}
+(id, embedding, content, dataframe, blob_data, blob_meta, blob_mime_type, meta)
+VALUES (%(id)s, %(embedding)s, %(content)s, %(dataframe)s, %(blob_data)s, %(blob_meta)s, %(blob_mime_type)s, %(meta)s)
+"""
 
-SIMILARITY_FUNCTION_TO_POSTGRESQL_OPS = {
+UPDATE_STATEMENT = """
+ON CONFLICT (id) DO UPDATE SET
+embedding = EXCLUDED.embedding,
+content = EXCLUDED.content,
+dataframe = EXCLUDED.dataframe,
+blob_data = EXCLUDED.blob_data,
+blob_meta = EXCLUDED.blob_meta,
+blob_mime_type = EXCLUDED.blob_mime_type,
+meta = EXCLUDED.meta
+"""
+
+VECTOR_FUNCTION_TO_POSTGRESQL_OPS = {
     "cosine_distance": "vector_cosine_ops",
     "inner_product": "vector_ip_ops",
     "l2_distance": "vector_l2_ops",
@@ -56,7 +71,7 @@ class PgvectorDocumentStore:
         connection_string: str,
         table_name: str = "haystack_documents",
         embedding_dimension: int = 768,
-        embedding_similarity_function: Literal["cosine_distance", "inner_product", "l2_distance"] = "cosine_distance",
+        vector_function: Literal["cosine_distance", "inner_product", "l2_distance"] = "cosine_distance",
         recreate_table: bool = False,
         search_strategy: Literal["exact_nearest_neighbor", "hnsw"] = "exact_nearest_neighbor",
         hnsw_recreate_index_if_exists: bool = False,
@@ -72,9 +87,9 @@ class PgvectorDocumentStore:
             e.g. "postgresql://USER:PASSWORD@HOST:PORT/DB_NAME"
         :param table_name: The name of the table to use to store Haystack documents. Defaults to "haystack_documents".
         :param embedding_dimension: The dimension of the embedding. Defaults to 768.
-        :param embedding_similarity_function: The similarity function to use when searching for similar embeddings.
+        :param vector_function: The similarity function to use when searching for similar embeddings.
             Defaults to "cosine_distance". Set it to one of the following values:
-        :type embedding_similarity_function: Literal["cosine_distance", "inner_product", "l2_distance"]
+        :type vector_function: Literal["cosine_distance", "inner_product", "l2_distance"]
         :param recreate_table: Whether to recreate the table if it already exists. Defaults to False.
         :param search_strategy: The search strategy to use when searching for similar embeddings.
             Defaults to "exact_nearest_neighbor". "hnsw" is an approximate nearest neighbor search strategy,
@@ -93,7 +108,7 @@ class PgvectorDocumentStore:
         self.connection_string = connection_string
         self.table_name = table_name
         self.embedding_dimension = embedding_dimension
-        self.embedding_similarity_function = embedding_similarity_function
+        self.vector_function = vector_function
         self.recreate_table = recreate_table
         self.search_strategy = search_strategy
         self.hnsw_recreate_index_if_exists = hnsw_recreate_index_if_exists
@@ -124,7 +139,7 @@ class PgvectorDocumentStore:
             connection_string=self.connection_string,
             table_name=self.table_name,
             embedding_dimension=self.embedding_dimension,
-            embedding_similarity_function=self.embedding_similarity_function,
+            vector_function=self.vector_function,
             recreate_table=self.recreate_table,
             search_strategy=self.search_strategy,
             hnsw_recreate_index_if_exists=self.hnsw_recreate_index_if_exists,
@@ -217,7 +232,7 @@ class PgvectorDocumentStore:
         Internal method to create the HNSW index.
         """
 
-        pg_ops = SIMILARITY_FUNCTION_TO_POSTGRESQL_OPS[self.embedding_similarity_function]
+        pg_ops = VECTOR_FUNCTION_TO_POSTGRESQL_OPS[self.vector_function]
         actual_hnsw_index_creation_kwargs = {
             key: value
             for key, value in self.hnsw_index_creation_kwargs.items()
@@ -303,29 +318,19 @@ class PgvectorDocumentStore:
 
         db_documents = self._from_haystack_to_pg_documents(documents)
 
-        columns_str = "(" + ", ".join(col for col in COLUMNS) + ")"
-        print("columns_str", columns_str)
-        values_placeholder_str = "VALUES (" + ", ".join(f"%({col})s" for col in COLUMNS) + ")"
-
-        insert_statement = SQL("INSERT INTO {table_name} " + columns_str + " " + values_placeholder_str).format(
-            table_name=Identifier(self.table_name)
-        )
+        sql_insert = SQL(INSERT_STATEMENT).format(table_name=Identifier(self.table_name))
 
         if policy == DuplicatePolicy.OVERWRITE:
-            update_statement = SQL(
-                "ON CONFLICT (id) DO UPDATE SET "
-                + ", ".join(f"{col} = EXCLUDED.{col}" for col in COLUMNS if col != "id")
-            )
-            insert_statement += update_statement
+            sql_insert += SQL(UPDATE_STATEMENT)
         elif policy == DuplicatePolicy.SKIP:
-            insert_statement += SQL("ON CONFLICT DO NOTHING")
+            sql_insert += SQL("ON CONFLICT DO NOTHING")
 
-        insert_statement += SQL(" RETURNING id")
+        sql_insert += SQL(" RETURNING id")
 
-        print("insert_statement", insert_statement.as_string(self._cursor))
+        print("sql_insert", sql_insert.as_string(self._cursor))
 
         try:
-            self._cursor.executemany(insert_statement, db_documents, returning=True)
+            self._cursor.executemany(sql_insert, db_documents, returning=True)
         except IntegrityError as ie:
             self._connection.rollback()
             raise DuplicateDocumentError from ie
@@ -381,11 +386,10 @@ class PgvectorDocumentStore:
             blob_meta = haystack_dict.pop("blob_meta")
             blob_mime_type = haystack_dict.pop("blob_mime_type")
 
+            # postgresql returns the embedding as a string
+            # so we need to convert it to a list of floats
             if "embedding" in document and document["embedding"]:
                 haystack_dict["embedding"] = [float(el) for el in document["embedding"].strip("[]").split(",")]
-
-            if not haystack_dict["meta"]:
-                haystack_dict["meta"] = {}
 
             haystack_document = Document.from_dict(haystack_dict)
 

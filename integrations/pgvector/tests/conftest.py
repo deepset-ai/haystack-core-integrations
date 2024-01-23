@@ -7,7 +7,7 @@ def document_store(request):
     connection_string = "postgresql://postgres:postgres@localhost:5432/postgres"
     table_name = f"haystack_{request.node.name}"
     embedding_dimension = 768
-    embedding_similarity_function = "cosine_distance"
+    vector_function = "cosine_distance"
     recreate_table = True
     search_strategy = "exact_nearest_neighbor"
 
@@ -15,10 +15,11 @@ def document_store(request):
         connection_string=connection_string,
         table_name=table_name,
         embedding_dimension=embedding_dimension,
-        embedding_similarity_function=embedding_similarity_function,
+        vector_function=vector_function,
         recreate_table=recreate_table,
         search_strategy=search_strategy,
     )
     yield store
+
 
     # store.delete_table()
