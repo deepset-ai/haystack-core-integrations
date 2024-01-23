@@ -40,14 +40,14 @@ class TestLlamaCppGenerator:
         download_file(ggml_model_path, str(model_path / filename), capsys)
 
         model_path = str(model_path / filename)
-        generator = LlamaCppGenerator(model_path=model_path, n_ctx=128, n_batch=128)
+        generator = LlamaCppGenerator(model=model_path, n_ctx=128, n_batch=128)
         generator.warm_up()
         return generator
 
     @pytest.fixture
     def generator_mock(self):
         mock_model = MagicMock()
-        generator = LlamaCppGenerator(model_path="test_model.gguf", n_ctx=2048, n_batch=512)
+        generator = LlamaCppGenerator(model="test_model.gguf", n_ctx=2048, n_batch=512)
         generator.model = mock_model
         return generator, mock_model
 
@@ -55,7 +55,7 @@ class TestLlamaCppGenerator:
         """
         Test default initialization parameters.
         """
-        generator = LlamaCppGenerator(model_path="test_model.gguf")
+        generator = LlamaCppGenerator(model="test_model.gguf")
 
         assert generator.model_path == "test_model.gguf"
         assert generator.n_ctx == 0
@@ -68,7 +68,7 @@ class TestLlamaCppGenerator:
         Test custom initialization parameters.
         """
         generator = LlamaCppGenerator(
-            model_path="test_model.gguf",
+            model="test_model.gguf",
             n_ctx=2048,
             n_batch=512,
         )
@@ -84,7 +84,7 @@ class TestLlamaCppGenerator:
         Test that model_path is ignored if already specified in model_kwargs.
         """
         generator = LlamaCppGenerator(
-            model_path="test_model.gguf",
+            model="test_model.gguf",
             n_ctx=512,
             n_batch=512,
             model_kwargs={"model_path": "other_model.gguf"},
@@ -95,25 +95,21 @@ class TestLlamaCppGenerator:
         """
         Test that n_ctx is ignored if already specified in model_kwargs.
         """
-        generator = LlamaCppGenerator(
-            model_path="test_model.gguf", n_ctx=512, n_batch=512, model_kwargs={"n_ctx": 1024}
-        )
+        generator = LlamaCppGenerator(model="test_model.gguf", n_ctx=512, n_batch=512, model_kwargs={"n_ctx": 1024})
         assert generator.model_kwargs["n_ctx"] == 1024
 
     def test_ignores_n_batch_if_specified_in_model_kwargs(self):
         """
         Test that n_batch is ignored if already specified in model_kwargs.
         """
-        generator = LlamaCppGenerator(
-            model_path="test_model.gguf", n_ctx=512, n_batch=512, model_kwargs={"n_batch": 1024}
-        )
+        generator = LlamaCppGenerator(model="test_model.gguf", n_ctx=512, n_batch=512, model_kwargs={"n_batch": 1024})
         assert generator.model_kwargs["n_batch"] == 1024
 
     def test_raises_error_without_warm_up(self):
         """
         Test that the generator raises an error if warm_up() is not called before running.
         """
-        generator = LlamaCppGenerator(model_path="test_model.gguf", n_ctx=512, n_batch=512)
+        generator = LlamaCppGenerator(model="test_model.gguf", n_ctx=512, n_batch=512)
         with pytest.raises(RuntimeError):
             generator.run("What is the capital of China?")
 

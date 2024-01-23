@@ -6,8 +6,7 @@ from unittest.mock import patch
 
 import pytest
 import requests
-
-from jina_haystack import JinaTextEmbedder
+from haystack_integrations.components.embedders.jina import JinaTextEmbedder
 
 
 class TestJinaTextEmbedder:
@@ -39,7 +38,7 @@ class TestJinaTextEmbedder:
         component = JinaTextEmbedder(api_key="fake-api-key")
         data = component.to_dict()
         assert data == {
-            "type": "jina_haystack.text_embedder.JinaTextEmbedder",
+            "type": "haystack_integrations.components.embedders.jina.text_embedder.JinaTextEmbedder",
             "init_parameters": {
                 "model": "jina-embeddings-v2-base-en",
                 "prefix": "",
@@ -56,7 +55,7 @@ class TestJinaTextEmbedder:
         )
         data = component.to_dict()
         assert data == {
-            "type": "jina_haystack.text_embedder.JinaTextEmbedder",
+            "type": "haystack_integrations.components.embedders.jina.text_embedder.JinaTextEmbedder",
             "init_parameters": {
                 "model": "model",
                 "prefix": "prefix",

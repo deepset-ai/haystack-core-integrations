@@ -8,8 +8,11 @@ from haystack import default_to_dict
 from haystack.dataclasses.document import ByteStream, Document
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
+<<<<<<< HEAD
 from haystack.utils.filters import convert
 
+=======
+>>>>>>> main
 from psycopg import Error, IntegrityError, connect
 from psycopg.abc import Query
 from psycopg.cursor import Cursor
@@ -20,8 +23,11 @@ from psycopg.types.json import Jsonb
 
 from pgvector.psycopg import register_vector
 
+<<<<<<< HEAD
 from .filters import _normalize_filters, _build_where_clause
 
+=======
+>>>>>>> main
 logger = logging.getLogger(__name__)
 
 CREATE_TABLE_STATEMENT = """
