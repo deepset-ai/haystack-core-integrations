@@ -10,32 +10,19 @@ from haystack.testing.document_store import (
 class TestFilters(FilterDocumentsTest):
 
     def assert_documents_are_equal(self, received: List[Document], expected: List[Document]):
-        # for doc in received:
-        #     # Pinecone seems to convert strings to datetime objects (undocumented behavior)
-        #     # We convert them back to strings to compare them
-        #     if "date" in doc.meta:
-        #         doc.meta["date"] = doc.meta["date"].isoformat()
-        #     # Pinecone seems to convert integers to floats (undocumented behavior)
-        #     # We convert them back to integers to compare them
-        #     if "number" in doc.meta:
-        #         doc.meta["number"] = int(doc.meta["number"])
-
-        # Lists comparison
         assert len(received) == len(expected)
         received.sort(key=lambda x: x.id)
         expected.sort(key=lambda x: x.id)
         for received_doc, expected_doc in zip(received, expected):
-            assert received_doc.meta == expected_doc.meta
-            assert received_doc.content == expected_doc.content
-            if received_doc.dataframe is None:
-                assert expected_doc.dataframe is None
-            else:
-                assert received_doc.dataframe.equals(expected_doc.dataframe)
-            # unfortunately, Pinecone returns a slightly different embedding
+            # we first compare the embeddings approximately
             if received_doc.embedding is None:
                 assert expected_doc.embedding is None
             else:
                 assert received_doc.embedding == pytest.approx(expected_doc.embedding)
+
+            received_doc.embedding, expected_doc.embedding = None, None
+            assert received_doc == expected_doc
+
   
 
     def test_complex_filter(self, document_store, filterable_docs):

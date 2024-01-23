@@ -15,52 +15,44 @@ def _build_where_clause(filters: Dict[str, Any], cursor) -> str:
 
     normalized_filters = _normalize_filters(filters)
     print("normalized_filters", normalized_filters)
-    where_clause = SQL(" WHERE ")
 
-    if isinstance(normalized_filters, dict):
-        top_level_operator = list(normalized_filters.keys())[0]
-        conditions = normalized_filters[top_level_operator]
-    else:
-        top_level_operator = None
-        conditions = normalized_filters
+    sql_query, params = normalized_filters
+
+    if isinstance(sql_query, str):
+        sql_query = SQL(sql_query)
+    where_clause = SQL(" WHERE ")+ sql_query
     # condtions = condition[top_level_operator]
         
-    if top_level_operator == "NOT":
-        where_clause += SQL("NOT (")
+    # if top_level_operator == "NOT":
+    #     where_clause += SQL("NOT (")
 
-    params = ()
-    skip = 0
-    for i, condition in enumerate(conditions):
-        print("condition", condition)
-        field,op,value = condition[0] if isinstance(condition, list) else condition
+    # params = ()
+    # for i, condition in enumerate(conditions):
+    #     print("condition", condition)
+    #     query_part,value = condition[0] if isinstance(condition, list) else condition
 
-        where_clause+= SQL("{field}{operator}").format(field=SQL(field),
-                                                                     operator=SQL(op))
-               
-        where_clause_str = where_clause.as_string(cursor)                                                     
-        if where_clause_str.count("%s") + skip < i + 1:
-            if where_clause_str.endswith("IS NULL"):
-                skip += 1
-            else:
-                where_clause += SQL(" %s")
+    #     where_clause+= SQL(query_part)
 
-      
-        if value!= "nonetype":
-            params = params + (value,)
+    #     if value != "do_not_append_value":
+    #         params = params + (value,)      
 
-        # if "dataframe" in field:
-        #     where_clause += SQL("::jsonb")            
+    #     if i< len(conditions) - 1:
+    #         if top_level_operator == "OR":
+    #             where_clause += SQL(" OR ")
+    #         else:
+    #             where_clause += SQL(" AND ")
 
-        if i< len(conditions) - 1:
-            if top_level_operator == "OR":
-                where_clause += SQL(" OR ")
-            else:
-                where_clause += SQL(" AND ")
+    # if top_level_operator == "NOT":
+    #     where_clause += SQL(")")
+    if not isinstance(params, tuple):
+        params = (params,)
+    
+    actual_params = ()
+    for i, param in enumerate(params):
+        if param != "do_not_append_value":
+            actual_params = actual_params + (param,)
 
-    if top_level_operator == "NOT":
-        where_clause += SQL(")")
-
-    return where_clause, params
+    return where_clause, actual_params
 
 def _normalize_filters(filters: Dict[str, Any]) -> Dict[str, Any]:
     """
@@ -86,11 +78,21 @@ def _parse_logical_condition(condition: Dict[str, Any]) -> Dict[str, Any]:
     operator = condition["operator"]
     conditions = [_parse_comparison_condition(c) for c in condition["conditions"]]
 
-    if operator in LOGICAL_OPERATORS:
-        return {LOGICAL_OPERATORS[operator]: conditions}
-
-    msg = f"Unknown logical operator '{operator}'"
-    raise FilterError(msg)
+    query_parts = []
+    values = ()
+    for c in conditions:
+        query_parts.append(c[0])
+        values = values + (c[1], )
+  
+    if operator=="AND":
+        return SQL(" AND ").join(query_parts), values
+    elif operator=="OR":
+        return SQL(" OR ").join(query_parts), values
+    elif operator=="NOT":
+        return SQL(" NOT ") + SQL(" ").join(query_parts), values
+    else:
+        msg = f"Unknown logical operator '{operator}'"
+        raise FilterError(msg)
 
 
 def _parse_comparison_condition(condition: Dict[str, Any]) -> Dict[str, Any]:
@@ -137,18 +139,18 @@ def _parse_comparison_condition(condition: Dict[str, Any]) -> Dict[str, Any]:
         if type_value:
             field = f"({field})::{type_value}"
 
-    return [COMPARISON_OPERATORS[operator](field, value)]
+    return COMPARISON_OPERATORS[operator](field, value)
 
 
 def _equal(field: str, value: Any) -> Dict[str, Any]:
     if value is None:
-        return field, " IS NULL", "nonetype"
+        return f"{field} IS NULL", "do_not_append_value"
 
-    return field, "=", value
+    return f"{field} = %s", value
 
 
 def _not_equal(field: str, value: Any) -> Dict[str, Any]:
-    return field, " IS DISTINCT FROM ", value
+    return f"{field} IS DISTINCT FROM %s", value
 
 
 def _greater_than(field: str, value: Any) -> Dict[str, Any]:
@@ -165,7 +167,7 @@ def _greater_than(field: str, value: Any) -> Dict[str, Any]:
         msg = f"Filter value can't be of type {type(value)} using operators '>', '>=', '<', '<='"
         raise FilterError(msg)
 
-    return field, ">", value
+    return f"{field} > %s", value
 
 
 def _greater_than_equal(field: str, value: Any) -> Dict[str, Any]:
@@ -182,7 +184,7 @@ def _greater_than_equal(field: str, value: Any) -> Dict[str, Any]:
         msg = f"Filter value can't be of type {type(value)} using operators '>', '>=', '<', '<='"
         raise FilterError(msg)
 
-    return field, ">=", value
+    return f"{field} >= %s", value
 
 
 def _less_than(field: str, value: Any) -> Dict[str, Any]:
@@ -199,7 +201,7 @@ def _less_than(field: str, value: Any) -> Dict[str, Any]:
         msg = f"Filter value can't be of type {type(value)} using operators '>', '>=', '<', '<='"
         raise FilterError(msg)
 
-    return field, "<", value
+    return f"{field} < %s", value
 
 
 def _less_than_equal(field: str, value: Any) -> Dict[str, Any]:
@@ -216,7 +218,7 @@ def _less_than_equal(field: str, value: Any) -> Dict[str, Any]:
         msg = f"Filter value can't be of type {type(value)} using operators '>', '>=', '<', '<='"
         raise FilterError(msg)
 
-    return field, "<=", value
+    return f"{field} <= %s", value
 
 
 def _not_in(field: str, value: Any) -> Dict[str, Any]:
@@ -224,7 +226,7 @@ def _not_in(field: str, value: Any) -> Dict[str, Any]:
         msg = f"{field}'s value must be a list when using 'not in' comparator in Pinecone"
         raise FilterError(msg)
 
-    return field+ " IS NULL OR "+field, "!= ALL(%s)", [value]
+    return f"{field} IS NULL OR {field} != ALL(%s)", [value]
 
 
 def _in(field: str, value: Any) -> Dict[str, Any]:
@@ -232,7 +234,7 @@ def _in(field: str, value: Any) -> Dict[str, Any]:
         msg = f"{field}'s value must be a list when using 'in' comparator in Pinecone"
         raise FilterError(msg)
 
-    return field, "= ANY(%s)", [value]
+    return f"{field} = ANY(%s)", [value]
 
 
 COMPARISON_OPERATORS = {
