@@ -16,11 +16,11 @@ from psycopg.cursor import Cursor
 from psycopg.rows import dict_row
 from psycopg.sql import SQL, Identifier
 from psycopg.sql import Literal as SQLLiteral
-from psycopg.types.json import Json
+from psycopg.types.json import Jsonb
 
 from pgvector.psycopg import register_vector
 
-from .filters import _normalize_filters
+from .filters import _normalize_filters, _build_where_clause
 
 logger = logging.getLogger(__name__)
 
@@ -29,14 +29,14 @@ CREATE TABLE IF NOT EXISTS {table_name} (
 id VARCHAR(128) PRIMARY KEY,
 embedding VECTOR({embedding_dimension}),
 content TEXT,
-dataframe JSON,
+dataframe JSONB,
 blob_data BYTEA,
-blob_meta JSON,
+blob_meta JSONB,
 blob_mime_type VARCHAR(255),
-meta JSON)
+meta JSONB)
 """
 
-COLUMNS = [el.split()[0] for el in CREATE_TABLE_STATEMENT.splitlines()[2:-1]]
+COLUMNS = [el.split()[0] for el in CREATE_TABLE_STATEMENT.splitlines()[2:]]
 
 SIMILARITY_FUNCTION_TO_POSTGRESQL_OPS = {
     "cosine_distance": "vector_cosine_ops",
@@ -148,10 +148,15 @@ class PgvectorDocumentStore:
         cursor = cursor or self._cursor
 
         try:
+            if not isinstance(sql_query, str):
+                print("***QUERY: "+sql_query.as_string(cursor))
+            print("***PARAMS: "+str(params))
             result = cursor.execute(sql_query, params)
         except Error as e:
             self._connection.rollback()
+            # print(cursor._query)
             raise DocumentStoreError(error_msg) from e
+        
         return result
 
     def _create_table_if_not_exists(self):
@@ -259,12 +264,17 @@ class PgvectorDocumentStore:
         # TODO: implement filters
         if filters and "operator" not in filters and "conditions" not in filters:
             filters = convert(filters)
-        filters = _normalize_filters(filters) if filters else None
-
+        
+        params = ()
+           
         sql_get_docs = SQL("SELECT * FROM {table_name}").format(table_name=Identifier(self.table_name))
 
+        if filters:
+            sql_where_clause, params = _build_where_clause(filters, self._cursor)
+            sql_get_docs += sql_where_clause
+
         result = self._execute_sql(
-            sql_get_docs, error_msg="Could not filter documents from PgvectorDocumentStore", cursor=self._dict_cursor
+            sql_get_docs, params, error_msg="Could not filter documents from PgvectorDocumentStore", cursor=self._dict_cursor
         )
 
         # Fetch all the records
@@ -294,6 +304,7 @@ class PgvectorDocumentStore:
         db_documents = self._from_haystack_to_pg_documents(documents)
 
         columns_str = "(" + ", ".join(col for col in COLUMNS) + ")"
+        print("columns_str", columns_str)
         values_placeholder_str = "VALUES (" + ", ".join(f"%({col})s" for col in COLUMNS) + ")"
 
         insert_statement = SQL("INSERT INTO {table_name} " + columns_str + " " + values_placeholder_str).format(
@@ -310,6 +321,8 @@ class PgvectorDocumentStore:
             insert_statement += SQL("ON CONFLICT DO NOTHING")
 
         insert_statement += SQL(" RETURNING id")
+
+        print("insert_statement", insert_statement.as_string(self._cursor))
 
         try:
             self._cursor.executemany(insert_statement, db_documents, returning=True)
@@ -343,11 +356,11 @@ class PgvectorDocumentStore:
 
             blob = document.blob
             db_document["blob_data"] = blob.data if blob else None
-            db_document["blob_meta"] = Json(blob.meta) if blob and blob.meta else None
+            db_document["blob_meta"] = Jsonb(blob.meta) if blob and blob.meta else None
             db_document["blob_mime_type"] = blob.mime_type if blob and blob.mime_type else None
 
-            db_document["dataframe"] = Json(db_document["dataframe"]) if db_document["dataframe"] else None
-            db_document["meta"] = Json(db_document["meta"])
+            db_document["dataframe"] = Jsonb(db_document["dataframe"]) if db_document["dataframe"] else None
+            db_document["meta"] = Jsonb(db_document["meta"])
 
             db_documents.append(db_document)
 
@@ -360,10 +373,16 @@ class PgvectorDocumentStore:
 
         haystack_documents = []
         for document in documents:
+            # print(document['embedding'])
+            # print(len(document['embedding']))
+            # print(type(document['embedding']))
             haystack_dict = dict(document)
             blob_data = haystack_dict.pop("blob_data")
             blob_meta = haystack_dict.pop("blob_meta")
             blob_mime_type = haystack_dict.pop("blob_mime_type")
+
+            if "embedding" in document and document["embedding"]:
+                haystack_dict["embedding"] = [float(el) for el in document["embedding"].strip("[]").split(",")]
 
             if not haystack_dict["meta"]:
                 haystack_dict["meta"] = {}
