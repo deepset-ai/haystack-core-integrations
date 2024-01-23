@@ -6,7 +6,7 @@ from typing import Any, Dict, List, Optional
 from haystack import component, default_from_dict, default_to_dict
 from haystack.dataclasses import Document
 
-from pinecone_haystack.document_store import PineconeDocumentStore
+from haystack_integrations.document_stores.pinecone import PineconeDocumentStore
 
 
 @component
