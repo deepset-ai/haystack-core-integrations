@@ -2,18 +2,17 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 from datetime import datetime
+from itertools import chain
 from typing import Any, Dict
 
 from haystack.errors import FilterError
 from pandas import DataFrame
 from psycopg.sql import SQL
 from psycopg.types.json import Jsonb
-from itertools import chain
 
 
-def _build_where_clause(filters: Dict[str, Any], cursor) -> str:
+def _build_where_clause(filters: Dict[str, Any]) -> str:
     normalized_filters = _normalize_filters(filters)
-    print("normalized_filters", normalized_filters)
 
     sql_query, params = normalized_filters
     if isinstance(params, list):
@@ -51,9 +50,9 @@ def _build_where_clause(filters: Dict[str, Any], cursor) -> str:
     #     params = (params,)
 
     actual_params = ()
-    for i, param in enumerate(params):
+    for param in enumerate(params):
         if param != "no_value":
-            actual_params = actual_params + (param,)
+            actual_params = (*actual_params, param)
 
     return where_clause, actual_params
 
@@ -85,35 +84,27 @@ def _parse_logical_condition(condition: Dict[str, Any]) -> Dict[str, Any]:
     query_parts = []
     values = []
     for c in conditions:
-        print("c0", c[0])
-
         query_parts.append(c[0])
         values.append(c[1])
 
-    # values = list(chain.from_iterable(values))
-
-    print("query_parts", query_parts)
-    # if isinstance(query_parts[0], list):
-        # query_parts = list(chain.from_iterable(query_parts))
-        # print("chained", query_parts)
     sql_query_parts = [SQL(q) if isinstance(q, str) else q for q in query_parts]
     if isinstance(values[0], list):
-        values = list(chain.from_iterable(values))
+        values = [list(chain.from_iterable(values))]
 
     if operator == "AND":
-        sql_query = SQL("(") + SQL(" AND ").join(sql_query_parts)+ SQL(")")
+        sql_query = SQL("(") + SQL(" AND ").join(sql_query_parts) + SQL(")")
 
     elif operator == "OR":
-        sql_query = SQL("(") + SQL(" OR ").join(sql_query_parts)+ SQL(")")
+        sql_query = SQL("(") + SQL(" OR ").join(sql_query_parts) + SQL(")")
 
     elif operator == "NOT":
         joined_query_parts = SQL(" AND ").join(sql_query_parts)
         sql_query = SQL("NOT (") + joined_query_parts + SQL(")")
-        
+
     else:
         msg = f"Unknown logical operator '{operator}'"
         raise FilterError(msg)
-    
+
     return sql_query, values
 
 

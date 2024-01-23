@@ -7,8 +7,11 @@ from haystack.testing.document_store import FilterDocumentsTest
 
 class TestFilters(FilterDocumentsTest):
     def assert_documents_are_equal(self, received: List[Document], expected: List[Document]):
-        print("received", received)
-        print("expected", expected)
+        """
+        This overrides the default assert_documents_are_equal from FilterDocumentsTest.
+        It is needed because the embeddings are not exactly the same when they are retrieved from Postgres.
+        """
+
         assert len(received) == len(expected)
         received.sort(key=lambda x: x.id)
         expected.sort(key=lambda x: x.id)
@@ -48,6 +51,10 @@ class TestFilters(FilterDocumentsTest):
 
         self.assert_documents_are_equal(
             result,
-            [d for d in filterable_docs if 
-             (d.meta.get("number") == 100 and d.meta.get("chapter") == "intro")
-                or (d.meta.get("page") == "90" and d.meta.get("chapter") == "conclusion")])
+            [
+                d
+                for d in filterable_docs
+                if (d.meta.get("number") == 100 and d.meta.get("chapter") == "intro")
+                or (d.meta.get("page") == "90" and d.meta.get("chapter") == "conclusion")
+            ],
+        )

@@ -19,7 +19,7 @@ from psycopg.types.json import Jsonb
 
 from pgvector.psycopg import register_vector
 
-from .filters import _build_where_clause, _normalize_filters
+from .filters import _build_where_clause
 
 logger = logging.getLogger(__name__)
 
@@ -162,8 +162,6 @@ class PgvectorDocumentStore:
         cursor = cursor or self._cursor
 
         try:
-            print("***QUERY: " + sql_query.as_string(cursor))
-            print("***PARAMS: " + str(params))
             result = cursor.execute(sql_query, params)
         except Error as e:
             self._connection.rollback()
@@ -329,8 +327,6 @@ class PgvectorDocumentStore:
 
         sql_insert += SQL(" RETURNING id")
 
-        print("sql_insert", sql_insert.as_string(self._cursor))
-
         try:
             self._cursor.executemany(sql_insert, db_documents, returning=True)
         except IntegrityError as ie:
@@ -339,7 +335,10 @@ class PgvectorDocumentStore:
         except Error as e:
             self._connection.rollback()
             sql_query_str = sql_insert.as_string(self._cursor)
-            error_msg = f"Could not write documents to PgvectorDocumentStore. \nSQL query: {sql_query_str} \nParameters: {db_documents}"
+            error_msg = (
+                f"Could not write documents to PgvectorDocumentStore. \n"
+                f"SQL query: {sql_query_str} \nParameters: {db_documents}"
+            )
             raise DocumentStoreError(error_msg) from e
 
         # get the number of the inserted documents, inspired by psycopg3 docs
