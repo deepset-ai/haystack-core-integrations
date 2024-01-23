@@ -14,7 +14,7 @@ from psycopg.cursor import Cursor
 from psycopg.rows import dict_row
 from psycopg.sql import SQL, Identifier
 from psycopg.sql import Literal as SQLLiteral
-from psycopg.types.json import Json
+from psycopg.types.json import Jsonb
 
 from pgvector.psycopg import register_vector
 
@@ -25,11 +25,11 @@ CREATE TABLE IF NOT EXISTS {table_name} (
 id VARCHAR(128) PRIMARY KEY,
 embedding VECTOR({embedding_dimension}),
 content TEXT,
-dataframe JSON,
+dataframe JSONB,
 blob_data BYTEA,
-blob_meta JSON,
+blob_meta JSONB,
 blob_mime_type VARCHAR(255),
-meta JSON)
+meta JSONB)
 """
 
 INSERT_STATEMENT = """
@@ -332,11 +332,11 @@ class PgvectorDocumentStore:
 
             blob = document.blob
             db_document["blob_data"] = blob.data if blob else None
-            db_document["blob_meta"] = Json(blob.meta) if blob and blob.meta else None
+            db_document["blob_meta"] = Jsonb(blob.meta) if blob and blob.meta else None
             db_document["blob_mime_type"] = blob.mime_type if blob and blob.mime_type else None
 
-            db_document["dataframe"] = Json(db_document["dataframe"]) if db_document["dataframe"] else None
-            db_document["meta"] = Json(db_document["meta"])
+            db_document["dataframe"] = Jsonb(db_document["dataframe"]) if db_document["dataframe"] else None
+            db_document["meta"] = Jsonb(db_document["meta"])
 
             db_documents.append(db_document)
 
@@ -353,9 +353,6 @@ class PgvectorDocumentStore:
             blob_data = haystack_dict.pop("blob_data")
             blob_meta = haystack_dict.pop("blob_meta")
             blob_mime_type = haystack_dict.pop("blob_mime_type")
-
-            if not haystack_dict["meta"]:
-                haystack_dict["meta"] = {}
 
             haystack_document = Document.from_dict(haystack_dict)
 
