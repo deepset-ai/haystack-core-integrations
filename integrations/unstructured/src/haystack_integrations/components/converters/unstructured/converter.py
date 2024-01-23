@@ -149,7 +149,7 @@ class UnstructuredFileConverter:
         if document_creation_mode == "one-doc-per-file":
             text = separator.join([str(el) for el in elements])
             metadata = meta.copy()
-            metadata["name"] = str(filepath)
+            metadata["file_path"] = str(filepath)
             docs = [Document(content=text, meta=metadata)]
 
         elif document_creation_mode == "one-doc-per-page":
