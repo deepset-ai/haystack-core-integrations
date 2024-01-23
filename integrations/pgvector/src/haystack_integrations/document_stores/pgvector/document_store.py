@@ -34,7 +34,7 @@ meta JSON)
 
 COLUMNS = [el.split()[0] for el in CREATE_TABLE_STATEMENT.splitlines()[2:-1]]
 
-SIMILARITY_FUNCTION_TO_POSTGRESQL_OPS = {
+VECTOR_FUNCTION_TO_POSTGRESQL_OPS = {
     "cosine_distance": "vector_cosine_ops",
     "inner_product": "vector_ip_ops",
     "l2_distance": "vector_l2_ops",
@@ -52,7 +52,7 @@ class PgvectorDocumentStore:
         connection_string: str,
         table_name: str = "haystack_documents",
         embedding_dimension: int = 768,
-        embedding_similarity_function: Literal["cosine_distance", "inner_product", "l2_distance"] = "cosine_distance",
+        vector_function: Literal["cosine_distance", "inner_product", "l2_distance"] = "cosine_distance",
         recreate_table: bool = False,
         search_strategy: Literal["exact_nearest_neighbor", "hnsw"] = "exact_nearest_neighbor",
         hnsw_recreate_index_if_exists: bool = False,
@@ -68,9 +68,9 @@ class PgvectorDocumentStore:
             e.g. "postgresql://USER:PASSWORD@HOST:PORT/DB_NAME"
         :param table_name: The name of the table to use to store Haystack documents. Defaults to "haystack_documents".
         :param embedding_dimension: The dimension of the embedding. Defaults to 768.
-        :param embedding_similarity_function: The similarity function to use when searching for similar embeddings.
+        :param vector_function: The similarity function to use when searching for similar embeddings.
             Defaults to "cosine_distance". Set it to one of the following values:
-        :type embedding_similarity_function: Literal["cosine_distance", "inner_product", "l2_distance"]
+        :type vector_function: Literal["cosine_distance", "inner_product", "l2_distance"]
         :param recreate_table: Whether to recreate the table if it already exists. Defaults to False.
         :param search_strategy: The search strategy to use when searching for similar embeddings.
             Defaults to "exact_nearest_neighbor". "hnsw" is an approximate nearest neighbor search strategy,
@@ -89,7 +89,7 @@ class PgvectorDocumentStore:
         self.connection_string = connection_string
         self.table_name = table_name
         self.embedding_dimension = embedding_dimension
-        self.embedding_similarity_function = embedding_similarity_function
+        self.vector_function = vector_function
         self.recreate_table = recreate_table
         self.search_strategy = search_strategy
         self.hnsw_recreate_index_if_exists = hnsw_recreate_index_if_exists
@@ -120,7 +120,7 @@ class PgvectorDocumentStore:
             connection_string=self.connection_string,
             table_name=self.table_name,
             embedding_dimension=self.embedding_dimension,
-            embedding_similarity_function=self.embedding_similarity_function,
+            vector_function=self.vector_function,
             recreate_table=self.recreate_table,
             search_strategy=self.search_strategy,
             hnsw_recreate_index_if_exists=self.hnsw_recreate_index_if_exists,
@@ -208,7 +208,7 @@ class PgvectorDocumentStore:
         Internal method to create the HNSW index.
         """
 
-        pg_ops = SIMILARITY_FUNCTION_TO_POSTGRESQL_OPS[self.embedding_similarity_function]
+        pg_ops = VECTOR_FUNCTION_TO_POSTGRESQL_OPS[self.vector_function]
         actual_hnsw_index_creation_kwargs = {
             key: value
             for key, value in self.hnsw_index_creation_kwargs.items()
