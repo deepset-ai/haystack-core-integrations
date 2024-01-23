@@ -63,7 +63,7 @@ class TestUnstructuredFileConverter:
         documents = local_converter.run([pdf_path])["documents"]
 
         assert len(documents) == 1
-        assert documents[0].meta == {"name": str(pdf_path)}
+        assert documents[0].meta == {"file_path": str(pdf_path)}
 
     @pytest.mark.integration
     def test_run_one_doc_per_page(self, samples_path):
@@ -77,7 +77,7 @@ class TestUnstructuredFileConverter:
 
         assert len(documents) == 4
         for i, doc in enumerate(documents, start=1):
-            assert doc.meta["name"] == str(pdf_path)
+            assert doc.meta["file_path"] == str(pdf_path)
             assert doc.meta["page_number"] == i
 
     @pytest.mark.integration
@@ -92,7 +92,7 @@ class TestUnstructuredFileConverter:
 
         assert len(documents) > 4
         for doc in documents:
-            assert doc.meta["name"] == str(pdf_path)
+            assert doc.meta["file_path"] == str(pdf_path)
             assert "page_number" in doc.meta
 
             # elements have a category attribute that is saved in the document meta
@@ -109,10 +109,10 @@ class TestUnstructuredFileConverter:
         documents = local_converter.run(paths=[pdf_path], meta=meta)["documents"]
 
         assert len(documents) == 1
-        assert documents[0].meta["name"] == str(pdf_path)
+        assert documents[0].meta["file_path"] == str(pdf_path)
         assert "custom_meta" in documents[0].meta
         assert documents[0].meta["custom_meta"] == "foobar"
-        assert documents[0].meta == {"name": str(pdf_path), "custom_meta": "foobar"}
+        assert documents[0].meta == {"file_path": str(pdf_path), "custom_meta": "foobar"}
 
     @pytest.mark.integration
     def test_run_one_doc_per_page_with_meta(self, samples_path):
@@ -126,7 +126,7 @@ class TestUnstructuredFileConverter:
 
         assert len(documents) == 4
         for i, doc in enumerate(documents, start=1):
-            assert doc.meta["name"] == str(pdf_path)
+            assert doc.meta["file_path"] == str(pdf_path)
             assert doc.meta["page_number"] == i
             assert "custom_meta" in doc.meta
             assert doc.meta["custom_meta"] == "foobar"
@@ -143,7 +143,7 @@ class TestUnstructuredFileConverter:
 
         assert len(documents) > 4
         for doc in documents:
-            assert doc.meta["name"] == str(pdf_path)
+            assert doc.meta["file_path"] == str(pdf_path)
             assert "page_number" in doc.meta
 
             # elements have a category attribute that is saved in the document meta
@@ -163,7 +163,7 @@ class TestUnstructuredFileConverter:
 
         assert len(documents) > 4
         for doc in documents:
-            assert "name" in doc.meta
+            assert "file_path" in doc.meta
             assert "page_number" in doc.meta
             # elements have a category attribute that is saved in the document meta
             assert "category" in doc.meta
@@ -182,7 +182,7 @@ class TestUnstructuredFileConverter:
 
         assert len(documents) > 4
         for doc in documents:
-            assert "name" in doc.meta
+            assert "file_path" in doc.meta
             assert "page_number" in doc.meta
             # elements have a category attribute that is saved in the document meta
             assert "category" in doc.meta

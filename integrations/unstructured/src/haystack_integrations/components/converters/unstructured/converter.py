@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 import logging
 import os
+import copy
 from collections import defaultdict
 from pathlib import Path
 from typing import Any, Dict, List, Literal, Optional, Union
@@ -149,7 +150,7 @@ class UnstructuredFileConverter:
 
         if document_creation_mode == "one-doc-per-file":
             text = separator.join([str(el) for el in elements])
-            metadata = meta.copy()
+            metadata = copy.deepcopy(meta)
             metadata["file_path"] = str(filepath)
             docs = [Document(content=text, meta=metadata)]
 
@@ -158,7 +159,7 @@ class UnstructuredFileConverter:
             meta_per_page: defaultdict[int, dict] = defaultdict(dict)
             for el in elements:
                 metadata = copy.deepcopy(meta)
-                metadata["name"] = str(filepath)
+                metadata["file_path"] = str(filepath)
                 if hasattr(el, "metadata"):
                     metadata.update(el.metadata.to_dict())
                 page_number = int(metadata.get("page_number", 1))
@@ -170,8 +171,8 @@ class UnstructuredFileConverter:
 
         elif document_creation_mode == "one-doc-per-element":
             for el in elements:
-                metadata = meta.copy()
-                metadata["name"] = str(filepath)
+                metadata = copy.deepcopy(meta)
+                metadata["file_path"] = str(filepath)
                 if hasattr(el, "metadata"):
                     metadata.update(el.metadata.to_dict())
                 if hasattr(el, "category"):
