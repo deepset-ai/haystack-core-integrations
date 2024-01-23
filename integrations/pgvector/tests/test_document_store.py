@@ -14,26 +14,6 @@ from pandas import DataFrame
 
 
 class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsTest):
-    @pytest.fixture
-    def document_store(self, request):
-        connection_string = "postgresql://postgres:postgres@localhost:5432/postgres"
-        table_name = f"haystack_{request.node.name}"
-        embedding_dimension = 768
-        vector_function = "cosine_distance"
-        recreate_table = True
-        search_strategy = "exact_nearest_neighbor"
-
-        store = PgvectorDocumentStore(
-            connection_string=connection_string,
-            table_name=table_name,
-            embedding_dimension=embedding_dimension,
-            vector_function=vector_function,
-            recreate_table=recreate_table,
-            search_strategy=search_strategy,
-        )
-        yield store
-
-        store.delete_table()
 
     def test_write_documents(self, document_store: PgvectorDocumentStore):
         docs = [Document(id="1")]
