@@ -1,9 +1,9 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
+import copy
 import logging
 import os
-import copy
 from collections import defaultdict
 from pathlib import Path
 from typing import Any, Dict, List, Literal, Optional, Union
@@ -105,7 +105,8 @@ class UnstructuredFileConverter:
           This value can be either a list of dictionaries or a single dictionary.
           If it's a single dictionary, its content is added to the metadata of all produced Documents.
           If it's a list, the length of the list must match the number of paths, because the two lists will be zipped.
-          Please note that if the paths contain directories, the length of the meta list must match the actual number of files contained.
+          Please note that if the paths contain directories, the length of the meta list must match
+          the actual number of files contained.
           Defaults to `None`.
         """
 
