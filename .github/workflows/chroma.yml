@@ -48,9 +48,11 @@ jobs:
     - name: Install Hatch
       run: pip install --upgrade hatch
 
-    - name: Lint
+    - name: Lint and Docs
       if: matrix.python-version == '3.9' && runner.os == 'Linux'
-      run: hatch run lint:all
+      run: |
+        hatch run lint:all
+        hatch run docs
 
     - name: Run tests
       run: hatch run cov
