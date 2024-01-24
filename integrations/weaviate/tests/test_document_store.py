@@ -1,6 +1,10 @@
 from unittest.mock import MagicMock, patch
 
-from haystack_integrations.document_stores.weaviate.document_store import WeaviateDocumentStore
+import pytest
+from haystack_integrations.document_stores.weaviate.document_store import (
+    DOCUMENT_COLLECTION_PROPERTIES,
+    WeaviateDocumentStore,
+)
 from weaviate.auth import AuthApiKey
 from weaviate.config import Config
 from weaviate.embedded import (
@@ -13,6 +17,17 @@ from weaviate.embedded import (
 
 
 class TestWeaviateDocumentStore:
+    @pytest.fixture
+    def document_store(self, request) -> WeaviateDocumentStore:
+        # Use a different index for each test so we can run them in parallel
+        collection_settings = {"class": f"{request.node.name}"}
+        store = WeaviateDocumentStore(
+            url="http://localhost:8080",
+            collection_settings=collection_settings,
+        )
+        yield store
+        store._client.schema.delete_class(collection_settings["class"])
+
     @patch("haystack_integrations.document_stores.weaviate.document_store.weaviate.Client")
     def test_init(self, mock_weaviate_client_class):
         mock_client = MagicMock()
@@ -21,7 +36,7 @@ class TestWeaviateDocumentStore:
 
         WeaviateDocumentStore(
             url="http://localhost:8080",
-            collection_name="my_collection",
+            collection_settings={"class": "My_collection"},
             auth_client_secret=AuthApiKey("my_api_key"),
             proxies={"http": "http://proxy:1234"},
             additional_headers={"X-HuggingFace-Api-Key": "MY_HUGGINGFACE_KEY"},
@@ -54,14 +69,15 @@ class TestWeaviateDocumentStore:
 
         # Verify collection is created
         mock_client.schema.get.assert_called_once()
-        mock_client.schema.exists.assert_called_once_with("my_collection")
-        mock_client.schema.create_class.assert_called_once_with({"class": "my_collection"})
+        mock_client.schema.exists.assert_called_once_with("My_collection")
+        mock_client.schema.create_class.assert_called_once_with(
+            {"class": "My_collection", "properties": DOCUMENT_COLLECTION_PROPERTIES}
+        )
 
     @patch("haystack_integrations.document_stores.weaviate.document_store.weaviate")
     def test_to_dict(self, _mock_weaviate):
         document_store = WeaviateDocumentStore(
             url="http://localhost:8080",
-            collection_name="my_collection",
             auth_client_secret=AuthApiKey("my_api_key"),
             proxies={"http": "http://proxy:1234"},
             additional_headers={"X-HuggingFace-Api-Key": "MY_HUGGINGFACE_KEY"},
@@ -77,7 +93,17 @@ class TestWeaviateDocumentStore:
             "type": "haystack_integrations.document_stores.weaviate.document_store.WeaviateDocumentStore",
             "init_parameters": {
                 "url": "http://localhost:8080",
-                "collection_name": "my_collection",
+                "collection_settings": {
+                    "class": "Default",
+                    "properties": [
+                        {"name": "_original_id", "dataType": ["text"]},
+                        {"name": "content", "dataType": ["text"]},
+                        {"name": "dataframe", "dataType": ["text"]},
+                        {"name": "blob_data", "dataType": ["blob"]},
+                        {"name": "blob_mime_type", "dataType": ["text"]},
+                        {"name": "score", "dataType": ["number"]},
+                    ],
+                },
                 "auth_client_secret": {
                     "type": "weaviate.auth.AuthApiKey",
                     "init_parameters": {"api_key": "my_api_key"},
@@ -113,7 +139,7 @@ class TestWeaviateDocumentStore:
                 "type": "haystack_integrations.document_stores.weaviate.document_store.WeaviateDocumentStore",
                 "init_parameters": {
                     "url": "http://localhost:8080",
-                    "collection_name": "my_collection",
+                    "collection_settings": None,
                     "auth_client_secret": {
                         "type": "weaviate.auth.AuthApiKey",
                         "init_parameters": {"api_key": "my_api_key"},
@@ -144,7 +170,17 @@ class TestWeaviateDocumentStore:
         )
 
         assert document_store._url == "http://localhost:8080"
-        assert document_store._collection_name == "my_collection"
+        assert document_store._collection_settings == {
+            "class": "Default",
+            "properties": [
+                {"name": "_original_id", "dataType": ["text"]},
+                {"name": "content", "dataType": ["text"]},
+                {"name": "dataframe", "dataType": ["text"]},
+                {"name": "blob_data", "dataType": ["blob"]},
+                {"name": "blob_mime_type", "dataType": ["text"]},
+                {"name": "score", "dataType": ["number"]},
+            ],
+        }
         assert document_store._auth_client_secret == AuthApiKey("my_api_key")
         assert document_store._timeout_config == (10, 60)
         assert document_store._proxies == {"http": "http://proxy:1234"}

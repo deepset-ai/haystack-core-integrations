@@ -6,7 +6,7 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 
 from haystack.core.serialization import default_from_dict, default_to_dict
 from haystack.dataclasses.document import Document
-from haystack.document_stores.protocol import DuplicatePolicy
+from haystack.document_stores.types.policy import DuplicatePolicy
 
 import weaviate
 from weaviate.auth import AuthCredentials
@@ -25,6 +25,20 @@ _AUTH_CLASSES = {
     "weaviate.auth.AuthApiKey": weaviate.auth.AuthApiKey,
 }
 
+# This is the default collection properties for Weaviate.
+# It's a list of properties that will be created on the collection.
+# These are extremely similar to the Document dataclass, but with a few differences:
+# - `id` is renamed to `_original_id` as the `id` field is reserved by Weaviate.
+# - `blob` is split into `blob_data` and `blob_mime_type` as it's more efficient to store them separately.
+DOCUMENT_COLLECTION_PROPERTIES = [
+    {"name": "_original_id", "dataType": ["text"]},
+    {"name": "content", "dataType": ["text"]},
+    {"name": "dataframe", "dataType": ["text"]},
+    {"name": "blob_data", "dataType": ["blob"]},
+    {"name": "blob_mime_type", "dataType": ["text"]},
+    {"name": "score", "dataType": ["number"]},
+]
+
 
 class WeaviateDocumentStore:
     """
@@ -35,7 +49,7 @@ class WeaviateDocumentStore:
         self,
         *,
         url: Optional[str] = None,
-        collection_name: str = "default",
+        collection_settings: Optional[Dict[str, Any]] = None,
         auth_client_secret: Optional[AuthCredentials] = None,
         timeout_config: TimeoutType = (10, 60),
         proxies: Optional[Union[Dict, str]] = None,
@@ -49,6 +63,16 @@ class WeaviateDocumentStore:
         Create a new instance of WeaviateDocumentStore and connects to the Weaviate instance.
 
         :param url: The URL to the weaviate instance, defaults to None.
+        :param collection_settings: The collection settings to use, defaults to None.
+            If None it will use a collection named `default` with the following properties:
+            - _original_id: text
+            - content: text
+            - dataframe: text
+            - blob_data: blob
+            - blob_mime_type: text
+            - score: number
+            See the official `Weaviate documentation<https://weaviate.io/developers/weaviate/manage-data/collections>`_
+            for more information on collections.
         :param auth_client_secret: Authentication credentials, defaults to None.
             Can be one of the following types depending on the authentication mode:
             - `weaviate.auth.AuthBearerToken` to use existing access and (optionally, but recommended) refresh tokens
@@ -80,8 +104,6 @@ class WeaviateDocumentStore:
         :param embedded_options: If set create an embedded Weaviate cluster inside the client, defaults to None.
             For a full list of options see `weaviate.embedded.EmbeddedOptions`.
         :param additional_config: Additional and advanced configuration options for weaviate, defaults to None.
-        :param collection_name: The name of the collection to use, defaults to "default".
-            If the collection does not exist it will be created.
         """
         self._client = weaviate.Client(
             url=url,
@@ -98,11 +120,22 @@ class WeaviateDocumentStore:
         # Test connection, it will raise an exception if it fails.
         self._client.schema.get()
 
-        if not self._client.schema.exists(collection_name):
-            self._client.schema.create_class({"class": collection_name})
+        if collection_settings is None:
+            collection_settings = {
+                "class": "Default",
+                "properties": DOCUMENT_COLLECTION_PROPERTIES,
+            }
+        else:
+            # Set the class if not set
+            collection_settings["class"] = collection_settings.get("class", "default").capitalize()
+            # Set the properties if they're not set
+            collection_settings["properties"] = collection_settings.get("properties", DOCUMENT_COLLECTION_PROPERTIES)
+
+        if not self._client.schema.exists(collection_settings["class"]):
+            self._client.schema.create_class(collection_settings)
 
         self._url = url
-        self._collection_name = collection_name
+        self._collection_settings = collection_settings
         self._auth_client_secret = auth_client_secret
         self._timeout_config = timeout_config
         self._proxies = proxies
@@ -124,7 +157,7 @@ class WeaviateDocumentStore:
         return default_to_dict(
             self,
             url=self._url,
-            collection_name=self._collection_name,
+            collection_settings=self._collection_settings,
             auth_client_secret=auth_client_secret,
             timeout_config=self._timeout_config,
             proxies=self._proxies,
@@ -161,7 +194,9 @@ class WeaviateDocumentStore:
         return []
 
     def write_documents(
-        self, documents: List[Document], policy: DuplicatePolicy = DuplicatePolicy.NONE  # noqa: ARG002
+        self,
+        documents: List[Document],
+        policy: DuplicatePolicy = DuplicatePolicy.NONE,  # noqa: ARG002
     ) -> int:
         return 0
 
