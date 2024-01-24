@@ -56,20 +56,15 @@ def _parse_logical_condition(condition: Dict[str, Any]) -> tuple[str, Any]:
         msg = f"'conditions' key missing in {condition}"
         raise FilterError(msg)
 
-    operator = condition["operator"]
     conditions = [_parse_comparison_condition(c) for c in condition["conditions"]]
-
-    query_parts = []
-    values = []
+    query_parts, values = [], []
     for c in conditions:
         query_parts.append(c[0])
         values.append(c[1])
-
-    # sql_query_parts = [SQL(q) if isinstance(q, str) else q for q in query_parts]
-    print("values", values)
     if isinstance(values[0], list):
         values = list(chain.from_iterable(values))
 
+    operator = condition["operator"]
     if operator == "AND":
         sql_query = "("+ " AND ".join(query_parts) + ")"
     elif operator == "OR":
@@ -77,7 +72,6 @@ def _parse_logical_condition(condition: Dict[str, Any]) -> tuple[str, Any]:
     elif operator == "NOT":
         joined_query_parts = " AND ".join(query_parts)
         sql_query = "NOT (" + joined_query_parts + ")"
-
     else:
         msg = f"Unknown logical operator '{operator}'"
         raise FilterError(msg)
@@ -85,7 +79,7 @@ def _parse_logical_condition(condition: Dict[str, Any]) -> tuple[str, Any]:
     return sql_query, values
 
 
-def _parse_comparison_condition(condition: Dict[str, Any]) -> Dict[str, Any]:
+def _parse_comparison_condition(condition: Dict[str, Any]) -> tuple[str, Any]:
     if "field" not in condition:
         # 'field' key is only found in comparison dictionaries.
         # We assume this is a logic dictionary since it's not present.
@@ -98,22 +92,25 @@ def _parse_comparison_condition(condition: Dict[str, Any]) -> Dict[str, Any]:
     if "value" not in condition:
         msg = f"'value' key missing in {condition}"
         raise FilterError(msg)
+    
     operator: str = condition["operator"]
-    meta = False
-    if field.startswith("meta."):
-        meta = True
-        # Remove the "meta." prefix if present.
-        k, _, v = field.partition(".")
-        field = f"{k}->>'{v}'"
 
     value: Any = condition["value"]
     if isinstance(value, DataFrame):
+        # DataFrames are stored as JSONB and we query them as such
         value = value.to_json()
         field = f"({field})::jsonb"
         value = Jsonb(value)
 
+    is_meta = field.startswith("meta.")
+    if is_meta:
+        is_meta = True
+        # use the ->> operator to access keys in the meta JSONB field
+        field_name = field.split(".", 1)[-1]
+        field = f"meta->>'{field_name}'"
+
     type_value = None
-    if meta and not isinstance(value, (str, type(None))):
+    if is_meta and not isinstance(value, (str, type(None))):
         python_types_to_pg_types = {
             int: "integer",
             float: "real",
