@@ -18,6 +18,14 @@
 pip install unstructured-fileconverter-haystack
 ```
 
+## Usage
+
+You can use `UnstructuredFileConverter` and `UnstructuredLocalFileConverter` by importing as:
+
+```python
+from unstructured_fileconverter_haystack.converter import UnstructuredLocalFileConverter, UnstructuredFileConverter
+```
+
 ## License
 
 `unstructured-fileconverter-haystack` is distributed under the terms of the [Apache-2.0](https://spdx.org/licenses/Apache-2.0.html) license.

@@ -14,6 +14,7 @@ from tqdm import tqdm
 
 from unstructured.documents.elements import Element  # type: ignore[import]
 from unstructured.partition.api import partition_via_api  # type: ignore[import]
+from unstructured.partition.auto import partition  # type: ignore[import]
 
 logger = logging.getLogger(__name__)
 
@@ -21,15 +22,13 @@ UNSTRUCTURED_HOSTED_API_URL = "https://api.unstructured.io/general/v0/general"
 
 
 @component
-class UnstructuredFileConverter:
+class UnstructuredLocalFileConverter:
     """
-    Convert files to Haystack Documents using the Unstructured API (hosted or running locally).
+    Convert files to Haystack Documents using the Unstructured package
     """
 
     def __init__(
         self,
-        api_url: str = UNSTRUCTURED_HOSTED_API_URL,
-        api_key: Optional[str] = None,
         document_creation_mode: Literal[
             "one-doc-per-file", "one-doc-per-page", "one-doc-per-element"
         ] = "one-doc-per-file",
@@ -38,12 +37,6 @@ class UnstructuredFileConverter:
         progress_bar: bool = True,  # noqa: FBT001, FBT002
     ):
         """
-        :param api_url: URL of the Unstructured API. Defaults to the hosted version.
-            If you run the API locally, specify the URL of your local API (e.g. http://localhost:8000/general/v0/general).
-            See https://unstructured-io.github.io/unstructured/api.html#using-the-api-locally for more information.
-        :param api_key: API key for the Unstructured API (https://unstructured.io/#get-api-key).
-            If you run the API locally, it is not needed.
-            If you use the hosted version, it defaults to the environment variable UNSTRUCTURED_API_KEY.
         :param document_creation_mode: How to create Haystack Documents from the elements returned by Unstructured.
             - "one-doc-per-file": One Haystack Document per file. All elements are concatenated into one text field.
             - "one-doc-per-page": One Haystack Document per page.
@@ -55,35 +48,17 @@ class UnstructuredFileConverter:
             See https://unstructured-io.github.io/unstructured/api.html.
         :param progress_bar: Show a progress bar for the conversion. Defaults to True.
         """
-
-        self.api_url = api_url
         self.document_creation_mode = document_creation_mode
         self.unstructured_kwargs = unstructured_kwargs or {}
         self.separator = separator
         self.progress_bar = progress_bar
 
-        is_hosted_api = api_url == UNSTRUCTURED_HOSTED_API_URL
-
-        api_key = api_key or os.environ.get("UNSTRUCTURED_API_KEY")
-        # we check whether api_key is None or an empty string
-        if is_hosted_api and not api_key:
-            msg = (
-                "To use the hosted version of Unstructured, you need to set the environment variable "
-                "UNSTRUCTURED_API_KEY (recommended) or explictly pass the parameter api_key."
-            )
-            raise ValueError(msg)
-
-        self.api_key = api_key
-
     def to_dict(self) -> Dict[str, Any]:
         """
         Serialize this component to a dictionary.
         """
-
-        # do not serialize api_key
         return default_to_dict(
             self,
-            api_url=self.api_url,
             document_creation_mode=self.document_creation_mode,
             separator=self.separator,
             unstructured_kwargs=self.unstructured_kwargs,
@@ -181,6 +156,88 @@ class UnstructuredFileConverter:
                 doc = Document(content=str(el), meta=metadata)
                 docs.append(doc)
         return docs
+
+    def _partition_file_into_elements(self, filepath: Path) -> List[Element]:
+        """
+        Partition a file into elements using the Unstructured package.
+        """
+        elements = []
+        try:
+            elements = partition(filename=str(filepath), **self.unstructured_kwargs)
+        except Exception as e:
+            logger.warning("Unstructured could not process file %s. Error: %s", filepath, e)
+        return elements
+
+
+class UnstructuredFileConverter(UnstructuredLocalFileConverter):
+    """
+    Convert files to Haystack Documents using the Unstructured API (hosted or running locally).
+    """
+
+    def __init__(
+        self,
+        api_url: str = UNSTRUCTURED_HOSTED_API_URL,
+        api_key: Optional[str] = None,
+        document_creation_mode: Literal[
+            "one-doc-per-file", "one-doc-per-page", "one-doc-per-element"
+        ] = "one-doc-per-file",
+        separator: str = "\n\n",
+        unstructured_kwargs: Optional[Dict[str, Any]] = None,
+        progress_bar: bool = True,  # noqa: FBT001, FBT002
+    ):
+        """
+        :param api_url: URL of the Unstructured API. Defaults to the hosted version.
+            If you run the API locally, specify the URL of your local API (e.g. http://localhost:8000/general/v0/general).
+            See https://unstructured-io.github.io/unstructured/api.html#using-the-api-locally for more information.
+        :param api_key: API key for the Unstructured API (https://unstructured.io/#get-api-key).
+            If you run the API locally, it is not needed.
+            If you use the hosted version, it defaults to the environment variable UNSTRUCTURED_API_KEY.
+        :param document_creation_mode: How to create Haystack Documents from the elements returned by Unstructured.
+            - "one-doc-per-file": One Haystack Document per file. All elements are concatenated into one text field.
+            - "one-doc-per-page": One Haystack Document per page.
+               All elements on a page are concatenated into one text field.
+            - "one-doc-per-element": One Haystack Document per element.
+              Each element is converted to a Haystack Document.
+        :param separator: Separator between elements when concatenating them into one text field.
+        :param unstructured_kwargs: Additional keyword arguments that are passed to the Unstructured API.
+            See https://unstructured-io.github.io/unstructured/api.html.
+        :param progress_bar: Show a progress bar for the conversion. Defaults to True.
+        """
+        super().__init__(
+            document_creation_mode=document_creation_mode,
+            separator=separator,
+            unstructured_kwargs=unstructured_kwargs,
+            progress_bar=progress_bar
+        )
+
+        self.api_url = api_url
+        is_hosted_api = api_url == UNSTRUCTURED_HOSTED_API_URL
+
+        api_key = api_key or os.environ.get("UNSTRUCTURED_API_KEY")
+        # we check whether api_key is None or an empty string
+        if is_hosted_api and not api_key:
+            msg = (
+                "To use the hosted version of Unstructured, you need to set the environment variable "
+                "UNSTRUCTURED_API_KEY (recommended) or explicitly pass the parameter api_key."
+            )
+            raise ValueError(msg)
+
+        self.api_key = api_key
+
+    def to_dict(self) -> Dict[str, Any]:
+        """
+        Serialize this component to a dictionary.
+        """
+
+        # do not serialize api_key
+        return default_to_dict(
+            self,
+            api_url=self.api_url,
+            document_creation_mode=self.document_creation_mode,
+            separator=self.separator,
+            unstructured_kwargs=self.unstructured_kwargs,
+            progress_bar=self.progress_bar,
+        )
 
     def _partition_file_into_elements(self, filepath: Path) -> List[Element]:
         """

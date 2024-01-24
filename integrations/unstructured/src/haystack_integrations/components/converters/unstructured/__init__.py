@@ -1,6 +1,6 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
-from .converter import UnstructuredFileConverter
+from .converter import UnstructuredFileConverter, UnstructuredLocalFileConverter
 
-__all__ = ["UnstructuredFileConverter"]
+__all__ = ["UnstructuredFileConverter", "UnstructuredLocalFileConverter"]
