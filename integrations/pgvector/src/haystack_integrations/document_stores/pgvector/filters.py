@@ -30,12 +30,12 @@ def _build_where_clause(filters: Dict[str, Any]) -> str:
     actual_params = ()
     for param in params:
         if param != "no_value":
-            actual_params = actual_params + (param,)
+            actual_params = (*actual_params, param)
 
     return where_clause, actual_params
 
 
-def _normalize_filters(filters: Dict[str, Any]) -> Dict[str, Any]:
+def _normalize_filters(filters: Dict[str, Any]) -> tuple[str, Any]:
     """
     Converts Haystack filters in pgvector compatible filters.
     """
@@ -48,7 +48,7 @@ def _normalize_filters(filters: Dict[str, Any]) -> Dict[str, Any]:
     return _parse_logical_condition(filters)
 
 
-def _parse_logical_condition(condition: Dict[str, Any]) -> Dict[str, Any]:
+def _parse_logical_condition(condition: Dict[str, Any]) -> tuple[str, Any]:
     if "operator" not in condition:
         msg = f"'operator' key missing in {condition}"
         raise FilterError(msg)
@@ -65,20 +65,18 @@ def _parse_logical_condition(condition: Dict[str, Any]) -> Dict[str, Any]:
         query_parts.append(c[0])
         values.append(c[1])
 
-    sql_query_parts = [SQL(q) if isinstance(q, str) else q for q in query_parts]
+    # sql_query_parts = [SQL(q) if isinstance(q, str) else q for q in query_parts]
     print("values", values)
     if isinstance(values[0], list):
         values = list(chain.from_iterable(values))
 
     if operator == "AND":
-        sql_query = SQL("(") + SQL(" AND ").join(sql_query_parts) + SQL(")")
-
+        sql_query = "("+ " AND ".join(query_parts) + ")"
     elif operator == "OR":
-        sql_query = SQL("(") + SQL(" OR ").join(sql_query_parts) + SQL(")")
-
+        sql_query = "("+ " OR ".join(query_parts) + ")"
     elif operator == "NOT":
-        joined_query_parts = SQL(" AND ").join(sql_query_parts)
-        sql_query = SQL("NOT (") + joined_query_parts + SQL(")")
+        joined_query_parts = " AND ".join(query_parts)
+        sql_query = "NOT (" + joined_query_parts + ")"
 
     else:
         msg = f"Unknown logical operator '{operator}'"
@@ -135,19 +133,18 @@ def _parse_comparison_condition(condition: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def _equal(field: str, value: Any) -> tuple[str, Any]:
-    print("value", value)
     if value is None:
         # no_value is a placeholder that will be removed in _build_where_clause
         return f"{field} IS NULL", "no_value"
     return f"{field} = %s", value
 
 def _not_equal(field: str, value: Any) -> tuple[str, Any]:
-    # we use IS DISTINCT FROM to also consider NULL values as different
+    # we use IS DISTINCT FROM to correctly handle NULL values
     # (not handled by !=)
     return f"{field} IS DISTINCT FROM %s", value
 
 
-def _greater_than(field: str, value: Any) -> Dict[str, Any]:
+def _greater_than(field: str, value: Any) -> tuple[str, Any]:
     if isinstance(value, str):
         try:
             datetime.fromisoformat(value)
@@ -157,14 +154,14 @@ def _greater_than(field: str, value: Any) -> Dict[str, Any]:
                 "Strings are only comparable if they are ISO formatted dates."
             )
             raise FilterError(msg) from exc
-    if type(value) in [list, DataFrame, Jsonb]:
+    if type(value) in [list, Jsonb]:
         msg = f"Filter value can't be of type {type(value)} using operators '>', '>=', '<', '<='"
         raise FilterError(msg)
 
     return f"{field} > %s", value
 
 
-def _greater_than_equal(field: str, value: Any) -> Dict[str, Any]:
+def _greater_than_equal(field: str, value: Any) -> tuple[str, Any]:
     if isinstance(value, str):
         try:
             datetime.fromisoformat(value)
@@ -174,14 +171,14 @@ def _greater_than_equal(field: str, value: Any) -> Dict[str, Any]:
                 "Strings are only comparable if they are ISO formatted dates."
             )
             raise FilterError(msg) from exc
-    if type(value) in [list, DataFrame, Jsonb]:
+    if type(value) in [list, Jsonb]:
         msg = f"Filter value can't be of type {type(value)} using operators '>', '>=', '<', '<='"
         raise FilterError(msg)
 
     return f"{field} >= %s", value
 
 
-def _less_than(field: str, value: Any) -> Dict[str, Any]:
+def _less_than(field: str, value: Any) -> tuple[str, Any]:
     if isinstance(value, str):
         try:
             datetime.fromisoformat(value)
@@ -191,14 +188,14 @@ def _less_than(field: str, value: Any) -> Dict[str, Any]:
                 "Strings are only comparable if they are ISO formatted dates."
             )
             raise FilterError(msg) from exc
-    if type(value) in [list, DataFrame, Jsonb]:
+    if type(value) in [list, Jsonb]:
         msg = f"Filter value can't be of type {type(value)} using operators '>', '>=', '<', '<='"
         raise FilterError(msg)
 
     return f"{field} < %s", value
 
 
-def _less_than_equal(field: str, value: Any) -> Dict[str, Any]:
+def _less_than_equal(field: str, value: Any) -> tuple[str, Any]:
     if isinstance(value, str):
         try:
             datetime.fromisoformat(value)
@@ -208,14 +205,14 @@ def _less_than_equal(field: str, value: Any) -> Dict[str, Any]:
                 "Strings are only comparable if they are ISO formatted dates."
             )
             raise FilterError(msg) from exc
-    if type(value) in [list, DataFrame, Jsonb]:
+    if type(value) in [list, Jsonb]:
         msg = f"Filter value can't be of type {type(value)} using operators '>', '>=', '<', '<='"
         raise FilterError(msg)
 
     return f"{field} <= %s", value
 
 
-def _not_in(field: str, value: Any) -> Dict[str, Any]:
+def _not_in(field: str, value: Any) -> tuple[str, Any]:
     if not isinstance(value, list):
         msg = f"{field}'s value must be a list when using 'not in' comparator in Pinecone"
         raise FilterError(msg)
@@ -223,11 +220,12 @@ def _not_in(field: str, value: Any) -> Dict[str, Any]:
     return f"{field} IS NULL OR {field} != ALL(%s)", [value]
 
 
-def _in(field: str, value: Any) -> Dict[str, Any]:
+def _in(field: str, value: Any) -> tuple[str, Any]:
     if not isinstance(value, list):
         msg = f"{field}'s value must be a list when using 'in' comparator in Pinecone"
         raise FilterError(msg)
-
+    
+    # see https://www.psycopg.org/psycopg3/docs/basic/adapt.html#lists-adaptation
     return f"{field} = ANY(%s)", [value]
 
 
