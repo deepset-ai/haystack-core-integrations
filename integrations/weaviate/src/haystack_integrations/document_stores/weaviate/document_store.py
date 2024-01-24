@@ -195,7 +195,7 @@ class WeaviateDocumentStore:
 
     def write_documents(
         self,
-        documents: List[Document],
+        documents: List[Document],  # noqa: ARG002
         policy: DuplicatePolicy = DuplicatePolicy.NONE,  # noqa: ARG002
     ) -> int:
         return 0
