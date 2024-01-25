@@ -60,7 +60,10 @@ cov = [
   "test-cov",
   "cov-report",
 ]
-docs = "pydoc-markdown pydoc.yml"
+docs = [
+  "pydoc-markdown pydoc/document_stores.yml",
+  "pydoc-markdown pydoc/retrievers.yml",
+]
 
 [[tool.hatch.envs.all.matrix]]
 python = ["3.9", "3.10"]
