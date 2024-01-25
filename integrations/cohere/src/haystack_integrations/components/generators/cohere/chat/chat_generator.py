@@ -12,6 +12,7 @@ with LazyImport(message="Run 'pip install cohere'") as cohere_import:
 logger = logging.getLogger(__name__)
 
 
+@component
 class CohereChatGenerator:
     """Enables text generation using Cohere's chat endpoint. This component is designed to inference
     Cohere's chat models.
@@ -123,10 +124,7 @@ class CohereChatGenerator:
         return default_from_dict(cls, data)
 
     def _message_to_dict(self, message: ChatMessage) -> Dict[str, str]:
-        if message.role == ChatRole.USER:
-            role = "User"
-        elif message.role == ChatRole.ASSISTANT:
-            role = "Chatbot"
+        role = "User" if message.role == ChatRole.USER else "Chatbot"
         chat_message = {"user_name": role, "text": message.content}
         return chat_message
 
@@ -179,7 +177,6 @@ class CohereChatGenerator:
         :param choice: The choice returned by the OpenAI API.
         :return: The StreamingChunk.
         """
-        # if chunk.event_type == "text-generation":
         chat_message = StreamingChunk(content=chunk.text, meta={"index": chunk.index, "event_type": chunk.event_type})
         return chat_message
 

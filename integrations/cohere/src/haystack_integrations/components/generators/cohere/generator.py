@@ -6,10 +6,10 @@ import os
 import sys
 from typing import Any, Callable, Dict, List, Optional, cast
 
-from haystack import DeserializationError, component, default_from_dict, default_to_dict
-
 from cohere import COHERE_API_URL, Client
 from cohere.responses import Generations
+from haystack import DeserializationError, component, default_from_dict, default_to_dict
+from haystack.dataclasses import StreamingChunk
 
 logger = logging.getLogger(__name__)
 
@@ -148,8 +148,8 @@ class CohereGenerator:
         if self.streaming_callback:
             metadata_dict: Dict[str, Any] = {}
             for chunk in response:
-                self.streaming_callback(chunk)
-                metadata_dict["index"] = chunk.index
+                stream_chunk = self._build_chunk(chunk)
+                self.streaming_callback(stream_chunk)
             replies = response.texts
             metadata_dict["finish_reason"] = response.finish_reason
             metadata = [metadata_dict]
@@ -160,6 +160,15 @@ class CohereGenerator:
         replies = [resp.text for resp in response]
         self._check_truncated_answers(metadata)
         return {"replies": replies, "meta": metadata}
+
+    def _build_chunk(self, chunk) -> StreamingChunk:
+        """
+        Converts the response from the Cohere API to a StreamingChunk.
+        :param chunk: The chunk returned by the OpenAI API.
+        :return: The StreamingChunk.
+        """
+        streaming_chunk = StreamingChunk(content=chunk.text, meta={"index": chunk.index})
+        return streaming_chunk
 
     def _check_truncated_answers(self, metadata: List[Dict[str, Any]]):
         """
