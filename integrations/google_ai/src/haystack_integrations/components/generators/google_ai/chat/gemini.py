@@ -21,7 +21,7 @@ class GoogleAIGeminiChatGenerator:
     Sample usage:
     ```python
     from haystack.dataclasses.chat_message import ChatMessage
-    from google_ai_haystack.generators.chat.gemini import GoogleAIGeminiChatGenerator
+    from haystack_integrations.components.generators.google_ai import GoogleAIGeminiChatGenerator
 
 
     gemini_chat = GoogleAIGeminiChatGenerator(model="gemini-pro", api_key="<MY_API_KEY>")
@@ -43,7 +43,7 @@ class GoogleAIGeminiChatGenerator:
     from haystack.dataclasses.chat_message import ChatMessage
     from google.ai.generativelanguage import FunctionDeclaration, Tool
 
-    from google_ai_haystack.generators.chat.gemini import GoogleAIGeminiChatGenerator
+    from haystack_integrations.components.generators.google_ai import GoogleAIGeminiChatGenerator
 
     # Example function to get the current weather
     def get_current_weather(location: str, unit: str = "celsius") -> str:
