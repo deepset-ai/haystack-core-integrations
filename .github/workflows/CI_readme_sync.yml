@@ -47,7 +47,9 @@ jobs:
           ALL_CHANGED_DIRS: ${{ steps.changed-files.outputs.all_changed_files }}
         run: |
           for d in "$ALL_CHANGED_DIRS"; do
-            printf %"s\n" $d
+            cd $d
+            hatch run docs
+            cd -
           done
 
       - name: Sync preview docs with 2.0
