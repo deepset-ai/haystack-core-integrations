@@ -19,7 +19,7 @@ processors:
 renderer:
   type: haystack_pydoc_tools.renderers.ReadmePreviewRenderer
   excerpt: Chroma integration for Haystack
-  category_slug: haystack-classes
+  category_slug: haystack-integrations
   title: Chroma
   slug: integrations-chroma
   order: 1
