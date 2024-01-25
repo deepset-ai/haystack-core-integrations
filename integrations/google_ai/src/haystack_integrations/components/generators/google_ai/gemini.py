@@ -20,7 +20,7 @@ class GoogleAIGeminiGenerator:
 
     Sample usage:
     ```python
-    from google_ai_haystack.generators.gemini import GoogleAIGeminiGenerator
+    from haystack_integrations.components.generators.google_ai import GoogleAIGeminiGenerator
 
     gemini = GoogleAIGeminiGenerator(model="gemini-pro", api_key="<MY_API_KEY>")
     res = gemini.run(parts = ["What is the most interesting thing you know?"])
@@ -32,7 +32,7 @@ class GoogleAIGeminiGenerator:
     ```python
     import requests
     from haystack.dataclasses.byte_stream import ByteStream
-    from google_ai_haystack.generators.gemini import GoogleAIGeminiGenerator
+    from haystack_integrations.components.generators.google_ai import GoogleAIGeminiGenerator
 
     BASE_URL = (
         "https://raw.githubusercontent.com/deepset-ai/haystack-core-integrations"
