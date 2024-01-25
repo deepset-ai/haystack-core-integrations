@@ -5,7 +5,7 @@ import cohere
 import pytest
 from haystack.components.generators.utils import default_streaming_callback
 from haystack.dataclasses import ChatMessage, ChatRole, StreamingChunk
-from haystack_integrations.components.generators.cohere.chat import CohereChatGenerator
+from haystack_integrations.components.generators.cohere import CohereChatGenerator
 
 pytestmark = pytest.mark.chat_generators
 
