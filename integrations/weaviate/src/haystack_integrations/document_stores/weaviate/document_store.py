@@ -188,7 +188,9 @@ class WeaviateDocumentStore:
         )
 
     def count_documents(self) -> int:
-        return 0
+        collection_name = self._collection_settings["class"]
+        res = self._client.query.aggregate(collection_name).with_meta_count().do()
+        return res.get("data", {}).get("Aggregate", {}).get(collection_name, [{}])[0].get("meta", {}).get("count", 0)
 
     def filter_documents(self, filters: Optional[Dict[str, Any]] = None) -> List[Document]:  # noqa: ARG002
         return []
