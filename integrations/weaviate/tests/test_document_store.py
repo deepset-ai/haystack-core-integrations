@@ -1,6 +1,7 @@
 from unittest.mock import MagicMock, patch
 
 import pytest
+from haystack.testing.document_store import CountDocumentsTest
 from haystack_integrations.document_stores.weaviate.document_store import (
     DOCUMENT_COLLECTION_PROPERTIES,
     WeaviateDocumentStore,
@@ -16,7 +17,7 @@ from weaviate.embedded import (
 )
 
 
-class TestWeaviateDocumentStore:
+class TestWeaviateDocumentStore(CountDocumentsTest):
     @pytest.fixture
     def document_store(self, request) -> WeaviateDocumentStore:
         # Use a different index for each test so we can run them in parallel
@@ -197,3 +198,7 @@ class TestWeaviateDocumentStore:
         assert document_store._additional_config.grpc_port_experimental == 12345
         assert document_store._additional_config.connection_config.session_pool_connections == 20
         assert document_store._additional_config.connection_config.session_pool_maxsize == 20
+
+    def test_count_not_empty(self, document_store):
+        # Skipped for the time being as we don't support writing documents
+        pass
