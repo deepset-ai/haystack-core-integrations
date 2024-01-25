@@ -61,8 +61,7 @@ cov = [
   "cov-report",
 ]
 docs = [
-  "pydoc-markdown pydoc/document_stores.yml",
-  "pydoc-markdown pydoc/retrievers.yml",
+  "pydoc-markdown pydoc/config.yml"
 ]
 
 [[tool.hatch.envs.all.matrix]]

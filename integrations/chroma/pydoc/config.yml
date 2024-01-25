@@ -2,6 +2,7 @@ loaders:
   - type: haystack_pydoc_tools.loaders.CustomPythonLoader
     search_path: [../src]
     modules: [
+      "haystack_integrations.components.retrievers.chroma.retriever",
       "haystack_integrations.document_stores.chroma.document_store",
       "haystack_integrations.document_stores.chroma.errors",
       "haystack_integrations.document_stores.chroma.utils",
@@ -20,11 +21,11 @@ renderer:
   excerpt: Chroma integration for Haystack
   category_slug: haystack-classes
   title: Chroma
-  slug: integrations-chroma-document-stores
+  slug: integrations-chroma
   order: 1
   markdown:
     descriptive_class_title: false
     descriptive_module_title: true
     add_method_class_prefix: true
     add_member_class_prefix: false
-    filename: _readme_document_stores.md
+    filename: _readme_chroma.md
