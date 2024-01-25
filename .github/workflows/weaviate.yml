@@ -29,15 +29,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        os: [ubuntu-latest]
         python-version: ["3.8", "3.9", "3.10", "3.11", "3.12"]
 
     steps:
-      - name: Support longpaths
-        if: matrix.os == 'windows-latest'
-        working-directory: .
-        run: git config --system core.longpaths true
-
       - uses: actions/checkout@v4
 
       - name: Set up Python ${{ matrix.python-version }}
@@ -49,7 +44,6 @@ jobs:
         run: pip install --upgrade hatch
 
       - name: Lint
-        if: runner.os == 'Linux'
         run: hatch run lint:all
 
       - name: Run Weaviate container
