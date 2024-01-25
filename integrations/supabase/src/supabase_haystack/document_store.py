@@ -9,9 +9,10 @@ import numpy as np
 import vecs
 from haystack.dataclasses import Document
 from haystack.document_stores.errors import DuplicateDocumentError, MissingDocumentError
-from haystack.document_stores.protocol import DuplicatePolicy
+from haystack.document_stores.types import DuplicatePolicy
+from haystack.utils.filters import convert
 
-from supabase_haystack.filters import _normalize_filters
+from src.supabase_haystack.filters import _normalize_filters
 
 logger = logging.getLogger(__name__)
 
@@ -19,11 +20,11 @@ logger = logging.getLogger(__name__)
 class SupabaseDocumentStore:
     def __init__(
             self,
-            user:str,
-            password:str,
             host:str,
-            port:str,
-            db_name:str,
+            password:str,
+            user:str = "postgres",
+            port:str = "5432",
+            db_name:str = "postgres",
             collection_name:str = "documents",
             dimension:int = 768,
             **collection_creation_kwargs,
@@ -42,12 +43,16 @@ class SupabaseDocumentStore:
         :param dimension: The dimensionality of the vectors to be stored in the document store.
         :param **collection_creation_kwargs: Optional arguments that ``Supabase Document Store`` takes.
         """
+        self.dimension = dimension
         self._collection_name = collection_name
         self._dummy_vector = [0.0]*dimension
-        self._adapter = collection_creation_kwargs["adapter"]
         db_connection = f"postgresql://{user}:{password}@{host}:{port}/{db_name}"
         self._pgvector_client = vecs.create_client(db_connection)
         self._collection = self._pgvector_client.get_or_create_collection(name=collection_name, dimension=dimension, **collection_creation_kwargs)
+        self._adapter = None
+        if collection_creation_kwargs.get("adapter") is not None:
+            self._adapter = collection_creation_kwargs["adapter"]
+        
 
     def count_documents(self) -> int:
         """
@@ -85,11 +90,9 @@ class SupabaseDocumentStore:
         - `<`
         - `<=`
         - `in`
-        - `not in`
 
         The `operator` values in Logic dictionaries must be one of:
 
-        - `NOT`
         - `OR`
         - `AND`
 
@@ -121,16 +124,15 @@ class SupabaseDocumentStore:
         :param filters: the filters to apply to the document list.
         :return: a list of Documents that match the given filters.
         """
-        filters = _normalize_filters(filters)
-
         # pgvector store performs vector similarity search
         # here we are querying with a dummy vector and the max compatible top_k
         documents = self._embedding_retrieval(
             query_embedding=self._dummy_vector,
             filters=filters,
+            top_k=10
         )
-
-        return self._convert_query_result_to_documents(documents)
+        logger.warning(documents)
+        return documents
 
     def write_documents(self, documents: List[Document], policy: DuplicatePolicy = DuplicatePolicy.NONE) -> int:
         """
@@ -140,7 +142,7 @@ class SupabaseDocumentStore:
         :param policy: The duplicate policy to use when writing documents.
             SupabaseDocumentStore only supports `DuplicatePolicy.OVERWRITE`.
 
-        :return: None
+        :return: This figure may lack accuracy as it fails to distinguish between documents that were genuinely written and those that were not(overwritten).
         """
         if policy not in [DuplicatePolicy.NONE, DuplicatePolicy.OVERWRITE]:
             logger.warning(
@@ -148,6 +150,7 @@ class SupabaseDocumentStore:
                 f"but got {policy}. Overwriting duplicates is enabled by default."
             )
 
+        documents_for_supabase = []
 
         for doc in documents:
             if not isinstance(doc, Document):
@@ -158,24 +161,24 @@ class SupabaseDocumentStore:
                     "SupabaseDocumentStore can only store the text field of Documents: "
                     "'array', 'dataframe' and 'blob' will be dropped."
                 )
-
             if self._adapter is not None:
-                data = (doc.id, doc.content, {"content":doc.content, **doc.meta})
-                self._collection.upsert(records=[data])
+                documents_for_supabase.append((doc.id, doc.content, {"content":doc.content, **doc.meta}))
             else:
-                embedding = copy(doc.embedding)
+                embedding = doc.embedding
                 if doc.embedding is None:
                     logger.warning(
-                    f"Document {doc.id} has no embedding. pgvector is a purely vector database. "
-                    "A dummy embedding will be used, but this can affect the search results. "
-                )
+                            f"Document {doc.id} has no embedding. pgvector is a purely vector database. "
+                            "A dummy embedding will be used, but this can affect the search results. "
+                        )
                     embedding = self._dummy_vector
+                documents_for_supabase.append((doc.id, embedding, {"content":doc.content, **doc.meta}))
 
-                data = (doc.id, embedding, {"content":doc.content, **doc.meta})
-                self._collection.upsert(records=[data])
+        self._collection.upsert(records=documents_for_supabase)
+        self._collection.create_index()
+        return len(documents)
 
     def delete_documents(self, document_ids: List[str]) -> None:
-        """
+        """it
         Deletes all documents with a matching document_ids from the document store.
 
         :param document_ids: the document ids to delete
@@ -188,13 +191,14 @@ class SupabaseDocumentStore:
         """
         documents = []
         for i in result:
-            document_dict: Dict[str, Any] = {"id":i[0]}
-            document_dict["embedding"] = np.array(i[1])
-            metadata = i[2]
+            supabase_data = self._collection.__getitem__(i)
+            document_dict = {"id":supabase_data[0]}
+            document_dict["embedding"] = np.array(supabase_data[1])
+            metadata = supabase_data[2]
             document_dict["content"] = metadata["content"]
             del metadata["content"]
             document_dict["meta"] = metadata
-            documents.append(Document.from_dict(dict))
+            documents.append(Document.from_dict(document_dict))
 
         return documents
 
@@ -218,15 +222,14 @@ class SupabaseDocumentStore:
             msg = "query_embedding must be a non-empty list of floats"
             raise ValueError(msg)
 
-        filters = _normalize_filters(filters)
+        if filters and "operator" not in filters and "conditions" not in filters:
+            filters = convert(filters)
+        filters = _normalize_filters(filters) if filters else None
 
         results = self._collection.query(
             data=query_embedding,
             limit=top_k,
-            filters=filters,
-            include_value=True,
-            include_metadata=True
+            filters=filters
         )
-
         return self._convert_query_result_to_documents(result=results)
 

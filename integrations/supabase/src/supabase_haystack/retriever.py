@@ -6,8 +6,7 @@ from typing import Any, Dict, List, Optional
 from haystack import component
 from haystack.dataclasses import Document
 
-from supabase_haystack.document_store import SupabaseDocumentStore
-
+from src.supabase_haystack.document_store import SupabaseDocumentStore
 
 @component
 class SupabaseEmbeddingRetriever:
