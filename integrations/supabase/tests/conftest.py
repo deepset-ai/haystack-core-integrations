@@ -1,5 +1,3 @@
-import time
-
 import pytest
 from haystack.document_stores.types import DuplicatePolicy
 
@@ -15,7 +13,7 @@ def sleep_time():
 
 
 @pytest.fixture
-def document_store(request):
+def document_store():
     """
     This is the most basic requirement for the child class: provide
     an instance of this document store so the base class can use it.
@@ -48,4 +46,4 @@ def document_store(request):
 
     yield store
     store._collection.delete(ids=store._collection.query(data=store._dummy_vector, limit=store.count_documents()))
-    
+

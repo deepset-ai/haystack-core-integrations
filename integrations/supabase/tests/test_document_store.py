@@ -1,17 +1,17 @@
 # SPDX-FileCopyrightText: 2023-present John Doe <jd@example.com>
 #
 # SPDX-License-Identifier: Apache-2.0
-from unittest.mock import patch
 from typing import List
-from haystack.document_stores.types import DocumentStore
-import pytest
-import numpy as np
+from unittest.mock import patch
 
+import numpy as np
+import pytest
 from haystack import Document
-from haystack.document_stores.types import DuplicatePolicy
+from haystack.document_stores.types import DocumentStore, DuplicatePolicy
+from haystack.testing.document_store import CountDocumentsTest, DeleteDocumentsTest, WriteDocumentsTest
+
 from src.supabase_haystack.document_store import SupabaseDocumentStore
 
-from haystack.testing.document_store import CountDocumentsTest, DeleteDocumentsTest, WriteDocumentsTest
 
 class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, WriteDocumentsTest):
 
@@ -38,10 +38,10 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, WriteDocumentsT
                 assert expected_doc.embedding is None
             else:
                 assert received_doc.embedding == pytest.approx(expected_doc.embedding)
-    
+
     def test_count_empty(self, document_store: DocumentStore):
         return super().test_count_empty(document_store)
-    
+
     def test_count_not_empty(self, document_store: DocumentStore):
         assert document_store.count_documents() == 0
         document_store.write_documents(
@@ -51,13 +51,13 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, WriteDocumentsT
 
     def test_delete_documents(self, document_store: DocumentStore):
         return super().test_delete_documents(document_store)
-    
+
     def test_delete_documents_empty_document_store(self, document_store: DocumentStore):
         return super().test_delete_documents_empty_document_store(document_store)
-    
+
     def test_delete_documents_non_existing_document(self, document_store: DocumentStore):
         return super().test_delete_documents_non_existing_document(document_store)
-    
+
     def test_embedding_retrieval(self, document_store: SupabaseDocumentStore):
         query_embedding = [0.1] * 768
         most_similar_embedding = [0.8] * 768
@@ -96,11 +96,11 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, WriteDocumentsT
 
         assert document_store._collection_name == "documents"
         assert document_store.dimension == 30
-    
+
     @pytest.mark.skip(reason="Supabase only supports UPSERT operations")
     def test_write_documents_duplicate_fail(self, document_store: SupabaseDocumentStore):
         ...
-    
+
     @pytest.mark.skip(reason="Supabase only supports UPSERT operations")
     def test_write_documents_duplicate_skip(self, document_store: SupabaseDocumentStore):
        ...
@@ -122,6 +122,6 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, WriteDocumentsT
     def test_write_documents(self, document_store: DocumentStore):
         docs = [Document(id="1")]
         assert document_store.write_documents(docs) == 1
-    
+
     def test_write_documents_invalid_input(self, document_store: DocumentStore):
         return super().test_write_documents_invalid_input(document_store)

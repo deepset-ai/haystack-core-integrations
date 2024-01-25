@@ -8,6 +8,7 @@ from haystack.dataclasses import Document
 
 from src.supabase_haystack.document_store import SupabaseDocumentStore
 
+
 @component
 class SupabaseEmbeddingRetriever:
     """

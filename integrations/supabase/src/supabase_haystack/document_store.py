@@ -2,13 +2,11 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 import logging
-from copy import copy
 from typing import Any, Dict, List, Optional
 
 import numpy as np
 import vecs
 from haystack.dataclasses import Document
-from haystack.document_stores.errors import DuplicateDocumentError, MissingDocumentError
 from haystack.document_stores.types import DuplicatePolicy
 from haystack.utils.filters import convert
 
@@ -52,7 +50,7 @@ class SupabaseDocumentStore:
         self._adapter = None
         if collection_creation_kwargs.get("adapter") is not None:
             self._adapter = collection_creation_kwargs["adapter"]
-        
+
 
     def count_documents(self) -> int:
         """
@@ -131,7 +129,7 @@ class SupabaseDocumentStore:
             filters=filters,
             top_k=10
         )
-        logger.warning(documents)
+
         return documents
 
     def write_documents(self, documents: List[Document], policy: DuplicatePolicy = DuplicatePolicy.NONE) -> int:
