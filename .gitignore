@@ -133,4 +133,4 @@ dmypy.json
 .vscode
 
 # Docs generation artifacts
-_readme_sync.md
+_readme_*.md
