@@ -12,6 +12,9 @@ jobs:
     steps:
       - name: Checkout this repo
         uses: actions/checkout@v4
+        with:
+          # This will tell tj-actions/changed-files to compare the current pushed commit with the latest in main
+          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -29,8 +32,11 @@ jobs:
         id: changed-files
         uses: tj-actions/changed-files@v42
         with:
+          files: integrations/**
           # Output unique changed directories instead of filenames
           dir_names: true
+          # We only care about the name of the integration, i.e. integrations/FOO
+          dir_names_max_depth: 2
 
       - name: Generate docs
         env:
@@ -41,7 +47,7 @@ jobs:
           ALL_CHANGED_DIRS: ${{ steps.changed-files.outputs.all_changed_files }}
         run: |
           for d in "$ALL_CHANGED_DIRS"; do
-            echo "$d was changed"
+            printf %"s\n" $d
           done
 
       - name: Sync preview docs with 2.0

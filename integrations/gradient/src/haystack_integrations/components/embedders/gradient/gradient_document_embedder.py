@@ -127,3 +127,6 @@ class GradientDocumentEmbedder:
             doc.embedding = embedding
 
         return {"documents": documents}
+
+
+# TEST! TO BE REMOVED

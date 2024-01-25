@@ -42,3 +42,6 @@ class _InstructorEmbeddingBackend:
     def embed(self, data: List[List[str]], **kwargs) -> List[List[float]]:
         embeddings = self.model.encode(data, **kwargs).tolist()
         return embeddings
+
+
+# TEST! TO BE REMOVED
