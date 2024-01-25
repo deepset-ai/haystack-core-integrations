@@ -1,4 +1,4 @@
-name: Sync docs with Readme
+name: Core / Sync docs with Readme
 
 on:
   push:
