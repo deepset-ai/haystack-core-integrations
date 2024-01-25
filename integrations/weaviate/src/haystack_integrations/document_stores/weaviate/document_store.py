@@ -1,6 +1,7 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
+import base64
 from dataclasses import asdict
 from typing import Any, Dict, List, Optional, Tuple, Union
 
@@ -191,6 +192,52 @@ class WeaviateDocumentStore:
         collection_name = self._collection_settings["class"]
         res = self._client.query.aggregate(collection_name).with_meta_count().do()
         return res.get("data", {}).get("Aggregate", {}).get(collection_name, [{}])[0].get("meta", {}).get("count", 0)
+
+    def _to_data_object(self, document: Document) -> Dict[str, Any]:
+        """
+        Convert a Document to a Weviate data object ready to be saved.
+        """
+        data = document.to_dict(flatten=False)
+        # Weaviate forces a UUID as an id.
+        # We don't know if the id of our Document is a UUID or not, so we save it on a different field
+        # and let Weaviate a UUID that we're going to ignore completely.
+        data["_original_id"] = data.pop("id")
+        if (blob := data.pop("blob")) is not None:
+            # Weaviate wants the blob data as a base64 encoded string
+            # See the official docs for more information:
+            # https://weaviate.io/developers/weaviate/config-refs/datatypes#datatype-blob
+            data["blob_data"] = base64.b64encode(bytes(blob.pop("data"))).decode()
+            data["blob_mime_type"] = blob.pop("mime_type")
+        # The embedding vector is stored separately from the rest of the data
+        del data["embedding"]
+
+        # Weaviate doesn't like empty objects, let's delete meta if it's empty
+        if data["meta"] == {}:
+            del data["meta"]
+
+        return data
+
+    def _to_document(self, data: Dict[str, Any]) -> Document:
+        """
+        Convert a data object read from Weaviate into a Document.
+        """
+        data["id"] = data.pop("_original_id")
+        data["embedding"] = data["_additional"].pop("vector") if data["_additional"]["vector"] else None
+
+        if (blob_data := data.get("blob_data")) is not None:
+            data["blob"] = {
+                "data": base64.b64decode(blob_data),
+                "mime_type": data.get("blob_mime_type"),
+            }
+        # We always delete these fields as they're not part of the Document dataclass
+        data.pop("blob_data")
+        data.pop("blob_mime_type")
+
+        # We don't need these fields anymore, this usually only contains the uuid
+        # used by Weaviate to identify the object and the embedding vector that we already extracted.
+        del data["_additional"]
+
+        return Document.from_dict(data)
 
     def filter_documents(self, filters: Optional[Dict[str, Any]] = None) -> List[Document]:  # noqa: ARG002
         return []
