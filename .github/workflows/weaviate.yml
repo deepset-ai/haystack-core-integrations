@@ -52,5 +52,8 @@ jobs:
         if: runner.os == 'Linux'
         run: hatch run lint:all
 
+      - name: Run Weaviate container
+        run: docker-compose up -d
+
       - name: Run tests
         run: hatch run cov
