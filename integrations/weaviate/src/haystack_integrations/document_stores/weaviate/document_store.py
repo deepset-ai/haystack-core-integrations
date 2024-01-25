@@ -267,7 +267,7 @@ class WeaviateDocumentStore:
 
         return result["data"]["Get"][collection_name]
 
-    def filter_documents(self, filters: Optional[Dict[str, Any]] = None) -> List[Document]:
+    def filter_documents(self, filters: Optional[Dict[str, Any]] = None) -> List[Document]:  # noqa: ARG002
         properties = self._client.schema.get(self._collection_settings["class"]).get("properties", [])
         properties = [prop["name"] for prop in properties]
 
