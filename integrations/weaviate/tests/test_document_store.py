@@ -1,6 +1,9 @@
+import base64
 from unittest.mock import MagicMock, patch
 
 import pytest
+from haystack.dataclasses.byte_stream import ByteStream
+from haystack.dataclasses.document import Document
 from haystack.testing.document_store import CountDocumentsTest
 from haystack_integrations.document_stores.weaviate.document_store import (
     DOCUMENT_COLLECTION_PROPERTIES,
@@ -202,3 +205,54 @@ class TestWeaviateDocumentStore(CountDocumentsTest):
     def test_count_not_empty(self, document_store):
         # Skipped for the time being as we don't support writing documents
         pass
+
+    def test_to_data_object(self, document_store, test_files_path):
+        doc = Document(content="test doc")
+        data = document_store._to_data_object(doc)
+        assert data == {
+            "_original_id": doc.id,
+            "content": doc.content,
+            "dataframe": None,
+            "score": None,
+        }
+
+        image = ByteStream.from_file_path(test_files_path / "robot1.jpg", mime_type="image/jpeg")
+        doc = Document(
+            content="test doc",
+            blob=image,
+            embedding=[1, 2, 3],
+            meta={"key": "value"},
+        )
+        data = document_store._to_data_object(doc)
+        assert data == {
+            "_original_id": doc.id,
+            "content": doc.content,
+            "blob_data": base64.b64encode(image.data).decode(),
+            "blob_mime_type": "image/jpeg",
+            "dataframe": None,
+            "score": None,
+            "meta": {"key": "value"},
+        }
+
+    def test_to_document(self, document_store, test_files_path):
+        image = ByteStream.from_file_path(test_files_path / "robot1.jpg", mime_type="image/jpeg")
+        data = {
+            "_additional": {
+                "vector": [1, 2, 3],
+            },
+            "_original_id": "123",
+            "content": "some content",
+            "blob_data": base64.b64encode(image.data).decode(),
+            "blob_mime_type": "image/jpeg",
+            "dataframe": None,
+            "score": None,
+            "meta": {"key": "value"},
+        }
+
+        doc = document_store._to_document(data)
+        assert doc.id == "123"
+        assert doc.content == "some content"
+        assert doc.blob == image
+        assert doc.embedding == [1, 2, 3]
+        assert doc.score is None
+        assert doc.meta == {"key": "value"}

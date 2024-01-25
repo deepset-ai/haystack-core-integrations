@@ -222,7 +222,7 @@ class WeaviateDocumentStore:
         Convert a data object read from Weaviate into a Document.
         """
         data["id"] = data.pop("_original_id")
-        data["embedding"] = data["_additional"].pop("vector") if data["_additional"]["vector"] else None
+        data["embedding"] = data["_additional"].pop("vector") if data["_additional"].get("vector") else None
 
         if (blob_data := data.get("blob_data")) is not None:
             data["blob"] = {
