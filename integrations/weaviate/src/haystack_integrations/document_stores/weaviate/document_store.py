@@ -126,6 +126,7 @@ class WeaviateDocumentStore:
         if collection_settings is None:
             collection_settings = {
                 "class": "Default",
+                "invertedIndexConfig": {"indexNullState": True},
                 "properties": DOCUMENT_COLLECTION_PROPERTIES,
             }
         else:

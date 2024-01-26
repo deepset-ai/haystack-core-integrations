@@ -24,7 +24,15 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
     @pytest.fixture
     def document_store(self, request) -> WeaviateDocumentStore:
         # Use a different index for each test so we can run them in parallel
-        collection_settings = {"class": f"{request.node.name}"}
+        collection_settings = {
+            "class": f"{request.node.name}",
+            "invertedIndexConfig": {"indexNullState": True},
+            "properties": [
+                *DOCUMENT_COLLECTION_PROPERTIES,
+                {"name": "number", "dataType": ["int"]},
+                {"name": "date", "dataType": ["date"]},
+            ],
+        }
         store = WeaviateDocumentStore(
             url="http://localhost:8080",
             collection_settings=collection_settings,
@@ -99,6 +107,7 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
                 "url": "http://localhost:8080",
                 "collection_settings": {
                     "class": "Default",
+                    "invertedIndexConfig": {"indexNullState": True},
                     "properties": [
                         {"name": "_original_id", "dataType": ["text"]},
                         {"name": "content", "dataType": ["text"]},
@@ -176,6 +185,7 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
         assert document_store._url == "http://localhost:8080"
         assert document_store._collection_settings == {
             "class": "Default",
+            "invertedIndexConfig": {"indexNullState": True},
             "properties": [
                 {"name": "_original_id", "dataType": ["text"]},
                 {"name": "content", "dataType": ["text"]},
