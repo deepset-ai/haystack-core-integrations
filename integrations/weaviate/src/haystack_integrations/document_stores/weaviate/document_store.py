@@ -16,6 +16,8 @@ from weaviate.config import Config, ConnectionConfig
 from weaviate.embedded import EmbeddedOptions
 from weaviate.util import generate_uuid5
 
+from ._filters import convert_filters
+
 Number = Union[int, float]
 TimeoutType = Union[Tuple[Number, Number], Number]
 
@@ -238,7 +240,7 @@ class WeaviateDocumentStore:
 
         return Document.from_dict(data)
 
-    def _query(self, properties: List[str], batch_size: int, cursor=None):
+    def _query_paginated(self, properties: List[str], cursor=None):
         collection_name = self._collection_settings["class"]
         query = (
             self._client.query.get(
@@ -246,7 +248,7 @@ class WeaviateDocumentStore:
                 properties,
             )
             .with_additional(["id vector"])
-            .with_limit(batch_size)
+            .with_limit(100)
         )
 
         if cursor:
@@ -264,14 +266,39 @@ class WeaviateDocumentStore:
 
         return result["data"]["Get"][collection_name]
 
-    def filter_documents(self, filters: Optional[Dict[str, Any]] = None) -> List[Document]:  # noqa: ARG002
+    def _query_with_filters(self, properties: List[str], filters: Dict[str, Any]) -> List[Dict[str, Any]]:
+        collection_name = self._collection_settings["class"]
+        query = (
+            self._client.query.get(
+                collection_name,
+                properties,
+            )
+            .with_additional(["id vector"])
+            .with_where(convert_filters(filters))
+        )
+
+        result = query.do()
+
+        if "errors" in result:
+            errors = [e["message"] for e in result.get("errors", {})]
+            msg = "\n".join(errors)
+            msg = f"Failed to query documents in Weaviate. Errors:\n{msg}"
+            raise DocumentStoreError(msg)
+
+        return result["data"]["Get"][collection_name]
+
+    def filter_documents(self, filters: Optional[Dict[str, Any]] = None) -> List[Document]:
         properties = self._client.schema.get(self._collection_settings["class"]).get("properties", [])
         properties = [prop["name"] for prop in properties]
+
+        if filters:
+            result = self._query_with_filters(properties, filters)
+            return [self._to_document(doc) for doc in result]
 
         result = []
 
         cursor = None
-        while batch := self._query(properties, 100, cursor):
+        while batch := self._query_paginated(properties, cursor):
             # Take the cursor before we convert the batch to Documents as we manipulate
             # the batch dictionary and might lose that information.
             cursor = batch[-1]["_additional"]["id"]
