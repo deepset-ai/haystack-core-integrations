@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - main
-      - massi/readme-sync
 
 jobs:
   sync:
@@ -54,6 +53,7 @@ jobs:
           done
           mkdir tmp
           find . -name "_readme_*.md" -exec cp "{}" tmp \;
+          ls tmp
 
       - name: Sync preview docs with 2.0
         if: steps.changed-files.outputs.all_changed_files != ''
