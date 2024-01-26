@@ -8,10 +8,8 @@ from haystack.components.embedders import SentenceTransformersDocumentEmbedder, 
 from haystack.components.generators import OpenAIGenerator
 from haystack.components.writers import DocumentWriter
 from haystack.document_stores.types import DuplicatePolicy
-
-from haystack_integrations.document_stores.astra import AstraDocumentStore
 from haystack_integrations.components.retrievers.astra import AstraRetriever
-
+from haystack_integrations.document_stores.astra import AstraDocumentStore
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
