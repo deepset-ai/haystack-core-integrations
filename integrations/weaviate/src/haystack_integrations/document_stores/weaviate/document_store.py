@@ -319,7 +319,7 @@ class WeaviateDocumentStore:
             msg = f"Failed to write documents in Weaviate. Errors:\n{msg}"
             raise DocumentStoreError(msg)
 
-        # If the document already exists we can no status message back from Weaviate.
+        # If the document already exists we get no status message back from Weaviate.
         # So we assume that all Documents were written.
         return len(documents)
 
