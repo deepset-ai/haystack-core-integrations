@@ -21,4 +21,4 @@ def document_store(request):
     )
     yield store
 
-    # store.delete_table()
+    store.delete_table()
