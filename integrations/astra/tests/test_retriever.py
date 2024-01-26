@@ -4,6 +4,7 @@
 import os
 
 import pytest
+
 from haystack_integrations.components.retrievers.astra import AstraRetriever
 
 
