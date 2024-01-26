@@ -52,13 +52,13 @@ jobs:
             hatch run docs
             cd -
           done
+          mkdir tmp
+          find . -name "_readme_*.md" -exec cp "{}" tmp \;
 
       - name: Sync preview docs with 2.0
-        # Sync the preview docs to the `2.0` version on Readme
-        id: sync-main
-        if: github.ref_name == 'main' && github.event_name == 'push'
+        if: steps.changed-files.outputs.all_changed_files != ''
         uses: readmeio/rdme@8.3.1
         env:
           README_API_KEY: ${{ secrets.README_API_KEY }}
         with:
-          rdme: docs ./docs/pydoc/temp --key="$README_API_KEY" --version=2.0
+          rdme: docs ./tmp --key="$README_API_KEY" --version=2.0
