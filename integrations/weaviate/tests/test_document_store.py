@@ -1,7 +1,7 @@
 import base64
 import random
 from datetime import datetime
-from typing import List, override
+from typing import List
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -367,7 +367,6 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
         assert doc.score is None
         assert doc.meta == {"key": "value"}
 
-    @override
     def test_write_documents(self, document_store):
         """
         Test write_documents() with default policy overwrites existing documents.
@@ -395,7 +394,6 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
         assert len(docs) == 1
         assert docs[0].blob == image
 
-    @override
     def test_comparison_greater_than_with_iso_date(self, document_store, filterable_docs):
         """
         This test has been copied from haystack/testing/document_store.py and modified to
@@ -417,7 +415,6 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
             ],
         )
 
-    @override
     def test_comparison_greater_than_equal_with_iso_date(self, document_store, filterable_docs):
         """
         This test has been copied from haystack/testing/document_store.py and modified to
@@ -439,7 +436,6 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
             ],
         )
 
-    @override
     def test_comparison_less_than_with_iso_date(self, document_store, filterable_docs):
         """
         This test has been copied from haystack/testing/document_store.py and modified to
@@ -461,7 +457,6 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
             ],
         )
 
-    @override
     def test_comparison_less_than_equal_with_iso_date(self, document_store, filterable_docs):
         """
         This test has been copied from haystack/testing/document_store.py and modified to
@@ -483,7 +478,6 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
             ],
         )
 
-    @override
     @pytest.mark.skip(reason="Weaviate for some reason is not returning what we expect")
     def test_comparison_not_equal_with_dataframe(self, document_store, filterable_docs):
         return super().test_comparison_not_equal_with_dataframe(document_store, filterable_docs)
