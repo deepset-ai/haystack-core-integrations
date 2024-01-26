@@ -4,7 +4,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from haystack.dataclasses.byte_stream import ByteStream
 from haystack.dataclasses.document import Document
-from haystack.testing.document_store import CountDocumentsTest
+from haystack.testing.document_store import CountDocumentsTest, DeleteDocumentsTest, WriteDocumentsTest
 from haystack_integrations.document_stores.weaviate.document_store import (
     DOCUMENT_COLLECTION_PROPERTIES,
     WeaviateDocumentStore,
@@ -20,7 +20,7 @@ from weaviate.embedded import (
 )
 
 
-class TestWeaviateDocumentStore(CountDocumentsTest):
+class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsTest):
     @pytest.fixture
     def document_store(self, request) -> WeaviateDocumentStore:
         # Use a different index for each test so we can run them in parallel
@@ -256,3 +256,30 @@ class TestWeaviateDocumentStore(CountDocumentsTest):
         assert doc.embedding == [1, 2, 3]
         assert doc.score is None
         assert doc.meta == {"key": "value"}
+
+    def test_write_documents(self, document_store):
+        """
+        Test write_documents() with default policy overwrites existing documents.
+        """
+        doc = Document(content="test doc")
+        assert document_store.write_documents([doc]) == 1
+        assert document_store.count_documents() == 1
+
+        doc.content = "test doc 2"
+        assert document_store.write_documents([doc]) == 1
+        assert document_store.count_documents() == 1
+
+    def test_write_documents_with_blob_data(self, document_store, test_files_path):
+        image = ByteStream.from_file_path(test_files_path / "robot1.jpg", mime_type="image/jpeg")
+        doc = Document(content="test doc", blob=image)
+        assert document_store.write_documents([doc]) == 1
+
+    def test_filter_documents_with_blob_data(self, document_store, test_files_path):
+        image = ByteStream.from_file_path(test_files_path / "robot1.jpg", mime_type="image/jpeg")
+        doc = Document(content="test doc", blob=image)
+        assert document_store.write_documents([doc]) == 1
+
+        docs = document_store.filter_documents()
+
+        assert len(docs) == 1
+        assert docs[0].blob == image
