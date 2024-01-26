@@ -35,6 +35,12 @@ _AUTH_CLASSES = {
 # These are extremely similar to the Document dataclass, but with a few differences:
 # - `id` is renamed to `_original_id` as the `id` field is reserved by Weaviate.
 # - `blob` is split into `blob_data` and `blob_mime_type` as it's more efficient to store them separately.
+# Blob meta is missing as it's not usually serialized when saving a Document as we rely on the Document own meta.
+#
+# Also the Document `meta` fields are omitted as we can't make assumptions on the structure of the meta field.
+# We recommend the user to create a proper collection with the correct meta properties for their use case.
+# We mostly rely on these defaults for testing purposes using Weaviate automatic schema generation, but that's not
+# recommended for production use.
 DOCUMENT_COLLECTION_PROPERTIES = [
     {"name": "_original_id", "dataType": ["text"]},
     {"name": "content", "dataType": ["text"]},
@@ -76,8 +82,14 @@ class WeaviateDocumentStore:
             - blob_data: blob
             - blob_mime_type: text
             - score: number
+            The Document `meta` fields are omitted in the default collection settings as we can't make assumptions
+            on the structure of the meta field.
+            We heavily recommend to create a custom collection with the correct meta properties
+            for your use case.
+            Another option is relying on the automatic schema generation, but that's not recommended for
+            production use.
             See the official `Weaviate documentation<https://weaviate.io/developers/weaviate/manage-data/collections>`_
-            for more information on collections.
+            for more information on collections and their properties.
         :param auth_client_secret: Authentication credentials, defaults to None.
             Can be one of the following types depending on the authentication mode:
             - `weaviate.auth.AuthBearerToken` to use existing access and (optionally, but recommended) refresh tokens
