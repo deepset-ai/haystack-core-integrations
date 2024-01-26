@@ -59,5 +59,5 @@ class TestFilters(FilterDocumentsTest):
             ],
         )
 
-    @pytest.mark.skip(reason="NOT operator is not supported in PgVectorDocumentStore")
+    @pytest.mark.skip(reason="NOT operator is not supported in PgvectorDocumentStore")
     def test_not_operator(self, document_store, filterable_docs): ...
