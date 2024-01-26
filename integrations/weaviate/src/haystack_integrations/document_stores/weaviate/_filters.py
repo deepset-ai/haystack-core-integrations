@@ -18,6 +18,39 @@ def convert_filters(filters: Dict[str, Any]) -> Dict[str, Any]:
     return _parse_logical_condition(filters)
 
 
+OPERATOR_INVERSE = {
+    "==": "!=",
+    "!=": "==",
+    ">": "<=",
+    ">=": "<",
+    "<": ">=",
+    "<=": ">",
+    "in": "not in",
+    "not in": "in",
+    "AND": "OR",
+    "OR": "AND",
+    "NOT": "AND",
+}
+
+
+def _invert_condition(filter: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Invert condition recursively.
+    Weaviate doesn't support NOT filters so we need to invert them ourselves.
+    """
+    inverted_condition = filter.copy()
+    if "operator" not in filter:
+        # Let's not handle this stuff in here, we'll fail later on anyway.
+        return inverted_condition
+    inverted_condition["operator"] = OPERATOR_INVERSE[filter["operator"]]
+    if "conditions" in filter:
+        inverted_condition["conditions"] = []
+        for condition in filter["conditions"]:
+            inverted_condition["conditions"].append(_invert_condition(condition))
+
+    return inverted_condition
+
+
 def _parse_logical_condition(condition: Dict[str, Any]) -> Dict[str, Any]:
     if "operator" not in condition:
         msg = f"'operator' key missing in {condition}"
@@ -27,15 +60,14 @@ def _parse_logical_condition(condition: Dict[str, Any]) -> Dict[str, Any]:
         raise FilterError(msg)
 
     operator = condition["operator"]
-    conditions = [_parse_comparison_condition(c) for c in condition["conditions"]]
-    # if len(conditions) > 1:
-    #     conditions = _normalize_ranges(conditions)
-    if operator == "AND":
-        return {"operator": "And", "operands": conditions}
-    elif operator == "OR":
-        return {"operator": "Or", "operands": conditions}
+    if operator in ["AND", "OR"]:
+        return {
+            "operator": operator.lower().capitalize(),
+            "operands": [_parse_comparison_condition(c) for c in condition["conditions"]],
+        }
     elif operator == "NOT":
-        return
+        inverted_conditions = _invert_condition(condition)
+        return _parse_logical_condition(inverted_conditions)
     else:
         msg = f"Unknown logical operator '{operator}'"
         raise FilterError(msg)
@@ -58,6 +90,9 @@ def _infer_value_type(value: Any) -> str:
             return "valueDate"
         except ValueError:
             return "valueText"
+
+    msg = f"Unknown value type {type(value)}"
+    raise FilterError(msg)
 
 
 def _handle_date(value: Any) -> str:
