@@ -241,7 +241,7 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
             "blob_mime_type": "image/jpeg",
             "dataframe": None,
             "score": None,
-            "meta": {"key": "value"},
+            "key": "value",
         }
 
     def test_to_document(self, document_store, test_files_path):

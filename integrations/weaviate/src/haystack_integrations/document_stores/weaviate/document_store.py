@@ -200,7 +200,7 @@ class WeaviateDocumentStore:
         """
         Convert a Document to a Weviate data object ready to be saved.
         """
-        data = document.to_dict(flatten=False)
+        data = document.to_dict()
         # Weaviate forces a UUID as an id.
         # We don't know if the id of our Document is a UUID or not, so we save it on a different field
         # and let Weaviate a UUID that we're going to ignore completely.
@@ -213,10 +213,6 @@ class WeaviateDocumentStore:
             data["blob_mime_type"] = blob.pop("mime_type")
         # The embedding vector is stored separately from the rest of the data
         del data["embedding"]
-
-        # Weaviate doesn't like empty objects, let's delete meta if it's empty
-        if data["meta"] == {}:
-            del data["meta"]
 
         return data
 
