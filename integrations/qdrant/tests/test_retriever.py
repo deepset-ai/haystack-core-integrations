@@ -5,9 +5,8 @@ from haystack.testing.document_store import (
     FilterableDocsFixtureMixin,
     _random_embeddings,
 )
-
-from qdrant_haystack import QdrantDocumentStore
-from qdrant_haystack.retriever import QdrantEmbeddingRetriever
+from haystack_integrations.components.retrievers.qdrant import QdrantEmbeddingRetriever
+from haystack_integrations.document_stores.qdrant import QdrantDocumentStore
 
 
 class TestQdrantRetriever(FilterableDocsFixtureMixin):
@@ -24,10 +23,10 @@ class TestQdrantRetriever(FilterableDocsFixtureMixin):
         retriever = QdrantEmbeddingRetriever(document_store=document_store)
         res = retriever.to_dict()
         assert res == {
-            "type": "qdrant_haystack.retriever.QdrantEmbeddingRetriever",
+            "type": "haystack_integrations.components.retrievers.qdrant.retriever.QdrantEmbeddingRetriever",
             "init_parameters": {
                 "document_store": {
-                    "type": "qdrant_haystack.document_store.QdrantDocumentStore",
+                    "type": "haystack_integrations.document_stores.qdrant.document_store.QdrantDocumentStore",
                     "init_parameters": {
                         "location": ":memory:",
                         "url": None,
@@ -74,11 +73,11 @@ class TestQdrantRetriever(FilterableDocsFixtureMixin):
 
     def test_from_dict(self):
         data = {
-            "type": "qdrant_haystack.retriever.QdrantEmbeddingRetriever",
+            "type": "haystack_integrations.components.retrievers.qdrant.retriever.QdrantEmbeddingRetriever",
             "init_parameters": {
                 "document_store": {
                     "init_parameters": {"location": ":memory:", "index": "test"},
-                    "type": "qdrant_haystack.document_store.QdrantDocumentStore",
+                    "type": "haystack_integrations.document_stores.qdrant.document_store.QdrantDocumentStore",
                 },
                 "filters": None,
                 "top_k": 5,

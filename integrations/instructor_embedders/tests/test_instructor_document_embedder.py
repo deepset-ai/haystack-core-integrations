@@ -3,8 +3,7 @@ from unittest.mock import MagicMock, patch
 import numpy as np
 import pytest
 from haystack import Document
-
-from instructor_embedders_haystack.instructor_document_embedder import InstructorDocumentEmbedder
+from haystack_integrations.components.embedders.instructor_embedders import InstructorDocumentEmbedder
 
 
 class TestInstructorDocumentEmbedder:
@@ -55,7 +54,7 @@ class TestInstructorDocumentEmbedder:
         embedder = InstructorDocumentEmbedder(model="hkunlp/instructor-base")
         embedder_dict = embedder.to_dict()
         assert embedder_dict == {
-            "type": "instructor_embedders_haystack.instructor_document_embedder.InstructorDocumentEmbedder",
+            "type": "haystack_integrations.components.embedders.instructor_embedders.instructor_document_embedder.InstructorDocumentEmbedder",  #  noqa
             "init_parameters": {
                 "model": "hkunlp/instructor-base",
                 "device": "cpu",
@@ -86,7 +85,7 @@ class TestInstructorDocumentEmbedder:
         )
         embedder_dict = embedder.to_dict()
         assert embedder_dict == {
-            "type": "instructor_embedders_haystack.instructor_document_embedder.InstructorDocumentEmbedder",
+            "type": "haystack_integrations.components.embedders.instructor_embedders.instructor_document_embedder.InstructorDocumentEmbedder",  #  noqa
             "init_parameters": {
                 "model": "hkunlp/instructor-base",
                 "device": "cuda",
@@ -105,7 +104,7 @@ class TestInstructorDocumentEmbedder:
         Test deserialization of InstructorDocumentEmbedder from a dictionary, using default initialization parameters.
         """
         embedder_dict = {
-            "type": "instructor_embedders_haystack.instructor_document_embedder.InstructorDocumentEmbedder",
+            "type": "haystack_integrations.components.embedders.instructor_embedders.instructor_document_embedder.InstructorDocumentEmbedder",  #  noqa
             "init_parameters": {
                 "model": "hkunlp/instructor-base",
                 "device": "cpu",
@@ -134,7 +133,7 @@ class TestInstructorDocumentEmbedder:
         Test deserialization of InstructorDocumentEmbedder from a dictionary, using custom initialization parameters.
         """
         embedder_dict = {
-            "type": "instructor_embedders_haystack.instructor_document_embedder.InstructorDocumentEmbedder",
+            "type": "haystack_integrations.components.embedders.instructor_embedders.instructor_document_embedder.InstructorDocumentEmbedder",  #  noqa
             "init_parameters": {
                 "model": "hkunlp/instructor-base",
                 "device": "cuda",
@@ -158,7 +157,9 @@ class TestInstructorDocumentEmbedder:
         assert embedder.meta_fields_to_embed == ["test_field"]
         assert embedder.embedding_separator == " | "
 
-    @patch("instructor_embedders_haystack.instructor_document_embedder._InstructorEmbeddingBackendFactory")
+    @patch(
+        "haystack_integrations.components.embedders.instructor_embedders.instructor_document_embedder._InstructorEmbeddingBackendFactory"
+    )
     def test_warmup(self, mocked_factory):
         """
         Test for checking embedder instances after warm-up.
@@ -170,7 +171,9 @@ class TestInstructorDocumentEmbedder:
             model_name_or_path="hkunlp/instructor-base", device="cpu", use_auth_token=None
         )
 
-    @patch("instructor_embedders_haystack.instructor_document_embedder._InstructorEmbeddingBackendFactory")
+    @patch(
+        "haystack_integrations.components.embedders.instructor_embedders.instructor_document_embedder._InstructorEmbeddingBackendFactory"
+    )
     def test_warmup_does_not_reload(self, mocked_factory):
         """
         Test for checking backend instances after multiple warm-ups.
