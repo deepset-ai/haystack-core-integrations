@@ -5,8 +5,7 @@
 from typing import Any, Dict, List, Optional
 
 from haystack import Document, component, default_from_dict, default_to_dict
-
-from astra_haystack.document_store import AstraDocumentStore
+from haystack_integrations.document_stores.astra import AstraDocumentStore
 
 
 @component

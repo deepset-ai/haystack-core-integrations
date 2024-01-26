@@ -12,9 +12,9 @@ from haystack.dataclasses import Document
 from haystack.document_stores.errors import DuplicateDocumentError, MissingDocumentError
 from haystack.document_stores.types import DuplicatePolicy
 
-from astra_haystack.astra_client import AstraClient
-from astra_haystack.errors import AstraDocumentStoreFilterError
-from astra_haystack.filters import _convert_filters
+from .astra_client import AstraClient
+from .errors import AstraDocumentStoreFilterError
+from .filters import _convert_filters
 
 logger = logging.getLogger(__name__)
 

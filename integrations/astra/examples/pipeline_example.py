@@ -7,10 +7,11 @@ from haystack.components.builders.prompt_builder import PromptBuilder
 from haystack.components.embedders import SentenceTransformersDocumentEmbedder, SentenceTransformersTextEmbedder
 from haystack.components.generators import OpenAIGenerator
 from haystack.components.writers import DocumentWriter
-from haystack.document_stores import DuplicatePolicy
+from haystack.document_stores.types import DuplicatePolicy
 
-from astra_haystack.document_store import AstraDocumentStore
-from astra_haystack.retriever import AstraRetriever
+from haystack_integrations.document_stores.astra import AstraDocumentStore
+from haystack_integrations.components.retrievers.astra import AstraRetriever
+
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
