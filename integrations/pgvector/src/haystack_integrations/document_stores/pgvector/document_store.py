@@ -378,9 +378,6 @@ class PgvectorDocumentStore:
 
         haystack_documents = []
         for document in documents:
-            # print(document['embedding'])
-            # print(len(document['embedding']))
-            # print(type(document['embedding']))
             haystack_dict = dict(document)
             blob_data = haystack_dict.pop("blob_data")
             blob_meta = haystack_dict.pop("blob_meta")
