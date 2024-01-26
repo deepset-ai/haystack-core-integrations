@@ -58,3 +58,7 @@ class TestFilters(FilterDocumentsTest):
                 or (d.meta.get("page") == "90" and d.meta.get("chapter") == "conclusion")
             ],
         )
+
+    @pytest.mark.skip(reason="NOT operator is not supported in PgVectorDocumentStore")
+    def test_not_operator(self, document_store, filterable_docs):
+        ...

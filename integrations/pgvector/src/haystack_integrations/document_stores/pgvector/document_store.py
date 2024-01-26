@@ -19,7 +19,7 @@ from psycopg.types.json import Jsonb
 
 from pgvector.psycopg import register_vector
 
-from .filters import _build_where_clause
+from .filters import _convert_filters_to_where_clause_and_params
 
 logger = logging.getLogger(__name__)
 
@@ -273,26 +273,23 @@ class PgvectorDocumentStore:
         :param filters: The filters to apply to the document list.
         :return: A list of Documents that match the given filters.
         """
-        # TODO: implement filters
         if filters and "operator" not in filters and "conditions" not in filters:
             filters = convert(filters)
 
+        sql_filter = SQL("SELECT * FROM {table_name}").format(table_name=Identifier(self.table_name))
+
         params = ()
-
-        sql_get_docs = SQL("SELECT * FROM {table_name}").format(table_name=Identifier(self.table_name))
-
         if filters:
-            sql_where_clause, params = _build_where_clause(filters)
-            sql_get_docs += sql_where_clause
+            sql_where_clause, params = _convert_filters_to_where_clause_and_params(filters)
+            sql_filter += sql_where_clause
 
         result = self._execute_sql(
-            sql_get_docs,
+            sql_filter,
             params,
-            error_msg="Could not filter documents from PgvectorDocumentStore",
+            error_msg="Could not filter documents from PgvectorDocumentStore.",
             cursor=self._dict_cursor,
         )
 
-        # Fetch all the records
         records = result.fetchall()
         docs = self._from_pg_to_haystack_documents(records)
         return docs

@@ -3,52 +3,43 @@
 # SPDX-License-Identifier: Apache-2.0
 from datetime import datetime
 from itertools import chain
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 from haystack.errors import FilterError
 from pandas import DataFrame
 from psycopg.sql import SQL
 from psycopg.types.json import Jsonb
 
-
-def _build_where_clause(filters: Dict[str, Any]) -> str:
-    normalized_filters = _normalize_filters(filters)
-    print("normalized_filters", normalized_filters)
-
-    sql_query, params = normalized_filters
-    if isinstance(params, list):
-        params = tuple(params)
-    else:
-        params = (params,)
-
-    print("params", params)
-
-    if isinstance(sql_query, str):
-        sql_query = SQL(sql_query)
-    where_clause = SQL(" WHERE ") + sql_query
-
-    actual_params = ()
-    for param in params:
-        if param != "no_value":
-            actual_params = (*actual_params, param)
-
-    return where_clause, actual_params
+# we need this mapping to cast meta values to the correct type,
+# since they are stored in the JSONB field as strings.
+# this dict can be extended if needed
+PYTHON_TYPES_TO_PG_TYPES = {
+    int: "integer",
+    float: "real",
+    bool: "boolean",
+}
 
 
-def _normalize_filters(filters: Dict[str, Any]) -> tuple[str, Any]:
+def _convert_filters_to_where_clause_and_params(filters: Dict[str, Any]) -> tuple[SQL, tuple]:
     """
-    Converts Haystack filters in pgvector compatible filters.
+    Convert Haystack filters to a WHERE clause and a tuple of params to query PostgreSQL.
     """
     if not isinstance(filters, dict):
         msg = "Filters must be a dictionary"
         raise FilterError(msg)
 
     if "field" in filters:
-        return _parse_comparison_condition(filters)
-    return _parse_logical_condition(filters)
+        query, values = _parse_comparison_condition(filters)
+    else:
+        query, values = _parse_logical_condition(filters)
+
+    where_clause = SQL(" WHERE ") + SQL(query)
+    params = tuple(value for value in values if value != "no_value")
+
+    return where_clause, params
 
 
-def _parse_logical_condition(condition: Dict[str, Any]) -> tuple[str, Any]:
+def _parse_logical_condition(condition: Dict[str, Any]) -> tuple[str, List[Any]]:
     if "operator" not in condition:
         msg = f"'operator' key missing in {condition}"
         raise FilterError(msg)
@@ -66,12 +57,9 @@ def _parse_logical_condition(condition: Dict[str, Any]) -> tuple[str, Any]:
 
     operator = condition["operator"]
     if operator == "AND":
-        sql_query = "("+ " AND ".join(query_parts) + ")"
+        sql_query = "(" + " AND ".join(query_parts) + ")"
     elif operator == "OR":
-        sql_query = "("+ " OR ".join(query_parts) + ")"
-    elif operator == "NOT":
-        joined_query_parts = " AND ".join(query_parts)
-        sql_query = "NOT (" + joined_query_parts + ")"
+        sql_query = "(" + " OR ".join(query_parts) + ")"
     else:
         msg = f"Unknown logical operator '{operator}'"
         raise FilterError(msg)
@@ -79,7 +67,7 @@ def _parse_logical_condition(condition: Dict[str, Any]) -> tuple[str, Any]:
     return sql_query, values
 
 
-def _parse_comparison_condition(condition: Dict[str, Any]) -> tuple[str, Any]:
+def _parse_comparison_condition(condition: Dict[str, Any]) -> tuple[str, List[Any]]:
     if "field" not in condition:
         # 'field' key is only found in comparison dictionaries.
         # We assume this is a logic dictionary since it's not present.
@@ -92,9 +80,8 @@ def _parse_comparison_condition(condition: Dict[str, Any]) -> tuple[str, Any]:
     if "value" not in condition:
         msg = f"'value' key missing in {condition}"
         raise FilterError(msg)
-    
-    operator: str = condition["operator"]
 
+    operator: str = condition["operator"]
     value: Any = condition["value"]
     if isinstance(value, DataFrame):
         # DataFrames are stored as JSONB and we query them as such
@@ -102,38 +89,41 @@ def _parse_comparison_condition(condition: Dict[str, Any]) -> tuple[str, Any]:
         field = f"({field})::jsonb"
         value = Jsonb(value)
 
-    is_meta = field.startswith("meta.")
-    if is_meta:
-        is_meta = True
-        # use the ->> operator to access keys in the meta JSONB field
-        field_name = field.split(".", 1)[-1]
-        field = f"meta->>'{field_name}'"
+    if field.startswith("meta."):
+        field = _treat_meta_field(field, value)
 
-    type_value = None
-    if is_meta and not isinstance(value, (str, type(None))):
-        python_types_to_pg_types = {
-            int: "integer",
-            float: "real",
-            bool: "boolean",
-        }
+    field, value = COMPARISON_OPERATORS[operator](field, value)
+    return field, [value]
 
-        if type(value) in python_types_to_pg_types:
-            type_value = python_types_to_pg_types[type(value)]
-        elif isinstance(value, list):
-            if not (isinstance(value[0], str)):
-                type_value = python_types_to_pg_types[type(value[0])]
 
-        if type_value:
-            field = f"({field})::{type_value}"
+def _treat_meta_field(field: str, value: Any) -> str:
+    """
+    Internal method that modifies the field str
+    to make the meta JSONB field queryable.
+    """
 
-    return COMPARISON_OPERATORS[operator](field, value)
+    # use the ->> operator to access keys in the meta JSONB field
+    field_name = field.split(".", 1)[-1]
+    field = f"meta->>'{field_name}'"
+
+    # meta fields are stored as strings in the JSONB field,
+    # so we need to cast them to the correct type
+    type_value = PYTHON_TYPES_TO_PG_TYPES.get(type(value))
+    if isinstance(value, list) and len(value) > 0:
+        type_value = PYTHON_TYPES_TO_PG_TYPES.get(type(value[0]))
+
+    if type_value:
+        field = f"({field})::{type_value}"
+
+    return field
 
 
 def _equal(field: str, value: Any) -> tuple[str, Any]:
     if value is None:
-        # no_value is a placeholder that will be removed in _build_where_clause
+        # no_value is a placeholder that will be removed in _convert_filters_to_where_clause_and_params
         return f"{field} IS NULL", "no_value"
     return f"{field} = %s", value
+
 
 def _not_equal(field: str, value: Any) -> tuple[str, Any]:
     # we use IS DISTINCT FROM to correctly handle NULL values
@@ -209,7 +199,7 @@ def _less_than_equal(field: str, value: Any) -> tuple[str, Any]:
     return f"{field} <= %s", value
 
 
-def _not_in(field: str, value: Any) -> tuple[str, Any]:
+def _not_in(field: str, value: Any) -> tuple[str, List]:
     if not isinstance(value, list):
         msg = f"{field}'s value must be a list when using 'not in' comparator in Pinecone"
         raise FilterError(msg)
@@ -217,11 +207,11 @@ def _not_in(field: str, value: Any) -> tuple[str, Any]:
     return f"{field} IS NULL OR {field} != ALL(%s)", [value]
 
 
-def _in(field: str, value: Any) -> tuple[str, Any]:
+def _in(field: str, value: Any) -> tuple[str, List]:
     if not isinstance(value, list):
         msg = f"{field}'s value must be a list when using 'in' comparator in Pinecone"
         raise FilterError(msg)
-    
+
     # see https://www.psycopg.org/psycopg3/docs/basic/adapt.html#lists-adaptation
     return f"{field} = ANY(%s)", [value]
 
@@ -236,5 +226,3 @@ COMPARISON_OPERATORS = {
     "in": _in,
     "not in": _not_in,
 }
-
-LOGICAL_OPERATORS = {"AND": "AND", "OR": "OR", "NOT": "NOT"}
