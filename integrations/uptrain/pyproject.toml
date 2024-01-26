@@ -25,9 +25,12 @@ classifiers = [
 dependencies = ["haystack-ai", "uptrain>=0.5"]
 
 [project.urls]
-Source = "https://github.com/deepset-ai/haystack-core-integrations"
+Source = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/uptrain"
 Documentation = "https://github.com/deepset-ai/haystack-core-integrations/blob/main/integrations/uptrain/README.md"
 Issues = "https://github.com/deepset-ai/haystack-core-integrations/issues"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/haystack_integrations"]
 
 [tool.hatch.version]
 source = "vcs"
@@ -52,7 +55,7 @@ python = ["3.7", "3.8", "3.9", "3.10", "3.11"]
 detached = true
 dependencies = ["black>=23.1.0", "mypy>=1.0.0", "ruff>=0.0.243"]
 [tool.hatch.envs.lint.scripts]
-typing = "mypy --install-types --non-interactive {args:src/uptrain_haystack tests}"
+typing = "mypy --install-types --non-interactive {args:src/}"
 style = ["ruff {args:.}", "black --check --diff {args:.}"]
 fmt = ["black {args:.}", "ruff --fix {args:.}", "style"]
 all = ["style", "typing"]
@@ -109,15 +112,16 @@ ignore = [
   "PLR0915",
   # Misc
   "S101",
+  "TID252",
 ]
 unfixable = [
   # Don't touch unused imports
   "F401",
 ]
-extend-exclude = ["tests"]
+extend-exclude = ["tests", "example"]
 
 [tool.ruff.isort]
-known-first-party = ["uptrain_haystack"]
+known-first-party = ["src"]
 
 [tool.ruff.flake8-tidy-imports]
 ban-relative-imports = "all"
@@ -127,21 +131,27 @@ ban-relative-imports = "all"
 "tests/**/*" = ["PLR2004", "S101", "TID252"]
 
 [tool.coverage.run]
-source_pkgs = ["uptrain_haystack", "tests"]
+source_pkgs = ["src", "tests"]
 branch = true
 parallel = true
-omit = ["src/uptrain_haystack/__about__.py"]
 
 [tool.coverage.paths]
 uptrain_haystack = [
-  "src/uptrain_haystack",
+  "src/haystack_integrations",
   "*/uptrain-haystack/src/uptrain_haystack",
 ]
-tests = ["tests", "*uptrain-haystack/tests"]
+tests = ["tests"]
 
 [tool.coverage.report]
 exclude_lines = ["no cov", "if __name__ == .__main__.:", "if TYPE_CHECKING:"]
 
 [[tool.mypy.overrides]]
-module = ["haystack.*", "pytest.*", "uptrain.*", "numpy", "grpc"]
+module = [
+  "haystack.*",
+  "pytest.*",
+  "uptrain.*",
+  "numpy",
+  "grpc",
+  "haystack_integrations.*",
+]
 ignore_missing_imports = true

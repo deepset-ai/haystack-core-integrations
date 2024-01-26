@@ -1,19 +1,16 @@
 import json
 import os
-from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Union
 
 from haystack import DeserializationError, component, default_from_dict, default_to_dict
-from uptrain import APIClient, EvalLLM, Evals
-from uptrain.framework.evals import ParametricEval
-
-from uptrain_haystack.metrics import (
+from haystack_integrations.components.evaluators.metrics import (
     METRIC_DESCRIPTORS,
     InputConverters,
     OutputConverters,
     UpTrainMetric,
-    UpTrainMetricResult,
 )
+from uptrain import APIClient, EvalLLM, Evals
+from uptrain.framework.evals import ParametricEval
 
 
 @component
@@ -65,16 +62,41 @@ class UpTrainEvaluator:
         expected_inputs = self.descriptor.input_parameters
         component.set_input_types(self, **expected_inputs)
 
-    @component.output_types(output=List["UpTrainEvaluatorOutput"])
+    @component.output_types(results=List[List[Dict[str, Any]]])
     def run(self, **inputs) -> Dict[str, Any]:
         """
         Run the UpTrain evaluator.
 
+        Example:
+        ```python
+        pipeline = Pipeline()
+        evaluator = UpTrainEvaluator(
+            metric=UpTrainMetric.FACTUAL_ACCURACY,
+            api="openai",
+            api_key_env_var="OPENAI_API_KEY",
+        )
+        pipeline.add_component("evaluator", evaluator)
+
+        # Each metric expects a specific set of parameters as input. Refer to the
+        # UpTrainMetric class' documentation for more details.
+        output = pipeline.run({"evaluator": {
+            "questions": ["question],
+            "contexts": ["context"],
+            "responses": ["response"]
+        }})
+        ```
+
         :param inputs:
-            The inputs to evaluate. Match the input parameters of the metric.
+            The inputs to evaluate. These are determined by the
+            metric being calculated. See :class:`UpTrainMetric` for more
+            information.
         :returns:
-            A list of :class:`UpTrainEvaluatorOutput` objects, each containing
-            a single input and the result of the evaluation performed on it.
+            A nested list of metric results. Each input can have one or more
+            results, depending on the metric. Each result is a dictionary
+            containing the following keys and values:
+                * `name` - The name of the metric.
+                * `score` - The score of the metric.
+                * `explanation` - An optional explanation of the score.
         """
         # The backend requires random access to the data, so we can't stream it.
         InputConverters.validate_input_parameters(self.metric, self.descriptor.input_parameters, inputs)
@@ -84,19 +106,18 @@ class UpTrainEvaluator:
         if self.api_params is not None:
             eval_args.update({k: v for k, v in self.api_params.items() if k not in eval_args})
 
+        results: List[Dict[str, Any]]
         if isinstance(self._backend_client, EvalLLM):
             results = self._backend_client.evaluate(**eval_args)
         else:
             results = self._backend_client.log_and_evaluate(**eval_args)
 
         OutputConverters.validate_outputs(results)
-        converted_results = [self.descriptor.output_converter(x, self.metric_params) for x in results]
-        output = [
-            UpTrainEvaluatorOutput(input_item, result_item)
-            for input_item, result_item in zip(converted_inputs, converted_results)  # type: ignore
+        converted_results = [
+            [result.to_dict() for result in self.descriptor.output_converter(x, self.metric_params)] for x in results
         ]
 
-        return {"output": output}
+        return {"results": converted_results}
 
     def to_dict(self) -> Dict[str, Any]:
         """
@@ -176,19 +197,3 @@ class UpTrainEvaluator:
 
         self._backend_metric = backend_metric
         self._backend_client = backend_client
-
-
-@dataclass(frozen=True)
-class UpTrainEvaluatorOutput:
-    """
-    Output of the UpTrain evaluator component.
-
-    :param input:
-        The input that was evaluated.
-    :param result:
-        The result of the evaluation. Can contain
-        multiple results depending on the metric.
-    """
-
-    input: Dict[str, Any]
-    result: List[UpTrainMetricResult]

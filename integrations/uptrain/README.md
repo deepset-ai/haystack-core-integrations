@@ -10,6 +10,7 @@
 - [uptrain-haystack](#uptrain-haystack)
   - [Installation](#installation)
   - [Testing](#testing)
+  - [Examples](#examples)
   - [License](#license)
 
 ## Installation
@@ -18,11 +19,17 @@
 pip install uptrain-haystack
 ```
 
+For more information about the UpTrain evaluation framework, please refer to their [documentation](https://docs.uptrain.ai/getting-started/introduction).
+
 ## Testing
 
 ```console
 hatch run test
 ```
+
+## Examples
+
+You can find a code example showing how to use the Evaluator under the `example/` folder of this repo.
 
 ## License
 

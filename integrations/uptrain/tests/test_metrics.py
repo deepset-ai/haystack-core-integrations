@@ -1,6 +1,6 @@
 import pytest
 
-from uptrain_haystack import UpTrainMetric
+from haystack_integrations.components.evaluators import UpTrainMetric
 
 
 def test_uptrain_metric():

@@ -7,7 +7,7 @@ from unittest.mock import patch
 import pytest
 from haystack import DeserializationError
 
-from uptrain_haystack import UpTrainEvaluator, UpTrainMetric
+from haystack_integrations.components.evaluators import UpTrainEvaluator, UpTrainMetric
 
 DEFAULT_QUESTIONS = [
     "Which is the most popular global sport?",
@@ -28,6 +28,7 @@ class Unserializable:
     something: str
 
 
+# Only returns results for the passed metrics.
 class MockBackend:
     def __init__(self, metric_outputs: List[UpTrainMetric]) -> None:
         self.metrics = metric_outputs
@@ -230,8 +231,12 @@ def test_evaluator_invalid_inputs(os_environ_get, metric, inputs, error_string, 
         output = eval.run(**inputs)
 
 
+# This test validates the expected outputs of the evaluator.
+# Each output is parameterized as a list of tuples, where each tuple is
+# (name, score, explanation). The name and explanation are optional. If
+# the name is None, then the metric name is used.
 @pytest.mark.parametrize(
-    "metric, inputs, outputs, params",
+    "metric, inputs, expected_outputs, metric_params",
     [
         (UpTrainMetric.CONTEXT_RELEVANCE, {"questions": ["q1"], "contexts": ["c1"]}, [[(None, 0.5, "1")]], None),
         (
@@ -290,33 +295,36 @@ def test_evaluator_invalid_inputs(os_environ_get, metric, inputs, error_string, 
     ],
 )
 @patch("os.environ.get")
-def test_evaluator_outputs(os_environ_get, metric, inputs, outputs, params):
+def test_evaluator_outputs(os_environ_get, metric, inputs, expected_outputs, metric_params):
     os_environ_get.return_value = "abacab"
     init_params = {
         "metric": metric,
-        "metric_params": params,
+        "metric_params": metric_params,
         "api": "uptrain",
         "api_key_env_var": "abacab",
         "api_params": None,
     }
     eval = UpTrainEvaluator(**init_params)
     eval._backend_client = MockBackend([metric])
-    results = eval.run(**inputs)["output"]
+    results = eval.run(**inputs)["results"]
 
-    assert type(results) == type(outputs)
-    assert len(results) == len(outputs)
+    assert type(results) == type(expected_outputs)
+    assert len(results) == len(expected_outputs)
 
-    for r, o in zip(results, outputs):
-        assert len(r.result) == len(o)
+    for r, o in zip(results, expected_outputs):
+        assert len(r) == len(o)
 
         expected = {(name if name is not None else str(metric), score, exp) for name, score, exp in o}
-        got = {(x.name, x.score, x.explanation) for x in r.result}
+        got = {(x["name"], x["score"], x["explanation"]) for x in r}
         assert got == expected
 
 
+# This integration test validates the evaluator by running it against the
+# OpenAI API. It is parameterized by the metric, the inputs to the evalutor
+# and the metric parameters.
 @pytest.mark.skipif("OPENAI_API_KEY" not in os.environ, reason="OPENAI_API_KEY not set")
 @pytest.mark.parametrize(
-    "metric, inputs, params",
+    "metric, inputs, metric_params",
     [
         (UpTrainMetric.CONTEXT_RELEVANCE, {"questions": DEFAULT_QUESTIONS, "contexts": DEFAULT_CONTEXTS}, None),
         (
@@ -357,10 +365,10 @@ def test_evaluator_outputs(os_environ_get, metric, inputs, outputs, params):
         ),
     ],
 )
-def test_integration_run(metric, inputs, params):
+def test_integration_run(metric, inputs, metric_params):
     init_params = {
         "metric": metric,
-        "metric_params": params,
+        "metric_params": metric_params,
         "api": "openai",
     }
     eval = UpTrainEvaluator(**init_params)
@@ -368,5 +376,5 @@ def test_integration_run(metric, inputs, params):
 
     assert type(output) == dict
     assert len(output) == 1
-    assert "output" in output
-    assert len(output["output"]) == len(next(iter(inputs.values())))
+    assert "results" in output
+    assert len(output["results"]) == len(next(iter(inputs.values())))

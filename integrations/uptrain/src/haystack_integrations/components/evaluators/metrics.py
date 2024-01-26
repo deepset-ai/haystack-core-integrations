@@ -1,3 +1,4 @@
+import dataclasses
 import inspect
 from dataclasses import dataclass
 from enum import Enum
@@ -13,16 +14,48 @@ class UpTrainMetric(Enum):
     Metrics supported by UpTrain.
     """
 
+    #: Context relevance.
+    #: Inputs - `questions: List[str], contexts: List[str]`
     CONTEXT_RELEVANCE = "context_relevance"
+
+    #: Factual accuracy.
+    #: Inputs - `questions: List[str], contexts: List[str], responses: List[str]`
     FACTUAL_ACCURACY = "factual_accuracy"
+
+    #: Response relevance.
+    #: Inputs - `questions: List[str], responses: List[str]`
     RESPONSE_RELEVANCE = "response_relevance"
+
+    #: Response completeness.
+    #: Inputs - `questions: List[str], responses: List[str]`
     RESPONSE_COMPLETENESS = "response_completeness"
+
+    #: Response completeness with respect to context.
+    #: Inputs - `questions: List[str], contexts: List[str], responses: List[str]`
     RESPONSE_COMPLETENESS_WRT_CONTEXT = "response_completeness_wrt_context"
+
+    #: Response consistency.
+    #: Inputs - `questions: List[str], contexts: List[str], responses: List[str]`
     RESPONSE_CONSISTENCY = "response_consistency"
+
+    #: Response conciseness.
+    #: Inputs - `questions: List[str], responses: List[str]`
     RESPONSE_CONCISENESS = "response_conciseness"
+
+    #: Language critique.
+    #: Inputs - `responses: List[str]`
     CRITIQUE_LANGUAGE = "critique_language"
+
+    #: Tone critique.
+    #: Inputs - `responses: List[str]`
     CRITIQUE_TONE = "critique_tone"
+
+    #: Guideline adherence.
+    #: Inputs - `questions: List[str], responses: List[str]`
     GUIDELINE_ADHERENCE = "guideline_adherence"
+
+    #: Response matching.
+    #: Inputs - `responses: List[str], ground_truths: List[str]`
     RESPONSE_MATCHING = "response_matching"
 
     def __str__(self):
@@ -47,7 +80,7 @@ class UpTrainMetric(Enum):
 
 
 @dataclass(frozen=True)
-class UpTrainMetricResult:
+class MetricResult:
     """
     Result of a metric evaluation.
 
@@ -62,6 +95,9 @@ class UpTrainMetricResult:
     name: str
     score: float
     explanation: Optional[str] = None
+
+    def to_dict(self):
+        return dataclasses.asdict(self)
 
 
 @dataclass(frozen=True)
@@ -88,7 +124,7 @@ class MetricDescriptor:
     backend: Union[Evals, Type[ParametricEval]]
     input_parameters: Dict[str, Type]
     input_converter: Callable[[Any], Iterable[Dict[str, str]]]
-    output_converter: Callable[[Dict[str, Any], Optional[Dict[str, Any]]], List[UpTrainMetricResult]]
+    output_converter: Callable[[Dict[str, Any], Optional[Dict[str, Any]]], List[MetricResult]]
     init_parameters: Optional[Dict[str, Type[Any]]] = None
 
     @classmethod
@@ -97,9 +133,7 @@ class MetricDescriptor:
         metric: UpTrainMetric,
         backend: Union[Evals, Type[ParametricEval]],
         input_converter: Callable[[Any], Iterable[Dict[str, str]]],
-        output_converter: Optional[
-            Callable[[Dict[str, Any], Optional[Dict[str, Any]]], List[UpTrainMetricResult]]
-        ] = None,
+        output_converter: Optional[Callable[[Dict[str, Any], Optional[Dict[str, Any]]], List[MetricResult]]] = None,
         *,
         init_parameters: Optional[Dict[str, Type]] = None,
     ) -> "MetricDescriptor":
@@ -223,13 +257,11 @@ class OutputConverters:
             raise ValueError(msg)
 
     @staticmethod
-    def _extract_default_results(output: Dict[str, Any], metric_name: str) -> UpTrainMetricResult:
+    def _extract_default_results(output: Dict[str, Any], metric_name: str) -> MetricResult:
         try:
             score_key = f"score_{metric_name}"
             explanation_key = f"explanation_{metric_name}"
-            return UpTrainMetricResult(
-                name=metric_name, score=output[score_key], explanation=output.get(explanation_key)
-            )
+            return MetricResult(name=metric_name, score=output[score_key], explanation=output.get(explanation_key))
         except KeyError as e:
             msg = f"UpTrain evaluator did not return an expected output for metric '{metric_name}'"
             raise ValueError(msg) from e
@@ -237,10 +269,10 @@ class OutputConverters:
     @staticmethod
     def default(
         metric: UpTrainMetric,
-    ) -> Callable[[Dict[str, Any], Optional[Dict[str, Any]]], List[UpTrainMetricResult]]:
+    ) -> Callable[[Dict[str, Any], Optional[Dict[str, Any]]], List[MetricResult]]:
         def inner(
             output: Dict[str, Any], metric_params: Optional[Dict[str, Any]], metric: UpTrainMetric  # noqa: ARG001
-        ) -> List[UpTrainMetricResult]:
+        ) -> List[MetricResult]:
             return [OutputConverters._extract_default_results(output, str(metric))]
 
         return partial(inner, metric=metric)
@@ -248,7 +280,7 @@ class OutputConverters:
     @staticmethod
     def critique_language(
         output: Dict[str, Any], metric_params: Optional[Dict[str, Any]]  # noqa: ARG004
-    ) -> List[UpTrainMetricResult]:
+    ) -> List[MetricResult]:
         out = []
         for expected_key in ("fluency", "coherence", "grammar", "politeness"):
             out.append(OutputConverters._extract_default_results(output, expected_key))
@@ -257,20 +289,18 @@ class OutputConverters:
     @staticmethod
     def critique_tone(
         output: Dict[str, Any], metric_params: Optional[Dict[str, Any]]  # noqa: ARG004
-    ) -> List[UpTrainMetricResult]:
+    ) -> List[MetricResult]:
         return [OutputConverters._extract_default_results(output, "tone")]
 
     @staticmethod
-    def guideline_adherence(
-        output: Dict[str, Any], metric_params: Optional[Dict[str, Any]]
-    ) -> List[UpTrainMetricResult]:
+    def guideline_adherence(output: Dict[str, Any], metric_params: Optional[Dict[str, Any]]) -> List[MetricResult]:
         assert metric_params is not None
         return [OutputConverters._extract_default_results(output, f'{metric_params["guideline_name"]}_adherence')]
 
     @staticmethod
     def response_matching(
         output: Dict[str, Any], metric_params: Optional[Dict[str, Any]]  # noqa: ARG004
-    ) -> List[UpTrainMetricResult]:
+    ) -> List[MetricResult]:
         metric_str = "response_match"
         out = [OutputConverters._extract_default_results(output, metric_str)]
 
@@ -278,7 +308,7 @@ class OutputConverters:
         score_key = f"score_{metric_str}"
         for k, v in output.items():
             if k != score_key and metric_str in k and isinstance(v, float):
-                out.append(UpTrainMetricResult(name=k, score=v))
+                out.append(MetricResult(name=k, score=v))
         return out
 
 
