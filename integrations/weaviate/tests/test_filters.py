@@ -2,7 +2,7 @@ from haystack_integrations.document_stores.weaviate._filters import _invert_cond
 
 
 def test_invert_conditions():
-    filter = {
+    filters = {
         "operator": "NOT",
         "conditions": [
             {"field": "meta.number", "operator": "==", "value": 100},
@@ -17,7 +17,7 @@ def test_invert_conditions():
         ],
     }
 
-    inverted = _invert_condition(filter)
+    inverted = _invert_condition(filters)
     assert inverted == {
         "operator": "AND",
         "conditions": [

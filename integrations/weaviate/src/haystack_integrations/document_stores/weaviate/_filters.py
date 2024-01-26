@@ -33,19 +33,19 @@ OPERATOR_INVERSE = {
 }
 
 
-def _invert_condition(filter: Dict[str, Any]) -> Dict[str, Any]:
+def _invert_condition(filters: Dict[str, Any]) -> Dict[str, Any]:
     """
     Invert condition recursively.
     Weaviate doesn't support NOT filters so we need to invert them ourselves.
     """
-    inverted_condition = filter.copy()
-    if "operator" not in filter:
+    inverted_condition = filters.copy()
+    if "operator" not in filters:
         # Let's not handle this stuff in here, we'll fail later on anyway.
         return inverted_condition
-    inverted_condition["operator"] = OPERATOR_INVERSE[filter["operator"]]
-    if "conditions" in filter:
+    inverted_condition["operator"] = OPERATOR_INVERSE[filters["operator"]]
+    if "conditions" in filters:
         inverted_condition["conditions"] = []
-        for condition in filter["conditions"]:
+        for condition in filters["conditions"]:
             inverted_condition["conditions"].append(_invert_condition(condition))
 
     return inverted_condition

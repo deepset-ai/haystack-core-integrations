@@ -35,7 +35,6 @@ from weaviate.embedded import (
 
 
 class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsTest, FilterDocumentsTest):
-    @override
     @pytest.fixture
     def document_store(self, request) -> WeaviateDocumentStore:
         # Use a different index for each test so we can run them in parallel
@@ -55,7 +54,6 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
         yield store
         store._client.schema.delete_class(collection_settings["class"])
 
-    @override
     @pytest.fixture
     def filterable_docs(self) -> List[Document]:
         """
@@ -120,7 +118,6 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
             )
         return documents
 
-    @override
     def assert_documents_are_equal(self, received: List[Document], expected: List[Document]):
         assert len(received) == len(expected)
         received = sorted(received, key=lambda doc: doc.id)
