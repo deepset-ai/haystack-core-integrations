@@ -6,7 +6,8 @@ from unittest.mock import patch, Mock
 import pytest
 from openai import OpenAIError
 
-from amazon_sagemaker_haystack.generators.sagemaker import SagemakerGenerator
+from haystack_integrations.components.generators.amazon_sagemaker import SagemakerGenerator
+from haystack_integrations.components.generators.amazon_sagemaker.errors import AWSConfigurationError
 
 
 class TestSagemakerGenerator:
@@ -28,17 +29,17 @@ class TestSagemakerGenerator:
     def test_init_fail_wo_access_key_or_secret_key(self, monkeypatch):
         monkeypatch.delenv("AWS_ACCESS_KEY_ID", raising=False)
         monkeypatch.delenv("AWS_SECRET_ACCESS_KEY", raising=False)
-        with pytest.raises(ValueError):
+        with pytest.raises(AWSConfigurationError):
             SagemakerGenerator(model="test-model")
 
         monkeypatch.setenv("AWS_ACCESS_KEY_ID", "test-access-key")
         monkeypatch.delenv("AWS_SECRET_ACCESS_KEY", raising=False)
-        with pytest.raises(ValueError):
+        with pytest.raises(AWSConfigurationError):
             SagemakerGenerator(model="test-model")
 
         monkeypatch.delenv("AWS_ACCESS_KEY_ID", raising=False)
         monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "test-secret-key")
-        with pytest.raises(ValueError):
+        with pytest.raises(AWSConfigurationError):
             SagemakerGenerator(model="test-model")
 
     def test_init_with_parameters(self, monkeypatch):

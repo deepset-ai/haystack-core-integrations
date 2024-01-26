@@ -6,8 +6,8 @@ import json
 
 import requests
 from haystack.lazy_imports import LazyImport
-from haystack import component, ComponentError
-from amazon_sagemaker_haystack.errors import AWSConfigurationError, SagemakerInferenceError, SagemakerNotReadyError
+from haystack import component
+from haystack_integrations.components.generators.amazon_sagemaker.errors import AWSConfigurationError, SagemakerInferenceError, SagemakerNotReadyError
 
 with LazyImport(message="Run 'pip install boto3'") as boto3_import:
     import boto3
