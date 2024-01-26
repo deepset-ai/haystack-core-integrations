@@ -1,14 +1,28 @@
 import base64
+import random
+from datetime import datetime
+from typing import List, override
 from unittest.mock import MagicMock, patch
 
 import pytest
 from haystack.dataclasses.byte_stream import ByteStream
 from haystack.dataclasses.document import Document
-from haystack.testing.document_store import CountDocumentsTest, DeleteDocumentsTest, WriteDocumentsTest
+from haystack.testing.document_store import (
+    TEST_EMBEDDING_1,
+    TEST_EMBEDDING_2,
+    CountDocumentsTest,
+    DeleteDocumentsTest,
+    FilterDocumentsTest,
+    WriteDocumentsTest,
+)
 from haystack_integrations.document_stores.weaviate.document_store import (
     DOCUMENT_COLLECTION_PROPERTIES,
     WeaviateDocumentStore,
 )
+from numpy import array as np_array
+from numpy import array_equal as np_array_equal
+from numpy import float32 as np_float32
+from pandas import DataFrame
 from weaviate.auth import AuthApiKey
 from weaviate.config import Config
 from weaviate.embedded import (
@@ -20,7 +34,7 @@ from weaviate.embedded import (
 )
 
 
-class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsTest):
+class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsTest, FilterDocumentsTest):
     @pytest.fixture
     def document_store(self, request) -> WeaviateDocumentStore:
         # Use a different index for each test so we can run them in parallel
@@ -39,6 +53,96 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
         )
         yield store
         store._client.schema.delete_class(collection_settings["class"])
+
+    @pytest.fixture
+    def filterable_docs(self) -> List[Document]:
+        """
+        This fixture has been copied from haystack/testing/document_store.py and modified to
+        use a different date format.
+        Weaviate forces RFC 3339 date strings.
+        The original fixture uses ISO 8601 date strings.
+        """
+        documents = []
+        for i in range(3):
+            documents.append(
+                Document(
+                    content=f"A Foo Document {i}",
+                    meta={
+                        "name": f"name_{i}",
+                        "page": "100",
+                        "chapter": "intro",
+                        "number": 2,
+                        "date": "1969-07-21T20:17:40Z",
+                    },
+                    embedding=[random.random() for _ in range(768)],  # noqa: S311
+                )
+            )
+            documents.append(
+                Document(
+                    content=f"A Bar Document {i}",
+                    meta={
+                        "name": f"name_{i}",
+                        "page": "123",
+                        "chapter": "abstract",
+                        "number": -2,
+                        "date": "1972-12-11T19:54:58Z",
+                    },
+                    embedding=[random.random() for _ in range(768)],  # noqa: S311
+                )
+            )
+            documents.append(
+                Document(
+                    content=f"A Foobar Document {i}",
+                    meta={
+                        "name": f"name_{i}",
+                        "page": "90",
+                        "chapter": "conclusion",
+                        "number": -10,
+                        "date": "1989-11-09T17:53:00Z",
+                    },
+                    embedding=[random.random() for _ in range(768)],  # noqa: S311
+                )
+            )
+            documents.append(
+                Document(
+                    content=f"Document {i} without embedding",
+                    meta={"name": f"name_{i}", "no_embedding": True, "chapter": "conclusion"},
+                )
+            )
+            documents.append(Document(dataframe=DataFrame([i]), meta={"name": f"table_doc_{i}"}))
+            documents.append(
+                Document(content=f"Doc {i} with zeros emb", meta={"name": "zeros_doc"}, embedding=TEST_EMBEDDING_1)
+            )
+            documents.append(
+                Document(content=f"Doc {i} with ones emb", meta={"name": "ones_doc"}, embedding=TEST_EMBEDDING_2)
+            )
+        return documents
+
+    def assert_documents_are_equal(self, received: List[Document], expected: List[Document]):
+        assert len(received) == len(expected)
+        received = sorted(received, key=lambda doc: doc.id)
+        expected = sorted(expected, key=lambda doc: doc.id)
+        for received_doc, expected_doc in zip(received, expected):
+            received_doc_dict = received_doc.to_dict(flatten=False)
+            expected_doc_dict = expected_doc.to_dict(flatten=False)
+
+            # Weaviate stores embeddings with lower precision floats so we handle that here.
+            assert np_array_equal(
+                np_array(received_doc_dict.pop("embedding", None), dtype=np_float32),
+                np_array(expected_doc_dict.pop("embedding", None), dtype=np_float32),
+                equal_nan=True,
+            )
+
+            received_meta = received_doc_dict.pop("meta", None)
+            expected_meta = expected_doc_dict.pop("meta", None)
+
+            assert received_doc_dict == expected_doc_dict
+
+            # If a meta field is not set in a saved document, it will be None when retrieved
+            # from Weaviate so we need to handle that.
+            meta_keys = set(received_meta.keys()).union(set(expected_meta.keys()))
+            for key in meta_keys:
+                assert received_meta.get(key) == expected_meta.get(key)
 
     @patch("haystack_integrations.document_stores.weaviate.document_store.weaviate.Client")
     def test_init(self, mock_weaviate_client_class):
@@ -212,10 +316,6 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
         assert document_store._additional_config.connection_config.session_pool_connections == 20
         assert document_store._additional_config.connection_config.session_pool_maxsize == 20
 
-    def test_count_not_empty(self, document_store):
-        # Skipped for the time being as we don't support writing documents
-        pass
-
     def test_to_data_object(self, document_store, test_files_path):
         doc = Document(content="test doc")
         data = document_store._to_data_object(doc)
@@ -293,3 +393,100 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
 
         assert len(docs) == 1
         assert docs[0].blob == image
+
+    @override
+    def test_comparison_greater_than_with_iso_date(self, document_store, filterable_docs):
+        """
+        This test has been copied from haystack/testing/document_store.py and modified to
+        use a different date format.
+        Same reason as the filterable_docs fixture.
+        Weaviate forces RFC 3339 date strings and the filterable_docs use ISO 8601 date strings.
+        """
+        document_store.write_documents(filterable_docs)
+        result = document_store.filter_documents(
+            {"field": "meta.date", "operator": ">", "value": "1972-12-11T19:54:58"}
+        )
+        self.assert_documents_are_equal(
+            result,
+            [
+                d
+                for d in filterable_docs
+                if d.meta.get("date") is not None
+                and datetime.fromisoformat(d.meta["date"]) > datetime.fromisoformat("1972-12-11T19:54:58Z")
+            ],
+        )
+
+    @override
+    def test_comparison_greater_than_equal_with_iso_date(self, document_store, filterable_docs):
+        """
+        This test has been copied from haystack/testing/document_store.py and modified to
+        use a different date format.
+        Same reason as the filterable_docs fixture.
+        Weaviate forces RFC 3339 date strings and the filterable_docs use ISO 8601 date strings.
+        """
+        document_store.write_documents(filterable_docs)
+        result = document_store.filter_documents(
+            {"field": "meta.date", "operator": ">=", "value": "1969-07-21T20:17:40"}
+        )
+        self.assert_documents_are_equal(
+            result,
+            [
+                d
+                for d in filterable_docs
+                if d.meta.get("date") is not None
+                and datetime.fromisoformat(d.meta["date"]) >= datetime.fromisoformat("1969-07-21T20:17:40Z")
+            ],
+        )
+
+    @override
+    def test_comparison_less_than_with_iso_date(self, document_store, filterable_docs):
+        """
+        This test has been copied from haystack/testing/document_store.py and modified to
+        use a different date format.
+        Same reason as the filterable_docs fixture.
+        Weaviate forces RFC 3339 date strings and the filterable_docs use ISO 8601 date strings.
+        """
+        document_store.write_documents(filterable_docs)
+        result = document_store.filter_documents(
+            {"field": "meta.date", "operator": "<", "value": "1969-07-21T20:17:40"}
+        )
+        self.assert_documents_are_equal(
+            result,
+            [
+                d
+                for d in filterable_docs
+                if d.meta.get("date") is not None
+                and datetime.fromisoformat(d.meta["date"]) < datetime.fromisoformat("1969-07-21T20:17:40Z")
+            ],
+        )
+
+    @override
+    def test_comparison_less_than_equal_with_iso_date(self, document_store, filterable_docs):
+        """
+        This test has been copied from haystack/testing/document_store.py and modified to
+        use a different date format.
+        Same reason as the filterable_docs fixture.
+        Weaviate forces RFC 3339 date strings and the filterable_docs use ISO 8601 date strings.
+        """
+        document_store.write_documents(filterable_docs)
+        result = document_store.filter_documents(
+            {"field": "meta.date", "operator": "<=", "value": "1969-07-21T20:17:40"}
+        )
+        self.assert_documents_are_equal(
+            result,
+            [
+                d
+                for d in filterable_docs
+                if d.meta.get("date") is not None
+                and datetime.fromisoformat(d.meta["date"]) <= datetime.fromisoformat("1969-07-21T20:17:40Z")
+            ],
+        )
+
+    def test_comparison_not_equal_with_dataframe(self, document_store, filterable_docs):
+        document_store.write_documents(filterable_docs)
+        result = document_store.filter_documents(
+            filters={"field": "dataframe", "operator": "!=", "value": DataFrame([1])}
+        )
+        self.assert_documents_are_equal(
+            result, [d for d in filterable_docs if d.dataframe is None or not d.dataframe.equals(DataFrame([1]))]
+        )
