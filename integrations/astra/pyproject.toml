@@ -144,7 +144,7 @@ unfixable = [
 exclude = ["example"]
 
 [tool.ruff.isort]
-known-first-party = ["astra_haystack"]
+known-first-party = ["haystack_integrations"]
 
 [tool.ruff.flake8-tidy-imports]
 ban-relative-imports = "parents"
@@ -154,7 +154,7 @@ ban-relative-imports = "parents"
 "tests/**/*" = ["PLR2004", "S101", "TID252"]
 
 [tool.coverage.run]
-source_pkgs = ["astra_haystack", "tests"]
+source_pkgs = ["haystack_integrations", "tests"]
 branch = true
 parallel = true
 omit = [
@@ -162,7 +162,7 @@ omit = [
 ]
 
 [tool.coverage.paths]
-astra_haystack = ["src/astra_haystack", "*/astra-store/src/astra_haystack"]
+astra_haystack = ["src"]
 tests = ["tests"]
 
 [tool.coverage.report]
@@ -181,7 +181,6 @@ markers = [
 
 [[tool.mypy.overrides]]
 module = [
-  "astra_haystack.*",
   "astra_client.*",
   "pydantic.*",
   "haystack.*",
