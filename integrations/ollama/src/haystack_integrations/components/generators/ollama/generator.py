@@ -1,8 +1,10 @@
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 import requests
 from haystack import component
+from haystack.dataclasses import StreamingChunk
 from requests import Response
+import json
 
 
 @component
@@ -21,6 +23,7 @@ class OllamaGenerator:
         template: Optional[str] = None,
         raw: bool = False,
         timeout: int = 120,
+        streaming_callback: Optional[Callable[[StreamingChunk], None]] = None,
     ):
         """
         :param model: The name of the model to use. The model should be available in the running Ollama instance.
@@ -36,6 +39,8 @@ class OllamaGenerator:
             if you are specifying a full templated prompt in your API request.
         :param timeout: The number of seconds before throwing a timeout error from the Ollama API.
             Default is 120 seconds.
+        :param streaming_callback: A callback function that is called when a new token is received from the stream.
+            The callback function accepts StreamingChunk as an argument.
         """
         self.timeout = timeout
         self.raw = raw
@@ -44,8 +49,9 @@ class OllamaGenerator:
         self.model = model
         self.url = url
         self.generation_kwargs = generation_kwargs or {}
+        self.streaming_callback = streaming_callback
 
-    def _create_json_payload(self, prompt: str, generation_kwargs=None) -> Dict[str, Any]:
+    def _create_json_payload(self, prompt: str, stream: bool, generation_kwargs=None) -> Dict[str, Any]:
         """
         Returns a dictionary of JSON arguments for a POST request to an Ollama service.
         :param prompt: The prompt to generate a response for.
@@ -58,7 +64,7 @@ class OllamaGenerator:
         return {
             "prompt": prompt,
             "model": self.model,
-            "stream": False,
+            "stream": stream,
             "raw": self.raw,
             "template": self.template,
             "system": self.system_prompt,
@@ -71,12 +77,52 @@ class OllamaGenerator:
         :param ollama_response: A response (requests library) from the Ollama API.
         :return: A dictionary of the returned responses and metadata.
         """
+        
         resp_dict = ollama_response.json()
 
         replies = [resp_dict["response"]]
         meta = {key: value for key, value in resp_dict.items() if key != "response"}
 
         return {"replies": replies, "meta": [meta]}
+    
+    def _convert_to_response(self, chunks: List[StreamingChunk]) -> Dict[str, List[Any]]:
+        """
+        Convert a list of chunks response required Haystack format.
+        :param chunks: List of StreamingChunks
+        :return: A dictionary of the returned responses and metadata.
+        """
+        
+        replies = ["".join([c.content for c in chunks])]
+        meta = {key: value for key, value in chunks[0].meta.items() if key != "response"}
+
+        return {"replies": replies, "meta": [meta]}
+
+    def _handle_streaming_response(self, response) -> List[StreamingChunk]:
+        """ Handles Streaming response case
+
+        :param response: streaming response from ollama api.
+        :return: The List[StreamingChunk].
+        """
+        chunks: List[StreamingChunk] = []
+        for chunk in response.iter_lines():
+            chunk_delta: StreamingChunk = self._build_chunk(chunk)
+            chunks.append(chunk_delta)
+            self.streaming_callback(chunk_delta)
+        return chunks
+
+    def _build_chunk(self, chunk_response: Any) -> StreamingChunk:
+        """
+        Converts the response from the Ollama API to a StreamingChunk.
+        :param chunk: The chunk returned by the Ollama API.
+        :return: The StreamingChunk.
+        """
+        decoded_chunk = json.loads(chunk_response.decode("utf-8"))
+
+        content = decoded_chunk['response']
+        meta = {key: value for key, value in decoded_chunk.items() if key != "response"}
+
+        chunk_message = StreamingChunk(content, meta)
+        return chunk_message
 
     @component.output_types(replies=List[str], metadata=List[Dict[str, Any]])
     def run(
@@ -94,11 +140,17 @@ class OllamaGenerator:
         """
         generation_kwargs = {**self.generation_kwargs, **(generation_kwargs or {})}
 
-        json_payload = self._create_json_payload(prompt, generation_kwargs)
+        stream = self.streaming_callback is not None
 
-        response = requests.post(url=self.url, json=json_payload, timeout=self.timeout)
+        json_payload = self._create_json_payload(prompt, stream, generation_kwargs)
+
+        response = requests.post(url=self.url, json=json_payload, timeout=self.timeout, stream=stream)
 
         # throw error on unsuccessful response
         response.raise_for_status()
+
+        if stream:
+            chunks: List[StreamingChunk] = self._handle_streaming_response(response)
+            return self._convert_to_response(chunks)
 
         return self._convert_to_haystack_response(response)

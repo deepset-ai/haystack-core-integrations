@@ -5,6 +5,8 @@
 import pytest
 from haystack_integrations.components.generators.ollama import OllamaGenerator
 from requests import HTTPError
+from haystack.dataclasses import StreamingChunk
+import requests_mock
 
 
 class TestOllamaGenerator:
@@ -42,16 +44,20 @@ class TestOllamaGenerator:
         assert component.template is None
         assert component.raw is False
         assert component.timeout == 120
+        assert component.streaming_callback is None
 
     def test_init(self):
+        def callback(x: StreamingChunk):
+            pass
+
         component = OllamaGenerator(
             model="llama2",
             url="http://my-custom-endpoint:11434/api/generate",
             generation_kwargs={"temperature": 0.5},
             system_prompt="You are Luigi from Super Mario Bros.",
             timeout=5,
+            streaming_callback = callback
         )
-
         assert component.model == "llama2"
         assert component.url == "http://my-custom-endpoint:11434/api/generate"
         assert component.generation_kwargs == {"temperature": 0.5}
@@ -59,6 +65,7 @@ class TestOllamaGenerator:
         assert component.template is None
         assert component.raw is False
         assert component.timeout == 5
+        assert component.streaming_callback == callback
 
     @pytest.mark.parametrize(
         "configuration",
@@ -68,27 +75,28 @@ class TestOllamaGenerator:
                 "url": "https://localhost:11434/api/generate",
                 "raw": True,
                 "system_prompt": "You are mario from Super Mario Bros.",
-                "template": None,
+                "template": None
             },
             {
                 "model": "some_model2",
                 "url": "https://localhost:11434/api/generate",
                 "raw": False,
                 "system_prompt": None,
-                "template": "some template",
+                "template": "some template"
             },
         ],
     )
-    def test_create_json_payload(self, configuration):
+    @pytest.mark.parametrize("stream", [True, False])
+    def test_create_json_payload(self, configuration, stream):
         prompt = "hello"
         component = OllamaGenerator(**configuration)
 
-        observed = component._create_json_payload(prompt=prompt)
+        observed = component._create_json_payload(prompt=prompt, stream=stream)
 
         expected = {
             "prompt": prompt,
             "model": configuration["model"],
-            "stream": False,
+            "stream": stream,
             "system": configuration["system_prompt"],
             "raw": configuration["raw"],
             "template": configuration["template"],
@@ -96,3 +104,27 @@ class TestOllamaGenerator:
         }
 
         assert observed == expected
+
+class TestOllamaStreamingGenerator:
+    @pytest.mark.integration
+    def test_ollama_generator_run_streaming(self):
+        class Callback:
+            def __init__(self):
+                self.responses = ""
+                self.count_calls = 0
+
+            def __call__(self, chunk):
+                self.responses += chunk.content
+                self.count_calls += 1
+                print(f'{self.count_calls} = {chunk}')
+                return chunk
+
+        callback = Callback()
+        component = OllamaGenerator(streaming_callback=callback)
+        results = component.run(prompt="What's the capital of Netherlands?")
+
+        assert len(results["replies"]) == 1
+        assert "Amsterdam" in results["replies"][0]
+        assert len(results["meta"]) == 1
+        assert callback.responses == results["replies"][0]
+        assert callback.count_calls > 1
