@@ -1,10 +1,10 @@
+import json
 from typing import Any, Callable, Dict, List, Optional
 
 import requests
 from haystack import component
 from haystack.dataclasses import StreamingChunk
 from requests import Response
-import json
 
 
 @component
@@ -77,21 +77,21 @@ class OllamaGenerator:
         :param ollama_response: A response (requests library) from the Ollama API.
         :return: A dictionary of the returned responses and metadata.
         """
-        
+
         resp_dict = ollama_response.json()
 
         replies = [resp_dict["response"]]
         meta = {key: value for key, value in resp_dict.items() if key != "response"}
 
         return {"replies": replies, "meta": [meta]}
-    
+
     def _convert_to_response(self, chunks: List[StreamingChunk]) -> Dict[str, List[Any]]:
         """
         Convert a list of chunks response required Haystack format.
         :param chunks: List of StreamingChunks
         :return: A dictionary of the returned responses and metadata.
         """
-        
+
         replies = ["".join([c.content for c in chunks])]
         meta = {key: value for key, value in chunks[0].meta.items() if key != "response"}
 
@@ -118,7 +118,7 @@ class OllamaGenerator:
         """
         decoded_chunk = json.loads(chunk_response.decode("utf-8"))
 
-        content = decoded_chunk['response']
+        content = decoded_chunk["response"]
         meta = {key: value for key, value in decoded_chunk.items() if key != "response"}
 
         chunk_message = StreamingChunk(content, meta)

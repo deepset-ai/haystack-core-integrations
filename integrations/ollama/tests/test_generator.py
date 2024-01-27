@@ -3,10 +3,9 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import pytest
+from haystack.dataclasses import StreamingChunk
 from haystack_integrations.components.generators.ollama import OllamaGenerator
 from requests import HTTPError
-from haystack.dataclasses import StreamingChunk
-import requests_mock
 
 
 class TestOllamaGenerator:
@@ -48,7 +47,7 @@ class TestOllamaGenerator:
 
     def test_init(self):
         def callback(x: StreamingChunk):
-            pass
+            x.content = ""
 
         component = OllamaGenerator(
             model="llama2",
@@ -116,7 +115,6 @@ class TestOllamaStreamingGenerator:
             def __call__(self, chunk):
                 self.responses += chunk.content
                 self.count_calls += 1
-                print(f'{self.count_calls} = {chunk}')
                 return chunk
 
         callback = Callback()
