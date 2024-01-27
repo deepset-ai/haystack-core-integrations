@@ -98,7 +98,7 @@ class OllamaGenerator:
         return {"replies": replies, "meta": [meta]}
 
     def _handle_streaming_response(self, response) -> List[StreamingChunk]:
-        """ Handles Streaming response case
+        """Handles Streaming response case
 
         :param response: streaming response from ollama api.
         :return: The List[StreamingChunk].
@@ -107,7 +107,8 @@ class OllamaGenerator:
         for chunk in response.iter_lines():
             chunk_delta: StreamingChunk = self._build_chunk(chunk)
             chunks.append(chunk_delta)
-            self.streaming_callback(chunk_delta)
+            if self.streaming_callback is not None:
+                self.streaming_callback(chunk_delta)
         return chunks
 
     def _build_chunk(self, chunk_response: Any) -> StreamingChunk:

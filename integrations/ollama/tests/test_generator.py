@@ -55,7 +55,7 @@ class TestOllamaGenerator:
             generation_kwargs={"temperature": 0.5},
             system_prompt="You are Luigi from Super Mario Bros.",
             timeout=5,
-            streaming_callback = callback
+            streaming_callback=callback,
         )
         assert component.model == "llama2"
         assert component.url == "http://my-custom-endpoint:11434/api/generate"
@@ -74,14 +74,14 @@ class TestOllamaGenerator:
                 "url": "https://localhost:11434/api/generate",
                 "raw": True,
                 "system_prompt": "You are mario from Super Mario Bros.",
-                "template": None
+                "template": None,
             },
             {
                 "model": "some_model2",
                 "url": "https://localhost:11434/api/generate",
                 "raw": False,
                 "system_prompt": None,
-                "template": "some template"
+                "template": "some template",
             },
         ],
     )
@@ -103,6 +103,7 @@ class TestOllamaGenerator:
         }
 
         assert observed == expected
+
 
 class TestOllamaStreamingGenerator:
     @pytest.mark.integration
