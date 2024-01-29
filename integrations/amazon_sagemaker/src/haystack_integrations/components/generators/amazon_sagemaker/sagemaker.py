@@ -4,7 +4,7 @@ import os
 from typing import Any, ClassVar, Dict, List, Optional
 
 import requests
-from haystack import component
+from haystack import component, default_from_dict, default_to_dict
 from haystack.lazy_imports import LazyImport
 from haystack_integrations.components.generators.amazon_sagemaker.errors import (
     AWSConfigurationError,
@@ -116,6 +116,29 @@ class SagemakerGenerator:
         Data that is sent to Posthog for usage analytics.
         """
         return {"model": self.model}
+
+    def to_dict(self) -> Dict[str, Any]:
+        """
+        Serialize the object to a dictionary.
+        """
+        return default_to_dict(
+            self,
+            model=self.model,
+            aws_access_key_id_var=self.aws_access_key_id_var,
+            aws_secret_access_key_var=self.aws_secret_access_key_var,
+            aws_session_token_var=self.aws_session_token_var,
+            aws_region_name_var=self.aws_region_name_var,
+            aws_profile_name_var=self.aws_profile_name_var,
+            aws_custom_attributes=self.aws_custom_attributes,
+            generation_kwargs=self.generation_kwargs,
+        )
+
+    @classmethod
+    def from_dict(cls, data) -> "SagemakerGenerator":
+        """
+        Deserialize the dictionary into an instance of SagemakerGenerator.
+        """
+        return default_from_dict(cls, data)
 
     def warm_up(self):
         """

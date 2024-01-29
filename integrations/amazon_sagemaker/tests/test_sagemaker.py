@@ -62,6 +62,45 @@ class TestSagemakerGenerator:
         assert component.generation_kwargs == {"generation": "kwargs"}
         assert component.client is None
 
+    def test_to_from_dict(self, monkeypatch):
+        monkeypatch.setenv("MY_ACCESS_KEY_ID", "test-access-key")
+        monkeypatch.setenv("MY_SECRET_ACCESS_KEY", "test-secret-key")
+
+        component = SagemakerGenerator(
+            model="test-model",
+            aws_access_key_id_var="MY_ACCESS_KEY_ID",
+            aws_secret_access_key_var="MY_SECRET_ACCESS_KEY",
+            aws_session_token_var="MY_SESSION_TOKEN",
+            aws_region_name_var="MY_REGION",
+            aws_profile_name_var="MY_PROFILE",
+            aws_custom_attributes={"custom": "attr"},
+            generation_kwargs={"generation": "kwargs"},
+        )
+        serialized = component.to_dict()
+        assert serialized == {
+            'type': 'haystack_integrations.components.generators.amazon_sagemaker.sagemaker.SagemakerGenerator',
+            'init_parameters': {
+                'model': 'test-model',
+                'aws_access_key_id_var': 'MY_ACCESS_KEY_ID',
+                'aws_secret_access_key_var': 'MY_SECRET_ACCESS_KEY',
+                'aws_session_token_var': 'MY_SESSION_TOKEN',
+                'aws_region_name_var': 'MY_REGION',
+                'aws_profile_name_var': 'MY_PROFILE',
+                'aws_custom_attributes': {'custom': 'attr'},
+                'generation_kwargs': {'generation': 'kwargs'},
+            },
+        }
+        deserialized = SagemakerGenerator.from_dict(serialized)
+        assert component.model == "test-model"
+        assert component.aws_access_key_id_var == "MY_ACCESS_KEY_ID"
+        assert component.aws_secret_access_key_var == "MY_SECRET_ACCESS_KEY"
+        assert component.aws_session_token_var == "MY_SESSION_TOKEN"
+        assert component.aws_region_name_var == "MY_REGION"
+        assert component.aws_profile_name_var == "MY_PROFILE"
+        assert component.aws_custom_attributes == {"custom": "attr"}
+        assert component.generation_kwargs == {"generation": "kwargs"}
+        assert component.client is None
+
     def test_run_with_list_of_dictionaries(self, monkeypatch):
         monkeypatch.setenv("AWS_ACCESS_KEY_ID", "test-access-key")
         monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "test-secret-key")
