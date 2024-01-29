@@ -102,6 +102,13 @@ def _treat_meta_field(field: str, value: Any) -> str:
     """
     Internal method that modifies the field str
     to make the meta JSONB field queryable.
+
+    Examples:
+    >>> _treat_meta_field(field="meta.number", value=9)
+    "(meta->>'number')::integer"
+
+    >>> _treat_meta_field(field="meta.name", value="my_name")
+    "meta->>'name'"
     """
 
     # use the ->> operator to access keys in the meta JSONB field
@@ -116,6 +123,8 @@ def _treat_meta_field(field: str, value: Any) -> str:
 
     if type_value:
         field = f"({field})::{type_value}"
+
+    print("ret. field", field)
 
     return field
 
