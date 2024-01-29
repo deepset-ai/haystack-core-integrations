@@ -19,8 +19,6 @@ logger = logging.getLogger(__name__)
 
 @component
 class SagemakerGenerator:
-    model_generation_keys = ["generated_text", "generation"]
-
     """
     Enables text generation using Sagemaker. It supports Large Language Models (LLMs) hosted and deployed on a SageMaker
     Inference Endpoint. For guidance on how to deploy a model to SageMaker, refer to the
@@ -43,13 +41,14 @@ class SagemakerGenerator:
     response = generator.run("What's Natural Language Processing? Be brief.")
     print(response)
     ```
-
     ```
     >> {'replies': ['Natural Language Processing (NLP) is a branch of artificial intelligence that focuses on
     >> the interaction between computers and human language. It involves enabling computers to understand, interpret,
     >> and respond to natural human language in a way that is both meaningful and useful.'], 'meta': [{}]}
     ```
     """
+
+    model_generation_keys = ["generated_text", "generation"]
 
     def __init__(
         self,
@@ -163,13 +162,17 @@ class SagemakerGenerator:
             response_json = response.get("Body").read().decode("utf-8")
             output: Dict[str, Dict[str, Any]] = json.loads(response_json)
 
-            # Find the key that contains the generated text
-            # It can be any of the keys in model_generation_keys, depending on the model
+            # The output might be either a list of dictionaries or a single dictionary
+            if output and isinstance(output, dict):
+                output = [output]
+
+            # The key where the replies are stored changes from model to model, so we need to look for it.
+            # All other keys in the response are added to the metadata.
             for key in self.model_generation_keys:
                 if key in output[0]:
                     break
-
             replies = [o.pop(key, None) for o in output]
+
             return {"replies": replies, "meta": output * len(replies)}
 
         except requests.HTTPError as err:
