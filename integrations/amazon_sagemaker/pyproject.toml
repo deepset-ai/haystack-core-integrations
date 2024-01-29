@@ -128,6 +128,8 @@ select = [
   "YTT",
 ]
 ignore = [
+  # Import sorting doesn't seem to work
+  "I001",
   # Allow non-abstract empty methods in abstract base classes
   "B027",
   # Allow boolean positional values in function calls, like `dict.get(... True)`

@@ -1,13 +1,15 @@
 import json
 import logging
 import os
-from typing import Any, Dict, List, Optional, ClassVar
+from typing import Any, ClassVar, Dict, List, Optional
 
 import requests
 from haystack import component
 from haystack.lazy_imports import LazyImport
 from haystack_integrations.components.generators.amazon_sagemaker.errors import (
-    AWSConfigurationError, SagemakerInferenceError, SagemakerNotReadyError
+    AWSConfigurationError,
+    SagemakerInferenceError,
+    SagemakerNotReadyError,
 )
 
 with LazyImport(message="Run 'pip install boto3'") as boto3_import:
@@ -16,6 +18,9 @@ with LazyImport(message="Run 'pip install boto3'") as boto3_import:
 
 
 logger = logging.getLogger(__name__)
+
+
+MODEL_NOT_READY_STATUS_CODE = 429
 
 
 @component
@@ -79,7 +84,7 @@ class SagemakerGenerator:
 
             Specifically, Llama-2 models support the following inference payload parameters:
 
-            - `max_new_tokens`: Model generates text until the output length (excluding the input context length) 
+            - `max_new_tokens`: Model generates text until the output length (excluding the input context length)
                 reaches `max_new_tokens`. If specified, it must be a positive integer.
             - `temperature`: Controls the randomness in the output. Higher temperature results in output sequence with
                 low-probability words and lower temperature results in output sequence with high-probability words.
@@ -100,8 +105,10 @@ class SagemakerGenerator:
         self.client: Optional[BaseClient] = None
 
         if not os.getenv(self.aws_access_key_id_var) or not os.getenv(self.aws_secret_access_key_var):
-            msg = f"Please provide AWS credentials via environment variables '{self.aws_access_key_id_var}' and " \
+            msg = (
+                f"Please provide AWS credentials via environment variables '{self.aws_access_key_id_var}' and "
                 f"'{self.aws_secret_access_key_var}'."
+            )
             raise AWSConfigurationError(msg)
 
     def _get_telemetry_data(self) -> Dict[str, Any]:
@@ -125,8 +132,10 @@ class SagemakerGenerator:
             )
             self.client = session.client("sagemaker-runtime")
         except Exception as e:
-            msg = f"Could not connect to SageMaker Inference Endpoint '{self.model}'." \
+            msg = (
+                f"Could not connect to SageMaker Inference Endpoint '{self.model}'."
                 f"Make sure the Endpoint exists and AWS environment is configured."
+            )
             raise AWSConfigurationError(msg) from e
 
     @component.output_types(replies=List[str], meta=List[Dict[str, Any]])
@@ -142,7 +151,8 @@ class SagemakerGenerator:
         for each response.
         """
         if self.client is None:
-            raise ValueError("SageMaker Inference client is not initialized. Please call warm_up() first.")
+            msg = "SageMaker Inference client is not initialized. Please call warm_up() first."
+            raise ValueError(msg)
 
         generation_kwargs = generation_kwargs or self.generation_kwargs
         custom_attributes = ";".join(
@@ -176,7 +186,7 @@ class SagemakerGenerator:
 
         except requests.HTTPError as err:
             res = err.response
-            if res.status_code == 429:
+            if res.status_code == MODEL_NOT_READY_STATUS_CODE:
                 msg = f"Sagemaker model not ready: {res.text}"
                 raise SagemakerNotReadyError(msg) from err
 
