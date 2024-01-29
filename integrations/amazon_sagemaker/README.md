@@ -8,7 +8,7 @@
 **Table of Contents**
 
 - [Installation](#installation)
-- [Testing](#testing)
+- [Contributing](#contributing)
 - [License](#license)
 
 ## Installation
@@ -17,16 +17,35 @@
 pip install amazon-sagemaker-haystack
 ```
 
-## Testing
+## Contributing
 
-To run the test suite locally, run:
+`hatch` is the best way to interact with this project, to install it:
+```sh
+pip install hatch
+```
 
-```console
+With `hatch` installed, to run all the tests:
+```
 hatch run test
 ```
 
-You need to also export your AWS credentials for Sagemaker integration tests to run (`AWS_ACCESS_KEY_ID` and 
-`AWS_SECRET_SECRET_KEY`). If those are missing, the tests will be skipped.
+> Note: You need to export your AWS credentials for Sagemaker integration tests to run (`AWS_ACCESS_KEY_ID` and 
+`AWS_SECRET_SECRET_KEY`). If those are missing, the integration tests will be skipped.
+
+To only run unit tests:
+```
+hatch run test -m "not integration"
+```
+
+To only run integration tests:
+```
+hatch run test -m "integration"
+```
+
+To run the linters `ruff` and `mypy`:
+```
+hatch run lint:all
+```
 
 ## License
 
