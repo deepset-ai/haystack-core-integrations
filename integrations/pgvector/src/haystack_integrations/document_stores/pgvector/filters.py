@@ -53,9 +53,9 @@ def _parse_logical_condition(condition: Dict[str, Any]) -> tuple[str, List[Any]]
 
     operator = condition["operator"]
     if operator == "AND":
-        sql_query = "(" + " AND ".join(query_parts) + ")"
+        sql_query = f"({' AND '.join(query_parts)})"
     elif operator == "OR":
-        sql_query = "(" + " OR ".join(query_parts) + ")"
+        sql_query = f"({' OR '.join(query_parts)})"
     else:
         msg = f"Unknown logical operator '{operator}'"
         raise FilterError(msg)
