@@ -19,7 +19,7 @@ PYTHON_TYPES_TO_PG_TYPES = {
     bool: "boolean",
 }
 
-NO_VALUE="no_value"
+NO_VALUE = "no_value"
 
 
 def _convert_filters_to_where_clause_and_params(filters: Dict[str, Any]) -> tuple[SQL, tuple]:
@@ -44,7 +44,7 @@ def _parse_logical_condition(condition: Dict[str, Any]) -> tuple[str, List[Any]]
     if "conditions" not in condition:
         msg = f"'conditions' key missing in {condition}"
         raise FilterError(msg)
-    
+
     # logical conditions can be nested, so we need to parse them recursively
     conditions = []
     for c in condition["conditions"]:
@@ -74,7 +74,6 @@ def _parse_logical_condition(condition: Dict[str, Any]) -> tuple[str, List[Any]]
 
 
 def _parse_comparison_condition(condition: Dict[str, Any]) -> tuple[str, List[Any]]:
-
     field: str = condition["field"]
     if "operator" not in condition:
         msg = f"'operator' key missing in {condition}"
@@ -123,8 +122,6 @@ def _treat_meta_field(field: str, value: Any) -> str:
 
     if type_value:
         field = f"({field})::{type_value}"
-
-    print("ret. field", field)
 
     return field
 
