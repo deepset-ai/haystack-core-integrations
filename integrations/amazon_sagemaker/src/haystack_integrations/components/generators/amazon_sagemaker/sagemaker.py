@@ -1,13 +1,14 @@
-from typing import Optional, List, Dict, Any
-
-import os
-import logging
 import json
+import logging
+import os
+from typing import Any, Dict, List, Optional
 
 import requests
-from haystack.lazy_imports import LazyImport
 from haystack import component
-from haystack_integrations.components.generators.amazon_sagemaker.errors import AWSConfigurationError, SagemakerInferenceError, SagemakerNotReadyError
+from haystack.lazy_imports import LazyImport
+from haystack_integrations.components.generators.amazon_sagemaker.errors import (
+    AWSConfigurationError, SagemakerInferenceError, SagemakerNotReadyError
+)
 
 with LazyImport(message="Run 'pip install boto3'") as boto3_import:
     import boto3
