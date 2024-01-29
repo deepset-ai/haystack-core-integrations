@@ -158,7 +158,7 @@ class SagemakerGenerator:
         custom_attributes = ";".join(
             f"{k}={str(v).lower() if isinstance(v, bool) else str(v)}" for k, v in self.aws_custom_attributes.items()
         )
-        self.client: BaseClient
+        self.client
         try:
             body = json.dumps({"inputs": prompt, "parameters": generation_kwargs})
             response = self.client.invoke_endpoint(
@@ -172,17 +172,22 @@ class SagemakerGenerator:
             output: Dict[str, Dict[str, Any]] = json.loads(response_json)
 
             # The output might be either a list of dictionaries or a single dictionary
+            list_output: List[Dict[str, Any]]
             if output and isinstance(output, dict):
-                output = [output]
+                list_output = [output]
+            elif isinstance(output, list) and all(isinstance(o, dict) for o in output):
+                list_output = output
+            else:
+                raise ValueError(f"Unexpected model response type: {type(output)}")
 
             # The key where the replies are stored changes from model to model, so we need to look for it.
             # All other keys in the response are added to the metadata.
             for key in self.model_generation_keys:
-                if key in output[0]:
+                if key in list_output[0]:
                     break
-            replies = [o.pop(key, None) for o in output]
+            replies = [o.pop(key, None) for o in list_output]
 
-            return {"replies": replies, "meta": output * len(replies)}
+            return {"replies": replies, "meta": list_output * len(replies)}
 
         except requests.HTTPError as err:
             res = err.response
