@@ -273,8 +273,12 @@ class PgvectorDocumentStore:
         :param filters: The filters to apply to the document list.
         :return: A list of Documents that match the given filters.
         """
-        if filters and "operator" not in filters and "conditions" not in filters:
-            filters = convert(filters)
+        if filters:
+            if not isinstance(filters, dict):
+                msg = "Filters must be a dictionary"
+                raise TypeError(msg)
+            if "operator" not in filters and "conditions" not in filters:
+                filters = convert(filters)
 
         sql_filter = SQL("SELECT * FROM {table_name}").format(table_name=Identifier(self.table_name))
 

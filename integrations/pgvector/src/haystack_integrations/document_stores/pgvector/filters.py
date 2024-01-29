@@ -24,10 +24,6 @@ def _convert_filters_to_where_clause_and_params(filters: Dict[str, Any]) -> tupl
     """
     Convert Haystack filters to a WHERE clause and a tuple of params to query PostgreSQL.
     """
-    if not isinstance(filters, dict):
-        msg = "Filters must be a dictionary"
-        raise FilterError(msg)
-
     if "field" in filters:
         query, values = _parse_comparison_condition(filters)
     else:
