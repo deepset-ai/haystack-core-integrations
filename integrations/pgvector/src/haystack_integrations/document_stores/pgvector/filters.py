@@ -44,8 +44,16 @@ def _parse_logical_condition(condition: Dict[str, Any]) -> tuple[str, List[Any]]
     if "conditions" not in condition:
         msg = f"'conditions' key missing in {condition}"
         raise FilterError(msg)
+    
+    # logical conditions can be nested, so we need to parse them recursively
+    conditions = []
+    for c in condition["conditions"]:
+        if "field" in c:
+            query, vals = _parse_comparison_condition(c)
+        else:
+            query, vals = _parse_logical_condition(c)
+        conditions.append((query, vals))
 
-    conditions = [_parse_comparison_condition(c) for c in condition["conditions"]]
     query_parts, values = [], []
     for c in conditions:
         query_parts.append(c[0])
@@ -66,10 +74,6 @@ def _parse_logical_condition(condition: Dict[str, Any]) -> tuple[str, List[Any]]
 
 
 def _parse_comparison_condition(condition: Dict[str, Any]) -> tuple[str, List[Any]]:
-    if "field" not in condition:
-        # 'field' key is only found in comparison dictionaries.
-        # We assume this is a logic dictionary since it's not present.
-        return _parse_logical_condition(condition)
 
     field: str = condition["field"]
     if "operator" not in condition:
