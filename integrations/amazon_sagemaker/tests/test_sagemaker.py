@@ -116,7 +116,7 @@ class TestSagemakerGenerator:
 
     @pytest.mark.skipif(
         (not os.environ.get("AWS_ACCESS_KEY_ID", None) or not os.environ.get("AWS_SECRET_ACCESS_KEY", None)),
-        reason="Export two env vars called AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY containing the AWS credentials to run this test.",
+        reason="Export two env vars called AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY to run this test.",
     )
     @pytest.mark.integration
     def test_run_falcon(self):
@@ -145,7 +145,7 @@ class TestSagemakerGenerator:
 
     @pytest.mark.skipif(
         (not os.environ.get("AWS_ACCESS_KEY_ID", None) or not os.environ.get("AWS_SECRET_ACCESS_KEY", None)),
-        reason="Export two env vars called AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY containing the AWS credentials to run this test.",
+        reason="Export two env vars called AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY to run this test.",
     )
     @pytest.mark.integration
     def test_run_llama2(self):
@@ -176,7 +176,7 @@ class TestSagemakerGenerator:
 
     @pytest.mark.skipif(
         (not os.environ.get("AWS_ACCESS_KEY_ID", None) or not os.environ.get("AWS_SECRET_ACCESS_KEY", None)),
-        reason="Export two env vars called AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY containing the AWS credentials to run this test.",
+        reason="Export two env vars called AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY to run this test.",
     )
     @pytest.mark.integration
     def test_run_bloomz(self):
