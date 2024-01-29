@@ -3,6 +3,13 @@ from typing import List
 import pytest
 from haystack.dataclasses.document import Document
 from haystack.testing.document_store import FilterDocumentsTest
+from haystack_integrations.document_stores.pgvector.filters import (
+    FilterError,
+    _parse_comparison_condition,
+    _treat_meta_field,
+)
+from pandas import DataFrame
+from psycopg.types.json import Jsonb
 
 
 class TestFilters(FilterDocumentsTest):
@@ -60,4 +67,44 @@ class TestFilters(FilterDocumentsTest):
         )
 
     @pytest.mark.skip(reason="NOT operator is not supported in PgvectorDocumentStore")
-    def test_not_operator(self, document_store, filterable_docs): ...
+    def test_not_operator(self, document_store, filterable_docs):
+        ...
+
+    def test_treat_meta_field(self):
+        assert _treat_meta_field(field="meta.number", value=9) == "(meta->>'number')::integer"
+        assert _treat_meta_field(field="meta.number", value=[1, 2, 3]) == "(meta->>'number')::integer"
+        assert _treat_meta_field(field="meta.name", value="my_name") == "meta->>'name'"
+        assert _treat_meta_field(field="meta.name", value=["my_name"]) == "meta->>'name'"
+        assert _treat_meta_field(field="meta.number", value=1.1) == "(meta->>'number')::real"
+        assert _treat_meta_field(field="meta.number", value=[1.1, 2.2, 3.3]) == "(meta->>'number')::real"
+        assert _treat_meta_field(field="meta.bool", value=True) == "(meta->>'bool')::boolean"
+        assert _treat_meta_field(field="meta.bool", value=[True, False, True]) == "(meta->>'bool')::boolean"
+
+        # do not cast the field if its value is not one of the known types or is an empty list
+        assert _treat_meta_field(field="meta.other", value={"a": 3, "b": "example"}) == "meta->>'other'"
+        assert _treat_meta_field(field="meta.empty_list", value=[]) == "meta->>'empty_list'"
+
+    def test_comparison_condition_dataframe_jsonb_conversion(self):
+        dataframe = DataFrame({"a": [1, 2, 3], "b": ["a", "b", "c"]})
+        condition = {"field": "meta.df", "operator": "==", "value": dataframe}
+        field, values = _parse_comparison_condition(condition)
+        assert field == "(meta.df)::jsonb = %s"
+
+        # we check each slot of the Jsonb object because it does not implement __eq__
+        assert values[0].obj == Jsonb(dataframe.to_json()).obj
+        assert values[0].dumps == Jsonb(dataframe.to_json()).dumps
+
+    def test_comparison_condition_missing_operator(self):
+        condition = {"field": "meta.type", "value": "article"}
+        with pytest.raises(FilterError):
+            _parse_comparison_condition(condition)
+
+    def test_comparison_condition_missing_value(self):
+        condition = {"field": "meta.type", "operator": "=="}
+        with pytest.raises(FilterError):
+            _parse_comparison_condition(condition)
+
+    def test_comparison_condition_unknown_operator(self):
+        condition = {"field": "meta.type", "operator": "unknown", "value": "article"}
+        with pytest.raises(FilterError):
+            _parse_comparison_condition(condition)

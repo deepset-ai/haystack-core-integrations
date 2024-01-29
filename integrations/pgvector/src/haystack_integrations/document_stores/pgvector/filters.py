@@ -81,14 +81,16 @@ def _parse_comparison_condition(condition: Dict[str, Any]) -> tuple[str, List[An
     if "value" not in condition:
         msg = f"'value' key missing in {condition}"
         raise FilterError(msg)
-
     operator: str = condition["operator"]
+    if operator not in COMPARISON_OPERATORS:
+        msg = f"Unknown comparison operator '{operator}'. Valid operators are: {list(COMPARISON_OPERATORS.keys())}"
+        raise FilterError(msg)
+
     value: Any = condition["value"]
     if isinstance(value, DataFrame):
         # DataFrames are stored as JSONB and we query them as such
-        value = value.to_json()
+        value = Jsonb(value.to_json())
         field = f"({field})::jsonb"
-        value = Jsonb(value)
 
     if field.startswith("meta."):
         field = _treat_meta_field(field, value)
