@@ -19,6 +19,8 @@ PYTHON_TYPES_TO_PG_TYPES = {
     bool: "boolean",
 }
 
+NO_VALUE="no_value"
+
 
 def _convert_filters_to_where_clause_and_params(filters: Dict[str, Any]) -> tuple[SQL, tuple]:
     """
@@ -30,7 +32,7 @@ def _convert_filters_to_where_clause_and_params(filters: Dict[str, Any]) -> tupl
         query, values = _parse_logical_condition(filters)
 
     where_clause = SQL(" WHERE ") + SQL(query)
-    params = tuple(value for value in values if value != "no_value")
+    params = tuple(value for value in values if value != NO_VALUE)
 
     return where_clause, params
 
@@ -116,8 +118,8 @@ def _treat_meta_field(field: str, value: Any) -> str:
 
 def _equal(field: str, value: Any) -> tuple[str, Any]:
     if value is None:
-        # no_value is a placeholder that will be removed in _convert_filters_to_where_clause_and_params
-        return f"{field} IS NULL", "no_value"
+        # NO_VALUE is a placeholder that will be removed in _convert_filters_to_where_clause_and_params
+        return f"{field} IS NULL", NO_VALUE
     return f"{field} = %s", value
 
 
