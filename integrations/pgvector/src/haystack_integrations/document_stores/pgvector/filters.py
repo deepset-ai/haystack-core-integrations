@@ -45,6 +45,11 @@ def _parse_logical_condition(condition: Dict[str, Any]) -> tuple[str, List[Any]]
         msg = f"'conditions' key missing in {condition}"
         raise FilterError(msg)
 
+    operator = condition["operator"]
+    if operator not in ["AND", "OR"]:
+        msg = f"Unknown logical operator '{operator}'. Valid operators are: 'AND', 'OR'"
+        raise FilterError(msg)
+
     # logical conditions can be nested, so we need to parse them recursively
     conditions = []
     for c in condition["conditions"]:
@@ -61,7 +66,6 @@ def _parse_logical_condition(condition: Dict[str, Any]) -> tuple[str, List[Any]]
     if isinstance(values[0], list):
         values = list(chain.from_iterable(values))
 
-    operator = condition["operator"]
     if operator == "AND":
         sql_query = f"({' AND '.join(query_parts)})"
     elif operator == "OR":
