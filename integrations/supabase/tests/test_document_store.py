@@ -10,7 +10,7 @@ from haystack import Document
 from haystack.document_stores.types import DocumentStore, DuplicatePolicy
 from haystack.testing.document_store import CountDocumentsTest, DeleteDocumentsTest, WriteDocumentsTest
 
-from src.supabase_haystack.document_store import SupabaseDocumentStore
+from src.haystack_integrations.document_stores.supabase import SupabaseDocumentStore
 
 
 class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, WriteDocumentsTest):
@@ -78,7 +78,7 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, WriteDocumentsT
         assert results[0].content == "Most similar document"
         assert results[1].content == "2nd best document"
 
-    @patch("src.supabase_haystack.document_store.vecs")
+    @patch("src.haystack_integrations.document_stores.supabase.document_store.vecs")
     def test_init(self, mock_supabase):
 
         document_store = SupabaseDocumentStore(

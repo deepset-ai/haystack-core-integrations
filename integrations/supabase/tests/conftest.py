@@ -1,7 +1,7 @@
 import pytest
 from haystack.document_stores.types import DuplicatePolicy
 
-from src.supabase_haystack.document_store import SupabaseDocumentStore
+from src.haystack_integrations.document_stores.supabase import SupabaseDocumentStore
 
 # This is the approximate time it takes for the documents to be available
 SLEEP_TIME = 20

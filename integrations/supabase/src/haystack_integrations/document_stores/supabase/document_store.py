@@ -10,7 +10,7 @@ from haystack.dataclasses import Document
 from haystack.document_stores.types import DuplicatePolicy
 from haystack.utils.filters import convert
 
-from src.supabase_haystack.filters import _normalize_filters
+from .filters import _normalize_filters
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +44,7 @@ class SupabaseDocumentStore:
         self.dimension = dimension
         self._collection_name = collection_name
         self._dummy_vector = [0.0]*dimension
+        self.collection_creation_kwargs = collection_creation_kwargs
         db_connection = f"postgresql://{user}:{password}@{host}:{port}/{db_name}"
         self._pgvector_client = vecs.create_client(db_connection)
         self._collection = self._pgvector_client.get_or_create_collection(name=collection_name, dimension=dimension, **collection_creation_kwargs)

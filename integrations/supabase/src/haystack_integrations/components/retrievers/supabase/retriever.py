@@ -5,8 +5,7 @@ from typing import Any, Dict, List, Optional
 
 from haystack import component
 from haystack.dataclasses import Document
-
-from src.supabase_haystack.document_store import SupabaseDocumentStore
+from haystack_integrations.document_stores.supabase import SupabaseDocumentStore
 
 
 @component
