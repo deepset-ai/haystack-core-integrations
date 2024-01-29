@@ -205,6 +205,8 @@ class SagemakerGenerator:
 
             # The key where the replies are stored changes from model to model, so we need to look for it.
             # All other keys in the response are added to the metadata.
+            # Unfortunately every model returns different metadata, most of them return none at all,
+            # so we can't replicate the metadata structure of other generators.
             for key in self.model_generation_keys:
                 if key in list_output[0]:
                     break

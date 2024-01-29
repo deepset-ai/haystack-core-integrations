@@ -8,12 +8,21 @@
 **Table of Contents**
 
 - [Installation](#installation)
+- [Testing](#testing)
 - [License](#license)
 
 ## Installation
 
 ```console
 pip install amazon-sagemaker-haystack
+```
+
+## Testing
+
+TODO
+
+```console
+hatch run test
 ```
 
 ## License
