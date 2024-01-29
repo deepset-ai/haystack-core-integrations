@@ -91,15 +91,15 @@ class TestSagemakerGenerator:
             },
         }
         deserialized = SagemakerGenerator.from_dict(serialized)
-        assert component.model == "test-model"
-        assert component.aws_access_key_id_var == "MY_ACCESS_KEY_ID"
-        assert component.aws_secret_access_key_var == "MY_SECRET_ACCESS_KEY"
-        assert component.aws_session_token_var == "MY_SESSION_TOKEN"
-        assert component.aws_region_name_var == "MY_REGION"
-        assert component.aws_profile_name_var == "MY_PROFILE"
-        assert component.aws_custom_attributes == {"custom": "attr"}
-        assert component.generation_kwargs == {"generation": "kwargs"}
-        assert component.client is None
+        assert deserialized.model == "test-model"
+        assert deserialized.aws_access_key_id_var == "MY_ACCESS_KEY_ID"
+        assert deserialized.aws_secret_access_key_var == "MY_SECRET_ACCESS_KEY"
+        assert deserialized.aws_session_token_var == "MY_SESSION_TOKEN"
+        assert deserialized.aws_region_name_var == "MY_REGION"
+        assert deserialized.aws_profile_name_var == "MY_PROFILE"
+        assert deserialized.aws_custom_attributes == {"custom": "attr"}
+        assert deserialized.generation_kwargs == {"generation": "kwargs"}
+        assert deserialized.client is None
 
     def test_run_with_list_of_dictionaries(self, monkeypatch):
         monkeypatch.setenv("AWS_ACCESS_KEY_ID", "test-access-key")
