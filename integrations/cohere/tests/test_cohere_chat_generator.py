@@ -262,7 +262,7 @@ class TestCohereChatGenerator:
         component = CohereChatGenerator(model="something-obviously-wrong", api_key=os.environ.get("COHERE_API_KEY"))
         with pytest.raises(
             cohere.CohereAPIError,
-            match="model not found, make sure the correct model ID was used and that you have access to the model."
+            match="model not found, make sure the correct model ID was used and that you have access to the model.",
         ):
             component.run(chat_messages)
 
