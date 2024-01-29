@@ -3,7 +3,7 @@ import os
 import pytest
 from haystack.document_stores.types import DuplicatePolicy
 
-from astra_haystack.document_store import AstraDocumentStore
+from haystack_integrations.document_stores.astra import AstraDocumentStore
 
 
 @pytest.fixture
