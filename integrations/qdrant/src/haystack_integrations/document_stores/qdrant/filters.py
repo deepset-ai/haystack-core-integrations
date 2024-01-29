@@ -113,9 +113,11 @@ class QdrantFilterConverter(BaseFilterConverter):
             raise FilterError(msg)
         return models.Filter(
             should=[
-                models.FieldCondition(key=key, match=models.MatchText(text=item))
-                if isinstance(item, str) and " " not in item
-                else models.FieldCondition(key=key, match=models.MatchValue(value=item))
+                (
+                    models.FieldCondition(key=key, match=models.MatchText(text=item))
+                    if isinstance(item, str) and " " not in item
+                    else models.FieldCondition(key=key, match=models.MatchValue(value=item))
+                )
                 for item in value
             ]
         )
@@ -123,9 +125,11 @@ class QdrantFilterConverter(BaseFilterConverter):
     def _build_ne_condition(self, key: str, value: models.ValueVariants) -> models.Condition:
         return models.Filter(
             must_not=[
-                models.FieldCondition(key=key, match=models.MatchText(text=value))
-                if isinstance(value, str) and " " not in value
-                else models.FieldCondition(key=key, match=models.MatchValue(value=value))
+                (
+                    models.FieldCondition(key=key, match=models.MatchText(text=value))
+                    if isinstance(value, str) and " " not in value
+                    else models.FieldCondition(key=key, match=models.MatchValue(value=value))
+                )
             ]
         )
 
@@ -135,9 +139,11 @@ class QdrantFilterConverter(BaseFilterConverter):
             raise FilterError(msg)
         return models.Filter(
             must_not=[
-                models.FieldCondition(key=key, match=models.MatchText(text=item))
-                if isinstance(item, str) and " " not in item
-                else models.FieldCondition(key=key, match=models.MatchValue(value=item))
+                (
+                    models.FieldCondition(key=key, match=models.MatchText(text=item))
+                    if isinstance(item, str) and " " not in item
+                    else models.FieldCondition(key=key, match=models.MatchValue(value=item))
+                )
                 for item in value
             ]
         )
