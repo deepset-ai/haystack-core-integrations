@@ -13,8 +13,8 @@ from haystack_integrations.components.generators.amazon_sagemaker.errors import 
 )
 
 with LazyImport(message="Run 'pip install boto3'") as boto3_import:
-    import boto3
-    from botocore.client import BaseClient
+    import boto3  # type: ignore
+    from botocore.client import BaseClient  # type: ignore
 
 
 logger = logging.getLogger(__name__)
