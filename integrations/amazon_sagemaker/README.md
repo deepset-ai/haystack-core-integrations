@@ -19,11 +19,14 @@ pip install amazon-sagemaker-haystack
 
 ## Testing
 
-TODO
+To run the test suite locally, run:
 
 ```console
 hatch run test
 ```
+
+You need to also export your AWS credentials for Sagemaker integration tests to run (`AWS_ACCESS_KEY_ID` and 
+`AWS_SECRET_SECRET_KEY`). If those are missing, the tests will be skipped.
 
 ## License
 
