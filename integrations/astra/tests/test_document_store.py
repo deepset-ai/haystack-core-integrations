@@ -10,7 +10,7 @@ from haystack.document_stores.errors import MissingDocumentError
 from haystack.document_stores.types import DuplicatePolicy
 from haystack.testing.document_store import DocumentStoreBaseTests
 
-from astra_haystack.document_store import AstraDocumentStore
+from haystack_integrations.document_stores.astra import AstraDocumentStore
 
 
 @pytest.mark.skipif(

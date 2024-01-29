@@ -44,8 +44,7 @@ class TestQdrantLegacyFilterDocuments(LegacyFilterDocumentsTest):
         self.assert_documents_are_equal(result, [doc for doc in filterable_docs if doc.meta.get("page") == "100"])
 
     @pytest.mark.skip(reason="Dataframe filtering is not supported in Qdrant")
-    def test_filter_document_dataframe(self, document_store: DocumentStore, filterable_docs: List[Document]):
-        ...
+    def test_filter_document_dataframe(self, document_store: DocumentStore, filterable_docs: List[Document]): ...
 
     def test_eq_filter_explicit(self, document_store: DocumentStore, filterable_docs: List[Document]):
         document_store.write_documents(filterable_docs)
@@ -58,12 +57,10 @@ class TestQdrantLegacyFilterDocuments(LegacyFilterDocumentsTest):
         self.assert_documents_are_equal(result, [doc for doc in filterable_docs if doc.meta.get("page") == "100"])
 
     @pytest.mark.skip(reason="Dataframe filtering is not supported in Qdrant")
-    def test_eq_filter_table(self, document_store: DocumentStore, filterable_docs: List[Document]):
-        ...
+    def test_eq_filter_table(self, document_store: DocumentStore, filterable_docs: List[Document]): ...
 
     @pytest.mark.skip(reason="Embedding filtering is not supported in Qdrant")
-    def test_eq_filter_embedding(self, document_store: DocumentStore, filterable_docs: List[Document]):
-        ...
+    def test_eq_filter_embedding(self, document_store: DocumentStore, filterable_docs: List[Document]): ...
 
     # LegacyFilterDocumentsNotEqualTest
 
@@ -73,12 +70,10 @@ class TestQdrantLegacyFilterDocuments(LegacyFilterDocumentsTest):
         self.assert_documents_are_equal(result, [doc for doc in filterable_docs if doc.meta.get("page") != "100"])
 
     @pytest.mark.skip(reason="Dataframe filtering is not supported in Qdrant")
-    def test_ne_filter_table(self, document_store: DocumentStore, filterable_docs: List[Document]):
-        ...
+    def test_ne_filter_table(self, document_store: DocumentStore, filterable_docs: List[Document]): ...
 
     @pytest.mark.skip(reason="Embedding filtering is not supported in Qdrant")
-    def test_ne_filter_embedding(self, document_store: DocumentStore, filterable_docs: List[Document]):
-        ...
+    def test_ne_filter_embedding(self, document_store: DocumentStore, filterable_docs: List[Document]): ...
 
     # LegacyFilterDocumentsInTest
 
@@ -122,22 +117,18 @@ class TestQdrantLegacyFilterDocuments(LegacyFilterDocumentsTest):
         )
 
     @pytest.mark.skip(reason="Dataframe filtering is not supported in Qdrant")
-    def test_in_filter_table(self, document_store: DocumentStore, filterable_docs: List[Document]):
-        ...
+    def test_in_filter_table(self, document_store: DocumentStore, filterable_docs: List[Document]): ...
 
     @pytest.mark.skip(reason="Embedding filtering is not supported in Qdrant")
-    def test_in_filter_embedding(self, document_store: DocumentStore, filterable_docs: List[Document]):
-        ...
+    def test_in_filter_embedding(self, document_store: DocumentStore, filterable_docs: List[Document]): ...
 
     # LegacyFilterDocumentsNotInTest
 
     @pytest.mark.skip(reason="Dataframe filtering is not supported in Qdrant")
-    def test_nin_filter_table(self, document_store: DocumentStore, filterable_docs: List[Document]):
-        ...
+    def test_nin_filter_table(self, document_store: DocumentStore, filterable_docs: List[Document]): ...
 
     @pytest.mark.skip(reason="Embedding filtering is not supported in Qdrant")
-    def test_nin_filter_embedding(self, document_store: DocumentStore, filterable_docs: List[Document]):
-        ...
+    def test_nin_filter_embedding(self, document_store: DocumentStore, filterable_docs: List[Document]): ...
 
     def test_nin_filter(self, document_store: DocumentStore, filterable_docs: List[Document]):
         document_store.write_documents(filterable_docs)
@@ -163,12 +154,10 @@ class TestQdrantLegacyFilterDocuments(LegacyFilterDocumentsTest):
             document_store.filter_documents(filters={"meta.page": {"$gt": "100"}})
 
     @pytest.mark.skip(reason="Dataframe filtering is not supported in Qdrant")
-    def test_gt_filter_table(self, document_store: DocumentStore, filterable_docs: List[Document]):
-        ...
+    def test_gt_filter_table(self, document_store: DocumentStore, filterable_docs: List[Document]): ...
 
     @pytest.mark.skip(reason="Embedding filtering is not supported in Qdrant")
-    def test_gt_filter_embedding(self, document_store: DocumentStore, filterable_docs: List[Document]):
-        ...
+    def test_gt_filter_embedding(self, document_store: DocumentStore, filterable_docs: List[Document]): ...
 
     # LegacyFilterDocumentsGreaterThanEqualTest
 
@@ -186,12 +175,10 @@ class TestQdrantLegacyFilterDocuments(LegacyFilterDocumentsTest):
             document_store.filter_documents(filters={"meta.page": {"$gte": "100"}})
 
     @pytest.mark.skip(reason="Dataframe filtering is not supported in Qdrant")
-    def test_gte_filter_table(self, document_store: DocumentStore, filterable_docs: List[Document]):
-        ...
+    def test_gte_filter_table(self, document_store: DocumentStore, filterable_docs: List[Document]): ...
 
     @pytest.mark.skip(reason="Embedding filtering is not supported in Qdrant")
-    def test_gte_filter_embedding(self, document_store: DocumentStore, filterable_docs: List[Document]):
-        ...
+    def test_gte_filter_embedding(self, document_store: DocumentStore, filterable_docs: List[Document]): ...
 
     # LegacyFilterDocumentsLessThanTest
 
@@ -209,12 +196,10 @@ class TestQdrantLegacyFilterDocuments(LegacyFilterDocumentsTest):
             document_store.filter_documents(filters={"meta.page": {"$lt": "100"}})
 
     @pytest.mark.skip(reason="Dataframe filtering is not supported in Qdrant")
-    def test_lt_filter_table(self, document_store: DocumentStore, filterable_docs: List[Document]):
-        ...
+    def test_lt_filter_table(self, document_store: DocumentStore, filterable_docs: List[Document]): ...
 
     @pytest.mark.skip(reason="Embedding filtering is not supported in Qdrant")
-    def test_lt_filter_embedding(self, document_store: DocumentStore, filterable_docs: List[Document]):
-        ...
+    def test_lt_filter_embedding(self, document_store: DocumentStore, filterable_docs: List[Document]): ...
 
     # LegacyFilterDocumentsLessThanEqualTest
 
@@ -232,12 +217,10 @@ class TestQdrantLegacyFilterDocuments(LegacyFilterDocumentsTest):
             document_store.filter_documents(filters={"meta.page": {"$lte": "100"}})
 
     @pytest.mark.skip(reason="Dataframe filtering is not supported in Qdrant")
-    def test_lte_filter_table(self, document_store: DocumentStore, filterable_docs: List[Document]):
-        ...
+    def test_lte_filter_table(self, document_store: DocumentStore, filterable_docs: List[Document]): ...
 
     @pytest.mark.skip(reason="Embedding filtering is not supported in Qdrant")
-    def test_lte_filter_embedding(self, document_store: DocumentStore, filterable_docs: List[Document]):
-        ...
+    def test_lte_filter_embedding(self, document_store: DocumentStore, filterable_docs: List[Document]): ...
 
     # LegacyFilterDocumentsSimpleLogicalTest
 

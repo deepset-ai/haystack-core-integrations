@@ -12,9 +12,9 @@ from haystack.dataclasses import Document
 from haystack.document_stores.errors import DuplicateDocumentError, MissingDocumentError
 from haystack.document_stores.types import DuplicatePolicy
 
-from astra_haystack.astra_client import AstraClient
-from astra_haystack.errors import AstraDocumentStoreFilterError
-from astra_haystack.filters import _convert_filters
+from .astra_client import AstraClient
+from .errors import AstraDocumentStoreFilterError
+from .filters import _convert_filters
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +40,7 @@ class AstraDocumentStore:
         astra_application_token: str,
         astra_keyspace: str,
         astra_collection: str,
-        embedding_dim: Optional[int] = 768,
+        embedding_dim: int = 768,
         duplicates_policy: DuplicatePolicy = DuplicatePolicy.NONE,
         similarity: str = "cosine",
     ):
@@ -104,17 +104,12 @@ class AstraDocumentStore:
     def write_documents(
         self,
         documents: List[Document],
-        index: Optional[str] = None,
-        batch_size: int = 20,
         policy: DuplicatePolicy = DuplicatePolicy.NONE,
     ):
         """
         Indexes documents for later queries.
 
         :param documents: a list of Haystack Document objects.
-        :param index: Optional name of index where the documents shall be written to.
-                      If None, the DocumentStore's default index (self.index) will be used.
-        :param batch_size: Number of documents that are passed to bulk function at a time.
         :param policy:  Handle duplicate documents based on DuplicatePolicy parameter options.
                       Parameter options : (SKIP, OVERWRITE, FAIL, NONE)
                       - `DuplicatePolicy.NONE`: Default policy, If a Document with the same id already exists,
@@ -125,26 +120,13 @@ class AstraDocumentStore:
                       - `DuplicatePolicy.FAIL`: If a Document with the same id already exists, an error is raised.
         :return: int
         """
-
-        if index is None and self.index is None:
-            msg = "No Astra client provided"
-            raise ValueError(msg)
-
-        if index is None:
-            index = self.index
-
         if policy is None or policy == DuplicatePolicy.NONE:
             if self.duplicates_policy is not None and self.duplicates_policy != DuplicatePolicy.NONE:
                 policy = self.duplicates_policy
             else:
                 policy = DuplicatePolicy.SKIP
 
-        if batch_size > MAX_BATCH_SIZE:
-            logger.warning(
-                f"batch_size set to {batch_size}, "
-                f"but maximum batch_size for Astra when using the JSON API is 20. batch_size set to 20."
-            )
-            batch_size = MAX_BATCH_SIZE
+        batch_size = MAX_BATCH_SIZE
 
         def _convert_input_document(document: Union[dict, Document]):
             if isinstance(document, Document):
@@ -196,7 +178,7 @@ class AstraDocumentStore:
         if policy == DuplicatePolicy.SKIP:
             if len(new_documents) > 0:
                 for batch in _batches(new_documents, batch_size):
-                    inserted_ids = index.insert(batch)  # type: ignore
+                    inserted_ids = self.index.insert(batch)  # type: ignore
                     insertion_counter += len(inserted_ids)
                     logger.info(f"write_documents inserted documents with id {inserted_ids}")
             else:
@@ -205,7 +187,7 @@ class AstraDocumentStore:
         elif policy == DuplicatePolicy.OVERWRITE:
             if len(new_documents) > 0:
                 for batch in _batches(new_documents, batch_size):
-                    inserted_ids = index.insert(batch)  # type: ignore
+                    inserted_ids = self.index.insert(batch)  # type: ignore
                     insertion_counter += len(inserted_ids)
                     logger.info(f"write_documents inserted documents with id {inserted_ids}")
             else:
@@ -214,7 +196,7 @@ class AstraDocumentStore:
             if len(duplicate_documents) > 0:
                 updated_ids = []
                 for duplicate_doc in duplicate_documents:
-                    updated = index.update_document(duplicate_doc, "_id")  # type: ignore
+                    updated = self.index.update_document(duplicate_doc, "_id")  # type: ignore
                     if updated:
                         updated_ids.append(duplicate_doc["_id"])
                 insertion_counter = insertion_counter + len(updated_ids)
@@ -225,7 +207,7 @@ class AstraDocumentStore:
         elif policy == DuplicatePolicy.FAIL:
             if len(new_documents) > 0:
                 for batch in _batches(new_documents, batch_size):
-                    inserted_ids = index.insert(batch)  # type: ignore
+                    inserted_ids = self.index.insert(batch)  # type: ignore
                     insertion_counter = insertion_counter + len(inserted_ids)
                     logger.info(f"write_documents inserted documents with id {inserted_ids}")
             else:
