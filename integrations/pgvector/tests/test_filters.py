@@ -70,8 +70,7 @@ class TestFilters(FilterDocumentsTest):
         )
 
     @pytest.mark.skip(reason="NOT operator is not supported in PgvectorDocumentStore")
-    def test_not_operator(self, document_store, filterable_docs):
-        ...
+    def test_not_operator(self, document_store, filterable_docs): ...
 
     def test_treat_meta_field(self):
         assert _treat_meta_field(field="meta.number", value=9) == "(meta->>'number')::integer"
