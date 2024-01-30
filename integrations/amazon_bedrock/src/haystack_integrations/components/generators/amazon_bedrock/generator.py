@@ -15,15 +15,15 @@ from .adapters import (
     CohereCommandAdapter,
     MetaLlama2ChatAdapter,
 )
-from .handlers import (
-    DefaultPromptHandler,
-    DefaultTokenStreamingHandler,
-    TokenStreamingHandler,
-)
 from .errors import (
     AmazonBedrockConfigurationError,
     AmazonBedrockInferenceError,
     AWSConfigurationError,
+)
+from .handlers import (
+    DefaultPromptHandler,
+    DefaultTokenStreamingHandler,
+    TokenStreamingHandler,
 )
 
 logger = logging.getLogger(__name__)
