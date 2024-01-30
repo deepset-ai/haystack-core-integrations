@@ -5,7 +5,7 @@ import pytest
 from botocore.exceptions import BotoCoreError
 
 from haystack_integrations.components.generators.amazon_bedrock import AmazonBedrockGenerator
-from haystack_integrations.components.generators.amazon_bedrock.amazon_bedrock_adapters import (
+from haystack_integrations.components.generators.amazon_bedrock.handlers import (
     AI21LabsJurassic2Adapter,
     AmazonTitanAdapter,
     AnthropicClaudeAdapter,
@@ -34,7 +34,7 @@ def mock_boto3_session():
 @pytest.fixture
 def mock_prompt_handler():
     with patch(
-        "haystack_integrations.components.generators.amazon_bedrock.amazon_bedrock_handlers.DefaultPromptHandler"
+        "haystack_integrations.components.generators.amazon_bedrock.handlers.DefaultPromptHandler"
     ) as mock_prompt_handler:
         yield mock_prompt_handler
 
