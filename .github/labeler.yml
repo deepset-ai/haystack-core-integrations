@@ -4,6 +4,11 @@ integration:amazon-bedrock:
       - any-glob-to-any-file: "integrations/amazon_bedrock/**/*"
       - any-glob-to-any-file: ".github/workflows/amazon_bedrock.yml"
 
+integration:amazon-sagemaker:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/amazon_sagemaker/**/*"
+      - any-glob-to-any-file: ".github/workflows/amazon_sagemaker.yml"
+
 integration:astra:
   - changed-files:
       - any-glob-to-any-file: "integrations/astra/**/*"
