@@ -28,8 +28,7 @@ With `hatch` installed, to run all the tests:
 ```
 hatch run test
 ```
-> Note: integration tests will be skipped unless the env var COHERE_API_KEY is set. The api key needs to be valid
-> in order to pass the tests.
+> Note: there are no integration tests for this project.
 
 To only run unit tests:
 ```
