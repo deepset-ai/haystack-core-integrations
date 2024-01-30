@@ -7,7 +7,7 @@ import boto3
 from botocore.exceptions import BotoCoreError, ClientError
 from haystack import component, default_from_dict, default_to_dict
 
-from .amazon_bedrock_adapters import (
+from .adapters import (
     AI21LabsJurassic2Adapter,
     AmazonTitanAdapter,
     AnthropicClaudeAdapter,
@@ -15,7 +15,7 @@ from .amazon_bedrock_adapters import (
     CohereCommandAdapter,
     MetaLlama2ChatAdapter,
 )
-from .amazon_bedrock_handlers import (
+from .handlers import (
     DefaultPromptHandler,
     DefaultTokenStreamingHandler,
     TokenStreamingHandler,
