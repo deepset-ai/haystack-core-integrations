@@ -30,26 +30,6 @@ hatch run test
 ```
 > Note: there are no integration tests for this project.
 
-To only run unit tests:
-```
-hatch run test -m"not integration"
-```
-
-To only run embedders tests:
-```
-hatch run test -m"embedders"
-```
-
-To only run generators tests:
-```
-hatch run test -m"generators"
-```
-
-Markers can be combined, for example you can run only integration tests for embedders with:
-```
-hatch run test -m"integrations and embedders"
-```
-
 To run the linters `ruff` and `mypy`:
 ```
 hatch run lint:all
