@@ -34,11 +34,11 @@ packages = ["src/haystack_integrations"]
 
 [tool.hatch.version]
 source = "vcs"
-tag-pattern = 'integrations\/uptrain(?P<version>.*)'
+tag-pattern = 'integrations\/uptrain-v(?P<version>.*)'
 
 [tool.hatch.version.raw-options]
 root = "../.."
-git_describe_command = 'git describe --tags --match="integrations/uptrain[0-9]*"'
+git_describe_command = 'git describe --tags --match="integrations/uptrain-v[0-9]*"'
 
 [tool.hatch.envs.default]
 dependencies = ["coverage[toml]>=6.5", "pytest"]
