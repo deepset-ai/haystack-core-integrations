@@ -156,8 +156,8 @@ parallel = true
 
 
 [tool.coverage.paths]
-amazon_bedrock_haystack = ["src/haystack_integrations", "*/amazon_bedrock/src/haystack_integrations"]
-tests = ["tests", "*/amazon_bedrock/tests"]
+amazon_bedrock_haystack = ["src/*"]
+tests = ["tests"]
 
 [tool.coverage.report]
 exclude_lines = [
