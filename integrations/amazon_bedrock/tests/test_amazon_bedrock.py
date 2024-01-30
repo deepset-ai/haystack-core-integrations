@@ -5,6 +5,7 @@ import pytest
 from botocore.exceptions import BotoCoreError
 
 from haystack_integrations.components.generators.amazon_bedrock import AmazonBedrockGenerator
+from haystack_integrations.components.generators.amazon_bedrock.errors import AmazonBedrockConfigurationError
 from haystack_integrations.components.generators.amazon_bedrock.handlers import (
     AI21LabsJurassic2Adapter,
     AmazonTitanAdapter,
@@ -13,7 +14,6 @@ from haystack_integrations.components.generators.amazon_bedrock.handlers import 
     CohereCommandAdapter,
     MetaLlama2ChatAdapter,
 )
-from haystack_integrations.components.generators.amazon_bedrock.errors import AmazonBedrockConfigurationError
 
 
 @pytest.fixture
