@@ -4,8 +4,8 @@ loaders:
     modules: [
       "haystack_integrations.components.retrievers.elasticsearch.bm25_retriever",
       "haystack_integrations.components.retrievers.elasticsearch.embedding_retriever",
-      "haystack_integrations.document_store.elasticsearch.document_store",
-      "haystack_integrations.document_store.elasticsearch.filters",
+      "haystack_integrations.document_stores.elasticsearch.document_store",
+      "haystack_integrations.document_stores.elasticsearch.filters",
     ]
     ignore_when_discovered: ["__init__"]
 processors:
