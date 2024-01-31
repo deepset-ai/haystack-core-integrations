@@ -16,7 +16,8 @@ Briefly explain how the change is breaking and why is needed.
 ```[tasklist]
 ### Tasks
 - [ ] The changes are merged in the `main` branch (Code + Docstrings)
-- [ ] New package version declares the breaking change and the package has been released on PyPI
+- [ ] New package version declares the breaking change
+- [ ] The package has been released on PyPI
 - [ ] Docs at https://docs.haystack.deepset.ai/ were updated
 - [ ] Integration tile on https://github.com/deepset-ai/haystack-integrations was updated
 - [ ] Notebooks on https://github.com/deepset-ai/haystack-cookbook were updated (if needed)
