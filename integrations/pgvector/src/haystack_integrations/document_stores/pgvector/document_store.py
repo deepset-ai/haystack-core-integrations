@@ -161,12 +161,14 @@ class PgvectorDocumentStore:
         params = params or ()
         cursor = cursor or self._cursor
 
+        sql_query_str = sql_query.as_string(cursor) if not isinstance(sql_query, str) else sql_query
+        logger.debug("SQL query: %s\nParameters: %s", sql_query_str, params)
+
         try:
             result = cursor.execute(sql_query, params)
         except Error as e:
             self._connection.rollback()
-            sql_query_str = sql_query.as_string(cursor) if not isinstance(sql_query, str) else sql_query
-            detailed_error_msg = f"{error_msg}.\nSQL query: {sql_query_str} \nParameters: {params}"
+            detailed_error_msg = f"{error_msg}.\nYou can find the SQL query and the parameters in the debug logs."
             raise DocumentStoreError(detailed_error_msg) from e
 
         return result
@@ -328,6 +330,9 @@ class PgvectorDocumentStore:
 
         sql_insert += SQL(" RETURNING id")
 
+        sql_query_str = sql_insert.as_string(self._cursor) if not isinstance(sql_insert, str) else sql_insert
+        logger.debug("SQL query: %s\nParameters: %s", sql_query_str, db_documents)
+
         try:
             self._cursor.executemany(sql_insert, db_documents, returning=True)
         except IntegrityError as ie:
@@ -335,10 +340,9 @@ class PgvectorDocumentStore:
             raise DuplicateDocumentError from ie
         except Error as e:
             self._connection.rollback()
-            sql_query_str = sql_insert.as_string(self._cursor)
             error_msg = (
-                f"Could not write documents to PgvectorDocumentStore. \n"
-                f"SQL query: {sql_query_str} \nParameters: {db_documents}"
+                "Could not write documents to PgvectorDocumentStore. \n"
+                "You can find the SQL query and the parameters in the debug logs."
             )
             raise DocumentStoreError(error_msg) from e
 
