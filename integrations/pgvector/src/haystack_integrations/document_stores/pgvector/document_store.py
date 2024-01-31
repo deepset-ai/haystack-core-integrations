@@ -8,6 +8,7 @@ from haystack import default_to_dict
 from haystack.dataclasses.document import ByteStream, Document
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
+from haystack.utils.filters import convert
 from psycopg import Error, IntegrityError, connect
 from psycopg.abc import Query
 from psycopg.cursor import Cursor
@@ -17,6 +18,8 @@ from psycopg.sql import Literal as SQLLiteral
 from psycopg.types.json import Jsonb
 
 from pgvector.psycopg import register_vector
+
+from .filters import _convert_filters_to_where_clause_and_params
 
 logger = logging.getLogger(__name__)
 
@@ -158,11 +161,16 @@ class PgvectorDocumentStore:
         params = params or ()
         cursor = cursor or self._cursor
 
+        sql_query_str = sql_query.as_string(cursor) if not isinstance(sql_query, str) else sql_query
+        logger.debug("SQL query: %s\nParameters: %s", sql_query_str, params)
+
         try:
             result = cursor.execute(sql_query, params)
         except Error as e:
             self._connection.rollback()
-            raise DocumentStoreError(error_msg) from e
+            detailed_error_msg = f"{error_msg}.\nYou can find the SQL query and the parameters in the debug logs."
+            raise DocumentStoreError(detailed_error_msg) from e
+
         return result
 
     def _create_table_if_not_exists(self):
@@ -257,15 +265,37 @@ class PgvectorDocumentStore:
         ]
         return count
 
-    def filter_documents(self, filters: Optional[Dict[str, Any]] = None) -> List[Document]:  # noqa: ARG002
-        # TODO: implement filters
-        sql_get_docs = SQL("SELECT * FROM {table_name}").format(table_name=Identifier(self.table_name))
+    def filter_documents(self, filters: Optional[Dict[str, Any]] = None) -> List[Document]:
+        """
+        Returns the documents that match the filters provided.
+
+        For a detailed specification of the filters,
+        refer to the [documentation](https://docs.haystack.deepset.ai/v2.0/docs/metadata-filtering)
+
+        :param filters: The filters to apply to the document list.
+        :return: A list of Documents that match the given filters.
+        """
+        if filters:
+            if not isinstance(filters, dict):
+                msg = "Filters must be a dictionary"
+                raise TypeError(msg)
+            if "operator" not in filters and "conditions" not in filters:
+                filters = convert(filters)
+
+        sql_filter = SQL("SELECT * FROM {table_name}").format(table_name=Identifier(self.table_name))
+
+        params = ()
+        if filters:
+            sql_where_clause, params = _convert_filters_to_where_clause_and_params(filters)
+            sql_filter += sql_where_clause
 
         result = self._execute_sql(
-            sql_get_docs, error_msg="Could not filter documents from PgvectorDocumentStore", cursor=self._dict_cursor
+            sql_filter,
+            params,
+            error_msg="Could not filter documents from PgvectorDocumentStore.",
+            cursor=self._dict_cursor,
         )
 
-        # Fetch all the records
         records = result.fetchall()
         docs = self._from_pg_to_haystack_documents(records)
         return docs
@@ -300,6 +330,9 @@ class PgvectorDocumentStore:
 
         sql_insert += SQL(" RETURNING id")
 
+        sql_query_str = sql_insert.as_string(self._cursor) if not isinstance(sql_insert, str) else sql_insert
+        logger.debug("SQL query: %s\nParameters: %s", sql_query_str, db_documents)
+
         try:
             self._cursor.executemany(sql_insert, db_documents, returning=True)
         except IntegrityError as ie:
@@ -307,7 +340,11 @@ class PgvectorDocumentStore:
             raise DuplicateDocumentError from ie
         except Error as e:
             self._connection.rollback()
-            raise DocumentStoreError from e
+            error_msg = (
+                "Could not write documents to PgvectorDocumentStore. \n"
+                "You can find the SQL query and the parameters in the debug logs."
+            )
+            raise DocumentStoreError(error_msg) from e
 
         # get the number of the inserted documents, inspired by psycopg3 docs
         # https://www.psycopg.org/psycopg3/docs/api/cursors.html#psycopg.Cursor.executemany
