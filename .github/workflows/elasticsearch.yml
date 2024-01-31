@@ -10,6 +10,10 @@ on:
       - "integrations/elasticsearch/**"
       - ".github/workflows/elasticsearch.yml"
 
+defaults:
+  run:
+    working-directory: integrations/elasticsearch
+
 concurrency:
   group: elasticsearch-${{ github.head_ref }}
   cancel-in-progress: true
@@ -40,18 +44,15 @@ jobs:
         run: pip install --upgrade hatch
 
       - name: Lint
-        working-directory: integrations/elasticsearch
         if: matrix.python-version == '3.9'
         run: hatch run lint:all
 
       - name: Run ElasticSearch container
-        working-directory: integrations/elasticsearch
         run: docker-compose up -d
-        
+
       - name: Generate docs
         if: matrix.python-version == '3.9' && runner.os == 'Linux'
         run: hatch run docs
 
       - name: Run tests
-        working-directory: integrations/elasticsearch
         run: hatch run cov
