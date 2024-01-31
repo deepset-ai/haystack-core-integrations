@@ -92,7 +92,8 @@ class PgvectorDocumentStore:
             Defaults to "cosine_similarity". "cosine_similarity" and "inner_product" are similarity functions and
             higher scores indicate greater similarity between the documents.
             "l2_distance" returns the straight-line distance between vectors, and the most similar documents are the ones with the smallest score.
-            When using the "hnsw" search strategy, the vector_function value is used to build an appropriate index.
+            
+            Important: when using the "hnsw" search strategy, an index will be created that depends on the `vector_function` passed here. Make sure subsequent queries will keep using the same vector similarity function in order to take advantage of the index.
         :type vector_function: Literal["cosine_similarity", "inner_product", "l2_distance"]
         :param recreate_table: Whether to recreate the table if it already exists. Defaults to False.
         :param search_strategy: The search strategy to use when searching for similar embeddings.
