@@ -7,7 +7,7 @@ def document_store(request):
     connection_string = "postgresql://postgres:postgres@localhost:5432/postgres"
     table_name = f"haystack_{request.node.name}"
     embedding_dimension = 768
-    vector_function = "cosine_distance"
+    vector_function = "cosine_similarity"
     recreate_table = True
     search_strategy = "exact_nearest_neighbor"
 
