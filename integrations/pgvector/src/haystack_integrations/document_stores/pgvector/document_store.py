@@ -91,15 +91,21 @@ class PgvectorDocumentStore:
         :param vector_function: The similarity function to use when searching for similar embeddings.
             Defaults to "cosine_similarity". "cosine_similarity" and "inner_product" are similarity functions and
             higher scores indicate greater similarity between the documents.
-            "l2_distance" returns the straight-line distance between vectors, and the most similar documents are the ones with the smallest score.
-            
-            Important: when using the "hnsw" search strategy, an index will be created that depends on the `vector_function` passed here. Make sure subsequent queries will keep using the same vector similarity function in order to take advantage of the index.
+            "l2_distance" returns the straight-line distance between vectors,
+            and the most similar documents are the ones with the smallest score.
+
+            Important: when using the "hnsw" search strategy, an index will be created that depends on the
+            `vector_function` passed here. Make sure subsequent queries will keep using the same
+            vector similarity function in order to take advantage of the index.
         :type vector_function: Literal["cosine_similarity", "inner_product", "l2_distance"]
         :param recreate_table: Whether to recreate the table if it already exists. Defaults to False.
         :param search_strategy: The search strategy to use when searching for similar embeddings.
             Defaults to "exact_nearest_neighbor". "hnsw" is an approximate nearest neighbor search strategy,
             which trades off some accuracy for speed; it is recommended for large numbers of documents.
-            Important: when using the "hnsw" search strategy, an index will be created that depends on the `vector_function` passed here. Make sure subsequent queries will keep using the same vector similarity function in             order to take advantage of the index.
+
+            Important: when using the "hnsw" search strategy, an index will be created that depends on the
+            `vector_function` passed here. Make sure subsequent queries will keep using the same
+            vector similarity function in order to take advantage of the index.
         :type search_strategy: Literal["exact_nearest_neighbor", "hnsw"]
         :param hnsw_recreate_index_if_exists: Whether to recreate the HNSW index if it already exists.
             Defaults to False. Only used if search_strategy is set to "hnsw".
