@@ -445,26 +445,9 @@ class PgvectorDocumentStore:
         """
         Retrieves documents that are most similar to the query embedding using a vector similarity metric.
 
-        This method is not mean to be part of the public interface of
-        `PgvectorDocumentStore` nor called directly.
+        This method is not meant to be part of the public interface of
+        `PgvectorDocumentStore` and it should not be called directly.
         `PgvectorEmbeddingRetriever` uses this method directly and is the public interface for it.
-
-        :param query_embedding: Embedding of the query.
-        :param filters: Filters applied to the retrieved Documents. Defaults to None.
-            When using the "hnsw" search strategy, filters are applied after the most similar Documents are retrieved,
-            so the number of results may be less than `top_k`.
-            To better understand HNSW index creation and configuration, refer to the pgvector documentation:
-            https://github.com/pgvector/pgvector?tab=readme-ov-file#hnsw
-        :param top_k: Maximum number of Documents to return, defaults to 10
-        :param vector_function: The similarity function to use when searching for similar embeddings.
-            Defaults to the PgvectorDocumentStore's vector_function.
-            Since vector_function is used to build the HNSW index (when using the "hnsw" search strategy),
-            if a vector_function other than the one used to build the index is chosen,
-            the index will not be used and the search will be slower.
-            "cosine_similarity" and "inner_product" are similarity functions,
-            so the most similar documents are the ones with the lowest score.
-            "l2_distance" is a distance function, so the most similar documents are the ones with the smallest score.
-        :type vector_function: Literal["cosine_similarity", "inner_product", "l2_distance"]
         :raises ValueError
         :return: List of Documents that are most similar to `query_embedding`
         """
