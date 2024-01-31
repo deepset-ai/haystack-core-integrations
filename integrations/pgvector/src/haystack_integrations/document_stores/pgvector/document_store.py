@@ -89,9 +89,9 @@ class PgvectorDocumentStore:
         :param table_name: The name of the table to use to store Haystack documents. Defaults to "haystack_documents".
         :param embedding_dimension: The dimension of the embedding. Defaults to 768.
         :param vector_function: The similarity function to use when searching for similar embeddings.
-            Defaults to "cosine_similarity". "cosine_similarity" and "inner_product" are similarity functions,
-            so the most similar documents are the ones with the lowest score.
-            "l2_distance" is a distance function, so the most similar documents are the ones with the smallest score.
+            Defaults to "cosine_similarity". "cosine_similarity" and "inner_product" are similarity functions and
+            higher scores indicate greater similarity between the documents.
+            "l2_distance" returns the straight-line distance between vectors, and the most similar documents are the ones with the smallest score.
             When using the "hnsw" search strategy, the vector_function value is used to build an appropriate index.
         :type vector_function: Literal["cosine_similarity", "inner_product", "l2_distance"]
         :param recreate_table: Whether to recreate the table if it already exists. Defaults to False.
