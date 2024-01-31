@@ -52,8 +52,10 @@ blob_mime_type = EXCLUDED.blob_mime_type,
 meta = EXCLUDED.meta
 """
 
+VALID_VECTOR_FUNCTIONS = ["cosine_similarity", "inner_product", "l2_distance"]
+
 VECTOR_FUNCTION_TO_POSTGRESQL_OPS = {
-    "cosine_distance": "vector_cosine_ops",
+    "cosine_similarity": "vector_cosine_ops",
     "inner_product": "vector_ip_ops",
     "l2_distance": "vector_l2_ops",
 }
@@ -70,7 +72,7 @@ class PgvectorDocumentStore:
         connection_string: str,
         table_name: str = "haystack_documents",
         embedding_dimension: int = 768,
-        vector_function: Literal["cosine_distance", "inner_product", "l2_distance"] = "cosine_distance",
+        vector_function: Literal["cosine_similarity", "inner_product", "l2_distance"] = "cosine_similarity",
         recreate_table: bool = False,
         search_strategy: Literal["exact_nearest_neighbor", "hnsw"] = "exact_nearest_neighbor",
         hnsw_recreate_index_if_exists: bool = False,
@@ -87,12 +89,16 @@ class PgvectorDocumentStore:
         :param table_name: The name of the table to use to store Haystack documents. Defaults to "haystack_documents".
         :param embedding_dimension: The dimension of the embedding. Defaults to 768.
         :param vector_function: The similarity function to use when searching for similar embeddings.
-            Defaults to "cosine_distance". Set it to one of the following values:
-        :type vector_function: Literal["cosine_distance", "inner_product", "l2_distance"]
+            Defaults to "cosine_similarity". "cosine_similarity" and "inner_product" are similarity functions,
+            so the most similar documents are the ones with the lowest score.
+            "l2_distance" is a distance function, so the most similar documents are the ones with the smallest score.
+            When using the "hnsw" search strategy, the vector_function value is used to build an appropriate index.
+        :type vector_function: Literal["cosine_similarity", "inner_product", "l2_distance"]
         :param recreate_table: Whether to recreate the table if it already exists. Defaults to False.
         :param search_strategy: The search strategy to use when searching for similar embeddings.
             Defaults to "exact_nearest_neighbor". "hnsw" is an approximate nearest neighbor search strategy,
             which trades off some accuracy for speed; it is recommended for large numbers of documents.
+            When using the "hnsw" search strategy, the vector_function value is used to build an appropriate index.
         :type search_strategy: Literal["exact_nearest_neighbor", "hnsw"]
         :param hnsw_recreate_index_if_exists: Whether to recreate the HNSW index if it already exists.
             Defaults to False. Only used if search_strategy is set to "hnsw".
@@ -107,6 +113,9 @@ class PgvectorDocumentStore:
         self.connection_string = connection_string
         self.table_name = table_name
         self.embedding_dimension = embedding_dimension
+        if vector_function not in VALID_VECTOR_FUNCTIONS:
+            msg = f"vector_function must be one of {VALID_VECTOR_FUNCTIONS}, but got {vector_function}"
+            raise ValueError(msg)
         self.vector_function = vector_function
         self.recreate_table = recreate_table
         self.search_strategy = search_strategy
@@ -423,3 +432,98 @@ class PgvectorDocumentStore:
         )
 
         self._execute_sql(delete_sql, error_msg="Could not delete documents from PgvectorDocumentStore")
+
+    def _embedding_retrieval(
+        self,
+        query_embedding: List[float],
+        *,
+        filters: Optional[Dict[str, Any]] = None,
+        top_k: int = 10,
+        vector_function: Optional[Literal["cosine_similarity", "inner_product", "l2_distance"]] = None,
+    ) -> List[Document]:
+        """
+        Retrieves documents that are most similar to the query embedding using a vector similarity metric.
+
+        This method is not mean to be part of the public interface of
+        `PgvectorDocumentStore` nor called directly.
+        `PgvectorEmbeddingRetriever` uses this method directly and is the public interface for it.
+
+        :param query_embedding: Embedding of the query.
+        :param filters: Filters applied to the retrieved Documents. Defaults to None.
+            When using the "hnsw" search strategy, filters are applied after the most similar Documents are retrieved,
+            so the number of results may be less than `top_k`.
+            To better understand HNSW index creation and configuration, refer to the pgvector documentation:
+            https://github.com/pgvector/pgvector?tab=readme-ov-file#hnsw
+        :param top_k: Maximum number of Documents to return, defaults to 10
+        :param vector_function: The similarity function to use when searching for similar embeddings.
+            Defaults to the PgvectorDocumentStore's vector_function.
+            Since vector_function is used to build the HNSW index (when using the "hnsw" search strategy),
+            if a vector_function other than the one used to build the index is chosen,
+            the index will not be used and the search will be slower.
+            "cosine_similarity" and "inner_product" are similarity functions,
+            so the most similar documents are the ones with the lowest score.
+            "l2_distance" is a distance function, so the most similar documents are the ones with the smallest score.
+        :type vector_function: Literal["cosine_similarity", "inner_product", "l2_distance"]
+        :raises ValueError
+        :return: List of Documents that are most similar to `query_embedding`
+        """
+
+        if not query_embedding:
+            msg = "query_embedding must be a non-empty list of floats"
+            raise ValueError(msg)
+        if len(query_embedding) != self.embedding_dimension:
+            msg = (
+                f"query_embedding dimension ({len(query_embedding)}) does not match PgvectorDocumentStore "
+                f"embedding dimension ({self.embedding_dimension})."
+            )
+            raise ValueError(msg)
+
+        vector_function = vector_function or self.vector_function
+        if vector_function not in VALID_VECTOR_FUNCTIONS:
+            msg = f"vector_function must be one of {VALID_VECTOR_FUNCTIONS}, but got {vector_function}"
+            raise ValueError(msg)
+
+        # the vector must be a string with this format: "'[3,1,2]'"
+        query_embedding_for_postgres = f"'[{','.join(str(el) for el in query_embedding)}]'"
+
+        # to compute the scores, we use the approach described in pgvector README:
+        # https://github.com/pgvector/pgvector?tab=readme-ov-file#distances
+        # cosine_similarity and inner_product are modified from the result of the operator
+        if vector_function == "cosine_similarity":
+            score_definition = f"1 - (embedding <=> {query_embedding_for_postgres}) AS score"
+        elif vector_function == "inner_product":
+            score_definition = f"(embedding <#> {query_embedding_for_postgres}) * -1 AS score"
+        elif vector_function == "l2_distance":
+            score_definition = f"embedding <-> {query_embedding_for_postgres} AS score"
+
+        sql_select = SQL("SELECT *, {score} FROM {table_name}").format(
+            table_name=Identifier(self.table_name),
+            score=SQL(score_definition),
+        )
+
+        sql_where_clause = SQL("")
+        params = ()
+        if filters:
+            sql_where_clause, params = _convert_filters_to_where_clause_and_params(filters)
+
+        # we always want to return the most similar documents first
+        # so when using l2_distance, the sort order must be ASC
+        sort_order = "ASC" if vector_function == "l2_distance" else "DESC"
+
+        sql_sort = SQL(" ORDER BY score {sort_order} LIMIT {top_k}").format(
+            top_k=SQLLiteral(top_k),
+            sort_order=SQL(sort_order),
+        )
+
+        sql_query = sql_select + sql_where_clause + sql_sort
+
+        result = self._execute_sql(
+            sql_query,
+            params,
+            error_msg="Could not retrieve documents from PgvectorDocumentStore.",
+            cursor=self._dict_cursor,
+        )
+
+        records = result.fetchall()
+        docs = self._from_pg_to_haystack_documents(records)
+        return docs
