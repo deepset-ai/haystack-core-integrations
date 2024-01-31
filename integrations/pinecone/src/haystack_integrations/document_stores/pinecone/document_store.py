@@ -85,7 +85,7 @@ class PineconeDocumentStore:
             )
         self.dimension = actual_dimension or dimension
 
-        self._dummy_vector = [0.0] * self.dimension
+        self._dummy_vector = [-10.0] * self.dimension
         self.environment = environment
         self.index = index
         self.namespace = namespace
