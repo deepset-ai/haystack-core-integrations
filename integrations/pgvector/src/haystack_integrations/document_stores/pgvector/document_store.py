@@ -89,16 +89,23 @@ class PgvectorDocumentStore:
         :param table_name: The name of the table to use to store Haystack documents. Defaults to "haystack_documents".
         :param embedding_dimension: The dimension of the embedding. Defaults to 768.
         :param vector_function: The similarity function to use when searching for similar embeddings.
-            Defaults to "cosine_similarity". "cosine_similarity" and "inner_product" are similarity functions,
-            so the most similar documents are the ones with the lowest score.
-            "l2_distance" is a distance function, so the most similar documents are the ones with the smallest score.
-            When using the "hnsw" search strategy, the vector_function value is used to build an appropriate index.
+            Defaults to "cosine_similarity". "cosine_similarity" and "inner_product" are similarity functions and
+            higher scores indicate greater similarity between the documents.
+            "l2_distance" returns the straight-line distance between vectors,
+            and the most similar documents are the ones with the smallest score.
+
+            Important: when using the "hnsw" search strategy, an index will be created that depends on the
+            `vector_function` passed here. Make sure subsequent queries will keep using the same
+            vector similarity function in order to take advantage of the index.
         :type vector_function: Literal["cosine_similarity", "inner_product", "l2_distance"]
         :param recreate_table: Whether to recreate the table if it already exists. Defaults to False.
         :param search_strategy: The search strategy to use when searching for similar embeddings.
             Defaults to "exact_nearest_neighbor". "hnsw" is an approximate nearest neighbor search strategy,
             which trades off some accuracy for speed; it is recommended for large numbers of documents.
-            When using the "hnsw" search strategy, the vector_function value is used to build an appropriate index.
+
+            Important: when using the "hnsw" search strategy, an index will be created that depends on the
+            `vector_function` passed here. Make sure subsequent queries will keep using the same
+            vector similarity function in order to take advantage of the index.
         :type search_strategy: Literal["exact_nearest_neighbor", "hnsw"]
         :param hnsw_recreate_index_if_exists: Whether to recreate the HNSW index if it already exists.
             Defaults to False. Only used if search_strategy is set to "hnsw".
@@ -444,26 +451,9 @@ class PgvectorDocumentStore:
         """
         Retrieves documents that are most similar to the query embedding using a vector similarity metric.
 
-        This method is not mean to be part of the public interface of
-        `PgvectorDocumentStore` nor called directly.
+        This method is not meant to be part of the public interface of
+        `PgvectorDocumentStore` and it should not be called directly.
         `PgvectorEmbeddingRetriever` uses this method directly and is the public interface for it.
-
-        :param query_embedding: Embedding of the query.
-        :param filters: Filters applied to the retrieved Documents. Defaults to None.
-            When using the "hnsw" search strategy, filters are applied after the most similar Documents are retrieved,
-            so the number of results may be less than `top_k`.
-            To better understand HNSW index creation and configuration, refer to the pgvector documentation:
-            https://github.com/pgvector/pgvector?tab=readme-ov-file#hnsw
-        :param top_k: Maximum number of Documents to return, defaults to 10
-        :param vector_function: The similarity function to use when searching for similar embeddings.
-            Defaults to the PgvectorDocumentStore's vector_function.
-            Since vector_function is used to build the HNSW index (when using the "hnsw" search strategy),
-            if a vector_function other than the one used to build the index is chosen,
-            the index will not be used and the search will be slower.
-            "cosine_similarity" and "inner_product" are similarity functions,
-            so the most similar documents are the ones with the lowest score.
-            "l2_distance" is a distance function, so the most similar documents are the ones with the smallest score.
-        :type vector_function: Literal["cosine_similarity", "inner_product", "l2_distance"]
         :raises ValueError
         :return: List of Documents that are most similar to `query_embedding`
         """
