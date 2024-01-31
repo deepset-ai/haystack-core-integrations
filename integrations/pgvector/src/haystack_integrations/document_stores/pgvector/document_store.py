@@ -99,7 +99,7 @@ class PgvectorDocumentStore:
         :param search_strategy: The search strategy to use when searching for similar embeddings.
             Defaults to "exact_nearest_neighbor". "hnsw" is an approximate nearest neighbor search strategy,
             which trades off some accuracy for speed; it is recommended for large numbers of documents.
-            When using the "hnsw" search strategy, the vector_function value is used to build an appropriate index.
+            Important: when using the "hnsw" search strategy, an index will be created that depends on the `vector_function` passed here. Make sure subsequent queries will keep using the same vector similarity function in             order to take advantage of the index.
         :type search_strategy: Literal["exact_nearest_neighbor", "hnsw"]
         :param hnsw_recreate_index_if_exists: Whether to recreate the HNSW index if it already exists.
             Defaults to False. Only used if search_strategy is set to "hnsw".
