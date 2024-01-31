@@ -33,12 +33,15 @@ class PgvectorEmbeddingRetriever:
         :param top_k: Maximum number of Documents to return, defaults to 10.
         :param vector_function: The similarity function to use when searching for similar embeddings.
             Defaults to the PgvectorDocumentStore's vector_function.
-            Since vector_function is used to build the HNSW index (when using the "hnsw" search strategy),
-            if a vector_function other than the one used to build the index is chosen,
-            the index will not be used and the search will be slower.
-            "cosine_similarity" and "inner_product" are similarity functions,
-            so the most similar documents are the ones with the lowest score.
-            "l2_distance" is a distance function, so the most similar documents are the ones with the smallest score.
+            "cosine_similarity" and "inner_product" are similarity functions and
+            higher scores indicate greater similarity between the documents.
+            "l2_distance" returns the straight-line distance between vectors,
+            and the most similar documents are the ones with the smallest score.
+
+            Important: when using the "hnsw" search strategy, an index is be created that depends on the
+            `vector_function` parameter passed to the PgvectorDocumentStore constructor.
+            Make sure subsequent queries will keep using the same
+            vector similarity function in order to take advantage of the index.
         :type vector_function: Literal["cosine_similarity", "inner_product", "l2_distance"]
 
         :raises ValueError: If `document_store` is not an instance of PgvectorDocumentStore.
@@ -81,18 +84,22 @@ class PgvectorEmbeddingRetriever:
         vector_function: Optional[Literal["cosine_similarity", "inner_product", "l2_distance"]] = None,
     ):
         """
-        Retrieve documents from the PgvectorDocumentStore, based on their dense embeddings.
+        Retrieve documents from the PgvectorDocumentStore, based on their embeddings.
 
         :param query_embedding: Embedding of the query.
         :param filters: Filters applied to the retrieved Documents.
         :param top_k: Maximum number of Documents to return.
         :param vector_function: The similarity function to use when searching for similar embeddings.
-            Since vector_function is used to build the HNSW index (when using the "hnsw" search strategy),
-            if a vector_function other than the one used to build the index is chosen,
-            the index will not be used and the search will be slower.
-            "cosine_similarity" and "inner_product" are similarity functions,
-            so the most similar documents are the ones with the lowest score.
-            "l2_distance" is a distance function, so the most similar documents are the ones with the smallest score.
+            Defaults to the PgvectorDocumentStore's vector_function.
+            "cosine_similarity" and "inner_product" are similarity functions and
+            higher scores indicate greater similarity between the documents.
+            "l2_distance" returns the straight-line distance between vectors,
+            and the most similar documents are the ones with the smallest score.
+
+            Important: when using the "hnsw" search strategy, an index is be created that depends on the
+            `vector_function` parameter passed to the PgvectorDocumentStore constructor.
+            Make sure subsequent queries will keep using the same
+            vector similarity function in order to take advantage of the index.
         :type vector_function: Literal["cosine_similarity", "inner_product", "l2_distance"]
         :return: List of Documents similar to `query_embedding`.
         """
