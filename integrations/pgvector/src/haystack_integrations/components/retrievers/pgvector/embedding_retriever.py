@@ -38,7 +38,7 @@ class PgvectorEmbeddingRetriever:
             "l2_distance" returns the straight-line distance between vectors,
             and the most similar documents are the ones with the smallest score.
 
-            Important: if the document store is using the "hnsw" search strategy, the vector function 
+            Important: if the document store is using the "hnsw" search strategy, the vector function
             should match the one utilized during index creation to take advantage of the index.
         :type vector_function: Literal["cosine_similarity", "inner_product", "l2_distance"]
 
