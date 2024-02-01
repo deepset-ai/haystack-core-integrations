@@ -32,7 +32,7 @@ class PgvectorEmbeddingRetriever:
         :param filters: Filters applied to the retrieved Documents. Defaults to None.
         :param top_k: Maximum number of Documents to return, defaults to 10.
         :param vector_function: The similarity function to use when searching for similar embeddings.
-            Defaults to the PgvectorDocumentStore's vector_function.
+            Defaults to the one set in the `document_store` instance.
             "cosine_similarity" and "inner_product" are similarity functions and
             higher scores indicate greater similarity between the documents.
             "l2_distance" returns the straight-line distance between vectors,
