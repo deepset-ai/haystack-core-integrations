@@ -17,11 +17,8 @@ class SupabaseEmbeddingRetriever:
     """
 
     def __init__(
-        self,
-        *,
-        document_store: SupabaseDocumentStore,
-        filters: Optional[Dict[str, Any]] = None,
-        top_k: int = 10):
+        self, *, document_store: SupabaseDocumentStore, filters: Optional[Dict[str, Any]] = None, top_k: int = 10
+    ):
         """
         Create an SupabaseEmbeddingRetriever component.
 
@@ -34,7 +31,6 @@ class SupabaseEmbeddingRetriever:
         if not isinstance(document_store, SupabaseDocumentStore):
             msg = "document_store must be an instance of SupabaseDocumentStore"
             raise ValueError(msg)
-
 
         self.document_store = document_store
         self.filters = filters or {}

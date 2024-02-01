@@ -81,15 +81,11 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, WriteDocumentsT
     @patch("src.haystack_integrations.document_stores.supabase.document_store.vecs")
     def test_init(self, mock_supabase):
 
-        document_store = SupabaseDocumentStore(
-            host="fake-host",
-            password="password",
-            dimension=30
-        )
+        document_store = SupabaseDocumentStore(host="fake-host", password="password", dimension=30)
 
-        user:str = "postgres"
-        port:str = "5432"
-        db_name:str = "postgres"
+        user: str = "postgres"
+        port: str = "5432"
+        db_name: str = "postgres"
 
         db_connection = f"postgresql://{user}:password@fake-host:{port}/{db_name}"
         mock_supabase.create_client.assert_called_with(db_connection)
@@ -98,12 +94,10 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, WriteDocumentsT
         assert document_store.dimension == 30
 
     @pytest.mark.skip(reason="Supabase only supports UPSERT operations")
-    def test_write_documents_duplicate_fail(self, document_store: SupabaseDocumentStore):
-        ...
+    def test_write_documents_duplicate_fail(self, document_store: SupabaseDocumentStore): ...
 
     @pytest.mark.skip(reason="Supabase only supports UPSERT operations")
-    def test_write_documents_duplicate_skip(self, document_store: SupabaseDocumentStore):
-       ...
+    def test_write_documents_duplicate_skip(self, document_store: SupabaseDocumentStore): ...
 
     def test_write_documents_duplicate_overwrite(self, document_store: SupabaseDocumentStore):
         """
@@ -111,7 +105,7 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, WriteDocumentsT
         using DuplicatePolicy.OVERWRITE.
         """
         embedding = [0.0] * 768
-        doc1 = Document(id="1", content="test doc 1", embedding=[0.1]*768)
+        doc1 = Document(id="1", content="test doc 1", embedding=[0.1] * 768)
         doc2 = Document(id="1", content="test doc 2", embedding=embedding)
 
         assert document_store.write_documents([doc2], policy=DuplicatePolicy.OVERWRITE) == 1

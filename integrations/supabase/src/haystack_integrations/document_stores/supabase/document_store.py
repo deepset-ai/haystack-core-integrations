@@ -17,20 +17,21 @@ logger = logging.getLogger(__name__)
 
 class SupabaseDocumentStore:
     def __init__(
-            self,
-            host:str,
-            password:str,
-            user:str = "postgres",
-            port:str = "5432",
-            db_name:str = "postgres",
-            collection_name:str = "documents",
-            dimension:int = 768,
-            **collection_creation_kwargs,
+        self,
+        host: str,
+        password: str,
+        user: str = "postgres",
+        port: str = "5432",
+        db_name: str = "postgres",
+        collection_name: str = "documents",
+        dimension: int = 768,
+        **collection_creation_kwargs,
     ):
         """
         Creates a new SupabaseDocumentStore instance.
 
-        For more information on connection parameters, see the official supabase vector documentation: https://supabase.github.io/vecs/0.4/
+        For more information on connection parameters, see the official supabase vector documentation:
+        https://supabase.github.io/vecs/0.4/
 
         :param user: The username for connecting to the Supabase database.
         :param password: The password for connecting to the Supabase database.
@@ -43,15 +44,16 @@ class SupabaseDocumentStore:
         """
         self.dimension = dimension
         self._collection_name = collection_name
-        self._dummy_vector = [0.0]*dimension
+        self._dummy_vector = [0.0] * dimension
         self.collection_creation_kwargs = collection_creation_kwargs
         db_connection = f"postgresql://{user}:{password}@{host}:{port}/{db_name}"
         self._pgvector_client = vecs.create_client(db_connection)
-        self._collection = self._pgvector_client.get_or_create_collection(name=collection_name, dimension=dimension, **collection_creation_kwargs)
+        self._collection = self._pgvector_client.get_or_create_collection(
+            name=collection_name, dimension=dimension, **collection_creation_kwargs
+        )
         self._adapter = None
         if collection_creation_kwargs.get("adapter") is not None:
             self._adapter = collection_creation_kwargs["adapter"]
-
 
     def count_documents(self) -> int:
         """
@@ -125,11 +127,7 @@ class SupabaseDocumentStore:
         """
         # pgvector store performs vector similarity search
         # here we are querying with a dummy vector and the max compatible top_k
-        documents = self._embedding_retrieval(
-            query_embedding=self._dummy_vector,
-            filters=filters,
-            top_k=10
-        )
+        documents = self._embedding_retrieval(query_embedding=self._dummy_vector, filters=filters, top_k=10)
 
         return documents
 
@@ -141,7 +139,8 @@ class SupabaseDocumentStore:
         :param policy: The duplicate policy to use when writing documents.
             SupabaseDocumentStore only supports `DuplicatePolicy.OVERWRITE`.
 
-        :return: This figure may lack accuracy as it fails to distinguish between documents that were genuinely written and those that were not(overwritten).
+        :return: This figure may lack accuracy as it fails to distinguish between documents that were genuinely
+            written and those that were not(overwritten).
         """
         if policy not in [DuplicatePolicy.NONE, DuplicatePolicy.OVERWRITE]:
             logger.warning(
@@ -161,16 +160,16 @@ class SupabaseDocumentStore:
                     "'array', 'dataframe' and 'blob' will be dropped."
                 )
             if self._adapter is not None:
-                documents_for_supabase.append((doc.id, doc.content, {"content":doc.content, **doc.meta}))
+                documents_for_supabase.append((doc.id, doc.content, {"content": doc.content, **doc.meta}))
             else:
                 embedding = doc.embedding
                 if doc.embedding is None:
                     logger.warning(
-                            f"Document {doc.id} has no embedding. pgvector is a purely vector database. "
-                            "A dummy embedding will be used, but this can affect the search results. "
-                        )
+                        f"Document {doc.id} has no embedding. pgvector is a purely vector database. "
+                        "A dummy embedding will be used, but this can affect the search results. "
+                    )
                     embedding = self._dummy_vector
-                documents_for_supabase.append((doc.id, embedding, {"content":doc.content, **doc.meta}))
+                documents_for_supabase.append((doc.id, embedding, {"content": doc.content, **doc.meta}))
 
         self._collection.upsert(records=documents_for_supabase)
         self._collection.create_index()
@@ -191,7 +190,7 @@ class SupabaseDocumentStore:
         documents = []
         for i in result:
             supabase_data = self._collection.__getitem__(i)
-            document_dict = {"id":supabase_data[0]}
+            document_dict = {"id": supabase_data[0]}
             document_dict["embedding"] = np.array(supabase_data[1])
             metadata = supabase_data[2]
             document_dict["content"] = metadata["content"]
@@ -202,11 +201,7 @@ class SupabaseDocumentStore:
         return documents
 
     def _embedding_retrieval(
-        self,
-        query_embedding: List[float],
-        *,
-        filters: Optional[Dict[str, Any]],
-        top_k: int = 10
+        self, query_embedding: List[float], *, filters: Optional[Dict[str, Any]], top_k: int = 10
     ) -> List[Document]:
         """
         Retrieves documents that are most similar to the query embedding using a vector similarity metric.
@@ -225,10 +220,5 @@ class SupabaseDocumentStore:
             filters = convert(filters)
         filters = _normalize_filters(filters) if filters else None
 
-        results = self._collection.query(
-            data=query_embedding,
-            limit=top_k,
-            filters=filters
-        )
+        results = self._collection.query(data=query_embedding, limit=top_k, filters=filters)
         return self._convert_query_result_to_documents(result=results)
-

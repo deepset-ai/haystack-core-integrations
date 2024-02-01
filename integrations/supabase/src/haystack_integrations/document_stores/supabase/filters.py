@@ -163,7 +163,7 @@ COMPARISON_OPERATORS = {
     ">=": _greater_than_equal,
     "<": _less_than,
     "<=": _less_than_equal,
-    "in": _in
+    "in": _in,
 }
 
 LOGICAL_OPERATORS = {"AND": "$and", "OR": "$or"}
