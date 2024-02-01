@@ -54,8 +54,8 @@ dependencies = [
 [tool.hatch.envs.default.scripts]
 # Pinecone tests are slow (require HTTP requests), so we run them in parallel
 # with pytest-xdist (https://pytest-xdist.readthedocs.io/en/stable/distribution.html)
-test = "pytest -n auto --maxprocesses=3 {args:tests}"
-test-cov = "coverage run -m pytest -n auto --maxprocesses=3 {args:tests}"
+test = "pytest -n auto --maxprocesses=2 {args:tests}"
+test-cov = "coverage run -m pytest -n auto --maxprocesses=2 {args:tests}"
 cov-report = [
   "- coverage combine",
   "coverage report",
