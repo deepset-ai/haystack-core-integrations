@@ -34,6 +34,9 @@ Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/m
 Issues = "https://github.com/deepset-ai/haystack-core-integrations/issues"
 Source = ""
 
+[tool.hatch.build.targets.wheel]
+packages = ["src/haystack_integrations"]
+
 [tool.hatch.version]
 source = "vcs"
 tag-pattern = 'integrations\/supabase-v(?P<version>.*)'
