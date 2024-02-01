@@ -2,7 +2,7 @@ loaders:
   - type: haystack_pydoc_tools.loaders.CustomPythonLoader
     search_path: [../src]
     modules: [
-      "haystack_integrations.components.generators.amazon_bedrock",
+      "haystack_integrations.components.generators.amazon_bedrock.generator",
     ]
     ignore_when_discovered: ["__init__"]
 processors:
