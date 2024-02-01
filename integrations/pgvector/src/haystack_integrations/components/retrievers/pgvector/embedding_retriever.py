@@ -38,10 +38,8 @@ class PgvectorEmbeddingRetriever:
             "l2_distance" returns the straight-line distance between vectors,
             and the most similar documents are the ones with the smallest score.
 
-            Important: when using the "hnsw" search strategy, an index is be created that depends on the
-            `vector_function` parameter passed to the PgvectorDocumentStore constructor.
-            Make sure subsequent queries will keep using the same
-            vector similarity function in order to take advantage of the index.
+            Important: if the document store is using the "hnsw" search strategy, the vector function 
+            should match the one utilized during index creation to take advantage of the index.
         :type vector_function: Literal["cosine_similarity", "inner_product", "l2_distance"]
 
         :raises ValueError: If `document_store` is not an instance of PgvectorDocumentStore.
@@ -80,7 +78,7 @@ class PgvectorEmbeddingRetriever:
         self,
         query_embedding: List[float],
         filters: Optional[Dict[str, Any]] = None,
-        top_k: int = 10,
+        top_k: Optional[int] = None,
         vector_function: Optional[Literal["cosine_similarity", "inner_product", "l2_distance"]] = None,
     ):
         """
@@ -90,7 +88,6 @@ class PgvectorEmbeddingRetriever:
         :param filters: Filters applied to the retrieved Documents.
         :param top_k: Maximum number of Documents to return.
         :param vector_function: The similarity function to use when searching for similar embeddings.
-            Defaults to the one set in the document store.
         :type vector_function: Literal["cosine_similarity", "inner_product", "l2_distance"]
         :return: List of Documents similar to `query_embedding`.
         """
