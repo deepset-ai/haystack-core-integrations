@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 class BedrockModelChatAdapter(ABC):
     """
-    Base class for Amazon Bedrock model adapters.
+    Base class for Amazon Bedrock chat model adapters.
     """
 
     def __init__(self, generation_kwargs: Dict[str, Any]) -> None:
@@ -135,3 +135,48 @@ class AnthropicClaudeChatAdapter(BedrockModelChatAdapter):
 
     def _extract_token_from_stream(self, chunk: Dict[str, Any]) -> str:
         return chunk.get("completion", "")
+
+
+class MetaLlama2ChatAdapter(BedrockModelChatAdapter):
+    """
+    Model adapter for the Meta Llama model(s).
+    """
+
+    def __init__(self, generation_kwargs: Dict[str, Any]) -> None:
+        super().__init__(generation_kwargs)
+        # We pop the model_max_length as it is not sent to the model
+        # but used to truncate the prompt if needed
+        # Llama 2 has context window size of 4096 tokens
+        model_max_length = self.generation_kwargs.get("model_max_length", 4096)
+        # Truncate prompt if prompt tokens > model_max_length-max_length
+        self.prompt_handler = DefaultPromptHandler(
+            model="meta-llama/Llama-2-7b-chat-hf",
+            model_max_length=model_max_length,
+            max_length=self.generation_kwargs.get("max_gen_len") or 512,
+        )
+
+    def prepare_body(self, messages: List[ChatMessage], **inference_kwargs) -> Dict[str, Any]:
+        default_params = {
+            "max_gen_len": self.generation_kwargs.get("max_gen_len") or 512,
+            "temperature": None,
+            "top_p": None,
+        }
+
+        # combine stop words with default stop sequences
+        stop_sequences = inference_kwargs.get("stop_sequences", []) + inference_kwargs.get("stop_words", [])
+        if stop_sequences:
+            inference_kwargs["stop_sequences"] = stop_sequences
+        params = self._get_params(inference_kwargs, default_params)
+        body = {"prompt": self.prepare_chat_messages(messages=messages), **params}
+        return body
+
+    def prepare_chat_messages(self, messages: List[ChatMessage]) -> str:
+        prepared_prompt: str = self.prompt_handler.tokenizer.apply_chat_template(conversation=messages, tokenize=False)
+        return prepared_prompt
+
+    def _extract_messages_from_response(self, response_body: Dict[str, Any]) -> List[ChatMessage]:
+        metadata = {k: v for (k, v) in response_body.items() if k != "generation"}
+        return [ChatMessage.from_assistant(response_body["generation"], meta=metadata)]
+
+    def _extract_token_from_stream(self, chunk: Dict[str, Any]) -> str:
+        return chunk.get("generation", "")

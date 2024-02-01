@@ -10,7 +10,7 @@ from haystack.components.generators.utils import deserialize_callback_handler
 from haystack.dataclasses import ChatMessage, StreamingChunk
 
 from ..errors import AmazonBedrockConfigurationError, AmazonBedrockInferenceError, AWSConfigurationError
-from .adapters import AnthropicClaudeChatAdapter, BedrockModelChatAdapter
+from .adapters import AnthropicClaudeChatAdapter, BedrockModelChatAdapter, MetaLlama2ChatAdapter
 
 logger = logging.getLogger(__name__)
 
@@ -50,7 +50,8 @@ class AmazonBedrockChatGenerator:
     """
 
     SUPPORTED_MODEL_PATTERNS: ClassVar[Dict[str, Type[BedrockModelChatAdapter]]] = {
-        r"anthropic.claude.*": AnthropicClaudeChatAdapter
+        r"anthropic.claude.*": AnthropicClaudeChatAdapter,
+        r"meta.llama2.*": MetaLlama2ChatAdapter,
     }
 
     def __init__(
