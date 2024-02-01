@@ -6,8 +6,8 @@ from haystack import Pipeline
 from haystack.components.converters import TextFileToDocument
 from haystack.components.writers import DocumentWriter
 
-from chroma_haystack import ChromaDocumentStore
-from chroma_haystack.retriever import ChromaQueryRetriever
+from haystack_integrations.document_stores.chroma import ChromaDocumentStore
+from haystack_integrations.components.retrievers.chroma import ChromaQueryRetriever
 
 HERE = Path(__file__).resolve().parent
 file_paths = [HERE / "data" / Path(name) for name in os.listdir("data")]
@@ -23,7 +23,7 @@ indexing.run({"converter": {"sources": file_paths}})
 
 querying = Pipeline()
 querying.add_component("retriever", ChromaQueryRetriever(document_store))
-results = querying.run({"retriever": {"queries": ["Variable declarations"], "top_k": 3}})
+results = querying.run({"retriever": {"query": "Variable declarations", "top_k": 3}})
 
-for d in results["retriever"]["documents"][0]:
+for d in results["retriever"]["documents"]:
     print(d.meta, d.score)

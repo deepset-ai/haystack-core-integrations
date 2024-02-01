@@ -2,11 +2,11 @@ from unittest.mock import Mock, patch
 
 from vertexai.language_models import TextGenerationResponse
 
-from google_vertex_haystack.generators.code_generator import VertexAICodeGenerator
+from haystack_integrations.components.generators.google_vertex import VertexAICodeGenerator
 
 
-@patch("google_vertex_haystack.generators.code_generator.vertexai")
-@patch("google_vertex_haystack.generators.code_generator.CodeGenerationModel")
+@patch("haystack_integrations.components.generators.google_vertex.code_generator.vertexai")
+@patch("haystack_integrations.components.generators.google_vertex.code_generator.CodeGenerationModel")
 def test_init(mock_model_class, mock_vertexai):
     generator = VertexAICodeGenerator(
         model="code-bison", project_id="myproject-123456", candidate_count=3, temperature=0.5
@@ -19,14 +19,14 @@ def test_init(mock_model_class, mock_vertexai):
     assert generator._kwargs == {"candidate_count": 3, "temperature": 0.5}
 
 
-@patch("google_vertex_haystack.generators.code_generator.vertexai")
-@patch("google_vertex_haystack.generators.code_generator.CodeGenerationModel")
+@patch("haystack_integrations.components.generators.google_vertex.code_generator.vertexai")
+@patch("haystack_integrations.components.generators.google_vertex.code_generator.CodeGenerationModel")
 def test_to_dict(_mock_model_class, _mock_vertexai):
     generator = VertexAICodeGenerator(
         model="code-bison", project_id="myproject-123456", candidate_count=3, temperature=0.5
     )
     assert generator.to_dict() == {
-        "type": "google_vertex_haystack.generators.code_generator.VertexAICodeGenerator",
+        "type": "haystack_integrations.components.generators.google_vertex.code_generator.VertexAICodeGenerator",
         "init_parameters": {
             "model": "code-bison",
             "project_id": "myproject-123456",
@@ -37,12 +37,12 @@ def test_to_dict(_mock_model_class, _mock_vertexai):
     }
 
 
-@patch("google_vertex_haystack.generators.code_generator.vertexai")
-@patch("google_vertex_haystack.generators.code_generator.CodeGenerationModel")
+@patch("haystack_integrations.components.generators.google_vertex.code_generator.vertexai")
+@patch("haystack_integrations.components.generators.google_vertex.code_generator.CodeGenerationModel")
 def test_from_dict(_mock_model_class, _mock_vertexai):
     generator = VertexAICodeGenerator.from_dict(
         {
-            "type": "google_vertex_haystack.generators.code_generator.VertexAICodeGenerator",
+            "type": "haystack_integrations.components.generators.google_vertex.code_generator.VertexAICodeGenerator",
             "init_parameters": {
                 "model": "code-bison",
                 "project_id": "myproject-123456",
@@ -58,8 +58,8 @@ def test_from_dict(_mock_model_class, _mock_vertexai):
     assert generator._model is not None
 
 
-@patch("google_vertex_haystack.generators.code_generator.vertexai")
-@patch("google_vertex_haystack.generators.code_generator.CodeGenerationModel")
+@patch("haystack_integrations.components.generators.google_vertex.code_generator.vertexai")
+@patch("haystack_integrations.components.generators.google_vertex.code_generator.CodeGenerationModel")
 def test_run_calls_predict(mock_model_class, _mock_vertexai):
     mock_model = Mock()
     mock_model.predict.return_value = TextGenerationResponse("answer", None)

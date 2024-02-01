@@ -7,7 +7,7 @@ from google.generativeai import GenerationConfig, GenerativeModel
 from google.generativeai.types import HarmBlockThreshold, HarmCategory
 from haystack.dataclasses.chat_message import ChatMessage
 
-from google_ai_haystack.generators.chat.gemini import GoogleAIGeminiChatGenerator
+from haystack_integrations.components.generators.google_ai import GoogleAIGeminiChatGenerator
 
 
 def test_init():
@@ -40,7 +40,9 @@ def test_init():
     )
 
     tool = Tool(function_declarations=[get_current_weather_func])
-    with patch("google_ai_haystack.generators.chat.gemini.genai.configure") as mock_genai_configure:
+    with patch(
+        "haystack_integrations.components.generators.google_ai.chat.gemini.genai.configure"
+    ) as mock_genai_configure:
         gemini = GoogleAIGeminiChatGenerator(
             generation_config=generation_config,
             safety_settings=safety_settings,
@@ -85,14 +87,14 @@ def test_to_dict():
 
     tool = Tool(function_declarations=[get_current_weather_func])
 
-    with patch("google_ai_haystack.generators.chat.gemini.genai.configure"):
+    with patch("haystack_integrations.components.generators.google_ai.chat.gemini.genai.configure"):
         gemini = GoogleAIGeminiChatGenerator(
             generation_config=generation_config,
             safety_settings=safety_settings,
             tools=[tool],
         )
     assert gemini.to_dict() == {
-        "type": "google_ai_haystack.generators.chat.gemini.GoogleAIGeminiChatGenerator",
+        "type": "haystack_integrations.components.generators.google_ai.chat.gemini.GoogleAIGeminiChatGenerator",
         "init_parameters": {
             "model": "gemini-pro-vision",
             "generation_config": {
@@ -114,10 +116,10 @@ def test_to_dict():
 
 
 def test_from_dict():
-    with patch("google_ai_haystack.generators.chat.gemini.genai.configure"):
+    with patch("haystack_integrations.components.generators.google_ai.chat.gemini.genai.configure"):
         gemini = GoogleAIGeminiChatGenerator.from_dict(
             {
-                "type": "google_ai_haystack.generators.chat.gemini.GoogleAIGeminiChatGenerator",
+                "type": "haystack_integrations.components.generators.google_ai.chat.gemini.GoogleAIGeminiChatGenerator",
                 "init_parameters": {
                     "model": "gemini-pro-vision",
                     "generation_config": {

@@ -5,8 +5,7 @@ import os
 
 import pytest
 from cohere import COHERE_API_URL
-
-from cohere_haystack.generator import CohereGenerator
+from haystack_integrations.components.generators.cohere import CohereGenerator
 
 pytestmark = pytest.mark.generators
 
@@ -23,7 +22,7 @@ class TestCohereGenerator:
     def test_init_default(self):
         component = CohereGenerator(api_key="test-api-key")
         assert component.api_key == "test-api-key"
-        assert component.model_name == "command"
+        assert component.model == "command"
         assert component.streaming_callback is None
         assert component.api_base_url == COHERE_API_URL
         assert component.model_parameters == {}
@@ -32,14 +31,14 @@ class TestCohereGenerator:
         callback = lambda x: x  # noqa: E731
         component = CohereGenerator(
             api_key="test-api-key",
-            model_name="command-light",
+            model="command-light",
             max_tokens=10,
             some_test_param="test-params",
             streaming_callback=callback,
             api_base_url="test-base-url",
         )
         assert component.api_key == "test-api-key"
-        assert component.model_name == "command-light"
+        assert component.model == "command-light"
         assert component.streaming_callback == callback
         assert component.api_base_url == "test-base-url"
         assert component.model_parameters == {"max_tokens": 10, "some_test_param": "test-params"}
@@ -48,9 +47,9 @@ class TestCohereGenerator:
         component = CohereGenerator(api_key="test-api-key")
         data = component.to_dict()
         assert data == {
-            "type": "cohere_haystack.generator.CohereGenerator",
+            "type": "haystack_integrations.components.generators.cohere.generator.CohereGenerator",
             "init_parameters": {
-                "model_name": "command",
+                "model": "command",
                 "streaming_callback": None,
                 "api_base_url": COHERE_API_URL,
             },
@@ -59,7 +58,7 @@ class TestCohereGenerator:
     def test_to_dict_with_parameters(self):
         component = CohereGenerator(
             api_key="test-api-key",
-            model_name="command-light",
+            model="command-light",
             max_tokens=10,
             some_test_param="test-params",
             streaming_callback=default_streaming_callback,
@@ -67,9 +66,9 @@ class TestCohereGenerator:
         )
         data = component.to_dict()
         assert data == {
-            "type": "cohere_haystack.generator.CohereGenerator",
+            "type": "haystack_integrations.components.generators.cohere.generator.CohereGenerator",
             "init_parameters": {
-                "model_name": "command-light",
+                "model": "command-light",
                 "max_tokens": 10,
                 "some_test_param": "test-params",
                 "api_base_url": "test-base-url",
@@ -80,7 +79,7 @@ class TestCohereGenerator:
     def test_to_dict_with_lambda_streaming_callback(self):
         component = CohereGenerator(
             api_key="test-api-key",
-            model_name="command",
+            model="command",
             max_tokens=10,
             some_test_param="test-params",
             streaming_callback=lambda x: x,
@@ -88,9 +87,9 @@ class TestCohereGenerator:
         )
         data = component.to_dict()
         assert data == {
-            "type": "cohere_haystack.generator.CohereGenerator",
+            "type": "haystack_integrations.components.generators.cohere.generator.CohereGenerator",
             "init_parameters": {
-                "model_name": "command",
+                "model": "command",
                 "streaming_callback": "tests.test_cohere_generators.<lambda>",
                 "api_base_url": "test-base-url",
                 "max_tokens": 10,
@@ -101,9 +100,9 @@ class TestCohereGenerator:
     def test_from_dict(self, monkeypatch):
         monkeypatch.setenv("COHERE_API_KEY", "test-key")
         data = {
-            "type": "cohere_haystack.generator.CohereGenerator",
+            "type": "haystack_integrations.components.generators.cohere.generator.CohereGenerator",
             "init_parameters": {
-                "model_name": "command",
+                "model": "command",
                 "max_tokens": 10,
                 "some_test_param": "test-params",
                 "api_base_url": "test-base-url",
@@ -112,7 +111,7 @@ class TestCohereGenerator:
         }
         component: CohereGenerator = CohereGenerator.from_dict(data)
         assert component.api_key == "test-key"
-        assert component.model_name == "command"
+        assert component.model == "command"
         assert component.streaming_callback == default_streaming_callback
         assert component.api_base_url == "test-base-url"
         assert component.model_parameters == {"max_tokens": 10, "some_test_param": "test-params"}
@@ -144,10 +143,10 @@ class TestCohereGenerator:
         reason="Export an env var called COHERE_API_KEY containing the Cohere API key to run this test.",
     )
     @pytest.mark.integration
-    def test_cohere_generator_run_wrong_model_name(self):
+    def test_cohere_generator_run_wrong_model(self):
         import cohere
 
-        component = CohereGenerator(model_name="something-obviously-wrong")
+        component = CohereGenerator(model="something-obviously-wrong")
         with pytest.raises(
             cohere.CohereAPIError,
             match="model not found, make sure the correct model ID was used and that you have access to the model.",

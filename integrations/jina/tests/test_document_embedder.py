@@ -7,8 +7,7 @@ from unittest.mock import patch
 import pytest
 import requests
 from haystack import Document
-
-from jina_haystack import JinaDocumentEmbedder
+from haystack_integrations.components.embedders.jina import JinaDocumentEmbedder
 
 
 def mock_session_post_response(*args, **kwargs):  # noqa: ARG001
@@ -40,7 +39,7 @@ class TestJinaDocumentEmbedder:
     def test_init_with_parameters(self):
         embedder = JinaDocumentEmbedder(
             api_key="fake-api-key",
-            model_name="model",
+            model="model",
             prefix="prefix",
             suffix="suffix",
             batch_size=64,
@@ -65,9 +64,9 @@ class TestJinaDocumentEmbedder:
         component = JinaDocumentEmbedder(api_key="fake-api-key")
         data = component.to_dict()
         assert data == {
-            "type": "jina_haystack.document_embedder.JinaDocumentEmbedder",
+            "type": "haystack_integrations.components.embedders.jina.document_embedder.JinaDocumentEmbedder",
             "init_parameters": {
-                "model_name": "jina-embeddings-v2-base-en",
+                "model": "jina-embeddings-v2-base-en",
                 "prefix": "",
                 "suffix": "",
                 "batch_size": 32,
@@ -80,7 +79,7 @@ class TestJinaDocumentEmbedder:
     def test_to_dict_with_custom_init_parameters(self):
         component = JinaDocumentEmbedder(
             api_key="fake-api-key",
-            model_name="model",
+            model="model",
             prefix="prefix",
             suffix="suffix",
             batch_size=64,
@@ -90,9 +89,9 @@ class TestJinaDocumentEmbedder:
         )
         data = component.to_dict()
         assert data == {
-            "type": "jina_haystack.document_embedder.JinaDocumentEmbedder",
+            "type": "haystack_integrations.components.embedders.jina.document_embedder.JinaDocumentEmbedder",
             "init_parameters": {
-                "model_name": "model",
+                "model": "model",
                 "prefix": "prefix",
                 "suffix": "suffix",
                 "batch_size": 64,
@@ -141,7 +140,7 @@ class TestJinaDocumentEmbedder:
         texts = ["text 1", "text 2", "text 3", "text 4", "text 5"]
 
         with patch("requests.sessions.Session.post", side_effect=mock_session_post_response):
-            embedder = JinaDocumentEmbedder(api_key="fake-api-key", model_name="model")
+            embedder = JinaDocumentEmbedder(api_key="fake-api-key", model="model")
 
             embeddings, metadata = embedder._embed_batch(texts_to_embed=texts, batch_size=2)
 
@@ -164,7 +163,7 @@ class TestJinaDocumentEmbedder:
         with patch("requests.sessions.Session.post", side_effect=mock_session_post_response):
             embedder = JinaDocumentEmbedder(
                 api_key="fake-api-key",
-                model_name=model,
+                model=model,
                 prefix="prefix ",
                 suffix=" suffix",
                 meta_fields_to_embed=["topic"],
@@ -194,7 +193,7 @@ class TestJinaDocumentEmbedder:
         with patch("requests.sessions.Session.post", side_effect=mock_session_post_response):
             embedder = JinaDocumentEmbedder(
                 api_key="fake-api-key",
-                model_name=model,
+                model=model,
                 prefix="prefix ",
                 suffix=" suffix",
                 meta_fields_to_embed=["topic"],

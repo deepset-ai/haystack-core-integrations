@@ -1,11 +1,11 @@
-from qdrant_haystack import QdrantDocumentStore
+from haystack_integrations.document_stores.qdrant import QdrantDocumentStore
 
 
 def test_to_dict():
     document_store = QdrantDocumentStore(location=":memory:", index="test")
 
     expected = {
-        "type": "qdrant_haystack.document_store.QdrantDocumentStore",
+        "type": "haystack_integrations.document_stores.qdrant.document_store.QdrantDocumentStore",
         "init_parameters": {
             "location": ":memory:",
             "url": None,
@@ -50,7 +50,7 @@ def test_to_dict():
 def test_from_dict():
     document_store = QdrantDocumentStore.from_dict(
         {
-            "type": "qdrant_haystack.document_store.QdrantDocumentStore",
+            "type": "haystack_integrations.document_stores.qdrant.document_store.QdrantDocumentStore",
             "init_parameters": {
                 "location": ":memory:",
                 "index": "test",

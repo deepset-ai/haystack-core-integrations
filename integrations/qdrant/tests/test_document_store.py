@@ -2,15 +2,14 @@ from typing import List
 
 import pytest
 from haystack import Document
-from haystack.document_stores import DuplicatePolicy
 from haystack.document_stores.errors import DuplicateDocumentError
+from haystack.document_stores.types import DuplicatePolicy
 from haystack.testing.document_store import (
     CountDocumentsTest,
     DeleteDocumentsTest,
     WriteDocumentsTest,
 )
-
-from qdrant_haystack import QdrantDocumentStore
+from haystack_integrations.document_stores.qdrant import QdrantDocumentStore
 
 
 class TestQdrantStoreBaseTests(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsTest):

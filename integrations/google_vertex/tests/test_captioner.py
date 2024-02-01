@@ -2,11 +2,11 @@ from unittest.mock import Mock, patch
 
 from haystack.dataclasses.byte_stream import ByteStream
 
-from google_vertex_haystack.generators.captioner import VertexAIImageCaptioner
+from haystack_integrations.components.generators.google_vertex import VertexAIImageCaptioner
 
 
-@patch("google_vertex_haystack.generators.captioner.vertexai")
-@patch("google_vertex_haystack.generators.captioner.ImageTextModel")
+@patch("haystack_integrations.components.generators.google_vertex.captioner.vertexai")
+@patch("haystack_integrations.components.generators.google_vertex.captioner.ImageTextModel")
 def test_init(mock_model_class, mock_vertexai):
     captioner = VertexAIImageCaptioner(
         model="imagetext", project_id="myproject-123456", number_of_results=1, language="it"
@@ -19,14 +19,14 @@ def test_init(mock_model_class, mock_vertexai):
     assert captioner._kwargs == {"number_of_results": 1, "language": "it"}
 
 
-@patch("google_vertex_haystack.generators.captioner.vertexai")
-@patch("google_vertex_haystack.generators.captioner.ImageTextModel")
+@patch("haystack_integrations.components.generators.google_vertex.captioner.vertexai")
+@patch("haystack_integrations.components.generators.google_vertex.captioner.ImageTextModel")
 def test_to_dict(_mock_model_class, _mock_vertexai):
     captioner = VertexAIImageCaptioner(
         model="imagetext", project_id="myproject-123456", number_of_results=1, language="it"
     )
     assert captioner.to_dict() == {
-        "type": "google_vertex_haystack.generators.captioner.VertexAIImageCaptioner",
+        "type": "haystack_integrations.components.generators.google_vertex.captioner.VertexAIImageCaptioner",
         "init_parameters": {
             "model": "imagetext",
             "project_id": "myproject-123456",
@@ -37,12 +37,12 @@ def test_to_dict(_mock_model_class, _mock_vertexai):
     }
 
 
-@patch("google_vertex_haystack.generators.captioner.vertexai")
-@patch("google_vertex_haystack.generators.captioner.ImageTextModel")
+@patch("haystack_integrations.components.generators.google_vertex.captioner.vertexai")
+@patch("haystack_integrations.components.generators.google_vertex.captioner.ImageTextModel")
 def test_from_dict(_mock_model_class, _mock_vertexai):
     captioner = VertexAIImageCaptioner.from_dict(
         {
-            "type": "google_vertex_haystack.generators.captioner.VertexAIImageCaptioner",
+            "type": "haystack_integrations.components.generators.google_vertex.captioner.VertexAIImageCaptioner",
             "init_parameters": {
                 "model": "imagetext",
                 "project_id": "myproject-123456",
@@ -58,8 +58,8 @@ def test_from_dict(_mock_model_class, _mock_vertexai):
     assert captioner._model is not None
 
 
-@patch("google_vertex_haystack.generators.captioner.vertexai")
-@patch("google_vertex_haystack.generators.captioner.ImageTextModel")
+@patch("haystack_integrations.components.generators.google_vertex.captioner.vertexai")
+@patch("haystack_integrations.components.generators.google_vertex.captioner.ImageTextModel")
 def test_run_calls_get_captions(mock_model_class, _mock_vertexai):
     mock_model = Mock()
     mock_model_class.from_pretrained.return_value = mock_model

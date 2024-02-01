@@ -1,12 +1,12 @@
 import time
 
 import pytest
-from haystack.document_stores import DuplicatePolicy
+from haystack.document_stores.types import DuplicatePolicy
 
-from pinecone_haystack.document_store import PineconeDocumentStore
+from haystack_integrations.document_stores.pinecone import PineconeDocumentStore
 
 # This is the approximate time it takes for the documents to be available
-SLEEP_TIME = 20
+SLEEP_TIME = 25
 
 
 @pytest.fixture()

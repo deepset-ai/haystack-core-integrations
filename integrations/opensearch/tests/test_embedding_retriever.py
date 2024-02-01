@@ -4,9 +4,8 @@
 from unittest.mock import Mock, patch
 
 from haystack.dataclasses import Document
-
-from opensearch_haystack.document_store import OpenSearchDocumentStore
-from opensearch_haystack.embedding_retriever import OpenSearchEmbeddingRetriever
+from haystack_integrations.components.retrievers.opensearch import OpenSearchEmbeddingRetriever
+from haystack_integrations.document_stores.opensearch import OpenSearchDocumentStore
 
 
 def test_init_default():
@@ -17,20 +16,21 @@ def test_init_default():
     assert retriever._top_k == 10
 
 
-@patch("opensearch_haystack.document_store.OpenSearch")
+@patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
 def test_to_dict(_mock_opensearch_client):
     document_store = OpenSearchDocumentStore(hosts="some fake host")
     retriever = OpenSearchEmbeddingRetriever(document_store=document_store)
     res = retriever.to_dict()
+    type_s = "haystack_integrations.components.retrievers.opensearch.embedding_retriever.OpenSearchEmbeddingRetriever"
     assert res == {
-        "type": "opensearch_haystack.embedding_retriever.OpenSearchEmbeddingRetriever",
+        "type": type_s,
         "init_parameters": {
             "document_store": {
                 "init_parameters": {
                     "hosts": "some fake host",
                     "index": "default",
                 },
-                "type": "opensearch_haystack.document_store.OpenSearchDocumentStore",
+                "type": "haystack_integrations.document_stores.opensearch.document_store.OpenSearchDocumentStore",
             },
             "filters": {},
             "top_k": 10,
@@ -38,14 +38,15 @@ def test_to_dict(_mock_opensearch_client):
     }
 
 
-@patch("opensearch_haystack.document_store.OpenSearch")
+@patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
 def test_from_dict(_mock_opensearch_client):
+    type_s = "haystack_integrations.components.retrievers.opensearch.embedding_retriever.OpenSearchEmbeddingRetriever"
     data = {
-        "type": "opensearch_haystack.embedding_retriever.OpenSearchEmbeddingRetriever",
+        "type": type_s,
         "init_parameters": {
             "document_store": {
                 "init_parameters": {"hosts": "some fake host", "index": "default"},
-                "type": "opensearch_haystack.document_store.OpenSearchDocumentStore",
+                "type": "haystack_integrations.document_stores.opensearch.document_store.OpenSearchDocumentStore",
             },
             "filters": {},
             "top_k": 10,

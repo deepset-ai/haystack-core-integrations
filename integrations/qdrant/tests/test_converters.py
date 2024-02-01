@@ -1,8 +1,7 @@
 import numpy as np
 import pytest
+from haystack_integrations.document_stores.qdrant.converters import HaystackToQdrant, QdrantToHaystack
 from qdrant_client.http import models as rest
-
-from qdrant_haystack.converters import HaystackToQdrant, QdrantToHaystack
 
 CONTENT_FIELD = "content"
 NAME_FIELD = "name"
