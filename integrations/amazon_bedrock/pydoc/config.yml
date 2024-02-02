@@ -3,6 +3,9 @@ loaders:
     search_path: [../src]
     modules: [
       "haystack_integrations.components.generators.amazon_bedrock.generator",
+      "haystack_integrations.components.generators.amazon_bedrock.adapters",
+      "haystack_integrations.components.generators.amazon_bedrock.errors",
+      "haystack_integrations.components.generators.amazon_bedrock.handlers",
     ]
     ignore_when_discovered: ["__init__"]
 processors:
