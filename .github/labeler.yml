@@ -69,6 +69,11 @@ integration:opensearch:
       - any-glob-to-any-file: "integrations/opensearch/**/*"
       - any-glob-to-any-file: ".github/workflows/opensearch.yml"
 
+integration:pgvector:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/pgvector/**/*"
+      - any-glob-to-any-file: ".github/workflows/pgvector.yml"      
+
 integration:pinecone:
   - changed-files:
       - any-glob-to-any-file: "integrations/pinecone/**/*"
@@ -81,8 +86,8 @@ integration:qdrant:
 
 integration:unstructured-fileconverter:
   - changed-files:
-      - any-glob-to-any-file: "integrations/unstructured/fileconverter/**/*"
-      - any-glob-to-any-file: ".github/workflows/unstructured_fileconverter.yml"
+      - any-glob-to-any-file: "integrations/unstructured/**/*"
+      - any-glob-to-any-file: ".github/workflows/unstructured.yml"
 
 integration:uptrain:
   - changed-files:
