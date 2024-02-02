@@ -3,13 +3,16 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 from haystack.components.generators.utils import default_streaming_callback
-from haystack.dataclasses import ChatMessage, StreamingChunk
+from haystack.dataclasses import ChatMessage
 
 from haystack_integrations.components.generators.amazon_bedrock import AmazonBedrockChatGenerator
 from haystack_integrations.components.generators.amazon_bedrock.chat.adapters import (
+    AnthropicClaudeChatAdapter,
+    BedrockModelChatAdapter,
     MetaLlama2ChatAdapter,
-    AnthropicClaudeChatAdapter, BedrockModelChatAdapter,
 )
+
+clazz = "haystack_integrations.components.generators.amazon_bedrock.chat.chat_generator.AmazonBedrockChatGenerator"
 
 
 @pytest.fixture
@@ -30,7 +33,7 @@ def mock_boto3_session():
 @pytest.fixture
 def mock_prompt_handler():
     with patch(
-            "haystack_integrations.components.generators.amazon_bedrock.handlers.DefaultPromptHandler"
+        "haystack_integrations.components.generators.amazon_bedrock.handlers.DefaultPromptHandler"
     ) as mock_prompt_handler:
         yield mock_prompt_handler
 
@@ -49,9 +52,8 @@ def test_to_dict(mock_auto_tokenizer, mock_boto3_session):
         generation_kwargs={"temperature": 0.7},
         streaming_callback=default_streaming_callback,
     )
-
     expected_dict = {
-        "type": "haystack_integrations.components.generators.amazon_bedrock.chat.chat_generator.AmazonBedrockChatGenerator",
+        "type": clazz,
         "init_parameters": {
             "model": "anthropic.claude-v2",
             "generation_kwargs": {"temperature": 0.7},
@@ -69,7 +71,7 @@ def test_from_dict(mock_auto_tokenizer, mock_boto3_session):
     """
     generator = AmazonBedrockChatGenerator.from_dict(
         {
-            "type": "haystack_integrations.components.generators.amazon_bedrock.chat.chat_generator.AmazonBedrockChatGenerator",
+            "type": clazz,
             "init_parameters": {
                 "model": "anthropic.claude-v2",
                 "generation_kwargs": {"temperature": 0.7},
@@ -180,13 +182,11 @@ class TestAnthropicClaudeAdapter:
         assert body == expected_body
 
     def test_prepare_body_with_custom_inference_params(self) -> None:
-        layer = AnthropicClaudeChatAdapter(generation_kwargs={"temperature": 0.7,
-                                                              "top_p": 0.8,
-                                                              "top_k": 4})
+        layer = AnthropicClaudeChatAdapter(generation_kwargs={"temperature": 0.7, "top_p": 0.8, "top_k": 4})
         prompt = "Hello, how are you?"
         expected_body = {
             "prompt": "\n\nHuman: Hello, how are you?\n\nAssistant: ",
-            'max_tokens_to_sample': 69,
+            "max_tokens_to_sample": 69,
             "stop_sequences": ["\n\nHuman:", "CUSTOM_STOP"],
             "temperature": 0.7,
             "top_p": 0.8,
@@ -218,14 +218,13 @@ class TestMetaLlama2ChatAdapter:
         assert body == expected_body
 
     def test_prepare_body_with_custom_inference_params(self) -> None:
-        layer = MetaLlama2ChatAdapter(generation_kwargs={"temperature": 0.7,
-                                                         "top_p": 0.8,
-                                                         "top_k": 5,
-                                                         "stop_sequences": ["CUSTOM_STOP"]})
+        layer = MetaLlama2ChatAdapter(
+            generation_kwargs={"temperature": 0.7, "top_p": 0.8, "top_k": 5, "stop_sequences": ["CUSTOM_STOP"]}
+        )
         prompt = "Hello, how are you?"
         expected_body = {
             "prompt": "<s>[INST] Hello, how are you? [/INST]",
-            'max_gen_len': 69,
+            "max_gen_len": 69,
             "stop_sequences": ["CUSTOM_STOP"],
             "temperature": 0.7,
             "top_p": 0.8,

@@ -9,7 +9,12 @@ from haystack import component, default_from_dict, default_to_dict
 from haystack.components.generators.utils import deserialize_callback_handler
 from haystack.dataclasses import ChatMessage, StreamingChunk
 
-from ..errors import AmazonBedrockConfigurationError, AmazonBedrockInferenceError, AWSConfigurationError
+from haystack_integrations.components.generators.amazon_bedrock.errors import (
+    AmazonBedrockConfigurationError,
+    AmazonBedrockInferenceError,
+    AWSConfigurationError,
+)
+
 from .adapters import AnthropicClaudeChatAdapter, BedrockModelChatAdapter, MetaLlama2ChatAdapter
 
 logger = logging.getLogger(__name__)

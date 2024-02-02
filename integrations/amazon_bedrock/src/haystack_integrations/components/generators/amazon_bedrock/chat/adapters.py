@@ -52,7 +52,7 @@ class BedrockModelChatAdapter(ABC):
         for key, value in updates_dict.items():
             if key in target_dict and isinstance(target_dict[key], list) and isinstance(value, list):
                 # Merge lists and remove duplicates
-                target_dict[key] = list(sorted(set(target_dict[key] + value)))
+                target_dict[key] = sorted(set(target_dict[key] + value))
             else:
                 # Override the value in target_dict
                 target_dict[key] = value
@@ -129,7 +129,8 @@ class AnthropicClaudeChatAdapter(BedrockModelChatAdapter):
             elif message.is_from(ChatRole.ASSISTANT):
                 conversation.append(f"{AnthropicClaudeChatAdapter.ANTHROPIC_ASSISTANT_TOKEN} {message.content.strip()}")
             elif message.is_from(ChatRole.FUNCTION):
-                raise ValueError("anthropic does not support function calls.")
+                error_message = "Anthropic does not support function calls."
+                raise ValueError(error_message)
             elif message.is_from(ChatRole.SYSTEM) and index == 0:
                 # Until we transition to the new chat message format system messages will be ignored
                 # see https://docs.anthropic.com/claude/reference/messages_post for more details
@@ -137,7 +138,8 @@ class AnthropicClaudeChatAdapter(BedrockModelChatAdapter):
                     "System messages are not fully supported by the current version of Claude and will be ignored."
                 )
             else:
-                raise ValueError(f"Unsupported message role: {message.role}")
+                invalid_role = f"Invalid role {message.role} for message {message.content}"
+                raise ValueError(invalid_role)
 
         return "".join(conversation) + AnthropicClaudeChatAdapter.ANTHROPIC_ASSISTANT_TOKEN + " "
 
