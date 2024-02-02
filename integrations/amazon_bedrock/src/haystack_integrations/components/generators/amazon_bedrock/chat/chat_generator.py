@@ -40,7 +40,6 @@ class AmazonBedrockChatGenerator:
 
 
     client = AmazonBedrockChatGenerator(model="anthropic.claude-v2", streaming_callback=print_streaming_chunk)
-    client.warm_up()
     client.run(messages, generation_kwargs={"max_tokens_to_sample": 512})
 
     ```
@@ -124,7 +123,11 @@ class AmazonBedrockChatGenerator:
         kwargs = kwargs.copy()
         messages: List[ChatMessage] = kwargs.pop("messages", [])
         # check if the prompt is a list of ChatMessage objects
-        if not (isinstance(messages, list) and all(isinstance(message, ChatMessage) for message in messages)):
+        if not (
+            isinstance(messages, list)
+            and len(messages) > 0
+            and all(isinstance(message, ChatMessage) for message in messages)
+        ):
             msg = f"The model {self.model} requires a list of ChatMessage objects as a prompt."
             raise ValueError(msg)
 
@@ -217,7 +220,13 @@ class AmazonBedrockChatGenerator:
         Serialize this component to a dictionary.
         :return: The serialized component as a dictionary.
         """
-        return default_to_dict(self, model=self.model)
+        return default_to_dict(
+            self,
+            model=self.model,
+            stop_words=self.stop_words,
+            generation_kwargs=self.model_adapter.generation_kwargs,
+            streaming_callback=self.streaming_callback,
+        )
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "AmazonBedrockChatGenerator":

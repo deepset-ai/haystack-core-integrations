@@ -45,7 +45,7 @@ class AmazonBedrockGenerator:
 
     Usage example:
     ```python
-    from amazon_bedrock_haystack.generators.amazon_bedrock import AmazonBedrockGenerator
+    from haystack_integrations.components.generators.amazon_bedrock import AmazonBedrockGenerator
 
     generator = AmazonBedrockGenerator(
         model="anthropic.claude-v2",

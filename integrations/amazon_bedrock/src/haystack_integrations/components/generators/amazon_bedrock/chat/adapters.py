@@ -42,19 +42,34 @@ class BedrockModelChatAdapter(ABC):
         responses = ["".join(tokens).lstrip()]
         return responses
 
+    def _update_params(self, target_dict: Dict[str, Any], updates_dict: Dict[str, Any]) -> None:
+        """
+        Updates target_dict with values from updates_dict. Merges lists instead of overriding them.
+
+        :param target_dict: The dictionary to update.
+        :param updates_dict: The dictionary with updates.
+        """
+        for key, value in updates_dict.items():
+            if key in target_dict and isinstance(target_dict[key], list) and isinstance(value, list):
+                # Merge lists and remove duplicates
+                target_dict[key] = list(sorted(set(target_dict[key] + value)))
+            else:
+                # Override the value in target_dict
+                target_dict[key] = value
+
     def _get_params(self, inference_kwargs: Dict[str, Any], default_params: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Merges the default params with the inference kwargs and model kwargs.
-
-        Includes param if it's in kwargs or its default is not None (i.e. it is actually defined).
+        Merges params from inference_kwargs with the default params and self.generation_kwargs.
+        Uses a helper function to merge lists or override values as necessary.
         """
-        kwargs = self.generation_kwargs.copy()
-        kwargs.update(inference_kwargs)
-        return {
-            param: kwargs.get(param, default)
-            for param, default in default_params.items()
-            if param in kwargs or default is not None
-        }
+        # Start with a copy of default_params
+        kwargs = default_params.copy()
+
+        # Update the default params with self.generation_kwargs and finally inference_kwargs
+        self._update_params(kwargs, self.generation_kwargs)
+        self._update_params(kwargs, inference_kwargs)
+
+        return kwargs
 
     @abstractmethod
     def _extract_messages_from_response(self, response_body: Dict[str, Any]) -> List[ChatMessage]:
@@ -96,13 +111,10 @@ class AnthropicClaudeChatAdapter(BedrockModelChatAdapter):
         default_params = {
             "max_tokens_to_sample": self.generation_kwargs.get("max_tokens_to_sample") or 512,
             "stop_sequences": ["\n\nHuman:"],
-            "temperature": None,
-            "top_p": None,
-            "top_k": None,
         }
 
-        # combine stop words with default stop sequences
-        stop_sequences = inference_kwargs.get("stop_sequences", []) + inference_kwargs.get("stop_words", [])
+        # combine stop words with default stop sequences, remove stop_words as Anthropic does not support it
+        stop_sequences = inference_kwargs.get("stop_sequences", []) + inference_kwargs.pop("stop_words", [])
         if stop_sequences:
             inference_kwargs["stop_sequences"] = stop_sequences
         params = self._get_params(inference_kwargs, default_params)
@@ -156,14 +168,10 @@ class MetaLlama2ChatAdapter(BedrockModelChatAdapter):
         )
 
     def prepare_body(self, messages: List[ChatMessage], **inference_kwargs) -> Dict[str, Any]:
-        default_params = {
-            "max_gen_len": self.generation_kwargs.get("max_gen_len") or 512,
-            "temperature": None,
-            "top_p": None,
-        }
+        default_params = {"max_gen_len": self.generation_kwargs.get("max_gen_len") or 512}
 
-        # combine stop words with default stop sequences
-        stop_sequences = inference_kwargs.get("stop_sequences", []) + inference_kwargs.get("stop_words", [])
+        # combine stop words with default stop sequences, remove stop_words as MetaLlama2 does not support it
+        stop_sequences = inference_kwargs.get("stop_sequences", []) + inference_kwargs.pop("stop_words", [])
         if stop_sequences:
             inference_kwargs["stop_sequences"] = stop_sequences
         params = self._get_params(inference_kwargs, default_params)
