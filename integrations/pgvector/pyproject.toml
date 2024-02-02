@@ -51,6 +51,7 @@ dependencies = [
   "coverage[toml]>=6.5",
   "pytest",
   "ipython",
+  "haystack-pydoc-tools",  
 ]
 [tool.hatch.envs.default.scripts]
 test = "pytest {args:tests}"
@@ -62,6 +63,9 @@ cov-report = [
 cov = [
   "test-cov",
   "cov-report",
+]
+docs = [
+  "pydoc-markdown pydoc/config.yml"
 ]
 
 [[tool.hatch.envs.all.matrix]]
