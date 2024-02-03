@@ -168,7 +168,7 @@ def test_get_model_adapter(model: str, expected_model_adapter: Optional[Type[Bed
 
 
 class TestAnthropicClaudeAdapter:
-    def test_prepare_body_with_default_params(self) -> None:
+    def test_prepare_body_with_default_params(self, mock_auto_tokenizer) -> None:
         layer = AnthropicClaudeChatAdapter(generation_kwargs={})
         prompt = "Hello, how are you?"
         expected_body = {
@@ -181,7 +181,7 @@ class TestAnthropicClaudeAdapter:
 
         assert body == expected_body
 
-    def test_prepare_body_with_custom_inference_params(self) -> None:
+    def test_prepare_body_with_custom_inference_params(self, mock_auto_tokenizer) -> None:
         layer = AnthropicClaudeChatAdapter(generation_kwargs={"temperature": 0.7, "top_p": 0.8, "top_k": 4})
         prompt = "Hello, how are you?"
         expected_body = {
@@ -205,7 +205,11 @@ class TestAnthropicClaudeAdapter:
 
 
 class TestMetaLlama2ChatAdapter:
-    def test_prepare_body_with_default_params(self) -> None:
+
+    @pytest.mark.integration
+    def test_prepare_body_with_default_params(self, mock_auto_tokenizer) -> None:
+        # leave this test as integration because we really need only tokenizer from HF
+        # that way we can ensure prompt chat message formatting
         layer = MetaLlama2ChatAdapter(generation_kwargs={})
         prompt = "Hello, how are you?"
         expected_body = {
@@ -217,7 +221,10 @@ class TestMetaLlama2ChatAdapter:
 
         assert body == expected_body
 
+    @pytest.mark.integration
     def test_prepare_body_with_custom_inference_params(self) -> None:
+        # leave this test as integration because we really need only tokenizer from HF
+        # that way we can ensure prompt chat message formatting
         layer = MetaLlama2ChatAdapter(
             generation_kwargs={"temperature": 0.7, "top_p": 0.8, "top_k": 5, "stop_sequences": ["CUSTOM_STOP"]}
         )
@@ -242,7 +249,7 @@ class TestMetaLlama2ChatAdapter:
 
         assert body == expected_body
 
-    def test_get_responses(self) -> None:
+    def test_get_responses(self, mock_auto_tokenizer) -> None:
         adapter = MetaLlama2ChatAdapter(generation_kwargs={})
         response_body = {"generation": "This is a single response."}
         expected_response = "This is a single response."
