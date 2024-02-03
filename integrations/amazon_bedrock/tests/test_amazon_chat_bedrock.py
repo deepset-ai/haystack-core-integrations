@@ -207,7 +207,7 @@ class TestAnthropicClaudeAdapter:
 class TestMetaLlama2ChatAdapter:
 
     @pytest.mark.integration
-    def test_prepare_body_with_default_params(self, mock_auto_tokenizer) -> None:
+    def test_prepare_body_with_default_params(self) -> None:
         # leave this test as integration because we really need only tokenizer from HF
         # that way we can ensure prompt chat message formatting
         layer = MetaLlama2ChatAdapter(generation_kwargs={})
