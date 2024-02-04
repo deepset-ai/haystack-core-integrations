@@ -25,6 +25,7 @@ class TestOllamaTextEmbedder:
         assert embedder.url == "http://my-custom-endpoint:11434/api/embeddings"
         assert embedder.model == "llama2"
 
+    @pytest.mark.integration
     def test_model_not_found(self):
         embedder = OllamaTextEmbedder(model="cheese")
 
@@ -33,9 +34,10 @@ class TestOllamaTextEmbedder:
 
     @pytest.mark.integration
     def test_run(self):
-        embedder = OllamaTextEmbedder()
+        embedder = OllamaTextEmbedder(model="orca-mini")
 
         reply = embedder.run("hello")
 
         assert isinstance(reply, dict)
         assert all(isinstance(element, float) for element in reply["embedding"])
+        assert reply["meta"]["model"] == "orca-mini"

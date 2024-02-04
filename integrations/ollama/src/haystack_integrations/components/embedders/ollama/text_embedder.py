@@ -38,7 +38,7 @@ class OllamaTextEmbedder:
         """
         return {"model": self.model, "prompt": text, "options": {**self.generation_kwargs, **(generation_kwargs or {})}}
 
-    @component.output_types(embedding=List[float])
+    @component.output_types(embedding=List[float], meta=Dict[str, Any])
     def run(self, text: str, generation_kwargs: Optional[Dict[str, Any]] = None):
         """
         Run an Ollama Model on a given chat history.
@@ -55,4 +55,7 @@ class OllamaTextEmbedder:
 
         response.raise_for_status()
 
-        return response.json()
+        result = response.json()
+        result["meta"] = {"model": self.model, "duration": response.elapsed}
+
+        return result
