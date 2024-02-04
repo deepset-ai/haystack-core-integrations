@@ -154,7 +154,10 @@ class TestUnstructuredFileConverter:
     @pytest.mark.integration
     def test_run_one_doc_per_element_with_meta_list_two_files(self, samples_path):
         pdf_path = [samples_path / "sample_pdf.pdf", samples_path / "sample_pdf2.pdf"]
-        meta = [{"custom_meta": "foobar", "common_meta": "common"}, {"other_meta": "barfoo", "common_meta": "common"}]
+        meta = [
+            {"custom_meta": "sample_pdf.pdf", "common_meta": "common"},
+            {"custom_meta": "sample_pdf2.pdf", "common_meta": "common"},
+        ]
         local_converter = UnstructuredFileConverter(
             api_url="http://localhost:8000/general/v0/general", document_creation_mode="one-doc-per-element"
         )
@@ -163,6 +166,7 @@ class TestUnstructuredFileConverter:
 
         assert len(documents) > 4
         for doc in documents:
+            assert doc.meta["custom_meta"] == doc.meta["filename"]
             assert "file_path" in doc.meta
             assert "page_number" in doc.meta
             # elements have a category attribute that is saved in the document meta
