@@ -120,8 +120,7 @@ class UnstructuredFileConverter:
                 please provide an explicit list of direct paths instead."""
             raise ValueError(error)
 
-        all_filepaths = filepaths.union(filepaths_in_directories)
-
+        all_filepaths = filepaths + filepaths_in_directories
         # currently, the files are converted sequentially to gently handle API failures
         documents = []
         meta_list = normalize_metadata(meta, sources_count=len(all_filepaths))
