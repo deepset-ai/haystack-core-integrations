@@ -109,12 +109,16 @@ class UnstructuredFileConverter:
           the actual number of files contained.
           Defaults to `None`.
         """
-
-        unique_paths = {Path(path) for path in paths}
-        filepaths = {path for path in unique_paths if path.is_file()}
-        filepaths_in_directories = {
-            filepath for path in unique_paths if path.is_dir() for filepath in path.glob("*.*") if filepath.is_file()
-        }
+        paths_obj = [Path(path) for path in paths]
+        filepaths = [path for path in paths_obj if path.is_file()]
+        filepaths_in_directories = [
+            filepath for path in paths_obj if path.is_dir() for filepath in path.glob("*.*") if filepath.is_file()
+        ]
+        if filepaths_in_directories != [] and isinstance(meta, list):
+            error = """For directories as path metadata can only be a unique dictionary, not a list.
+                To provide different metadata (list) for each files,
+                please provide an explicit list of direct paths instead."""
+            raise ValueError(error)
 
         all_filepaths = filepaths.union(filepaths_in_directories)
 
