@@ -4,8 +4,7 @@ import pytest
 from haystack import Document
 from haystack.testing.document_store import FilterDocumentsTest
 from haystack.utils.filters import FilterError
-
-from qdrant_haystack import QdrantDocumentStore
+from haystack_integrations.document_stores.qdrant import QdrantDocumentStore
 
 
 class TestQdrantStoreBaseTests(FilterDocumentsTest):
@@ -87,29 +86,22 @@ class TestQdrantStoreBaseTests(FilterDocumentsTest):
     # ======== ========================== ========
 
     @pytest.mark.skip(reason="Qdrant doesn't support comparision with dataframe")
-    def test_comparison_equal_with_dataframe(self, document_store, filterable_docs):
-        ...
+    def test_comparison_equal_with_dataframe(self, document_store, filterable_docs): ...
 
     @pytest.mark.skip(reason="Qdrant doesn't support comparision with dataframe")
-    def test_comparison_not_equal_with_dataframe(self, document_store, filterable_docs):
-        ...
+    def test_comparison_not_equal_with_dataframe(self, document_store, filterable_docs): ...
 
     @pytest.mark.skip(reason="Qdrant doesn't support comparision with Dates")
-    def test_comparison_greater_than_with_iso_date(self, document_store, filterable_docs):
-        ...
+    def test_comparison_greater_than_with_iso_date(self, document_store, filterable_docs): ...
 
     @pytest.mark.skip(reason="Qdrant doesn't support comparision with Dates")
-    def test_comparison_greater_than_equal_with_iso_date(self, document_store, filterable_docs):
-        ...
+    def test_comparison_greater_than_equal_with_iso_date(self, document_store, filterable_docs): ...
 
     @pytest.mark.skip(reason="Qdrant doesn't support comparision with Dates")
-    def test_comparison_less_than_with_iso_date(self, document_store, filterable_docs):
-        ...
+    def test_comparison_less_than_with_iso_date(self, document_store, filterable_docs): ...
 
     @pytest.mark.skip(reason="Qdrant doesn't support comparision with Dates")
-    def test_comparison_less_than_equal_with_iso_date(self, document_store, filterable_docs):
-        ...
+    def test_comparison_less_than_equal_with_iso_date(self, document_store, filterable_docs): ...
 
     @pytest.mark.skip(reason="Cannot distinguish errors yet")
-    def test_missing_top_level_operator_key(self, document_store, filterable_docs):
-        ...
+    def test_missing_top_level_operator_key(self, document_store, filterable_docs): ...

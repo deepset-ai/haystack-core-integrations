@@ -20,7 +20,8 @@ Also, if there's any new terminology involved, define it here.
 ## Checklist
 
 If the request is accepted, ensure the following checklist is complete before closing this issue.
-
+```[tasklist]
+### Tasks
 - [ ] The code is documented with docstrings and was merged in the `main` branch
 - [ ] Docs are published at https://docs.haystack.deepset.ai/
 - [ ] There is a Github workflow running the tests for the integration nightly and at every PR
@@ -31,3 +32,4 @@ If the request is accepted, ensure the following checklist is complete before cl
 - [ ] The integration has been listed in the [Inventory section](https://github.com/deepset-ai/haystack-core-integrations#inventory) of this repo README
 - [ ] There is an example available to demonstrate the feature
 - [ ] The feature was announced through social media
+```

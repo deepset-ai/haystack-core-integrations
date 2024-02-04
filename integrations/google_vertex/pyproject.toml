@@ -33,6 +33,9 @@ Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/m
 Issues = "https://github.com/deepset-ai/haystack-core-integrations/issues"
 Source = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/google_vertex"
 
+[tool.hatch.build.targets.wheel]
+packages = ["src/haystack_integrations"]
+
 [tool.hatch.version]
 source = "vcs"
 tag-pattern = 'integrations\/google_vertex-v(?P<version>.*)'
@@ -69,7 +72,7 @@ dependencies = [
   "ruff>=0.0.243",
 ]
 [tool.hatch.envs.lint.scripts]
-typing = "mypy --install-types --non-interactive {args:src/google_vertex_haystack tests}"
+typing = "mypy --install-types --non-interactive --explicit-package-bases {args:src/ tests}"
 style = [
   "ruff {args:.}",
   "black --check --diff {args:.}",
@@ -132,26 +135,23 @@ unfixable = [
 ]
 
 [tool.ruff.isort]
-known-first-party = ["google_vertex_haystack"]
+known-first-party = ["haystack_integrations"]
 
 [tool.ruff.flake8-tidy-imports]
-ban-relative-imports = "all"
+ban-relative-imports = "parents"
 
 [tool.ruff.per-file-ignores]
 # Tests can use magic values, assertions, and relative imports
 "tests/**/*" = ["PLR2004", "S101", "TID252"]
 
 [tool.coverage.run]
-source_pkgs = ["google_vertex_haystack", "tests"]
+source_pkgs = ["haystack_integrations", "tests"]
 branch = true
 parallel = true
-omit = [
-  "src/google_vertex_haystack/__about__.py",
-]
 
 [tool.coverage.paths]
-google_vertex_haystack = ["src/google_vertex_haystack", "*/google_vertex/src/google_vertex_haystack"]
-tests = ["tests", "*/google_vertex_haystack/tests"]
+google_vertex_haystack = ["src/"]
+tests = ["tests"]
 
 [tool.coverage.report]
 exclude_lines = [
@@ -164,6 +164,7 @@ exclude_lines = [
 module = [
   "vertexai.*",
   "haystack.*",
+  "haystack_integrations.*",
   "pytest.*",
   "numpy.*",
 ]

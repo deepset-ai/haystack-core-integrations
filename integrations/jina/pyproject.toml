@@ -31,6 +31,9 @@ Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/m
 Issues = "https://github.com/deepset-ai/haystack-core-integrations/issues"
 Source = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/jina"
 
+[tool.hatch.build.targets.wheel]
+packages = ["src/haystack_integrations"]
+
 [tool.hatch.version]
 source = "vcs"
 tag-pattern = 'integrations\/jina-v(?P<version>.*)'
@@ -67,7 +70,7 @@ dependencies = [
   "ruff>=0.0.243",
 ]
 [tool.hatch.envs.lint.scripts]
-typing = "mypy --install-types --non-interactive {args:src/jina_haystack tests}"
+typing = "mypy --install-types --non-interactive --explicit-package-bases {args:src/ tests}"
 style = [
   "ruff {args:.}",
   "black --check --diff {args:.}",
@@ -133,7 +136,7 @@ unfixable = [
 known-first-party = ["jina_haystack"]
 
 [tool.ruff.flake8-tidy-imports]
-ban-relative-imports = "all"
+ban-relative-imports = "parents"
 
 [tool.ruff.per-file-ignores]
 # Tests can use magic values, assertions, and relative imports
@@ -143,12 +146,9 @@ ban-relative-imports = "all"
 source_pkgs = ["jina_haystack", "tests"]
 branch = true
 parallel = true
-omit = [
-  "src/jina_haystack/__about__.py",
-]
 
 [tool.coverage.paths]
-jina_haystack = ["src/jina_haystack", "*/jina-haystack/src/jina_haystack"]
+jina_haystack = ["src"]
 tests = ["tests", "*/jina-haystack/tests"]
 
 [tool.coverage.report]
@@ -161,6 +161,7 @@ exclude_lines = [
 [[tool.mypy.overrides]]
 module = [
   "haystack.*",
+  "haystack_integrations.*",
   "pytest.*"
 ]
 ignore_missing_imports = true

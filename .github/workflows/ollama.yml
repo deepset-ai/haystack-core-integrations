@@ -54,6 +54,11 @@ jobs:
       - name: Pull the LLM in the Ollama service
         run: docker exec ollama ollama pull ${{ env.LLM_FOR_TESTS }}        
 
+      - name: Generate docs
+        working-directory: integrations/ollama
+        if: matrix.python-version == '3.9' && runner.os == 'Linux'
+        run: hatch run docs
+
       - name: Run tests
         working-directory: integrations/ollama
         run: hatch run cov

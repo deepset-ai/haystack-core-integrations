@@ -25,6 +25,7 @@ classifiers = [
 dependencies = [
   "haystack-ai",
   "chromadb<0.4.20",  #  FIXME: investigate why filtering tests broke on 0.4.20
+  "typing_extensions>=4.8.0",
 ]
 
 [project.urls]
@@ -47,6 +48,7 @@ git_describe_command = 'git describe --tags --match="integrations/chroma-v[0-9]*
 dependencies = [
   "coverage[toml]>=6.5",
   "pytest",
+  "haystack-pydoc-tools",
 ]
 [tool.hatch.envs.default.scripts]
 test = "pytest {args:tests}"
@@ -58,6 +60,9 @@ cov-report = [
 cov = [
   "test-cov",
   "cov-report",
+]
+docs = [
+  "pydoc-markdown pydoc/config.yml"
 ]
 
 [[tool.hatch.envs.all.matrix]]

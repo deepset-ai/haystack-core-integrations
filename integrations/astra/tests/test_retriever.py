@@ -5,7 +5,7 @@ import os
 
 import pytest
 
-from astra_haystack.retriever import AstraRetriever
+from haystack_integrations.components.retrievers.astra import AstraRetriever
 
 
 @pytest.mark.skipif(
@@ -16,7 +16,7 @@ from astra_haystack.retriever import AstraRetriever
 def test_retriever_to_json(document_store):
     retriever = AstraRetriever(document_store, filters={"foo": "bar"}, top_k=99)
     assert retriever.to_dict() == {
-        "type": "astra_haystack.retriever.AstraRetriever",
+        "type": "haystack_integrations.components.retrievers.astra.retriever.AstraRetriever",
         "init_parameters": {
             "filters": {"foo": "bar"},
             "top_k": 99,
@@ -30,7 +30,7 @@ def test_retriever_to_json(document_store):
                     "embedding_dim": 768,
                     "similarity": "cosine",
                 },
-                "type": "astra_haystack.document_store.AstraDocumentStore",
+                "type": "haystack_integrations.document_stores.astra.document_store.AstraDocumentStore",
             },
         },
     }
@@ -43,7 +43,7 @@ def test_retriever_to_json(document_store):
 @pytest.mark.integration
 def test_retriever_from_json():
     data = {
-        "type": "astra_haystack.retriever.AstraRetriever",
+        "type": "haystack_integrations.components.retrievers.astra.retriever.AstraRetriever",
         "init_parameters": {
             "filters": {"bar": "baz"},
             "top_k": 42,
@@ -58,7 +58,7 @@ def test_retriever_from_json():
                     "embedding_dim": 768,
                     "similarity": "cosine",
                 },
-                "type": "astra_haystack.document_store.AstraDocumentStore",
+                "type": "haystack_integrations.document_stores.astra.document_store.AstraDocumentStore",
             },
         },
     }

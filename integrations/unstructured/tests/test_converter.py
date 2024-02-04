@@ -188,6 +188,7 @@ class TestUnstructuredFileConverter:
     def test_run_one_doc_per_element_with_meta_list_folder(self, samples_path):
         pdf_path = [samples_path]
         meta = {"common_meta": "common"}
+
         local_converter = UnstructuredFileConverter(
             api_url="http://localhost:8000/general/v0/general", document_creation_mode="one-doc-per-element"
         )
