@@ -175,9 +175,19 @@ class TestUnstructuredFileConverter:
             assert doc.meta["common_meta"] == "common"
 
     @pytest.mark.integration
-    def test_run_one_doc_per_element_with_meta_list_folder(self, samples_path):
+    def test_run_one_doc_per_element_with_meta_list_folder_fail(self, samples_path):
         pdf_path = [samples_path]
         meta = [{"custom_meta": "foobar", "common_meta": "common"}, {"other_meta": "barfoo", "common_meta": "common"}]
+        local_converter = UnstructuredFileConverter(
+            api_url="http://localhost:8000/general/v0/general", document_creation_mode="one-doc-per-element"
+        )
+        with pytest.raises(ValueError):
+            local_converter.run(paths=pdf_path, meta=meta)["documents"]
+
+    @pytest.mark.integration
+    def test_run_one_doc_per_element_with_meta_list_folder(self, samples_path):
+        pdf_path = [samples_path]
+        meta = {"common_meta": "common"}
         local_converter = UnstructuredFileConverter(
             api_url="http://localhost:8000/general/v0/general", document_creation_mode="one-doc-per-element"
         )
