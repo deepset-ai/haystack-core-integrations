@@ -8,12 +8,31 @@
 **Table of Contents**
 
 - [Installation](#installation)
+- [Contributing](#contributing)
 - [License](#license)
 
 ## Installation
 
 ```console
 pip install amazon-bedrock-haystack
+```
+
+## Contributing
+
+`hatch` is the best way to interact with this project, to install it:
+```sh
+pip install hatch
+```
+
+With `hatch` installed, to run all the tests:
+```
+hatch run test
+```
+> Note: there are no integration tests for this project.
+
+To run the linters `ruff` and `mypy`:
+```
+hatch run lint:all
 ```
 
 ## License

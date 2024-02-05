@@ -122,7 +122,7 @@ class CohereGenerator:
         """
         init_params = data.get("init_parameters", {})
         streaming_callback = None
-        if "streaming_callback" in init_params and init_params["streaming_callback"]:
+        if "streaming_callback" in init_params and init_params["streaming_callback"] is not None:
             parts = init_params["streaming_callback"].split(".")
             module_name = ".".join(parts[:-1])
             function_name = parts[-1]
