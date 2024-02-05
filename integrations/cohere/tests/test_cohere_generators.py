@@ -164,7 +164,7 @@ class TestCohereGenerator:
                 self.responses = ""
 
             def __call__(self, chunk):
-                self.responses += chunk.text
+                self.responses += chunk.content
                 return chunk
 
         callback = Callback()

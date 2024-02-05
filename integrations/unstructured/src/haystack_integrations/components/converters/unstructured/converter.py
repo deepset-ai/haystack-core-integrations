@@ -105,19 +105,23 @@ class UnstructuredFileConverter:
           This value can be either a list of dictionaries or a single dictionary.
           If it's a single dictionary, its content is added to the metadata of all produced Documents.
           If it's a list, the length of the list must match the number of paths, because the two lists will be zipped.
-          Please note that if the paths contain directories, the length of the meta list must match
-          the actual number of files contained.
+          Please note that if the paths contain directories, meta can only be a single dictionary
+          (same metadata for all files).
           Defaults to `None`.
         """
+        paths_obj = [Path(path) for path in paths]
+        filepaths = [path for path in paths_obj if path.is_file()]
+        filepaths_in_directories = [
+            filepath for path in paths_obj if path.is_dir() for filepath in path.glob("*.*") if filepath.is_file()
+        ]
+        if filepaths_in_directories and isinstance(meta, list):
+            error = """"If providing directories in the `paths` parameter,
+             `meta` can only be a dictionary (metadata applied to every file),
+             and not a list. To specify different metadata for each file,
+             provide an explicit list of direct paths instead."""
+            raise ValueError(error)
 
-        unique_paths = {Path(path) for path in paths}
-        filepaths = {path for path in unique_paths if path.is_file()}
-        filepaths_in_directories = {
-            filepath for path in unique_paths if path.is_dir() for filepath in path.glob("*.*") if filepath.is_file()
-        }
-
-        all_filepaths = filepaths.union(filepaths_in_directories)
-
+        all_filepaths = filepaths + filepaths_in_directories
         # currently, the files are converted sequentially to gently handle API failures
         documents = []
         meta_list = normalize_metadata(meta, sources_count=len(all_filepaths))
