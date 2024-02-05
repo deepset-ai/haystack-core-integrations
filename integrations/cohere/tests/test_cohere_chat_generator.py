@@ -260,7 +260,10 @@ class TestCohereChatGenerator:
     @pytest.mark.integration
     def test_live_run_wrong_model(self, chat_messages):
         component = CohereChatGenerator(model="something-obviously-wrong", api_key=os.environ.get("COHERE_API_KEY"))
-        with pytest.raises(cohere.CohereAPIError, match="finetuned model something-obviously-wrong is not valid"):
+        with pytest.raises(
+            cohere.CohereAPIError,
+            match="model not found, make sure the correct model ID was used and that you have access to the model.",
+        ):
             component.run(chat_messages)
 
     @pytest.mark.skipif(
