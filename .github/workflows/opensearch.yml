@@ -18,6 +18,10 @@ env:
   PYTHONUNBUFFERED: "1"
   FORCE_COLOR: "1"
 
+defaults:
+  run:
+    working-directory: integrations/opensearch  
+
 jobs:
   run:
     name: Python ${{ matrix.python-version }} on ${{ startsWith(matrix.os, 'macos-') && 'macOS' || startsWith(matrix.os, 'windows-') && 'Windows' || 'Linux' }}
@@ -40,13 +44,15 @@ jobs:
         run: pip install --upgrade hatch
 
       - name: Lint
-        working-directory: integrations/opensearch
         if: matrix.python-version == '3.9'
         run: hatch run lint:all
 
       - name: Run opensearch container
-        working-directory: integrations/opensearch
         run: docker-compose up -d
+
+      - name: Generate docs
+        if: matrix.python-version == '3.9' && runner.os == 'Linux'
+        run: hatch run docs        
 
       - name: Run tests
         working-directory: integrations/opensearch
