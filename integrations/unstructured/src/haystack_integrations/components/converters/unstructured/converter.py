@@ -114,10 +114,11 @@ class UnstructuredFileConverter:
         filepaths_in_directories = [
             filepath for path in paths_obj if path.is_dir() for filepath in path.glob("*.*") if filepath.is_file()
         ]
-        if filepaths_in_directories != [] and isinstance(meta, list):
-            error = """For directories as path metadata can only be a unique dictionary, not a list.
-                To provide different metadata (list) for each files,
-                please provide an explicit list of direct paths instead."""
+        if filepaths_in_directories and isinstance(meta, list):
+            error = """"If providing directories in the `paths` parameter,
+             `meta` can only be a dictionary (metadata applied to every file),
+             and not a list. To specify different metadata for each file,
+             provide an explicit list of direct paths instead."""
             raise ValueError(error)
 
         all_filepaths = filepaths + filepaths_in_directories
