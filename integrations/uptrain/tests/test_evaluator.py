@@ -14,8 +14,13 @@ DEFAULT_QUESTIONS = [
     "Who created the Python language?",
 ]
 DEFAULT_CONTEXTS = [
-    "The popularity of sports can be measured in various ways, including TV viewership, social media presence, number of participants, and economic impact. Football is undoubtedly the world's most popular sport with major events like the FIFA World Cup and sports personalities like Ronaldo and Messi, drawing a followership of more than 4 billion people.",
-    "Python, created by Guido van Rossum in the late 1980s, is a high-level general-purpose programming language. Its design philosophy emphasizes code readability, and its language constructs aim to help programmers write clear, logical code for both small and large-scale software projects.",
+    [
+        "The popularity of sports can be measured in various ways, including TV viewership, social media presence, number of participants, and economic impact.",
+        "Football is undoubtedly the world's most popular sport with major events like the FIFA World Cup and sports personalities like Ronaldo and Messi, drawing a followership of more than 4 billion people.",
+    ],
+    [
+        "Python, created by Guido van Rossum in the late 1980s, is a high-level general-purpose programming language. Its design philosophy emphasizes code readability, and its language constructs aim to help programmers write clear, logical code for both small and large-scale software projects."
+    ],
 ]
 DEFAULT_RESPONSES = [
     "Football is the most popular sport with around 4 billion followers worldwide",
@@ -238,10 +243,10 @@ def test_evaluator_invalid_inputs(os_environ_get, metric, inputs, error_string, 
 @pytest.mark.parametrize(
     "metric, inputs, expected_outputs, metric_params",
     [
-        (UpTrainMetric.CONTEXT_RELEVANCE, {"questions": ["q1"], "contexts": ["c1"]}, [[(None, 0.5, "1")]], None),
+        (UpTrainMetric.CONTEXT_RELEVANCE, {"questions": ["q1"], "contexts": [["c1"]]}, [[(None, 0.5, "1")]], None),
         (
             UpTrainMetric.FACTUAL_ACCURACY,
-            {"questions": ["q2"], "contexts": ["c2"], "responses": ["r2"]},
+            {"questions": ["q2"], "contexts": [["c2"]], "responses": ["r2"]},
             [[(None, 1.0, "2")]],
             None,
         ),
@@ -249,13 +254,13 @@ def test_evaluator_invalid_inputs(os_environ_get, metric, inputs, error_string, 
         (UpTrainMetric.RESPONSE_COMPLETENESS, {"questions": ["q4"], "responses": ["r4"]}, [[(None, 0.5, "4")]], None),
         (
             UpTrainMetric.RESPONSE_COMPLETENESS_WRT_CONTEXT,
-            {"questions": ["q5"], "contexts": ["c5"], "responses": ["r5"]},
+            {"questions": ["q5"], "contexts": [["c5"]], "responses": ["r5"]},
             [[(None, 1.0, "5")]],
             None,
         ),
         (
             UpTrainMetric.RESPONSE_CONSISTENCY,
-            {"questions": ["q6"], "contexts": ["c6"], "responses": ["r6"]},
+            {"questions": ["q6"], "contexts": [["c6"]], "responses": ["r6"]},
             [[(None, 0.9, "6")]],
             None,
         ),
