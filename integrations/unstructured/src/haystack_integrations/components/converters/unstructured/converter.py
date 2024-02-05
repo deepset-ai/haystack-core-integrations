@@ -105,8 +105,8 @@ class UnstructuredFileConverter:
           This value can be either a list of dictionaries or a single dictionary.
           If it's a single dictionary, its content is added to the metadata of all produced Documents.
           If it's a list, the length of the list must match the number of paths, because the two lists will be zipped.
-          Please note that if the paths contain directories, the length of the meta list must match
-          the actual number of files contained.
+          Please note that if the paths contain directories, meta can only be a single dictionary
+          (same metadata for all files).
           Defaults to `None`.
         """
         paths_obj = [Path(path) for path in paths]
