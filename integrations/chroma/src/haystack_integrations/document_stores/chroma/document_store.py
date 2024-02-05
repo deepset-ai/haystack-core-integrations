@@ -24,7 +24,7 @@ class ChromaDocumentStore:
     """
 
     def __init__(
-        self, collection_name: str = "documents", embedding_function: str = "default", **embedding_function_params
+        self, collection_name: str = "documents", embedding_function: str = "default", persist_path: str = None, **embedding_function_params
     ):
         """
         Initializes the store. The __init__ constructor is not part of the Store Protocol
@@ -40,7 +40,7 @@ class ChromaDocumentStore:
         self._embedding_function = embedding_function
         self._embedding_function_params = embedding_function_params
         # Create the client instance
-        self._chroma_client = chromadb.Client()
+        self._chroma_client = chromadb.Client() if persist_path == None else chromadb.PersistentClient(path=persist_path)
         self._collection = self._chroma_client.get_or_create_collection(
             name=collection_name,
             embedding_function=get_embedding_function(embedding_function, **embedding_function_params),
@@ -185,14 +185,23 @@ class ChromaDocumentStore:
         )
         return self._query_result_to_documents(results)
 
-    def search_embeddings(self, query_embeddings: List[List[float]], top_k: int) -> List[List[Document]]:
+    def search_embeddings(self, query_embeddings: List[List[float]], top_k: int, filters: Optional[Dict[str, Any]] = None) -> List[List[Document]]:
         """
         Perform vector search on the stored document, pass the embeddings of the queries
-        instead of their text
+        instead of their text.
+
+        Accepts filters in haystack format.
         """
+        if filters is not None:
+            chroma_filters = self._normalize_filters(filters=filters)
+        else:
+            chroma_filters = (None, None, None)
+
         results = self._collection.query(
             query_embeddings=query_embeddings,
             n_results=top_k,
+            where=chroma_filters[1],
+            where_document=chroma_filters[2],
             include=["embeddings", "documents", "metadatas", "distances"],
         )
         return self._query_result_to_documents(results)
