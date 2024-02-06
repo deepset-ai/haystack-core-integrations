@@ -15,11 +15,11 @@ class UpTrainMetric(Enum):
     """
 
     #: Context relevance.
-    #: Inputs - `questions: List[str], contexts: List[str]`
+    #: Inputs - `questions: List[str], contexts: List[List[str]]`
     CONTEXT_RELEVANCE = "context_relevance"
 
     #: Factual accuracy.
-    #: Inputs - `questions: List[str], contexts: List[str], responses: List[str]`
+    #: Inputs - `questions: List[str], contexts: List[List[str]], responses: List[str]`
     FACTUAL_ACCURACY = "factual_accuracy"
 
     #: Response relevance.
@@ -31,11 +31,11 @@ class UpTrainMetric(Enum):
     RESPONSE_COMPLETENESS = "response_completeness"
 
     #: Response completeness with respect to context.
-    #: Inputs - `questions: List[str], contexts: List[str], responses: List[str]`
+    #: Inputs - `questions: List[str], contexts: List[List[str]], responses: List[str]`
     RESPONSE_COMPLETENESS_WRT_CONTEXT = "response_completeness_wrt_context"
 
     #: Response consistency.
-    #: Inputs - `questions: List[str], contexts: List[str], responses: List[str]`
+    #: Inputs - `questions: List[str], contexts: List[List[str]], responses: List[str]`
     RESPONSE_CONSISTENCY = "response_consistency"
 
     #: Response conciseness.
@@ -174,8 +174,8 @@ class InputConverters:
                     f"got '{type(collection).__name__}' instead"
                 )
                 raise ValueError(msg)
-            elif not all(isinstance(x, str) for x in collection):
-                msg = f"UpTrain evaluator expects inputs to be of type 'str' in '{k}'"
+            elif not all(isinstance(x, str) for x in collection) and not all(isinstance(x, list) for x in collection):
+                msg = f"UpTrain evaluator expects inputs to be of type 'str' or 'list' in '{k}'"
                 raise ValueError(msg)
 
         same_length = len({len(x) for x in kwargs.values()}) == 1
@@ -191,20 +191,27 @@ class InputConverters:
                 raise ValueError(msg)
 
     @staticmethod
+    def _convert_contexts(contexts: List[List[str]]) -> List[str]:
+        if not all(isinstance(x, list) for x in contexts):
+            msg = "UpTrain evaluator expected 'contexts' to be a nested list of strings"
+            raise ValueError(msg)
+        return ["\n\n".join(c) for c in contexts]
+
+    @staticmethod
     def question_context_response(
-        questions: List[str], contexts: List[str], responses: List[str]
+        questions: List[str], contexts: List[List[str]], responses: List[str]
     ) -> Iterable[Dict[str, str]]:
         InputConverters._validate_input_elements(questions=questions, contexts=contexts, responses=responses)
-        for q, c, r in zip(questions, contexts, responses):  # type: ignore
+        for q, c, r in zip(questions, InputConverters._convert_contexts(contexts), responses):  # type: ignore
             yield {"question": q, "context": c, "response": r}
 
     @staticmethod
     def question_context(
         questions: List[str],
-        contexts: List[str],
+        contexts: List[List[str]],
     ) -> Iterable[Dict[str, str]]:
         InputConverters._validate_input_elements(questions=questions, contexts=contexts)
-        for q, c in zip(questions, contexts):  # type: ignore
+        for q, c in zip(questions, InputConverters._convert_contexts(contexts)):  # type: ignore
             yield {"question": q, "context": c}
 
     @staticmethod
