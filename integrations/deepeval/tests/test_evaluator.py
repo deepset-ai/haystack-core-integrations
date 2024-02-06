@@ -68,7 +68,10 @@ class MockBackend:
         return out
 
 
-def test_evaluator_metric_init_params():
+@patch("os.environ.get")
+def test_evaluator_metric_init_params(os_environ_get):
+    os_environ_get.return_value = "abacab"
+
     eval = DeepEvalEvaluator(DeepEvalMetric.ANSWER_RELEVANCY, metric_params={"model": "gpt-4-32k"})
     assert eval._backend_metric.evaluation_model == "gpt-4-32k"
 
@@ -79,7 +82,10 @@ def test_evaluator_metric_init_params():
         DeepEvalEvaluator(DeepEvalMetric.CONTEXTUAL_RECALL)
 
 
-def test_evaluator_serde():
+@patch("os.environ.get")
+def test_evaluator_serde(os_environ_get):
+    os_environ_get.return_value = "abacab"
+
     init_params = {
         "metric": DeepEvalMetric.ANSWER_RELEVANCY,
         "metric_params": {"model": "gpt-4-32k"},
@@ -127,7 +133,10 @@ def test_evaluator_serde():
         ),
     ],
 )
-def test_evaluator_valid_inputs(metric, inputs, params):
+@patch("os.environ.get")
+def test_evaluator_valid_inputs(os_environ_get, metric, inputs, params):
+    os_environ_get.return_value = "abacab"
+
     init_params = {
         "metric": metric,
         "metric_params": params,
@@ -177,7 +186,10 @@ def test_evaluator_valid_inputs(metric, inputs, params):
         ),
     ],
 )
-def test_evaluator_invalid_inputs(metric, inputs, error_string, params):
+@patch("os.environ.get")
+def test_evaluator_invalid_inputs(os_environ_get, metric, inputs, error_string, params):
+    os_environ_get.return_value = "abacab"
+
     with pytest.raises(ValueError, match=error_string):
         init_params = {
             "metric": metric,
@@ -236,7 +248,10 @@ def test_evaluator_invalid_inputs(metric, inputs, error_string, params):
         ),
     ],
 )
-def test_evaluator_outputs(metric, inputs, expected_outputs, metric_params):
+@patch("os.environ.get")
+def test_evaluator_outputs(os_environ_get, metric, inputs, expected_outputs, metric_params):
+    os_environ_get.return_value = "abacab"
+
     init_params = {
         "metric": metric,
         "metric_params": metric_params,
