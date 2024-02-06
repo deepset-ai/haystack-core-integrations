@@ -3,7 +3,7 @@ from typing import Any, Dict, List, Optional, Union
 
 from haystack import DeserializationError, component, default_from_dict, default_to_dict
 from haystack.utils import Secret, deserialize_secrets_inplace
-from haystack_integrations.components.evaluators.metrics import (
+from haystack_integrations.components.evaluators.uptrain_metrics import (
     METRIC_DESCRIPTORS,
     InputConverters,
     OutputConverters,
