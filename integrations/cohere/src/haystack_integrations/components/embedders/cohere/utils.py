@@ -46,8 +46,6 @@ def get_response(
             response = cohere_client.embed(batch, model=model_name, input_type=input_type, truncate=truncate)
             for emb in response.embeddings:
                 all_embeddings.append(emb)
-            embeddings = [list(map(float, emb)) for emb in response.embeddings]
-            all_embeddings.extend(embeddings)
             if response.meta is not None:
                 metadata = response.meta
 
