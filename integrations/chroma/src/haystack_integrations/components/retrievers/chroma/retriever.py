@@ -66,7 +66,7 @@ class ChromaEmbeddingRetriever(ChromaQueryRetriever):
     def run(
         self,
         query_embedding: List[float],
-        _: Optional[Dict[str, Any]] = None,  # filters not yet supported
+        filters: Optional[Dict[str, Any]] = None,
         top_k: Optional[int] = None,
     ):
         """
@@ -80,4 +80,4 @@ class ChromaEmbeddingRetriever(ChromaQueryRetriever):
         top_k = top_k or self.top_k
 
         query_embeddings = [query_embedding]
-        return {"documents": self.document_store.search_embeddings(query_embeddings, top_k)[0]}
+        return {"documents": self.document_store.search_embeddings(query_embeddings, top_k, filters)[0]}
