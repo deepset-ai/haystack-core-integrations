@@ -118,8 +118,10 @@ def test_evaluator_api(os_environ_get):
         UpTrainEvaluator(UpTrainMetric.CONTEXT_RELEVANCE, api="uptrain")
 
 
-def test_evaluator_metric_init_params(monkeypatch):
-    monkeypatch.setenv("OPENAI_API_KEY", "test-api-key")
+@patch("os.environ.get")
+def test_evaluator_metric_init_params(os_environ_get):
+    api_key = "test-api-key"
+    os_environ_get.return_value = api_key
 
     eval = UpTrainEvaluator(UpTrainMetric.CRITIQUE_TONE, metric_params={"llm_persona": "village idiot"})
     assert eval._backend_metric.llm_persona == "village idiot"
@@ -134,8 +136,9 @@ def test_evaluator_metric_init_params(monkeypatch):
         UpTrainEvaluator(UpTrainMetric.RESPONSE_MATCHING)
 
 
-def test_evaluator_serde(monkeypatch):
-    monkeypatch.setenv("OPENAI_API_KEY", "test-api-key")
+@patch("os.environ.get")
+def test_evaluator_serde(os_environ_get):
+    os_environ_get.return_value = "abacab"
 
     init_params = {
         "metric": UpTrainMetric.RESPONSE_MATCHING,
@@ -183,9 +186,9 @@ def test_evaluator_serde(monkeypatch):
         (UpTrainMetric.RESPONSE_MATCHING, {"ground_truths": [], "responses": []}, {"method": "llm"}),
     ],
 )
-def test_evaluator_valid_inputs(metric, inputs, params, monkeypatch):
-    monkeypatch.setenv("OPENAI_API_KEY", "test-api-key")
-
+@patch("os.environ.get")
+def test_evaluator_valid_inputs(os_environ_get, metric, inputs, params):
+    os_environ_get.return_value = "abacab"
     init_params = {
         "metric": metric,
         "metric_params": params,
@@ -212,9 +215,9 @@ def test_evaluator_valid_inputs(metric, inputs, params, monkeypatch):
         (UpTrainMetric.RESPONSE_RELEVANCE, {"responses": []}, "expected input parameter ", None),
     ],
 )
-def test_evaluator_invalid_inputs(metric, inputs, error_string, params, monkeypatch):
-    monkeypatch.setenv("OPENAI_API_KEY", "test-api-key")
-
+@patch("os.environ.get")
+def test_evaluator_invalid_inputs(os_environ_get, metric, inputs, error_string, params):
+    os_environ_get.return_value = "abacab"
     with pytest.raises(ValueError, match=error_string):
         init_params = {
             "metric": metric,
@@ -291,9 +294,9 @@ def test_evaluator_invalid_inputs(metric, inputs, error_string, params, monkeypa
         ),
     ],
 )
-def test_evaluator_outputs(metric, inputs, expected_outputs, metric_params, monkeypatch):
-    monkeypatch.setenv("OPENAI_API_KEY", "test-api-key")
-
+@patch("os.environ.get")
+def test_evaluator_outputs(os_environ_get, metric, inputs, expected_outputs, metric_params):
+    os_environ_get.return_value = "abacab"
     init_params = {
         "metric": metric,
         "metric_params": metric_params,
