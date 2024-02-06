@@ -19,8 +19,8 @@ class UpTrainEvaluator:
     A component that uses the UpTrain framework to evaluate inputs against a specific metric.
 
     The supported metrics are defined by :class:`UpTrainMetric`. The inputs of the component
-    metric-dependent. The output is a list of :class:`UpTrainEvaluatorOutput` objects, each
-    containing a single input and the result of the evaluation performed on it.
+    metric-dependent. The output is a nested list of evaluation results where each inner list
+    contains the results for a single input.
     """
 
     _backend_metric: Union[Evals, ParametricEval]
