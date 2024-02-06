@@ -156,32 +156,6 @@ class MetaLlama2ChatAdapter(BedrockModelChatAdapter):
     Model adapter for the Meta Llama 2 models.
     """
 
-    # Llama 2 chat template
-    chat_template = """
-    {% if messages[0]['role'] == 'system' %}
-        {% set loop_messages = messages[1:] %}
-        {% set system_message = messages[0]['content'] %}
-    {% else %}
-        {% set loop_messages = messages %}
-        {% set system_message = false %}
-    {% endif %}
-    {% for message in loop_messages %}
-        {% if (message['role'] == 'user') != (loop.index0 % 2 == 0) %}
-            {{ raise_exception('Conversation roles must alternate user/assistant/user/assistant/...') }}
-        {% endif %}
-        {% if loop.index0 == 0 and system_message != false %}
-            {% set content = '<<SYS>>\\n' + system_message + '\\n<</SYS>>\\n\\n' + message['content'] %}
-        {% else %}
-            {% set content = message['content'] %}
-        {% endif %}
-        {% if message['role'] == 'user' %}
-            {{ bos_token + '[INST] ' + content.strip() + ' [/INST]' }}
-        {% elif message['role'] == 'assistant' %}
-            {{ ' '  + content.strip() + ' ' + eos_token }}
-        {% endif %}
-    {% endfor %}
-    """
-
     def __init__(self, generation_kwargs: Dict[str, Any]) -> None:
         super().__init__(generation_kwargs)
         # We pop the model_max_length as it is not sent to the model
@@ -190,7 +164,7 @@ class MetaLlama2ChatAdapter(BedrockModelChatAdapter):
         model_max_length = self.generation_kwargs.get("model_max_length", 4096)
         # Truncate prompt if prompt tokens > model_max_length-max_length
         self.prompt_handler = DefaultPromptHandler(
-            model="gpt2",  # use gpt2 tokenizer to estimate prompt length
+            model="meta-llama/Llama-2-7b-chat-hf",
             model_max_length=model_max_length,
             max_length=self.generation_kwargs.get("max_gen_len") or 512,
         )
@@ -208,7 +182,7 @@ class MetaLlama2ChatAdapter(BedrockModelChatAdapter):
 
     def prepare_chat_messages(self, messages: List[ChatMessage]) -> str:
         prepared_prompt: str = self.prompt_handler.tokenizer.apply_chat_template(
-            conversation=messages, tokenize=False, chat_template=self.chat_template
+            conversation=messages, tokenize=False
         )
         return prepared_prompt
 

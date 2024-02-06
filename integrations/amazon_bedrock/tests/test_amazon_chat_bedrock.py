@@ -2,7 +2,7 @@ from typing import Optional, Type
 from unittest.mock import MagicMock, patch
 
 import pytest
-from haystack.components.generators.utils import default_streaming_callback
+from haystack.components.generators.utils import print_streaming_chunk
 from haystack.dataclasses import ChatMessage
 
 from haystack_integrations.components.generators.amazon_bedrock import AmazonBedrockChatGenerator
@@ -50,7 +50,7 @@ def test_to_dict(mock_auto_tokenizer, mock_boto3_session):
         aws_profile_name="some_fake_profile",
         aws_region_name="fake_region",
         generation_kwargs={"temperature": 0.7},
-        streaming_callback=default_streaming_callback,
+        streaming_callback=print_streaming_chunk,
     )
     expected_dict = {
         "type": clazz,
@@ -58,7 +58,7 @@ def test_to_dict(mock_auto_tokenizer, mock_boto3_session):
             "model": "anthropic.claude-v2",
             "generation_kwargs": {"temperature": 0.7},
             "stop_words": [],
-            "streaming_callback": default_streaming_callback,
+            "streaming_callback": print_streaming_chunk,
         },
     }
 
@@ -75,13 +75,13 @@ def test_from_dict(mock_auto_tokenizer, mock_boto3_session):
             "init_parameters": {
                 "model": "anthropic.claude-v2",
                 "generation_kwargs": {"temperature": 0.7},
-                "streaming_callback": "haystack.components.generators.utils.default_streaming_callback",
+                "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
             },
         }
     )
     assert generator.model == "anthropic.claude-v2"
     assert generator.model_adapter.generation_kwargs == {"temperature": 0.7}
-    assert generator.streaming_callback == default_streaming_callback
+    assert generator.streaming_callback == print_streaming_chunk
 
 
 def test_default_constructor(mock_auto_tokenizer, mock_boto3_session):
