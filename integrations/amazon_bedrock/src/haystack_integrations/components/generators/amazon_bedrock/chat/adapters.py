@@ -4,6 +4,7 @@ from abc import ABC, abstractmethod
 from typing import Any, Callable, Dict, List
 
 from haystack.dataclasses import ChatMessage, ChatRole, StreamingChunk
+from transformers import AutoTokenizer, PreTrainedTokenizer
 
 from haystack_integrations.components.generators.amazon_bedrock.handlers import DefaultPromptHandler
 
@@ -102,7 +103,7 @@ class AnthropicClaudeChatAdapter(BedrockModelChatAdapter):
         # TODO use Anthropic tokenizer to get the precise prompt length
         # See https://github.com/anthropics/anthropic-sdk-python?tab=readme-ov-file#token-counting
         self.prompt_handler = DefaultPromptHandler(
-            model="gpt2",
+            tokenizer="gpt2",
             model_max_length=model_max_length,
             max_length=self.generation_kwargs.get("max_tokens_to_sample") or 512,
         )
@@ -156,6 +157,31 @@ class MetaLlama2ChatAdapter(BedrockModelChatAdapter):
     Model adapter for the Meta Llama 2 models.
     """
 
+    chat_template = (
+        "{% if messages[0]['role'] == 'system' %}"
+        "{% set loop_messages = messages[1:] %}"
+        "{% set system_message = messages[0]['content'] %}"
+        "{% else %}"
+        "{% set loop_messages = messages %}"
+        "{% set system_message = false %}"
+        "{% endif %}"
+        "{% for message in loop_messages %}"
+        "{% if (message['role'] == 'user') != (loop.index0 % 2 == 0) %}"
+        "{{ raise_exception('Conversation roles must alternate user/assistant/user/assistant/...') }}"
+        "{% endif %}"
+        "{% if loop.index0 == 0 and system_message != false %}"
+        "{% set content = '<<SYS>>\n' + system_message + '\n<</SYS>>\n\n' + message['content'] %}"
+        "{% else %}"
+        "{% set content = message['content'] %}"
+        "{% endif %}"
+        "{% if message['role'] == 'user' %}"
+        "{{ bos_token + '[INST] ' + content.strip() + ' [/INST]' }}"
+        "{% elif message['role'] == 'assistant' %}"
+        "{{ ' '  + content.strip() + ' ' + eos_token }}"
+        "{% endif %}"
+        "{% endfor %}"
+    )
+
     def __init__(self, generation_kwargs: Dict[str, Any]) -> None:
         super().__init__(generation_kwargs)
         # We pop the model_max_length as it is not sent to the model
@@ -163,8 +189,12 @@ class MetaLlama2ChatAdapter(BedrockModelChatAdapter):
         # Llama 2 has context window size of 4096 tokens
         model_max_length = self.generation_kwargs.get("model_max_length", 4096)
         # Truncate prompt if prompt tokens > model_max_length-max_length
+        tokenizer: PreTrainedTokenizer = AutoTokenizer.from_pretrained("gpt2")
+        tokenizer.bos_token = "<s>"
+        tokenizer.eos_token = "</s>"
+        tokenizer.unk_token = "<unk>"
         self.prompt_handler = DefaultPromptHandler(
-            model="meta-llama/Llama-2-7b-chat-hf",
+            tokenizer=tokenizer,
             model_max_length=model_max_length,
             max_length=self.generation_kwargs.get("max_gen_len") or 512,
         )
@@ -182,7 +212,7 @@ class MetaLlama2ChatAdapter(BedrockModelChatAdapter):
 
     def prepare_chat_messages(self, messages: List[ChatMessage]) -> str:
         prepared_prompt: str = self.prompt_handler.tokenizer.apply_chat_template(
-            conversation=messages, tokenize=False
+            conversation=messages, tokenize=False, chat_template=self.chat_template
         )
         return prepared_prompt
 

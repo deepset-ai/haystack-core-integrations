@@ -241,7 +241,8 @@ class TestMetaLlama2ChatAdapter:
 
         assert body == expected_body
 
-    def test_get_responses(self, mock_auto_tokenizer) -> None:
+    @pytest.mark.integration
+    def test_get_responses(self) -> None:
         adapter = MetaLlama2ChatAdapter(generation_kwargs={})
         response_body = {"generation": "This is a single response."}
         expected_response = "This is a single response."
