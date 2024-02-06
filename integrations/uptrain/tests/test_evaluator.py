@@ -8,6 +8,7 @@ import pytest
 from haystack import DeserializationError
 
 from haystack_integrations.components.evaluators import UpTrainEvaluator, UpTrainMetric
+from haystack.utils import Secret
 
 DEFAULT_QUESTIONS = [
     "Which is the most popular global sport?",
@@ -102,43 +103,47 @@ class MockBackend:
         return data
 
 
-@patch("os.environ.get")
-def test_evaluator_api(os_environ_get):
-    api_key_var = "test-api-key"
-    os_environ_get.return_value = api_key_var
+def test_evaluator_api(monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "test-api-key")
+    monkeypatch.setenv("UPTRAIN_API_KEY", "test-api-key")
 
     eval = UpTrainEvaluator(UpTrainMetric.RESPONSE_COMPLETENESS)
     assert eval.api == "openai"
-    assert eval.api_key_env_var == "OPENAI_API_KEY"
+    assert eval.api_key == Secret.from_env_var("OPENAI_API_KEY")
 
-    eval = UpTrainEvaluator(UpTrainMetric.RESPONSE_COMPLETENESS, api="uptrain", api_key_env_var="UPTRAIN_API_KEY")
+    eval = UpTrainEvaluator(
+        UpTrainMetric.RESPONSE_COMPLETENESS, api="uptrain", api_key=Secret.from_env_var("UPTRAIN_API_KEY")
+    )
     assert eval.api == "uptrain"
-    assert eval.api_key_env_var == "UPTRAIN_API_KEY"
+    assert eval.api_key == Secret.from_env_var("UPTRAIN_API_KEY")
 
     with pytest.raises(ValueError, match="Unsupported API"):
         UpTrainEvaluator(UpTrainMetric.CONTEXT_RELEVANCE, api="cohere")
 
-    os_environ_get.return_value = None
-    with pytest.raises(ValueError, match="Missing API key"):
-        UpTrainEvaluator(UpTrainMetric.CONTEXT_RELEVANCE, api="uptrain")
+    with pytest.raises(ValueError, match="None of the following authentication environment variables are set"):
+        UpTrainEvaluator(UpTrainMetric.CONTEXT_RELEVANCE, api="uptrain", api_key=Secret.from_env_var("asd39920qqq"))
 
 
-@patch("os.environ.get")
-def test_evaluator_metric_init_params(os_environ_get):
-    api_key = "test-api-key"
-    os_environ_get.return_value = api_key
-
-    eval = UpTrainEvaluator(UpTrainMetric.CRITIQUE_TONE, metric_params={"llm_persona": "village idiot"})
+def test_evaluator_metric_init_params():
+    eval = UpTrainEvaluator(
+        UpTrainMetric.CRITIQUE_TONE,
+        metric_params={"llm_persona": "village idiot"},
+        api_key=Secret.from_token("Aaa"),
+    )
     assert eval._backend_metric.llm_persona == "village idiot"
 
     with pytest.raises(ValueError, match="Invalid init parameters"):
-        UpTrainEvaluator(UpTrainMetric.CRITIQUE_TONE, metric_params={"role": "village idiot"})
+        UpTrainEvaluator(
+            UpTrainMetric.CRITIQUE_TONE, metric_params={"role": "village idiot"}, api_key=Secret.from_token("Aaa")
+        )
 
     with pytest.raises(ValueError, match="unexpected init parameters"):
-        UpTrainEvaluator(UpTrainMetric.FACTUAL_ACCURACY, metric_params={"check_numbers": True})
+        UpTrainEvaluator(
+            UpTrainMetric.FACTUAL_ACCURACY, metric_params={"check_numbers": True}, api_key=Secret.from_token("Aaa")
+        )
 
     with pytest.raises(ValueError, match="expected init parameters"):
-        UpTrainEvaluator(UpTrainMetric.RESPONSE_MATCHING)
+        UpTrainEvaluator(UpTrainMetric.RESPONSE_MATCHING, api_key=Secret.from_token("Aaa"))
 
 
 @patch("os.environ.get")
@@ -149,7 +154,7 @@ def test_evaluator_serde(os_environ_get):
         "metric": UpTrainMetric.RESPONSE_MATCHING,
         "metric_params": {"method": "rouge"},
         "api": "uptrain",
-        "api_key_env_var": "abacab",
+        "api_key": Secret.from_env_var("ENV_VAR", strict=False),
         "api_params": {"eval_name": "test"},
     }
     eval = UpTrainEvaluator(**init_params)
@@ -158,7 +163,7 @@ def test_evaluator_serde(os_environ_get):
 
     assert eval.metric == new_eval.metric
     assert eval.api == new_eval.api
-    assert eval.api_key_env_var == new_eval.api_key_env_var
+    assert eval.api_key == new_eval.api_key
     assert eval.metric_params == new_eval.metric_params
     assert eval.api_params == new_eval.api_params
     assert type(new_eval._backend_client) == type(eval._backend_client)
@@ -191,14 +196,12 @@ def test_evaluator_serde(os_environ_get):
         (UpTrainMetric.RESPONSE_MATCHING, {"ground_truths": [], "responses": []}, {"method": "llm"}),
     ],
 )
-@patch("os.environ.get")
-def test_evaluator_valid_inputs(os_environ_get, metric, inputs, params):
-    os_environ_get.return_value = "abacab"
+def test_evaluator_valid_inputs(metric, inputs, params):
     init_params = {
         "metric": metric,
         "metric_params": params,
         "api": "uptrain",
-        "api_key_env_var": "abacab",
+        "api_key": Secret.from_token("Aaa"),
         "api_params": None,
     }
     eval = UpTrainEvaluator(**init_params)
@@ -220,15 +223,13 @@ def test_evaluator_valid_inputs(os_environ_get, metric, inputs, params):
         (UpTrainMetric.RESPONSE_RELEVANCE, {"responses": []}, "expected input parameter ", None),
     ],
 )
-@patch("os.environ.get")
-def test_evaluator_invalid_inputs(os_environ_get, metric, inputs, error_string, params):
-    os_environ_get.return_value = "abacab"
+def test_evaluator_invalid_inputs(metric, inputs, error_string, params):
     with pytest.raises(ValueError, match=error_string):
         init_params = {
             "metric": metric,
             "metric_params": params,
             "api": "uptrain",
-            "api_key_env_var": "abacab",
+            "api_key": Secret.from_token("Aaa"),
             "api_params": None,
         }
         eval = UpTrainEvaluator(**init_params)
@@ -299,14 +300,12 @@ def test_evaluator_invalid_inputs(os_environ_get, metric, inputs, error_string, 
         ),
     ],
 )
-@patch("os.environ.get")
-def test_evaluator_outputs(os_environ_get, metric, inputs, expected_outputs, metric_params):
-    os_environ_get.return_value = "abacab"
+def test_evaluator_outputs(metric, inputs, expected_outputs, metric_params):
     init_params = {
         "metric": metric,
         "metric_params": metric_params,
         "api": "uptrain",
-        "api_key_env_var": "abacab",
+        "api_key": Secret.from_token("Aaa"),
         "api_params": None,
     }
     eval = UpTrainEvaluator(**init_params)
