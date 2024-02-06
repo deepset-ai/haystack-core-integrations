@@ -2,9 +2,12 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+from typing import Any
+from _pytest.monkeypatch import MonkeyPatch
 import pytest
 from haystack.dataclasses import StreamingChunk
 from haystack_integrations.components.generators.ollama import OllamaGenerator
+from haystack.components.generators.utils import print_streaming_chunk
 from requests import HTTPError
 
 
@@ -66,6 +69,64 @@ class TestOllamaGenerator:
         assert component.timeout == 5
         assert component.streaming_callback == callback
 
+        component = OllamaGenerator()
+        data = component.to_dict()
+        assert data == {
+            "type": "haystack_integrations.components.generators.ollama.generator.OllamaGenerator",
+            "init_parameters": {
+                "timeout": 120,
+                "raw": False,
+                "template": None,
+                "system_prompt": None,
+                "model": "orca-mini",
+                "url": "http://localhost:11434/api/generate",
+                "streaming_callback": None,
+                "generation_kwargs": {},
+            },
+        }
+
+    def test_to_dict_with_parameters(self):
+        component = OllamaGenerator(
+            model="llama2",
+            streaming_callback=print_streaming_chunk,
+            url="going_to_51_pegasi_b_for_weekend",
+            generation_kwargs={"max_tokens": 10, "some_test_param": "test-params"},
+        )
+        data = component.to_dict()
+        assert data == {
+            "type": "haystack_integrations.components.generators.ollama.generator.OllamaGenerator",
+            "init_parameters": {
+                "timeout": 120,
+                "raw": False,
+                "template": None,
+                "system_prompt": None,
+                "model": "llama2",
+                "url": "going_to_51_pegasi_b_for_weekend",
+                "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
+                "generation_kwargs": {"max_tokens": 10, "some_test_param": "test-params"},
+            },
+        }
+
+    def test_from_dict(self):
+        data = {
+            "type": "haystack_integrations.components.generators.ollama.generator.OllamaGenerator",
+            "init_parameters": {
+                "timeout": 120,
+                "raw": False,
+                "template": None,
+                "system_prompt": None,
+                "model": "llama2",
+                "url": "going_to_51_pegasi_b_for_weekend",
+                "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
+                "generation_kwargs": {"max_tokens": 10, "some_test_param": "test-params"},
+            },
+        }
+        component = OllamaGenerator.from_dict(data)
+        assert component.model == "llama2"
+        assert component.streaming_callback is print_streaming_chunk
+        assert component.url == "going_to_51_pegasi_b_for_weekend"
+        assert component.generation_kwargs == {"max_tokens": 10, "some_test_param": "test-params"}
+
     @pytest.mark.parametrize(
         "configuration",
         [
@@ -86,7 +147,7 @@ class TestOllamaGenerator:
         ],
     )
     @pytest.mark.parametrize("stream", [True, False])
-    def test_create_json_payload(self, configuration, stream):
+    def test_create_json_payload(self, configuration: dict[str, Any], stream: bool):
         prompt = "hello"
         component = OllamaGenerator(**configuration)
 

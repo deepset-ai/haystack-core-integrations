@@ -2,9 +2,10 @@ import json
 from typing import Any, Callable, Dict, List, Optional
 
 import requests
-from haystack import component
+from haystack import component, default_from_dict, default_to_dict
 from haystack.dataclasses import StreamingChunk
 from requests import Response
+from haystack.components.generators.utils import serialize_callback_handler, deserialize_callback_handler
 
 
 @component
@@ -51,6 +52,37 @@ class OllamaGenerator:
         self.generation_kwargs = generation_kwargs or {}
         self.streaming_callback = streaming_callback
 
+    def to_dict(self) -> Dict[str, Any]:
+        """
+        Serialize this component to a dictionary.
+        :return: The serialized component as a dictionary.
+        """
+        callback_name = serialize_callback_handler(self.streaming_callback) if self.streaming_callback else None
+        return default_to_dict(
+            self,
+            timeout=self.timeout,
+            raw=self.raw,
+            template=self.template,
+            system_prompt=self.system_prompt,
+            model=self.model,
+            url=self.url,
+            generation_kwargs=self.generation_kwargs,
+            streaming_callback=callback_name,
+        )
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "OllamaGenerator":
+        """
+        Deserialize this component from a dictionary.
+        :param data: The dictionary representation of this component.
+        :return: The deserialized component instance.
+        """
+        init_params = data.get("init_parameters", {})
+        serialized_callback_handler = init_params.get("streaming_callback")
+        if serialized_callback_handler:
+            data["init_parameters"]["streaming_callback"] = deserialize_callback_handler(serialized_callback_handler)
+        return default_from_dict(cls, data)
+    
     def _create_json_payload(self, prompt: str, stream: bool, generation_kwargs=None) -> Dict[str, Any]:
         """
         Returns a dictionary of JSON arguments for a POST request to an Ollama service.
