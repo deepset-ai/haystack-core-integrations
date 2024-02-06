@@ -3,9 +3,9 @@ from typing import Any, Callable, Dict, List, Optional
 
 import requests
 from haystack import component, default_from_dict, default_to_dict
+from haystack.components.generators.utils import deserialize_callback_handler, serialize_callback_handler
 from haystack.dataclasses import StreamingChunk
 from requests import Response
-from haystack.components.generators.utils import serialize_callback_handler, deserialize_callback_handler
 
 
 @component
@@ -82,7 +82,7 @@ class OllamaGenerator:
         if serialized_callback_handler:
             data["init_parameters"]["streaming_callback"] = deserialize_callback_handler(serialized_callback_handler)
         return default_from_dict(cls, data)
-    
+
     def _create_json_payload(self, prompt: str, stream: bool, generation_kwargs=None) -> Dict[str, Any]:
         """
         Returns a dictionary of JSON arguments for a POST request to an Ollama service.

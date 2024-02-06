@@ -3,11 +3,11 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from typing import Any
-from _pytest.monkeypatch import MonkeyPatch
+
 import pytest
+from haystack.components.generators.utils import print_streaming_chunk
 from haystack.dataclasses import StreamingChunk
 from haystack_integrations.components.generators.ollama import OllamaGenerator
-from haystack.components.generators.utils import print_streaming_chunk
 from requests import HTTPError
 
 
