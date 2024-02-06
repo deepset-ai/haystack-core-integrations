@@ -68,9 +68,8 @@ class MockBackend:
         return out
 
 
-@patch("os.environ.get")
-def test_evaluator_metric_init_params(os_environ_get):
-    os_environ_get.return_value = "abacab"
+def test_evaluator_metric_init_params(monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "test-api-key")
 
     eval = DeepEvalEvaluator(DeepEvalMetric.ANSWER_RELEVANCY, metric_params={"model": "gpt-4-32k"})
     assert eval._backend_metric.evaluation_model == "gpt-4-32k"
@@ -82,9 +81,8 @@ def test_evaluator_metric_init_params(os_environ_get):
         DeepEvalEvaluator(DeepEvalMetric.CONTEXTUAL_RECALL)
 
 
-@patch("os.environ.get")
-def test_evaluator_serde(os_environ_get):
-    os_environ_get.return_value = "abacab"
+def test_evaluator_serde(monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "test-api-key")
 
     init_params = {
         "metric": DeepEvalMetric.ANSWER_RELEVANCY,
@@ -133,9 +131,8 @@ def test_evaluator_serde(os_environ_get):
         ),
     ],
 )
-@patch("os.environ.get")
-def test_evaluator_valid_inputs(os_environ_get, metric, inputs, params):
-    os_environ_get.return_value = "abacab"
+def test_evaluator_valid_inputs(metric, inputs, params, monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "test-api-key")
 
     init_params = {
         "metric": metric,
@@ -186,9 +183,8 @@ def test_evaluator_valid_inputs(os_environ_get, metric, inputs, params):
         ),
     ],
 )
-@patch("os.environ.get")
-def test_evaluator_invalid_inputs(os_environ_get, metric, inputs, error_string, params):
-    os_environ_get.return_value = "abacab"
+def test_evaluator_invalid_inputs(metric, inputs, error_string, params, monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "test-api-key")
 
     with pytest.raises(ValueError, match=error_string):
         init_params = {
@@ -248,9 +244,8 @@ def test_evaluator_invalid_inputs(os_environ_get, metric, inputs, error_string, 
         ),
     ],
 )
-@patch("os.environ.get")
-def test_evaluator_outputs(os_environ_get, metric, inputs, expected_outputs, metric_params):
-    os_environ_get.return_value = "abacab"
+def test_evaluator_outputs(metric, inputs, expected_outputs, metric_params, monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "test-api-key")
 
     init_params = {
         "metric": metric,

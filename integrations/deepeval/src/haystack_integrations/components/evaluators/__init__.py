@@ -1,5 +1,5 @@
-from .evaluator import DeepEvalEvaluator
-from .metrics import DeepEvalMetric
+from .deepeval_evaluator import DeepEvalEvaluator
+from .deepeval_metrics import DeepEvalMetric
 
 __all__ = (
     "DeepEvalEvaluator",
