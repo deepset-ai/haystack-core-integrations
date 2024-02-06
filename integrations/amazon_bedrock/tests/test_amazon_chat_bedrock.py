@@ -194,28 +194,20 @@ class TestAnthropicClaudeAdapter:
         }
 
         body = layer.prepare_body(
-            [ChatMessage.from_user(prompt)],
-            top_p=0.8,
-            top_k=5,
-            max_tokens_to_sample=69,
-            stop_sequences=["CUSTOM_STOP"],
+            [ChatMessage.from_user(prompt)], top_p=0.8, top_k=5, max_tokens_to_sample=69, stop_sequences=["CUSTOM_STOP"]
         )
 
         assert body == expected_body
 
 
 class TestMetaLlama2ChatAdapter:
-
     @pytest.mark.integration
     def test_prepare_body_with_default_params(self) -> None:
         # leave this test as integration because we really need only tokenizer from HF
         # that way we can ensure prompt chat message formatting
         layer = MetaLlama2ChatAdapter(generation_kwargs={})
         prompt = "Hello, how are you?"
-        expected_body = {
-            "prompt": "<s>[INST] Hello, how are you? [/INST]",
-            "max_gen_len": 512,
-        }
+        expected_body = {"prompt": "<s>[INST] Hello, how are you? [/INST]", "max_gen_len": 512}
 
         body = layer.prepare_body([ChatMessage.from_user(prompt)])
 
