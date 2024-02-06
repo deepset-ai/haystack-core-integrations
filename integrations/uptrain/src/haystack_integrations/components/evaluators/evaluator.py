@@ -81,7 +81,7 @@ class UpTrainEvaluator:
         # UpTrainMetric class' documentation for more details.
         output = pipeline.run({"evaluator": {
             "questions": ["question],
-            "contexts": ["context"],
+            "contexts": [["context", "another context"]],
             "responses": ["response"]
         }})
         ```
