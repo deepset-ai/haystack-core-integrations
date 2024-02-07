@@ -186,10 +186,12 @@ class UpTrainEvaluator:
             msg = f"Unsupported API '{self.api}' for UpTrain evaluator. Supported APIs: {supported_apis}"
             raise ValueError(msg)
 
+        api_key = self.api_key.resolve_value()
+        assert api_key is not None
         if self.api == "openai":
-            backend_client = EvalLLM(openai_api_key=self.api_key.resolve_value())  # type: ignore
+            backend_client = EvalLLM(openai_api_key=api_key)
         elif self.api == "uptrain":
-            backend_client = APIClient(uptrain_api_key=self.api_key.resolve_value())  # type: ignore
+            backend_client = APIClient(uptrain_api_key=api_key)
 
         self._backend_metric = backend_metric
         self._backend_client = backend_client
