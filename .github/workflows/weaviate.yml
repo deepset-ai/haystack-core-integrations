@@ -49,5 +49,9 @@ jobs:
       - name: Run Weaviate container
         run: docker-compose up -d
 
+      - name: Generate docs
+        if: matrix.python-version == '3.9' && runner.os == 'Linux'
+        run: hatch run docs
+
       - name: Run tests
         run: hatch run cov
