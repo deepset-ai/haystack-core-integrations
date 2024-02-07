@@ -3,7 +3,7 @@ from unittest.mock import Mock, patch
 
 import cohere
 import pytest
-from haystack.components.generators.utils import default_streaming_callback
+from haystack.components.generators.utils import print_streaming_chunk
 from haystack.dataclasses import ChatMessage, ChatRole, StreamingChunk
 from haystack_integrations.components.generators.cohere import CohereChatGenerator
 
@@ -72,13 +72,13 @@ class TestCohereChatGenerator:
         component = CohereChatGenerator(
             api_key="test-api-key",
             model="command-nightly",
-            streaming_callback=default_streaming_callback,
+            streaming_callback=print_streaming_chunk,
             api_base_url="test-base-url",
             generation_kwargs={"max_tokens": 10, "some_test_param": "test-params"},
         )
         assert component.api_key == "test-api-key"
         assert component.model == "command-nightly"
-        assert component.streaming_callback is default_streaming_callback
+        assert component.streaming_callback is print_streaming_chunk
         assert component.api_base_url == "test-base-url"
         assert component.generation_kwargs == {"max_tokens": 10, "some_test_param": "test-params"}
 
@@ -101,7 +101,7 @@ class TestCohereChatGenerator:
         component = CohereChatGenerator(
             api_key="test-api-key",
             model="command-nightly",
-            streaming_callback=default_streaming_callback,
+            streaming_callback=print_streaming_chunk,
             api_base_url="test-base-url",
             generation_kwargs={"max_tokens": 10, "some_test_param": "test-params"},
         )
@@ -110,7 +110,7 @@ class TestCohereChatGenerator:
             "type": "haystack_integrations.components.generators.cohere.chat.chat_generator.CohereChatGenerator",
             "init_parameters": {
                 "model": "command-nightly",
-                "streaming_callback": "haystack.components.generators.utils.default_streaming_callback",
+                "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
                 "api_base_url": "test-base-url",
                 "generation_kwargs": {"max_tokens": 10, "some_test_param": "test-params"},
             },
@@ -144,13 +144,13 @@ class TestCohereChatGenerator:
             "init_parameters": {
                 "model": "command",
                 "api_base_url": "test-base-url",
-                "streaming_callback": "haystack.components.generators.utils.default_streaming_callback",
+                "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
                 "generation_kwargs": {"max_tokens": 10, "some_test_param": "test-params"},
             },
         }
         component = CohereChatGenerator.from_dict(data)
         assert component.model == "command"
-        assert component.streaming_callback is default_streaming_callback
+        assert component.streaming_callback is print_streaming_chunk
         assert component.api_base_url == "test-base-url"
         assert component.generation_kwargs == {"max_tokens": 10, "some_test_param": "test-params"}
 
@@ -162,7 +162,7 @@ class TestCohereChatGenerator:
             "init_parameters": {
                 "model": "command",
                 "api_base_url": "test-base-url",
-                "streaming_callback": "haystack.components.generators.utils.default_streaming_callback",
+                "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
                 "generation_kwargs": {"max_tokens": 10, "some_test_param": "test-params"},
             },
         }
