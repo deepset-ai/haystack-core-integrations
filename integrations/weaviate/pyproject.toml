@@ -27,6 +27,7 @@ classifiers = [
 dependencies = [
   "haystack-ai",
   "weaviate-client==3.*",
+  "haystack-pydoc-tools",
 ]
 
 [project.urls]
@@ -61,6 +62,9 @@ cov-report = [
 cov = [
   "test-cov",
   "cov-report",
+]
+docs = [
+  "pydoc-markdown pydoc/config.yml"
 ]
 
 [[tool.hatch.envs.all.matrix]]
