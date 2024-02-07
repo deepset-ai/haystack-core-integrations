@@ -1,9 +1,9 @@
 import json
-import os
 from typing import Any, Dict, List, Optional, Union
 
 from haystack import DeserializationError, component, default_from_dict, default_to_dict
-from haystack_integrations.components.evaluators.metrics import (
+from haystack.utils import Secret, deserialize_secrets_inplace
+from haystack_integrations.components.evaluators.uptrain_metrics import (
     METRIC_DESCRIPTORS,
     InputConverters,
     OutputConverters,
@@ -32,7 +32,7 @@ class UpTrainEvaluator:
         metric_params: Optional[Dict[str, Any]] = None,
         *,
         api: str = "openai",
-        api_key_env_var: Optional[str] = "OPENAI_API_KEY",
+        api_key: Secret = Secret.from_env_var("OPENAI_API_KEY"),
         api_params: Optional[Dict[str, Any]] = None,
     ):
         """
@@ -46,8 +46,8 @@ class UpTrainEvaluator:
             The API to use for evaluation.
 
             Supported APIs: "openai", "uptrain".
-        :param api_key_env_var:
-            The name of the environment variable containing the API key.
+        :param api_key:
+            The API key to use.
         :param api_params:
             Additional parameters to pass to the API client.
         """
@@ -55,7 +55,7 @@ class UpTrainEvaluator:
         self.metric_params = metric_params
         self.descriptor = METRIC_DESCRIPTORS[self.metric]
         self.api = api
-        self.api_key_env_var = api_key_env_var
+        self.api_key = api_key
         self.api_params = api_params
 
         self._init_backend()
@@ -73,7 +73,7 @@ class UpTrainEvaluator:
         evaluator = UpTrainEvaluator(
             metric=UpTrainMetric.FACTUAL_ACCURACY,
             api="openai",
-            api_key_env_var="OPENAI_API_KEY",
+            api_key=Secret.from_env_var("OPENAI_API_KEY"),
         )
         pipeline.add_component("evaluator", evaluator)
 
@@ -140,7 +140,7 @@ class UpTrainEvaluator:
             metric=self.metric,
             metric_params=self.metric_params,
             api=self.api,
-            api_key_env_var=self.api_key_env_var,
+            api_key=self.api_key.to_dict(),
             api_params=self.api_params,
         )
 
@@ -152,6 +152,7 @@ class UpTrainEvaluator:
         :param data:
             The dictionary to deserialize from.
         """
+        deserialize_secrets_inplace(data["init_parameters"], ["api_key"])
         return default_from_dict(cls, data)
 
     def _init_backend(self):
@@ -185,11 +186,8 @@ class UpTrainEvaluator:
             msg = f"Unsupported API '{self.api}' for UpTrain evaluator. Supported APIs: {supported_apis}"
             raise ValueError(msg)
 
-        api_key = os.environ.get(self.api_key_env_var)
-        if api_key is None:
-            msg = f"Missing API key environment variable '{self.api_key_env_var}' for UpTrain evaluator"
-            raise ValueError(msg)
-
+        api_key = self.api_key.resolve_value()
+        assert api_key is not None
         if self.api == "openai":
             backend_client = EvalLLM(openai_api_key=api_key)
         elif self.api == "uptrain":

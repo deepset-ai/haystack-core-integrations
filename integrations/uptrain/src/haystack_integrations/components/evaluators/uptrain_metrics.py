@@ -257,7 +257,18 @@ class OutputConverters:
             msg = "UpTrain evaluator expects outputs to be a list of `dict`s"
         elif not all(isinstance(y, str) for x in outputs for y in x.keys()):
             msg = "UpTrain evaluator expects keys in the output dicts to be `str`"
-        elif not all(isinstance(y, (float, str)) for x in outputs for y in x.values()):
+        elif not all(
+            y is None
+            or isinstance(
+                y,
+                (
+                    float,
+                    str,
+                ),
+            )
+            for x in outputs
+            for y in x.values()
+        ):
             msg = "UpTrain evaluator expects values in the output dicts to be either `str` or `float`"
 
         if msg is not None:
