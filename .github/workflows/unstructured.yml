@@ -55,6 +55,7 @@ jobs:
         run: hatch run lint:all
 
       - name: Generate docs
+        working-directory: integrations/unstructured
         if: matrix.python-version == '3.9' && runner.os == 'Linux'
         run: hatch run docs
 
