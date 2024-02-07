@@ -3,6 +3,7 @@ import logging
 from abc import ABC, abstractmethod
 from typing import Any, Callable, Dict, List
 
+from botocore.eventstream import EventStream
 from haystack.dataclasses import ChatMessage, ChatRole, StreamingChunk
 from transformers import AutoTokenizer, PreTrainedTokenizer
 
@@ -25,9 +26,9 @@ class BedrockModelChatAdapter(ABC):
 
     def get_responses(self, response_body: Dict[str, Any]) -> List[ChatMessage]:
         """Extracts the responses from the Amazon Bedrock response."""
-        return self._extract_messages_from_response(response_body)
+        return self._extract_messages_from_response(self.response_body_message_key(), response_body)
 
-    def get_stream_responses(self, stream, stream_handler: Callable[[StreamingChunk], None]) -> List[str]:
+    def get_stream_responses(self, stream: EventStream, stream_handler: Callable[[StreamingChunk], None]) -> List[str]:
         tokens: List[str] = []
         for event in stream:
             chunk = event.get("chunk")
@@ -43,7 +44,8 @@ class BedrockModelChatAdapter(ABC):
         responses = ["".join(tokens).lstrip()]
         return responses
 
-    def _update_params(self, target_dict: Dict[str, Any], updates_dict: Dict[str, Any]) -> None:
+    @staticmethod
+    def _update_params(target_dict: Dict[str, Any], updates_dict: Dict[str, Any]) -> None:
         """
         Updates target_dict with values from updates_dict. Merges lists instead of overriding them.
 
@@ -62,6 +64,10 @@ class BedrockModelChatAdapter(ABC):
         """
         Merges params from inference_kwargs with the default params and self.generation_kwargs.
         Uses a helper function to merge lists or override values as necessary.
+
+        :param inference_kwargs: The inference kwargs to merge.
+        :param default_params: The default params to start with.
+        :return: The merged params.
         """
         # Start with a copy of default_params
         kwargs = default_params.copy()
@@ -95,9 +101,13 @@ class BedrockModelChatAdapter(ABC):
         :return: A dictionary containing the resized prompt and additional information.
         """
 
+    def _extract_messages_from_response(self, message_tag: str, response_body: Dict[str, Any]) -> List[ChatMessage]:
+        metadata = {k: v for (k, v) in response_body.items() if k != message_tag}
+        return [ChatMessage.from_assistant(response_body[message_tag], meta=metadata)]
+
     @abstractmethod
-    def _extract_messages_from_response(self, response_body: Dict[str, Any]) -> List[ChatMessage]:
-        """Extracts the responses from the Amazon Bedrock response."""
+    def response_body_message_key(self) -> str:
+        """Returns the key for the message in the response body."""
 
     @abstractmethod
     def _extract_token_from_stream(self, chunk: Dict[str, Any]) -> str:
@@ -171,9 +181,8 @@ class AnthropicClaudeChatAdapter(BedrockModelChatAdapter):
     def check_prompt(self, prompt: str) -> Dict[str, Any]:
         return self.prompt_handler(prompt)
 
-    def _extract_messages_from_response(self, response_body: Dict[str, Any]) -> List[ChatMessage]:
-        metadata = {k: v for (k, v) in response_body.items() if k != "completion"}
-        return [ChatMessage.from_assistant(response_body["completion"], meta=metadata)]
+    def response_body_message_key(self) -> str:
+        return "completion"
 
     def _extract_token_from_stream(self, chunk: Dict[str, Any]) -> str:
         return chunk.get("completion", "")
@@ -250,9 +259,8 @@ class MetaLlama2ChatAdapter(BedrockModelChatAdapter):
     def check_prompt(self, prompt: str) -> Dict[str, Any]:
         return self.prompt_handler(prompt)
 
-    def _extract_messages_from_response(self, response_body: Dict[str, Any]) -> List[ChatMessage]:
-        metadata = {k: v for (k, v) in response_body.items() if k != "generation"}
-        return [ChatMessage.from_assistant(response_body["generation"], meta=metadata)]
+    def response_body_message_key(self) -> str:
+        return "generation"
 
     def _extract_token_from_stream(self, chunk: Dict[str, Any]) -> str:
         return chunk.get("generation", "")

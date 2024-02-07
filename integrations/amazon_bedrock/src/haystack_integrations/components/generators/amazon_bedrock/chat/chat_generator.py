@@ -76,7 +76,9 @@ class AmazonBedrockChatGenerator:
 
         Note that the AWS credentials are not required if the AWS environment is configured correctly. These are loaded
         automatically from the environment or the AWS configuration file and do not need to be provided explicitly via
-        the constructor.
+        the constructor. If the AWS environment is not configured users need to provide the AWS credentials via the
+        constructor. Aside from model, three required parameters are `aws_access_key_id`, `aws_secret_access_key`,
+         and `aws_region_name`.
 
         :param model: The model to use for generation. The model must be available in Amazon Bedrock. The model has to
         be specified in the format outlined in the Amazon Bedrock [documentation](https://docs.aws.amazon.com/bedrock/latest/userguide/model-ids-arns.html).
