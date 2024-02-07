@@ -2,6 +2,7 @@
 
 from haystack import Pipeline
 from haystack_integrations.components.evaluators import UpTrainEvaluator, UpTrainMetric
+from haystack.utils import Secret
 
 QUESTIONS = [
     "Which is the most popular global sport?",
@@ -24,13 +25,13 @@ pipeline = Pipeline()
 evaluator = UpTrainEvaluator(
     metric=UpTrainMetric.FACTUAL_ACCURACY,
     api="openai",
-    api_key_env_var="OPENAI_API_KEY",
+    api_key=Secret.from_env_var("OPENAI_API_KEY"),
 )
 pipeline.add_component("evaluator", evaluator)
 
 # Each metric expects a specific set of parameters as input. Refer to the
 # UpTrainMetric class' documentation for more details.
-output = pipeline.run({"evaluator": {"questions": QUESTIONS, "contexts": CONTEXTS, "responses": RESPONSES}})
+results = pipeline.run({"evaluator": {"questions": QUESTIONS, "contexts": CONTEXTS, "responses": RESPONSES}})
 
-for output in output["evaluator"]["results"]:
+for output in results["evaluator"]["results"]:
     print(output)
