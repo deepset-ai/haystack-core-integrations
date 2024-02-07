@@ -153,11 +153,7 @@ class AmazonBedrockChatGenerator:
                 response_body = json.loads(response.get("body").read().decode("utf-8"))
                 responses = self.model_adapter.get_responses(response_body=response_body)
         except ClientError as exception:
-            msg = (
-                f"Could not connect to Amazon Bedrock model {self.model}. "
-                f"Make sure your AWS environment is configured correctly, "
-                f"the model is available in the configured AWS region, and you have access."
-            )
+            msg = f"Could not inference Amazon Bedrock model {self.model} due: {exception}"
             raise AmazonBedrockInferenceError(msg) from exception
 
         return responses

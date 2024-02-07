@@ -11,6 +11,11 @@ class DefaultPromptHandler:
     """
 
     def __init__(self, tokenizer: Union[str, PreTrainedTokenizerBase], model_max_length: int, max_length: int = 100):
+        """
+        :param tokenizer: The tokenizer to be used to tokenize the prompt.
+        :param model_max_length: The maximum length of the prompt and answer tokens combined.
+        :param max_length: The maximum length of the answer tokens.
+        """
         if isinstance(tokenizer, str):
             self.tokenizer = AutoTokenizer.from_pretrained(tokenizer)
         elif isinstance(tokenizer, (PreTrainedTokenizer, PreTrainedTokenizerFast)):
