@@ -214,7 +214,7 @@ class OutputConverters:
             out = [MetricResult(name=metric_name, score=metric_result.score, explanation=metric_result.reason)]
             if metric_result.score_breakdown is not None:
                 for k, v in metric_result.score_breakdown.items():
-                    out.append(MetricResult(name=f"{metric_name}.{k}", score=v))
+                    out.append(MetricResult(name=f"{metric_name}_{k}", score=v))
             return out
 
         return partial(inner, metric=metric)
