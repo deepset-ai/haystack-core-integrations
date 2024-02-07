@@ -2,7 +2,7 @@ loaders:
   - type: haystack_pydoc_tools.loaders.CustomPythonLoader
     search_path: [../src]
     modules: [
-      "haystack_integrations.components.converters.unstructured",
+      "haystack_integrations.components.converters.unstructured.converter",
     ]
     ignore_when_discovered: ["__init__"]
 processors:
