@@ -19,7 +19,7 @@ renderer:
   category_slug: haystack-integrations
   title: Weaviate
   slug: integrations-weaviate
-  order: 1
+  order: 180
   markdown:
     descriptive_class_title: false
     descriptive_module_title: true
