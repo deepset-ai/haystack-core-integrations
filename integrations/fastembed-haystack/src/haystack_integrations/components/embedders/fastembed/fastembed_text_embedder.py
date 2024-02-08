@@ -18,9 +18,6 @@ class FastembedTextEmbedder:
     from fastembed_haystack.text_embedder import FastembedTextEmbedder
 
     text = "It clearly says online this will work on a Mac OS system. The disk comes and it does not, only Windows. Do Not order this if you have a Mac!!"
-    instruction = (
-        "Represent the Amazon comment for classifying the sentence as positive or negative"
-    )
 
     text_embedder = FastembedTextEmbedder(
         model="BAAI/bge-small-en-v1.5"
@@ -34,34 +31,27 @@ class FastembedTextEmbedder:
         self,
         model: str = "BAAI/bge-small-en-v1.5",
         batch_size: int = 256,
+        parallel: int = None,
         progress_bar: bool = True,
         normalize_embeddings: bool = False,
     ):
         """
         Create a FastembedTextEmbedder component.
 
-        :param model: Local path or name of the model in Hugging Face's model hub,
-            such as ``'hkunlp/instructor-base'``.
-        :param device: Device (like 'cuda' / 'cpu') that should be used for computation.
-            If None, checks if a GPU can be used.
-        :param use_auth_token: The API token used to download private models from Hugging Face.
-                        If this parameter is set to `True`, then the token generated when running
-                        `transformers-cli login` (stored in ~/.huggingface) will be used.
-        :param instruction: The instruction string to be used while computing domain-specific embeddings.
-            The instruction follows the unified template of the form:
-            "Represent the 'domain' 'text_type' for 'task_objective'", where:
-            - "domain" is optional, and it specifies the domain of the text, e.g., science, finance, medicine, etc.
-            - "text_type" is required, and it specifies the encoding unit, e.g., sentence, document, paragraph, etc.
-            - "task_objective" is optional, and it specifies the objective of embedding, e.g., retrieve a document,
-            classify the sentence, etc.
-            Check some examples of instructions here: https://github.com/xlang-ai/instructor-embedding#use-cases.
+        :param model: Local path or name of the model in Fastembed's model hub,
+            such as ``'BAAI/bge-small-en-v1.5'``.
         :param batch_size: Number of strings to encode at once.
+        :param parallel:
+                If > 1, data-parallel encoding will be used, recommended for offline encoding of large datasets.
+                If 0, use all available cores.
+                If None, don't use data-parallel processing, use default onnxruntime threading instead.
         :param progress_bar: If true, displays progress bar during embedding.
         :param normalize_embeddings: If set to true, returned vectors will have the length of 1.
         """
 
         self.model_name = model
         self.batch_size = batch_size
+        self.parallel = parallel
         self.progress_bar = progress_bar
         self.normalize_embeddings = normalize_embeddings
 
@@ -72,10 +62,8 @@ class FastembedTextEmbedder:
         return default_to_dict(
             self,
             model=self.model_name,
-            # device=self.device,
-            # use_auth_token=self.use_auth_token,
-            # instruction=self.instruction,
             batch_size=self.batch_size,
+            parallel=self.parallel,
             progress_bar=self.progress_bar,
             normalize_embeddings=self.normalize_embeddings,
         )
@@ -102,7 +90,7 @@ class FastembedTextEmbedder:
         if not isinstance(text, str):
             msg = (
                 "FastembedTextEmbedder expects a string as input. "
-                "In case you want to embed a list of Documents, please use the InstructorDocumentEmbedder."
+                "In case you want to embed a list of Documents, please use the FastembedDocumentEmbedder."
             )
             raise TypeError(msg)
         if not hasattr(self, "embedding_backend"):
@@ -113,6 +101,7 @@ class FastembedTextEmbedder:
         embedding = list(self.embedding_backend.embed(
             text_to_embed,
             batch_size=self.batch_size,
+            parallel=self.parallel,
             show_progress_bar=self.progress_bar,
             normalize_embeddings=self.normalize_embeddings,
         )[0])
