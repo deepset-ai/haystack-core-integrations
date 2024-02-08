@@ -27,9 +27,6 @@ jobs:
       - name: Install Hatch
         run: pip install --upgrade hatch
 
-      - name: Install Black
-        run: pip install --upgrade black
-
       - name: Lint
         run: hatch run lint:all
 
