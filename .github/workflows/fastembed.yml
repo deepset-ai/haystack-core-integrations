@@ -13,26 +13,33 @@ defaults:
     working-directory: integrations/fastembed
 
 jobs:
-  test:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+  run:
+    name: Python ${{ matrix.python-version }} on ${{ startsWith(matrix.os, 'macos-') && 'macOS' || startsWith(matrix.os, 'windows-') && 'Windows' || 'Linux' }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest]
+        python-version: ["3.9","3.10","3.11"]
+        
+    steps:   
+      - uses: actions/checkout@v4
 
-      - name: Setup Python
+      - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v5
         with:
-          python-version: '3.10'
+          python-version: ${{ matrix.python-version }}
 
       - name: Install Hatch
         run: pip install --upgrade hatch
 
       - name: Lint
+        if: matrix.python-version == '3.9'
         run: hatch run lint:all
 
       - name: Generate docs
-        if: runner.os == 'Linux'
-        run: hatch run docs
+        if: matrix.python-version == '3.9' && runner.os == 'Linux'
+        run: hatch run docs          
 
       - name: Run tests
         run: hatch run cov
