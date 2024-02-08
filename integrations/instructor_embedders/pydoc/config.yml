@@ -17,9 +17,9 @@ processors:
   - type: crossref
 renderer:
   type: haystack_pydoc_tools.renderers.ReadmePreviewRenderer
-  excerpt: Instructor embedding integration for Haystack
+  excerpt: Embedders integration for Haystack
   category_slug: haystack-integrations
-  title: Instructor embedding
+  title: Embedders
   slug: integrations-instructor-embedders
   order: 90
   markdown:
