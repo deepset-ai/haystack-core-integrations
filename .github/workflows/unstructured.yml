@@ -55,6 +55,7 @@ jobs:
         run: pip install --upgrade hatch
 
       - name: Lint
+        working-directory: integrations/unstructured
         if: matrix.python-version == '3.9'
         run: hatch run lint:all
 
