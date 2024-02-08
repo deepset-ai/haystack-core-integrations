@@ -34,6 +34,17 @@ Source = "https://github.com/deepset-ai/haystack-core-integrations"
 Documentation = "https://github.com/deepset-ai/haystack-core-integrations/blob/main/integrations/fastembed/README.md"
 Issues = "https://github.com/deepset-ai/haystack-core-integrations/issues"
 
+[tool.hatch.build.targets.wheel]
+packages = ["src/haystack_integrations"]
+
+[tool.hatch.version]
+source = "vcs"
+tag-pattern = 'integrations\/fastembed-v(?P<version>.*)'
+
+[tool.hatch.version.raw-options]
+root = "../.."
+git_describe_command = 'git describe --tags --match="integrations/fastembed-v[0-9]*"'
+
 [tool.hatch.envs.default]
 dependencies = [
   "coverage[toml]>=6.5",
