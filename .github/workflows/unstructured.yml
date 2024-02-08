@@ -8,7 +8,7 @@ on:
   pull_request:
     paths:
       - "integrations/unstructured/**"
-      - ".github/workflows/unstructured.yml"  
+      - ".github/workflows/unstructured.yml"     
 
 concurrency:
   group: unstructured-${{ github.head_ref }}
@@ -59,6 +59,11 @@ jobs:
         if: matrix.python-version == '3.9'
         run: hatch run lint:all
 
+      - name: Generate docs
+        working-directory: integrations/unstructured
+        if: matrix.python-version == '3.9' && runner.os == 'Linux'
+        run: hatch run docs
+
       - name: Run tests
-        working-directory: integrations/unstructured      
+        working-directory: integrations/unstructured  
         run: hatch run cov
