@@ -10,6 +10,10 @@ on:
       - "integrations/pinecone/**"
       - ".github/workflows/pinecone.yml"
 
+defaults:
+  run:
+    working-directory: integrations/pinecone
+
 concurrency:
   group: pinecone-${{ github.head_ref }}
   cancel-in-progress: true
@@ -45,6 +49,10 @@ jobs:
         working-directory: integrations/pinecone
         if: matrix.python-version == '3.9'
         run: hatch run lint:all
+
+      - name: Generate docs
+        if: matrix.python-version == '3.9' && runner.os == 'Linux'
+        run: hatch run docs
 
       - name: Run tests
         working-directory: integrations/pinecone
