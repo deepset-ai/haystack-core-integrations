@@ -54,9 +54,3 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: gh pr edit ${{ github.event.pull_request.html_url }} --add-label "type:documentation"
-
-      - name: Add reviewer
-        if: ${{ steps.run-check.outputs.should_run == 'true' }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh pr edit ${{ github.event.pull_request.html_url }} --add-reviewer dfokina
