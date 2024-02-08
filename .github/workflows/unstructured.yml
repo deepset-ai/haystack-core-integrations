@@ -8,7 +8,7 @@ on:
   pull_request:
     paths:
       - "integrations/unstructured/**"
-      - ".github/workflows/unstructured.yml"  
+      - ".github/workflows/unstructured.yml"     
 
 concurrency:
   group: unstructured-${{ github.head_ref }}
@@ -65,5 +65,5 @@ jobs:
         run: hatch run docs
 
       - name: Run tests
-        working-directory: integrations/unstructured      
+        working-directory: integrations/unstructured  
         run: hatch run cov
