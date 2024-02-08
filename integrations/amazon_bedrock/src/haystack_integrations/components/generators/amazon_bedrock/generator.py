@@ -112,7 +112,7 @@ class AmazonBedrockGenerator:
         # It is hard to determine which tokenizer to use for the SageMaker model
         # so we use GPT2 tokenizer which will likely provide good token count approximation
         self.prompt_handler = DefaultPromptHandler(
-            model="gpt2",
+            tokenizer="gpt2",
             model_max_length=model_max_length,
             max_length=self.max_length or 100,
         )
