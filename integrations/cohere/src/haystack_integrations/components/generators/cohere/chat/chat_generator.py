@@ -88,7 +88,7 @@ class CohereChatGenerator:
         self.api_base_url = api_base_url
         self.generation_kwargs = generation_kwargs
         self.model_parameters = kwargs
-        self.client = cohere.Client(api_key=self.api_key, api_url=self.api_base_url)
+        self.client = cohere.Client(api_key=self.api_key, api_url=self.api_base_url, client_name="haystack")
 
     def _get_telemetry_data(self) -> Dict[str, Any]:
         """
