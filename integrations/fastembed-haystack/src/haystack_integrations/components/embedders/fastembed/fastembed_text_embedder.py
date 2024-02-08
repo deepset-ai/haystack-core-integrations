@@ -15,7 +15,7 @@ class FastembedTextEmbedder:
     # To use this component, install the "fastembed" package.
     # pip install fastembed
 
-    from fastembed_haystack.text_embedder import FastembedTextEmbedder
+    from fastembed_haystack.fastembed_text_embedder import FastembedTextEmbedder
 
     text = "It clearly says online this will work on a Mac OS system. The disk comes and it does not, only Windows. Do Not order this if you have a Mac!!"
 
@@ -31,7 +31,6 @@ class FastembedTextEmbedder:
         self,
         model: str = "BAAI/bge-small-en-v1.5",
         batch_size: int = 256,
-        parallel: int = None,
         progress_bar: bool = True,
         normalize_embeddings: bool = False,
     ):
@@ -41,17 +40,13 @@ class FastembedTextEmbedder:
         :param model: Local path or name of the model in Fastembed's model hub,
             such as ``'BAAI/bge-small-en-v1.5'``.
         :param batch_size: Number of strings to encode at once.
-        :param parallel:
-                If > 1, data-parallel encoding will be used, recommended for offline encoding of large datasets.
-                If 0, use all available cores.
-                If None, don't use data-parallel processing, use default onnxruntime threading instead.
-        :param progress_bar: If true, displays progress bar during embedding.
         :param normalize_embeddings: If set to true, returned vectors will have the length of 1.
         """
 
+        # TOD0 add parallel
+
         self.model_name = model
         self.batch_size = batch_size
-        self.parallel = parallel
         self.progress_bar = progress_bar
         self.normalize_embeddings = normalize_embeddings
 
@@ -63,7 +58,6 @@ class FastembedTextEmbedder:
             self,
             model=self.model_name,
             batch_size=self.batch_size,
-            parallel=self.parallel,
             progress_bar=self.progress_bar,
             normalize_embeddings=self.normalize_embeddings,
         )
@@ -80,8 +74,10 @@ class FastembedTextEmbedder:
         Load the embedding backend.
         """
         if not hasattr(self, "embedding_backend"):
-            self.embedding_backend = _FastembedEmbeddingBackendFactory.get_embedding_backend(
-                model_name=self.model_name
+            self.embedding_backend = (
+                _FastembedEmbeddingBackendFactory.get_embedding_backend(
+                    model_name=self.model_name
+                )
             )
 
     @component.output_types(embedding=List[float])
@@ -98,11 +94,12 @@ class FastembedTextEmbedder:
             raise RuntimeError(msg)
 
         text_to_embed = [text]
-        embedding = list(self.embedding_backend.embed(
-            text_to_embed,
-            batch_size=self.batch_size,
-            parallel=self.parallel,
-            show_progress_bar=self.progress_bar,
-            normalize_embeddings=self.normalize_embeddings,
-        )[0])
+        embedding = list(
+            self.embedding_backend.embed(
+                text_to_embed,
+                batch_size=self.batch_size,
+                show_progress_bar=self.progress_bar,
+                normalize_embeddings=self.normalize_embeddings,
+            )[0]
+        )
         return {"embedding": embedding}

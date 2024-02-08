@@ -12,17 +12,21 @@ class _FastembedEmbeddingBackendFactory:
 
     @staticmethod
     def get_embedding_backend(
-        model_name: str):
+        model_name: str,
+    ):
         embedding_backend_id = f"{model_name}"
 
         if embedding_backend_id in _FastembedEmbeddingBackendFactory._instances:
             return _FastembedEmbeddingBackendFactory._instances[embedding_backend_id]
 
         embedding_backend = _FastembedEmbeddingBackend(
-            model_name=model_name
+            model_name=model_name,
         )
-        _FastembedEmbeddingBackendFactory._instances[embedding_backend_id] = embedding_backend
+        _FastembedEmbeddingBackendFactory._instances[embedding_backend_id] = (
+            embedding_backend
+        )
         return embedding_backend
+
 
 class _FastembedEmbeddingBackend:
     """
@@ -30,7 +34,8 @@ class _FastembedEmbeddingBackend:
     """
 
     def __init__(
-        self, model_name: str
+        self,
+        model_name: str,
     ):
         self.model = TextEmbedding(model_name=model_name)
 
