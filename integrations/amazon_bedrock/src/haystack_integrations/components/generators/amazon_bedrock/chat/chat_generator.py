@@ -102,6 +102,15 @@ class AmazonBedrockChatGenerator:
             msg = "'model' cannot be None or empty string"
             raise ValueError(msg)
         self.model = model
+
+        # get the model adapter for the given model
+        model_adapter_cls = self.get_model_adapter(model=model)
+        if not model_adapter_cls:
+            msg = f"AmazonBedrockGenerator doesn't support the model {model}."
+            raise AmazonBedrockConfigurationError(msg)
+        self.model_adapter = model_adapter_cls(generation_kwargs or {})
+
+        # create the AWS session and client
         try:
             session = self.get_aws_session(
                 aws_access_key_id=aws_access_key_id,
@@ -118,11 +127,6 @@ class AmazonBedrockChatGenerator:
             )
             raise AmazonBedrockConfigurationError(msg) from exception
 
-        model_adapter_cls = self.get_model_adapter(model=model)
-        if not model_adapter_cls:
-            msg = f"AmazonBedrockGenerator doesn't support the model {model}."
-            raise AmazonBedrockConfigurationError(msg)
-        self.model_adapter = model_adapter_cls(generation_kwargs or {})
         self.stop_words = stop_words or []
         self.streaming_callback = streaming_callback
 
