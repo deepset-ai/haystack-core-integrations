@@ -15,8 +15,16 @@ from .adapters import (
     CohereCommandAdapter,
     MetaLlama2ChatAdapter,
 )
-from .errors import AmazonBedrockConfigurationError, AmazonBedrockInferenceError, AWSConfigurationError
-from .handlers import DefaultPromptHandler, DefaultTokenStreamingHandler, TokenStreamingHandler
+from .errors import (
+    AmazonBedrockConfigurationError,
+    AmazonBedrockInferenceError,
+    AWSConfigurationError,
+)
+from .handlers import (
+    DefaultPromptHandler,
+    DefaultTokenStreamingHandler,
+    TokenStreamingHandler,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +45,7 @@ class AmazonBedrockGenerator:
 
     Usage example:
     ```python
-    from haystack_integrations.components.generators.amazon_bedrock import AmazonBedrockGenerator
+    from amazon_bedrock_haystack.generators.amazon_bedrock import AmazonBedrockGenerator
 
     generator = AmazonBedrockGenerator(
         model="anthropic.claude-v2",
@@ -104,7 +112,9 @@ class AmazonBedrockGenerator:
         # It is hard to determine which tokenizer to use for the SageMaker model
         # so we use GPT2 tokenizer which will likely provide good token count approximation
         self.prompt_handler = DefaultPromptHandler(
-            tokenizer="gpt2", model_max_length=model_max_length, max_length=self.max_length or 100
+            model="gpt2",
+            model_max_length=model_max_length,
+            max_length=self.max_length or 100,
         )
 
         model_adapter_cls = self.get_model_adapter(model=model)
@@ -193,7 +203,10 @@ class AmazonBedrockGenerator:
         try:
             if stream:
                 response = self.client.invoke_model_with_response_stream(
-                    body=json.dumps(body), modelId=self.model, accept="application/json", contentType="application/json"
+                    body=json.dumps(body),
+                    modelId=self.model,
+                    accept="application/json",
+                    contentType="application/json",
                 )
                 response_stream = response["body"]
                 handler: TokenStreamingHandler = kwargs.get(
@@ -203,7 +216,10 @@ class AmazonBedrockGenerator:
                 responses = self.model_adapter.get_stream_responses(stream=response_stream, stream_handler=handler)
             else:
                 response = self.client.invoke_model(
-                    body=json.dumps(body), modelId=self.model, accept="application/json", contentType="application/json"
+                    body=json.dumps(body),
+                    modelId=self.model,
+                    accept="application/json",
+                    contentType="application/json",
                 )
                 response_body = json.loads(response.get("body").read().decode("utf-8"))
                 responses = self.model_adapter.get_responses(response_body=response_body)
@@ -280,7 +296,11 @@ class AmazonBedrockGenerator:
         Serialize this component to a dictionary.
         :return: The serialized component as a dictionary.
         """
-        return default_to_dict(self, model=self.model, max_length=self.max_length)
+        return default_to_dict(
+            self,
+            model=self.model,
+            max_length=self.max_length,
+        )
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "AmazonBedrockGenerator":

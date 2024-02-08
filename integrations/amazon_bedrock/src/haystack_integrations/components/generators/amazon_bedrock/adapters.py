@@ -150,7 +150,12 @@ class AmazonTitanAdapter(BedrockModelAdapter):
     """
 
     def prepare_body(self, prompt: str, **inference_kwargs) -> Dict[str, Any]:
-        default_params = {"maxTokenCount": self.max_length, "stopSequences": None, "temperature": None, "topP": None}
+        default_params = {
+            "maxTokenCount": self.max_length,
+            "stopSequences": None,
+            "temperature": None,
+            "topP": None,
+        }
         params = self._get_params(inference_kwargs, default_params)
 
         body = {"inputText": prompt, "textGenerationConfig": params}
@@ -170,7 +175,11 @@ class MetaLlama2ChatAdapter(BedrockModelAdapter):
     """
 
     def prepare_body(self, prompt: str, **inference_kwargs) -> Dict[str, Any]:
-        default_params = {"max_gen_len": self.max_length, "temperature": None, "top_p": None}
+        default_params = {
+            "max_gen_len": self.max_length,
+            "temperature": None,
+            "top_p": None,
+        }
         params = self._get_params(inference_kwargs, default_params)
 
         body = {"prompt": prompt, **params}

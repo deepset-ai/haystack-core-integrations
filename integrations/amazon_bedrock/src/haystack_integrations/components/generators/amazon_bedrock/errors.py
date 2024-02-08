@@ -10,7 +10,10 @@ class AmazonBedrockError(Exception):
     `AmazonBedrockError.message` will exist and have the expected content.
     """
 
-    def __init__(self, message: Optional[str] = None):
+    def __init__(
+        self,
+        message: Optional[str] = None,
+    ):
         super().__init__()
         if message:
             self.message = message
