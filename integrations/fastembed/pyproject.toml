@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "fastembed-haystack"
 dynamic = ["version"]
-description = 'An integration of fastembed with Haystack '
+description = "An integration of fastembed with Haystack"
 readme = "README.md"
 requires-python = ">=3.8"
 license = "Apache-2.0"
