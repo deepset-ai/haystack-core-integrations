@@ -1,4 +1,4 @@
-name: Test / instructor-embedders
+name: Test / fastembed
 
 on:
   schedule:
