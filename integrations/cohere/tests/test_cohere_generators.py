@@ -5,17 +5,10 @@ import os
 
 import pytest
 from cohere import COHERE_API_URL
+from haystack.components.generators.utils import print_streaming_chunk
 from haystack_integrations.components.generators.cohere import CohereGenerator
 
 pytestmark = pytest.mark.generators
-
-
-def default_streaming_callback(chunk):
-    """
-    Default callback function for streaming responses from Cohere API.
-    Prints the tokens of the first completion to stdout as soon as they are received and returns the chunk unchanged.
-    """
-    print(chunk.text, flush=True, end="")  # noqa: T201
 
 
 class TestCohereGenerator:
@@ -61,7 +54,7 @@ class TestCohereGenerator:
             model="command-light",
             max_tokens=10,
             some_test_param="test-params",
-            streaming_callback=default_streaming_callback,
+            streaming_callback=print_streaming_chunk,
             api_base_url="test-base-url",
         )
         data = component.to_dict()
@@ -72,7 +65,7 @@ class TestCohereGenerator:
                 "max_tokens": 10,
                 "some_test_param": "test-params",
                 "api_base_url": "test-base-url",
-                "streaming_callback": "tests.test_cohere_generators.default_streaming_callback",
+                "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
             },
         }
 
@@ -106,13 +99,13 @@ class TestCohereGenerator:
                 "max_tokens": 10,
                 "some_test_param": "test-params",
                 "api_base_url": "test-base-url",
-                "streaming_callback": "tests.test_cohere_generators.default_streaming_callback",
+                "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
             },
         }
         component: CohereGenerator = CohereGenerator.from_dict(data)
         assert component.api_key == "test-key"
         assert component.model == "command"
-        assert component.streaming_callback == default_streaming_callback
+        assert component.streaming_callback == print_streaming_chunk
         assert component.api_base_url == "test-base-url"
         assert component.model_parameters == {"max_tokens": 10, "some_test_param": "test-params"}
 
