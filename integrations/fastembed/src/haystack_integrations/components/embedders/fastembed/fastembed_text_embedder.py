@@ -25,7 +25,7 @@ class FastembedTextEmbedder:
 
     embedding = text_embedder.run(text)
     ```
-    """  # noqa: E501
+    """
 
     def __init__(
         self,
@@ -43,7 +43,7 @@ class FastembedTextEmbedder:
         :param normalize_embeddings: If set to true, returned vectors will have the length of 1.
         """
 
-        # TOD0 add parallel
+        # TODO add parallel
 
         self.model_name = model
         self.batch_size = batch_size
