@@ -1,0 +1,84 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "fastembed-haystack"
+dynamic = ["version"]
+description = 'support for fastembed '
+readme = "README.md"
+requires-python = ">=3.8"
+license = "Apache-2.0"
+keywords = []
+authors = [
+  { name = "deepset GmbH", email = "info@deepset.ai" },
+]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Programming Language :: Python",
+  "Programming Language :: Python :: 3.8",
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: Implementation :: CPython",
+  "Programming Language :: Python :: Implementation :: PyPy",
+]
+dependencies = [
+"haystack-ai",
+"fastembed>=0.2",
+]
+
+[project.urls]
+Documentation = "https://github.com/unknown/fastembed-haystack#readme"
+Issues = "https://github.com/unknown/fastembed-haystack/issues"
+Source = "https://github.com/unknown/fastembed-haystack"
+
+[tool.hatch.version]
+path = "src/fastembed_haystack/__about__.py"
+
+[tool.hatch.envs.default]
+dependencies = [
+  "coverage[toml]>=6.5",
+  "pytest",
+]
+[tool.hatch.envs.default.scripts]
+test = "pytest {args:tests}"
+test-cov = "coverage run -m pytest {args:tests}"
+cov-report = [
+  "- coverage combine",
+  "coverage report",
+]
+cov = [
+  "test-cov",
+  "cov-report",
+]
+
+[[tool.hatch.envs.all.matrix]]
+python = ["3.8", "3.9", "3.10", "3.11", "3.12"]
+
+[tool.hatch.envs.types]
+dependencies = [
+  "mypy>=1.0.0",
+]
+[tool.hatch.envs.types.scripts]
+check = "mypy --install-types --non-interactive {args:src/fastembed_haystack tests}"
+
+[tool.coverage.run]
+source_pkgs = ["fastembed_haystack", "tests"]
+branch = true
+parallel = true
+omit = [
+  "src/fastembed_haystack/__about__.py",
+]
+
+[tool.coverage.paths]
+fastembed_haystack = ["src/fastembed_haystack", "*/fastembed-haystack/src/fastembed_haystack"]
+tests = ["tests", "*/fastembed-haystack/tests"]
+
+[tool.coverage.report]
+exclude_lines = [
+  "no cov",
+  "if __name__ == .__main__.:",
+  "if TYPE_CHECKING:",
+]
