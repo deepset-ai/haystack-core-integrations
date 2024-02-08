@@ -4,6 +4,8 @@ on:
   schedule:
     - cron: "0 0 * * *"
   pull_request:
+    branch:
+      - instructor-embedder-docs
     paths:
       - "integrations/instructor_embedders/**"
       - ".github/workflows/instructor_embedders.yml"
