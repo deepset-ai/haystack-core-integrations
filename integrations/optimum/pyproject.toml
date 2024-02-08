@@ -28,14 +28,7 @@ dependencies = [
   "haystack-ai",
   "transformers[sentencepiece]==4.36.2",
   "sentence-transformers>=2.2.0",
-]
-
-[project.optional-dependencies]
-cpu = [
-  "optimum[onnxruntime]==1.15.0",
-]
-gpu = [
-  "optimum[onnxruntime-gpu]==1.15.0",
+  "optimum[onnxruntime]==1.15.0"
 ]
 
 [project.urls]
