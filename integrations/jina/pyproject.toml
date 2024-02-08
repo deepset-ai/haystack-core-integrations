@@ -49,7 +49,7 @@ test = "pytest {args:tests}"
 test-cov = "coverage run -m pytest {args:tests}"
 cov-report = ["- coverage combine", "coverage report"]
 cov = ["test-cov", "cov-report"]
-docs = ["pydoc-markdown", "pydoc/config.yml"]
+docs = ["pydoc-markdown pydoc/config.yml"]
 
 
 [[tool.hatch.envs.all.matrix]]
