@@ -10,6 +10,10 @@ on:
       - "integrations/pinecone/**"
       - ".github/workflows/pinecone.yml"
 
+defaults:
+  run:
+    working-directory: integrations/pinecone
+
 concurrency:
   group: pinecone-${{ github.head_ref }}
   cancel-in-progress: true
