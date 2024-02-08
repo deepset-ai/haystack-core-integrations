@@ -242,10 +242,7 @@ class TestFastembedDocumentEmbedder:
         doc = Document(content="Parton energy loss in QCD matter")
 
         result = embedder.run(documents=[doc])
-        print(result["documents"])
         embedding = result["documents"][0].embedding
-        print(type(embedding))
-        print(type(embedding[0]))
 
         assert isinstance(embedding, list)
         assert len(embedding) == 384
