@@ -5,8 +5,8 @@ on:
     - cron: "0 0 * * *"
   pull_request:
     paths:
-      - 'integrations/instructor_embedders/**'
-      - '.github/workflows/instructor_embedders.yml'
+      - "integrations/instructor_embedders/**"
+      - ".github/workflows/instructor_embedders.yml"
 
 defaults:
   run:
@@ -16,19 +16,23 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-    - name: Checkout
-      uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-    - name: Setup Python
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.10'
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
 
-    - name: Install Hatch
-      run: pip install --upgrade hatch
+      - name: Install Hatch
+        run: pip install --upgrade hatch
 
-    - name: Lint
-      run: hatch run lint:all
+      - name: Lint
+        run: hatch run lint:all
 
-    - name: Run tests
-      run: hatch run cov
+      - name: Generate docs
+        if: runner.os == 'Linux'
+        run: hatch run docs
+
+      - name: Run tests
+        run: hatch run cov
