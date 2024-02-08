@@ -13,6 +13,7 @@ class TestFastembedTextEmbedder:
         embedder = FastembedTextEmbedder(model="BAAI/bge-small-en-v1.5")
         assert embedder.model_name == "BAAI/bge-small-en-v1.5"
         assert embedder.batch_size == 256
+        assert embedder.parallel is None
         assert embedder.progress_bar is True
         assert embedder.normalize_embeddings is False
 
@@ -23,11 +24,13 @@ class TestFastembedTextEmbedder:
         embedder = FastembedTextEmbedder(
             model="BAAI/bge-small-en-v1.5",
             batch_size=64,
+            parallel=0,
             progress_bar=False,
             normalize_embeddings=True,
         )
         assert embedder.model_name == "BAAI/bge-small-en-v1.5"
         assert embedder.batch_size == 64
+        assert embedder.parallel == 0
         assert embedder.progress_bar is False
         assert embedder.normalize_embeddings is True
 
@@ -42,6 +45,7 @@ class TestFastembedTextEmbedder:
             "init_parameters": {
                 "model": "BAAI/bge-small-en-v1.5",
                 "batch_size": 256,
+                "parallel": None,
                 "progress_bar": True,
                 "normalize_embeddings": False,
             },
@@ -54,6 +58,7 @@ class TestFastembedTextEmbedder:
         embedder = FastembedTextEmbedder(
             model="BAAI/bge-small-en-v1.5",
             batch_size=64,
+            parallel=1,
             progress_bar=False,
             normalize_embeddings=True,
         )
@@ -63,6 +68,7 @@ class TestFastembedTextEmbedder:
             "init_parameters": {
                 "model": "BAAI/bge-small-en-v1.5",
                 "batch_size": 64,
+                "parallel":1,
                 "progress_bar": False,
                 "normalize_embeddings": True,
             },
@@ -77,6 +83,7 @@ class TestFastembedTextEmbedder:
             "init_parameters": {
                 "model": "BAAI/bge-small-en-v1.5",
                 "batch_size": 256,
+                "parallel": None,
                 "progress_bar": True,
                 "normalize_embeddings": False,
             },
@@ -84,6 +91,7 @@ class TestFastembedTextEmbedder:
         embedder = FastembedTextEmbedder.from_dict(embedder_dict)
         assert embedder.model_name == "BAAI/bge-small-en-v1.5"
         assert embedder.batch_size == 256
+        assert embedder.parallel is None
         assert embedder.progress_bar is True
         assert embedder.normalize_embeddings is False
 
@@ -96,6 +104,7 @@ class TestFastembedTextEmbedder:
             "init_parameters": {
                 "model": "BAAI/bge-small-en-v1.5",
                 "batch_size": 64,
+                "parallel": 1,
                 "progress_bar": False,
                 "normalize_embeddings": True,
             },
@@ -103,6 +112,7 @@ class TestFastembedTextEmbedder:
         embedder = FastembedTextEmbedder.from_dict(embedder_dict)
         assert embedder.model_name == "BAAI/bge-small-en-v1.5"
         assert embedder.batch_size == 64
+        assert embedder.parallel == 1
         assert embedder.progress_bar is False
         assert embedder.normalize_embeddings is True
 
