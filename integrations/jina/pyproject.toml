@@ -14,7 +14,7 @@ authors = [
   { name = "Joan Fontanals Martinez", email = "joan.fontanals.martinez@jina.ai" },
 ]
 classifiers = [
-  "Development Status :: 4 - Beta ",
+  "Development Status :: 4 - Beta",
   "Programming Language :: Python",
   "Programming Language :: Python :: 3.7",
   "Programming Language :: Python :: 3.8",

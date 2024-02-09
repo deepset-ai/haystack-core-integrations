@@ -14,7 +14,7 @@ authors = [
   { name = "Silvano Cerza", email = "silvanocerza@gmail.com" },
 ]
 classifiers = [
-  "Development Status :: 4 - Beta ",
+  "Development Status :: 4 - Beta",
   "Programming Language :: Python",
   "Programming Language :: Python :: 3.8",
   "Programming Language :: Python :: 3.9",
