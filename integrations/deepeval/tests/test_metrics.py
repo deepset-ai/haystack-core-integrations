@@ -1,6 +1,6 @@
 import pytest
 
-from haystack_integrations.components.evaluators import DeepEvalMetric
+from haystack_integrations.components.evaluators.deepeval import DeepEvalMetric
 
 
 def test_deepeval_metric():

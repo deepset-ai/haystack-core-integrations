@@ -7,7 +7,7 @@ from unittest.mock import patch
 import pytest
 from haystack import DeserializationError
 
-from haystack_integrations.components.evaluators import DeepEvalEvaluator, DeepEvalMetric
+from haystack_integrations.components.evaluators.deepeval import DeepEvalEvaluator, DeepEvalMetric
 from deepeval.evaluate import TestResult, BaseMetric
 
 DEFAULT_QUESTIONS = [

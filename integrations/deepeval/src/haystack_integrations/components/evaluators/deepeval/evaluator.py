@@ -6,7 +6,7 @@ from deepeval.metrics import BaseMetric
 from deepeval.test_case import LLMTestCase
 from haystack import DeserializationError, component, default_from_dict, default_to_dict
 
-from .deepeval_metrics import (
+from .metrics import (
     METRIC_DESCRIPTORS,
     DeepEvalMetric,
     InputConverters,
