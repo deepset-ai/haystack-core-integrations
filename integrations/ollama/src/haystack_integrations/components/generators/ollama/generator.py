@@ -103,7 +103,7 @@ class OllamaGenerator:
             "options": generation_kwargs,
         }
 
-    def _convert_to_haystack_response(self, ollama_response: Response) -> Dict[str, List[Any]]:
+    def _convert_to_response(self, ollama_response: Response) -> Dict[str, List[Any]]:
         """
         Convert a response from the Ollama API to the required Haystack format.
         :param ollama_response: A response (requests library) from the Ollama API.
@@ -117,7 +117,7 @@ class OllamaGenerator:
 
         return {"replies": replies, "meta": [meta]}
 
-    def _convert_to_response(self, chunks: List[StreamingChunk]) -> Dict[str, List[Any]]:
+    def _convert_to_streaming_response(self, chunks: List[StreamingChunk]) -> Dict[str, List[Any]]:
         """
         Convert a list of chunks response required Haystack format.
         :param chunks: List of StreamingChunks
@@ -184,6 +184,6 @@ class OllamaGenerator:
 
         if stream:
             chunks: List[StreamingChunk] = self._handle_streaming_response(response)
-            return self._convert_to_response(chunks)
+            return self._convert_to_streaming_response(chunks)
 
-        return self._convert_to_haystack_response(response)
+        return self._convert_to_response(response)

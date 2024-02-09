@@ -165,8 +165,6 @@ class TestOllamaGenerator:
 
         assert observed == expected
 
-
-class TestOllamaStreamingGenerator:
     @pytest.mark.integration
     def test_ollama_generator_run_streaming(self):
         class Callback:
