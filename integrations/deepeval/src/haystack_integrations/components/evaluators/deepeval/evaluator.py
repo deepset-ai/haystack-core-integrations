@@ -1,10 +1,11 @@
 import json
 from typing import Any, Callable, Dict, List, Optional, Union
 
+from haystack import DeserializationError, component, default_from_dict, default_to_dict
+
 from deepeval.evaluate import TestResult, evaluate
 from deepeval.metrics import BaseMetric
 from deepeval.test_case import LLMTestCase
-from haystack import DeserializationError, component, default_from_dict, default_to_dict
 
 from .metrics import (
     METRIC_DESCRIPTORS,
