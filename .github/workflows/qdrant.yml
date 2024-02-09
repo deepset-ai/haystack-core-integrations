@@ -7,8 +7,8 @@ on:
     - cron: "0 0 * * *"
   pull_request:
     paths:
-      - 'integrations/qdrant/**'
-      - '.github/workflows/qdrant.yml'
+      - "integrations/qdrant/**"
+      - ".github/workflows/qdrant.yml"
 
 defaults:
   run:
@@ -30,27 +30,31 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
-        python-version: ['3.9', '3.10']
+        python-version: ["3.9", "3.10"]
 
     steps:
-    - name: Support longpaths
-      if: matrix.os == 'windows-latest'
-      working-directory: .
-      run: git config --system core.longpaths true
+      - name: Support longpaths
+        if: matrix.os == 'windows-latest'
+        working-directory: .
+        run: git config --system core.longpaths true
 
-    - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-    - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v5
-      with:
-        python-version: ${{ matrix.python-version }}
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
 
-    - name: Install Hatch
-      run: pip install --upgrade hatch
+      - name: Install Hatch
+        run: pip install --upgrade hatch
 
-    - name: Lint
-      if: matrix.python-version == '3.9' && runner.os == 'Linux'
-      run: hatch run lint:all
+      - name: Lint
+        if: matrix.python-version == '3.9' && runner.os == 'Linux'
+        run: hatch run lint:all
 
-    - name: Run tests
-      run: hatch run cov
+      - name: Generate docs
+        if: matrix.python-version == '3.9' && runner.os == 'Linux'
+        run: hatch run docs
+
+      - name: Run tests
+        run: hatch run cov
