@@ -25,7 +25,7 @@ class FastembedTextEmbedder:
 
     embedding = text_embedder.run(text)
     ```
-    """
+    """  # noqa: E501
 
     def __init__(
         self,
