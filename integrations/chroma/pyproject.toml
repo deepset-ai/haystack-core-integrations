@@ -14,7 +14,7 @@ authors = [
   { name = "John Doe", email = "jd@example.com" },
 ]
 classifiers = [
-  "Development Status :: 4 - Beta",
+  "Development Status :: 4 - Beta ",
   "Programming Language :: Python",
   "Programming Language :: Python :: 3.9",
   "Programming Language :: Python :: 3.10",
