@@ -74,11 +74,7 @@ class FastembedTextEmbedder:
         Load the embedding backend.
         """
         if not hasattr(self, "embedding_backend"):
-            self.embedding_backend = (
-                _FastembedEmbeddingBackendFactory.get_embedding_backend(
-                    model_name=self.model_name
-                )
-            )
+            self.embedding_backend = _FastembedEmbeddingBackendFactory.get_embedding_backend(model_name=self.model_name)
 
     @component.output_types(embedding=List[float])
     def run(self, text: str):

@@ -162,9 +162,7 @@ class TestFastembedDocumentEmbedder:
         """
         embedder = FastembedDocumentEmbedder(model="BAAI/bge-base-en-v1.5")
         embedder.embedding_backend = MagicMock()
-        embedder.embedding_backend.embed = lambda x, **kwargs: np.random.rand(  # noqa: ARG005
-            len(x), 16
-        ).tolist()
+        embedder.embedding_backend.embed = lambda x, **kwargs: np.random.rand(len(x), 16).tolist()  # noqa: ARG005
 
         documents = [Document(content=f"Sample-document text {i}") for i in range(5)]
 
@@ -210,12 +208,7 @@ class TestFastembedDocumentEmbedder:
         )
         embedder.embedding_backend = MagicMock()
 
-        documents = [
-            Document(
-                content=f"document-number {i}", meta={"meta_field": f"meta_value {i}"}
-            )
-            for i in range(5)
-        ]
+        documents = [Document(content=f"document-number {i}", meta={"meta_field": f"meta_value {i}"}) for i in range(5)]
 
         embedder.run(documents=documents)
 

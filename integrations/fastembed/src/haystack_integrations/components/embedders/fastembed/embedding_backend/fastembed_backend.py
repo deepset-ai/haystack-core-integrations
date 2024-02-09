@@ -22,9 +22,7 @@ class _FastembedEmbeddingBackendFactory:
         embedding_backend = _FastembedEmbeddingBackend(
             model_name=model_name,
         )
-        _FastembedEmbeddingBackendFactory._instances[embedding_backend_id] = (
-            embedding_backend
-        )
+        _FastembedEmbeddingBackendFactory._instances[embedding_backend_id] = embedding_backend
         return embedding_backend
 
 

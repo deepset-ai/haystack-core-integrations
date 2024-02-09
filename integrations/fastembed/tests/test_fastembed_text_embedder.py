@@ -118,9 +118,7 @@ class TestFastembedTextEmbedder:
         embedder = FastembedTextEmbedder(model="BAAI/bge-small-en-v1.5")
         mocked_factory.get_embedding_backend.assert_not_called()
         embedder.warm_up()
-        mocked_factory.get_embedding_backend.assert_called_once_with(
-            model_name="BAAI/bge-small-en-v1.5"
-        )
+        mocked_factory.get_embedding_backend.assert_called_once_with(model_name="BAAI/bge-small-en-v1.5")
 
     @patch(
         "haystack_integrations.components.embedders.fastembed.fastembed_text_embedder._FastembedEmbeddingBackendFactory"
@@ -141,9 +139,7 @@ class TestFastembedTextEmbedder:
         """
         embedder = FastembedTextEmbedder(model="BAAI/bge-base-en-v1.5")
         embedder.embedding_backend = MagicMock()
-        embedder.embedding_backend.embed = lambda x, **kwargs: np.random.rand( # noqa: ARG005
-            len(x), 16
-        ).tolist()
+        embedder.embedding_backend.embed = lambda x, **kwargs: np.random.rand(len(x), 16).tolist()  # noqa: ARG005
 
         text = "Good text to embed"
 
@@ -162,9 +158,7 @@ class TestFastembedTextEmbedder:
 
         list_integers_input = [1, 2, 3]
 
-        with pytest.raises(
-            TypeError, match="FastembedTextEmbedder expects a string as input"
-        ):
+        with pytest.raises(TypeError, match="FastembedTextEmbedder expects a string as input"):
             embedder.run(text=list_integers_input)
 
     @pytest.mark.integration

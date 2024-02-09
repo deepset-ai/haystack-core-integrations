@@ -104,11 +104,7 @@ class FastembedDocumentEmbedder:
         Load the embedding backend.
         """
         if not hasattr(self, "embedding_backend"):
-            self.embedding_backend = (
-                _FastembedEmbeddingBackendFactory.get_embedding_backend(
-                    model_name=self.model_name
-                )
-            )
+            self.embedding_backend = _FastembedEmbeddingBackendFactory.get_embedding_backend(model_name=self.model_name)
 
     @component.output_types(documents=List[Document])
     def run(self, documents: List[Document]):
@@ -116,11 +112,7 @@ class FastembedDocumentEmbedder:
         Embed a list of Documents.
         The embedding of each Document is stored in the `embedding` field of the Document.
         """
-        if (
-            not isinstance(documents, list)
-            or documents
-            and not isinstance(documents[0], Document)
-        ):
+        if not isinstance(documents, list) or documents and not isinstance(documents[0], Document):
             msg = (
                 "FastembedDocumentEmbedder expects a list of Documents as input. "
                 "In case you want to embed a list of strings, please use the FastembedTextEmbedder."
@@ -135,14 +127,10 @@ class FastembedDocumentEmbedder:
         texts_to_embed = []
         for doc in documents:
             meta_values_to_embed = [
-                str(doc.meta[key])
-                for key in self.meta_fields_to_embed
-                if key in doc.meta and doc.meta[key] is not None
+                str(doc.meta[key]) for key in self.meta_fields_to_embed if key in doc.meta and doc.meta[key] is not None
             ]
             text_to_embed = [
-                self.embedding_separator.join(
-                    [*meta_values_to_embed, doc.content or ""]
-                ),
+                self.embedding_separator.join([*meta_values_to_embed, doc.content or ""]),
             ]
 
             texts_to_embed.append(text_to_embed[0])
