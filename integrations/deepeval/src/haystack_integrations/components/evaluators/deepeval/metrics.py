@@ -6,13 +6,13 @@ from functools import partial
 from typing import Any, Callable, Dict, Iterable, List, Mapping, Optional, Type
 
 from deepeval.evaluate import TestResult
-from deepeval.metrics import (
-    AnswerRelevancyMetric,
-    BaseMetric,
-    ContextualPrecisionMetric,
-    ContextualRecallMetric,
-    ContextualRelevancyMetric,
-    FaithfulnessMetric,
+from deepeval.metrics import (  # type: ignore
+    AnswerRelevancyMetric,  # type: ignore
+    BaseMetric,  # type: ignore
+    ContextualPrecisionMetric,  # type: ignore
+    ContextualRecallMetric,  # type: ignore
+    ContextualRelevancyMetric,  # type: ignore
+    FaithfulnessMetric,  # type: ignore
 )
 from deepeval.test_case import LLMTestCase
 
