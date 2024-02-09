@@ -47,10 +47,8 @@ jobs:
           README_API_KEY: ${{ secrets.README_API_KEY }}
           ALL_CHANGED_DIRS: ${{ steps.changed-files.outputs.all_changed_files }}
         run: |
-          for d in "$ALL_CHANGED_DIRS"; do
-            cd $d
-            hatch run docs
-            cd -
+          for d in $ALL_CHANGED_DIRS; do
+            (cd $d; hatch run docs)
           done
           mkdir tmp
           find . -name "_readme_*.md" -exec cp "{}" tmp \;
