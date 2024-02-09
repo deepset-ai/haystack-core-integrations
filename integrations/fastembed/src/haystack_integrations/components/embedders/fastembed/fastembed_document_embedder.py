@@ -48,7 +48,7 @@ class FastembedDocumentEmbedder:
     print(f"Document Text: {result['documents'][0].content}")
     print(f"Document Embedding: {result['documents'][0].embedding}")
     print(f"Embedding Dimension: {len(result['documents'][0].embedding)}")
-    """
+    """  # noqa: E501
 
     def __init__(
         self,
