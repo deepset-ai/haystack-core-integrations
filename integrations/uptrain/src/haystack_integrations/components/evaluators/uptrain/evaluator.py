@@ -3,14 +3,16 @@ from typing import Any, Dict, List, Optional, Union
 
 from haystack import DeserializationError, component, default_from_dict, default_to_dict
 from haystack.utils import Secret, deserialize_secrets_inplace
-from haystack_integrations.components.evaluators.uptrain_metrics import (
+
+from uptrain import APIClient, EvalLLM, Evals  # type: ignore
+from uptrain.framework.evals import ParametricEval
+
+from .metrics import (
     METRIC_DESCRIPTORS,
     InputConverters,
     OutputConverters,
     UpTrainMetric,
 )
-from uptrain import APIClient, EvalLLM, Evals
-from uptrain.framework.evals import ParametricEval
 
 
 @component
