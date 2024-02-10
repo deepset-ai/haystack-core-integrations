@@ -1,6 +1,6 @@
 from typing import Any, Dict, List
 
-from haystack import component, default_from_dict, default_to_dict
+from haystack import component, default_to_dict
 
 from .embedding_backend.fastembed_backend import _FastembedEmbeddingBackendFactory
 
@@ -32,7 +32,6 @@ class FastembedTextEmbedder:
         model: str = "BAAI/bge-small-en-v1.5",
         batch_size: int = 256,
         progress_bar: bool = True,
-        normalize_embeddings: bool = False,
     ):
         """
         Create a FastembedTextEmbedder component.
@@ -40,7 +39,6 @@ class FastembedTextEmbedder:
         :param model: Local path or name of the model in Fastembed's model hub,
             such as ``'BAAI/bge-small-en-v1.5'``.
         :param batch_size: Number of strings to encode at once.
-        :param normalize_embeddings: If set to true, returned vectors will have the length of 1.
         """
 
         # TODO add parallel
@@ -48,7 +46,6 @@ class FastembedTextEmbedder:
         self.model_name = model
         self.batch_size = batch_size
         self.progress_bar = progress_bar
-        self.normalize_embeddings = normalize_embeddings
 
     def to_dict(self) -> Dict[str, Any]:
         """
@@ -59,15 +56,7 @@ class FastembedTextEmbedder:
             model=self.model_name,
             batch_size=self.batch_size,
             progress_bar=self.progress_bar,
-            normalize_embeddings=self.normalize_embeddings,
         )
-
-    @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "FastembedTextEmbedder":
-        """
-        Deserialize this component from a dictionary.
-        """
-        return default_from_dict(cls, data)
 
     def warm_up(self):
         """
@@ -95,7 +84,6 @@ class FastembedTextEmbedder:
                 text_to_embed,
                 batch_size=self.batch_size,
                 show_progress_bar=self.progress_bar,
-                normalize_embeddings=self.normalize_embeddings,
             )[0]
         )
         return {"embedding": embedding}

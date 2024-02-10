@@ -1,6 +1,6 @@
 from typing import Any, Dict, List, Optional
 
-from haystack import Document, component, default_from_dict, default_to_dict
+from haystack import Document, component, default_to_dict
 
 from .embedding_backend.fastembed_backend import _FastembedEmbeddingBackendFactory
 
@@ -55,7 +55,6 @@ class FastembedDocumentEmbedder:
         model: str = "BAAI/bge-small-en-v1.5",
         batch_size: int = 256,
         progress_bar: bool = True,
-        normalize_embeddings: bool = False,
         meta_fields_to_embed: Optional[List[str]] = None,
         embedding_separator: str = "\n",
     ):
@@ -66,7 +65,6 @@ class FastembedDocumentEmbedder:
             such as ``'BAAI/bge-small-en-v1.5'``.
         :param batch_size: Number of strings to encode at once.
         :param progress_bar: If true, displays progress bar during embedding.
-        :param normalize_embeddings: If set to true, returned vectors will have the length of 1.
         :param meta_fields_to_embed: List of meta fields that should be embedded along with the Document content.
         :param embedding_separator: Separator used to concatenate the meta fields to the Document content.
         """
@@ -74,7 +72,6 @@ class FastembedDocumentEmbedder:
         self.model_name = model
         self.batch_size = batch_size
         self.progress_bar = progress_bar
-        self.normalize_embeddings = normalize_embeddings
         self.meta_fields_to_embed = meta_fields_to_embed or []
         self.embedding_separator = embedding_separator
 
@@ -87,7 +84,6 @@ class FastembedDocumentEmbedder:
             model=self.model_name,
             batch_size=self.batch_size,
             progress_bar=self.progress_bar,
-            normalize_embeddings=self.normalize_embeddings,
             meta_fields_to_embed=self.meta_fields_to_embed,
             embedding_separator=self.embedding_separator,
         )
@@ -131,7 +127,6 @@ class FastembedDocumentEmbedder:
             texts_to_embed,
             batch_size=self.batch_size,
             show_progress_bar=self.progress_bar,
-            normalize_embeddings=self.normalize_embeddings,
         )
 
         for doc, emb in zip(documents, embeddings):

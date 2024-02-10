@@ -2,6 +2,7 @@ from unittest.mock import MagicMock, patch
 
 import numpy as np
 import pytest
+from haystack import default_from_dict
 from haystack_integrations.components.embedders.fastembed.fastembed_text_embedder import (
     FastembedTextEmbedder,
 )
@@ -16,7 +17,6 @@ class TestFastembedTextEmbedder:
         assert embedder.model_name == "BAAI/bge-small-en-v1.5"
         assert embedder.batch_size == 256
         assert embedder.progress_bar is True
-        assert embedder.normalize_embeddings is False
 
     def test_init_with_parameters(self):
         """
@@ -26,12 +26,10 @@ class TestFastembedTextEmbedder:
             model="BAAI/bge-small-en-v1.5",
             batch_size=64,
             progress_bar=False,
-            normalize_embeddings=True,
         )
         assert embedder.model_name == "BAAI/bge-small-en-v1.5"
         assert embedder.batch_size == 64
         assert embedder.progress_bar is False
-        assert embedder.normalize_embeddings is True
 
     def test_to_dict(self):
         """
@@ -45,7 +43,6 @@ class TestFastembedTextEmbedder:
                 "model": "BAAI/bge-small-en-v1.5",
                 "batch_size": 256,
                 "progress_bar": True,
-                "normalize_embeddings": False,
             },
         }
 
@@ -57,7 +54,6 @@ class TestFastembedTextEmbedder:
             model="BAAI/bge-small-en-v1.5",
             batch_size=64,
             progress_bar=False,
-            normalize_embeddings=True,
         )
         embedder_dict = embedder.to_dict()
         assert embedder_dict == {
@@ -66,7 +62,6 @@ class TestFastembedTextEmbedder:
                 "model": "BAAI/bge-small-en-v1.5",
                 "batch_size": 64,
                 "progress_bar": False,
-                "normalize_embeddings": True,
             },
         }
 
@@ -80,14 +75,12 @@ class TestFastembedTextEmbedder:
                 "model": "BAAI/bge-small-en-v1.5",
                 "batch_size": 256,
                 "progress_bar": True,
-                "normalize_embeddings": False,
             },
         }
-        embedder = FastembedTextEmbedder.from_dict(embedder_dict)
+        embedder = default_from_dict(FastembedTextEmbedder, embedder_dict)
         assert embedder.model_name == "BAAI/bge-small-en-v1.5"
         assert embedder.batch_size == 256
         assert embedder.progress_bar is True
-        assert embedder.normalize_embeddings is False
 
     def test_from_dict_with_custom_init_parameters(self):
         """
@@ -99,14 +92,12 @@ class TestFastembedTextEmbedder:
                 "model": "BAAI/bge-small-en-v1.5",
                 "batch_size": 64,
                 "progress_bar": False,
-                "normalize_embeddings": True,
             },
         }
-        embedder = FastembedTextEmbedder.from_dict(embedder_dict)
+        embedder = default_from_dict(FastembedTextEmbedder, embedder_dict)
         assert embedder.model_name == "BAAI/bge-small-en-v1.5"
         assert embedder.batch_size == 64
         assert embedder.progress_bar is False
-        assert embedder.normalize_embeddings is True
 
     @patch(
         "haystack_integrations.components.embedders.fastembed.fastembed_text_embedder._FastembedEmbeddingBackendFactory"
@@ -167,7 +158,6 @@ class TestFastembedTextEmbedder:
             model="BAAI/bge-small-en-v1.5",
         )
         embedder.warm_up()
-        # embedder.embedding_backend = MagicMock()
 
         text = "Parton energy loss in QCD matter"
 

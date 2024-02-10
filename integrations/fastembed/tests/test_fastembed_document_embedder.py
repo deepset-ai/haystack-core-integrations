@@ -2,7 +2,7 @@ from unittest.mock import MagicMock, patch
 
 import numpy as np
 import pytest
-from haystack import Document
+from haystack import Document, default_from_dict
 from haystack_integrations.components.embedders.fastembed.fastembed_document_embedder import (
     FastembedDocumentEmbedder,
 )
@@ -17,7 +17,6 @@ class TestFastembedDocumentEmbedder:
         assert embedder.model_name == "BAAI/bge-small-en-v1.5"
         assert embedder.batch_size == 256
         assert embedder.progress_bar is True
-        assert embedder.normalize_embeddings is False
         assert embedder.meta_fields_to_embed == []
         assert embedder.embedding_separator == "\n"
 
@@ -29,14 +28,12 @@ class TestFastembedDocumentEmbedder:
             model="BAAI/bge-small-en-v1.5",
             batch_size=64,
             progress_bar=False,
-            normalize_embeddings=True,
             meta_fields_to_embed=["test_field"],
             embedding_separator=" | ",
         )
         assert embedder.model_name == "BAAI/bge-small-en-v1.5"
         assert embedder.batch_size == 64
         assert embedder.progress_bar is False
-        assert embedder.normalize_embeddings is True
         assert embedder.meta_fields_to_embed == ["test_field"]
         assert embedder.embedding_separator == " | "
 
@@ -52,7 +49,6 @@ class TestFastembedDocumentEmbedder:
                 "model": "BAAI/bge-small-en-v1.5",
                 "batch_size": 256,
                 "progress_bar": True,
-                "normalize_embeddings": False,
                 "embedding_separator": "\n",
                 "meta_fields_to_embed": [],
             },
@@ -66,7 +62,6 @@ class TestFastembedDocumentEmbedder:
             model="BAAI/bge-small-en-v1.5",
             batch_size=64,
             progress_bar=False,
-            normalize_embeddings=True,
             meta_fields_to_embed=["test_field"],
             embedding_separator=" | ",
         )
@@ -77,7 +72,6 @@ class TestFastembedDocumentEmbedder:
                 "model": "BAAI/bge-small-en-v1.5",
                 "batch_size": 64,
                 "progress_bar": False,
-                "normalize_embeddings": True,
                 "meta_fields_to_embed": ["test_field"],
                 "embedding_separator": " | ",
             },
@@ -93,16 +87,14 @@ class TestFastembedDocumentEmbedder:
                 "model": "BAAI/bge-small-en-v1.5",
                 "batch_size": 256,
                 "progress_bar": True,
-                "normalize_embeddings": False,
                 "meta_fields_to_embed": [],
                 "embedding_separator": "\n",
             },
         }
-        embedder = FastembedDocumentEmbedder.from_dict(embedder_dict)
+        embedder = default_from_dict(FastembedDocumentEmbedder, embedder_dict)
         assert embedder.model_name == "BAAI/bge-small-en-v1.5"
         assert embedder.batch_size == 256
         assert embedder.progress_bar is True
-        assert embedder.normalize_embeddings is False
         assert embedder.meta_fields_to_embed == []
         assert embedder.embedding_separator == "\n"
 
@@ -116,16 +108,14 @@ class TestFastembedDocumentEmbedder:
                 "model": "BAAI/bge-small-en-v1.5",
                 "batch_size": 64,
                 "progress_bar": False,
-                "normalize_embeddings": True,
                 "meta_fields_to_embed": ["test_field"],
                 "embedding_separator": " | ",
             },
         }
-        embedder = FastembedDocumentEmbedder.from_dict(embedder_dict)
+        embedder = default_from_dict(FastembedDocumentEmbedder, embedder_dict)
         assert embedder.model_name == "BAAI/bge-small-en-v1.5"
         assert embedder.batch_size == 64
         assert embedder.progress_bar is False
-        assert embedder.normalize_embeddings is True
         assert embedder.meta_fields_to_embed == ["test_field"]
         assert embedder.embedding_separator == " | "
 
@@ -222,7 +212,6 @@ class TestFastembedDocumentEmbedder:
             ],
             batch_size=256,
             show_progress_bar=True,
-            normalize_embeddings=False,
         )
 
     @pytest.mark.integration
