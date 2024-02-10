@@ -12,18 +12,19 @@ class FastembedTextEmbedder:
 
     Usage example:
     ```python
-    # To use this component, install the "fastembed" package.
-    # pip install fastembed
+    # To use this component, install the "fastembed-haystack" package.
+    # pip install fastembed-haystack
 
-    from fastembed_haystack.fastembed_text_embedder import FastembedTextEmbedder
+    from haystack_integrations.components.embedders.fastembed import FastembedTextEmbedder
 
     text = "It clearly says online this will work on a Mac OS system. The disk comes and it does not, only Windows. Do Not order this if you have a Mac!!"
 
     text_embedder = FastembedTextEmbedder(
         model="BAAI/bge-small-en-v1.5"
     )
+    text_embedder.warm_up()
 
-    embedding = text_embedder.run(text)
+    embedding = text_embedder.run(text)["embedding"]
     ```
     """  # noqa: E501
 
