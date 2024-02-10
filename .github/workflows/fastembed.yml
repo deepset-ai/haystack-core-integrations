@@ -37,9 +37,10 @@ jobs:
         if: matrix.python-version == '3.9'
         run: hatch run lint:all
 
-      - name: Generate docs
-        if: matrix.python-version == '3.9' && runner.os == 'Linux'
-        run: hatch run docs          
+# TODO: Add docs config and uncomment the following section
+#      - name: Generate docs
+#        if: matrix.python-version == '3.9' && runner.os == 'Linux'
+#        run: hatch run docs          
 
       - name: Run tests
         run: hatch run cov

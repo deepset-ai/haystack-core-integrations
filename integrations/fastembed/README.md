@@ -18,7 +18,7 @@ pip install fastembed-haystack
 
 ## Usage
 
-You can use `FastembedTextEmbedder` and `JinaDocumentEmbedder` by importing as:
+You can use `FastembedTextEmbedder` and `FastembedDocumentEmbedder` by importing as:
 
 ```python
 from fastembed_haystack.fastembed_text_embedder import FastembedTextEmbedder
