@@ -179,6 +179,7 @@ module = [
   "haystack.*",
   "haystack_integrations.*",
   "fastembed.*",
-  "pytest.*"
+  "pytest.*",
+  "numpy.*"
 ]
 ignore_missing_imports = true
