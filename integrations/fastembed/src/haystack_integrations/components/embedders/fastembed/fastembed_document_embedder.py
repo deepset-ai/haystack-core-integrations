@@ -92,13 +92,6 @@ class FastembedDocumentEmbedder:
             embedding_separator=self.embedding_separator,
         )
 
-    @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "FastembedDocumentEmbedder":
-        """
-        Deserialize this component from a dictionary.
-        """
-        return default_from_dict(cls, data)
-
     def warm_up(self):
         """
         Load the embedding backend.
