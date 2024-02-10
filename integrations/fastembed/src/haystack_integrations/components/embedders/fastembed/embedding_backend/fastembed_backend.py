@@ -1,4 +1,4 @@
-from typing import ClassVar, Dict, List
+from typing import Dict, List
 
 from fastembed import TextEmbedding
 
