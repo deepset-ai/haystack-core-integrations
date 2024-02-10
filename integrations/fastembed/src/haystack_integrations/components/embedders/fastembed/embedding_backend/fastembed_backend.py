@@ -8,7 +8,7 @@ class _FastembedEmbeddingBackendFactory:
     Factory class to create instances of fastembed embedding backends.
     """
 
-    _instances: ClassVar[Dict[str, "_FastembedEmbeddingBackendFactory"]] = {}
+    _instances: Dict[str, "_FastembedEmbeddingBackend"] = {}
 
     @staticmethod
     def get_embedding_backend(
