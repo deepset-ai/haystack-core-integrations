@@ -132,8 +132,8 @@ class TestFastembedDocumentEmbedder:
         }
         embedder = default_from_dict(FastembedDocumentEmbedder, embedder_dict)
         assert embedder.model_name == "BAAI/bge-small-en-v1.5"
-        assert embedder.prefix == ""
-        assert embedder.suffix == ""
+        assert embedder.prefix == "prefix"
+        assert embedder.suffix == "suffix"
         assert embedder.batch_size == 64
         assert embedder.progress_bar is False
         assert embedder.meta_fields_to_embed == ["test_field"]
