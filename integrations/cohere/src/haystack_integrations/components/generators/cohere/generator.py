@@ -2,12 +2,12 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 import logging
-import os
 import sys
 from typing import Any, Callable, Dict, List, Optional, cast
 
 from haystack import DeserializationError, component, default_from_dict, default_to_dict
 from haystack.dataclasses import StreamingChunk
+from haystack.utils import Secret, deserialize_secrets_inplace
 
 from cohere import COHERE_API_URL, Client
 from cohere.responses import Generations
@@ -33,7 +33,7 @@ class CohereGenerator:
 
     def __init__(
         self,
-        api_key: Optional[str] = None,
+        api_key: Secret = Secret.from_env_var(["COHERE_API_KEY", "CO_API_KEY"]),
         model: str = "command",
         streaming_callback: Optional[Callable] = None,
         api_base_url: Optional[str] = None,
@@ -42,7 +42,7 @@ class CohereGenerator:
         """
         Instantiates a `CohereGenerator` component.
 
-        :param api_key: The API key for the Cohere API. If not set, it will be read from the COHERE_API_KEY env var.
+        :param api_key: The API key for the Cohere API.
         :param model: The name of the model to use. Available models are: [command, command-light, command-nightly,
             command-nightly-light]. Defaults to "command".
         :param streaming_callback: A callback function to be called with the streaming response. Defaults to None.
@@ -75,15 +75,6 @@ class CohereGenerator:
             - 'logit_bias': Used to prevent the model from generating unwanted tokens or to incentivize it to include
                 desired tokens. The format is {token_id: bias} where bias is a float between -10 and 10.
         """
-        api_key = api_key or os.environ.get("COHERE_API_KEY")
-        # we check whether api_key is None or an empty string
-        if not api_key:
-            msg = (
-                "CohereGenerator expects an API key. "
-                "Set the COHERE_API_KEY environment variable (recommended) or pass it explicitly."
-            )
-            raise ValueError(msg)
-
         if not api_base_url:
             api_base_url = COHERE_API_URL
 
@@ -92,7 +83,7 @@ class CohereGenerator:
         self.streaming_callback = streaming_callback
         self.api_base_url = api_base_url
         self.model_parameters = kwargs
-        self.client = Client(api_key=self.api_key, api_url=self.api_base_url)
+        self.client = Client(api_key=self.api_key.resolve_value(), api_url=self.api_base_url)
 
     def to_dict(self) -> Dict[str, Any]:
         """
@@ -112,6 +103,7 @@ class CohereGenerator:
             model=self.model,
             streaming_callback=callback_name,
             api_base_url=self.api_base_url,
+            api_key=self.api_key.to_dict(),
             **self.model_parameters,
         )
 
@@ -121,6 +113,7 @@ class CohereGenerator:
         Deserialize this component from a dictionary.
         """
         init_params = data.get("init_parameters", {})
+        deserialize_secrets_inplace(init_params, ["api_key"])
         streaming_callback = None
         if "streaming_callback" in init_params and init_params["streaming_callback"] is not None:
             parts = init_params["streaming_callback"].split(".")

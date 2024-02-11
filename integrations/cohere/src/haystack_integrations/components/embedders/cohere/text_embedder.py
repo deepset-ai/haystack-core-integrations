@@ -2,10 +2,10 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 import asyncio
-import os
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
-from haystack import component, default_to_dict
+from haystack import component, default_from_dict, default_to_dict
+from haystack.utils import Secret, deserialize_secrets_inplace
 from haystack_integrations.components.embedders.cohere.utils import get_async_response, get_response
 
 from cohere import COHERE_API_URL, AsyncClient, Client
@@ -33,7 +33,7 @@ class CohereTextEmbedder:
 
     def __init__(
         self,
-        api_key: Optional[str] = None,
+        api_key: Secret = Secret.from_env_var(["COHERE_API_KEY", "CO_API_KEY"]),
         model: str = "embed-english-v2.0",
         input_type: str = "search_query",
         api_base_url: str = COHERE_API_URL,
@@ -45,8 +45,7 @@ class CohereTextEmbedder:
         """
         Create a CohereTextEmbedder component.
 
-        :param api_key: The Cohere API key. It can be explicitly provided or automatically read from the environment
-            variable COHERE_API_KEY (recommended).
+        :param api_key: The Cohere API key.
         :param model: The name of the model to use, defaults to `"embed-english-v2.0"`. Supported Models are:
             `"embed-english-v3.0"`, `"embed-english-light-v3.0"`, `"embed-multilingual-v3.0"`,
             `"embed-multilingual-light-v3.0"`, `"embed-english-v2.0"`, `"embed-english-light-v2.0"`,
@@ -67,15 +66,6 @@ class CohereTextEmbedder:
         :param timeout: Request timeout in seconds, defaults to `120`.
         """
 
-        api_key = api_key or os.environ.get("COHERE_API_KEY")
-        # we check whether api_key is None or an empty string
-        if not api_key:
-            msg = (
-                "CohereTextEmbedder expects an API key. "
-                "Set the COHERE_API_KEY environment variable (recommended) or pass it explicitly."
-            )
-            raise ValueError(msg)
-
         self.api_key = api_key
         self.model = model
         self.input_type = input_type
@@ -91,6 +81,7 @@ class CohereTextEmbedder:
         """
         return default_to_dict(
             self,
+            api_key=self.api_key.to_dict(),
             model=self.model,
             input_type=self.input_type,
             api_base_url=self.api_base_url,
@@ -99,6 +90,17 @@ class CohereTextEmbedder:
             max_retries=self.max_retries,
             timeout=self.timeout,
         )
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "CohereTextEmbedder":
+        """
+        Deserialize this component from a dictionary.
+        :param data: The dictionary representation of this component.
+        :return: The deserialized component instance.
+        """
+        init_params = data.get("init_parameters", {})
+        deserialize_secrets_inplace(init_params, ["api_key"])
+        return default_from_dict(cls, data)
 
     @component.output_types(embedding=List[float], meta=Dict[str, Any])
     def run(self, text: str):
@@ -112,16 +114,25 @@ class CohereTextEmbedder:
 
         # Establish connection to API
 
+        api_key = self.api_key.resolve_value()
+        assert api_key is not None
+
         if self.use_async_client:
             cohere_client = AsyncClient(
-                self.api_key, api_url=self.api_base_url, max_retries=self.max_retries, timeout=self.timeout
+                api_key,
+                api_url=self.api_base_url,
+                max_retries=self.max_retries,
+                timeout=self.timeout,
             )
             embedding, metadata = asyncio.run(
                 get_async_response(cohere_client, [text], self.model, self.input_type, self.truncate)
             )
         else:
             cohere_client = Client(
-                self.api_key, api_url=self.api_base_url, max_retries=self.max_retries, timeout=self.timeout
+                api_key,
+                api_url=self.api_base_url,
+                max_retries=self.max_retries,
+                timeout=self.timeout,
             )
             embedding, metadata = get_response(cohere_client, [text], self.model, self.input_type, self.truncate)
 
