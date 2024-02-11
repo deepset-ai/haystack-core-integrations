@@ -1,21 +1,21 @@
 # This workflow comes from https://github.com/ofek/hatch-mypyc
 # https://github.com/ofek/hatch-mypyc/blob/5a198c0ba8660494d02716cfc9d79ce4adfb1442/.github/workflows/test.yml
-name: Test / jina
+name: Test / deepeval
 
 on:
   schedule:
     - cron: "0 0 * * *"
   pull_request:
     paths:
-      - "integrations/jina/**"
-      - ".github/workflows/jina.yml"
+      - "integrations/deepeval/**"
+      - ".github/workflows/deepeval.yml"
 
 defaults:
   run:
-    working-directory: integrations/jina
+    working-directory: integrations/deepeval
 
 concurrency:
-  group: jina-${{ github.head_ref }}
+  group: deepeval-${{ github.head_ref }}
   cancel-in-progress: true
 
 env:

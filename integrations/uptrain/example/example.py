@@ -1,7 +1,7 @@
 # A valid OpenAI API key is required to run this example.
 
 from haystack import Pipeline
-from haystack_integrations.components.evaluators import UpTrainEvaluator, UpTrainMetric
+from haystack_integrations.components.evaluators.uptrain import UpTrainEvaluator, UpTrainMetric
 from haystack.utils import Secret
 
 QUESTIONS = [

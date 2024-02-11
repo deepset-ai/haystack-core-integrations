@@ -21,17 +21,18 @@ pip install fastembed-haystack
 You can use `FastembedTextEmbedder` and `FastembedDocumentEmbedder` by importing as:
 
 ```python
-from fastembed_haystack.fastembed_text_embedder import FastembedTextEmbedder
+from haystack_integrations.components.embedders.fastembed import FastembedTextEmbedder
 
 text = "fastembed is supported by and maintained by Qdrant."
 text_embedder = FastembedTextEmbedder(
     model="BAAI/bge-small-en-v1.5"
 )
-embedding = text_embedder.run(text)
+text_embedder.warm_up()
+embedding = text_embedder.run(text)["embedding"]
 ```
 
 ```python
-from fastembed_haystack.fastembed__document_embedder import FastembedDocumentEmbedder
+from haystack_integrations.components.embedders.fastembed import FastembedDocumentEmbedder
 from haystack.dataclasses import Document
 
 embedder = FastembedDocumentEmbedder(

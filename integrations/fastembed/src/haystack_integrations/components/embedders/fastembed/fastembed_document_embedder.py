@@ -16,7 +16,7 @@ class FastembedDocumentEmbedder:
     # To use this component, install the "fastembed-haystack" package.
     # pip install fastembed-haystack
 
-    from fastembed_haystack.fastembed__document_embedder import FastembedDocumentEmbedder
+    from haystack_integrations.components.embedders.fastembed import FastembedDocumentEmbedder
     from haystack.dataclasses import Document
 
     doc_embedder = FastembedDocumentEmbedder(

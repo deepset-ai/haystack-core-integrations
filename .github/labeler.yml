@@ -29,6 +29,11 @@ integration:elasticsearch:
       - any-glob-to-any-file: "integrations/elasticsearch/**/*"
       - any-glob-to-any-file: ".github/workflows/elasticsearch.yml"
 
+integration:fastembed:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/fastembed/**/*"
+      - any-glob-to-any-file: ".github/workflows/fastembed.yml"
+
 integration:google-ai:
   - changed-files:
       - any-glob-to-any-file: "integrations/google_ai/**/*"
@@ -98,6 +103,11 @@ integration:weaviate:
   - changed-files:
       - any-glob-to-any-file: "integrations/weaviate/**/*"
       - any-glob-to-any-file: ".github/workflows/weaviate.yml"
+
+integration:deepeval:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/deepeval/**/*"
+      - any-glob-to-any-file: ".github/workflows/deepeval.yml"
 
 # Topics
 topic:CI:
