@@ -53,6 +53,8 @@ class FastembedDocumentEmbedder:
     def __init__(
         self,
         model: str = "BAAI/bge-small-en-v1.5",
+        prefix: str = "",
+        suffix: str = "",
         batch_size: int = 256,
         progress_bar: bool = True,
         meta_fields_to_embed: Optional[List[str]] = None,
@@ -63,6 +65,8 @@ class FastembedDocumentEmbedder:
 
         :param model: Local path or name of the model in Hugging Face's model hub,
             such as ``'BAAI/bge-small-en-v1.5'``.
+        :param prefix: A string to add to the beginning of each text.
+        :param suffix: A string to add to the end of each text.
         :param batch_size: Number of strings to encode at once.
         :param progress_bar: If true, displays progress bar during embedding.
         :param meta_fields_to_embed: List of meta fields that should be embedded along with the Document content.
@@ -70,6 +74,8 @@ class FastembedDocumentEmbedder:
         """
 
         self.model_name = model
+        self.prefix = prefix
+        self.suffix = suffix
         self.batch_size = batch_size
         self.progress_bar = progress_bar
         self.meta_fields_to_embed = meta_fields_to_embed or []
@@ -82,6 +88,8 @@ class FastembedDocumentEmbedder:
         return default_to_dict(
             self,
             model=self.model_name,
+            prefix=self.prefix,
+            suffix=self.suffix,
             batch_size=self.batch_size,
             progress_bar=self.progress_bar,
             meta_fields_to_embed=self.meta_fields_to_embed,
@@ -94,6 +102,19 @@ class FastembedDocumentEmbedder:
         """
         if not hasattr(self, "embedding_backend"):
             self.embedding_backend = _FastembedEmbeddingBackendFactory.get_embedding_backend(model_name=self.model_name)
+
+    def _prepare_texts_to_embed(self, documents: List[Document]) -> List[str]:
+        texts_to_embed = []
+        for doc in documents:
+            meta_values_to_embed = [
+                str(doc.meta[key]) for key in self.meta_fields_to_embed if key in doc.meta and doc.meta[key] is not None
+            ]
+            text_to_embed = [
+                self.prefix + self.embedding_separator.join([*meta_values_to_embed, doc.content or ""]) + self.suffix,
+            ]
+
+            texts_to_embed.append(text_to_embed[0])
+        return texts_to_embed
 
     @component.output_types(documents=List[Document])
     def run(self, documents: List[Document]):
@@ -113,16 +134,7 @@ class FastembedDocumentEmbedder:
 
         # TODO: once non textual Documents are properly supported, we should also prepare them for embedding here
 
-        texts_to_embed = []
-        for doc in documents:
-            meta_values_to_embed = [
-                str(doc.meta[key]) for key in self.meta_fields_to_embed if key in doc.meta and doc.meta[key] is not None
-            ]
-            text_to_embed = [
-                self.embedding_separator.join([*meta_values_to_embed, doc.content or ""]),
-            ]
-
-            texts_to_embed.append(text_to_embed[0])
+        texts_to_embed = self._prepare_texts_to_embed(documents=documents)
         embeddings = self.embedding_backend.embed(
             texts_to_embed,
             batch_size=self.batch_size,

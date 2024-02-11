@@ -15,6 +15,8 @@ class TestFastembedTextEmbedder:
         """
         embedder = FastembedTextEmbedder(model="BAAI/bge-small-en-v1.5")
         assert embedder.model_name == "BAAI/bge-small-en-v1.5"
+        assert embedder.prefix == ""
+        assert embedder.suffix == ""
         assert embedder.batch_size == 256
         assert embedder.progress_bar is True
 
@@ -24,10 +26,14 @@ class TestFastembedTextEmbedder:
         """
         embedder = FastembedTextEmbedder(
             model="BAAI/bge-small-en-v1.5",
+            prefix="prefix",
+            suffix="suffix",
             batch_size=64,
             progress_bar=False,
         )
         assert embedder.model_name == "BAAI/bge-small-en-v1.5"
+        assert embedder.prefix == "prefix"
+        assert embedder.suffix == "suffix"
         assert embedder.batch_size == 64
         assert embedder.progress_bar is False
 
@@ -41,6 +47,8 @@ class TestFastembedTextEmbedder:
             "type": "haystack_integrations.components.embedders.fastembed.fastembed_text_embedder.FastembedTextEmbedder",  # noqa
             "init_parameters": {
                 "model": "BAAI/bge-small-en-v1.5",
+                "prefix": "",
+                "suffix": "",
                 "batch_size": 256,
                 "progress_bar": True,
             },
@@ -52,6 +60,8 @@ class TestFastembedTextEmbedder:
         """
         embedder = FastembedTextEmbedder(
             model="BAAI/bge-small-en-v1.5",
+            prefix="prefix",
+            suffix="suffix",
             batch_size=64,
             progress_bar=False,
         )
@@ -60,6 +70,8 @@ class TestFastembedTextEmbedder:
             "type": "haystack_integrations.components.embedders.fastembed.fastembed_text_embedder.FastembedTextEmbedder",  # noqa
             "init_parameters": {
                 "model": "BAAI/bge-small-en-v1.5",
+                "prefix": "prefix",
+                "suffix": "suffix",
                 "batch_size": 64,
                 "progress_bar": False,
             },
@@ -73,12 +85,16 @@ class TestFastembedTextEmbedder:
             "type": "haystack_integrations.components.embedders.fastembed.fastembed_text_embedder.FastembedTextEmbedder",  # noqa
             "init_parameters": {
                 "model": "BAAI/bge-small-en-v1.5",
+                "prefix": "",
+                "suffix": "",
                 "batch_size": 256,
                 "progress_bar": True,
             },
         }
         embedder = default_from_dict(FastembedTextEmbedder, embedder_dict)
         assert embedder.model_name == "BAAI/bge-small-en-v1.5"
+        assert embedder.prefix == ""
+        assert embedder.suffix == ""
         assert embedder.batch_size == 256
         assert embedder.progress_bar is True
 
@@ -90,12 +106,16 @@ class TestFastembedTextEmbedder:
             "type": "haystack_integrations.components.embedders.fastembed.fastembed_text_embedder.FastembedTextEmbedder",  # noqa
             "init_parameters": {
                 "model": "BAAI/bge-small-en-v1.5",
+                "prefix": "prefix",
+                "suffix": "suffix",
                 "batch_size": 64,
                 "progress_bar": False,
             },
         }
         embedder = default_from_dict(FastembedTextEmbedder, embedder_dict)
         assert embedder.model_name == "BAAI/bge-small-en-v1.5"
+        assert embedder.prefix == "prefix"
+        assert embedder.suffix == "suffix"
         assert embedder.batch_size == 64
         assert embedder.progress_bar is False
 
