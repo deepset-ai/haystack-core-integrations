@@ -31,6 +31,8 @@ class FastembedTextEmbedder:
     def __init__(
         self,
         model: str = "BAAI/bge-small-en-v1.5",
+        prefix: str = "",
+        suffix: str = "",
         batch_size: int = 256,
         progress_bar: bool = True,
     ):
@@ -40,11 +42,15 @@ class FastembedTextEmbedder:
         :param model: Local path or name of the model in Fastembed's model hub,
             such as ``'BAAI/bge-small-en-v1.5'``.
         :param batch_size: Number of strings to encode at once.
+        :param prefix: A string to add to the beginning of each text.
+        :param suffix: A string to add to the end of each text.
         """
 
         # TODO add parallel
 
         self.model_name = model
+        self.prefix = prefix
+        self.suffix = suffix
         self.batch_size = batch_size
         self.progress_bar = progress_bar
 
@@ -55,6 +61,8 @@ class FastembedTextEmbedder:
         return default_to_dict(
             self,
             model=self.model_name,
+            prefix=self.prefix,
+            suffix=self.suffix,
             batch_size=self.batch_size,
             progress_bar=self.progress_bar,
         )
@@ -79,7 +87,7 @@ class FastembedTextEmbedder:
             msg = "The embedding model has not been loaded. Please call warm_up() before running."
             raise RuntimeError(msg)
 
-        text_to_embed = [text]
+        text_to_embed = [self.prefix + text + self.suffix]
         embedding = list(
             self.embedding_backend.embed(
                 text_to_embed,
