@@ -38,5 +38,6 @@ class _FastembedEmbeddingBackend:
         self.model = TextEmbedding(model_name=model_name)
 
     def embed(self, data: List[List[str]], **kwargs) -> List[List[float]]:
-        embeddings = list(self.model.embed(data, **kwargs))
+        # the embed method returns a Iterable[np.ndarray], so we convert it to a list of lists
+        embeddings = [np_array.tolist() for np_array in self.model.embed(data, **kwargs)]
         return embeddings

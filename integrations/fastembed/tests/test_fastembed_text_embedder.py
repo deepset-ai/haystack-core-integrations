@@ -186,4 +186,4 @@ class TestFastembedTextEmbedder:
 
         assert isinstance(embedding, list)
         assert len(embedding) == 384
-        assert all(isinstance(emb.item(), float) for emb in embedding)
+        assert all(isinstance(emb, float) for emb in embedding)

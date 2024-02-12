@@ -142,6 +142,6 @@ class FastembedDocumentEmbedder:
         )
 
         for doc, emb in zip(documents, embeddings):
-            doc.embedding = list(emb)
+            doc.embedding = emb
 
         return {"documents": documents}
