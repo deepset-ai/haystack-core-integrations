@@ -80,10 +80,12 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, WriteDocumentsT
         assert document_store.write_documents(docs) == 1
 
     @pytest.mark.skip(reason="Pinecone only supports UPSERT operations")
-    def test_write_documents_duplicate_fail(self, document_store: PineconeDocumentStore): ...
+    def test_write_documents_duplicate_fail(self, document_store: PineconeDocumentStore):
+        ...
 
     @pytest.mark.skip(reason="Pinecone only supports UPSERT operations")
-    def test_write_documents_duplicate_skip(self, document_store: PineconeDocumentStore): ...
+    def test_write_documents_duplicate_skip(self, document_store: PineconeDocumentStore):
+        ...
 
     def test_init_fails_wo_api_key(self, monkeypatch):
         api_key = None
