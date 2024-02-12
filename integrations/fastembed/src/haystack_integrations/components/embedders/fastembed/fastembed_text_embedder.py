@@ -95,4 +95,5 @@ class FastembedTextEmbedder:
                 show_progress_bar=self.progress_bar,
             )[0]
         )
-        return {"embedding": embedding}
+        emb2float = [emb.item() for emb in embedding]
+        return {"embedding": emb2float}
