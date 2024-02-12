@@ -142,7 +142,7 @@ class FastembedDocumentEmbedder:
         )
 
         for doc, emb in zip(documents, embeddings):
-            emb2float = [e.item for e in emb]
+            emb2float = [e.item() for e in emb]
             doc.embedding = list(emb2float)
 
         return {"documents": documents}
