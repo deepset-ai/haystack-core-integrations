@@ -8,6 +8,7 @@ from haystack import default_to_dict
 from haystack.dataclasses.document import ByteStream, Document
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
+from haystack.utils.auth import Secret
 from haystack.utils.filters import convert
 from psycopg import Error, IntegrityError, connect
 from psycopg.abc import Query
@@ -69,7 +70,7 @@ class PgvectorDocumentStore:
     def __init__(
         self,
         *,
-        connection_string: str,
+        connection_string: Secret = Secret.from_env_var("PG_CONN_STR"),
         table_name: str = "haystack_documents",
         embedding_dimension: int = 768,
         vector_function: Literal["cosine_similarity", "inner_product", "l2_distance"] = "cosine_similarity",
@@ -84,8 +85,8 @@ class PgvectorDocumentStore:
         It is meant to be connected to a PostgreSQL database with the pgvector extension installed.
         A specific table to store Haystack documents will be created if it doesn't exist yet.
 
-        :param connection_string: The connection string to use to connect to the PostgreSQL database.
-            e.g. "postgresql://USER:PASSWORD@HOST:PORT/DB_NAME"
+        :param connection_string: The connection string to use to connect to the PostgreSQL database, defined as an
+            environment variable, e.g.: PG_CONN_STR="postgresql://USER:PASSWORD@HOST:PORT/DB_NAME"
         :param table_name: The name of the table to use to store Haystack documents. Defaults to "haystack_documents".
         :param embedding_dimension: The dimension of the embedding. Defaults to 768.
         :param vector_function: The similarity function to use when searching for similar embeddings.
@@ -116,8 +117,7 @@ class PgvectorDocumentStore:
             "hnsw". You can find more information about this parameter in the pgvector documentation:
             https://github.com/pgvector/pgvector?tab=readme-ov-file#hnsw
         """
-
-        self.connection_string = connection_string
+        self.connection_string = connection_string.resolve_value()
         self.table_name = table_name
         self.embedding_dimension = embedding_dimension
         if vector_function not in VALID_VECTOR_FUNCTIONS:
@@ -130,7 +130,7 @@ class PgvectorDocumentStore:
         self.hnsw_index_creation_kwargs = hnsw_index_creation_kwargs or {}
         self.hnsw_ef_search = hnsw_ef_search
 
-        connection = connect(connection_string)
+        connection = connect(self.connection_string)
         connection.autocommit = True
         self._connection = connection
 
