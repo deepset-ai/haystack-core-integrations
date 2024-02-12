@@ -1,7 +1,11 @@
 loaders:
   - type: haystack_pydoc_tools.loaders.CustomPythonLoader
     search_path: [../src]
-    modules: ["haystack_integrations.components.embedders.jina"]
+    modules: 
+      [
+        "haystack_integrations.components.embedders.jina.document_embedder",
+        "haystack_integrations.components.embedders.jina.text_embedder",
+      ]
     ignore_when_discovered: ["__init__"]
 processors:
   - type: filter

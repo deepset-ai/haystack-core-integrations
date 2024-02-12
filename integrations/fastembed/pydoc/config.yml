@@ -3,8 +3,9 @@ loaders:
     search_path: [../src]
     modules:
       [
-        "haystack_integrations.components.embedders.fastembed",
-        "haystack_integrations.components.embedders.fastembed.embedding_backend",
+        "haystack_integrations.components.embedders.fastembed.fastembed_document_embedder",
+        "haystack_integrations.components.embedders.fastembed.fastembed_text_embedder",
+        "haystack_integrations.components.embedders.fastembed.embedding_backend.fastembed_backend",
       ]
     ignore_when_discovered: ["__init__"]
 processors:
@@ -17,9 +18,9 @@ processors:
   - type: crossref
 renderer:
   type: haystack_pydoc_tools.renderers.ReadmePreviewRenderer
-  excerpt: Embedders integration for Haystack
+  excerpt: FastEmbed integration for Haystack
   category_slug: haystack-integrations
-  title: Embedders
+  title: FastEmbed
   slug: fastembed-embedders
   order: 300
   markdown:
