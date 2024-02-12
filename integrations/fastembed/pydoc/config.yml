@@ -22,7 +22,7 @@ renderer:
   category_slug: haystack-integrations
   title: FastEmbed
   slug: fastembed-embedders
-  order: 300
+  order: 55
   markdown:
     descriptive_class_title: false
     descriptive_module_title: true
