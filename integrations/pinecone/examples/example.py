@@ -15,8 +15,9 @@ from haystack.components.converters import MarkdownToDocument
 from haystack.components.embedders import SentenceTransformersDocumentEmbedder, SentenceTransformersTextEmbedder
 from haystack.components.preprocessors import DocumentSplitter
 from haystack.components.writers import DocumentWriter
-from haystack_integrations.document_stores.pinecone import PineconeDocumentStore
+
 from haystack_integrations.components.retrievers.pinecone import PineconeEmbeddingRetriever
+from haystack_integrations.document_stores.pinecone import PineconeDocumentStore
 
 file_paths = glob.glob("neural-search-pills/pills/*.md")
 
