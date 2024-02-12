@@ -31,7 +31,7 @@ def test_to_dict(mock_pinecone):
     retriever = PineconeEmbeddingRetriever(document_store=document_store)
     res = retriever.to_dict()
     assert res == {
-        "type": "haystack_integrations.components.retrievers.pinecone.dense_retriever.PineconeEmbeddingRetriever",
+        "type": "haystack_integrations.components.retrievers.pinecone.embedding_retriever.PineconeEmbeddingRetriever",
         "init_parameters": {
             "document_store": {
                 "init_parameters": {
@@ -52,7 +52,7 @@ def test_to_dict(mock_pinecone):
 @patch("haystack_integrations.document_stores.pinecone.document_store.pinecone")
 def test_from_dict(mock_pinecone, monkeypatch):
     data = {
-        "type": "haystack_integrations.components.retrievers.pinecone.dense_retriever.PineconeEmbeddingRetriever",
+        "type": "haystack_integrations.components.retrievers.pinecone.embedding_retriever.PineconeEmbeddingRetriever",
         "init_parameters": {
             "document_store": {
                 "init_parameters": {
