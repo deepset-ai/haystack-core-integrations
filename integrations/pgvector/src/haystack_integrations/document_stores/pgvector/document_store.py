@@ -117,7 +117,8 @@ class PgvectorDocumentStore:
             "hnsw". You can find more information about this parameter in the pgvector documentation:
             https://github.com/pgvector/pgvector?tab=readme-ov-file#hnsw
         """
-        self.connection_string = connection_string.resolve_value()
+
+        self.connection_string = connection_string if isinstance(connection_string, str) else connection_string.resolve_value()
         self.table_name = table_name
         self.embedding_dimension = embedding_dimension
         if vector_function not in VALID_VECTOR_FUNCTIONS:

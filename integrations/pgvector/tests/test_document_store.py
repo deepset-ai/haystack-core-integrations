@@ -41,7 +41,6 @@ class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsT
         assert retrieved_docs == docs
 
     def test_init(self):
-        os.environ["PG_CONN_STR"] = "postgresql://postgres:postgres@localhost:5432/postgres"
         document_store = PgvectorDocumentStore(
             table_name="my_table",
             embedding_dimension=512,
@@ -65,7 +64,6 @@ class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsT
 
     def test_to_dict(self):
         document_store = PgvectorDocumentStore(
-            connection_string="postgresql://postgres:postgres@localhost:5432/postgres",
             table_name="my_table",
             embedding_dimension=512,
             vector_function="l2_distance",
