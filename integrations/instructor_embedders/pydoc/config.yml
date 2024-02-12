@@ -5,7 +5,6 @@ loaders:
       [
         "haystack_integrations.components.embedders.instructor_embedders.instructor_document_embedder",
         "haystack_integrations.components.embedders.instructor_embedders.instructor_text_embedder",
-        "haystack_integrations.components.embedders.instructor_embedders.embedding_backend.instructor_backend",
       ]
     ignore_when_discovered: ["__init__"]
 processors:

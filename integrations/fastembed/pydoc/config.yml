@@ -5,7 +5,6 @@ loaders:
       [
         "haystack_integrations.components.embedders.fastembed.fastembed_document_embedder",
         "haystack_integrations.components.embedders.fastembed.fastembed_text_embedder",
-        "haystack_integrations.components.embedders.fastembed.embedding_backend.fastembed_backend",
       ]
     ignore_when_discovered: ["__init__"]
 processors:
