@@ -2,23 +2,29 @@ import dataclasses
 import inspect
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Callable, Dict, Iterable, List, Optional, Type
+from typing import Any, Callable, Dict, Iterable, List, Optional, Type, Union
 
 from ragas.evaluation import Result
 from ragas.metrics import (
+    AspectCritique,
+    answer_correctness,
     answer_relevancy,
+    answer_similarity,
     context_precision,
     context_recall,
-    faithfulness, context_relevancy, answer_similarity, answer_correctness, context_utilization, AspectCritique,
+    context_relevancy,
+    context_utilization,
+    faithfulness,
 )
 from ragas.metrics.base import Metric
-from ragas.metrics.critique import harmfulness, correctness, maliciousness, coherence, conciseness
+from ragas.metrics.critique import coherence, conciseness, correctness, harmfulness, maliciousness
 
 
 class RagasBaseEnum(Enum):
     """
     Base functionality for a Ragas enum.
     """
+
     def __str__(self):
         return self.value
 
@@ -44,6 +50,7 @@ class RagasMetric(RagasBaseEnum):
     """
     Metrics supported by Ragas.
     """
+
     # #: Answer correctness
     # Prior to Ragas version 0.1.0rc1, this metric is expected to fail with:
     # ValueError: too many values to unpack (expected 3) due to a bug in Ragas,
@@ -88,6 +95,7 @@ class RagasMetricAspect(str, RagasBaseEnum):
     """
     Predefined aspects supported by Ragas when evaluating Aspect critique.
     """
+
     HARMFULNESS = "harmfulness"
 
     MALICIOUSNESS = "maliciousness"
@@ -196,7 +204,11 @@ class InputConverters:
             raise ValueError(msg)
 
     @staticmethod
-    def validate_input_parameters(metric: RagasMetric, expected: Dict[str, Any], received: Dict[str, Any], metric_params: Optional[Dict[str, Any]] = None):
+    def validate_input_parameters(
+        metric: RagasMetric,
+        expected: Dict[str, Any],
+        received: Dict[str, Any],
+    ):
         for param, _ in expected.items():
             if param not in received:
                 msg = f"Ragas evaluator expected input parameter '{param}' for metric '{metric}'"
@@ -205,7 +217,7 @@ class InputConverters:
     @staticmethod
     def question_context_response(
         questions: List[str], contexts: List[List[str]], responses: List[str]
-    ) -> Iterable[Dict[str, str]]:
+    ) -> Iterable[Dict[str, Union[str, List[str]]]]:
         InputConverters._validate_input_elements(questions=questions, contexts=contexts, responses=responses)
         for q, c, r in zip(questions, contexts, responses):  # type: ignore
             yield {"question": q, "contexts": c, "answer": r}
@@ -215,7 +227,7 @@ class InputConverters:
         questions: List[str],
         contexts: List[List[str]],
         ground_truths: List[str],
-    ) -> Iterable[Dict[str, str]]:
+    ) -> Iterable[Dict[str, Union[str, List[str]]]]:
         InputConverters._validate_input_elements(questions=questions, contexts=contexts, ground_truths=ground_truths)
         for q, c, gt in zip(questions, contexts, ground_truths):  # type: ignore
             yield {"question": q, "contexts": c, "ground_truth": gt}
@@ -224,7 +236,7 @@ class InputConverters:
     def question_context(
         questions: List[str],
         contexts: List[List[str]],
-    ) -> Iterable[Dict[str, str]]:
+    ) -> Iterable[Dict[str, Union[str, List[str]]]]:
         InputConverters._validate_input_elements(questions=questions, contexts=contexts)
         for q, c in zip(questions, contexts):  # type: ignore
             yield {"question": q, "contexts": c}
@@ -263,15 +275,19 @@ class OutputConverters:
             raise ValueError(msg)
 
     @staticmethod
-    def extract_results(output: Result, metric: RagasMetric, metric_params: Optional[Dict[str, Any]]) -> List[MetricResult]:
+    def extract_results(
+        output: Result, metric: RagasMetric, metric_params: Optional[Dict[str, Any]]
+    ) -> List[MetricResult]:
         try:
             metric_name = ""
-            if metric == RagasMetric.ASPECT_CRITIQUE:
-                metric_name = metric_params.get("name") or metric_params.get("aspect").value
+            if metric == RagasMetric.ASPECT_CRITIQUE and metric_params:
+                if "name" in metric_params:
+                    metric_name = metric_params["name"]
+                elif "aspect" in metric_params:
+                    metric_name = metric_params["aspect"].value
             else:
                 metric_name = metric.value
             output_scores: List[Dict[str, float]] = output.scores.to_list()
-            print(output)
             return [MetricResult(name=metric_name, score=metric_dict[metric_name]) for metric_dict in output_scores]
         except KeyError as e:
             msg = f"Ragas evaluator did not return an expected output for metric '{e.args[0]}'"
@@ -292,7 +308,8 @@ METRIC_DESCRIPTORS = {
         RagasMetric.CONTEXT_PRECISION, context_precision, InputConverters.question_context_ground_truth  # type: ignore
     ),
     RagasMetric.CONTEXT_UTILIZATION: MetricDescriptor.new(
-        RagasMetric.CONTEXT_UTILIZATION, context_utilization,
+        RagasMetric.CONTEXT_UTILIZATION,
+        context_utilization,
         InputConverters.question_context_response,  # type: ignore
     ),
     RagasMetric.CONTEXT_RECALL: MetricDescriptor.new(

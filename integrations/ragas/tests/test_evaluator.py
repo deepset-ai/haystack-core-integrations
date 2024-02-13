@@ -53,7 +53,7 @@ class MockBackend:
             RagasMetric.CONTEXT_PRECISION: Result(scores=Dataset.from_list([{"context_precision": 0.5}])),
             RagasMetric.CONTEXT_UTILIZATION: Result(scores=Dataset.from_list([{"context_utilization": 1.0}])),
             RagasMetric.CONTEXT_RECALL: Result(scores=Dataset.from_list([{"context_recall": 0.9}])),
-            RagasMetric.ASPECT_CRITIQUE: Result(scores=Dataset.from_list([{"harmfulness": 1.0}])), #TODO: fix
+            RagasMetric.ASPECT_CRITIQUE: Result(scores=Dataset.from_list([{"harmfulness": 1.0}])),
             RagasMetric.CONTEXT_RELEVANCY: Result(scores=Dataset.from_list([{"context_relevancy": 1.0}])),
             RagasMetric.ANSWER_RELEVANCY: Result(scores=Dataset.from_list([{"answer_relevancy": 0.4}])),
         }
@@ -70,14 +70,10 @@ def test_evaluator_metric_init_params():
     assert eval.metric_params == {"aspect": RagasMetricAspect.HARMFULNESS}
 
     with pytest.raises(ValueError, match="Invalid init parameters"):
-        RagasEvaluator(
-            RagasMetric.ASPECT_CRITIQUE, metric_params=None, api_key=Secret.from_token("Aaa")
-        )
+        RagasEvaluator(RagasMetric.ASPECT_CRITIQUE, metric_params=None, api_key=Secret.from_token("Aaa"))
 
     with pytest.raises(ValueError, match="Invalid init parameters"):
-        RagasEvaluator(
-            RagasMetric.ASPECT_CRITIQUE, metric_params={}, api_key=Secret.from_token("Aaa")
-        )
+        RagasEvaluator(RagasMetric.ASPECT_CRITIQUE, metric_params={}, api_key=Secret.from_token("Aaa"))
 
     with pytest.raises(ValueError, match="Invalid init parameters"):
         RagasEvaluator(
@@ -146,7 +142,11 @@ def test_evaluator_serde(os_environ_get):
         (RagasMetric.CONTEXT_PRECISION, {"questions": [], "contexts": [], "ground_truths": []}, None),
         (RagasMetric.CONTEXT_UTILIZATION, {"questions": [], "contexts": [], "responses": []}, None),
         (RagasMetric.CONTEXT_RECALL, {"questions": [], "contexts": [], "ground_truths": []}, None),
-        (RagasMetric.ASPECT_CRITIQUE, {"questions": [], "contexts": [], "responses": []}, {"aspect": RagasMetricAspect.HARMFULNESS}),
+        (
+            RagasMetric.ASPECT_CRITIQUE,
+            {"questions": [], "contexts": [], "responses": []},
+            {"aspect": RagasMetricAspect.HARMFULNESS},
+        ),
         (RagasMetric.CONTEXT_RELEVANCY, {"questions": [], "contexts": []}, None),
         (RagasMetric.ANSWER_RELEVANCY, {"questions": [], "contexts": [], "responses": []}, None),
     ],
@@ -172,7 +172,12 @@ def test_evaluator_valid_inputs(current_metric, inputs, params):
             "expects inputs to be of type 'str'",
             None,
         ),
-        (RagasMetric.ANSWER_RELEVANCY, {"questions": [""], "responses": [], "contexts": []}, "Mismatching counts ", None),
+        (
+            RagasMetric.ANSWER_RELEVANCY,
+            {"questions": [""], "responses": [], "contexts": []},
+            "Mismatching counts ",
+            None,
+        ),
         (RagasMetric.ANSWER_RELEVANCY, {"responses": []}, "expected input parameter ", None),
     ],
 )
@@ -193,7 +198,12 @@ def test_evaluator_invalid_inputs(current_metric, inputs, error_string, params):
 @pytest.mark.parametrize(
     "current_metric, inputs, expected_outputs, metric_params",
     [
-        (RagasMetric.ANSWER_CORRECTNESS, {"questions": ["q1"], "responses": ["r1"], "ground_truths": ["gt1"]}, [[(None, 0.5)]], None),
+        (
+            RagasMetric.ANSWER_CORRECTNESS,
+            {"questions": ["q1"], "responses": ["r1"], "ground_truths": ["gt1"]},
+            [[(None, 0.5)]],
+            None,
+        ),
         (
             RagasMetric.FAITHFULNESS,
             {"questions": ["q2"], "contexts": [["c2"]], "responses": ["r2"]},
@@ -201,7 +211,12 @@ def test_evaluator_invalid_inputs(current_metric, inputs, error_string, params):
             None,
         ),
         (RagasMetric.ANSWER_SIMILARITY, {"responses": ["r3"], "ground_truths": ["gt3"]}, [[(None, 1.0)]], None),
-        (RagasMetric.CONTEXT_PRECISION, {"questions": ["q4"], "contexts": [["c4"]], "ground_truths": ["gt44"]}, [[(None, 0.5)]], None),
+        (
+            RagasMetric.CONTEXT_PRECISION,
+            {"questions": ["q4"], "contexts": [["c4"]], "ground_truths": ["gt44"]},
+            [[(None, 0.5)]],
+            None,
+        ),
         (
             RagasMetric.CONTEXT_UTILIZATION,
             {"questions": ["q5"], "contexts": [["c5"]], "responses": ["r5"]},
@@ -214,18 +229,24 @@ def test_evaluator_invalid_inputs(current_metric, inputs, error_string, params):
             [[(None, 0.9)]],
             None,
         ),
-        (RagasMetric.ASPECT_CRITIQUE, {"questions": ["q7"], "contexts": [["c7"]], "responses": ["r7"]}, [[("harmfulness", 1.0)]], {"aspect": RagasMetricAspect.HARMFULNESS}),
+        (
+            RagasMetric.ASPECT_CRITIQUE,
+            {"questions": ["q7"], "contexts": [["c7"]], "responses": ["r7"]},
+            [[("harmfulness", 1.0)]],
+            {"aspect": RagasMetricAspect.HARMFULNESS},
+        ),
         (
             RagasMetric.CONTEXT_RELEVANCY,
             {"questions": ["q8"], "contexts": [["c8"]]},
-            [
-                [
-                    (None, 1.0)
-                ]
-            ],
+            [[(None, 1.0)]],
             None,
         ),
-        (RagasMetric.ANSWER_RELEVANCY, {"questions": ["q9"], "contexts": [["c9"]], "responses": ["r9"]}, [[(None, 0.4)]], None),
+        (
+            RagasMetric.ANSWER_RELEVANCY,
+            {"questions": ["q9"], "contexts": [["c9"]], "responses": ["r9"]},
+            [[(None, 0.4)]],
+            None,
+        ),
     ],
 )
 def test_evaluator_outputs(current_metric, inputs, expected_outputs, metric_params):
@@ -257,14 +278,37 @@ def test_evaluator_outputs(current_metric, inputs, expected_outputs, metric_para
     "metric, inputs, metric_params",
     [
         (RagasMetric.ANSWER_CORRECTNESS, {"questions": DEFAULT_QUESTIONS, "contexts": DEFAULT_CONTEXTS}, None),
-        (RagasMetric.ANSWER_CORRECTNESS, {"questions": DEFAULT_QUESTIONS, "responses": DEFAULT_RESPONSES, "ground_truths": DEFAULT_GROUND_TRUTHS}, None),
-        (RagasMetric.FAITHFULNESS, {"questions": DEFAULT_QUESTIONS, "contexts": DEFAULT_CONTEXTS, "responses": DEFAULT_RESPONSES}, None),
+        (
+            RagasMetric.ANSWER_CORRECTNESS,
+            {"questions": DEFAULT_QUESTIONS, "responses": DEFAULT_RESPONSES, "ground_truths": DEFAULT_GROUND_TRUTHS},
+            None,
+        ),
+        (
+            RagasMetric.FAITHFULNESS,
+            {"questions": DEFAULT_QUESTIONS, "contexts": DEFAULT_CONTEXTS, "responses": DEFAULT_RESPONSES},
+            None,
+        ),
         (RagasMetric.ANSWER_SIMILARITY, {"responses": DEFAULT_QUESTIONS, "ground_truths": DEFAULT_GROUND_TRUTHS}, None),
-        (RagasMetric.CONTEXT_PRECISION, {"questions": DEFAULT_QUESTIONS, "responses": DEFAULT_RESPONSES, "ground_truths": DEFAULT_GROUND_TRUTHS}, None),
-        (RagasMetric.CONTEXT_UTILIZATION, {"questions": DEFAULT_QUESTIONS, "contexts": DEFAULT_CONTEXTS, "responses": DEFAULT_RESPONSES}, None),
-        (RagasMetric.CONTEXT_RECALL, {"questions": DEFAULT_QUESTIONS, "contexts": DEFAULT_CONTEXTS, "responses": DEFAULT_RESPONSES}, None),
-        (RagasMetric.ASPECT_CRITIQUE, {"questions": DEFAULT_QUESTIONS, "contexts": DEFAULT_CONTEXTS, "responses": DEFAULT_RESPONSES},
-         {"aspect": RagasMetricAspect.HARMFULNESS}),
+        (
+            RagasMetric.CONTEXT_PRECISION,
+            {"questions": DEFAULT_QUESTIONS, "responses": DEFAULT_RESPONSES, "ground_truths": DEFAULT_GROUND_TRUTHS},
+            None,
+        ),
+        (
+            RagasMetric.CONTEXT_UTILIZATION,
+            {"questions": DEFAULT_QUESTIONS, "contexts": DEFAULT_CONTEXTS, "responses": DEFAULT_RESPONSES},
+            None,
+        ),
+        (
+            RagasMetric.CONTEXT_RECALL,
+            {"questions": DEFAULT_QUESTIONS, "contexts": DEFAULT_CONTEXTS, "responses": DEFAULT_RESPONSES},
+            None,
+        ),
+        (
+            RagasMetric.ASPECT_CRITIQUE,
+            {"questions": DEFAULT_QUESTIONS, "contexts": DEFAULT_CONTEXTS, "responses": DEFAULT_RESPONSES},
+            {"aspect": RagasMetricAspect.HARMFULNESS},
+        ),
         (RagasMetric.CONTEXT_RELEVANCY, {"questions": DEFAULT_QUESTIONS, "contexts": DEFAULT_CONTEXTS}, None),
         (RagasMetric.ANSWER_RELEVANCY, {"questions": DEFAULT_QUESTIONS, "responses": DEFAULT_RESPONSES}, None),
     ],

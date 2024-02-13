@@ -1,21 +1,22 @@
 import json
-from typing import Any, Dict, List, Optional, Union, Callable
+from typing import Any, Callable, Dict, List, Optional, Union
 
+from datasets import Dataset
 from haystack import DeserializationError, component, default_from_dict, default_to_dict
 from haystack.utils import Secret, deserialize_secrets_inplace
-from datasets import Dataset
+
+from ragas import evaluate
 from ragas.evaluation import Result
+from ragas.metrics import AspectCritique
 from ragas.metrics.base import Metric
 
 from .metrics import (
+    METRIC_ASPECTS,
     METRIC_DESCRIPTORS,
     InputConverters,
     OutputConverters,
-    RagasMetric, METRIC_ASPECTS,
+    RagasMetric,
 )
-
-from ragas import evaluate
-from ragas.metrics import AspectCritique
 
 
 @component
@@ -27,6 +28,7 @@ class RagasEvaluator:
     metric-dependent. The output is a nested list of evaluation results where each inner list
     contains the results for a single input.
     """
+
     # Wrapped for easy mocking.
     _backend_callable: Callable
 
@@ -63,27 +65,39 @@ class RagasEvaluator:
 
     def _init_backend(self):
         """
-            Initialize the Ragas backend and validate inputs.
+        Initialize the Ragas backend and validate inputs.
         """
         if self.metric == RagasMetric.ASPECT_CRITIQUE:
             if not self.metric_params:
-                msg = f"Invalid init parameters for Ragas metric '{self.metric}'. Expected metric parameters describing the aspect to critique but got none."
-                raise ValueError(msg)
-            if "aspect" in self.metric_params and ("name" in self.metric_params or "definition" in self.metric_params):
-                msg = f"Invalid init parameters for Ragas metric '{self.metric}'. If a predefined aspect is selected, no additional metric parameters are allowed."
-                raise ValueError(msg)
-            elif "name" in self.metric_params and "definition" not in self.metric_params:
-                msg = f"Invalid init parameters for Ragas metric '{self.metric}'. If a name of a custom aspect is provided, a definition must be provided as well."
-                raise ValueError(msg)
-            elif "definition" in self.metric_params and "name" not in self.metric_params:
-                msg = f"Invalid init parameters for Ragas metric '{self.metric}'. If a definition of a custom aspect is provided, a name must be provided as well."
-                raise ValueError(msg)
-        else:
-            if self.metric_params:
                 msg = (
-                    f"Unexpected init parameters for Ragas metric '{self.metric}'. Additional parameters only supported for AspectCritique."
+                    f"Invalid init parameters for Ragas metric '{self.metric}'. "
+                    f"Expected metric parameters describing the aspect to critique but got none."
                 )
                 raise ValueError(msg)
+            if "aspect" in self.metric_params and ("name" in self.metric_params or "definition" in self.metric_params):
+                msg = (
+                    f"Invalid init parameters for Ragas metric '{self.metric}'. "
+                    f"If a predefined aspect is selected, no additional metric parameters are allowed."
+                )
+                raise ValueError(msg)
+            elif "name" in self.metric_params and "definition" not in self.metric_params:
+                msg = (
+                    f"Invalid init parameters for Ragas metric '{self.metric}'. "
+                    f"If a name of a custom aspect is provided, a definition must be provided as well."
+                )
+                raise ValueError(msg)
+            elif "definition" in self.metric_params and "name" not in self.metric_params:
+                msg = (
+                    f"Invalid init parameters for Ragas metric '{self.metric}'. "
+                    f"If a definition of a custom aspect is provided, a name must be provided as well."
+                )
+                raise ValueError(msg)
+        elif self.metric_params:
+            msg = (
+                f"Unexpected init parameters for Ragas metric '{self.metric}'. "
+                f"Additional parameters only supported for AspectCritique."
+            )
+            raise ValueError(msg)
         self._backend_callable = RagasEvaluator._invoke_evaluate
 
     @component.output_types(results=List[List[Dict[str, Any]]])
@@ -93,14 +107,14 @@ class RagasEvaluator:
 
         Example:
         ```python
-        pipeline = Pipeline()
+        p = Pipeline()
         evaluator = RagasEvaluator(
             metric=RagasMetric.CONTEXT_PRECISION,
             api_key=Secret.from_env_var("OPENAI_API_KEY"),
         )
-        pipeline.add_component("evaluator", evaluator)
+        p.add_component("evaluator", evaluator)
 
-        results = pipeline.run({"evaluator": {"questions": QUESTIONS, "contexts": CONTEXTS, "ground_truths": GROUND_TRUTHS}})
+        results = p.run({"evaluator": {"questions": QUESTIONS, "contexts": CONTEXTS, "ground_truths": GROUND_TRUTHS}})
         ```
 
         :param inputs:
@@ -114,13 +128,12 @@ class RagasEvaluator:
                 * `name` - The name of the metric.
                 * `score` - The score of the metric.
         """
-        InputConverters.validate_input_parameters(self.metric, self.descriptor.input_parameters, inputs,
-                                                  self.metric_params)
+        InputConverters.validate_input_parameters(self.metric, self.descriptor.input_parameters, inputs)
         converted_inputs: List[Dict[str, str]] = list(self.descriptor.input_converter(**inputs))  # type: ignore
 
         dataset = Dataset.from_list(converted_inputs)
         metric = None
-        if self.metric == RagasMetric.ASPECT_CRITIQUE:
+        if self.metric == RagasMetric.ASPECT_CRITIQUE and self.metric_params:
             if "aspect" in self.metric_params:
                 metric = METRIC_ASPECTS[self.metric_params["aspect"]]
             else:
@@ -130,8 +143,9 @@ class RagasEvaluator:
         results = self._backend_callable(dataset=dataset, metric=metric)
 
         OutputConverters.validate_outputs(results)
-        converted_results = [[result.to_dict()] for result in
-                             OutputConverters.extract_results(results, self.metric, self.metric_params)]
+        converted_results = [
+            [result.to_dict()] for result in OutputConverters.extract_results(results, self.metric, self.metric_params)
+        ]
 
         return {"results": converted_results}
 
@@ -144,8 +158,7 @@ class RagasEvaluator:
             try:
                 json.dumps(obj)
                 return True
-            except (TypeError, OverflowError) as e:
-                print(e)
+            except (TypeError, OverflowError):
                 return False
 
         if not check_serializable(self.metric_params):
