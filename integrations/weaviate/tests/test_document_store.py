@@ -1,10 +1,10 @@
 import base64
 import random
-from datetime import datetime
 from typing import List
 from unittest.mock import MagicMock, patch
 
 import pytest
+from dateutil import parser
 from haystack.dataclasses.byte_stream import ByteStream
 from haystack.dataclasses.document import Document
 from haystack.testing.document_store import (
@@ -411,7 +411,7 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
                 d
                 for d in filterable_docs
                 if d.meta.get("date") is not None
-                and datetime.fromisoformat(d.meta["date"]) > datetime.fromisoformat("1972-12-11T19:54:58Z")
+                and parser.isoparse(d.meta["date"]) > parser.isoparse("1972-12-11T19:54:58Z")
             ],
         )
 
@@ -432,7 +432,7 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
                 d
                 for d in filterable_docs
                 if d.meta.get("date") is not None
-                and datetime.fromisoformat(d.meta["date"]) >= datetime.fromisoformat("1969-07-21T20:17:40Z")
+                and parser.isoparse(d.meta["date"]) >= parser.isoparse("1969-07-21T20:17:40Z")
             ],
         )
 
@@ -453,7 +453,7 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
                 d
                 for d in filterable_docs
                 if d.meta.get("date") is not None
-                and datetime.fromisoformat(d.meta["date"]) < datetime.fromisoformat("1969-07-21T20:17:40Z")
+                and parser.isoparse(d.meta["date"]) < parser.isoparse("1969-07-21T20:17:40Z")
             ],
         )
 
@@ -474,7 +474,7 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
                 d
                 for d in filterable_docs
                 if d.meta.get("date") is not None
-                and datetime.fromisoformat(d.meta["date"]) <= datetime.fromisoformat("1969-07-21T20:17:40Z")
+                and parser.isoparse(d.meta["date"]) <= parser.isoparse("1969-07-21T20:17:40Z")
             ],
         )
 

@@ -1,6 +1,6 @@
-from datetime import datetime
 from typing import Any, Dict
 
+from dateutil import parser
 from haystack.errors import FilterError
 from pandas import DataFrame
 
@@ -86,7 +86,7 @@ def _infer_value_type(value: Any) -> str:
 
     if isinstance(value, str):
         try:
-            datetime.fromisoformat(value)
+            parser.isoparse(value)
             return "valueDate"
         except ValueError:
             return "valueText"
@@ -98,7 +98,7 @@ def _infer_value_type(value: Any) -> str:
 def _handle_date(value: Any) -> str:
     if isinstance(value, str):
         try:
-            return datetime.fromisoformat(value).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+            return parser.isoparse(value).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
         except ValueError:
             pass
     return value
@@ -137,7 +137,7 @@ def _greater_than(field: str, value: Any) -> Dict[str, Any]:
         }
     if isinstance(value, str):
         try:
-            datetime.fromisoformat(value)
+            parser.isoparse(value)
         except (ValueError, TypeError) as exc:
             msg = (
                 "Can't compare strings using operators '>', '>=', '<', '<='. "
@@ -165,7 +165,7 @@ def _greater_than_equal(field: str, value: Any) -> Dict[str, Any]:
         }
     if isinstance(value, str):
         try:
-            datetime.fromisoformat(value)
+            parser.isoparse(value)
         except (ValueError, TypeError) as exc:
             msg = (
                 "Can't compare strings using operators '>', '>=', '<', '<='. "
@@ -193,7 +193,7 @@ def _less_than(field: str, value: Any) -> Dict[str, Any]:
         }
     if isinstance(value, str):
         try:
-            datetime.fromisoformat(value)
+            parser.isoparse(value)
         except (ValueError, TypeError) as exc:
             msg = (
                 "Can't compare strings using operators '>', '>=', '<', '<='. "
@@ -221,7 +221,7 @@ def _less_than_equal(field: str, value: Any) -> Dict[str, Any]:
         }
     if isinstance(value, str):
         try:
-            datetime.fromisoformat(value)
+            parser.isoparse(value)
         except (ValueError, TypeError) as exc:
             msg = (
                 "Can't compare strings using operators '>', '>=', '<', '<='. "
