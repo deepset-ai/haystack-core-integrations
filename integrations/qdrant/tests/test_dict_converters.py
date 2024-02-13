@@ -1,4 +1,5 @@
 from haystack_integrations.document_stores.qdrant import QdrantDocumentStore
+from haystack.utils import Secret
 
 
 def test_to_dict():
@@ -52,6 +53,7 @@ def test_from_dict():
         {
             "type": "haystack_integrations.document_stores.qdrant.document_store.QdrantDocumentStore",
             "init_parameters": {
+                "api_key": {"env_vars": ["ENV_VAR"], "strict": False, "type": "env_var"},
                 "location": ":memory:",
                 "index": "test",
                 "embedding_dim": 768,
@@ -98,5 +100,6 @@ def test_from_dict():
             document_store.metadata == {},
             document_store.write_batch_size == 1000,
             document_store.scroll_size == 10000,
+            document_store.api_key == Secret.from_env_var("ENV_VAR", strict=False),
         ]
     )
