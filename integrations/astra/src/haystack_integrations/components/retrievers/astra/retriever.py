@@ -10,14 +10,14 @@ from haystack_integrations.document_stores.astra import AstraDocumentStore
 
 
 @component
-class AstraRetriever:
+class AstraEmbeddingRetriever:
     """
     A component for retrieving documents from an AstraDocumentStore.
     """
 
     def __init__(self, document_store: AstraDocumentStore, filters: Optional[Dict[str, Any]] = None, top_k: int = 10):
         """
-        Create an AstraRetriever component. Usually you pass some basic configuration
+        Create an AstraEmbeddingRetriever component. Usually you pass some basic configuration
         parameters to the constructor.
 
         :param filters: A dictionary with filters to narrow down the search space (default is None).
@@ -59,7 +59,7 @@ class AstraRetriever:
         )
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "AstraRetriever":
+    def from_dict(cls, data: Dict[str, Any]) -> "AstraEmbeddingRetriever":
         document_store = AstraDocumentStore.from_dict(data["init_parameters"]["document_store"])
         data["init_parameters"]["document_store"] = document_store
         return default_from_dict(cls, data)

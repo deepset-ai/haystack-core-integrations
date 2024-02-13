@@ -9,7 +9,7 @@ from haystack.components.generators import OpenAIGenerator
 from haystack.components.writers import DocumentWriter
 from haystack.document_stores.types import DuplicatePolicy
 
-from haystack_integrations.components.retrievers.astra import AstraRetriever
+from haystack_integrations.components.retrievers.astra import AstraEmbeddingRetriever
 from haystack_integrations.document_stores.astra import AstraDocumentStore
 
 logger = logging.getLogger(__name__)
@@ -77,7 +77,7 @@ rag_pipeline.add_component(
     instance=SentenceTransformersTextEmbedder(model_name_or_path="sentence-transformers/all-MiniLM-L6-v2"),
     name="embedder",
 )
-rag_pipeline.add_component(instance=AstraRetriever(document_store=document_store), name="retriever")
+rag_pipeline.add_component(instance=AstraEmbeddingRetriever(document_store=document_store), name="retriever")
 rag_pipeline.add_component(instance=PromptBuilder(template=prompt_template), name="prompt_builder")
 rag_pipeline.add_component(instance=OpenAIGenerator(api_key=os.environ.get("OPENAI_API_KEY")), name="llm")
 rag_pipeline.add_component(instance=AnswerBuilder(), name="answer_builder")
