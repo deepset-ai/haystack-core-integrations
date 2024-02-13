@@ -1,6 +1,6 @@
 # SPDX-FileCopyrightText: 2023-present Anant Corporation <support@anant.us>
 #
 # SPDX-License-Identifier: Apache-2.0
-from .retriever import AstraRetriever
+from .retriever import AstraEmbeddingRetriever
 
-__all__ = ["AstraRetriever"]
+__all__ = ["AstraEmbeddingRetriever"]
