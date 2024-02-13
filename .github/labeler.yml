@@ -84,6 +84,11 @@ integration:qdrant:
       - any-glob-to-any-file: "integrations/qdrant/**/*"
       - any-glob-to-any-file: ".github/workflows/qdrant.yml"
 
+integration:ragas:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/ragas/**/*"
+      - any-glob-to-any-file: ".github/workflows/ragas.yml"
+
 integration:unstructured-fileconverter:
   - changed-files:
       - any-glob-to-any-file: "integrations/unstructured/**/*"
