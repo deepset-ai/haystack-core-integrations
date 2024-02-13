@@ -13,15 +13,17 @@ processors:
     documented_only: true
     do_not_filter_modules: false
     skip_empty_modules: true
+  - type: filter
+    expression: "name not in ['MetricResult', 'MetricDescriptor', 'OutputConverters', 'InputConverters', 'METRIC_DESCRIPTORS']"
   - type: smart
   - type: crossref
 renderer:
   type: haystack_pydoc_tools.renderers.ReadmePreviewRenderer
   excerpt: DeepEval integration for Haystack
   category_slug: haystack-integrations
-  title: Chroma
+  title: DeepEval
   slug: integrations-deepeval
-  order: 1
+  order: 45
   markdown:
     descriptive_class_title: false
     descriptive_module_title: true
