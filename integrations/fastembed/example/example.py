@@ -1,12 +1,7 @@
-# before to run the example
-# pip install haystack-ai (in notebook !pip install haystack-ai)
-# pip install fastembed-haystack (in notebook !pip install fastembed-haystack)
-
-from haystack import Document
-from haystack import Pipeline
-from haystack.document_stores.in_memory import InMemoryDocumentStore
-from haystack_integrations.components.embedders.fastembed import FastembedTextEmbedder, FastembedDocumentEmbedder
+from haystack import Document, Pipeline
 from haystack.components.retrievers.in_memory import InMemoryEmbeddingRetriever
+from haystack.document_stores.in_memory import InMemoryDocumentStore
+from haystack_integrations.components.embedders.fastembed import FastembedDocumentEmbedder, FastembedTextEmbedder
 
 document_store = InMemoryDocumentStore(embedding_similarity_function="cosine")
 
@@ -19,7 +14,7 @@ documents = [
 
 document_embedder = FastembedDocumentEmbedder()
 document_embedder.warm_up()
-documents_with_embeddings = document_embedder.run(documents)['documents']
+documents_with_embeddings = document_embedder.run(documents)["documents"]
 document_store.write_documents(documents_with_embeddings)
 
 query_pipeline = Pipeline()
@@ -31,7 +26,7 @@ query = "Who supports fastembed?"
 
 result = query_pipeline.run({"text_embedder": {"text": query}})
 
-print(result['retriever']['documents'][0])
+# print(result["retriever"]["documents"][0])
 
 # Document(id=...,
 #  content: 'fastembed is supported by and maintained by Qdrant.',
