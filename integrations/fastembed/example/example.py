@@ -10,10 +10,12 @@ from haystack.components.retrievers.in_memory import InMemoryEmbeddingRetriever
 
 document_store = InMemoryDocumentStore(embedding_similarity_function="cosine")
 
-documents = [Document(content="My name is Wolfgang and I live in Berlin"),
-             Document(content="I saw a black horse running"),
-             Document(content="Germany has many big cities"),
-             Document(content="fastembed is supported by and maintained by Qdrant.")]
+documents = [
+    Document(content="My name is Wolfgang and I live in Berlin"),
+    Document(content="I saw a black horse running"),
+    Document(content="Germany has many big cities"),
+    Document(content="fastembed is supported by and maintained by Qdrant."),
+]
 
 document_embedder = FastembedDocumentEmbedder()
 document_embedder.warm_up()
@@ -27,7 +29,7 @@ query_pipeline.connect("text_embedder.embedding", "retriever.query_embedding")
 
 query = "Who supports fastembed?"
 
-result = query_pipeline.run({"text_embedder":{"text": query}})
+result = query_pipeline.run({"text_embedder": {"text": query}})
 
 print(result['retriever']['documents'][0])
 
