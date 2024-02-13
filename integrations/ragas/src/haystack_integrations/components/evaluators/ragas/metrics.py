@@ -51,43 +51,40 @@ class RagasMetric(RagasBaseEnum):
     Metrics supported by Ragas.
     """
 
-    # #: Answer correctness
-    # Prior to Ragas version 0.1.0rc1, this metric is expected to fail with:
-    # ValueError: too many values to unpack (expected 3) due to a bug in Ragas,
-    # https://github.com/explodinggradients/ragas/issues/476
-    # #: Inputs - `questions: List[str], responses: List[str], ground_truths: List[str]`
+    #: Answer correctness
+    #: Inputs - `questions: List[str], responses: List[str], ground_truths: List[str]`
     ANSWER_CORRECTNESS = "answer_correctness"
 
-    # #: Faithfulness
-    # #: Inputs - `questions: List[str], contexts: List[List[str]], responses: List[str]`
+    #: Faithfulness
+    #: Inputs - `questions: List[str], contexts: List[List[str]], responses: List[str]`
     FAITHFULNESS = "faithfulness"
 
-    # #: Answer similarity
-    # #: Inputs - `responses: List[str], ground_truths: List[str]`
+    #: Answer similarity
+    #: Inputs - `responses: List[str], ground_truths: List[str]`
     ANSWER_SIMILARITY = "answer_similarity"
 
-    # #: Context precision
-    # #: Inputs - `questions: List[str], contexts: List[List[str]], ground_truths: List[str]`
+    #: Context precision
+    #: Inputs - `questions: List[str], contexts: List[List[str]], ground_truths: List[str]`
     CONTEXT_PRECISION = "context_precision"
 
-    # #: Context utilization
-    # #: Inputs - `questions: List[str], contexts: List[List[str]], responses: List[str]`
+    #: Context utilization
+    #: Inputs - `questions: List[str], contexts: List[List[str]], responses: List[str]`
     CONTEXT_UTILIZATION = "context_utilization"
 
-    # #: Context recall
-    # #: Inputs - `questions: List[str], contexts: List[List[str]], ground_truths: List[str]`
+    #: Context recall
+    #: Inputs - `questions: List[str], contexts: List[List[str]], ground_truths: List[str]`
     CONTEXT_RECALL = "context_recall"
 
-    # #: Aspect critique
-    # #: Inputs - `questions: List[str], contexts: List[List[str]], responses: List[str]`
+    #: Aspect critique
+    #: Inputs - `questions: List[str], contexts: List[List[str]], responses: List[str]`
     ASPECT_CRITIQUE = "aspect_critique"
 
-    # #: Context relevancy
-    # #: Inputs - `questions: List[str], contexts: List[List[str]]`
+    #: Context relevancy
+    #: Inputs - `questions: List[str], contexts: List[List[str]]`
     CONTEXT_RELEVANCY = "context_relevancy"
 
-    # #: Answer relevancy
-    # #: Inputs - `questions: List[str], contexts: List[List[str]], responses: List[str]`
+    #: Answer relevancy
+    #: Inputs - `questions: List[str], contexts: List[List[str]], responses: List[str]`
     ANSWER_RELEVANCY = "answer_relevancy"
 
 
