@@ -1,5 +1,5 @@
-from haystack_integrations.document_stores.qdrant import QdrantDocumentStore
 from haystack.utils import Secret
+from haystack_integrations.document_stores.qdrant import QdrantDocumentStore
 
 
 def test_to_dict():
