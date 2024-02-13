@@ -1,11 +1,14 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
+import os
 from unittest.mock import Mock
 
 from haystack.dataclasses import Document
 from haystack_integrations.components.retrievers.pgvector import PgvectorEmbeddingRetriever
 from haystack_integrations.document_stores.pgvector import PgvectorDocumentStore
+
+from haystack.utils.auth import EnvVarSecret
 
 
 class TestRetriever:
@@ -37,7 +40,7 @@ class TestRetriever:
                 "document_store": {
                     "type": "haystack_integrations.document_stores.pgvector.document_store.PgvectorDocumentStore",
                     "init_parameters": {
-                        "connection_string": "postgresql://postgres:postgres@localhost:5432/postgres",
+                        "connection_string": {'env_vars': ['PG_CONN_STR'], 'strict': True, 'type': 'env_var'},
                         "table_name": "haystack_test_to_dict",
                         "embedding_dimension": 768,
                         "vector_function": "cosine_similarity",
@@ -62,7 +65,7 @@ class TestRetriever:
                 "document_store": {
                     "type": "haystack_integrations.document_stores.pgvector.document_store.PgvectorDocumentStore",
                     "init_parameters": {
-                        "connection_string": "postgresql://postgres:postgres@localhost:5432/postgres",
+                        "connection_string": {'env_vars': ['PG_CONN_STR'], 'strict': True, 'type': 'env_var'},
                         "table_name": "haystack_test_to_dict",
                         "embedding_dimension": 768,
                         "vector_function": "cosine_similarity",
@@ -83,7 +86,7 @@ class TestRetriever:
         document_store = retriever.document_store
 
         assert isinstance(document_store, PgvectorDocumentStore)
-        assert document_store.connection_string == "postgresql://postgres:postgres@localhost:5432/postgres"
+        assert isinstance(document_store.connection_string, EnvVarSecret)
         assert document_store.table_name == "haystack_test_to_dict"
         assert document_store.embedding_dimension == 768
         assert document_store.vector_function == "cosine_similarity"

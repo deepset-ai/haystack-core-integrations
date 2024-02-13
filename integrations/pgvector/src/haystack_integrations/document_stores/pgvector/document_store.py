@@ -4,7 +4,7 @@
 import logging
 from typing import Any, Dict, List, Literal, Optional
 
-from haystack import default_to_dict
+from haystack import default_to_dict, default_from_dict
 from haystack.dataclasses.document import ByteStream, Document
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
@@ -163,6 +163,13 @@ class PgvectorDocumentStore:
             hnsw_ef_search=self.hnsw_ef_search,
         )
 
+    @classmethod
+    def from_dict(cls, init_parameters: Dict[str, Any]) -> "PgvectorDocumentStore":
+        conn_str_data = init_parameters['init_parameters']["connection_string"]
+        conn_str = Secret.from_dict(conn_str_data) if conn_str_data is not None else None
+        init_parameters['init_parameters']["connection_string"] = conn_str
+        return default_from_dict(cls, init_parameters)
+
     def _execute_sql(
         self, sql_query: Query, params: Optional[tuple] = None, error_msg: str = "", cursor: Optional[Cursor] = None
     ):
@@ -222,7 +229,7 @@ class PgvectorDocumentStore:
             )
             self._execute_sql(sql_set_hnsw_ef_search, error_msg="Could not set hnsw.ef_search")
 
-        index_esists = bool(
+        index_exists = bool(
             self._execute_sql(
                 "SELECT 1 FROM pg_indexes WHERE tablename = %s AND indexname = %s",
                 (self.table_name, HNSW_INDEX_NAME),
@@ -230,7 +237,7 @@ class PgvectorDocumentStore:
             ).fetchone()
         )
 
-        if index_esists and not self.hnsw_recreate_index_if_exists:
+        if index_exists and not self.hnsw_recreate_index_if_exists:
             logger.warning(
                 "HNSW index already exists and won't be recreated. "
                 "If you want to recreate it, pass 'hnsw_recreate_index_if_exists=True' to the "
@@ -374,7 +381,8 @@ class PgvectorDocumentStore:
 
         return written_docs
 
-    def _from_haystack_to_pg_documents(self, documents: List[Document]) -> List[Dict[str, Any]]:
+    @staticmethod
+    def _from_haystack_to_pg_documents(documents: List[Document]) -> List[Dict[str, Any]]:
         """
         Internal method to convert a list of Haystack Documents to a list of dictionaries that can be used to insert
         documents into the PgvectorDocumentStore.
@@ -396,7 +404,8 @@ class PgvectorDocumentStore:
 
         return db_documents
 
-    def _from_pg_to_haystack_documents(self, documents: List[Dict[str, Any]]) -> List[Document]:
+    @staticmethod
+    def _from_pg_to_haystack_documents(documents: List[Dict[str, Any]]) -> List[Document]:
         """
         Internal method to convert a list of dictionaries from pgvector to a list of Haystack Documents.
         """
