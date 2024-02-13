@@ -1,3 +1,3 @@
 from .text_embedder import OllamaTextEmbedder
-
-__all__ = ["OllamaTextEmbedder"]
+from .document_embedder import OllamaDocumentEmbedder
+__all__ = ["OllamaTextEmbedder", "OllamaDocumentEmbedder"]
