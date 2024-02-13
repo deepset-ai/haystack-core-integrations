@@ -10,6 +10,7 @@
 # Download some Markdown files to index.
 # git clone https://github.com/anakin87/neural-search-pills
 
+import os
 import glob
 
 from haystack import Pipeline
@@ -20,9 +21,10 @@ from haystack.components.writers import DocumentWriter
 from haystack_integrations.components.retrievers.pgvector import PgvectorEmbeddingRetriever
 from haystack_integrations.document_stores.pgvector import PgvectorDocumentStore
 
+os.environ["PG_CONN_STR"] = "postgresql://postgres:postgres@localhost:5432/postgres"
+
 # Initialize PgvectorDocumentStore
 document_store = PgvectorDocumentStore(
-    connection_string="postgresql://postgres:postgres@localhost:5432/postgres",
     table_name="haystack_test",
     embedding_dimension=768,
     vector_function="cosine_similarity",
