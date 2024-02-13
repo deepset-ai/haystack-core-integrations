@@ -12,11 +12,9 @@ class OllamaDocumentEmbedder:
         url: str = "http://localhost:11434/api/embeddings",
         generation_kwargs: Optional[Dict[str, Any]] = None,
         timeout: int = 120,
-        batch_size: int = 1,
         prefix: str = "",
         suffix: str = "",
         progress_bar: bool = True,
-        normalize_embeddings: bool = False,
         meta_fields_to_embed: Optional[List[str]] = None,
         embedding_separator: str = "\n",
         
@@ -36,9 +34,8 @@ class OllamaDocumentEmbedder:
         self.generation_kwargs = generation_kwargs or {}
         self.url = url
         self.model = model
-        self.batch_size = batch_size
+        self.batch_size = 1 # API only supports a single call at the moment
         self.progress_bar = progress_bar
-        self.normalize_embeddings = normalize_embeddings
         self.meta_fields_to_embed = meta_fields_to_embed
         self.embedding_separator = embedding_separator
         self.suffix = suffix
@@ -98,12 +95,12 @@ class OllamaDocumentEmbedder:
     @component.output_types(documents=List[Document], meta=Dict[str, Any])
     def run(self, documents: List[Document], generation_kwargs: Optional[Dict[str, Any]] = None):
         """
-        Run an Ollama Model on a given chat history.
-        :param text: Text to be converted to an embedding.
+        Run an Ollama Model on a provided documents.
+        :param documents: Documents to be converted to an embedding.
         :param generation_kwargs: Optional arguments to pass to the Ollama generation endpoint, such as temperature,
             top_p, etc. See the
             [Ollama docs](https://github.com/jmorganca/ollama/blob/main/docs/modelfile.md#valid-parameters-and-values).
-        :return: A dictionary with the key "embedding" and a list of floats as the value
+        :return: Documents with embedding information attached and metadata in a dictionary
         """
         if not isinstance(documents, list) or documents and not isinstance(documents[0], Document):
             raise TypeError(
