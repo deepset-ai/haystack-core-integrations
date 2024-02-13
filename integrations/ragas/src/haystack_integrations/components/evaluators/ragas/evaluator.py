@@ -3,7 +3,6 @@ from typing import Any, Callable, Dict, List, Optional, Union
 
 from datasets import Dataset  # type: ignore
 from haystack import DeserializationError, component, default_from_dict, default_to_dict
-from haystack.utils import Secret, deserialize_secrets_inplace
 
 from ragas import evaluate  # type: ignore
 from ragas.evaluation import Result  # type: ignore
@@ -24,9 +23,10 @@ class RagasEvaluator:
     """
     A component that uses the Ragas framework to evaluate inputs against a specific metric.
 
-    The supported metrics are defined by `RagasMetric`. The inputs of the component are
-    metric-dependent. The output is a nested list of evaluation results where each inner list
-    contains the results for a single input.
+    The supported metrics are defined by `RagasMetric`.
+    Most of them require an OpenAI API key to be provided as an environment variable "OPENAI_API_KEY".
+    The inputs of the component are metric-dependent.
+    The output is a nested list of evaluation results where each inner list contains the results for a single input.
     """
 
     # Wrapped for easy mocking.
@@ -36,8 +36,6 @@ class RagasEvaluator:
         self,
         metric: Union[str, RagasMetric],
         metric_params: Optional[Dict[str, Any]] = None,
-        *,
-        api_key: Secret = Secret.from_env_var("OPENAI_API_KEY"),
     ):
         """
         Construct a new Ragas evaluator.
@@ -46,13 +44,10 @@ class RagasEvaluator:
             The metric to use for evaluation.
         :param metric_params:
             Parameters to pass to the metric's constructor.
-        :param api_key:
-            The API key to use.
         """
         self.metric = metric if isinstance(metric, RagasMetric) else RagasMetric.from_str(metric)
         self.metric_params = metric_params
         self.descriptor = METRIC_DESCRIPTORS[self.metric]
-        self.api_key = api_key
 
         self._init_backend()
 
@@ -110,7 +105,6 @@ class RagasEvaluator:
         p = Pipeline()
         evaluator = RagasEvaluator(
             metric=RagasMetric.CONTEXT_PRECISION,
-            api_key=Secret.from_env_var("OPENAI_API_KEY"),
         )
         p.add_component("evaluator", evaluator)
 
@@ -169,7 +163,6 @@ class RagasEvaluator:
             self,
             metric=self.metric,
             metric_params=self.metric_params,
-            api_key=self.api_key.to_dict(),
         )
 
     @classmethod
@@ -180,5 +173,4 @@ class RagasEvaluator:
         :param data:
             The dictionary to deserialize from.
         """
-        deserialize_secrets_inplace(data["init_parameters"], ["api_key"])
         return default_from_dict(cls, data)

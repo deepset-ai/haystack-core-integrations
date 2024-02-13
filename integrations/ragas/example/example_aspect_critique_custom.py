@@ -1,7 +1,6 @@
-# A valid OpenAI API key is required to run this example.
+# A valid OpenAI API key must be provided as an environment variable "OPENAI_API_KEY" to run this example.
 
 from haystack import Pipeline
-from haystack.utils import Secret
 
 from haystack_integrations.components.evaluators.ragas import RagasEvaluator, RagasMetric
 
@@ -26,7 +25,6 @@ pipeline = Pipeline()
 evaluator = RagasEvaluator(
     metric=RagasMetric.ASPECT_CRITIQUE,
     metric_params={"name": "custom", "definition": "Is this answer problematic for children?", "strictness": 3},
-    api_key=Secret.from_env_var("OPENAI_API_KEY"),
 )
 pipeline.add_component("evaluator", evaluator)
 

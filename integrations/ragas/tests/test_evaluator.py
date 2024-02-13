@@ -10,7 +10,6 @@ from ragas.evaluation import Result
 from ragas.metrics.base import Metric
 
 from haystack_integrations.components.evaluators.ragas import RagasEvaluator, RagasMetric, RagasMetricAspect
-from haystack.utils import Secret
 
 DEFAULT_QUESTIONS = [
     "Which is the most popular global sport?",
@@ -65,47 +64,43 @@ def test_evaluator_metric_init_params():
     eval = RagasEvaluator(
         RagasMetric.ASPECT_CRITIQUE,
         metric_params={"aspect": RagasMetricAspect.HARMFULNESS},
-        api_key=Secret.from_token("Aaa"),
     )
     assert eval.metric_params == {"aspect": RagasMetricAspect.HARMFULNESS}
 
     with pytest.raises(ValueError, match="Invalid init parameters"):
-        RagasEvaluator(RagasMetric.ASPECT_CRITIQUE, metric_params=None, api_key=Secret.from_token("Aaa"))
+        RagasEvaluator(RagasMetric.ASPECT_CRITIQUE, metric_params=None)
 
     with pytest.raises(ValueError, match="Invalid init parameters"):
-        RagasEvaluator(RagasMetric.ASPECT_CRITIQUE, metric_params={}, api_key=Secret.from_token("Aaa"))
+        RagasEvaluator(RagasMetric.ASPECT_CRITIQUE, metric_params={})
 
     with pytest.raises(ValueError, match="Invalid init parameters"):
         RagasEvaluator(
             RagasMetric.ASPECT_CRITIQUE,
             metric_params={"aspect": RagasMetricAspect.HARMFULNESS, "name": "custom name"},
-            api_key=Secret.from_token("Aaa"),
         )
 
     with pytest.raises(ValueError, match="Invalid init parameters"):
         RagasEvaluator(
             RagasMetric.ASPECT_CRITIQUE,
             metric_params={"aspect": RagasMetricAspect.HARMFULNESS, "definition": "custom definition"},
-            api_key=Secret.from_token("Aaa"),
         )
 
     with pytest.raises(ValueError, match="Invalid init parameters"):
         RagasEvaluator(
             RagasMetric.ASPECT_CRITIQUE,
             metric_params={"definition": "custom definition"},
-            api_key=Secret.from_token("Aaa"),
         )
 
     with pytest.raises(ValueError, match="Invalid init parameters"):
         RagasEvaluator(
             RagasMetric.ASPECT_CRITIQUE,
             metric_params={"name": "custom name"},
-            api_key=Secret.from_token("Aaa"),
         )
 
     with pytest.raises(ValueError, match="Unexpected init parameters"):
         RagasEvaluator(
-            RagasMetric.FAITHFULNESS, metric_params={"check_numbers": True}, api_key=Secret.from_token("Aaa")
+            RagasMetric.FAITHFULNESS,
+            metric_params={"check_numbers": True},
         )
 
 
@@ -116,14 +111,12 @@ def test_evaluator_serde(os_environ_get):
     init_params = {
         "metric": RagasMetric.ASPECT_CRITIQUE,
         "metric_params": {"aspect": RagasMetricAspect.HARMFULNESS},
-        "api_key": Secret.from_env_var("ENV_VAR", strict=False),
     }
     eval = RagasEvaluator(**init_params)
     serde_data = eval.to_dict()
     new_eval = RagasEvaluator.from_dict(serde_data)
 
     assert eval.metric == new_eval.metric
-    assert eval.api_key == new_eval.api_key
     assert eval.metric_params == new_eval.metric_params
 
     with pytest.raises(DeserializationError, match=r"cannot serialize the metric parameters"):
@@ -155,7 +148,6 @@ def test_evaluator_valid_inputs(current_metric, inputs, params):
     init_params = {
         "metric": current_metric,
         "metric_params": params,
-        "api_key": Secret.from_token("Aaa"),
     }
     eval = RagasEvaluator(**init_params)
     eval._backend_callable = lambda dataset, metric: MockBackend(current_metric).evaluate(dataset, metric)
@@ -186,7 +178,6 @@ def test_evaluator_invalid_inputs(current_metric, inputs, error_string, params):
         init_params = {
             "metric": current_metric,
             "metric_params": params,
-            "api_key": Secret.from_token("Aaa"),
         }
         eval = RagasEvaluator(**init_params)
         eval._backend_callable = lambda dataset, metric: MockBackend(current_metric).evaluate(dataset, metric)
@@ -253,7 +244,6 @@ def test_evaluator_outputs(current_metric, inputs, expected_outputs, metric_para
     init_params = {
         "metric": current_metric,
         "metric_params": metric_params,
-        "api_key": Secret.from_token("Aaa"),
     }
     eval = RagasEvaluator(**init_params)
     eval._backend_callable = lambda dataset, metric: MockBackend(current_metric).evaluate(dataset, metric)
