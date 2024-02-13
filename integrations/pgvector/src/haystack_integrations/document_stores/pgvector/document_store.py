@@ -118,9 +118,7 @@ class PgvectorDocumentStore:
             https://github.com/pgvector/pgvector?tab=readme-ov-file#hnsw
         """
 
-        self.connection_string = (
-            connection_string if isinstance(connection_string, str) else connection_string.resolve_value()
-        )
+        self.connection_string = connection_string
         self.table_name = table_name
         self.embedding_dimension = embedding_dimension
         if vector_function not in VALID_VECTOR_FUNCTIONS:
@@ -133,7 +131,7 @@ class PgvectorDocumentStore:
         self.hnsw_index_creation_kwargs = hnsw_index_creation_kwargs or {}
         self.hnsw_ef_search = hnsw_ef_search
 
-        connection = connect(self.connection_string)
+        connection = connect(self.connection_string.resolve_value())
         connection.autocommit = True
         self._connection = connection
 
@@ -154,7 +152,7 @@ class PgvectorDocumentStore:
     def to_dict(self) -> Dict[str, Any]:
         return default_to_dict(
             self,
-            connection_string=self.connection_string,
+            connection_string=self.connection_string.to_dict(),
             table_name=self.table_name,
             embedding_dimension=self.embedding_dimension,
             vector_function=self.vector_function,
