@@ -15,6 +15,8 @@ class TestFastembedDocumentEmbedder:
         """
         embedder = FastembedDocumentEmbedder(model="BAAI/bge-small-en-v1.5")
         assert embedder.model_name == "BAAI/bge-small-en-v1.5"
+        assert embedder.prefix == ""
+        assert embedder.suffix == ""
         assert embedder.batch_size == 256
         assert embedder.progress_bar is True
         assert embedder.meta_fields_to_embed == []
@@ -26,12 +28,16 @@ class TestFastembedDocumentEmbedder:
         """
         embedder = FastembedDocumentEmbedder(
             model="BAAI/bge-small-en-v1.5",
+            prefix="prefix",
+            suffix="suffix",
             batch_size=64,
             progress_bar=False,
             meta_fields_to_embed=["test_field"],
             embedding_separator=" | ",
         )
         assert embedder.model_name == "BAAI/bge-small-en-v1.5"
+        assert embedder.prefix == "prefix"
+        assert embedder.suffix == "suffix"
         assert embedder.batch_size == 64
         assert embedder.progress_bar is False
         assert embedder.meta_fields_to_embed == ["test_field"]
@@ -47,6 +53,8 @@ class TestFastembedDocumentEmbedder:
             "type": "haystack_integrations.components.embedders.fastembed.fastembed_document_embedder.FastembedDocumentEmbedder",  #  noqa
             "init_parameters": {
                 "model": "BAAI/bge-small-en-v1.5",
+                "prefix": "",
+                "suffix": "",
                 "batch_size": 256,
                 "progress_bar": True,
                 "embedding_separator": "\n",
@@ -60,6 +68,8 @@ class TestFastembedDocumentEmbedder:
         """
         embedder = FastembedDocumentEmbedder(
             model="BAAI/bge-small-en-v1.5",
+            prefix="prefix",
+            suffix="suffix",
             batch_size=64,
             progress_bar=False,
             meta_fields_to_embed=["test_field"],
@@ -70,6 +80,8 @@ class TestFastembedDocumentEmbedder:
             "type": "haystack_integrations.components.embedders.fastembed.fastembed_document_embedder.FastembedDocumentEmbedder",  #  noqa
             "init_parameters": {
                 "model": "BAAI/bge-small-en-v1.5",
+                "prefix": "prefix",
+                "suffix": "suffix",
                 "batch_size": 64,
                 "progress_bar": False,
                 "meta_fields_to_embed": ["test_field"],
@@ -85,6 +97,8 @@ class TestFastembedDocumentEmbedder:
             "type": "haystack_integrations.components.embedders.fastembed.fastembed_document_embedder.FastembedDocumentEmbedder",  #  noqa
             "init_parameters": {
                 "model": "BAAI/bge-small-en-v1.5",
+                "prefix": "",
+                "suffix": "",
                 "batch_size": 256,
                 "progress_bar": True,
                 "meta_fields_to_embed": [],
@@ -93,6 +107,8 @@ class TestFastembedDocumentEmbedder:
         }
         embedder = default_from_dict(FastembedDocumentEmbedder, embedder_dict)
         assert embedder.model_name == "BAAI/bge-small-en-v1.5"
+        assert embedder.prefix == ""
+        assert embedder.suffix == ""
         assert embedder.batch_size == 256
         assert embedder.progress_bar is True
         assert embedder.meta_fields_to_embed == []
@@ -106,6 +122,8 @@ class TestFastembedDocumentEmbedder:
             "type": "haystack_integrations.components.embedders.fastembed.fastembed_document_embedder.FastembedDocumentEmbedder",  #  noqa
             "init_parameters": {
                 "model": "BAAI/bge-small-en-v1.5",
+                "prefix": "prefix",
+                "suffix": "suffix",
                 "batch_size": 64,
                 "progress_bar": False,
                 "meta_fields_to_embed": ["test_field"],
@@ -114,6 +132,8 @@ class TestFastembedDocumentEmbedder:
         }
         embedder = default_from_dict(FastembedDocumentEmbedder, embedder_dict)
         assert embedder.model_name == "BAAI/bge-small-en-v1.5"
+        assert embedder.prefix == "prefix"
+        assert embedder.suffix == "suffix"
         assert embedder.batch_size == 64
         assert embedder.progress_bar is False
         assert embedder.meta_fields_to_embed == ["test_field"]
@@ -228,4 +248,4 @@ class TestFastembedDocumentEmbedder:
 
         assert isinstance(embedding, list)
         assert len(embedding) == 384
-        assert all(isinstance(emb.item(), float) for emb in embedding)
+        assert all(isinstance(emb, float) for emb in embedding)

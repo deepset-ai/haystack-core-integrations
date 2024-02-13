@@ -21,7 +21,7 @@ renderer:
   category_slug: haystack-integrations
   title: UpTrain
   slug: integrations-uptrain
-  order: 1
+  order: 175
   markdown:
     descriptive_class_title: false
     descriptive_module_title: true
