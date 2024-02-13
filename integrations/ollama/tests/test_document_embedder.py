@@ -28,18 +28,17 @@ class TestOllamaDocumentEmbedder:
 
     @pytest.mark.integration
     def test_model_not_found(self):
-        embedder = OllamaDocumentEmbedder(model="cheese")
+        embedder = OllamaDocumentEmbedder(model="cheese")   
 
         with pytest.raises(HTTPError):
-            embedder.run("hello")
+            embedder.run([Document('hello')])
 
     @pytest.mark.integration
     def import_text_in_embedder(self):
         embedder = OllamaDocumentEmbedder(model="orca-mini")
-        
-        embedder.run("This is a text string. This should not work.")
+
         with pytest.raises(TypeError):
-            embedder.run("hello")
+            embedder.run("This is a text string. This should not work.")
 
     @pytest.mark.integration
     def test_run(self):
