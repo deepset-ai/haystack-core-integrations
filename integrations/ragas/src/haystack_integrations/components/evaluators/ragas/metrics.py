@@ -5,19 +5,19 @@ from enum import Enum
 from typing import Any, Callable, Dict, Iterable, List, Optional, Type, Union
 
 from ragas.evaluation import Result
-from ragas.metrics import (
-    AspectCritique,
-    answer_correctness,
-    answer_relevancy,
-    answer_similarity,
-    context_precision,
-    context_recall,
-    context_relevancy,
-    context_utilization,
-    faithfulness,
+from ragas.metrics import (  # type: ignore
+    AspectCritique,  # type: ignore
+    answer_correctness,  # type: ignore
+    answer_relevancy,  # type: ignore
+    answer_similarity,  # type: ignore
+    context_precision,  # type: ignore
+    context_recall,  # type: ignore
+    context_relevancy,  # type: ignore
+    context_utilization,  # type: ignore
+    faithfulness,  # type: ignore
 )
-from ragas.metrics.base import Metric
-from ragas.metrics.critique import coherence, conciseness, correctness, harmfulness, maliciousness
+from ragas.metrics.base import Metric  # type: ignore
+from ragas.metrics.critique import coherence, conciseness, correctness, harmfulness, maliciousness  # type: ignore
 
 
 class RagasBaseEnum(Enum):

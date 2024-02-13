@@ -1,14 +1,14 @@
 import json
 from typing import Any, Callable, Dict, List, Optional, Union
 
-from datasets import Dataset
+from datasets import Dataset  # type: ignore
 from haystack import DeserializationError, component, default_from_dict, default_to_dict
 from haystack.utils import Secret, deserialize_secrets_inplace
 
-from ragas import evaluate
-from ragas.evaluation import Result
-from ragas.metrics import AspectCritique
-from ragas.metrics.base import Metric
+from ragas import evaluate  # type: ignore
+from ragas.evaluation import Result  # type: ignore
+from ragas.metrics import AspectCritique  # type: ignore
+from ragas.metrics.base import Metric  # type: ignore
 
 from .metrics import (
     METRIC_ASPECTS,
