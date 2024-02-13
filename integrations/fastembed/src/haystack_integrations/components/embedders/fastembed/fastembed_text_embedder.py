@@ -45,6 +45,11 @@ class FastembedTextEmbedder:
         :param batch_size: Number of strings to encode at once.
         :param prefix: A string to add to the beginning of each text.
         :param suffix: A string to add to the end of each text.
+        :param progress_bar: If true, displays progress bar during embedding.
+        :param parallel:
+                If > 1, data-parallel encoding will be used, recommended for offline encoding of large datasets.
+                If 0, use all available cores.
+                If None, don't use data-parallel processing, use default onnxruntime threading instead.
         """
 
         # TODO add parallel
