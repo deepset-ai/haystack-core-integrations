@@ -24,7 +24,7 @@ class RagasEvaluator:
     """
     A component that uses the Ragas framework to evaluate inputs against a specific metric.
 
-    The supported metrics are defined by :class:`RagasMetric`. The inputs of the component are
+    The supported metrics are defined by `RagasMetric`. The inputs of the component are
     metric-dependent. The output is a nested list of evaluation results where each inner list
     contains the results for a single input.
     """

@@ -1,7 +1,7 @@
 # ragas-haystack
 
-[![PyPI - Version](https://img.shields.io/pypi/v/uptrain-haystack.svg)](https://pypi.org/project/ragas-haystack)
-[![PyPI - Python Version](https://img.shields.io/pypi/pyversions/uptrain-haystack.svg)](https://pypi.org/project/ragas-haystack)
+[![PyPI - Version](https://img.shields.io/pypi/v/ragas-haystack.svg)](https://pypi.org/project/ragas-haystack)
+[![PyPI - Python Version](https://img.shields.io/pypi/pyversions/ragas-haystack.svg)](https://pypi.org/project/ragas-haystack)
 
 ---
 
