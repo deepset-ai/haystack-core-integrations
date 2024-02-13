@@ -75,7 +75,7 @@ class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsT
         assert document_store.to_dict() == {
             "type": "haystack_integrations.document_stores.pgvector.document_store.PgvectorDocumentStore",
             "init_parameters": {
-                "connection_string": {'env_vars': ['PG_CONN_STR'], 'strict': True, 'type': 'env_var'},
+                "connection_string": {"env_vars": ["PG_CONN_STR"], "strict": True, "type": "env_var"},
                 "table_name": "my_table",
                 "embedding_dimension": 512,
                 "vector_function": "l2_distance",

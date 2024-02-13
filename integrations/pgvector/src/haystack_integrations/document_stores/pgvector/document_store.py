@@ -4,7 +4,7 @@
 import logging
 from typing import Any, Dict, List, Literal, Optional
 
-from haystack import default_to_dict, default_from_dict
+from haystack import default_from_dict, default_to_dict
 from haystack.dataclasses.document import ByteStream, Document
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
@@ -165,9 +165,9 @@ class PgvectorDocumentStore:
 
     @classmethod
     def from_dict(cls, init_parameters: Dict[str, Any]) -> "PgvectorDocumentStore":
-        conn_str_data = init_parameters['init_parameters']["connection_string"]
+        conn_str_data = init_parameters["init_parameters"]["connection_string"]
         conn_str = Secret.from_dict(conn_str_data) if conn_str_data is not None else None
-        init_parameters['init_parameters']["connection_string"] = conn_str
+        init_parameters["init_parameters"]["connection_string"] = conn_str
         return default_from_dict(cls, init_parameters)
 
     def _execute_sql(

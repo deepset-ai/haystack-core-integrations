@@ -31,6 +31,12 @@ then run the tests:
 hatch run test
 ```
 
+To run the coverage report:
+
+```console
+hatch run cov
+```
+
 ## License
 
 `pgvector-haystack` is distributed under the terms of the [Apache-2.0](https://spdx.org/licenses/Apache-2.0.html) license.
