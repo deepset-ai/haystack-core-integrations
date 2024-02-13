@@ -1,8 +1,9 @@
 from typing import Any, Dict, List, Optional
 
 import requests
+from haystack import Document, component
 from tqdm import tqdm
-from haystack import component, Document
+
 
 @component
 class OllamaDocumentEmbedder:
@@ -17,7 +18,6 @@ class OllamaDocumentEmbedder:
         progress_bar: bool = True,
         meta_fields_to_embed: Optional[List[str]] = None,
         embedding_separator: str = "\n",
-        
     ):
         """
         :param model: The name of the model to use. The model should be available in the running Ollama instance.
@@ -34,7 +34,7 @@ class OllamaDocumentEmbedder:
         self.generation_kwargs = generation_kwargs or {}
         self.url = url
         self.model = model
-        self.batch_size = 1 # API only supports a single call at the moment
+        self.batch_size = 1  # API only supports a single call at the moment
         self.progress_bar = progress_bar
         self.meta_fields_to_embed = meta_fields_to_embed
         self.embedding_separator = embedding_separator
@@ -57,39 +57,45 @@ class OllamaDocumentEmbedder:
         texts_to_embed = []
         for doc in documents:
             if self.meta_fields_to_embed is not None:
-                meta_values_to_embed = [str(doc.meta[key]) for key in self.meta_fields_to_embed if key in doc.meta and doc.meta[key] is not None]
+                meta_values_to_embed = [
+                    str(doc.meta[key])
+                    for key in self.meta_fields_to_embed
+                    if key in doc.meta and doc.meta[key] is not None
+                ]
             else:
                 meta_values_to_embed = []
-            
+
             text_to_embed = (
-                self.prefix + self.embedding_separator.join(meta_values_to_embed + [doc.content or ""]) + self.suffix
+                self.prefix + self.embedding_separator.join([*meta_values_to_embed, doc.content or ""]) + self.suffix
             ).replace("\n", " ")
-            
+
             texts_to_embed.append(text_to_embed)
         return texts_to_embed
-    
-    def _embed_batch(self, texts_to_embed: List[str], batch_size: int, generation_kwargs: Optional[Dict[str, Any]] = None):
+
+    def _embed_batch(
+        self, texts_to_embed: List[str], batch_size: int, generation_kwargs: Optional[Dict[str, Any]] = None
+    ):
         """
         Ollama Embedding only allows single uploads, not batching. Currently the batch size is set to 1.
         If this changes in the future, line 86 (the first line within the for loop), can contain:
             batch = texts_to_embed[i + i + batch_size]
         """
-        
+
         all_embeddings = []
-        meta: Dict[str] = {"model": ""}
-        
+        meta: Dict[str, Any] = {"model": ""}
+
         for i in tqdm(
             range(0, len(texts_to_embed), batch_size), disable=not self.progress_bar, desc="Calculating embeddings"
         ):
-            batch = texts_to_embed[i] # Single batch only
+            batch = texts_to_embed[i]  # Single batch only
             payload = self._create_json_payload(batch, generation_kwargs)
             response = requests.post(url=self.url, json=payload, timeout=self.timeout)
             response.raise_for_status()
             result = response.json()
-            all_embeddings.append(result['embedding'])
+            all_embeddings.append(result["embedding"])
 
         meta["model"] = self.model
-        
+
         return all_embeddings, meta
 
     @component.output_types(documents=List[Document], meta=Dict[str, Any])
@@ -103,14 +109,17 @@ class OllamaDocumentEmbedder:
         :return: Documents with embedding information attached and metadata in a dictionary
         """
         if not isinstance(documents, list) or documents and not isinstance(documents[0], Document):
-            raise TypeError(
+            msg = (
                 "OllamaDocumentEmbedder expects a list of Documents as input."
                 "In case you want to embed a list of strings, please use the OllamaTextEmbedder."
             )
+            raise TypeError(msg)
 
         texts_to_embed = self._prepare_texts_to_embed(documents=documents)
-        embeddings, meta = self._embed_batch(texts_to_embed=texts_to_embed, batch_size=self.batch_size, generation_kwargs=generation_kwargs)
-        
+        embeddings, meta = self._embed_batch(
+            texts_to_embed=texts_to_embed, batch_size=self.batch_size, generation_kwargs=generation_kwargs
+        )
+
         for doc, emb in zip(documents, embeddings):
             doc.embedding = emb
 
