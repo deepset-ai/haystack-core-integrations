@@ -1,4 +1,5 @@
 import os
+
 import pytest
 from haystack_integrations.document_stores.pgvector import PgvectorDocumentStore
 
@@ -17,7 +18,7 @@ def document_store(request):
         embedding_dimension=embedding_dimension,
         vector_function=vector_function,
         recreate_table=recreate_table,
-        search_strategy=search_strategy
+        search_strategy=search_strategy,
     )
 
     yield store

@@ -10,8 +10,8 @@
 # Download some Markdown files to index.
 # git clone https://github.com/anakin87/neural-search-pills
 
-import os
 import glob
+import os
 
 from haystack import Pipeline
 from haystack.components.converters import MarkdownToDocument
