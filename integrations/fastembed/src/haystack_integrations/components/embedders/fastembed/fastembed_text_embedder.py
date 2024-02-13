@@ -35,6 +35,7 @@ class FastembedTextEmbedder:
         suffix: str = "",
         batch_size: int = 256,
         progress_bar: bool = True,
+        parallel: int = None,
     ):
         """
         Create a FastembedTextEmbedder component.
@@ -53,6 +54,7 @@ class FastembedTextEmbedder:
         self.suffix = suffix
         self.batch_size = batch_size
         self.progress_bar = progress_bar
+        self.parallel = parallel
 
     def to_dict(self) -> Dict[str, Any]:
         """
@@ -65,6 +67,7 @@ class FastembedTextEmbedder:
             suffix=self.suffix,
             batch_size=self.batch_size,
             progress_bar=self.progress_bar,
+            parallel=self.parallel,
         )
 
     def warm_up(self):
@@ -93,6 +96,7 @@ class FastembedTextEmbedder:
                 text_to_embed,
                 batch_size=self.batch_size,
                 show_progress_bar=self.progress_bar,
+                parallel=self.parallel,
             )[0]
         )
         return {"embedding": embedding}
