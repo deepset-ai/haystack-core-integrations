@@ -19,6 +19,7 @@ class TestFastembedDocumentEmbedder:
         assert embedder.suffix == ""
         assert embedder.batch_size == 256
         assert embedder.progress_bar is True
+        assert embedder.parallel is None
         assert embedder.meta_fields_to_embed == []
         assert embedder.embedding_separator == "\n"
 
@@ -32,6 +33,7 @@ class TestFastembedDocumentEmbedder:
             suffix="suffix",
             batch_size=64,
             progress_bar=False,
+            parallel=1,
             meta_fields_to_embed=["test_field"],
             embedding_separator=" | ",
         )
@@ -40,6 +42,7 @@ class TestFastembedDocumentEmbedder:
         assert embedder.suffix == "suffix"
         assert embedder.batch_size == 64
         assert embedder.progress_bar is False
+        assert embedder.parallel == 1
         assert embedder.meta_fields_to_embed == ["test_field"]
         assert embedder.embedding_separator == " | "
 
@@ -57,6 +60,7 @@ class TestFastembedDocumentEmbedder:
                 "suffix": "",
                 "batch_size": 256,
                 "progress_bar": True,
+                "parallel": None,
                 "embedding_separator": "\n",
                 "meta_fields_to_embed": [],
             },
@@ -72,6 +76,7 @@ class TestFastembedDocumentEmbedder:
             suffix="suffix",
             batch_size=64,
             progress_bar=False,
+            parallel=1,
             meta_fields_to_embed=["test_field"],
             embedding_separator=" | ",
         )
@@ -84,6 +89,7 @@ class TestFastembedDocumentEmbedder:
                 "suffix": "suffix",
                 "batch_size": 64,
                 "progress_bar": False,
+                "parallel": 1,
                 "meta_fields_to_embed": ["test_field"],
                 "embedding_separator": " | ",
             },
@@ -101,6 +107,7 @@ class TestFastembedDocumentEmbedder:
                 "suffix": "",
                 "batch_size": 256,
                 "progress_bar": True,
+                "parallel": None,
                 "meta_fields_to_embed": [],
                 "embedding_separator": "\n",
             },
@@ -111,6 +118,7 @@ class TestFastembedDocumentEmbedder:
         assert embedder.suffix == ""
         assert embedder.batch_size == 256
         assert embedder.progress_bar is True
+        assert embedder.parallel is None
         assert embedder.meta_fields_to_embed == []
         assert embedder.embedding_separator == "\n"
 
@@ -126,6 +134,7 @@ class TestFastembedDocumentEmbedder:
                 "suffix": "suffix",
                 "batch_size": 64,
                 "progress_bar": False,
+                "parallel": 1,
                 "meta_fields_to_embed": ["test_field"],
                 "embedding_separator": " | ",
             },
@@ -136,6 +145,7 @@ class TestFastembedDocumentEmbedder:
         assert embedder.suffix == "suffix"
         assert embedder.batch_size == 64
         assert embedder.progress_bar is False
+        assert embedder.parallel == 1
         assert embedder.meta_fields_to_embed == ["test_field"]
         assert embedder.embedding_separator == " | "
 
@@ -232,6 +242,7 @@ class TestFastembedDocumentEmbedder:
             ],
             batch_size=256,
             show_progress_bar=True,
+            parallel=None,
         )
 
     @pytest.mark.integration
