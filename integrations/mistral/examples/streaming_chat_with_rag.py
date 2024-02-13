@@ -63,22 +63,3 @@ result = rag_pipeline.run({ "text_embedder": {"text": question},
                                               "prompt_source": messages},
                             "llm": {"generation_kwargs": {"max_tokens": 165}}
                   })
-                #   "llm": {"generation_kwargs": 165}})
-# documents = converter.run(sources=sources)
-print(result)
-# writer.run(documents=documents)
-
-# document_store.filter_documents()
-
-# messages = [
-#     ChatMessage.from_user("What is Mistral?"),
-#     ChatMessage.from_assistant(
-#         "Mistral is a high-performance, open-source cloud orchestration engine for automating the deployment"
-#         ", scaling, and management of applications and services in cloud computing environments. It was originally developed by the"
-#         " French company, CloudWeavers, and was later donated to the open-source community."
-#     ),
-#     ChatMessage.from_user("How do I strt using Mistral?"),
-# ]
-# client = MistralChatGenerator(model= "mistral-small", streaming_callback=print_streaming_chunk, generation_kwargs={"max_tokens": 150})
-# response = client.run(messages)
-# print(response)
