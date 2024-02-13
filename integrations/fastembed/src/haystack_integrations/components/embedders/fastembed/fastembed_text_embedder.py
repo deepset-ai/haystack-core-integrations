@@ -1,4 +1,4 @@
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from haystack import component, default_to_dict
 
@@ -35,7 +35,7 @@ class FastembedTextEmbedder:
         suffix: str = "",
         batch_size: int = 256,
         progress_bar: bool = True,
-        parallel: int = None,
+        parallel: Optional[int] = None,
     ):
         """
         Create a FastembedTextEmbedder component.
