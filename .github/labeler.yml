@@ -64,6 +64,11 @@ integration:llama_cpp:
       - any-glob-to-any-file: "integrations/llama_cpp/**/*"
       - any-glob-to-any-file: ".github/workflows/llama_cpp.yml"
 
+integration:mistral:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/mistral/**/*"
+      - any-glob-to-any-file: ".github/workflows/mistral.yml"
+
 integration:ollama:
   - changed-files:
       - any-glob-to-any-file: "integrations/ollama/**/*"
