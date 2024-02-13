@@ -3,8 +3,8 @@ loaders:
     search_path: [../src]
     modules:
       [
-        "haystack_integrations.components.embedders.instructor_embedders",
-        "haystack_integrations.components.embedders.instructor_embedders.embedding_backend",
+        "haystack_integrations.components.embedders.instructor_embedders.instructor_document_embedder",
+        "haystack_integrations.components.embedders.instructor_embedders.instructor_text_embedder",
       ]
     ignore_when_discovered: ["__init__"]
 processors:
@@ -17,9 +17,9 @@ processors:
   - type: crossref
 renderer:
   type: haystack_pydoc_tools.renderers.ReadmePreviewRenderer
-  excerpt: Embedders integration for Haystack
+  excerpt: Instructor embedders integration for Haystack
   category_slug: haystack-integrations
-  title: Embedders
+  title: Instructor Embedders
   slug: integrations-instructor-embedders
   order: 90
   markdown:

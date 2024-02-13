@@ -139,6 +139,8 @@ ban-relative-imports = "parents"
 [tool.ruff.per-file-ignores]
 # Tests can use magic values, assertions, and relative imports
 "tests/**/*" = ["PLR2004", "S101", "TID252"]
+# examples can contain "print" commands
+"examples/**/*" = ["T201"]
 
 [tool.coverage.run]
 source_pkgs = ["src", "tests"]

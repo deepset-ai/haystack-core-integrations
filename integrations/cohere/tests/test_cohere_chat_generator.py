@@ -169,6 +169,7 @@ class TestCohereChatGenerator:
     @pytest.mark.unit
     def test_from_dict_fail_wo_env_var(self, monkeypatch):
         monkeypatch.delenv("COHERE_API_KEY", raising=False)
+        monkeypatch.delenv("CO_API_KEY", raising=False)
         data = {
             "type": "haystack_integrations.components.generators.cohere.chat.chat_generator.CohereChatGenerator",
             "init_parameters": {
