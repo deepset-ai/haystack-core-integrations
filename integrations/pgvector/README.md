@@ -20,7 +20,11 @@ pip install pgvector-haystack
 
 ## Testing
 
-TODO
+Ensure you have PostgreSQL installed with the `pgvector` extension, for a quick setup using Docker:
+```
+docker run -d -p 5432:5432 -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=postgres ankane/pgvector
+```
+
 
 ```console
 hatch run test
