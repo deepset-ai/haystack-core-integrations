@@ -8,16 +8,16 @@ from haystack_integrations.document_stores.chroma import ChromaDocumentStore
 
 
 @component
-class ChromaQueryRetriever:
+class ChromaQueryTextRetriever:
     """
     A component for retrieving documents from an ChromaDocumentStore using the `query` API.
     """
 
     def __init__(self, document_store: ChromaDocumentStore, filters: Optional[Dict[str, Any]] = None, top_k: int = 10):
         """
-        Create an ExampleRetriever component. Usually you pass some basic configuration
-        parameters to the constructor.
+        Create a ChromaQueryTextRetriever component.
 
+        :param document_store: An instance of ChromaDocumentStore.
         :param filters: A dictionary with filters to narrow down the search space (default is None).
         :param top_k: The maximum number of documents to retrieve (default is 10).
         """
@@ -54,14 +54,14 @@ class ChromaQueryRetriever:
         return d
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "ChromaQueryRetriever":
+    def from_dict(cls, data: Dict[str, Any]) -> "ChromaQueryTextRetriever":
         document_store = ChromaDocumentStore.from_dict(data["init_parameters"]["document_store"])
         data["init_parameters"]["document_store"] = document_store
         return default_from_dict(cls, data)
 
 
 @component
-class ChromaEmbeddingRetriever(ChromaQueryRetriever):
+class ChromaEmbeddingRetriever(ChromaQueryTextRetriever):
     @component.output_types(documents=List[Document])
     def run(
         self,
