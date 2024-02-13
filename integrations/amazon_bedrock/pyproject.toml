@@ -83,11 +83,13 @@ style = [
   "ruff {args:.}",
   "black --check --diff {args:.}",
 ]
+
 fmt = [
   "black {args:.}",
   "ruff --fix {args:.}",
   "style",
 ]
+
 all = [
   "style",
   "typing",
@@ -159,17 +161,20 @@ source_pkgs = ["src", "tests"]
 branch = true
 parallel = true
 
-
 [tool.coverage.paths]
 amazon_bedrock_haystack = ["src/*"]
 tests = ["tests"]
 
 [tool.coverage.report]
+omit = ["*__init__*"]
 exclude_lines = [
   "no cov",
   "if __name__ == .__main__.:",
   "if TYPE_CHECKING:",
 ]
+show_missing = true
+precision = 2
+
 
 [[tool.mypy.overrides]]
 module = [

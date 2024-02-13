@@ -87,6 +87,17 @@ class AmazonBedrockGenerator:
         self.model = model
         self.max_length = max_length
 
+        """
+        if isinstance(aws_access_key_id, Secret):
+            aws_access_key_id = aws_access_key_id.resolve_value()
+        if isinstance(aws_secret_access_key, Secret):
+            aws_secret_access_key = aws_secret_access_key.resolve_value()
+        if isinstance(aws_session_token, Secret):
+            aws_session_token = aws_session_token.resolve_value()
+        if isinstance(aws_region_name, Secret):
+            aws_region_name = aws_region_name.resolve_value()
+        """
+
         try:
             session = self.get_aws_session(
                 aws_access_key_id=aws_access_key_id,
