@@ -1,0 +1,58 @@
+# This workflow comes from https://github.com/ofek/hatch-mypyc
+# https://github.com/ofek/hatch-mypyc/blob/5a198c0ba8660494d02716cfc9d79ce4adfb1442/.github/workflows/test.yml
+name: Test / mongodb_atlas
+
+on:
+  schedule:
+    - cron: "0 0 * * *"
+  pull_request:
+    paths:
+      - "integrations/mongodb_atlas/**"
+      - ".github/workflows/mongodb_atlas.yml"
+
+defaults:
+  run:
+    working-directory: integrations/mongodb_atlas
+
+concurrency:
+  group: mongodb-atlas-${{ github.head_ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHONUNBUFFERED: "1"
+  FORCE_COLOR: "1"
+  MONGO_CONNECTION_STRING: ${{ secrets.MONGO_CONNECTION_STRING }}
+
+jobs:
+  run:
+    name: Python ${{ matrix.python-version }} on ${{ startsWith(matrix.os, 'macos-') && 'macOS' || startsWith(matrix.os, 'windows-') && 'Windows' || 'Linux' }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        python-version: ['3.9', '3.10', '3.11']
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install Hatch
+        run: pip install --upgrade hatch
+
+      - name: Lint
+        working-directory: integrations/mongodb_atlas
+        if: matrix.python-version == '3.9'
+        run: hatch run lint:all
+
+      - name: Generate docs
+        if: matrix.python-version == '3.9' && runner.os == 'Linux'
+        run: hatch run docs
+
+      - name: Run tests
+        working-directory: integrations/mongodb_atlas
+        run: hatch run cov
