@@ -2,8 +2,8 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 import os
-from uuid import uuid4
 from unittest.mock import patch
+from uuid import uuid4
 
 import pytest
 from haystack.dataclasses.document import ByteStream, Document
@@ -19,7 +19,7 @@ def document_store(request):
     store = MongoDBAtlasDocumentStore(
         mongo_connection_string=os.environ["MONGO_CONNECTION_STRING"],
         database_name="ClusterTest",
-        collection_name="test_"+request.node.name+str(uuid4()),
+        collection_name="test_" + request.node.name + str(uuid4()),
     )
     yield store
     store._get_collection().drop()

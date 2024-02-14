@@ -7,9 +7,10 @@
 # git clone https://github.com/anakin87/neural-search-pills
 
 import glob
+
 from haystack import Pipeline
 from haystack.components.converters import MarkdownToDocument
-from haystack.components.embedders import SentenceTransformersDocumentEmbedder, SentenceTransformersTextEmbedder
+from haystack.components.embedders import SentenceTransformersDocumentEmbedder
 from haystack.components.preprocessors import DocumentSplitter
 from haystack.components.writers import DocumentWriter
 from haystack_integrations.document_stores.mongodb_atlas import MongoDBAtlasDocumentStore
