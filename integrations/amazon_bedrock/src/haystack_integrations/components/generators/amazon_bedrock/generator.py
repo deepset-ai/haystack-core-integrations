@@ -75,7 +75,7 @@ class AmazonBedrockGenerator:
         model: str,
         aws_access_key_id: Optional[Secret] = EnvVarSecret.from_env_var("AWS_ACCESS_KEY_ID"),
         aws_secret_access_key: Optional[Secret] = EnvVarSecret.from_env_var("AWS_SECRET_ACCESS_KEY"),
-        aws_session_token: Optional[str] = EnvVarSecret.from_env_var("AWS_SESSION_TOKEN"),
+        aws_session_token: Optional[Secret] = EnvVarSecret.from_env_var("AWS_SESSION_TOKEN"),
         aws_region_name: Optional[Secret] = EnvVarSecret.from_env_var("AWS_DEFAULT_REGION"),
         aws_profile_name: Optional[str] = EnvVarSecret.from_env_var("AWS_PROFILE"),
         max_length: Optional[int] = 100,
@@ -86,17 +86,6 @@ class AmazonBedrockGenerator:
             raise ValueError(msg)
         self.model = model
         self.max_length = max_length
-
-        """
-        if isinstance(aws_access_key_id, Secret):
-            aws_access_key_id = aws_access_key_id.resolve_value()
-        if isinstance(aws_secret_access_key, Secret):
-            aws_secret_access_key = aws_secret_access_key.resolve_value()
-        if isinstance(aws_session_token, Secret):
-            aws_session_token = aws_session_token.resolve_value()
-        if isinstance(aws_region_name, Secret):
-            aws_region_name = aws_region_name.resolve_value()
-        """
 
         try:
             session = self.get_aws_session(
@@ -115,8 +104,7 @@ class AmazonBedrockGenerator:
             raise AmazonBedrockConfigurationError(msg) from exception
 
         model_input_kwargs = kwargs
-        # We pop the model_max_length as it is not sent to the model
-        # but used to truncate the prompt if needed
+        # We pop the model_max_length as it is not sent to the model but used to truncate the prompt if needed
         model_max_length = kwargs.get("model_max_length", 4096)
 
         # Truncate prompt if prompt tokens > model_max_length-max_length
