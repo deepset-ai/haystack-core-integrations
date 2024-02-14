@@ -548,3 +548,74 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
         assert "functional" in result[0].content
         assert "functional" in result[1].content
         assert "functional" in result[2].content
+
+    def test_embedding_retrieval(self, document_store):
+        document_store.write_documents(
+            [
+                Document(
+                    content="Yet another document",
+                    embedding=[0.00001, 0.00001, 0.00001, 0.00002],
+                ),
+                Document(content="The document", embedding=[1.0, 1.0, 1.0, 1.0]),
+                Document(content="Another document", embedding=[0.8, 0.8, 0.8, 1.0]),
+            ]
+        )
+        result = document_store._embedding_retrieval(query_embedding=[1.0, 1.0, 1.0, 1.0])
+        assert len(result) == 3
+        assert "The document" == result[0].content
+        assert "Another document" == result[1].content
+        assert "Yet another document" == result[2].content
+
+    def test_embedding_retrieval_with_filters(self, document_store):
+        document_store.write_documents(
+            [
+                Document(
+                    content="Yet another document",
+                    embedding=[0.00001, 0.00001, 0.00001, 0.00002],
+                ),
+                Document(content="The document I want", embedding=[1.0, 1.0, 1.0, 1.0]),
+                Document(content="Another document", embedding=[0.8, 0.8, 0.8, 1.0]),
+            ]
+        )
+        filters = {"field": "content", "operator": "==", "value": "The document I want"}
+        result = document_store._embedding_retrieval(query_embedding=[1.0, 1.0, 1.0, 1.0], filters=filters)
+        assert len(result) == 1
+        assert "The document I want" == result[0].content
+
+    def test_embedding_retrieval_with_topk(self, document_store):
+        docs = [
+            Document(content="The document", embedding=[1.0, 1.0, 1.0, 1.0]),
+            Document(content="Another document", embedding=[0.8, 0.8, 0.8, 1.0]),
+            Document(content="Yet another document", embedding=[0.00001, 0.00001, 0.00001, 0.00002]),
+        ]
+        document_store.write_documents(docs)
+        results = document_store._embedding_retrieval(query_embedding=[1.0, 1.0, 1.0, 1.0], top_k=2)
+        assert len(results) == 2
+        assert results[0].content == "The document"
+        assert results[1].content == "Another document"
+
+    def test_embedding_retrieval_with_distance(self, document_store):
+        docs = [
+            Document(content="The document", embedding=[1.0, 1.0, 1.0, 1.0]),
+            Document(content="Another document", embedding=[0.8, 0.8, 0.8, 1.0]),
+            Document(content="Yet another document", embedding=[0.00001, 0.00001, 0.00001, 0.00002]),
+        ]
+        document_store.write_documents(docs)
+        results = document_store._embedding_retrieval(query_embedding=[1.0, 1.0, 1.0, 1.0], distance=0.0)
+        assert len(results) == 1
+        assert results[0].content == "The document"
+
+    def test_embedding_retrieval_with_certainty(self, document_store):
+        docs = [
+            Document(content="The document", embedding=[1.0, 1.0, 1.0, 1.0]),
+            Document(content="Another document", embedding=[0.8, 0.8, 0.8, 1.0]),
+            Document(content="Yet another document", embedding=[0.00001, 0.00001, 0.00001, 0.00002]),
+        ]
+        document_store.write_documents(docs)
+        results = document_store._embedding_retrieval(query_embedding=[0.8, 0.8, 0.8, 1.0], certainty=1.0)
+        assert len(results) == 1
+        assert results[0].content == "Another document"
+
+    def test_embedding_retrieval_with_distance_and_certainty(self, document_store):
+        with pytest.raises(ValueError):
+            document_store._embedding_retrieval(query_embedding=[], distance=0.1, certainty=0.1)
