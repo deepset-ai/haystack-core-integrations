@@ -63,10 +63,6 @@ class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsT
                 "mongo_connection_string": "mongo_connection_string",
                 "database_name": "database_name",
                 "collection_name": "collection_name",
-                "vector_search_index": None,
-                "embedding_dim": 768,
-                "similarity": "cosine",
-                "embedding_field": "embedding",
                 "recreate_index": False,
             },
         }
