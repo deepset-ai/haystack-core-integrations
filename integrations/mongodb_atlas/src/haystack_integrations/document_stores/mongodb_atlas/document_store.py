@@ -10,10 +10,10 @@ from haystack.dataclasses.document import Document
 from haystack.document_stores.errors import DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
 from haystack_integrations.document_stores.mongodb_atlas.filters import haystack_filters_to_mongo
-from pymongo import InsertOne, MongoClient, ReplaceOne, UpdateOne
-from pymongo.collection import Collection
-from pymongo.driver_info import DriverInfo
-from pymongo.errors import BulkWriteError
+from pymongo import InsertOne, MongoClient, ReplaceOne, UpdateOne  # type: ignore
+from pymongo.collection import Collection  # type: ignore
+from pymongo.driver_info import DriverInfo  # type: ignore
+from pymongo.errors import BulkWriteError  # type: ignore
 
 logger = logging.getLogger(__name__)
 
