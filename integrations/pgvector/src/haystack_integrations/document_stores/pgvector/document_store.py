@@ -8,7 +8,7 @@ from haystack import default_from_dict, default_to_dict
 from haystack.dataclasses.document import ByteStream, Document
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
-from haystack.utils.auth import Secret
+from haystack.utils.auth import Secret, deserialize_secrets_inplace
 from haystack.utils.filters import convert
 from psycopg import Error, IntegrityError, connect
 from psycopg.abc import Query
@@ -164,11 +164,9 @@ class PgvectorDocumentStore:
         )
 
     @classmethod
-    def from_dict(cls, init_parameters: Dict[str, Any]) -> "PgvectorDocumentStore":
-        conn_str_data = init_parameters["init_parameters"]["connection_string"]
-        conn_str = Secret.from_dict(conn_str_data) if conn_str_data is not None else None
-        init_parameters["init_parameters"]["connection_string"] = conn_str
-        return default_from_dict(cls, init_parameters)
+    def from_dict(cls, data: Dict[str, Any]) -> "PgvectorDocumentStore":
+        deserialize_secrets_inplace(data["init_parameters"], ["connection_string"])
+        return default_from_dict(cls, data)
 
     def _execute_sql(
         self, sql_query: Query, params: Optional[tuple] = None, error_msg: str = "", cursor: Optional[Cursor] = None
