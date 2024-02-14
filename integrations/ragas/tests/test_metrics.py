@@ -7,5 +7,5 @@ def test_ragas_metric():
     for e in RagasMetric:
         assert e == RagasMetric.from_str(e.value)
 
-    with pytest.raises(ValueError, match="Unknown Ragas enum value"):
+    with pytest.raises(ValueError, match="Unknown Ragas metric"):
         RagasMetric.from_str("smugness")

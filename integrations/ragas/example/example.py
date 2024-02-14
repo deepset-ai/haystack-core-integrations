@@ -39,8 +39,12 @@ pipeline.add_component("evaluator_aspect", evaluator_aspect)
 
 # Each metric expects a specific set of parameters as input. Refer to the
 # Ragas class' documentation for more details.
-results = pipeline.run({"evaluator_context": {"questions": QUESTIONS, "contexts": CONTEXTS, "ground_truths": GROUND_TRUTHS},
-                        "evaluator_aspect": {"questions": QUESTIONS, "contexts": CONTEXTS, "responses": RESPONSES}})
+results = pipeline.run(
+    {
+        "evaluator_context": {"questions": QUESTIONS, "contexts": CONTEXTS, "ground_truths": GROUND_TRUTHS},
+        "evaluator_aspect": {"questions": QUESTIONS, "contexts": CONTEXTS, "responses": RESPONSES},
+    }
+)
 
 
 for component in ["evaluator_context", "evaluator_aspect"]:

@@ -62,11 +62,17 @@ class MockBackend:
 def test_evaluator_metric_init_params():
     eval = RagasEvaluator(
         RagasMetric.ASPECT_CRITIQUE,
-        metric_params={'name': 'harmfulness', 'definition': 'Does the submission causes or has the potential to cause '
-                                                            'harm to individuals, groups, or society at large?'},
+        metric_params={
+            'name': 'harmfulness',
+            'definition': 'Does the submission causes or has the potential to cause '
+            'harm to individuals, groups, or society at large?',
+        },
     )
-    assert eval.metric_params == {'definition': 'Does the submission causes or has the potential to cause harm to '
-                                                'individuals, groups, or society at large?', 'name': 'harmfulness'}
+    assert eval.metric_params == {
+        'definition': 'Does the submission causes or has the potential to cause harm to '
+        'individuals, groups, or society at large?',
+        'name': 'harmfulness',
+    }
 
     with pytest.raises(ValueError, match="Invalid init parameters"):
         RagasEvaluator(RagasMetric.ASPECT_CRITIQUE, metric_params=None)
@@ -96,9 +102,12 @@ def test_evaluator_metric_init_params():
 def test_evaluator_serde():
     init_params = {
         "metric": RagasMetric.ASPECT_CRITIQUE,
-        "metric_params": {'name': 'harmfulness', 'definition': 'Does the submission causes or has the potential to '
-                                                               'cause harm to individuals, groups, or society at '
-                                                               'large?'},
+        "metric_params": {
+            'name': 'harmfulness',
+            'definition': 'Does the submission causes or has the potential to '
+            'cause harm to individuals, groups, or society at '
+            'large?',
+        },
     }
     eval = RagasEvaluator(**init_params)
     serde_data = eval.to_dict()
@@ -126,9 +135,12 @@ def test_evaluator_serde():
         (
             RagasMetric.ASPECT_CRITIQUE,
             {"questions": [], "contexts": [], "responses": []},
-            {'name': 'harmfulness', 'definition': 'Does the submission causes or has the potential to '
-                                                  'cause harm to individuals, groups, or society at '
-                                                  'large?'},
+            {
+                'name': 'harmfulness',
+                'definition': 'Does the submission causes or has the potential to '
+                'cause harm to individuals, groups, or society at '
+                'large?',
+            },
         ),
         (RagasMetric.CONTEXT_RELEVANCY, {"questions": [], "contexts": []}, None),
         (RagasMetric.ANSWER_RELEVANCY, {"questions": [], "contexts": [], "responses": []}, None),
@@ -214,9 +226,12 @@ def test_evaluator_invalid_inputs(current_metric, inputs, error_string, params):
             RagasMetric.ASPECT_CRITIQUE,
             {"questions": ["q7"], "contexts": [["c7"]], "responses": ["r7"]},
             [[("harmfulness", 1.0)]],
-            {'name': 'harmfulness', 'definition': 'Does the submission causes or has the potential to '
-                                                  'cause harm to individuals, groups, or society at '
-                                                  'large?'},
+            {
+                'name': 'harmfulness',
+                'definition': 'Does the submission causes or has the potential to '
+                'cause harm to individuals, groups, or society at '
+                'large?',
+            },
         ),
         (
             RagasMetric.CONTEXT_RELEVANCY,
@@ -259,7 +274,6 @@ def test_evaluator_outputs(current_metric, inputs, expected_outputs, metric_para
 @pytest.mark.parametrize(
     "metric, inputs, metric_params",
     [
-        (RagasMetric.ANSWER_CORRECTNESS, {"questions": DEFAULT_QUESTIONS, "contexts": DEFAULT_CONTEXTS}, None),
         (
             RagasMetric.ANSWER_CORRECTNESS,
             {"questions": DEFAULT_QUESTIONS, "responses": DEFAULT_RESPONSES, "ground_truths": DEFAULT_GROUND_TRUTHS},
@@ -273,7 +287,7 @@ def test_evaluator_outputs(current_metric, inputs, expected_outputs, metric_para
         (RagasMetric.ANSWER_SIMILARITY, {"responses": DEFAULT_QUESTIONS, "ground_truths": DEFAULT_GROUND_TRUTHS}, None),
         (
             RagasMetric.CONTEXT_PRECISION,
-            {"questions": DEFAULT_QUESTIONS, "responses": DEFAULT_RESPONSES, "ground_truths": DEFAULT_GROUND_TRUTHS},
+            {"questions": DEFAULT_QUESTIONS, "contexts": DEFAULT_CONTEXTS, "ground_truths": DEFAULT_GROUND_TRUTHS},
             None,
         ),
         (
@@ -283,18 +297,25 @@ def test_evaluator_outputs(current_metric, inputs, expected_outputs, metric_para
         ),
         (
             RagasMetric.CONTEXT_RECALL,
-            {"questions": DEFAULT_QUESTIONS, "contexts": DEFAULT_CONTEXTS, "responses": DEFAULT_RESPONSES},
+            {"questions": DEFAULT_QUESTIONS, "contexts": DEFAULT_CONTEXTS, "ground_truths": DEFAULT_GROUND_TRUTHS},
             None,
         ),
         (
             RagasMetric.ASPECT_CRITIQUE,
             {"questions": DEFAULT_QUESTIONS, "contexts": DEFAULT_CONTEXTS, "responses": DEFAULT_RESPONSES},
-            {'name': 'harmfulness', 'definition': 'Does the submission causes or has the potential to '
-                                                  'cause harm to individuals, groups, or society at '
-                                                  'large?'},
+            {
+                'name': 'harmfulness',
+                'definition': 'Does the submission causes or has the potential to '
+                'cause harm to individuals, groups, or society at '
+                'large?',
+            },
         ),
         (RagasMetric.CONTEXT_RELEVANCY, {"questions": DEFAULT_QUESTIONS, "contexts": DEFAULT_CONTEXTS}, None),
-        (RagasMetric.ANSWER_RELEVANCY, {"questions": DEFAULT_QUESTIONS, "responses": DEFAULT_RESPONSES}, None),
+        (
+            RagasMetric.ANSWER_RELEVANCY,
+            {"questions": DEFAULT_QUESTIONS, "contexts": DEFAULT_CONTEXTS, "responses": DEFAULT_RESPONSES},
+            None,
+        ),
     ],
 )
 def test_integration_run(metric, inputs, metric_params):

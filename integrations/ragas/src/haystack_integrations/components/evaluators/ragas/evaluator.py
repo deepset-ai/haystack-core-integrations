@@ -6,7 +6,6 @@ from haystack import DeserializationError, component, default_from_dict, default
 
 from ragas import evaluate  # type: ignore
 from ragas.evaluation import Result  # type: ignore
-from ragas.metrics import AspectCritique  # type: ignore
 from ragas.metrics.base import Metric  # type: ignore
 
 from .metrics import (
@@ -104,7 +103,7 @@ class RagasEvaluator:
 
         OutputConverters.validate_outputs(results)
         converted_results = [
-            [result.to_dict()] for result in OutputConverters.extract_results(results, self.metric, self.metric_params)
+            [result.to_dict()] for result in self.descriptor.output_converter(results, self.metric, self.metric_params)
         ]
 
         return {"results": converted_results}
