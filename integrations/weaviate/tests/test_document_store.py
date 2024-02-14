@@ -481,3 +481,70 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
     @pytest.mark.skip(reason="Weaviate for some reason is not returning what we expect")
     def test_comparison_not_equal_with_dataframe(self, document_store, filterable_docs):
         return super().test_comparison_not_equal_with_dataframe(document_store, filterable_docs)
+
+    def test_bm25_retrieval(self, document_store):
+        document_store.write_documents(
+            [
+                Document(content="Haskell is a functional programming language"),
+                Document(content="Lisp is a functional programming language"),
+                Document(content="Exilir is a functional programming language"),
+                Document(content="F# is a functional programming language"),
+                Document(content="C# is a functional programming language"),
+                Document(content="C++ is an object oriented programming language"),
+                Document(content="Dart is an object oriented programming language"),
+                Document(content="Go is an object oriented programming language"),
+                Document(content="Python is a object oriented programming language"),
+                Document(content="Ruby is a object oriented programming language"),
+                Document(content="PHP is a object oriented programming language"),
+            ]
+        )
+        result = document_store._bm25_retrieval("functional Haskell")
+        assert len(result) == 5
+        assert "functional" in result[0].content
+        assert "functional" in result[1].content
+        assert "functional" in result[2].content
+        assert "functional" in result[3].content
+        assert "functional" in result[4].content
+
+    def test_bm25_retrieval_with_filters(self, document_store):
+        document_store.write_documents(
+            [
+                Document(content="Haskell is a functional programming language"),
+                Document(content="Lisp is a functional programming language"),
+                Document(content="Exilir is a functional programming language"),
+                Document(content="F# is a functional programming language"),
+                Document(content="C# is a functional programming language"),
+                Document(content="C++ is an object oriented programming language"),
+                Document(content="Dart is an object oriented programming language"),
+                Document(content="Go is an object oriented programming language"),
+                Document(content="Python is a object oriented programming language"),
+                Document(content="Ruby is a object oriented programming language"),
+                Document(content="PHP is a object oriented programming language"),
+            ]
+        )
+        filters = {"field": "content", "operator": "==", "value": "Haskell"}
+        result = document_store._bm25_retrieval("functional Haskell", filters=filters)
+        assert len(result) == 1
+        assert "Haskell is a functional programming language" == result[0].content
+
+    def test_bm25_retrieval_with_topk(self, document_store):
+        document_store.write_documents(
+            [
+                Document(content="Haskell is a functional programming language"),
+                Document(content="Lisp is a functional programming language"),
+                Document(content="Exilir is a functional programming language"),
+                Document(content="F# is a functional programming language"),
+                Document(content="C# is a functional programming language"),
+                Document(content="C++ is an object oriented programming language"),
+                Document(content="Dart is an object oriented programming language"),
+                Document(content="Go is an object oriented programming language"),
+                Document(content="Python is a object oriented programming language"),
+                Document(content="Ruby is a object oriented programming language"),
+                Document(content="PHP is a object oriented programming language"),
+            ]
+        )
+        result = document_store._bm25_retrieval("functional Haskell", top_k=3)
+        assert len(result) == 3
+        assert "functional" in result[0].content
+        assert "functional" in result[1].content
+        assert "functional" in result[2].content

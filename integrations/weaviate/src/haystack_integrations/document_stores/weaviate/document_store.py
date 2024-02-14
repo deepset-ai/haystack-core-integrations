@@ -419,3 +419,26 @@ class WeaviateDocumentStore:
                 "valueTextArray": [generate_uuid5(doc_id) for doc_id in document_ids],
             },
         )
+
+    def _bm25_retrieval(
+        self, query: str, filters: Optional[Dict[str, Any]] = None, top_k: Optional[int] = None
+    ) -> List[Document]:
+        collection_name = self._collection_settings["class"]
+        properties = self._client.schema.get(self._collection_settings["class"]).get("properties", [])
+        properties = [prop["name"] for prop in properties]
+
+        query_builder = (
+            self._client.query.get(collection_name, properties=properties)
+            .with_bm25(query=query, properties=["content"])
+            .with_additional(["vector"])
+        )
+
+        if filters:
+            query_builder = query_builder.with_where(convert_filters(filters))
+
+        if top_k:
+            query_builder = query_builder.with_limit(top_k)
+
+        result = query_builder.do()
+
+        return [self._to_document(doc) for doc in result["data"]["Get"][collection_name]]
