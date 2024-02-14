@@ -61,10 +61,13 @@ def _parse_logical_condition(condition: Dict[str, Any]) -> Dict[str, Any]:
 
     operator = condition["operator"]
     if operator in ["AND", "OR"]:
-        return {
-            "operator": operator.lower().capitalize(),
-            "operands": [_parse_comparison_condition(c) for c in condition["conditions"]],
-        }
+        operands = []
+        for c in condition["conditions"]:
+            if "field" not in c:
+                operands.append(_parse_logical_condition(c))
+            else:
+                operands.append(_parse_comparison_condition(c))
+        return {"operator": operator.lower().capitalize(), "operands": operands}
     elif operator == "NOT":
         inverted_conditions = _invert_condition(condition)
         return _parse_logical_condition(inverted_conditions)
@@ -262,10 +265,6 @@ COMPARISON_OPERATORS = {
 
 
 def _parse_comparison_condition(condition: Dict[str, Any]) -> Dict[str, Any]:
-    if "field" not in condition:
-        # 'field' key is only found in comparison dictionaries.
-        # We assume this is a logic dictionary since it's not present.
-        return _parse_logical_condition(condition)
     field: str = condition["field"]
 
     if field.startswith("meta."):
