@@ -33,7 +33,7 @@ def test_model_initialization(mock_instructor):
         model="hkunlp/instructor-base", device="cpu", token=Secret.from_token("fake-api-token")
     )
     mock_instructor.assert_called_once_with(
-        model="hkunlp/instructor-base", device="cpu", use_auth_token="fake-api-token"
+        model_name_or_path="hkunlp/instructor-base", device="cpu", use_auth_token="fake-api-token"
     )
     # restore the factory state
     _InstructorEmbeddingBackendFactory._instances = {}
