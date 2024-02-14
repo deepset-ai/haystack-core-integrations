@@ -64,13 +64,25 @@ root = "../.."
 git_describe_command = 'git describe --tags --match="integrations/instructor_embedders-v[0-9]*"'
 
 [tool.hatch.envs.default]
-dependencies = ["pytest", "pytest-cov", "haystack-pydoc-tools"]
-
+dependencies = [
+  "coverage[toml]>=6.5",
+  "pytest",
+  "haystack-pydoc-tools",
+]
 [tool.hatch.envs.default.scripts]
-cov = "pytest --cov-report=term-missing --cov-config=pyproject.toml --cov=instructor-embedders --cov=tests"
-no-cov = "cov --no-cov"
 test = "pytest {args:tests}"
-docs = "pydoc-markdown pydoc/config.yml"
+test-cov = "coverage run -m pytest {args:tests}"
+cov-report = [
+  "- coverage combine",
+  "coverage report",
+]
+cov = [
+  "test-cov",
+  "cov-report",
+]
+docs = [
+  "pydoc-markdown pydoc/config.yml"
+]
 
 [[tool.hatch.envs.test.matrix]]
 python = ["38", "39", "310", "311"]
