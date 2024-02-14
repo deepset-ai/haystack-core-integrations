@@ -128,10 +128,10 @@ class MetricDescriptor:
 
     metric: RagasMetric
     backend: Type[Metric]
-    input_validator: Callable
+    input_validator: Callable[[Any], None]
     input_parameters: Dict[str, Type]
     input_converter: Callable[[Any], Iterable[Dict[str, str]]]
-    output_converter: Callable[[Result], List[MetricResult]]
+    output_converter: Callable[[Result, RagasMetric, Dict[str, Any]], List[MetricResult]]
     init_parameters: Optional[Dict[str, Type[Any]]] = None
 
     @classmethod
@@ -141,7 +141,7 @@ class MetricDescriptor:
         backend: Type[Metric],
         input_validator,
         input_converter: Callable[[Any], Iterable[Dict[str, str]]],
-        output_converter: Optional[Callable[[Result], List[MetricResult]]] = None,
+        output_converter: Optional[Callable[[Result, RagasMetric, Dict[str, Any]], List[MetricResult]]] = None,
         *,
         init_parameters: Optional[Dict[str, Type]] = None,
     ) -> "MetricDescriptor":
@@ -175,13 +175,13 @@ class InputValidators:
     """
 
     @staticmethod
-    def validate_empty_metric_parameters(metric: RagasMetric, metric_params: Dict[str, Any]):
+    def validate_empty_metric_parameters(metric: RagasMetric, metric_params: Dict[str, Any]) -> None:
         if metric_params:
             msg = f"Unexpected init parameters '{metric_params}' for metric '{metric}'."
             raise ValueError(msg)
 
     @staticmethod
-    def validate_aspect_critique_parameters(metric: RagasMetric, metric_params: Dict[str, Any]):
+    def validate_aspect_critique_parameters(metric: RagasMetric, metric_params: Dict[str, Any]) -> None:
         if not metric_params:
             msg = (
                 f"Invalid init parameters for Ragas metric '{metric}'. "
@@ -212,7 +212,7 @@ class InputConverters:
     """
 
     @staticmethod
-    def _validate_input_elements(**kwargs):
+    def _validate_input_elements(**kwargs) -> None:
         for k, collection in kwargs.items():
             if not isinstance(collection, list):
                 msg = (
@@ -234,7 +234,7 @@ class InputConverters:
         metric: RagasMetric,
         expected: Dict[str, Any],
         received: Dict[str, Any],
-    ):
+    ) -> None:
         for param, _ in expected.items():
             if param not in received:
                 msg = f"Ragas evaluator expected input parameter '{param}' for metric '{metric}'"
@@ -295,7 +295,7 @@ class OutputConverters:
     """
 
     @staticmethod
-    def validate_outputs(outputs: Result):
+    def validate_outputs(outputs: Result) -> None:
         if not isinstance(outputs, Result):
             msg = f"Expected response from Ragas evaluator to be a 'Result', got '{type(outputs).__name__}'"
             raise ValueError(msg)
@@ -310,12 +310,12 @@ class OutputConverters:
             raise ValueError(msg) from e
 
     @staticmethod
-    def default(output: Result, metric: RagasMetric, _) -> List[MetricResult]:
+    def default(output: Result, metric: RagasMetric, _: Dict) -> List[MetricResult]:
         metric_name = metric.value
         return OutputConverters._extract_default_results(output, metric_name)
 
     @staticmethod
-    def aspect_critique(output: Result, _, metric_params: Dict[str, Any]) -> List[MetricResult]:
+    def aspect_critique(output: Result, _: RagasMetric, metric_params: Dict[str, Any]) -> List[MetricResult]:
         metric_name = metric_params["name"]
         return OutputConverters._extract_default_results(output, metric_name)
 
@@ -361,8 +361,8 @@ METRIC_DESCRIPTORS = {
         RagasMetric.ASPECT_CRITIQUE,
         AspectCritique,
         InputValidators.validate_aspect_critique_parameters,
-        InputConverters.question_context_response,
-        OutputConverters.aspect_critique,  # type: ignore
+        InputConverters.question_context_response,  # type: ignore
+        OutputConverters.aspect_critique,
     ),
     RagasMetric.CONTEXT_RELEVANCY: MetricDescriptor.new(
         RagasMetric.CONTEXT_RELEVANCY,
