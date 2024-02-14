@@ -33,7 +33,7 @@ class _InstructorEmbeddingBackend:
 
     def __init__(self, model: str, device: Optional[str] = None, token: Optional[Secret] = None):
         self.model = INSTRUCTOR(
-            model=model,
+            model_name_or_path=model,
             device=device,
             use_auth_token=token.resolve_value() if token else None,
         )
