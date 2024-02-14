@@ -12,16 +12,13 @@ from haystack.testing.document_store import CountDocumentsTest, DeleteDocumentsT
 from haystack_integrations.document_stores.mongodb_atlas import MongoDBAtlasDocumentStore
 from pandas import DataFrame
 
-import pytest
-from haystack_integrations.document_stores.mongodb_atlas import MongoDBAtlasDocumentStore
-
 
 @pytest.fixture
 def document_store():
     store = MongoDBAtlasDocumentStore(
         mongo_connection_string=os.environ["MONGO_CONNECTION_STRING"],
         database_name="ClusterTest",
-        collection_name="test"
+        collection_name="test",
     )
     yield store
     store._get_collection().drop()
@@ -54,11 +51,11 @@ class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsT
         assert retrieved_docs == docs
 
     @patch("haystack_integrations.document_stores.mongodb_atlas.document_store.MongoClient")
-    def test_to_dict(self, client_mock):
+    def test_to_dict(self, _):
         document_store = MongoDBAtlasDocumentStore(
             mongo_connection_string="mongo_connection_string",
             database_name="database_name",
-            collection_name="collection_name"
+            collection_name="collection_name",
         )
         assert document_store.to_dict() == {
             "type": "haystack_integrations.document_stores.mongodb_atlas.document_store.MongoDBAtlasDocumentStore",
