@@ -43,9 +43,7 @@ def test_model_initialization(mock_instructor):
     "haystack_integrations.components.embedders.instructor_embedders.embedding_backend.instructor_backend.INSTRUCTOR"
 )
 def test_embedding_function_with_kwargs(mock_instructor):  # noqa: ARG001
-    embedding_backend = _InstructorEmbeddingBackendFactory.get_embedding_backend(
-        model="hkunlp/instructor-base"
-    )
+    embedding_backend = _InstructorEmbeddingBackendFactory.get_embedding_backend(model="hkunlp/instructor-base")
 
     data = [["instruction", "sentence1"], ["instruction", "sentence2"]]
     embedding_backend.embed(data=data, normalize_embeddings=True)

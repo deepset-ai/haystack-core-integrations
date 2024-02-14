@@ -21,9 +21,7 @@ class _InstructorEmbeddingBackendFactory:
         if embedding_backend_id in _InstructorEmbeddingBackendFactory._instances:
             return _InstructorEmbeddingBackendFactory._instances[embedding_backend_id]
 
-        embedding_backend = _InstructorEmbeddingBackend(
-            model=model, device=device, token=token
-        )
+        embedding_backend = _InstructorEmbeddingBackend(model=model, device=device, token=token)
         _InstructorEmbeddingBackendFactory._instances[embedding_backend_id] = embedding_backend
         return embedding_backend
 
