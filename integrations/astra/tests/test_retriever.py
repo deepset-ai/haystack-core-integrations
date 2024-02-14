@@ -5,7 +5,7 @@ import os
 
 import pytest
 
-from haystack_integrations.components.retrievers.astra import AstraRetriever
+from haystack_integrations.components.retrievers.astra import AstraEmbeddingRetriever
 
 
 @pytest.mark.skipif(
@@ -14,9 +14,9 @@ from haystack_integrations.components.retrievers.astra import AstraRetriever
 @pytest.mark.skipif(os.environ.get("ASTRA_DB_ID", "") == "", reason="ASTRA_DB_ID is not set")
 @pytest.mark.integration
 def test_retriever_to_json(document_store):
-    retriever = AstraRetriever(document_store, filters={"foo": "bar"}, top_k=99)
+    retriever = AstraEmbeddingRetriever(document_store, filters={"foo": "bar"}, top_k=99)
     assert retriever.to_dict() == {
-        "type": "haystack_integrations.components.retrievers.astra.retriever.AstraRetriever",
+        "type": "haystack_integrations.components.retrievers.astra.retriever.AstraEmbeddingRetriever",
         "init_parameters": {
             "filters": {"foo": "bar"},
             "top_k": 99,
@@ -43,7 +43,7 @@ def test_retriever_to_json(document_store):
 @pytest.mark.integration
 def test_retriever_from_json():
     data = {
-        "type": "haystack_integrations.components.retrievers.astra.retriever.AstraRetriever",
+        "type": "haystack_integrations.components.retrievers.astra.retriever.AstraEmbeddingRetriever",
         "init_parameters": {
             "filters": {"bar": "baz"},
             "top_k": 42,
@@ -62,6 +62,6 @@ def test_retriever_from_json():
             },
         },
     }
-    retriever = AstraRetriever.from_dict(data)
+    retriever = AstraEmbeddingRetriever.from_dict(data)
     assert retriever.top_k == 42
     assert retriever.filters == {"bar": "baz"}
