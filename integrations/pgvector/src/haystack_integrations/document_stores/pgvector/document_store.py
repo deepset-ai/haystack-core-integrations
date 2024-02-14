@@ -4,10 +4,11 @@
 import logging
 from typing import Any, Dict, List, Literal, Optional
 
-from haystack import default_to_dict
+from haystack import default_from_dict, default_to_dict
 from haystack.dataclasses.document import ByteStream, Document
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
+from haystack.utils.auth import Secret, deserialize_secrets_inplace
 from haystack.utils.filters import convert
 from psycopg import Error, IntegrityError, connect
 from psycopg.abc import Query
@@ -69,7 +70,7 @@ class PgvectorDocumentStore:
     def __init__(
         self,
         *,
-        connection_string: str,
+        connection_string: Secret = Secret.from_env_var("PG_CONN_STR"),
         table_name: str = "haystack_documents",
         embedding_dimension: int = 768,
         vector_function: Literal["cosine_similarity", "inner_product", "l2_distance"] = "cosine_similarity",
@@ -84,8 +85,8 @@ class PgvectorDocumentStore:
         It is meant to be connected to a PostgreSQL database with the pgvector extension installed.
         A specific table to store Haystack documents will be created if it doesn't exist yet.
 
-        :param connection_string: The connection string to use to connect to the PostgreSQL database.
-            e.g. "postgresql://USER:PASSWORD@HOST:PORT/DB_NAME"
+        :param connection_string: The connection string to use to connect to the PostgreSQL database, defined as an
+            environment variable, e.g.: PG_CONN_STR="postgresql://USER:PASSWORD@HOST:PORT/DB_NAME"
         :param table_name: The name of the table to use to store Haystack documents. Defaults to "haystack_documents".
         :param embedding_dimension: The dimension of the embedding. Defaults to 768.
         :param vector_function: The similarity function to use when searching for similar embeddings.
@@ -130,7 +131,7 @@ class PgvectorDocumentStore:
         self.hnsw_index_creation_kwargs = hnsw_index_creation_kwargs or {}
         self.hnsw_ef_search = hnsw_ef_search
 
-        connection = connect(connection_string)
+        connection = connect(self.connection_string.resolve_value())
         connection.autocommit = True
         self._connection = connection
 
@@ -151,7 +152,7 @@ class PgvectorDocumentStore:
     def to_dict(self) -> Dict[str, Any]:
         return default_to_dict(
             self,
-            connection_string=self.connection_string,
+            connection_string=self.connection_string.to_dict(),
             table_name=self.table_name,
             embedding_dimension=self.embedding_dimension,
             vector_function=self.vector_function,
@@ -161,6 +162,11 @@ class PgvectorDocumentStore:
             hnsw_index_creation_kwargs=self.hnsw_index_creation_kwargs,
             hnsw_ef_search=self.hnsw_ef_search,
         )
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "PgvectorDocumentStore":
+        deserialize_secrets_inplace(data["init_parameters"], ["connection_string"])
+        return default_from_dict(cls, data)
 
     def _execute_sql(
         self, sql_query: Query, params: Optional[tuple] = None, error_msg: str = "", cursor: Optional[Cursor] = None
@@ -221,7 +227,7 @@ class PgvectorDocumentStore:
             )
             self._execute_sql(sql_set_hnsw_ef_search, error_msg="Could not set hnsw.ef_search")
 
-        index_esists = bool(
+        index_exists = bool(
             self._execute_sql(
                 "SELECT 1 FROM pg_indexes WHERE tablename = %s AND indexname = %s",
                 (self.table_name, HNSW_INDEX_NAME),
@@ -229,7 +235,7 @@ class PgvectorDocumentStore:
             ).fetchone()
         )
 
-        if index_esists and not self.hnsw_recreate_index_if_exists:
+        if index_exists and not self.hnsw_recreate_index_if_exists:
             logger.warning(
                 "HNSW index already exists and won't be recreated. "
                 "If you want to recreate it, pass 'hnsw_recreate_index_if_exists=True' to the "
@@ -373,7 +379,8 @@ class PgvectorDocumentStore:
 
         return written_docs
 
-    def _from_haystack_to_pg_documents(self, documents: List[Document]) -> List[Dict[str, Any]]:
+    @staticmethod
+    def _from_haystack_to_pg_documents(documents: List[Document]) -> List[Dict[str, Any]]:
         """
         Internal method to convert a list of Haystack Documents to a list of dictionaries that can be used to insert
         documents into the PgvectorDocumentStore.
@@ -395,7 +402,8 @@ class PgvectorDocumentStore:
 
         return db_documents
 
-    def _from_pg_to_haystack_documents(self, documents: List[Dict[str, Any]]) -> List[Document]:
+    @staticmethod
+    def _from_pg_to_haystack_documents(documents: List[Dict[str, Any]]) -> List[Document]:
         """
         Internal method to convert a list of dictionaries from pgvector to a list of Haystack Documents.
         """

@@ -41,7 +41,6 @@ class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsT
 
     def test_init(self):
         document_store = PgvectorDocumentStore(
-            connection_string="postgresql://postgres:postgres@localhost:5432/postgres",
             table_name="my_table",
             embedding_dimension=512,
             vector_function="l2_distance",
@@ -52,7 +51,6 @@ class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsT
             hnsw_ef_search=50,
         )
 
-        assert document_store.connection_string == "postgresql://postgres:postgres@localhost:5432/postgres"
         assert document_store.table_name == "my_table"
         assert document_store.embedding_dimension == 512
         assert document_store.vector_function == "l2_distance"
@@ -64,7 +62,6 @@ class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsT
 
     def test_to_dict(self):
         document_store = PgvectorDocumentStore(
-            connection_string="postgresql://postgres:postgres@localhost:5432/postgres",
             table_name="my_table",
             embedding_dimension=512,
             vector_function="l2_distance",
@@ -78,7 +75,7 @@ class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsT
         assert document_store.to_dict() == {
             "type": "haystack_integrations.document_stores.pgvector.document_store.PgvectorDocumentStore",
             "init_parameters": {
-                "connection_string": "postgresql://postgres:postgres@localhost:5432/postgres",
+                "connection_string": {"env_vars": ["PG_CONN_STR"], "strict": True, "type": "env_var"},
                 "table_name": "my_table",
                 "embedding_dimension": 512,
                 "vector_function": "l2_distance",

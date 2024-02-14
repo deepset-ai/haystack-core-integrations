@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import Dict, Union
 
-from transformers import AutoTokenizer
+from transformers import AutoTokenizer, PreTrainedTokenizer, PreTrainedTokenizerBase, PreTrainedTokenizerFast
 
 
 class DefaultPromptHandler:
@@ -10,8 +10,20 @@ class DefaultPromptHandler:
     are within the model_max_length.
     """
 
-    def __init__(self, model: str, model_max_length: int, max_length: int = 100):
-        self.tokenizer = AutoTokenizer.from_pretrained(model)
+    def __init__(self, tokenizer: Union[str, PreTrainedTokenizerBase], model_max_length: int, max_length: int = 100):
+        """
+        :param tokenizer: The tokenizer to be used to tokenize the prompt.
+        :param model_max_length: The maximum length of the prompt and answer tokens combined.
+        :param max_length: The maximum length of the answer tokens.
+        """
+        if isinstance(tokenizer, str):
+            self.tokenizer = AutoTokenizer.from_pretrained(tokenizer)
+        elif isinstance(tokenizer, (PreTrainedTokenizer, PreTrainedTokenizerFast)):
+            self.tokenizer = tokenizer
+        else:
+            msg = "model must be a string or a PreTrainedTokenizer instance"
+            raise ValueError(msg)
+
         self.tokenizer.model_max_length = model_max_length
         self.model_max_length = model_max_length
         self.max_length = max_length

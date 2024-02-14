@@ -10,7 +10,7 @@ from haystack.components.routers import FileTypeRouter
 from haystack.components.writers import DocumentWriter
 from haystack.document_stores.types import DuplicatePolicy
 
-from haystack_integrations.components.retrievers.astra import AstraRetriever
+from haystack_integrations.components.retrievers.astra import AstraEmbeddingRetriever
 from haystack_integrations.document_stores.astra import AstraDocumentStore
 
 logger = logging.getLogger(__name__)
@@ -66,7 +66,7 @@ q.add_component(
     instance=SentenceTransformersTextEmbedder(model_name_or_path="sentence-transformers/all-MiniLM-L6-v2"),
     name="embedder",
 )
-q.add_component("retriever", AstraRetriever(document_store))
+q.add_component("retriever", AstraEmbeddingRetriever(document_store))
 
 q.connect("embedder", "retriever")
 
