@@ -96,7 +96,7 @@ class InstructorDocumentEmbedder:
         :param embedding_separator: Separator used to concatenate the meta fields to the Document content.
         """
 
-        self.model_name_or_path = model
+        self.model = model
         # TODO: remove device parameter and use Haystack's device management once migrated
         self.device = device or "cpu"
         self.token = token
@@ -113,7 +113,7 @@ class InstructorDocumentEmbedder:
         """
         return default_to_dict(
             self,
-            model=self.model_name_or_path,
+            model=self.model,
             device=self.device,
             token=self.token.to_dict() if self.token else None,
             instruction=self.instruction,
@@ -138,7 +138,7 @@ class InstructorDocumentEmbedder:
         """
         if not hasattr(self, "embedding_backend"):
             self.embedding_backend = _InstructorEmbeddingBackendFactory.get_embedding_backend(
-                model_name_or_path=self.model_name_or_path, device=self.device, token=self.token
+                model=self.model, device=self.device, token=self.token
             )
 
     @component.output_types(documents=List[Document])
