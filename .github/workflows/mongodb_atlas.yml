@@ -46,7 +46,7 @@ jobs:
 
       - name: Lint
         working-directory: integrations/mongodb_atlas
-        if: matrix.python-version == '3.9'
+        if: matrix.python-version == '3.9' && runner.os == 'Linux'
         run: hatch run lint:all
 
       - name: Generate docs
