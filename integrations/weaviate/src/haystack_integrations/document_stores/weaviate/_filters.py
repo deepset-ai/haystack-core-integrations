@@ -131,13 +131,7 @@ def _greater_than(field: str, value: Any) -> Dict[str, Any]:
         # if it has a field set and not set at the same time.
         # This will cause the filter to match no Document.
         # This way we keep the behavior consistent with other Document Stores.
-        return {
-            "operator": "And",
-            "operands": [
-                {"path": field, "operator": "IsNull", "valueBoolean": False},
-                {"path": field, "operator": "IsNull", "valueBoolean": True},
-            ],
-        }
+        return _match_no_document(field)
     if isinstance(value, str):
         try:
             parser.isoparse(value)
@@ -159,13 +153,7 @@ def _greater_than_equal(field: str, value: Any) -> Dict[str, Any]:
         # if it has a field set and not set at the same time.
         # This will cause the filter to match no Document.
         # This way we keep the behavior consistent with other Document Stores.
-        return {
-            "operator": "And",
-            "operands": [
-                {"path": field, "operator": "IsNull", "valueBoolean": False},
-                {"path": field, "operator": "IsNull", "valueBoolean": True},
-            ],
-        }
+        return _match_no_document(field)
     if isinstance(value, str):
         try:
             parser.isoparse(value)
@@ -187,13 +175,7 @@ def _less_than(field: str, value: Any) -> Dict[str, Any]:
         # if it has a field set and not set at the same time.
         # This will cause the filter to match no Document.
         # This way we keep the behavior consistent with other Document Stores.
-        return {
-            "operator": "And",
-            "operands": [
-                {"path": field, "operator": "IsNull", "valueBoolean": False},
-                {"path": field, "operator": "IsNull", "valueBoolean": True},
-            ],
-        }
+        return _match_no_document(field)
     if isinstance(value, str):
         try:
             parser.isoparse(value)
@@ -215,13 +197,7 @@ def _less_than_equal(field: str, value: Any) -> Dict[str, Any]:
         # if it has a field set and not set at the same time.
         # This will cause the filter to match no Document.
         # This way we keep the behavior consistent with other Document Stores.
-        return {
-            "operator": "And",
-            "operands": [
-                {"path": field, "operator": "IsNull", "valueBoolean": False},
-                {"path": field, "operator": "IsNull", "valueBoolean": True},
-            ],
-        }
+        return _match_no_document(field)
     if isinstance(value, str):
         try:
             parser.isoparse(value)
@@ -287,3 +263,17 @@ def _parse_comparison_condition(condition: Dict[str, Any]) -> Dict[str, Any]:
         value = value.to_json()
 
     return COMPARISON_OPERATORS[operator](field, value)
+
+
+def _match_no_document(field: str) -> Dict[str, Any]:
+    """
+    Returns a filters that will match no Document, this is used to keep the behavior consistent
+    between different Document Stores.
+    """
+    return {
+        "operator": "And",
+        "operands": [
+            {"path": field, "operator": "IsNull", "valueBoolean": False},
+            {"path": field, "operator": "IsNull", "valueBoolean": True},
+        ],
+    }
