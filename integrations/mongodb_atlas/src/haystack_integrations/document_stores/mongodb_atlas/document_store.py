@@ -6,13 +6,14 @@ from typing import Any, Dict, List, Optional, Union
 import re
 import logging
 
-import pymongo
-from pymongo import InsertOne, ReplaceOne, UpdateOne
+from pymongo import InsertOne, ReplaceOne, UpdateOne, MongoClient
+from pymongo.collection import Collection
 from pymongo.driver_info import DriverInfo
+from pymongo.errors import BulkWriteError
 from haystack import default_to_dict
 from haystack.dataclasses.document import Document
 from haystack.document_stores.types import DuplicatePolicy
-from haystack.utils.filters import convert
+from haystack.document_stores.errors import DuplicateDocumentError
 
 from haystack_integrations.document_stores.mongodb_atlas.filters import haystack_filters_to_mongo
 
@@ -63,11 +64,6 @@ class MongoDBAtlasDocumentStore:
         self.mongo_connection_string = mongo_connection_string
         self.database_name = database_name
         self.collection_name = collection_name
-        self.connection: pymongo.MongoClient = pymongo.MongoClient(
-            self.mongo_connection_string, driver=DriverInfo(name="MongoDBAtlasHaystackIntegration")
-        )
-        self.database = self.connection[self.database_name]
-        
         self.similarity = similarity
         self.embedding_field = embedding_field
         self.embedding_dim = embedding_dim
@@ -75,8 +71,13 @@ class MongoDBAtlasDocumentStore:
         self.recreate_index = recreate_index
         self.vector_search_index = vector_search_index
 
+        self.connection: MongoClient = MongoClient(
+            self.mongo_connection_string, driver=DriverInfo(name="MongoDBAtlasHaystackIntegration")
+        )
+        self.database = self.connection[self.database_name]
+
         if self.recreate_index:
-            self.delete_index()
+            self._get_collection().drop()
 
         # Implicitly create the collection if it doesn't exist
         if collection_name not in self.database.list_collection_names():
@@ -86,16 +87,12 @@ class MongoDBAtlasDocumentStore:
     def _create_document_field_map(self) -> Dict:
         return {self.embedding_field: "embedding"}
 
-    def _get_collection(self, index=None) -> pymongo.collection.Collection:
+    def _get_collection(self) -> Collection:
         """
         Returns the collection named by index or returns the collection specified when the
         driver was initialized.
         """
-        _validate_index_name(index)
-        if index is not None:
-            return self.database[index]
-        else:
-            return self.database[self.collection_name]
+        return self.database[self.collection_name]
 
     def to_dict(self) -> Dict[str, Any]:
         """
@@ -113,12 +110,11 @@ class MongoDBAtlasDocumentStore:
             recreate_index=self.recreate_index,
         )
 
-    def count_documents(self) -> int:
+    def count_documents(self, filters: Optional[Dict[str, Any]] = None) -> int:
         """
         Returns how many documents are present in the document store.
         """
-        collection = self._get_collection(self.index)
-        return collection.count_documents()
+        return self._get_collection().count_documents({} if filters is None else filters)
     
     def filter_documents(self, filters: Optional[Dict[str, Any]] = None) -> List[Document]:
         """
@@ -131,8 +127,10 @@ class MongoDBAtlasDocumentStore:
         :return: A list of Documents that match the given filters.
         """
         mongo_filters = haystack_filters_to_mongo(filters)
-        collection = self._get_collection(self.index)
-        documents = collection.find(mongo_filters)
+        collection = self._get_collection()
+        documents = list(collection.find(mongo_filters))
+        for doc in documents:
+            doc.pop("_id", None)
         return [Document.from_dict(doc) for doc in documents]
 
     def write_documents(self, documents: List[Document], policy: DuplicatePolicy = DuplicatePolicy.NONE) -> int:
@@ -154,8 +152,7 @@ class MongoDBAtlasDocumentStore:
         if policy == DuplicatePolicy.NONE:
             policy = DuplicatePolicy.FAIL
 
-        collection = self._get_collection(self.index)
-        field_map = self._create_document_field_map()
+        collection = self._get_collection()
         mongo_documents = [doc.to_dict() for doc in documents]
         operations: List[Union[UpdateOne, InsertOne, ReplaceOne]]
         written_docs = len(documents)
@@ -169,7 +166,12 @@ class MongoDBAtlasDocumentStore:
         else:
             operations = [ReplaceOne({"id": doc["id"]}, upsert=True, replacement=doc) for doc in mongo_documents]
 
-        collection.bulk_write(operations)
+        print(operations)
+
+        try:
+            collection.bulk_write(operations)
+        except BulkWriteError as e:
+            raise DuplicateDocumentError(f"Duplicate documents found: {e.details['writeErrors']}")
 
         return written_docs
 
@@ -181,8 +183,7 @@ class MongoDBAtlasDocumentStore:
         """
         if not document_ids:
             return
-        collection = self._get_collection(self.index)
-        collection.delete_many(filter={"id": {"$in": document_ids}})
+        self._get_collection().delete_many(filter={"id": {"$in": document_ids}})
 
 
 
