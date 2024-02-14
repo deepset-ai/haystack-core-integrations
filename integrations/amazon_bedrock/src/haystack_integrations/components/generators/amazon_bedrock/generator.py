@@ -73,11 +73,21 @@ class AmazonBedrockGenerator:
     def __init__(
         self,
         model: str,
-        aws_access_key_id: Optional[Secret] = EnvVarSecret.from_env_var("AWS_ACCESS_KEY_ID"),
-        aws_secret_access_key: Optional[Secret] = EnvVarSecret.from_env_var("AWS_SECRET_ACCESS_KEY"),
-        aws_session_token: Optional[Secret] = EnvVarSecret.from_env_var("AWS_SESSION_TOKEN"),
-        aws_region_name: Optional[Secret] = EnvVarSecret.from_env_var("AWS_DEFAULT_REGION"),
-        aws_profile_name: Optional[str] = EnvVarSecret.from_env_var("AWS_PROFILE"),
+
+        aws_access_key_id: Optional[Secret] = EnvVarSecret(
+            env_vars=["AWS_ACCESS_KEY_ID"], strict=False).from_env_var("AWS_ACCESS_KEY_ID"),
+
+        aws_secret_access_key: Optional[Secret] = EnvVarSecret(
+            env_vars=["AWS_SECRET_ACCESS_KEY"], strict=False).from_env_var("AWS_SECRET_ACCESS_KEY"),
+
+        aws_session_token: Optional[Secret] = EnvVarSecret(
+            env_vars=["AWS_SESSION_TOKEN"], strict=False).from_env_var("AWS_SESSION_TOKEN"),
+
+        aws_region_name: Optional[Secret] = EnvVarSecret(
+            env_vars=["AWS_DEFAULT_REGION"], strict=False).from_env_var("AWS_DEFAULT_REGION"),
+
+        aws_profile_name: Optional[str] = EnvVarSecret(
+            env_vars=["AWS_PROFILE"], strict=False).from_env_var("AWS_PROFILE"),
         max_length: Optional[int] = 100,
         **kwargs,
     ):
@@ -87,14 +97,23 @@ class AmazonBedrockGenerator:
         self.model = model
         self.max_length = max_length
 
+        def resolve_secret(secret: Optional[Secret]) -> Optional[str]:
+            print(secret, secret.resolve_value())
+            return secret.resolve_value() if secret else None
+
         try:
             session = self.get_aws_session(
-                aws_access_key_id=aws_access_key_id,
-                aws_secret_access_key=aws_secret_access_key,
-                aws_session_token=aws_session_token,
-                aws_region_name=aws_region_name,
-                aws_profile_name=aws_profile_name,
+                aws_access_key_id=resolve_secret(aws_access_key_id),
+                aws_secret_access_key=resolve_secret(aws_secret_access_key),
+                aws_session_token=resolve_secret(aws_session_token),
+                aws_region_name=resolve_secret(aws_region_name),
+                aws_profile_name=resolve_secret(aws_profile_name),
             )
+
+            creds = session.get_credentials()
+            print("\n\n\n\nCreds")
+            print(creds.access_key, creds.secret_key, creds.token, creds.method, creds.expired, creds._refresh_needed)
+
             self.client = session.client("bedrock-runtime")
         except Exception as exception:
             msg = (
