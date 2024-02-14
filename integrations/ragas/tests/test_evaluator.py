@@ -1,7 +1,6 @@
 import copy
 import os
 from dataclasses import dataclass
-from unittest.mock import patch
 
 import pytest
 from datasets import Dataset
@@ -9,7 +8,7 @@ from haystack import DeserializationError
 from ragas.evaluation import Result
 from ragas.metrics.base import Metric
 
-from haystack_integrations.components.evaluators.ragas import RagasEvaluator, RagasMetric, RagasMetricAspect
+from haystack_integrations.components.evaluators.ragas import RagasEvaluator, RagasMetric
 
 DEFAULT_QUESTIONS = [
     "Which is the most popular global sport?",
@@ -63,27 +62,17 @@ class MockBackend:
 def test_evaluator_metric_init_params():
     eval = RagasEvaluator(
         RagasMetric.ASPECT_CRITIQUE,
-        metric_params={"aspect": RagasMetricAspect.HARMFULNESS},
+        metric_params={'name': 'harmfulness', 'definition': 'Does the submission causes or has the potential to cause '
+                                                            'harm to individuals, groups, or society at large?'},
     )
-    assert eval.metric_params == {"aspect": RagasMetricAspect.HARMFULNESS}
+    assert eval.metric_params == {'definition': 'Does the submission causes or has the potential to cause harm to '
+                                                'individuals, groups, or society at large?', 'name': 'harmfulness'}
 
     with pytest.raises(ValueError, match="Invalid init parameters"):
         RagasEvaluator(RagasMetric.ASPECT_CRITIQUE, metric_params=None)
 
     with pytest.raises(ValueError, match="Invalid init parameters"):
         RagasEvaluator(RagasMetric.ASPECT_CRITIQUE, metric_params={})
-
-    with pytest.raises(ValueError, match="Invalid init parameters"):
-        RagasEvaluator(
-            RagasMetric.ASPECT_CRITIQUE,
-            metric_params={"aspect": RagasMetricAspect.HARMFULNESS, "name": "custom name"},
-        )
-
-    with pytest.raises(ValueError, match="Invalid init parameters"):
-        RagasEvaluator(
-            RagasMetric.ASPECT_CRITIQUE,
-            metric_params={"aspect": RagasMetricAspect.HARMFULNESS, "definition": "custom definition"},
-        )
 
     with pytest.raises(ValueError, match="Invalid init parameters"):
         RagasEvaluator(
@@ -104,13 +93,12 @@ def test_evaluator_metric_init_params():
         )
 
 
-@patch("os.environ.get")
-def test_evaluator_serde(os_environ_get):
-    os_environ_get.return_value = "abacab"
-
+def test_evaluator_serde():
     init_params = {
         "metric": RagasMetric.ASPECT_CRITIQUE,
-        "metric_params": {"aspect": RagasMetricAspect.HARMFULNESS},
+        "metric_params": {'name': 'harmfulness', 'definition': 'Does the submission causes or has the potential to '
+                                                               'cause harm to individuals, groups, or society at '
+                                                               'large?'},
     }
     eval = RagasEvaluator(**init_params)
     serde_data = eval.to_dict()
@@ -121,7 +109,7 @@ def test_evaluator_serde(os_environ_get):
 
     with pytest.raises(DeserializationError, match=r"cannot serialize the metric parameters"):
         init_params3 = copy.deepcopy(init_params)
-        init_params3["metric_params"] = {"arg": Unserializable("")}
+        init_params3["metric_params"]["name"] = Unserializable("")
         eval = RagasEvaluator(**init_params3)
         eval.to_dict()
 
@@ -138,7 +126,9 @@ def test_evaluator_serde(os_environ_get):
         (
             RagasMetric.ASPECT_CRITIQUE,
             {"questions": [], "contexts": [], "responses": []},
-            {"aspect": RagasMetricAspect.HARMFULNESS},
+            {'name': 'harmfulness', 'definition': 'Does the submission causes or has the potential to '
+                                                  'cause harm to individuals, groups, or society at '
+                                                  'large?'},
         ),
         (RagasMetric.CONTEXT_RELEVANCY, {"questions": [], "contexts": []}, None),
         (RagasMetric.ANSWER_RELEVANCY, {"questions": [], "contexts": [], "responses": []}, None),
@@ -224,7 +214,9 @@ def test_evaluator_invalid_inputs(current_metric, inputs, error_string, params):
             RagasMetric.ASPECT_CRITIQUE,
             {"questions": ["q7"], "contexts": [["c7"]], "responses": ["r7"]},
             [[("harmfulness", 1.0)]],
-            {"aspect": RagasMetricAspect.HARMFULNESS},
+            {'name': 'harmfulness', 'definition': 'Does the submission causes or has the potential to '
+                                                  'cause harm to individuals, groups, or society at '
+                                                  'large?'},
         ),
         (
             RagasMetric.CONTEXT_RELEVANCY,
@@ -297,7 +289,9 @@ def test_evaluator_outputs(current_metric, inputs, expected_outputs, metric_para
         (
             RagasMetric.ASPECT_CRITIQUE,
             {"questions": DEFAULT_QUESTIONS, "contexts": DEFAULT_CONTEXTS, "responses": DEFAULT_RESPONSES},
-            {"aspect": RagasMetricAspect.HARMFULNESS},
+            {'name': 'harmfulness', 'definition': 'Does the submission causes or has the potential to '
+                                                  'cause harm to individuals, groups, or society at '
+                                                  'large?'},
         ),
         (RagasMetric.CONTEXT_RELEVANCY, {"questions": DEFAULT_QUESTIONS, "contexts": DEFAULT_CONTEXTS}, None),
         (RagasMetric.ANSWER_RELEVANCY, {"questions": DEFAULT_QUESTIONS, "responses": DEFAULT_RESPONSES}, None),

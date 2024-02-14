@@ -1,4 +1,4 @@
 from .evaluator import RagasEvaluator
-from .metrics import RagasMetric, RagasMetricAspect
+from .metrics import RagasMetric
 
-__all__ = ("RagasEvaluator", "RagasMetric", "RagasMetricAspect")
+__all__ = ("RagasEvaluator", "RagasMetric")

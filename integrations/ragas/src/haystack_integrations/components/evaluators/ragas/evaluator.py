@@ -10,7 +10,6 @@ from ragas.metrics import AspectCritique  # type: ignore
 from ragas.metrics.base import Metric  # type: ignore
 
 from .metrics import (
-    METRIC_ASPECTS,
     METRIC_DESCRIPTORS,
     InputConverters,
     OutputConverters,
@@ -31,6 +30,7 @@ class RagasEvaluator:
 
     # Wrapped for easy mocking.
     _backend_callable: Callable
+    __backend_metric: Metric
 
     def __init__(
         self,
@@ -46,54 +46,28 @@ class RagasEvaluator:
             Parameters to pass to the metric's constructor.
         """
         self.metric = metric if isinstance(metric, RagasMetric) else RagasMetric.from_str(metric)
-        self.metric_params = metric_params
+        self.metric_params = metric_params or {}
         self.descriptor = METRIC_DESCRIPTORS[self.metric]
 
         self._init_backend()
+        self._init_metric()
 
         expected_inputs = self.descriptor.input_parameters
         component.set_input_types(self, **expected_inputs)
-
-    @staticmethod
-    def _invoke_evaluate(dataset: Dataset, metric: Metric) -> Result:
-        return evaluate(dataset, [metric])
 
     def _init_backend(self):
         """
         Initialize the Ragas backend and validate inputs.
         """
-        if self.metric == RagasMetric.ASPECT_CRITIQUE:
-            if not self.metric_params:
-                msg = (
-                    f"Invalid init parameters for Ragas metric '{self.metric}'. "
-                    f"Expected metric parameters describing the aspect to critique but got none."
-                )
-                raise ValueError(msg)
-            if "aspect" in self.metric_params and ("name" in self.metric_params or "definition" in self.metric_params):
-                msg = (
-                    f"Invalid init parameters for Ragas metric '{self.metric}'. "
-                    f"If a predefined aspect is selected, no additional metric parameters are allowed."
-                )
-                raise ValueError(msg)
-            elif "name" in self.metric_params and "definition" not in self.metric_params:
-                msg = (
-                    f"Invalid init parameters for Ragas metric '{self.metric}'. "
-                    f"If a name of a custom aspect is provided, a definition must be provided as well."
-                )
-                raise ValueError(msg)
-            elif "definition" in self.metric_params and "name" not in self.metric_params:
-                msg = (
-                    f"Invalid init parameters for Ragas metric '{self.metric}'. "
-                    f"If a definition of a custom aspect is provided, a name must be provided as well."
-                )
-                raise ValueError(msg)
-        elif self.metric_params:
-            msg = (
-                f"Unexpected init parameters for Ragas metric '{self.metric}'. "
-                f"Additional parameters only supported for AspectCritique."
-            )
-            raise ValueError(msg)
         self._backend_callable = RagasEvaluator._invoke_evaluate
+
+    def _init_metric(self):
+        self.descriptor.input_validator(self.metric, self.metric_params)
+        self.__backend_metric = self.descriptor.backend(**self.metric_params)
+
+    @staticmethod
+    def _invoke_evaluate(dataset: Dataset, metric: Metric) -> Result:
+        return evaluate(dataset, [metric])
 
     @component.output_types(results=List[List[Dict[str, Any]]])
     def run(self, **inputs) -> Dict[str, Any]:
@@ -126,15 +100,7 @@ class RagasEvaluator:
         converted_inputs: List[Dict[str, str]] = list(self.descriptor.input_converter(**inputs))  # type: ignore
 
         dataset = Dataset.from_list(converted_inputs)
-        metric = None
-        if self.metric == RagasMetric.ASPECT_CRITIQUE and self.metric_params:
-            if "aspect" in self.metric_params:
-                metric = METRIC_ASPECTS[self.metric_params["aspect"]]
-            else:
-                metric = AspectCritique(**self.metric_params)
-        else:
-            metric = self.descriptor.backend
-        results = self._backend_callable(dataset=dataset, metric=metric)
+        results = self._backend_callable(dataset=dataset, metric=self.__backend_metric)
 
         OutputConverters.validate_outputs(results)
         converted_results = [
