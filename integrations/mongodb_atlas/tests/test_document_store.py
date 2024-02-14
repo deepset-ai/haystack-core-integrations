@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
-
+import os
 from unittest.mock import patch
 
 import pytest
@@ -19,14 +19,18 @@ from haystack_integrations.document_stores.mongodb_atlas import MongoDBAtlasDocu
 @pytest.fixture
 def document_store():
     store = MongoDBAtlasDocumentStore(
-        mongo_connection_string="mongodb+srv://sarazanzottera:dN3hmY9RNxRDni13@clustertest.gwkckbk.mongodb.net/?retryWrites=true&w=majority",
-        database_name="CusterTest",
+        mongo_connection_string=os.environ["MONGO_CONNECTION_STRING"],
+        database_name="ClusterTest",
         collection_name="test"
     )
     yield store
     store._get_collection().drop()
 
 
+@pytest.mark.skipif(
+    "MONGO_CONNECTION_STRING" not in os.environ,
+    reason="No MongoDB Atlas connection string provided",
+)
 class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsTest):
 
     def test_write_documents(self, document_store: MongoDBAtlasDocumentStore):
