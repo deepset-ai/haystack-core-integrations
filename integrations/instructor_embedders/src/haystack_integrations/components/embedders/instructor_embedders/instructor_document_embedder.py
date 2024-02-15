@@ -1,9 +1,10 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional
 
 from haystack import Document, component, default_from_dict, default_to_dict
+from haystack.utils import Secret, deserialize_secrets_inplace
 
 from .embedding_backend.instructor_backend import _InstructorEmbeddingBackendFactory
 
@@ -62,7 +63,7 @@ class InstructorDocumentEmbedder:
         self,
         model: str = "hkunlp/instructor-base",
         device: Optional[str] = None,
-        use_auth_token: Union[bool, str, None] = None,
+        token: Optional[Secret] = Secret.from_env_var("HF_API_TOKEN", strict=False),  # noqa: B008
         instruction: str = "Represent the document",
         batch_size: int = 32,
         progress_bar: bool = True,
@@ -98,7 +99,7 @@ class InstructorDocumentEmbedder:
         self.model_name_or_path = model
         # TODO: remove device parameter and use Haystack's device management once migrated
         self.device = device or "cpu"
-        self.use_auth_token = use_auth_token
+        self.token = token
         self.instruction = instruction
         self.batch_size = batch_size
         self.progress_bar = progress_bar
@@ -114,7 +115,7 @@ class InstructorDocumentEmbedder:
             self,
             model=self.model_name_or_path,
             device=self.device,
-            use_auth_token=self.use_auth_token,
+            token=self.token.to_dict() if self.token else None,
             instruction=self.instruction,
             batch_size=self.batch_size,
             progress_bar=self.progress_bar,
@@ -128,6 +129,7 @@ class InstructorDocumentEmbedder:
         """
         Deserialize this component from a dictionary.
         """
+        deserialize_secrets_inplace(data["init_parameters"], keys=["token"])
         return default_from_dict(cls, data)
 
     def warm_up(self):
@@ -136,7 +138,7 @@ class InstructorDocumentEmbedder:
         """
         if not hasattr(self, "embedding_backend"):
             self.embedding_backend = _InstructorEmbeddingBackendFactory.get_embedding_backend(
-                model_name_or_path=self.model_name_or_path, device=self.device, use_auth_token=self.use_auth_token
+                model_name_or_path=self.model_name_or_path, device=self.device, token=self.token
             )
 
     @component.output_types(documents=List[Document])

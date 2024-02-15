@@ -1,5 +1,6 @@
 from unittest.mock import patch
 
+from haystack.utils.auth import Secret
 from haystack_integrations.components.embedders.instructor_embedders.embedding_backend.instructor_backend import (
     _InstructorEmbeddingBackendFactory,
 )
@@ -29,10 +30,10 @@ def test_factory_behavior(mock_instructor):  # noqa: ARG001
 )
 def test_model_initialization(mock_instructor):
     _InstructorEmbeddingBackendFactory.get_embedding_backend(
-        model_name_or_path="hkunlp/instructor-base", device="cpu", use_auth_token="huggingface_auth_token"
+        model_name_or_path="hkunlp/instructor-base", device="cpu", token=Secret.from_token("fake-api-token")
     )
     mock_instructor.assert_called_once_with(
-        model_name_or_path="hkunlp/instructor-base", device="cpu", use_auth_token="huggingface_auth_token"
+        model_name_or_path="hkunlp/instructor-base", device="cpu", use_auth_token="fake-api-token"
     )
     # restore the factory state
     _InstructorEmbeddingBackendFactory._instances = {}

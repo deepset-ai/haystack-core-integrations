@@ -3,6 +3,7 @@ from unittest.mock import MagicMock, patch
 import numpy as np
 import pytest
 from haystack import Document
+from haystack.utils import Secret
 from haystack_integrations.components.embedders.instructor_embedders import InstructorDocumentEmbedder
 
 
@@ -14,7 +15,7 @@ class TestInstructorDocumentEmbedder:
         embedder = InstructorDocumentEmbedder(model="hkunlp/instructor-base")
         assert embedder.model_name_or_path == "hkunlp/instructor-base"
         assert embedder.device == "cpu"
-        assert embedder.use_auth_token is None
+        assert embedder.token == Secret.from_env_var("HF_API_TOKEN", strict=False)
         assert embedder.instruction == "Represent the document"
         assert embedder.batch_size == 32
         assert embedder.progress_bar is True
@@ -29,7 +30,7 @@ class TestInstructorDocumentEmbedder:
         embedder = InstructorDocumentEmbedder(
             model="hkunlp/instructor-base",
             device="cuda",
-            use_auth_token=True,
+            token=Secret.from_token("fake-api-token"),
             instruction="Represent the 'domain' 'text_type' for 'task_objective'",
             batch_size=64,
             progress_bar=False,
@@ -39,7 +40,7 @@ class TestInstructorDocumentEmbedder:
         )
         assert embedder.model_name_or_path == "hkunlp/instructor-base"
         assert embedder.device == "cuda"
-        assert embedder.use_auth_token is True
+        assert embedder.token == Secret.from_token("fake-api-token")
         assert embedder.instruction == "Represent the 'domain' 'text_type' for 'task_objective'"
         assert embedder.batch_size == 64
         assert embedder.progress_bar is False
@@ -58,7 +59,7 @@ class TestInstructorDocumentEmbedder:
             "init_parameters": {
                 "model": "hkunlp/instructor-base",
                 "device": "cpu",
-                "use_auth_token": None,
+                "token": {"env_vars": ["HF_API_TOKEN"], "strict": False, "type": "env_var"},
                 "instruction": "Represent the document",
                 "batch_size": 32,
                 "progress_bar": True,
@@ -75,7 +76,6 @@ class TestInstructorDocumentEmbedder:
         embedder = InstructorDocumentEmbedder(
             model="hkunlp/instructor-base",
             device="cuda",
-            use_auth_token=True,
             instruction="Represent the financial document for retrieval",
             batch_size=64,
             progress_bar=False,
@@ -89,7 +89,7 @@ class TestInstructorDocumentEmbedder:
             "init_parameters": {
                 "model": "hkunlp/instructor-base",
                 "device": "cuda",
-                "use_auth_token": True,
+                "token": {"env_vars": ["HF_API_TOKEN"], "strict": False, "type": "env_var"},
                 "instruction": "Represent the financial document for retrieval",
                 "batch_size": 64,
                 "progress_bar": False,
@@ -108,7 +108,7 @@ class TestInstructorDocumentEmbedder:
             "init_parameters": {
                 "model": "hkunlp/instructor-base",
                 "device": "cpu",
-                "use_auth_token": None,
+                "token": {"env_vars": ["HF_API_TOKEN"], "strict": False, "type": "env_var"},
                 "instruction": "Represent the 'domain' 'text_type' for 'task_objective'",
                 "batch_size": 32,
                 "progress_bar": True,
@@ -120,7 +120,7 @@ class TestInstructorDocumentEmbedder:
         embedder = InstructorDocumentEmbedder.from_dict(embedder_dict)
         assert embedder.model_name_or_path == "hkunlp/instructor-base"
         assert embedder.device == "cpu"
-        assert embedder.use_auth_token is None
+        assert embedder.token == Secret.from_env_var("HF_API_TOKEN", strict=False)
         assert embedder.instruction == "Represent the 'domain' 'text_type' for 'task_objective'"
         assert embedder.batch_size == 32
         assert embedder.progress_bar is True
@@ -137,7 +137,7 @@ class TestInstructorDocumentEmbedder:
             "init_parameters": {
                 "model": "hkunlp/instructor-base",
                 "device": "cuda",
-                "use_auth_token": True,
+                "token": {"env_vars": ["HF_API_TOKEN"], "strict": False, "type": "env_var"},
                 "instruction": "Represent the financial document for retrieval",
                 "batch_size": 64,
                 "progress_bar": False,
@@ -149,7 +149,7 @@ class TestInstructorDocumentEmbedder:
         embedder = InstructorDocumentEmbedder.from_dict(embedder_dict)
         assert embedder.model_name_or_path == "hkunlp/instructor-base"
         assert embedder.device == "cuda"
-        assert embedder.use_auth_token is True
+        assert embedder.token == Secret.from_env_var("HF_API_TOKEN", strict=False)
         assert embedder.instruction == "Represent the financial document for retrieval"
         assert embedder.batch_size == 64
         assert embedder.progress_bar is False
@@ -168,7 +168,9 @@ class TestInstructorDocumentEmbedder:
         mocked_factory.get_embedding_backend.assert_not_called()
         embedder.warm_up()
         mocked_factory.get_embedding_backend.assert_called_once_with(
-            model_name_or_path="hkunlp/instructor-base", device="cpu", use_auth_token=None
+            model_name_or_path="hkunlp/instructor-base",
+            device="cpu",
+            token=Secret.from_env_var("HF_API_TOKEN", strict=False),
         )
 
     @patch(
