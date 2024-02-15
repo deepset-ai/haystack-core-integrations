@@ -1,11 +1,11 @@
 import logging
-import os
 from typing import Any, Callable, Dict, List, Optional
 
 from haystack import component, default_from_dict, default_to_dict
 from haystack.components.generators.utils import deserialize_callback_handler, serialize_callback_handler
 from haystack.dataclasses import ChatMessage, ChatRole, StreamingChunk
 from haystack.lazy_imports import LazyImport
+from haystack.utils import Secret, deserialize_secrets_inplace
 
 with LazyImport(message="Run 'pip install cohere'") as cohere_import:
     import cohere
@@ -27,7 +27,7 @@ class CohereChatGenerator:
 
     def __init__(
         self,
-        api_key: Optional[str] = None,
+        api_key: Secret = Secret.from_env_var(["COHERE_API_KEY", "CO_API_KEY"]),
         model: str = "command",
         streaming_callback: Optional[Callable[[StreamingChunk], None]] = None,
         api_base_url: Optional[str] = None,
@@ -37,7 +37,7 @@ class CohereChatGenerator:
         """
         Initialize the CohereChatGenerator instance.
 
-        :param api_key: The API key for the Cohere API. If not set, it will be read from the COHERE_API_KEY env var.
+        :param api_key: The API key for the Cohere API.
         :param model: The name of the model to use. Available models are: [command, command-light, command-nightly,
             command-nightly-light]. Defaults to "command".
         :param streaming_callback: A callback function to be called with the streaming response. Defaults to None.
@@ -69,15 +69,6 @@ class CohereChatGenerator:
         """
         cohere_import.check()
 
-        api_key = api_key or os.environ.get("COHERE_API_KEY")
-        # we check whether api_key is None or an empty string
-        if not api_key:
-            msg = (
-                "CohereChatGenerator expects an API key. "
-                "Set the COHERE_API_KEY environment variable (recommended) or pass it explicitly."
-            )
-            raise ValueError(msg)
-
         if not api_base_url:
             api_base_url = cohere.COHERE_API_URL
         if generation_kwargs is None:
@@ -88,7 +79,7 @@ class CohereChatGenerator:
         self.api_base_url = api_base_url
         self.generation_kwargs = generation_kwargs
         self.model_parameters = kwargs
-        self.client = cohere.Client(api_key=self.api_key, api_url=self.api_base_url, client_name="haystack")
+        self.client = cohere.Client(api_key=self.api_key.resolve_value(), api_url=self.api_base_url, client_name="haystack")
 
     def _get_telemetry_data(self) -> Dict[str, Any]:
         """
@@ -107,6 +98,7 @@ class CohereChatGenerator:
             model=self.model,
             streaming_callback=callback_name,
             api_base_url=self.api_base_url,
+            api_key=self.api_key.to_dict(),
             generation_kwargs=self.generation_kwargs,
         )
 
@@ -118,6 +110,7 @@ class CohereChatGenerator:
         :return: The deserialized component instance.
         """
         init_params = data.get("init_parameters", {})
+        deserialize_secrets_inplace(init_params, ["api_key"])
         serialized_callback_handler = init_params.get("streaming_callback")
         if serialized_callback_handler:
             data["init_parameters"]["streaming_callback"] = deserialize_callback_handler(serialized_callback_handler)

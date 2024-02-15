@@ -3,7 +3,7 @@ loaders:
     search_path: [../src]
     modules:
       [
-        "haystack_integrations.components.retrievers.pinecone.dense_retriever",
+        "haystack_integrations.components.retrievers.pinecone.embedding_retriever",
         "haystack_integrations.document_stores.pinecone.document_store",
         "haystack_integrations.document_stores.pinecone.errors",
         "haystack_integrations.document_stores.pinecone.filters",

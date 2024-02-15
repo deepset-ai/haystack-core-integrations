@@ -9,7 +9,7 @@ from haystack.components.generators import OpenAIGenerator
 from haystack.components.writers import DocumentWriter
 from haystack.document_stores.types import DuplicatePolicy
 
-from haystack_integrations.components.retrievers.astra import AstraRetriever
+from haystack_integrations.components.retrievers.astra import AstraEmbeddingRetriever
 from haystack_integrations.document_stores.astra import AstraDocumentStore
 
 logger = logging.getLogger(__name__)
@@ -62,7 +62,7 @@ documents = [
 ]
 p = Pipeline()
 p.add_component(
-    instance=SentenceTransformersDocumentEmbedder(model_name_or_path="sentence-transformers/all-MiniLM-L6-v2"),
+    instance=SentenceTransformersDocumentEmbedder(model="sentence-transformers/all-MiniLM-L6-v2"),
     name="embedder",
 )
 p.add_component(instance=DocumentWriter(document_store=document_store, policy=DuplicatePolicy.SKIP), name="writer")
@@ -74,10 +74,10 @@ p.run({"embedder": {"documents": documents}})
 # Construct rag pipeline
 rag_pipeline = Pipeline()
 rag_pipeline.add_component(
-    instance=SentenceTransformersTextEmbedder(model_name_or_path="sentence-transformers/all-MiniLM-L6-v2"),
+    instance=SentenceTransformersTextEmbedder(model="sentence-transformers/all-MiniLM-L6-v2"),
     name="embedder",
 )
-rag_pipeline.add_component(instance=AstraRetriever(document_store=document_store), name="retriever")
+rag_pipeline.add_component(instance=AstraEmbeddingRetriever(document_store=document_store), name="retriever")
 rag_pipeline.add_component(instance=PromptBuilder(template=prompt_template), name="prompt_builder")
 rag_pipeline.add_component(instance=OpenAIGenerator(api_key=os.environ.get("OPENAI_API_KEY")), name="llm")
 rag_pipeline.add_component(instance=AnswerBuilder(), name="answer_builder")

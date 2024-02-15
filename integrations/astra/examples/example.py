@@ -10,7 +10,7 @@ from haystack.components.routers import FileTypeRouter
 from haystack.components.writers import DocumentWriter
 from haystack.document_stores.types import DuplicatePolicy
 
-from haystack_integrations.components.retrievers.astra import AstraRetriever
+from haystack_integrations.components.retrievers.astra import AstraEmbeddingRetriever
 from haystack_integrations.document_stores.astra import AstraDocumentStore
 
 logger = logging.getLogger(__name__)
@@ -47,7 +47,7 @@ p.add_component(instance=TextFileToDocument(), name="text_file_converter")
 p.add_component(instance=DocumentCleaner(), name="cleaner")
 p.add_component(instance=DocumentSplitter(split_by="word", split_length=150, split_overlap=30), name="splitter")
 p.add_component(
-    instance=SentenceTransformersDocumentEmbedder(model_name_or_path="sentence-transformers/all-MiniLM-L6-v2"),
+    instance=SentenceTransformersDocumentEmbedder(model="sentence-transformers/all-MiniLM-L6-v2"),
     name="embedder",
 )
 p.add_component(instance=DocumentWriter(document_store=document_store, policy=DuplicatePolicy.SKIP), name="writer")
@@ -63,10 +63,10 @@ p.run({"file_type_router": {"sources": file_paths}})
 # Create a querying pipeline on the indexed data
 q = Pipeline()
 q.add_component(
-    instance=SentenceTransformersTextEmbedder(model_name_or_path="sentence-transformers/all-MiniLM-L6-v2"),
+    instance=SentenceTransformersTextEmbedder(model="sentence-transformers/all-MiniLM-L6-v2"),
     name="embedder",
 )
-q.add_component("retriever", AstraRetriever(document_store))
+q.add_component("retriever", AstraEmbeddingRetriever(document_store))
 
 q.connect("embedder", "retriever")
 

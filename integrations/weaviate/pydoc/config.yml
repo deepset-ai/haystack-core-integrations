@@ -1,9 +1,12 @@
 loaders:
   - type: haystack_pydoc_tools.loaders.CustomPythonLoader
     search_path: [../src]
-    modules: [
-      "haystack_integrations.document_stores.weaviate.document_store",
-    ]
+    modules:
+      [
+        "haystack_integrations.document_stores.weaviate.document_store",
+        "haystack_integrations.components.retrievers.weaviate.bm25_retriever",
+        "haystack_integrations.components.retrievers.weaviate.embedding_retriever",
+      ]
     ignore_when_discovered: ["__init__"]
 processors:
   - type: filter

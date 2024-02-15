@@ -5,7 +5,7 @@ from enum import Enum
 from functools import partial
 from typing import Any, Callable, Dict, Iterable, List, Optional, Type, Union
 
-from uptrain import CritiqueTone, Evals, GuidelineAdherence, ResponseMatching
+from uptrain import CritiqueTone, Evals, GuidelineAdherence, ResponseMatching  # type: ignore
 from uptrain.framework.evals import ParametricEval
 
 

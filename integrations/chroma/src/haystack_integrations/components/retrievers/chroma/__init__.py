@@ -1,3 +1,3 @@
-from .retriever import ChromaEmbeddingRetriever, ChromaQueryRetriever
+from .retriever import ChromaEmbeddingRetriever, ChromaQueryTextRetriever
 
-__all__ = ["ChromaQueryRetriever", "ChromaEmbeddingRetriever"]
+__all__ = ["ChromaQueryTextRetriever", "ChromaEmbeddingRetriever"]

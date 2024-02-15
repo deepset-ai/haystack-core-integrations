@@ -7,6 +7,7 @@ from unittest.mock import patch
 import pytest
 import requests
 from haystack import Document
+from haystack.utils import Secret
 from haystack_integrations.components.embedders.jina import JinaDocumentEmbedder
 
 
@@ -28,6 +29,7 @@ class TestJinaDocumentEmbedder:
         monkeypatch.setenv("JINA_API_KEY", "fake-api-key")
         embedder = JinaDocumentEmbedder()
 
+        assert embedder.api_key == Secret.from_env_var("JINA_API_KEY")
         assert embedder.model_name == "jina-embeddings-v2-base-en"
         assert embedder.prefix == ""
         assert embedder.suffix == ""
@@ -38,7 +40,7 @@ class TestJinaDocumentEmbedder:
 
     def test_init_with_parameters(self):
         embedder = JinaDocumentEmbedder(
-            api_key="fake-api-key",
+            api_key=Secret.from_token("fake-api-key"),
             model="model",
             prefix="prefix",
             suffix="suffix",
@@ -47,6 +49,8 @@ class TestJinaDocumentEmbedder:
             meta_fields_to_embed=["test_field"],
             embedding_separator=" | ",
         )
+
+        assert embedder.api_key == Secret.from_token("fake-api-key")
         assert embedder.model_name == "model"
         assert embedder.prefix == "prefix"
         assert embedder.suffix == "suffix"
@@ -60,12 +64,14 @@ class TestJinaDocumentEmbedder:
         with pytest.raises(ValueError):
             JinaDocumentEmbedder()
 
-    def test_to_dict(self):
-        component = JinaDocumentEmbedder(api_key="fake-api-key")
+    def test_to_dict(self, monkeypatch):
+        monkeypatch.setenv("JINA_API_KEY", "fake-api-key")
+        component = JinaDocumentEmbedder()
         data = component.to_dict()
         assert data == {
             "type": "haystack_integrations.components.embedders.jina.document_embedder.JinaDocumentEmbedder",
             "init_parameters": {
+                "api_key": {"env_vars": ["JINA_API_KEY"], "strict": True, "type": "env_var"},
                 "model": "jina-embeddings-v2-base-en",
                 "prefix": "",
                 "suffix": "",
@@ -76,9 +82,9 @@ class TestJinaDocumentEmbedder:
             },
         }
 
-    def test_to_dict_with_custom_init_parameters(self):
+    def test_to_dict_with_custom_init_parameters(self, monkeypatch):
+        monkeypatch.setenv("JINA_API_KEY", "fake-api-key")
         component = JinaDocumentEmbedder(
-            api_key="fake-api-key",
             model="model",
             prefix="prefix",
             suffix="suffix",
@@ -91,6 +97,7 @@ class TestJinaDocumentEmbedder:
         assert data == {
             "type": "haystack_integrations.components.embedders.jina.document_embedder.JinaDocumentEmbedder",
             "init_parameters": {
+                "api_key": {"env_vars": ["JINA_API_KEY"], "strict": True, "type": "env_var"},
                 "model": "model",
                 "prefix": "prefix",
                 "suffix": "suffix",
@@ -107,7 +114,7 @@ class TestJinaDocumentEmbedder:
         ]
 
         embedder = JinaDocumentEmbedder(
-            api_key="fake-api-key", meta_fields_to_embed=["meta_field"], embedding_separator=" | "
+            api_key=Secret.from_token("fake-api-key"), meta_fields_to_embed=["meta_field"], embedding_separator=" | "
         )
 
         prepared_texts = embedder._prepare_texts_to_embed(documents)
@@ -124,7 +131,9 @@ class TestJinaDocumentEmbedder:
     def test_prepare_texts_to_embed_w_suffix(self):
         documents = [Document(content=f"document number {i}") for i in range(5)]
 
-        embedder = JinaDocumentEmbedder(api_key="fake-api-key", prefix="my_prefix ", suffix=" my_suffix")
+        embedder = JinaDocumentEmbedder(
+            api_key=Secret.from_token("fake-api-key"), prefix="my_prefix ", suffix=" my_suffix"
+        )
 
         prepared_texts = embedder._prepare_texts_to_embed(documents)
 
@@ -140,7 +149,7 @@ class TestJinaDocumentEmbedder:
         texts = ["text 1", "text 2", "text 3", "text 4", "text 5"]
 
         with patch("requests.sessions.Session.post", side_effect=mock_session_post_response):
-            embedder = JinaDocumentEmbedder(api_key="fake-api-key", model="model")
+            embedder = JinaDocumentEmbedder(api_key=Secret.from_token("fake-api-key"), model="model")
 
             embeddings, metadata = embedder._embed_batch(texts_to_embed=texts, batch_size=2)
 
@@ -162,7 +171,7 @@ class TestJinaDocumentEmbedder:
         model = "jina-embeddings-v2-base-en"
         with patch("requests.sessions.Session.post", side_effect=mock_session_post_response):
             embedder = JinaDocumentEmbedder(
-                api_key="fake-api-key",
+                api_key=Secret.from_token("fake-api-key"),
                 model=model,
                 prefix="prefix ",
                 suffix=" suffix",
@@ -192,7 +201,7 @@ class TestJinaDocumentEmbedder:
         model = "jina-embeddings-v2-base-en"
         with patch("requests.sessions.Session.post", side_effect=mock_session_post_response):
             embedder = JinaDocumentEmbedder(
-                api_key="fake-api-key",
+                api_key=Secret.from_token("fake-api-key"),
                 model=model,
                 prefix="prefix ",
                 suffix=" suffix",
@@ -217,7 +226,7 @@ class TestJinaDocumentEmbedder:
         assert metadata == {"model": model, "usage": {"prompt_tokens": 2 * 4, "total_tokens": 2 * 4}}
 
     def test_run_wrong_input_format(self):
-        embedder = JinaDocumentEmbedder(api_key="fake-api-key")
+        embedder = JinaDocumentEmbedder(api_key=Secret.from_token("fake-api-key"))
 
         string_input = "text"
         list_integers_input = [1, 2, 3]
@@ -229,7 +238,7 @@ class TestJinaDocumentEmbedder:
             embedder.run(documents=list_integers_input)
 
     def test_run_on_empty_list(self):
-        embedder = JinaDocumentEmbedder(api_key="fake-api-key")
+        embedder = JinaDocumentEmbedder(api_key=Secret.from_token("fake-api-key"))
 
         empty_list_input = []
         result = embedder.run(documents=empty_list_input)

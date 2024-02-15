@@ -175,9 +175,10 @@ class UnstructuredFileConverter:
             docs = [Document(content=texts_per_page[page], meta=meta_per_page[page]) for page in texts_per_page.keys()]
 
         elif document_creation_mode == "one-doc-per-element":
-            for el in elements:
+            for index, el in enumerate(elements):
                 metadata = copy.deepcopy(meta)
                 metadata["file_path"] = str(filepath)
+                metadata["element_index"] = index
                 if hasattr(el, "metadata"):
                     metadata.update(el.metadata.to_dict())
                 if hasattr(el, "category"):
