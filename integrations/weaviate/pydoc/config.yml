@@ -3,6 +3,7 @@ loaders:
     search_path: [../src]
     modules:
       [
+        "haystack_integrations.document_stores.weaviate.auth",
         "haystack_integrations.document_stores.weaviate.document_store",
         "haystack_integrations.components.retrievers.weaviate.bm25_retriever",
         "haystack_integrations.components.retrievers.weaviate.embedding_retriever",
