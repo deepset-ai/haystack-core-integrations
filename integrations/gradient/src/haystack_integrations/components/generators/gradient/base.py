@@ -2,9 +2,8 @@ import logging
 from typing import Any, Dict, List, Optional
 
 from gradientai import Gradient
-from haystack import component, default_to_dict, default_from_dict
+from haystack import component, default_from_dict, default_to_dict
 from haystack.utils import Secret, deserialize_secrets_inplace
-
 
 logger = logging.getLogger(__name__)
 
@@ -78,8 +77,9 @@ class GradientGenerator:
         if has_model_adapter_id:
             self._model_adapter_id = model_adapter_id
 
-        self._gradient = Gradient(access_token=access_token.resolve_value(), host=host,
-                                  workspace_id=workspace_id.resolve_value())
+        self._gradient = Gradient(
+            access_token=access_token.resolve_value(), host=host, workspace_id=workspace_id.resolve_value()
+        )
 
     def to_dict(self) -> Dict[str, Any]:
         """
@@ -97,7 +97,7 @@ class GradientGenerator:
             top_p=self._top_p,
             workspace_id=self._workspace_id.to_dict(),
         )
-    
+
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "GradientGenerator":
         """
