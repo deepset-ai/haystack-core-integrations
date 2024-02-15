@@ -13,7 +13,7 @@ class TestInstructorDocumentEmbedder:
         Test default initialization parameters for InstructorDocumentEmbedder.
         """
         embedder = InstructorDocumentEmbedder(model="hkunlp/instructor-base")
-        assert embedder.model_name_or_path == "hkunlp/instructor-base"
+        assert embedder.model == "hkunlp/instructor-base"
         assert embedder.device == "cpu"
         assert embedder.token == Secret.from_env_var("HF_API_TOKEN", strict=False)
         assert embedder.instruction == "Represent the document"
@@ -38,7 +38,7 @@ class TestInstructorDocumentEmbedder:
             meta_fields_to_embed=["test_field"],
             embedding_separator=" | ",
         )
-        assert embedder.model_name_or_path == "hkunlp/instructor-base"
+        assert embedder.model == "hkunlp/instructor-base"
         assert embedder.device == "cuda"
         assert embedder.token == Secret.from_token("fake-api-token")
         assert embedder.instruction == "Represent the 'domain' 'text_type' for 'task_objective'"
@@ -118,7 +118,7 @@ class TestInstructorDocumentEmbedder:
             },
         }
         embedder = InstructorDocumentEmbedder.from_dict(embedder_dict)
-        assert embedder.model_name_or_path == "hkunlp/instructor-base"
+        assert embedder.model == "hkunlp/instructor-base"
         assert embedder.device == "cpu"
         assert embedder.token == Secret.from_env_var("HF_API_TOKEN", strict=False)
         assert embedder.instruction == "Represent the 'domain' 'text_type' for 'task_objective'"
@@ -147,7 +147,7 @@ class TestInstructorDocumentEmbedder:
             },
         }
         embedder = InstructorDocumentEmbedder.from_dict(embedder_dict)
-        assert embedder.model_name_or_path == "hkunlp/instructor-base"
+        assert embedder.model == "hkunlp/instructor-base"
         assert embedder.device == "cuda"
         assert embedder.token == Secret.from_env_var("HF_API_TOKEN", strict=False)
         assert embedder.instruction == "Represent the financial document for retrieval"
@@ -168,7 +168,7 @@ class TestInstructorDocumentEmbedder:
         mocked_factory.get_embedding_backend.assert_not_called()
         embedder.warm_up()
         mocked_factory.get_embedding_backend.assert_called_once_with(
-            model_name_or_path="hkunlp/instructor-base",
+            model="hkunlp/instructor-base",
             device="cpu",
             token=Secret.from_env_var("HF_API_TOKEN", strict=False),
         )
