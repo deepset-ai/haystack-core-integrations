@@ -20,9 +20,10 @@ def document_store(request):
     store = MongoDBAtlasDocumentStore(
         database_name="haystack_integration_test",
         collection_name=request.node.name + str(uuid4()),
+        vector_search_index="vector_search_index",
+        recreate_collection=True,
     )
-    yield store
-    store.collection.drop()
+    return store
 
 
 @pytest.mark.skipif(
@@ -56,6 +57,7 @@ class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsT
         document_store = MongoDBAtlasDocumentStore(
             database_name="database_name",
             collection_name="collection_name",
+            vector_search_index="vector_search_index",
         )
         assert document_store.to_dict() == {
             "type": "haystack_integrations.document_stores.mongodb_atlas.document_store.MongoDBAtlasDocumentStore",
@@ -70,6 +72,7 @@ class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsT
                 "database_name": "database_name",
                 "collection_name": "collection_name",
                 "recreate_collection": False,
+                "vector_search_index": "vector_search_index",
             },
         }
 
@@ -88,6 +91,7 @@ class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsT
                     },
                     "database_name": "database_name",
                     "collection_name": "collection_name",
+                    "vector_search_index": "vector_search_index",
                     "recreate_collection": True,
                 },
             }
@@ -95,4 +99,5 @@ class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsT
         assert docstore.mongo_connection_string == Secret.from_env_var("MONGO_CONNECTION_STRING")
         assert docstore.database_name == "database_name"
         assert docstore.collection_name == "collection_name"
+        assert docstore.vector_search_index == "vector_search_index"
         assert docstore.recreate_collection

@@ -5,6 +5,7 @@ import logging
 import re
 from typing import Any, Dict, List, Optional, Union
 
+import numpy as np
 from haystack import default_from_dict, default_to_dict
 from haystack.dataclasses.document import Document
 from haystack.document_stores.errors import DuplicateDocumentError
@@ -18,6 +19,9 @@ from pymongo.errors import BulkWriteError  # type: ignore
 logger = logging.getLogger(__name__)
 
 
+METRIC_TYPES = ["euclidean", "cosine", "dotProduct"]
+
+
 class MongoDBAtlasDocumentStore:
     def __init__(
         self,
@@ -25,6 +29,7 @@ class MongoDBAtlasDocumentStore:
         mongo_connection_string: Secret = Secret.from_env_var("MONGO_CONNECTION_STRING"),  # noqa: B008
         database_name: str,
         collection_name: str,
+        vector_search_index: str,
         recreate_collection: bool = False,
     ):
         """
@@ -38,7 +43,11 @@ class MongoDBAtlasDocumentStore:
             This value will be read automatically from the env var "MONGO_CONNECTION_STRING".
         :param database_name: Name of the database to use.
         :param collection_name: Name of the collection to use.
-        :param recreate_collection: Whether to recreate the collection when initializing the document store.
+        :param vector_search_index: The name of the vector search index to use for vector search operations.
+            Create a vector_search_index in the Atlas web UI and specify the init params of MongoDBAtlasDocumentStore. \
+            See https://www.mongodb.com/docs/atlas/atlas-vector-search/create-index/#std-label-avs-create-index
+        :param recreate_collection: Whether to recreate the collection when initializing the document store. Defaults
+            to False.
         """
         if collection_name and not bool(re.match(r"^[a-zA-Z0-9\-_]+$", collection_name)):
             msg = f'Invalid collection name: "{collection_name}". It can only contain letters, numbers, -, or _.'
@@ -49,6 +58,7 @@ class MongoDBAtlasDocumentStore:
 
         self.database_name = database_name
         self.collection_name = collection_name
+        self.vector_search_index = vector_search_index
         self.recreate_collection = recreate_collection
 
         self.connection: MongoClient = MongoClient(
@@ -75,9 +85,10 @@ class MongoDBAtlasDocumentStore:
             mongo_connection_string=self.mongo_connection_string.to_dict(),
             database_name=self.database_name,
             collection_name=self.collection_name,
+            vector_search_index=self.vector_search_index,
             recreate_collection=self.recreate_collection,
         )
-
+    
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "MongoDBAtlasDocumentStore":
         """
@@ -159,3 +170,83 @@ class MongoDBAtlasDocumentStore:
         if not document_ids:
             return
         self.collection.delete_many(filter={"id": {"$in": document_ids}})
+
+    def embedding_retrieval(
+        self,
+        query_embedding: np.ndarray,
+        filters: Optional[Dict[str, Any]] = None,
+        top_k: int = 10,
+        similarity: str = "cosine",
+        scale_score: bool = True,
+    ) -> List[Document]:
+        """
+        Find the documents that are most similar to the provided `query_emb` by using a vector similarity metric.
+
+        :param query_emb: Embedding of the query
+        :param filters: optional filters (see get_all_documents for description).
+        :param top_k: How many documents to return.
+        :param similarity: The similarity function to use. Currently supported: `dotProduct`, `cosine` and `euclidean`.
+        :param scale_score: Whether to scale the similarity score to the unit interval (range of [0,1]).
+                            If true (default) similarity scores (e.g. cosine or dot_product) which naturally have a 
+                            different value range will be scaled to a range of [0,1], where 1 means extremely relevant.
+                            Otherwise raw similarity scores (e.g. cosine or dot_product) will be used.
+        """
+        if similarity not in METRIC_TYPES:
+            raise ValueError(
+                "MongoDB Atlas currently supports 'dotProduct', 'cosine' and 'euclidean' similarity metrics. \
+                Please set 'similarity' to one of the above."
+            )
+        
+        query_embedding = np.array(query_embedding).astype(np.float32)
+
+        if similarity == "cosine":
+            self.normalize_embedding(query_embedding)
+
+        pipeline = [
+            {
+                "$vectorSearch": {
+                    "index": self.vector_search_index,
+                    "queryVector": query_embedding.tolist(),
+                    "path": "embedding",
+                    "numCandidates": 100,
+                    "limit": top_k,
+                }
+            }
+        ]
+
+        filters = haystack_filters_to_mongo(filters)
+        if filters is not None:
+            pipeline.append({"$match": filters})
+            
+        pipeline.append({"$set": {"score": {"$meta": "vectorSearchScore"}}})
+        documents = list(self.collection.aggregate(pipeline))
+
+        if scale_score:
+            for doc in documents:
+                doc["score"] = self.scale_to_unit_interval(doc["score"], similarity)
+
+        documents = [self.mongo_doc_to_haystack_doc(doc) for doc in documents]
+        return documents
+    
+    def mongo_doc_to_haystack_doc(mongo_doc: Dict[str, Any]) -> Document:
+        """
+        Converts the dictionary coming out of MongoDB into a Haystack document
+
+        :param mongo_doc: A dictionary representing a document as stored in MongoDB
+        :return: A Haystack Document object
+        """
+        mongo_doc.pop("_id", None)
+        return Document.from_dict(mongo_doc)
+    
+    def normalize_embedding(self, emb: np.ndarray) -> None:
+        """
+        Performs L2 normalization of a 1D embeddings vector **inplace**. 
+        """
+        norm = np.sqrt(emb.dot(emb))  # faster than np.linalg.norm()
+        if norm != 0.0:
+            emb /= norm
+
+    def scale_to_unit_interval(self, score: float, similarity: Optional[str]) -> float:
+        if similarity == "cosine":
+            return (score + 1) / 2
+        return float(1 / (1 + np.exp(-score / 100)))
