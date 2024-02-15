@@ -17,32 +17,27 @@ logging.basicConfig(level=logging.INFO)
 
 # Create a RAG query pipeline
 prompt_template = """
-                Given these documents, answer the question.
+Given these documents, answer the question.
 
-                Documents:
-                {% for doc in documents %}
-                    {{ doc.content }}
-                {% endfor %}
+Documents:
+{% for doc in documents %}
+    {{ doc.content }}
+{% endfor %}
 
-                Question: {{question}}
+Question: {{question}}
 
-                Answer:
-                """
+Answer:
+"""
 
-astra_id = os.getenv("ASTRA_DB_ID", "")
-astra_region = os.getenv("ASTRA_DB_REGION", "us-east1")
-
-astra_application_token = os.getenv("ASTRA_DB_APPLICATION_TOKEN", "")
 collection_name = os.getenv("COLLECTION_NAME", "haystack_vector_search")
 keyspace_name = os.getenv("KEYSPACE_NAME", "recommender_demo")
 
+# Make sure ASTRA_API_ENDPOINT and ASTRA_TOKEN environment variables are set before proceeding
+
 # We support many different databases. Here, we load a simple and lightweight in-memory database.
 document_store = AstraDocumentStore(
-    astra_id=astra_id,
-    astra_region=astra_region,
     astra_collection=collection_name,
     astra_keyspace=keyspace_name,
-    astra_application_token=astra_application_token,
     duplicates_policy=DuplicatePolicy.SKIP,
     embedding_dim=384,
 )
