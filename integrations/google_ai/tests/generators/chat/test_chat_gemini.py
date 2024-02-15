@@ -10,7 +10,9 @@ from haystack.dataclasses.chat_message import ChatMessage
 from haystack_integrations.components.generators.google_ai import GoogleAIGeminiChatGenerator
 
 
-def test_init():
+def test_init(monkeypatch):
+    monkeypatch.setenv("GOOGLE_API_KEY", "test")
+
     generation_config = GenerationConfig(
         candidate_count=1,
         stop_sequences=["stop"],
@@ -48,7 +50,7 @@ def test_init():
             safety_settings=safety_settings,
             tools=[tool],
         )
-    mock_genai_configure.assert_called_once_with(api_key=None)
+    mock_genai_configure.assert_called_once_with(api_key="test")
     assert gemini._model_name == "gemini-pro-vision"
     assert gemini._generation_config == generation_config
     assert gemini._safety_settings == safety_settings
@@ -56,7 +58,9 @@ def test_init():
     assert isinstance(gemini._model, GenerativeModel)
 
 
-def test_to_dict():
+def test_to_dict(monkeypatch):
+    monkeypatch.setenv("GOOGLE_API_KEY", "test")
+
     generation_config = GenerationConfig(
         candidate_count=1,
         stop_sequences=["stop"],
@@ -96,6 +100,7 @@ def test_to_dict():
     assert gemini.to_dict() == {
         "type": "haystack_integrations.components.generators.google_ai.chat.gemini.GoogleAIGeminiChatGenerator",
         "init_parameters": {
+            "api_key": {"env_vars": ["GOOGLE_API_KEY"], "strict": True, "type": "env_var"},
             "model": "gemini-pro-vision",
             "generation_config": {
                 "temperature": 0.5,
@@ -115,12 +120,15 @@ def test_to_dict():
     }
 
 
-def test_from_dict():
+def test_from_dict(monkeypatch):
+    monkeypatch.setenv("GOOGLE_API_KEY", "test")
+
     with patch("haystack_integrations.components.generators.google_ai.chat.gemini.genai.configure"):
         gemini = GoogleAIGeminiChatGenerator.from_dict(
             {
                 "type": "haystack_integrations.components.generators.google_ai.chat.gemini.GoogleAIGeminiChatGenerator",
                 "init_parameters": {
+                    "api_key": {"env_vars": ["GOOGLE_API_KEY"], "strict": True, "type": "env_var"},
                     "model": "gemini-pro-vision",
                     "generation_config": {
                         "temperature": 0.5,
