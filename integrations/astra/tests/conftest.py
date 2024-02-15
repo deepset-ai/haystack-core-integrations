@@ -1,5 +1,3 @@
-import os
-
 import pytest
 from haystack.document_stores.types import DuplicatePolicy
 
