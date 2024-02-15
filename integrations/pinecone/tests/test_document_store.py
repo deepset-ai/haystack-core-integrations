@@ -4,6 +4,7 @@ import numpy as np
 import pytest
 from haystack import Document
 from haystack.testing.document_store import CountDocumentsTest, DeleteDocumentsTest, WriteDocumentsTest
+from haystack.utils import Secret
 
 from haystack_integrations.document_stores.pinecone import PineconeDocumentStore
 
@@ -13,7 +14,7 @@ def test_init(mock_pinecone):
     mock_pinecone.Index.return_value.describe_index_stats.return_value = {"dimension": 30}
 
     document_store = PineconeDocumentStore(
-        api_key="fake-api-key",
+        api_key=Secret.from_token("fake-api-key"),
         environment="gcp-starter",
         index="my_index",
         namespace="test",
@@ -34,7 +35,7 @@ def test_init(mock_pinecone):
 
 @patch("haystack_integrations.document_stores.pinecone.document_store.pinecone")
 def test_init_api_key_in_environment_variable(mock_pinecone, monkeypatch):
-    monkeypatch.setenv("PINECONE_API_KEY", "fake-api-key")
+    monkeypatch.setenv("PINECONE_API_KEY", "env-api-key")
 
     PineconeDocumentStore(
         environment="gcp-starter",
@@ -45,14 +46,14 @@ def test_init_api_key_in_environment_variable(mock_pinecone, monkeypatch):
         metric="euclidean",
     )
 
-    mock_pinecone.init.assert_called_with(api_key="fake-api-key", environment="gcp-starter")
+    mock_pinecone.init.assert_called_with(api_key="env-api-key", environment="gcp-starter")
 
 
 @patch("haystack_integrations.document_stores.pinecone.document_store.pinecone")
-def test_to_dict(mock_pinecone):
+def test_to_dict(mock_pinecone, monkeypatch):
     mock_pinecone.Index.return_value.describe_index_stats.return_value = {"dimension": 30}
+    monkeypatch.setenv("PINECONE_API_KEY", "env-api-key")
     document_store = PineconeDocumentStore(
-        api_key="fake-api-key",
         environment="gcp-starter",
         index="my_index",
         namespace="test",
@@ -63,6 +64,13 @@ def test_to_dict(mock_pinecone):
     assert document_store.to_dict() == {
         "type": "haystack_integrations.document_stores.pinecone.document_store.PineconeDocumentStore",
         "init_parameters": {
+            'api_key': {
+                'env_vars': [
+                    'PINECONE_API_KEY',
+                ],
+                'strict': True,
+                'type': 'env_var',
+            },
             "environment": "gcp-starter",
             "index": "my_index",
             "dimension": 30,
@@ -86,11 +94,9 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, WriteDocumentsT
     def test_write_documents_duplicate_skip(self, document_store: PineconeDocumentStore): ...
 
     def test_init_fails_wo_api_key(self, monkeypatch):
-        api_key = None
         monkeypatch.delenv("PINECONE_API_KEY", raising=False)
         with pytest.raises(ValueError):
             PineconeDocumentStore(
-                api_key=api_key,
                 environment="gcp-starter",
                 index="my_index",
             )
