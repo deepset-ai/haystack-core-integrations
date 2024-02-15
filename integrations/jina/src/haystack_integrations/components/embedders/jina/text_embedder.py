@@ -49,12 +49,6 @@ class JinaTextEmbedder:
         """
 
         resolved_api_key = api_key.resolve_value()
-        if resolved_api_key is None:
-            msg = (
-                "JinaTextEmbedder expects an API key. "
-                "Set the JINA_API_KEY environment variable (recommended) or pass it explicitly."
-            )
-            raise ValueError(msg)
 
         self.api_key = api_key
         self.model_name = model
