@@ -18,11 +18,11 @@ from pandas import DataFrame
 def document_store(request):
     store = MongoDBAtlasDocumentStore(
         mongo_connection_string=os.environ["MONGO_CONNECTION_STRING"],
-        database_name="ClusterTest",
-        collection_name="test_" + request.node.name + str(uuid4()),
+        database_name="haystack_integration_test",
+        collection_name=request.node.name + str(uuid4()),
     )
     yield store
-    store._get_collection().drop()
+    store.collection.drop()
 
 
 @pytest.mark.skipif(
@@ -64,6 +64,21 @@ class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsT
                 "mongo_connection_string": "mongo_connection_string",
                 "database_name": "database_name",
                 "collection_name": "collection_name",
-                "recreate_index": False,
+                "recreate_collection": False,
             },
         }
+
+    @patch("haystack_integrations.document_stores.mongodb_atlas.document_store.MongoClient")
+    def test_from_dict(self, _):
+        docstore = MongoDBAtlasDocumentStore.from_dict({
+            "type": "haystack_integrations.document_stores.mongodb_atlas.document_store.MongoDBAtlasDocumentStore",
+            "init_parameters": {
+                "mongo_connection_string": "mongo_connection_string",
+                "database_name": "database_name",
+                "collection_name": "collection_name",
+                "recreate_collection": True,
+            }})
+        assert docstore.mongo_connection_string == "mongo_connection_string"
+        assert docstore.database_name == "database_name"
+        assert docstore.collection_name == "collection_name"
+        assert docstore.recreate_collection == True

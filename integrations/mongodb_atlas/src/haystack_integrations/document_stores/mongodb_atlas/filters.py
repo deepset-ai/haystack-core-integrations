@@ -1,9 +1,6 @@
-import logging
 
-logger = logging.getLogger(__name__)
-
-
-def haystack_filters_to_mongo(_):
+def haystack_filters_to_mongo(filters):
     # TODO
-    logger.warning("Filtering not yet implemented for MongoDBAtlasDocumentStore")
+    if filters:
+        raise "Filtering not yet implemented for MongoDBAtlasDocumentStore"
     return {}
