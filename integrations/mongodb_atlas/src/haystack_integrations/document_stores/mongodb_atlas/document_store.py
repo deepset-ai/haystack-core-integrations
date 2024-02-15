@@ -6,6 +6,7 @@ import re
 from typing import Any, Dict, List, Optional, Union
 
 from haystack import default_to_dict, default_from_dict
+from haystack.utils import Secret, deserialize_secrets_inplace
 from haystack.dataclasses.document import Document
 from haystack.document_stores.errors import DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
@@ -21,7 +22,7 @@ class MongoDBAtlasDocumentStore:
     def __init__(
         self,
         *,
-        mongo_connection_string: str,
+        mongo_connection_string: Secret = Secret.from_env_var("MONGO_CONNECTION_STRING"),  # noqa: B008
         database_name: str,
         collection_name: str,
         recreate_collection: bool = False,
@@ -34,6 +35,7 @@ class MongoDBAtlasDocumentStore:
         :param mongo_connection_string: MongoDB Atlas connection string in the format:
             "mongodb+srv://{mongo_atlas_username}:{mongo_atlas_password}@{mongo_atlas_host}/?{mongo_atlas_params_string}".
             This can be obtained on the MongoDB Atlas Dashboard by clicking on the `CONNECT` button.
+            This value will be read automatically from the env var "MONGO_CONNECTION_STRING".
         :param database_name: Name of the database to use.
         :param collection_name: Name of the collection to use.
         :param recreate_collection: Whether to recreate the collection when initializing the document store.
@@ -41,14 +43,22 @@ class MongoDBAtlasDocumentStore:
         if collection_name and not bool(re.match(r"^[a-zA-Z0-9\-_]+$", collection_name)):
             msg = f'Invalid collection name: "{collection_name}". It can only contain letters, numbers, -, or _.'
             raise ValueError(msg)
-
+        
+        resolved_connection_string = mongo_connection_string.resolve_value()
+        if resolved_connection_string is None:
+            msg = (
+                "MongoDBAtlasDocumentStore expects an API key. "
+                "Set the MONGO_CONNECTION_STRING environment variable (recommended) or pass it explicitly."
+            )
+            raise ValueError(msg)
         self.mongo_connection_string = mongo_connection_string
+
         self.database_name = database_name
         self.collection_name = collection_name
         self.recreate_collection = recreate_collection
 
         self.connection: MongoClient = MongoClient(
-            self.mongo_connection_string, driver=DriverInfo(name="MongoDBAtlasHaystackIntegration")
+            resolved_connection_string, driver=DriverInfo(name="MongoDBAtlasHaystackIntegration")
         )
         database = self.connection[self.database_name]
 
@@ -68,7 +78,7 @@ class MongoDBAtlasDocumentStore:
         """
         return default_to_dict(
             self,
-            mongo_connection_string=self.mongo_connection_string,
+            mongo_connection_string=self.mongo_connection_string.to_dict(),
             database_name=self.database_name,
             collection_name=self.collection_name,
             recreate_collection=self.recreate_collection,
@@ -79,6 +89,7 @@ class MongoDBAtlasDocumentStore:
         """
         Utility function that deserializes this Document Store's configuration from a dictionary.
         """
+        deserialize_secrets_inplace(data["init_parameters"], keys=["mongo_connection_string"])
         return default_from_dict(cls, data)
 
     def count_documents(self, filters: Optional[Dict[str, Any]] = None) -> int:

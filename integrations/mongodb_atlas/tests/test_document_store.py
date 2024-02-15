@@ -6,6 +6,7 @@ from unittest.mock import patch
 from uuid import uuid4
 
 import pytest
+from haystack.utils import Secret
 from haystack.dataclasses.document import ByteStream, Document
 from haystack.document_stores.errors import DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
@@ -17,7 +18,6 @@ from pandas import DataFrame
 @pytest.fixture
 def document_store(request):
     store = MongoDBAtlasDocumentStore(
-        mongo_connection_string=os.environ["MONGO_CONNECTION_STRING"],
         database_name="haystack_integration_test",
         collection_name=request.node.name + str(uuid4()),
     )
@@ -54,14 +54,19 @@ class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsT
     @patch("haystack_integrations.document_stores.mongodb_atlas.document_store.MongoClient")
     def test_to_dict(self, _):
         document_store = MongoDBAtlasDocumentStore(
-            mongo_connection_string="mongo_connection_string",
             database_name="database_name",
             collection_name="collection_name",
         )
         assert document_store.to_dict() == {
             "type": "haystack_integrations.document_stores.mongodb_atlas.document_store.MongoDBAtlasDocumentStore",
             "init_parameters": {
-                "mongo_connection_string": "mongo_connection_string",
+                "mongo_connection_string": {
+                    "env_vars": [
+                        "MONGO_CONNECTION_STRING",
+                    ],
+                    "strict": True,
+                    "type": "env_var",
+                },
                 "database_name": "database_name",
                 "collection_name": "collection_name",
                 "recreate_collection": False,
@@ -73,12 +78,18 @@ class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsT
         docstore = MongoDBAtlasDocumentStore.from_dict({
             "type": "haystack_integrations.document_stores.mongodb_atlas.document_store.MongoDBAtlasDocumentStore",
             "init_parameters": {
-                "mongo_connection_string": "mongo_connection_string",
+                "mongo_connection_string": {
+                    "env_vars": [
+                        "MONGO_CONNECTION_STRING",
+                    ],
+                    "strict": True,
+                    "type": "env_var",
+                },
                 "database_name": "database_name",
                 "collection_name": "collection_name",
                 "recreate_collection": True,
             }})
-        assert docstore.mongo_connection_string == "mongo_connection_string"
+        assert docstore.mongo_connection_string == Secret.from_env_var("MONGO_CONNECTION_STRING")
         assert docstore.database_name == "database_name"
         assert docstore.collection_name == "collection_name"
         assert docstore.recreate_collection == True
