@@ -11,24 +11,16 @@ from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumen
 from haystack.document_stores.types.policy import DuplicatePolicy
 
 import weaviate
-from weaviate.auth import AuthCredentials
 from weaviate.config import Config, ConnectionConfig
 from weaviate.embedded import EmbeddedOptions
 from weaviate.util import generate_uuid5
 
 from ._filters import convert_filters
+from .auth import AuthCredentials
 
 Number = Union[int, float]
 TimeoutType = Union[Tuple[Number, Number], Number]
 
-# This simplifies a bit how we handle deserialization of the auth credentials.
-# Otherwise we would need to use importlib to dynamically import the correct class.
-_AUTH_CLASSES = {
-    "weaviate.auth.AuthClientCredentials": weaviate.auth.AuthClientCredentials,
-    "weaviate.auth.AuthClientPassword": weaviate.auth.AuthClientPassword,
-    "weaviate.auth.AuthBearerToken": weaviate.auth.AuthBearerToken,
-    "weaviate.auth.AuthApiKey": weaviate.auth.AuthApiKey,
-}
 
 # This is the default collection properties for Weaviate.
 # It's a list of properties that will be created on the collection.
@@ -92,10 +84,10 @@ class WeaviateDocumentStore:
             for more information on collections and their properties.
         :param auth_client_secret: Authentication credentials, defaults to None.
             Can be one of the following types depending on the authentication mode:
-            - `weaviate.auth.AuthBearerToken` to use existing access and (optionally, but recommended) refresh tokens
-            - `weaviate.auth.AuthClientPassword` to use username and password for oidc Resource Owner Password flow
-            - `weaviate.auth.AuthClientCredentials` to use a client secret for oidc client credential flow
-            - `weaviate.auth.AuthApiKey` to use an API key
+            - `AuthBearerToken` to use existing access and (optionally, but recommended) refresh tokens
+            - `AuthClientPassword` to use username and password for oidc Resource Owner Password flow
+            - `AuthClientCredentials` to use a client secret for oidc client credential flow
+            - `AuthApiKey` to use an API key
         :param timeout_config: Timeout configuration for all requests to the Weaviate server, defaults to (10, 60).
             It can be a real number or, a tuple of two real numbers: (connect timeout, read timeout).
             If only one real number is passed then both connect and read timeout will be set to
@@ -124,7 +116,7 @@ class WeaviateDocumentStore:
         """
         self._client = weaviate.Client(
             url=url,
-            auth_client_secret=auth_client_secret,
+            auth_client_secret=auth_client_secret.resolve_value() if auth_client_secret else None,
             timeout_config=timeout_config,
             proxies=proxies,
             trust_env=trust_env,
@@ -164,11 +156,6 @@ class WeaviateDocumentStore:
         self._additional_config = additional_config
 
     def to_dict(self) -> Dict[str, Any]:
-        auth_client_secret = None
-        if self._auth_client_secret:
-            # There are different types of AuthCredentials, so even thought it's a dataclass
-            # and we could just use asdict, we need to save the type too.
-            auth_client_secret = default_to_dict(self._auth_client_secret, **asdict(self._auth_client_secret))
         embedded_options = asdict(self._embedded_options) if self._embedded_options else None
         additional_config = asdict(self._additional_config) if self._additional_config else None
 
@@ -176,7 +163,7 @@ class WeaviateDocumentStore:
             self,
             url=self._url,
             collection_settings=self._collection_settings,
-            auth_client_secret=auth_client_secret,
+            auth_client_secret=self._auth_client_secret.to_dict() if self._auth_client_secret else None,
             timeout_config=self._timeout_config,
             proxies=self._proxies,
             trust_env=self._trust_env,
@@ -193,8 +180,7 @@ class WeaviateDocumentStore:
                 tuple(timeout_config) if isinstance(timeout_config, list) else timeout_config
             )
         if (auth_client_secret := data["init_parameters"].get("auth_client_secret")) is not None:
-            auth_class = _AUTH_CLASSES[auth_client_secret["type"]]
-            data["init_parameters"]["auth_client_secret"] = default_from_dict(auth_class, auth_client_secret)
+            data["init_parameters"]["auth_client_secret"] = AuthCredentials.from_dict(auth_client_secret)
         if (embedded_options := data["init_parameters"].get("embedded_options")) is not None:
             data["init_parameters"]["embedded_options"] = EmbeddedOptions(**embedded_options)
         if (additional_config := data["init_parameters"].get("additional_config")) is not None:
