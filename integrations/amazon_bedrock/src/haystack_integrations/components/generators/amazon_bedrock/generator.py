@@ -6,7 +6,7 @@ from typing import Any, ClassVar, Dict, List, Optional, Type, Union
 import boto3
 from botocore.exceptions import BotoCoreError, ClientError
 from haystack import component, default_from_dict, default_to_dict
-from haystack.utils.auth import EnvVarSecret, Secret
+from haystack.utils.auth import Secret
 
 from .adapters import (
     AI21LabsJurassic2Adapter,
@@ -73,21 +73,11 @@ class AmazonBedrockGenerator:
     def __init__(
         self,
         model: str,
-        aws_access_key_id: Optional[Secret] = EnvVarSecret(env_vars=["AWS_ACCESS_KEY_ID"], strict=False).from_env_var(
-            "AWS_ACCESS_KEY_ID"
-        ),
-        aws_secret_access_key: Optional[Secret] = EnvVarSecret(
-            env_vars=["AWS_SECRET_ACCESS_KEY"], strict=False
-        ).from_env_var("AWS_SECRET_ACCESS_KEY"),
-        aws_session_token: Optional[Secret] = EnvVarSecret(env_vars=["AWS_SESSION_TOKEN"], strict=False).from_env_var(
-            "AWS_SESSION_TOKEN"
-        ),
-        aws_region_name: Optional[Secret] = EnvVarSecret(env_vars=["AWS_DEFAULT_REGION"], strict=False).from_env_var(
-            "AWS_DEFAULT_REGION"
-        ),
-        aws_profile_name: Optional[str] = EnvVarSecret(env_vars=["AWS_PROFILE"], strict=False).from_env_var(
-            "AWS_PROFILE"
-        ),
+        aws_access_key_id: Optional[Secret] = Secret.from_env_var(["AWS_ACCESS_KEY_ID"], strict=False),
+        aws_secret_access_key: Optional[Secret] = Secret.from_env_var(["AWS_SECRET_ACCESS_KEY"], strict=False),
+        aws_session_token: Optional[Secret] = Secret.from_env_var(["AWS_SESSION_TOKEN"], strict=False),
+        aws_region_name: Optional[Secret] = Secret.from_env_var(["AWS_DEFAULT_REGION"], strict=False),
+        aws_profile_name: Optional[Secret] = Secret.from_env_var(["AWS_PROFILE"], strict=False),
         max_length: Optional[int] = 100,
         **kwargs,
     ):
