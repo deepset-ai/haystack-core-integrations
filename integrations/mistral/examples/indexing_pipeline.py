@@ -1,14 +1,13 @@
 # To run this example, you will need an to set a `MISTRAL_API_KEY` environment variable.
 # This example streams chat replies to the console.
 
-from haystack_integrations.components.embedders.mistral.document_embedder import MistralDocumentEmbedder
-
 from haystack import Pipeline
-from haystack.components.fetchers import LinkContentFetcher
 from haystack.components.converters import HTMLToDocument
+from haystack.components.fetchers import LinkContentFetcher
 from haystack.components.preprocessors import DocumentSplitter
-from haystack.document_stores.in_memory import InMemoryDocumentStore
 from haystack.components.writers import DocumentWriter
+from haystack.document_stores.in_memory import InMemoryDocumentStore
+from haystack_integrations.components.embedders.mistral.document_embedder import MistralDocumentEmbedder
 
 document_store = InMemoryDocumentStore()
 fetcher = LinkContentFetcher()

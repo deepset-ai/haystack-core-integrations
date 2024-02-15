@@ -24,117 +24,109 @@ class TestMistralDocumentEmbedder:
         assert embedder.meta_fields_to_embed == []
         assert embedder.embedding_separator == "\n"
 
-    # def test_init_with_parameters(self):
-    #     embedder = MistralDocumentEmbedder(
-    #         api_key=Secret.from_token("test-api-key"),
-    #         model="embed-multilingual-v2.0",
-    #         input_type="search_query",
-    #         api_base_url="https://custom-api-base-url.com",
-    #         truncate="START",
-    #         use_async_client=True,
-    #         max_retries=5,
-    #         timeout=60,
-    #         batch_size=64,
-    #         progress_bar=False,
-    #         meta_fields_to_embed=["test_field"],
-    #         embedding_separator="-",
-    #     )
-    #     assert embedder.api_key == Secret.from_token("test-api-key")
-    #     assert embedder.model == "embed-multilingual-v2.0"
-    #     assert embedder.input_type == "search_query"
-    #     assert embedder.api_base_url == "https://custom-api-base-url.com"
-    #     assert embedder.truncate == "START"
-    #     assert embedder.use_async_client is True
-    #     assert embedder.max_retries == 5
-    #     assert embedder.timeout == 60
-    #     assert embedder.batch_size == 64
-    #     assert embedder.progress_bar is False
-    #     assert embedder.meta_fields_to_embed == ["test_field"]
-    #     assert embedder.embedding_separator == "-"
+    def test_init_with_parameters(self):
+        embedder = MistralDocumentEmbedder(
+            api_key=Secret.from_token("test-api-key"),
+            model="mistral-embed-v2",
+            api_base_url="https://custom-api-base-url.com",
+            prefix="START",
+            suffix="END",
+            batch_size=64,
+            progress_bar=False,
+            meta_fields_to_embed=["test_field"],
+            embedding_separator="-",
+        )
+        assert embedder.api_key == Secret.from_token("test-api-key")
+        assert embedder.model == "mistral-embed-v2"
+        assert embedder.api_base_url == "https://custom-api-base-url.com"
+        assert embedder.prefix == "START"
+        assert embedder.suffix == "END"
+        assert embedder.batch_size == 64
+        assert embedder.progress_bar is False
+        assert embedder.meta_fields_to_embed == ["test_field"]
+        assert embedder.embedding_separator == "-"
 
-    # def test_to_dict(self):
-    #     embedder_component = MistralDocumentEmbedder()
-    #     component_dict = embedder_component.to_dict()
-    #     assert component_dict == {
-    #         "type": "haystack_integrations.components.embedders.cohere.document_embedder.CohereDocumentEmbedder",
-    #         "init_parameters": {
-    #             "api_key": {"env_vars": ["COHERE_API_KEY", "CO_API_KEY"], "strict": True, "type": "env_var"},
-    #             "model": "embed-english-v2.0",
-    #             "input_type": "search_document",
-    #             "api_base_url": COHERE_API_URL,
-    #             "truncate": "END",
-    #             "use_async_client": False,
-    #             "max_retries": 3,
-    #             "timeout": 120,
-    #             "batch_size": 32,
-    #             "progress_bar": True,
-    #             "meta_fields_to_embed": [],
-    #             "embedding_separator": "\n",
-    #         },
-    #     }
+    def test_to_dict(self):
+        embedder_component = MistralDocumentEmbedder()
+        component_dict = embedder_component.to_dict()
+        assert component_dict == {
+            "type": "haystack_integrations.components.embedders.mistral.document_embedder.MistralDocumentEmbedder",
+            "init_parameters": {
+                "api_key": {"env_vars": ["MISTRAL_API_KEY"], "strict": True, "type": "env_var"},
+                "model": "mistral-embed",
+                "dimensions": None,
+                "api_base_url": "https://api.mistral.ai/v1",
+                "organization": None,
+                "prefix": "",
+                "suffix": "",
+                "batch_size": 32,
+                "progress_bar": True,
+                "meta_fields_to_embed": [],
+                "embedding_separator": "\n",
+            },
+        }
 
-    # def test_to_dict_with_custom_init_parameters(self):
-    #     embedder_component = CohereDocumentEmbedder(
-    #         api_key=Secret.from_env_var("ENV_VAR", strict=False),
-    #         model="embed-multilingual-v2.0",
-    #         input_type="search_query",
-    #         api_base_url="https://custom-api-base-url.com",
-    #         truncate="START",
-    #         use_async_client=True,
-    #         max_retries=5,
-    #         timeout=60,
-    #         batch_size=64,
-    #         progress_bar=False,
-    #         meta_fields_to_embed=["text_field"],
-    #         embedding_separator="-",
-    #     )
-    #     component_dict = embedder_component.to_dict()
-    #     assert component_dict == {
-    #         "type": "haystack_integrations.components.embedders.cohere.document_embedder.CohereDocumentEmbedder",
-    #         "init_parameters": {
-    #             "api_key": {"env_vars": ["ENV_VAR"], "strict": False, "type": "env_var"},
-    #             "model": "embed-multilingual-v2.0",
-    #             "input_type": "search_query",
-    #             "api_base_url": "https://custom-api-base-url.com",
-    #             "truncate": "START",
-    #             "use_async_client": True,
-    #             "max_retries": 5,
-    #             "timeout": 60,
-    #             "batch_size": 64,
-    #             "progress_bar": False,
-    #             "meta_fields_to_embed": ["text_field"],
-    #             "embedding_separator": "-",
-    #         },
-    #     }
+    def test_to_dict_with_custom_init_parameters(self, monkeypatch):
+        monkeypatch.setenv("ENV_VAR", "test-secret-key")
+        embedder = MistralDocumentEmbedder(
+            api_key=Secret.from_env_var("ENV_VAR", strict=False),
+            model="mistral-embed-v2",
+            api_base_url="https://custom-api-base-url.com",
+            prefix="START",
+            suffix="END",
+            batch_size=64,
+            progress_bar=False,
+            meta_fields_to_embed=["test_field"],
+            embedding_separator="-",
+        )
+        component_dict = embedder.to_dict()
+        assert component_dict == {
+            "type": "haystack_integrations.components.embedders.mistral.document_embedder.MistralDocumentEmbedder",
+            "init_parameters": {
+                "api_key": {"env_vars": ["ENV_VAR"], "strict": False, "type": "env_var"},
+                "model": "mistral-embed-v2",
+                "dimensions": None,
+                "api_base_url": "https://custom-api-base-url.com",
+                "organization": None,
+                "prefix": "START",
+                "suffix": "END",
+                "batch_size": 64,
+                "progress_bar": False,
+                "meta_fields_to_embed": ["test_field"],
+                "embedding_separator": "-",
+            },
+        }
 
-    # @pytest.mark.skipif(
-    #     not os.environ.get("COHERE_API_KEY", None) and not os.environ.get("CO_API_KEY", None),
-    #     reason="Export an env var called COHERE_API_KEY/CO_API_KEY containing the Cohere API key to run this test.",
-    # )
-    # @pytest.mark.integration
-    # def test_run(self):
-    #     embedder = CohereDocumentEmbedder()
+    @pytest.mark.skipif(
+        not os.environ.get("MISTRAL_API_KEY", None),
+        reason="Export an env var called MISTRAL_API_KEY containing the Cohere API key to run this test.",
+    )
+    @pytest.mark.integration
+    def test_run(self):
+        embedder = MistralDocumentEmbedder()
 
-    #     docs = [
-    #         Document(content="I love cheese", meta={"topic": "Cuisine"}),
-    #         Document(content="A transformer is a deep learning architecture", meta={"topic": "ML"}),
-    #     ]
+        docs = [
+            Document(content="I love cheese", meta={"topic": "Cuisine"}),
+            Document(content="A transformer is a deep learning architecture", meta={"topic": "ML"}),
+        ]
 
-    #     result = embedder.run(docs)
-    #     docs_with_embeddings = result["documents"]
+        result = embedder.run(docs)
+        docs_with_embeddings = result["documents"]
 
-    #     assert isinstance(docs_with_embeddings, list)
-    #     assert len(docs_with_embeddings) == len(docs)
-    #     for doc in docs_with_embeddings:
-    #         assert isinstance(doc.embedding, list)
-    #         assert isinstance(doc.embedding[0], float)
+        assert isinstance(docs_with_embeddings, list)
+        assert len(docs_with_embeddings) == len(docs)
+        for doc in docs_with_embeddings:
+            assert isinstance(doc.embedding, list)
+            assert isinstance(doc.embedding[0], float)
 
-    # def test_run_wrong_input_format(self):
-    #     embedder = CohereDocumentEmbedder(api_key=Secret.from_token("test-api-key"))
+    def test_run_wrong_input_format(self):
+        embedder = MistralDocumentEmbedder(api_key=Secret.from_token("test-api-key"))
 
-    #     with pytest.raises(TypeError, match="CohereDocumentEmbedder expects a list of Documents as input"):
-    #         embedder.run(documents="text")
-    #     with pytest.raises(TypeError, match="CohereDocumentEmbedder expects a list of Documents as input"):
-    #         embedder.run(documents=[1, 2, 3])
+        match_error_msg = "OpenAIDocumentEmbedder expects a list of Documents as input.In case you want to embed a string, please use the OpenAITextEmbedder."
 
-    #     assert embedder.run(documents=[]) == {"documents": [], "meta": {}}
+        with pytest.raises(TypeError, match=match_error_msg):
+            embedder.run(documents="text")
+        with pytest.raises(TypeError, match=match_error_msg):
+            embedder.run(documents=[1, 2, 3])
+
+        assert embedder.run(documents=[]) == {"documents": [], "meta": {}}

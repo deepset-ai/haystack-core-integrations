@@ -4,30 +4,31 @@
 from typing import Optional
 
 from haystack import component
-from haystack.utils.auth import Secret
 from haystack.components.embedders import OpenAITextEmbedder
+from haystack.utils.auth import Secret
 
 
 @component
 class MistralTextEmbedder(OpenAITextEmbedder):
     """
-    A component for embedding strings using Mistral models.
+     A component for embedding strings using Mistral models.
 
-    Usage example:
-    ```python
-   from haystack_integrations.components.embedders.mistral.text_embedder import MistralTextEmbedder
+     Usage example:
+     ```python
+    from haystack_integrations.components.embedders.mistral.text_embedder import MistralTextEmbedder
 
-    text_to_embed = "I love pizza!"
+     text_to_embed = "I love pizza!"
 
-    text_embedder = MistralTextEmbedder()
+     text_embedder = MistralTextEmbedder()
 
-    print(text_embedder.run(text_to_embed))
+     print(text_embedder.run(text_to_embed))
 
-    # {'embedding': [0.017020374536514282, -0.023255806416273117, ...],
-    # 'meta': {'model': 'text-embedding-ada-002-v2',
-    #          'usage': {'prompt_tokens': 4, 'total_tokens': 4}}}
-    ```
+     # {'embedding': [0.017020374536514282, -0.023255806416273117, ...],
+     # 'meta': {'model': 'text-embedding-ada-002-v2',
+     #          'usage': {'prompt_tokens': 4, 'total_tokens': 4}}}
+     ```
     """
+
     def __init__(
         self,
         api_key: Secret = Secret.from_env_var("MISTRAL_API_KEY"),
@@ -44,15 +45,12 @@ class MistralTextEmbedder(OpenAITextEmbedder):
         :param api_key: The Misttal API key.
         :param model: The name of the Mistral embedding models to be used.
         :param dimensions: Not yet supported with Mistral embedding models
-        :param organization: The Organization ID, defaults to `None`. 
-        :param api_base_url: The Mistral API Base url, defaults to `https://api.mistral.ai/v1`. For more details, see Mistral [docs](https://docs.mistral.ai/api/).
+        :param organization: The Organization ID, defaults to `None`.
+        :param api_base_url: The Mistral API Base url, defaults to `https://api.mistral.ai/v1`.
+                             For more details, see Mistral [docs](https://docs.mistral.ai/api/).
         :param prefix: Not yet supported with Mistral embedding models
         :param suffix: Not yet supported with Mistral embedding models
         """
-        super(MistralTextEmbedder, self).__init__(api_key,
-                                                  model,
-                                                  dimensions,
-                                                  api_base_url,
-                                                  organization,
-                                                  prefix,
-                                                  suffix)
+        super(MistralTextEmbedder, self).__init__(
+            api_key, model, dimensions, api_base_url, organization, prefix, suffix
+        )

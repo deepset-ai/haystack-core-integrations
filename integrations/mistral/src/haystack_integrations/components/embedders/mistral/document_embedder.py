@@ -4,8 +4,8 @@
 from typing import List, Optional
 
 from haystack import component
-from haystack.utils.auth import Secret
 from haystack.components.embedders import OpenAIDocumentEmbedder
+from haystack.utils.auth import Secret
 
 
 @component
@@ -48,9 +48,10 @@ class MistralDocumentEmbedder(OpenAIDocumentEmbedder):
         Create a MistralDocumentEmbedder component.
         :param api_key: The Mistral API key.
         :param model: The name of the model to use.
-        :param dimensions: The number of dimensions the resulting output embeddings should have. Only supported in text-embedding-3 and later models.
+        :param dimensions: Not yet supported with `mistral-embed`. Currently this model outputs `1024` dimensions.
+                           For more info, refer to the Mistral [docs](https://docs.mistral.ai/platform/endpoints/#embedding-models)
         :param api_base_url: The Mistral API Base url, defaults to None. For more details, see Mistral [docs](https://docs.mistral.ai/api/).
-        :param organization: The Organization ID, defaults to `None`.
+        :param organization: Not yet supported with Mistral, defaults to `None`.
         :param prefix: A string to add to the beginning of each text.
         :param suffix: A string to add to the end of each text.
         :param batch_size: Number of Documents to encode at once.
@@ -69,4 +70,5 @@ class MistralDocumentEmbedder(OpenAIDocumentEmbedder):
                                                       batch_size,
                                                       progress_bar,
                                                       meta_fields_to_embed,
-                                                      embedding_separator)
+                                                      embedding_separator,
+                                                    )

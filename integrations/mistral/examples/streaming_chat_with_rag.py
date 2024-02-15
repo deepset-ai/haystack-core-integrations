@@ -1,20 +1,19 @@
 # To run this example, you will need an to set a `MISTRAL_API_KEY` environment variable.
 # This example streams chat replies to the console.
 
-from haystack_integrations.components.generators.mistral import MistralChatGenerator
-from haystack_integrations.components.embedders.mistral.document_embedder import MistralDocumentEmbedder
-from haystack_integrations.components.embedders.mistral.text_embedder import MistralTextEmbedder
-
 from haystack import Pipeline
-from haystack.dataclasses import ChatMessage
-from haystack.components.generators.utils import print_streaming_chunk
-from haystack.components.fetchers import LinkContentFetcher
+from haystack.components.builders import DynamicChatPromptBuilder
 from haystack.components.converters import HTMLToDocument
+from haystack.components.fetchers import LinkContentFetcher
+from haystack.components.generators.utils import print_streaming_chunk
 from haystack.components.preprocessors import DocumentSplitter
 from haystack.components.retrievers.in_memory import InMemoryEmbeddingRetriever
-from haystack.document_stores.in_memory import InMemoryDocumentStore
 from haystack.components.writers import DocumentWriter
-from haystack.components.builders import DynamicChatPromptBuilder
+from haystack.dataclasses import ChatMessage
+from haystack.document_stores.in_memory import InMemoryDocumentStore
+from haystack_integrations.components.embedders.mistral.document_embedder import MistralDocumentEmbedder
+from haystack_integrations.components.embedders.mistral.text_embedder import MistralTextEmbedder
+from haystack_integrations.components.generators.mistral import MistralChatGenerator
 
 document_store = InMemoryDocumentStore()
 fetcher = LinkContentFetcher()
@@ -58,8 +57,10 @@ rag_pipeline.connect("prompt_builder.prompt", "llm.messages")
 
 question = "What are the available models?"
 
-result = rag_pipeline.run({ "text_embedder": {"text": question},
-                            "prompt_builder": {"template_variables": {"query": question},
-                                              "prompt_source": messages},
-                            "llm": {"generation_kwargs": {"max_tokens": 165}}
-                  })
+result = rag_pipeline.run(
+    {
+        "text_embedder": {"text": question},
+        "prompt_builder": {"template_variables": {"query": question}, "prompt_source": messages},
+        "llm": {"generation_kwargs": {"max_tokens": 165}},
+    }
+)

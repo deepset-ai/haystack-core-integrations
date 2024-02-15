@@ -1,18 +1,18 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
-import asyncio
 from typing import Any, Callable, Dict, Optional
 
 from haystack import component
-from haystack.dataclasses import StreamingChunk, ChatMessage
-from haystack.utils.auth import Secret
 from haystack.components.generators.chat import OpenAIChatGenerator
+from haystack.dataclasses import StreamingChunk
+from haystack.utils.auth import Secret
+
 
 @component
 class MistralChatGenerator(OpenAIChatGenerator):
     """
-    Enables text generation using Mistral's large language models (LLMs). 
+    Enables text generation using Mistral's large language models (LLMs).
     Currently supports `mistral-tiny`, `mistral-small` and `mistral-medium`
     models accessed through the chat completions API endpoint.
 
@@ -20,7 +20,7 @@ class MistralChatGenerator(OpenAIChatGenerator):
     directly to this component via the `**generation_kwargs` parameter in __init__ or the `**generation_kwargs`
     parameter in `run` method.
 
-    For more details on the parameters supported by the Mistral API, refer to the 
+    For more details on the parameters supported by the Mistral API, refer to the
     [Mistral API Docs](https://docs.mistral.ai/api/).
 
     ```python
@@ -36,7 +36,7 @@ class MistralChatGenerator(OpenAIChatGenerator):
     >>{'replies': [ChatMessage(content='Natural Language Processing (NLP) is a branch of artificial intelligence
     >>that focuses on enabling computers to understand, interpret, and generate human language in a way that is
     >>meaningful and useful.', role=<ChatRole.ASSISTANT: 'assistant'>, name=None,
-    >>meta={'model': 'gpt-3.5-turbo-0613', 'index': 0, 'finish_reason': 'stop',
+    >>meta={'model': 'mistral-tiny', 'index': 0, 'finish_reason': 'stop',
     >>'usage': {'prompt_tokens': 15, 'completion_tokens': 36, 'total_tokens': 51}})]}
 
     ```
@@ -48,8 +48,9 @@ class MistralChatGenerator(OpenAIChatGenerator):
 
      Input and Output Format:
          - **ChatMessage Format**: This component uses the ChatMessage format for structuring both input and output,
-           ensuring coherent and contextually relevant responses in chat-based text generation scenarios. Details on the
-           ChatMessage format can be found at: https://github.com/openai/openai-python/blob/main/chatml.md.
+           ensuring coherent and contextually relevant responses in chat-based text generation scenarios.
+           Details on the ChatMessage format can be found at: https://github.com/openai/openai-python/blob/main/chatml.md.
+           Note that the Mistral API does not accept `system` messages yet. You can use `user` and `assistant` messages.
     """
 
     def __init__(
@@ -69,7 +70,8 @@ class MistralChatGenerator(OpenAIChatGenerator):
         :param model: The name of the Mistral chat completion model to use.
         :param streaming_callback: A callback function that is called when a new token is received from the stream.
             The callback function accepts StreamingChunk as an argument.
-        :param api_base_url: The Mistral API Base url, defaults to `https://api.mistral.ai/v1`. For more details, see Mistral [docs](https://docs.mistral.ai/api/).
+        :param api_base_url: The Mistral API Base url, defaults to `https://api.mistral.ai/v1`.
+                             For more details, see Mistral [docs](https://docs.mistral.ai/api/).
         :param organization: Not yet supported with Mistral chat completion models
         :param generation_kwargs: Other parameters to use for the model. These parameters are all sent directly to
             the Mistrak endpoint. See [Mistral API docs](https://docs.mistral.ai/api/t) for
@@ -81,15 +83,12 @@ class MistralChatGenerator(OpenAIChatGenerator):
             - `top_p`: An alternative to sampling with temperature, called nucleus sampling, where the model
                 considers the results of the tokens with top_p probability mass. So 0.1 means only the tokens
                 comprising the top 10% probability mass are considered.
-            - `stream`: Whether to stream back partial progress. If set, tokens will be sent as data-only server-sent 
+            - `stream`: Whether to stream back partial progress. If set, tokens will be sent as data-only server-sent
                 events as they become available, with the stream terminated by a data: [DONE] message.
             - `stop`: One or more sequences after which the LLM should stop generating tokens.
             - `safe_prompt`: Whether to inject a safety prompt before all conversations.
-            - `random_seed`: The seed to use for random sampling. If set, different calls will generate deterministic results.
-        """ 
-        super(MistralChatGenerator, self).__init__(api_key,
-                                                   model,
-                                                   streaming_callback,
-                                                   api_base_url,
-                                                   organization,
-                                                   generation_kwargs)
+            - `random_seed`: The seed to use for random sampling.
+        """
+        super().__init__(
+            api_key, model, streaming_callback, api_base_url, organization, generation_kwargs
+        )
