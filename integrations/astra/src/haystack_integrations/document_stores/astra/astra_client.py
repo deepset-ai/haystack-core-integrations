@@ -32,30 +32,26 @@ class AstraClient:
 
     def __init__(
         self,
-        astra_id: str,
-        astra_region: str,
-        astra_application_token: str,
+        api_endpoint: str,
+        token: str,
         keyspace_name: str,
         collection_name: str,
         embedding_dim: int,
         similarity_function: str,
     ):
-        self.astra_id = astra_id
-        self.astra_application_token = astra_application_token
-        self.astra_region = astra_region
+        self.api_endpoint = api_endpoint
+        self.token = token
         self.keyspace_name = keyspace_name
         self.collection_name = collection_name
         self.embedding_dim = embedding_dim
         self.similarity_function = similarity_function
 
-        self.request_url = f"https://{self.astra_id}-{self.astra_region}.apps.astra.datastax.com/api/json/v1/{self.keyspace_name}/{self.collection_name}"
+        self.request_url = f"{self.api_endpoint}/api/json/v1/{self.keyspace_name}/{self.collection_name}"
         self.request_header = {
-            "x-cassandra-token": self.astra_application_token,
+            "x-cassandra-token": self.token,
             "Content-Type": "application/json",
         }
-        self.create_url = (
-            f"https://{self.astra_id}-{self.astra_region}.apps.astra.datastax.com/api/json/v1/{self.keyspace_name}"
-        )
+        self.create_url = f"{self.api_endpoint}/api/json/v1/{self.keyspace_name}"
 
         index_exists = self.find_index()
         if not index_exists:
@@ -198,7 +194,9 @@ class AstraClient:
                 yield batch
 
         for id_batch in batch_generator(ids, batch_size):
-            document_batch.extend(self.find_documents({"filter": {"_id": {"$in": id_batch}}}))
+            docs = self.find_documents({"filter": {"_id": {"$in": id_batch}}})
+            if docs:
+                document_batch.extend(docs)
         formatted_docs = self._format_query_response(document_batch, include_metadata=True, include_values=True)
         return formatted_docs
 
