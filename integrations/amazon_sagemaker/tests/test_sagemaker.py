@@ -1,105 +1,83 @@
 import os
+import pytest
+
+from haystack_integrations.components.generators.amazon_sagemaker import SagemakerGenerator
+from haystack.utils.auth import EnvVarSecret
+
 from unittest.mock import Mock
 
-import pytest
-from haystack_integrations.components.generators.amazon_sagemaker import SagemakerGenerator
-from haystack_integrations.components.generators.amazon_sagemaker.errors import AWSConfigurationError
+mocked_dict = {
+    "type": "haystack_integrations.components.generators.amazon_sagemaker.sagemaker.SagemakerGenerator",
+    "init_parameters": {
+        "model": "model",
+        "aws_access_key_id": {"type": "env_var", "env_vars": ["AWS_ACCESS_KEY_ID"], "strict": False},
+        "aws_secret_access_key": {"type": "env_var", "env_vars": ["AWS_SECRET_ACCESS_KEY"], "strict": False},
+        "aws_session_token": {"type": "env_var", "env_vars": ["AWS_SESSION_TOKEN"], "strict": False},
+        "aws_region_name": {"type": "env_var", "env_vars": ["AWS_DEFAULT_REGION"], "strict": False},
+        "aws_profile_name": {"type": "env_var", "env_vars": ["AWS_PROFILE"], "strict": False},
+        "aws_custom_attributes": {"accept_eula": True},
+        "generation_kwargs": {"max_new_tokens": 10},
+    },
+}
+
+
+@pytest.mark.unit
+@pytest.mark.usefixtures("set_env_variables", "mock_boto3_session")
+def test_to_dict():
+    """
+    Test that the to_dict method returns the correct dictionary without aws credentials
+    """
+
+    generator = SagemakerGenerator(
+        model="model",
+        generation_kwargs={"max_new_tokens": 10},
+        aws_custom_attributes={"accept_eula": True},
+    )
+    assert generator.to_dict() == mocked_dict
+
+
+@pytest.mark.unit
+@pytest.mark.usefixtures("set_env_variables", "mock_boto3_session")
+def test_from_dict():
+    """
+    Test that the from_dict method returns the correct object
+    """
+
+    generator = SagemakerGenerator.from_dict(mocked_dict)
+    assert generator.model == "model"
+    assert isinstance(generator.aws_access_key_id, EnvVarSecret)
+
+
+@pytest.mark.unit
+@pytest.mark.usefixtures("set_env_variables", "mock_boto3_session")
+def test_default_constructor(mock_boto3_session):
+    """
+    Test that the default constructor sets the correct values
+    """
+
+    generator = SagemakerGenerator(
+        model="test-model",
+    )
+
+    assert generator.generation_kwargs == {"max_new_tokens": 1024}
+    assert generator.model == "test-model"
+
+    # assert mocked boto3 client called exactly once
+    mock_boto3_session.assert_called_once()
+
+    assert generator.client is not None
+
+    # assert mocked boto3 client was called with the correct parameters
+    mock_boto3_session.assert_called_with(
+        aws_access_key_id="some_fake_id",
+        aws_secret_access_key="some_fake_key",
+        aws_session_token="some_fake_token",
+        profile_name="some_fake_profile",
+        region_name="fake_region",
+    )
 
 
 class TestSagemakerGenerator:
-    def test_init_default(self, monkeypatch):
-        monkeypatch.setenv("AWS_ACCESS_KEY_ID", "test-access-key")
-        monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "test-secret-key")
-
-        component = SagemakerGenerator(model="test-model")
-        assert component.model == "test-model"
-        assert component.aws_access_key_id_var == "AWS_ACCESS_KEY_ID"
-        assert component.aws_secret_access_key_var == "AWS_SECRET_ACCESS_KEY"
-        assert component.aws_session_token_var == "AWS_SESSION_TOKEN"
-        assert component.aws_region_name_var == "AWS_REGION"
-        assert component.aws_profile_name_var == "AWS_PROFILE"
-        assert component.aws_custom_attributes == {}
-        assert component.generation_kwargs == {"max_new_tokens": 1024}
-        assert component.client is None
-
-    def test_init_fail_wo_access_key_or_secret_key(self, monkeypatch):
-        monkeypatch.delenv("AWS_ACCESS_KEY_ID", raising=False)
-        monkeypatch.delenv("AWS_SECRET_ACCESS_KEY", raising=False)
-        with pytest.raises(AWSConfigurationError):
-            SagemakerGenerator(model="test-model")
-
-        monkeypatch.setenv("AWS_ACCESS_KEY_ID", "test-access-key")
-        monkeypatch.delenv("AWS_SECRET_ACCESS_KEY", raising=False)
-        with pytest.raises(AWSConfigurationError):
-            SagemakerGenerator(model="test-model")
-
-        monkeypatch.delenv("AWS_ACCESS_KEY_ID", raising=False)
-        monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "test-secret-key")
-        with pytest.raises(AWSConfigurationError):
-            SagemakerGenerator(model="test-model")
-
-    def test_init_with_parameters(self, monkeypatch):
-        monkeypatch.setenv("MY_ACCESS_KEY_ID", "test-access-key")
-        monkeypatch.setenv("MY_SECRET_ACCESS_KEY", "test-secret-key")
-
-        component = SagemakerGenerator(
-            model="test-model",
-            aws_access_key_id_var="MY_ACCESS_KEY_ID",
-            aws_secret_access_key_var="MY_SECRET_ACCESS_KEY",
-            aws_session_token_var="MY_SESSION_TOKEN",
-            aws_region_name_var="MY_REGION",
-            aws_profile_name_var="MY_PROFILE",
-            aws_custom_attributes={"custom": "attr"},
-            generation_kwargs={"generation": "kwargs"},
-        )
-        assert component.model == "test-model"
-        assert component.aws_access_key_id_var == "MY_ACCESS_KEY_ID"
-        assert component.aws_secret_access_key_var == "MY_SECRET_ACCESS_KEY"
-        assert component.aws_session_token_var == "MY_SESSION_TOKEN"
-        assert component.aws_region_name_var == "MY_REGION"
-        assert component.aws_profile_name_var == "MY_PROFILE"
-        assert component.aws_custom_attributes == {"custom": "attr"}
-        assert component.generation_kwargs == {"generation": "kwargs"}
-        assert component.client is None
-
-    def test_to_from_dict(self, monkeypatch):
-        monkeypatch.setenv("MY_ACCESS_KEY_ID", "test-access-key")
-        monkeypatch.setenv("MY_SECRET_ACCESS_KEY", "test-secret-key")
-
-        component = SagemakerGenerator(
-            model="test-model",
-            aws_access_key_id_var="MY_ACCESS_KEY_ID",
-            aws_secret_access_key_var="MY_SECRET_ACCESS_KEY",
-            aws_session_token_var="MY_SESSION_TOKEN",
-            aws_region_name_var="MY_REGION",
-            aws_profile_name_var="MY_PROFILE",
-            aws_custom_attributes={"custom": "attr"},
-            generation_kwargs={"generation": "kwargs"},
-        )
-        serialized = component.to_dict()
-        assert serialized == {
-            "type": "haystack_integrations.components.generators.amazon_sagemaker.sagemaker.SagemakerGenerator",
-            "init_parameters": {
-                "model": "test-model",
-                "aws_access_key_id_var": "MY_ACCESS_KEY_ID",
-                "aws_secret_access_key_var": "MY_SECRET_ACCESS_KEY",
-                "aws_session_token_var": "MY_SESSION_TOKEN",
-                "aws_region_name_var": "MY_REGION",
-                "aws_profile_name_var": "MY_PROFILE",
-                "aws_custom_attributes": {"custom": "attr"},
-                "generation_kwargs": {"generation": "kwargs"},
-            },
-        }
-        deserialized = SagemakerGenerator.from_dict(serialized)
-        assert deserialized.model == "test-model"
-        assert deserialized.aws_access_key_id_var == "MY_ACCESS_KEY_ID"
-        assert deserialized.aws_secret_access_key_var == "MY_SECRET_ACCESS_KEY"
-        assert deserialized.aws_session_token_var == "MY_SESSION_TOKEN"
-        assert deserialized.aws_region_name_var == "MY_REGION"
-        assert deserialized.aws_profile_name_var == "MY_PROFILE"
-        assert deserialized.aws_custom_attributes == {"custom": "attr"}
-        assert deserialized.generation_kwargs == {"generation": "kwargs"}
-        assert deserialized.client is None
 
     def test_run_with_list_of_dictionaries(self, monkeypatch):
         monkeypatch.setenv("AWS_ACCESS_KEY_ID", "test-access-key")

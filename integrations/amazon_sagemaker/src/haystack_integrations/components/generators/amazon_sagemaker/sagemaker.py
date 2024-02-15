@@ -6,7 +6,7 @@ import boto3
 import requests
 from botocore.exceptions import BotoCoreError
 from haystack import component, default_from_dict, default_to_dict
-from haystack.utils import Secret
+from haystack.utils import Secret, deserialize_secrets_inplace
 
 from haystack_integrations.components.generators.amazon_sagemaker.errors import (
     AWSConfigurationError,
@@ -107,6 +107,11 @@ class SagemakerGenerator:
         self.model = model
         self.aws_custom_attributes = aws_custom_attributes or {}
         self.generation_kwargs = generation_kwargs or {"max_new_tokens": 1024}
+        self.aws_access_key_id = aws_access_key_id
+        self.aws_secret_access_key = aws_secret_access_key
+        self.aws_session_token = aws_session_token
+        self.aws_region_name = aws_region_name
+        self.aws_profile_name = aws_profile_name
 
         def resolve_secret(secret: Optional[Secret]) -> Optional[str]:
             return secret.resolve_value() if secret else None
@@ -140,6 +145,11 @@ class SagemakerGenerator:
         return default_to_dict(
             self,
             model=self.model,
+            aws_access_key_id=self.aws_access_key_id.to_dict() if self.aws_access_key_id else None,
+            aws_secret_access_key=self.aws_secret_access_key.to_dict() if self.aws_secret_access_key else None,
+            aws_session_token=self.aws_session_token.to_dict() if self.aws_session_token else None,
+            aws_region_name=self.aws_region_name.to_dict() if self.aws_region_name else None,
+            aws_profile_name=self.aws_profile_name.to_dict() if self.aws_profile_name else None,
             aws_custom_attributes=self.aws_custom_attributes,
             generation_kwargs=self.generation_kwargs,
         )
@@ -149,17 +159,11 @@ class SagemakerGenerator:
         """
         Deserialize the dictionary into an instance of SagemakerGenerator.
         """
+        deserialize_secrets_inplace(
+            data["init_parameters"],
+            ["aws_access_key_id", "aws_secret_access_key", "aws_session_token", "aws_region_name", "aws_profile_name"],
+        )
         return default_from_dict(cls, data)
-
-    @classmethod
-    def aws_configured(cls, **kwargs) -> bool:
-        """
-        Checks whether AWS configuration is provided.
-        :param kwargs: The kwargs passed down to the generator.
-        :return: True if AWS configuration is provided, False otherwise.
-        """
-        aws_config_provided = any(key in kwargs for key in AWS_CONFIGURATION_KEYS)
-        return aws_config_provided
 
     @classmethod
     def get_aws_session(
