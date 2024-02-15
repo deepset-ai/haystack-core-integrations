@@ -5,11 +5,11 @@ import logging
 import re
 from typing import Any, Dict, List, Optional, Union
 
-from haystack import default_to_dict, default_from_dict
-from haystack.utils import Secret, deserialize_secrets_inplace
+from haystack import default_from_dict, default_to_dict
 from haystack.dataclasses.document import Document
 from haystack.document_stores.errors import DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
+from haystack.utils import Secret, deserialize_secrets_inplace
 from haystack_integrations.document_stores.mongodb_atlas.filters import haystack_filters_to_mongo
 from pymongo import InsertOne, MongoClient, ReplaceOne, UpdateOne  # type: ignore
 from pymongo.driver_info import DriverInfo  # type: ignore
@@ -43,7 +43,7 @@ class MongoDBAtlasDocumentStore:
         if collection_name and not bool(re.match(r"^[a-zA-Z0-9\-_]+$", collection_name)):
             msg = f'Invalid collection name: "{collection_name}". It can only contain letters, numbers, -, or _.'
             raise ValueError(msg)
-        
+
         resolved_connection_string = mongo_connection_string.resolve_value()
         self.mongo_connection_string = mongo_connection_string
 
@@ -77,7 +77,7 @@ class MongoDBAtlasDocumentStore:
             collection_name=self.collection_name,
             recreate_collection=self.recreate_collection,
         )
-    
+
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "MongoDBAtlasDocumentStore":
         """

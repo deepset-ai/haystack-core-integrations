@@ -6,11 +6,11 @@ from unittest.mock import patch
 from uuid import uuid4
 
 import pytest
-from haystack.utils import Secret
 from haystack.dataclasses.document import ByteStream, Document
 from haystack.document_stores.errors import DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
 from haystack.testing.document_store import CountDocumentsTest, DeleteDocumentsTest, WriteDocumentsTest
+from haystack.utils import Secret
 from haystack_integrations.document_stores.mongodb_atlas import MongoDBAtlasDocumentStore
 from pandas import DataFrame
 
@@ -92,4 +92,4 @@ class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsT
         assert docstore.mongo_connection_string == Secret.from_env_var("MONGO_CONNECTION_STRING")
         assert docstore.database_name == "database_name"
         assert docstore.collection_name == "collection_name"
-        assert docstore.recreate_collection == True
+        assert docstore.recreate_collection
