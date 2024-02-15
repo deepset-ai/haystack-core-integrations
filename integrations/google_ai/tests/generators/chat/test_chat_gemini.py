@@ -51,7 +51,6 @@ def test_init(monkeypatch):
             safety_settings=safety_settings,
             tools=[tool],
         )
-    api_key = Secret.from_env_var("GOOGLE_API_KEY")
     mock_genai_configure.assert_called_once_with(api_key="test")
     assert gemini._model_name == "gemini-pro-vision"
     assert gemini._generation_config == generation_config
