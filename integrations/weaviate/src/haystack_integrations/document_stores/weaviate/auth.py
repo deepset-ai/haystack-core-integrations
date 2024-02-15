@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field, fields
-from typing import Any, Dict
+from typing import Any, Dict, Type
 
 from haystack.core.errors import DeserializationError
 from haystack.core.serialization import default_from_dict, default_to_dict
@@ -162,7 +162,7 @@ class AuthClientPassword(AuthCredentials):
 
 
 # This simplifies a bit how we handle deserialization of the auth credentials.
-_AUTH_CLASSES = {
+_AUTH_CLASSES: Dict[str, Type[AuthCredentials]] = {
     "haystack_integrations.document_stores.weaviate.auth.AuthClientCredentials": AuthClientCredentials,
     "haystack_integrations.document_stores.weaviate.auth.AuthClientPassword": AuthClientPassword,
     "haystack_integrations.document_stores.weaviate.auth.AuthBearerToken": AuthBearerToken,
