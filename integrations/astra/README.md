@@ -42,7 +42,7 @@ or
 
 ## Usage
 
-This package includes Astra Document Store and Astra Retriever classes that integrate with Haystack, allowing you to easily perform document retrieval or RAG with Astra, and include those functions in Haystack pipelines.
+This package includes Astra Document Store and Astra Embedding Retriever classes that integrate with Haystack, allowing you to easily perform document retrieval or RAG with Astra, and include those functions in Haystack pipelines.
 
 ### In order to use the Document Store directly:
 
@@ -78,7 +78,7 @@ document_store = AstraDocumentStore(
 Then you can use the document store functions like count_document below:
 `document_store.count_documents()`
 
-### Using the Astra Retriever with Haystack Pipelines
+### Using the Astra Embedding Retriever with Haystack Pipelines
 
 Create the Document Store object like above, then import and create the Pipeline:
 
@@ -87,8 +87,8 @@ from haystack.preview import Pipeline
 pipeline = Pipeline()
 ```
 
-Add your AstraRetriever into the pipeline
-`pipeline.add_component(instance=AstraSingleRetriever(document_store=document_store), name="retriever")`
+Add your AstraEmbeddingRetriever into the pipeline
+`pipeline.add_component(instance=AstraEmbeddingRetriever(document_store=document_store), name="retriever")`
 
 Add other components and connect them as desired. Then run your pipeline:
 `pipeline.run(...)`

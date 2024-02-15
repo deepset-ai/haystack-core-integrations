@@ -49,6 +49,7 @@ git_describe_command = 'git describe --tags --match="integrations/google_ai-v[0-
 dependencies = [
   "coverage[toml]>=6.5",
   "pytest",
+  "haystack-pydoc-tools",
 ]
 [tool.hatch.envs.default.scripts]
 test = "pytest {args:tests}"
@@ -61,7 +62,9 @@ cov = [
   "test-cov",
   "cov-report",
 ]
-
+docs = [
+  "pydoc-markdown pydoc/config.yml"
+]
 [[tool.hatch.envs.all.matrix]]
 python = ["3.7", "3.8", "3.9", "3.10", "3.11"]
 

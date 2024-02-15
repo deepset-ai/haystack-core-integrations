@@ -8,7 +8,7 @@ on:
   pull_request:
     paths:
       - "integrations/unstructured/**"
-      - ".github/workflows/unstructured.yml"  
+      - ".github/workflows/unstructured.yml"     
 
 concurrency:
   group: unstructured-${{ github.head_ref }}
@@ -27,18 +27,23 @@ jobs:
       matrix:
         os: [ubuntu-latest]
         python-version: ["3.8", "3.9", "3.10", "3.11"]
-    services:
-      unstructured-api:
-        image: "quay.io/unstructured-io/unstructured-api:latest"
-        ports:
-          - 8000:8000
-        options: >-
-          --health-cmd "curl --fail http://localhost:8000/healthcheck || exit 1"
-          --health-interval 10s
-          --health-timeout 1s
-          --health-retries 10
 
     steps:
+      - name: Free up disk space
+        run: |
+          sudo docker image prune --all --force
+
+      - name: Run Unstructured API (docker)
+        run: |
+          docker run -d \
+            --name unstructured-api \
+            -p 8000:8000 \
+            --health-cmd "curl --fail http://localhost:8000/healthcheck || exit 1" \
+            --health-interval 10s \
+            --health-timeout 1s \
+            --health-retries 10 \
+            quay.io/unstructured-io/unstructured-api:latest       
+
       - uses: actions/checkout@v4
 
       - name: Set up Python ${{ matrix.python-version }}
@@ -54,6 +59,11 @@ jobs:
         if: matrix.python-version == '3.9'
         run: hatch run lint:all
 
+      - name: Generate docs
+        working-directory: integrations/unstructured
+        if: matrix.python-version == '3.9' && runner.os == 'Linux'
+        run: hatch run docs
+
       - name: Run tests
-        working-directory: integrations/unstructured      
+        working-directory: integrations/unstructured  
         run: hatch run cov

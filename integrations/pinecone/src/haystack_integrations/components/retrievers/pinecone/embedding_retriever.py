@@ -10,7 +10,7 @@ from haystack_integrations.document_stores.pinecone import PineconeDocumentStore
 
 
 @component
-class PineconeDenseRetriever:
+class PineconeEmbeddingRetriever:
     """
     Retrieves documents from the PineconeDocumentStore, based on their dense embeddings.
 
@@ -25,7 +25,7 @@ class PineconeDenseRetriever:
         top_k: int = 10,
     ):
         """
-        Create the PineconeDenseRetriever component.
+        Create the PineconeEmbeddingRetriever component.
 
         :param document_store: An instance of PineconeDocumentStore.
         :param filters: Filters applied to the retrieved Documents. Defaults to None.
@@ -50,7 +50,7 @@ class PineconeDenseRetriever:
         )
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "PineconeDenseRetriever":
+    def from_dict(cls, data: Dict[str, Any]) -> "PineconeEmbeddingRetriever":
         data["init_parameters"]["document_store"] = default_from_dict(
             PineconeDocumentStore, data["init_parameters"]["document_store"]
         )

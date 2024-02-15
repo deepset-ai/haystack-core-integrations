@@ -7,7 +7,7 @@ from unittest.mock import patch
 import pytest
 from haystack import DeserializationError
 
-from haystack_integrations.components.evaluators import UpTrainEvaluator, UpTrainMetric
+from haystack_integrations.components.evaluators.uptrain import UpTrainEvaluator, UpTrainMetric
 from haystack.utils import Secret
 
 DEFAULT_QUESTIONS = [

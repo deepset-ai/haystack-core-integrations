@@ -123,7 +123,6 @@ class TestUnstructuredFileConverter:
         )
 
         documents = local_converter.run(paths=[pdf_path], meta=meta)["documents"]
-
         assert len(documents) == 4
         for i, doc in enumerate(documents, start=1):
             assert doc.meta["file_path"] == str(pdf_path)
@@ -142,6 +141,7 @@ class TestUnstructuredFileConverter:
         documents = local_converter.run(paths=[pdf_path], meta=meta)["documents"]
 
         assert len(documents) > 4
+        first_element_index = 0
         for doc in documents:
             assert doc.meta["file_path"] == str(pdf_path)
             assert "page_number" in doc.meta
@@ -150,6 +150,8 @@ class TestUnstructuredFileConverter:
             assert "category" in doc.meta
             assert "custom_meta" in doc.meta
             assert doc.meta["custom_meta"] == "foobar"
+            assert doc.meta["element_index"] == first_element_index
+            first_element_index += 1
 
     @pytest.mark.integration
     def test_run_one_doc_per_element_with_meta_list_two_files(self, samples_path):
