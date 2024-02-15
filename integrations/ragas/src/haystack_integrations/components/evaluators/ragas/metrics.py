@@ -114,8 +114,6 @@ class MetricDescriptor:
         The metric.
     :param backend:
         The associated Ragas metric class.
-    :param metric_params_validator:
-        Callable that validates metric parameters.
     :param input_parameters:
         Parameters accepted by the metric. This is used
         to set the input types of the evaluator component.
@@ -133,7 +131,6 @@ class MetricDescriptor:
     input_parameters: Dict[str, Type]
     input_converter: Callable[[Any], Iterable[Dict[str, str]]]
     output_converter: Callable[[Result, RagasMetric, Dict[str, Any]], List[MetricResult]]
-    metric_params_validator: Callable[[RagasMetric, List[str], Dict[str, Any]], None]
     init_parameters: Optional[List[str]] = None
 
     @classmethod
@@ -143,7 +140,6 @@ class MetricDescriptor:
         backend: Type[Metric],
         input_converter: Callable[[Any], Iterable[Dict[str, str]]],
         output_converter: Optional[Callable[[Result, RagasMetric, Dict[str, Any]], List[MetricResult]]] = None,
-        metric_params_validator: Optional[Callable[[RagasMetric, List[str], Dict[str, Any]], None]] = None,
         *,
         init_parameters: Optional[List[str]] = None,
     ) -> "MetricDescriptor":
@@ -162,16 +158,11 @@ class MetricDescriptor:
             input_parameters=input_parameters,
             input_converter=input_converter,
             output_converter=output_converter if output_converter is not None else OutputConverters.default,
-            metric_params_validator=(
-                metric_params_validator
-                if metric_params_validator is not None
-                else MetricParamsValidators.validate_metric_parameters
-            ),
             init_parameters=init_parameters,
         )
 
 
-class MetricParamsValidators:
+class MetricParamsValidator:
     """
     Validates metric parameters.
 

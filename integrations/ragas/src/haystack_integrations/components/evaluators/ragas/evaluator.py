@@ -11,6 +11,7 @@ from ragas.metrics.base import Metric  # type: ignore
 from .metrics import (
     METRIC_DESCRIPTORS,
     InputConverters,
+    MetricParamsValidator,
     OutputConverters,
     RagasMetric,
 )
@@ -61,7 +62,9 @@ class RagasEvaluator:
         self._backend_callable = RagasEvaluator._invoke_evaluate
 
     def _init_metric(self):
-        self.descriptor.metric_params_validator(self.metric, self.descriptor.init_parameters, self.metric_params)
+        MetricParamsValidator.validate_metric_parameters(
+            self.metric, self.descriptor.init_parameters, self.metric_params
+        )
         self._backend_metric = self.descriptor.backend(**self.metric_params)
 
     @staticmethod
