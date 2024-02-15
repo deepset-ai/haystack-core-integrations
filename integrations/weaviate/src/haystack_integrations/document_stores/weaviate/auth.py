@@ -23,8 +23,12 @@ class AuthCredentials(ABC):
         """
         Converts the object to a dictionary representation for serialization.
         """
-        # We assume all fields are Secret instances
-        _fields = {f.name: getattr(self, f.name).to_dict() for f in fields(self)}
+        _fields = {}
+        for field in fields(self):
+            if field.type is Secret:
+                _fields[field.name] = getattr(self, field.name).to_dict()
+            else:
+                _fields[field.name] = getattr(self, field.name)
 
         return default_to_dict(
             self,
@@ -80,30 +84,27 @@ class AuthBearerToken(AuthCredentials):
     """
     AuthCredentials for Bearer token authentication.
     By default it will load `access_token` from the environment variable `WEAVIATE_ACCESS_TOKEN`,
-    `expires_in` from the environment variable `WEAVIATE_EXPIRES_IN`, and `refresh_token` from the environment variable
+    and `refresh_token` from the environment variable
     `WEAVIATE_REFRESH_TOKEN`.
-    `WEAVIATE_EXPIRES_IN` environment variable is optional, if set must be an integer.
     `WEAVIATE_REFRESH_TOKEN` environment variable is optional.
     """
 
     access_token: Secret = field(default_factory=lambda: Secret.from_env_var(["WEAVIATE_ACCESS_TOKEN"]))
-    expires_in: Secret = field(default_factory=lambda: Secret.from_env_var(["WEAVIATE_EXPIRES_IN"], strict=False))
+    expires_in: int = field(default=60)
     refresh_token: Secret = field(default_factory=lambda: Secret.from_env_var(["WEAVIATE_REFRESH_TOKEN"], strict=False))
 
     @classmethod
     def _from_dict(cls, data: Dict[str, Any]) -> "AuthBearerToken":
-        deserialize_secrets_inplace(data["init_parameters"], ["access_token", "expires_in", "refresh_token"])
+        deserialize_secrets_inplace(data["init_parameters"], ["access_token", "refresh_token"])
         return default_from_dict(cls, data)
 
     def resolve_value(self) -> WeaviateAuthBearerToken:
         access_token = self.access_token.resolve_value()
-        expires_in = self.expires_in.resolve_value()
         refresh_token = self.refresh_token.resolve_value()
-        expires_in = int(expires_in) if expires_in else 60
 
         return WeaviateAuthBearerToken(
             access_token=access_token,
-            expires_in=expires_in,
+            expires_in=self.expires_in,
             refresh_token=refresh_token,
         )
 

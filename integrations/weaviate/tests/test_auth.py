@@ -49,8 +49,7 @@ class TestAuthBearerToken:
         credentials = AuthBearerToken()
         assert credentials.access_token._env_vars == ["WEAVIATE_ACCESS_TOKEN"]
         assert credentials.access_token._strict
-        assert credentials.expires_in._env_vars == ["WEAVIATE_EXPIRES_IN"]
-        assert not credentials.expires_in._strict
+        assert credentials.expires_in == 60
         assert credentials.refresh_token._env_vars == ["WEAVIATE_REFRESH_TOKEN"]
         assert not credentials.refresh_token._strict
 
@@ -60,7 +59,7 @@ class TestAuthBearerToken:
             "type": "haystack_integrations.document_stores.weaviate.auth.AuthBearerToken",
             "init_parameters": {
                 "access_token": {"env_vars": ["WEAVIATE_ACCESS_TOKEN"], "strict": True, "type": "env_var"},
-                "expires_in": {"env_vars": ["WEAVIATE_EXPIRES_IN"], "strict": False, "type": "env_var"},
+                "expires_in": 60,
                 "refresh_token": {"env_vars": ["WEAVIATE_REFRESH_TOKEN"], "strict": False, "type": "env_var"},
             },
         }
@@ -71,23 +70,21 @@ class TestAuthBearerToken:
                 "type": "haystack_integrations.document_stores.weaviate.auth.AuthBearerToken",
                 "init_parameters": {
                     "access_token": {"env_vars": ["WEAVIATE_ACCESS_TOKEN"], "strict": True, "type": "env_var"},
-                    "expires_in": {"env_vars": ["WEAVIATE_EXPIRES_IN"], "strict": False, "type": "env_var"},
+                    "expires_in": 10,
                     "refresh_token": {"env_vars": ["WEAVIATE_REFRESH_TOKEN"], "strict": False, "type": "env_var"},
                 },
             }
         )
         assert credentials.access_token._env_vars == ["WEAVIATE_ACCESS_TOKEN"]
         assert credentials.access_token._strict
-        assert credentials.expires_in._env_vars == ["WEAVIATE_EXPIRES_IN"]
-        assert not credentials.expires_in._strict
+        assert credentials.expires_in == 10
         assert credentials.refresh_token._env_vars == ["WEAVIATE_REFRESH_TOKEN"]
         assert not credentials.refresh_token._strict
 
     def test_resolve_value(self, monkeypatch):
         monkeypatch.setenv("WEAVIATE_ACCESS_TOKEN", "fake_key")
-        monkeypatch.setenv("WEAVIATE_EXPIRES_IN", "10")
         monkeypatch.setenv("WEAVIATE_REFRESH_TOKEN", "fake_refresh_token")
-        credentials = AuthBearerToken()
+        credentials = AuthBearerToken(expires_in=10)
         resolved = credentials.resolve_value()
         assert isinstance(resolved, WeaviateAuthBearerToken)
         assert resolved.access_token == "fake_key"
