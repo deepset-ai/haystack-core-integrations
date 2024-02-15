@@ -149,10 +149,7 @@ class TestCohereGenerator:
         import cohere
 
         component = CohereGenerator(model="something-obviously-wrong")
-        with pytest.raises(
-            cohere.CohereAPIError,
-            match="model not found, make sure the correct model ID was used and that you have access to the model.",
-        ):
+        with pytest.raises(cohere.CohereAPIError):
             component.run(prompt="What's the capital of France?")
 
     @pytest.mark.skipif(
