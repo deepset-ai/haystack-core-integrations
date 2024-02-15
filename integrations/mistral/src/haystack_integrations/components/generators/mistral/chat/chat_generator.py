@@ -89,6 +89,6 @@ class MistralChatGenerator(OpenAIChatGenerator):
             - `safe_prompt`: Whether to inject a safety prompt before all conversations.
             - `random_seed`: The seed to use for random sampling.
         """
-        super().__init__(
+        super(MistralChatGenerator, self).__init__(
             api_key, model, streaming_callback, api_base_url, organization, generation_kwargs
         )
