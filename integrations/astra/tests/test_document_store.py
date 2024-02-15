@@ -22,6 +22,15 @@ class TestDocumentStore(DocumentStoreBaseTests):
     you can add more to this class.
     """
 
+    @pytest.fixture
+    def document_store(self) -> AstraDocumentStore:
+        return AstraDocumentStore(
+            astra_keyspace="astra_haystack_test",
+            astra_collection="haystack_integration",
+            duplicates_policy=DuplicatePolicy.OVERWRITE,
+            embedding_dim=768,
+        )
+
     @pytest.fixture(autouse=True)
     def run_before_and_after_tests(self, document_store: AstraDocumentStore):
         """
