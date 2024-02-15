@@ -224,7 +224,7 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
                     ],
                 },
                 "auth_client_secret": {
-                    "type": "haystack_integrations.document_stores.weaviate.auth.AuthApiKey",
+                    "type": "api_key",
                     "init_parameters": {
                         "api_key": {"env_vars": ["WEAVIATE_API_KEY"], "strict": True, "type": "env_var"}
                     },
@@ -263,7 +263,7 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
                     "url": "http://localhost:8080",
                     "collection_settings": None,
                     "auth_client_secret": {
-                        "type": "haystack_integrations.document_stores.weaviate.auth.AuthApiKey",
+                        "type": "api_key",
                         "init_parameters": {
                             "api_key": {"env_vars": ["WEAVIATE_API_KEY"], "strict": True, "type": "env_var"}
                         },
