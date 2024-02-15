@@ -114,6 +114,8 @@ class MetricDescriptor:
         The metric.
     :param backend:
         The associated Ragas metric class.
+    :param metric_params_validator:
+        Callable that validates metric parameters.
     :param input_parameters:
         Parameters accepted by the metric. This is used
         to set the input types of the evaluator component.
@@ -123,27 +125,27 @@ class MetricDescriptor:
         Callable that converts the Ragas output format to our output format.
         Accepts a single output parameter and returns a list of results derived from it.
     :param init_parameters:
-        Additional parameters that need to be passed to the metric class during initialization.
+        Additional parameters that are allowed to be passed to the metric class during initialization.
     """
 
     metric: RagasMetric
     backend: Type[Metric]
-    input_validator: Callable[[Any], None]
     input_parameters: Dict[str, Type]
     input_converter: Callable[[Any], Iterable[Dict[str, str]]]
     output_converter: Callable[[Result, RagasMetric, Dict[str, Any]], List[MetricResult]]
-    init_parameters: Optional[Dict[str, Type[Any]]] = None
+    metric_params_validator: Callable[[RagasMetric, List[str], Dict[str, Any]], None]
+    init_parameters: Optional[List[str]] = None
 
     @classmethod
     def new(
         cls,
         metric: RagasMetric,
         backend: Type[Metric],
-        input_validator,
         input_converter: Callable[[Any], Iterable[Dict[str, str]]],
         output_converter: Optional[Callable[[Result, RagasMetric, Dict[str, Any]], List[MetricResult]]] = None,
+        metric_params_validator: Optional[Callable[[RagasMetric, List[str], Dict[str, Any]], None]] = None,
         *,
-        init_parameters: Optional[Dict[str, Type]] = None,
+        init_parameters: Optional[List[str]] = None,
     ) -> "MetricDescriptor":
         input_converter_signature = inspect.signature(input_converter)
         input_parameters = {}
@@ -157,47 +159,32 @@ class MetricDescriptor:
         return cls(
             metric=metric,
             backend=backend,
-            input_validator=input_validator,
             input_parameters=input_parameters,
             input_converter=input_converter,
             output_converter=output_converter if output_converter is not None else OutputConverters.default,
+            metric_params_validator=(
+                metric_params_validator
+                if metric_params_validator is not None
+                else MetricParamsValidators.validate_metric_parameters
+            ),
             init_parameters=init_parameters,
         )
 
 
-class InputValidators:
+class MetricParamsValidators:
     """
-    Validates for input parameters.
+    Validates metric parameters.
 
-    The signature of the converter functions serves as the ground-truth of the
-    expected input parameters of a given metric. They are also responsible for validating
-    the input parameters and converting them to the format expected by Ragas.
+    Depending on the metric type, different metric parameters are allowed.
+    The validator functions are responsible for validating the parameters and raising an error if they are invalid.
     """
 
     @staticmethod
-    def validate_empty_metric_parameters(metric: RagasMetric, metric_params: Dict[str, Any]) -> None:
-        if metric_params:
-            msg = f"Unexpected init parameters '{metric_params}' for metric '{metric}'."
-            raise ValueError(msg)
-
-    @staticmethod
-    def validate_aspect_critique_parameters(metric: RagasMetric, metric_params: Dict[str, Any]) -> None:
-        if not metric_params:
+    def validate_metric_parameters(metric: RagasMetric, allowed: List[str], received: Dict[str, Any]) -> None:
+        if not set(received).issubset(allowed):
             msg = (
                 f"Invalid init parameters for Ragas metric '{metric}'. "
-                f"Expected metric parameters describing the aspect to critique but got none."
-            )
-            raise ValueError(msg)
-        if "name" in metric_params and "definition" not in metric_params:
-            msg = (
-                f"Invalid init parameters for Ragas metric '{metric}'. "
-                f"If a name of a custom aspect is provided, a definition must be provided as well."
-            )
-            raise ValueError(msg)
-        elif "definition" in metric_params and "name" not in metric_params:
-            msg = (
-                f"Invalid init parameters for Ragas metric '{metric}'. "
-                f"If a definition of a custom aspect is provided, a name must be provided as well."
+                f"Allowed metric parameters {allowed} but got '{received}'"
             )
             raise ValueError(msg)
 
@@ -324,56 +311,56 @@ METRIC_DESCRIPTORS = {
     RagasMetric.ANSWER_CORRECTNESS: MetricDescriptor.new(
         RagasMetric.ANSWER_CORRECTNESS,
         AnswerCorrectness,
-        InputValidators.validate_empty_metric_parameters,
         InputConverters.question_response_ground_truth,  # type: ignore
+        init_parameters=["name", "weights", "answer_similarity"],
     ),
     RagasMetric.FAITHFULNESS: MetricDescriptor.new(
         RagasMetric.FAITHFULNESS,
         Faithfulness,
-        InputValidators.validate_empty_metric_parameters,
         InputConverters.question_context_response,  # type: ignore
+        init_parameters=["name"],
     ),
     RagasMetric.ANSWER_SIMILARITY: MetricDescriptor.new(
         RagasMetric.ANSWER_SIMILARITY,
         AnswerSimilarity,
-        InputValidators.validate_empty_metric_parameters,
         InputConverters.response_ground_truth,  # type: ignore
+        init_parameters=["name", "model_name", "threshold"],
     ),
     RagasMetric.CONTEXT_PRECISION: MetricDescriptor.new(
         RagasMetric.CONTEXT_PRECISION,
         ContextPrecision,
-        InputValidators.validate_empty_metric_parameters,
         InputConverters.question_context_ground_truth,  # type: ignore
+        init_parameters=["name"],
     ),
     RagasMetric.CONTEXT_UTILIZATION: MetricDescriptor.new(
         RagasMetric.CONTEXT_UTILIZATION,
         ContextUtilization,
-        InputValidators.validate_empty_metric_parameters,
         InputConverters.question_context_response,  # type: ignore
+        init_parameters=["name"],
     ),
     RagasMetric.CONTEXT_RECALL: MetricDescriptor.new(
         RagasMetric.CONTEXT_RECALL,
         ContextRecall,
-        InputValidators.validate_empty_metric_parameters,
         InputConverters.question_context_ground_truth,  # type: ignore
+        init_parameters=["name"],
     ),
     RagasMetric.ASPECT_CRITIQUE: MetricDescriptor.new(
         RagasMetric.ASPECT_CRITIQUE,
         AspectCritique,
-        InputValidators.validate_aspect_critique_parameters,
         InputConverters.question_context_response,  # type: ignore
         OutputConverters.aspect_critique,
+        init_parameters=["name", "definition", "strictness", "llm"],
     ),
     RagasMetric.CONTEXT_RELEVANCY: MetricDescriptor.new(
         RagasMetric.CONTEXT_RELEVANCY,
         ContextRelevancy,
-        InputValidators.validate_empty_metric_parameters,
         InputConverters.question_context,  # type: ignore
+        init_parameters=["name"],
     ),
     RagasMetric.ANSWER_RELEVANCY: MetricDescriptor.new(
         RagasMetric.ANSWER_RELEVANCY,
         AnswerRelevancy,
-        InputValidators.validate_empty_metric_parameters,
         InputConverters.question_context_response,  # type: ignore
+        init_parameters=["name", "strictness", "embeddings"],
     ),
 }

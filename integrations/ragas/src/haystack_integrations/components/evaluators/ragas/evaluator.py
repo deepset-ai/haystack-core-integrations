@@ -29,7 +29,7 @@ class RagasEvaluator:
 
     # Wrapped for easy mocking.
     _backend_callable: Callable
-    __backend_metric: Metric
+    _backend_metric: Metric
 
     def __init__(
         self,
@@ -61,8 +61,8 @@ class RagasEvaluator:
         self._backend_callable = RagasEvaluator._invoke_evaluate
 
     def _init_metric(self):
-        self.descriptor.input_validator(self.metric, self.metric_params)
-        self.__backend_metric = self.descriptor.backend(**self.metric_params)
+        self.descriptor.metric_params_validator(self.metric, self.descriptor.init_parameters, self.metric_params)
+        self._backend_metric = self.descriptor.backend(**self.metric_params)
 
     @staticmethod
     def _invoke_evaluate(dataset: Dataset, metric: Metric) -> Result:
@@ -99,7 +99,7 @@ class RagasEvaluator:
         converted_inputs: List[Dict[str, str]] = list(self.descriptor.input_converter(**inputs))  # type: ignore
 
         dataset = Dataset.from_list(converted_inputs)
-        results = self._backend_callable(dataset=dataset, metric=self.__backend_metric)
+        results = self._backend_callable(dataset=dataset, metric=self._backend_metric)
 
         OutputConverters.validate_outputs(results)
         converted_results = [

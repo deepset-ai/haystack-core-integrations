@@ -14,7 +14,7 @@ processors:
     do_not_filter_modules: false
     skip_empty_modules: true
   - type: filter
-    expression: "name not in ['MetricResult', 'MetricDescriptor', 'OutputConverters', 'InputConverters', 'METRIC_ASPECTS', 'METRIC_DESCRIPTORS']"
+    expression: "name not in ['InputConverters', 'MetricDescriptor', 'MetricParamsValidators', 'OutputConverters', 'METRIC_DESCRIPTORS']"
   - type: smart
   - type: crossref
 renderer:
