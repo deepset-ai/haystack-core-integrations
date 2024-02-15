@@ -151,8 +151,8 @@ known-first-party = ["haystack_integrations"]
 ban-relative-imports = "parents"
 
 [tool.ruff.per-file-ignores]
-# Tests can use magic values, assertions, and relative imports
-"tests/**/*" = ["PLR2004", "S101", "TID252"]
+# Tests can use magic values, assertions, relative imports, and unused fixtures
+"tests/**/*" = ["PLR2004", "S101", "TID252", "ARG002"]
 
 [tool.coverage.run]
 source_pkgs = ["src", "tests"]

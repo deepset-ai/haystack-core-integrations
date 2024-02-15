@@ -16,10 +16,7 @@ class GradientGenerator:
     See [Gradient AI API](https://docs.gradient.ai/docs/sdk-quickstart) for more details.
 
     ```python
-    llm = GradientGenerator(
-        access_token=gradient_access_token,
-        workspace_id=gradient_workspace_id,
-        base_model_slug="llama2-7b-chat")
+    llm = GradientGenerator(base_model_slug="llama2-7b-chat")
     llm.warm_up()
     print(llm.run(prompt="What is the meaning of life?"))
     # Output: {'replies': ['42']}

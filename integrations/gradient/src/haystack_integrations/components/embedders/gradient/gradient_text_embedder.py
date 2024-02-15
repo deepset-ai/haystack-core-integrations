@@ -41,7 +41,9 @@ class GradientTextEmbedder:
         self._access_token = access_token
         self._workspace_id = workspace_id
 
-        self._gradient = Gradient(access_token=access_token, host=host, workspace_id=workspace_id)
+        self._gradient = Gradient(
+            host=host, access_token=access_token.resolve_value(), workspace_id=workspace_id.resolve_value()
+        )
 
     def _get_telemetry_data(self) -> Dict[str, Any]:
         """
