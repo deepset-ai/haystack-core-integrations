@@ -45,12 +45,6 @@ class MongoDBAtlasDocumentStore:
             raise ValueError(msg)
         
         resolved_connection_string = mongo_connection_string.resolve_value()
-        if resolved_connection_string is None:
-            msg = (
-                "MongoDBAtlasDocumentStore expects an API key. "
-                "Set the MONGO_CONNECTION_STRING environment variable (recommended) or pass it explicitly."
-            )
-            raise ValueError(msg)
         self.mongo_connection_string = mongo_connection_string
 
         self.database_name = database_name
