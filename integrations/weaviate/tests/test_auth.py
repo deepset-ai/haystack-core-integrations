@@ -20,7 +20,7 @@ class TestAuthApiKey:
     def test_to_dict(self):
         credentials = AuthApiKey()
         assert credentials.to_dict() == {
-            "type": "haystack_integrations.document_stores.weaviate.auth.AuthApiKey",
+            "type": "api_key",
             "init_parameters": {"api_key": {"env_vars": ["WEAVIATE_API_KEY"], "strict": True, "type": "env_var"}},
         }
 
@@ -28,7 +28,7 @@ class TestAuthApiKey:
         monkeypatch.setenv("WEAVIATE_API_KEY", "fake_key")
         credentials = AuthCredentials.from_dict(
             {
-                "type": "haystack_integrations.document_stores.weaviate.auth.AuthApiKey",
+                "type": "api_key",
                 "init_parameters": {"api_key": {"env_vars": ["WEAVIATE_API_KEY"], "strict": True, "type": "env_var"}},
             }
         )
@@ -56,7 +56,7 @@ class TestAuthBearerToken:
     def test_to_dict(self):
         credentials = AuthBearerToken()
         assert credentials.to_dict() == {
-            "type": "haystack_integrations.document_stores.weaviate.auth.AuthBearerToken",
+            "type": "bearer",
             "init_parameters": {
                 "access_token": {"env_vars": ["WEAVIATE_ACCESS_TOKEN"], "strict": True, "type": "env_var"},
                 "expires_in": 60,
@@ -67,7 +67,7 @@ class TestAuthBearerToken:
     def test_from_dict(self):
         credentials = AuthCredentials.from_dict(
             {
-                "type": "haystack_integrations.document_stores.weaviate.auth.AuthBearerToken",
+                "type": "bearer",
                 "init_parameters": {
                     "access_token": {"env_vars": ["WEAVIATE_ACCESS_TOKEN"], "strict": True, "type": "env_var"},
                     "expires_in": 10,
@@ -103,7 +103,7 @@ class TestAuthClientCredentials:
     def test_to_dict(self):
         credentials = AuthClientCredentials()
         assert credentials.to_dict() == {
-            "type": "haystack_integrations.document_stores.weaviate.auth.AuthClientCredentials",
+            "type": "client_credentials",
             "init_parameters": {
                 "client_secret": {"env_vars": ["WEAVIATE_CLIENT_SECRET"], "strict": True, "type": "env_var"},
                 "scope": {"env_vars": ["WEAVIATE_SCOPE"], "strict": False, "type": "env_var"},
@@ -113,7 +113,7 @@ class TestAuthClientCredentials:
     def test_from_dict(self):
         credentials = AuthCredentials.from_dict(
             {
-                "type": "haystack_integrations.document_stores.weaviate.auth.AuthClientCredentials",
+                "type": "client_credentials",
                 "init_parameters": {
                     "client_secret": {"env_vars": ["WEAVIATE_CLIENT_SECRET"], "strict": True, "type": "env_var"},
                     "scope": {"env_vars": ["WEAVIATE_SCOPE"], "strict": False, "type": "env_var"},
@@ -148,7 +148,7 @@ class TestAuthClientPassword:
     def test_to_dict(self):
         credentials = AuthClientPassword()
         assert credentials.to_dict() == {
-            "type": "haystack_integrations.document_stores.weaviate.auth.AuthClientPassword",
+            "type": "client_password",
             "init_parameters": {
                 "username": {"env_vars": ["WEAVIATE_USERNAME"], "strict": True, "type": "env_var"},
                 "password": {"env_vars": ["WEAVIATE_PASSWORD"], "strict": True, "type": "env_var"},
@@ -159,7 +159,7 @@ class TestAuthClientPassword:
     def test_from_dict(self):
         credentials = AuthCredentials.from_dict(
             {
-                "type": "haystack_integrations.document_stores.weaviate.auth.AuthClientPassword",
+                "type": "client_password",
                 "init_parameters": {
                     "username": {"env_vars": ["WEAVIATE_USERNAME"], "strict": True, "type": "env_var"},
                     "password": {"env_vars": ["WEAVIATE_PASSWORD"], "strict": True, "type": "env_var"},
