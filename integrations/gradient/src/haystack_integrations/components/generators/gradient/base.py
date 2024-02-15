@@ -2,7 +2,9 @@ import logging
 from typing import Any, Dict, List, Optional
 
 from gradientai import Gradient
-from haystack import component, default_to_dict
+from haystack import component, default_to_dict, default_from_dict
+from haystack.utils import Secret, deserialize_secrets_inplace
+
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +28,7 @@ class GradientGenerator:
     def __init__(
         self,
         *,
-        access_token: Optional[str] = None,
+        access_token: Secret = Secret.from_env_var("GRADIENT_ACCESS_TOKEN"),  # noqa: B008
         base_model_slug: Optional[str] = None,
         host: Optional[str] = None,
         max_generated_token_count: Optional[int] = None,
@@ -34,7 +36,7 @@ class GradientGenerator:
         temperature: Optional[float] = None,
         top_k: Optional[int] = None,
         top_p: Optional[float] = None,
-        workspace_id: Optional[str] = None,
+        workspace_id: Secret = Secret.from_env_var("GRADIENT_WORKSPACE_ID"),  # noqa: B008
     ) -> None:
         """
         Create a GradientGenerator component.
@@ -76,7 +78,8 @@ class GradientGenerator:
         if has_model_adapter_id:
             self._model_adapter_id = model_adapter_id
 
-        self._gradient = Gradient(access_token=access_token, host=host, workspace_id=workspace_id)
+        self._gradient = Gradient(access_token=access_token.resolve_value(), host=host,
+                                  workspace_id=workspace_id.resolve_value())
 
     def to_dict(self) -> Dict[str, Any]:
         """
@@ -84,6 +87,7 @@ class GradientGenerator:
         """
         return default_to_dict(
             self,
+            access_token=self._access_token.to_dict(),
             base_model_slug=self._base_model_slug,
             host=self._host,
             max_generated_token_count=self._max_generated_token_count,
@@ -91,8 +95,16 @@ class GradientGenerator:
             temperature=self._temperature,
             top_k=self._top_k,
             top_p=self._top_p,
-            workspace_id=self._workspace_id,
+            workspace_id=self._workspace_id.to_dict(),
         )
+    
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "GradientGenerator":
+        """
+        Deserialize this component from a dictionary.
+        """
+        deserialize_secrets_inplace(data["init_parameters"], keys=["access_token", "workspace_id"])
+        return default_from_dict(cls, data)
 
     def warm_up(self):
         """

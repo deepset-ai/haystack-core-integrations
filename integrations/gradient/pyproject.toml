@@ -155,7 +155,7 @@ ban-relative-imports = "parents"
 "tests/**/*" = ["PLR2004", "S101", "TID252", "ARG002"]
 
 [tool.coverage.run]
-source_pkgs = ["src", "tests"]
+source = ["haystack_integrations"]
 branch = true
 parallel = true
 
@@ -164,6 +164,8 @@ gradient_haystack = ["src"]
 tests = ["tests", "*/gradient-haystack/tests"]
 
 [tool.coverage.report]
+omit = ["*/tests/*", "*/__init__.py"]
+show_missing=true
 exclude_lines = [
   "no cov",
   "if __name__ == .__main__.:",
