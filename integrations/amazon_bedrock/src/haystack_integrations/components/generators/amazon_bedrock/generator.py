@@ -6,7 +6,7 @@ from typing import Any, ClassVar, Dict, List, Optional, Type, Union
 import boto3
 from botocore.exceptions import BotoCoreError, ClientError
 from haystack import component, default_from_dict, default_to_dict
-from haystack.utils.auth import Secret
+from haystack.utils.auth import Secret, deserialize_secrets_inplace
 
 from .adapters import (
     AI21LabsJurassic2Adapter,
@@ -88,6 +88,11 @@ class AmazonBedrockGenerator:
             raise ValueError(msg)
         self.model = model
         self.max_length = max_length
+        self.aws_access_key_id = aws_access_key_id
+        self.aws_secret_access_key = aws_secret_access_key
+        self.aws_session_token = aws_session_token
+        self.aws_region_name = aws_region_name
+        self.aws_profile_name = aws_profile_name
 
         def resolve_secret(secret: Optional[Secret]) -> Optional[str]:
             return secret.resolve_value() if secret else None
@@ -303,6 +308,11 @@ class AmazonBedrockGenerator:
         """
         return default_to_dict(
             self,
+            aws_access_key_id=self.aws_access_key_id.to_dict() if self.aws_access_key_id else None,
+            aws_secret_access_key=self.aws_secret_access_key.to_dict() if self.aws_secret_access_key else None,
+            aws_session_token=self.aws_session_token.to_dict() if self.aws_session_token else None,
+            aws_region_name=self.aws_region_name.to_dict() if self.aws_region_name else None,
+            aws_profile_name=self.aws_profile_name.to_dict() if self.aws_profile_name else None,
             model=self.model,
             max_length=self.max_length,
         )
@@ -314,4 +324,8 @@ class AmazonBedrockGenerator:
         :param data: The dictionary representation of this component.
         :return: The deserialized component instance.
         """
+        deserialize_secrets_inplace(
+            data["init_parameters"],
+            ["aws_access_key_id", "aws_secret_access_key", "aws_session_token", "aws_region_name", "aws_profile_name"],
+        )
         return default_from_dict(cls, data)

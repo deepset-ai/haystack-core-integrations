@@ -1,4 +1,3 @@
-import os
 from typing import Optional, Type
 from unittest.mock import MagicMock, call, patch
 
@@ -30,6 +29,11 @@ def test_to_dict(mock_auto_tokenizer, mock_boto3_session, set_env_variables):
     expected_dict = {
         "type": "haystack_integrations.components.generators.amazon_bedrock.generator.AmazonBedrockGenerator",
         "init_parameters": {
+            "aws_access_key_id": {"type": "env_var", "env_vars": ["AWS_ACCESS_KEY_ID"], "strict": False},
+            "aws_secret_access_key": {"type": "env_var", "env_vars": ["AWS_SECRET_ACCESS_KEY"], "strict": False},
+            "aws_session_token": {"type": "env_var", "env_vars": ["AWS_SESSION_TOKEN"], "strict": False},
+            "aws_region_name": {"type": "env_var", "env_vars": ["AWS_DEFAULT_REGION"], "strict": False},
+            "aws_profile_name": {"type": "env_var", "env_vars": ["AWS_PROFILE"], "strict": False},
             "model": "anthropic.claude-v2",
             "max_length": 99,
         },
@@ -47,6 +51,11 @@ def test_from_dict(mock_auto_tokenizer, mock_boto3_session, set_env_variables):
         {
             "type": "haystack_integrations.components.generators.amazon_bedrock.generator.AmazonBedrockGenerator",
             "init_parameters": {
+                "aws_access_key_id": {"type": "env_var", "env_vars": ["AWS_ACCESS_KEY_ID"], "strict": False},
+                "aws_secret_access_key": {"type": "env_var", "env_vars": ["AWS_SECRET_ACCESS_KEY"], "strict": False},
+                "aws_session_token": {"type": "env_var", "env_vars": ["AWS_SESSION_TOKEN"], "strict": False},
+                "aws_region_name": {"type": "env_var", "env_vars": ["AWS_DEFAULT_REGION"], "strict": False},
+                "aws_profile_name": {"type": "env_var", "env_vars": ["AWS_PROFILE"], "strict": False},
                 "model": "anthropic.claude-v2",
                 "max_length": 99,
             },
@@ -58,16 +67,10 @@ def test_from_dict(mock_auto_tokenizer, mock_boto3_session, set_env_variables):
 
 
 @pytest.mark.unit
-def test_default_constructor(mock_auto_tokenizer, mock_boto3_session):
+def test_default_constructor(mock_auto_tokenizer, mock_boto3_session, set_env_variables):
     """
     Test that the default constructor sets the correct values
     """
-
-    os.environ["AWS_ACCESS_KEY_ID"] = "some_fake_id"
-    os.environ["AWS_SECRET_ACCESS_KEY"] = "some_fake_key"
-    os.environ["AWS_SESSION_TOKEN"] = "some_fake_token"
-    os.environ["AWS_DEFAULT_REGION"] = "fake_region"
-    os.environ["AWS_PROFILE"] = "some_fake_profile"
 
     layer = AmazonBedrockGenerator(
         model="anthropic.claude-v2",
