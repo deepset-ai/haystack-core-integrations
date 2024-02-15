@@ -3,14 +3,14 @@
 # SPDX-License-Identifier: Apache-2.0
 import io
 import logging
-import os
 from copy import copy
 from typing import Any, Dict, List, Optional
 
 import pandas as pd
-from haystack import default_to_dict
+from haystack import default_from_dict, default_to_dict
 from haystack.dataclasses import Document
 from haystack.document_stores.types import DuplicatePolicy
+from haystack.utils import Secret, deserialize_secrets_inplace
 from haystack.utils.filters import convert
 
 import pinecone
@@ -29,7 +29,7 @@ class PineconeDocumentStore:
     def __init__(
         self,
         *,
-        api_key: Optional[str] = None,
+        api_key: Secret = Secret.from_env_var("PINECONE_API_KEY"),  # noqa: B008
         environment: str = "us-west1-gcp",
         index: str = "default",
         namespace: str = "default",
@@ -58,15 +58,16 @@ class PineconeDocumentStore:
             [API reference](https://docs.pinecone.io/reference/create_index-1).
 
         """
-        api_key = api_key or os.environ.get("PINECONE_API_KEY")
-        if not api_key:
+        resolved_api_key = api_key.resolve_value()
+        if resolved_api_key is None:
             msg = (
                 "PineconeDocumentStore expects an API key. "
                 "Set the PINECONE_API_KEY environment variable (recommended) or pass it explicitly."
             )
             raise ValueError(msg)
+        self.api_key = api_key
 
-        pinecone.init(api_key=api_key, environment=environment)
+        pinecone.init(api_key=resolved_api_key, environment=environment)
 
         if index not in pinecone.list_indexes():
             logger.info(f"Index {index} does not exist. Creating a new index.")
@@ -92,9 +93,15 @@ class PineconeDocumentStore:
         self.batch_size = batch_size
         self.index_creation_kwargs = index_creation_kwargs
 
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "PineconeDocumentStore":
+        deserialize_secrets_inplace(data["init_parameters"], keys=["api_key"])
+        return default_from_dict(cls, data)
+
     def to_dict(self) -> Dict[str, Any]:
         return default_to_dict(
             self,
+            api_key=self.api_key.to_dict(),
             environment=self.environment,
             index=self.index,
             dimension=self.dimension,

@@ -62,7 +62,7 @@ documents = [
 ]
 p = Pipeline()
 p.add_component(
-    instance=SentenceTransformersDocumentEmbedder(model_name_or_path="sentence-transformers/all-MiniLM-L6-v2"),
+    instance=SentenceTransformersDocumentEmbedder(model="sentence-transformers/all-MiniLM-L6-v2"),
     name="embedder",
 )
 p.add_component(instance=DocumentWriter(document_store=document_store, policy=DuplicatePolicy.SKIP), name="writer")
@@ -74,7 +74,7 @@ p.run({"embedder": {"documents": documents}})
 # Construct rag pipeline
 rag_pipeline = Pipeline()
 rag_pipeline.add_component(
-    instance=SentenceTransformersTextEmbedder(model_name_or_path="sentence-transformers/all-MiniLM-L6-v2"),
+    instance=SentenceTransformersTextEmbedder(model="sentence-transformers/all-MiniLM-L6-v2"),
     name="embedder",
 )
 rag_pipeline.add_component(instance=AstraEmbeddingRetriever(document_store=document_store), name="retriever")

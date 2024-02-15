@@ -3,11 +3,11 @@ requires = ["hatchling", "hatch-vcs"]
 build-backend = "hatchling.build"
 
 [project]
-name = "google-ai-haystack"
+name = "mongodb-atlas-haystack"
 dynamic = ["version"]
-description = 'Use models like Gemini via Makersuite'
+description = "An integration of MongoDB Atlas with Haystack"
 readme = "README.md"
-requires-python = ">=3.7"
+requires-python = ">=3.8"
 license = "Apache-2.0"
 keywords = []
 authors = [
@@ -16,40 +16,41 @@ authors = [
 classifiers = [
   "Development Status :: 4 - Beta",
   "Programming Language :: Python",
-  "Programming Language :: Python :: 3.7",
   "Programming Language :: Python :: 3.8",
   "Programming Language :: Python :: 3.9",
   "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
 dependencies = [
- "haystack-ai",
- "google-generativeai>=0.3.1"
+  "haystack-ai>=2.0.0b6",
+  "pymongo[srv]",
 ]
 
 [project.urls]
-Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/google_ai_haystack#readme"
-Issues = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/google_ai_haystack/issues"
-Source = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/google_ai_haystack"
+Source = "https://github.com/deepset-ai/haystack-core-integrations"
+Documentation = "https://github.com/deepset-ai/haystack-core-integrations/blob/main/integrations/mongodb_atlas/README.md"
+Issues = "https://github.com/deepset-ai/haystack-core-integrations/issues"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/haystack_integrations"]
 
 [tool.hatch.version]
 source = "vcs"
-tag-pattern = 'integrations\/google_ai-v(?P<version>.*)'
+tag-pattern = 'integrations\/mongodb-atlas-v(?P<version>.*)'
 
 [tool.hatch.version.raw-options]
 root = "../.."
-git_describe_command = 'git describe --tags --match="integrations/google_ai-v[0-9]*"'
+git_describe_command = 'git describe --tags --match="integrations/mongodb-atlas-v[0-9]*"'
 
 [tool.hatch.envs.default]
 dependencies = [
   "coverage[toml]>=6.5",
   "pytest",
-  "haystack-pydoc-tools",
+  "ipython",
+  "haystack-pydoc-tools",  
 ]
 [tool.hatch.envs.default.scripts]
 test = "pytest {args:tests}"
@@ -65,8 +66,9 @@ cov = [
 docs = [
   "pydoc-markdown pydoc/config.yml"
 ]
+
 [[tool.hatch.envs.all.matrix]]
-python = ["3.7", "3.8", "3.9", "3.10", "3.11"]
+python = ["3.8", "3.9", "3.10", "3.11", "3.12"]
 
 [tool.hatch.envs.lint]
 detached = true
@@ -142,7 +144,7 @@ unfixable = [
 ]
 
 [tool.ruff.isort]
-known-first-party = ["haystack_integrations"]
+known-first-party = ["src"]
 
 [tool.ruff.flake8-tidy-imports]
 ban-relative-imports = "parents"
@@ -150,30 +152,31 @@ ban-relative-imports = "parents"
 [tool.ruff.per-file-ignores]
 # Tests can use magic values, assertions, and relative imports
 "tests/**/*" = ["PLR2004", "S101", "TID252"]
+# examples can contain "print" commands
+"examples/**/*" = ["T201"]
 
 [tool.coverage.run]
-source = ["haystack_integrations"]
+source_pkgs = ["src", "tests"]
 branch = true
 parallel = true
 
+
 [tool.coverage.paths]
-google_ai_haystack = ["src"]
-tests = ["tests"]
+tests = ["tests", "*/mongodb-atlas-haystack/tests"]
 
 [tool.coverage.report]
-omit = ["*/tests/*", "*/__init__.py"]
-show_missing=true
 exclude_lines = [
   "no cov",
   "if __name__ == .__main__.:",
   "if TYPE_CHECKING:",
 ]
+
 [[tool.mypy.overrides]]
 module = [
-  "google.*",
   "haystack.*",
   "haystack_integrations.*",
-  "pytest.*",
-  "numpy.*",
+  "mongodb_atlas.*",
+  "psycopg.*",
+  "pytest.*"
 ]
 ignore_missing_imports = true
