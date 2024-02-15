@@ -2,7 +2,8 @@ import logging
 from typing import Any, Dict, List, Optional
 
 from gradientai import Gradient
-from haystack import Document, component, default_to_dict
+from haystack import Document, component, default_from_dict, default_to_dict
+from haystack.utils import Secret, deserialize_secrets_inplace
 
 tqdm_imported: bool = True
 try:
@@ -21,14 +22,11 @@ def _alt_progress_bar(x: Any) -> Any:
 @component
 class GradientDocumentEmbedder:
     """
-    A component for computing Document embeddings using Gradient AI API..
+    A component for computing Document embeddings using Gradient AI API.
     The embedding of each Document is stored in the `embedding` field of the Document.
 
     ```python
-    embedder = GradientDocumentEmbedder(
-        access_token=gradient_access_token,
-        workspace_id=gradient_workspace_id,
-        model="bge_large"))
+    embedder = GradientDocumentEmbedder(model="bge_large")
     p = Pipeline()
     p.add_component(embedder, name="document_embedder")
     p.add_component(instance=GradientDocumentEmbedder(
@@ -43,8 +41,8 @@ class GradientDocumentEmbedder:
         *,
         model: str = "bge-large",
         batch_size: int = 32_768,
-        access_token: Optional[str] = None,
-        workspace_id: Optional[str] = None,
+        access_token: Secret = Secret.from_env_var("GRADIENT_ACCESS_TOKEN"),  # noqa: B008
+        workspace_id: Secret = Secret.from_env_var("GRADIENT_WORKSPACE_ID"),  # noqa: B008
         host: Optional[str] = None,
         progress_bar: bool = True,
     ) -> None:
@@ -53,10 +51,8 @@ class GradientDocumentEmbedder:
 
         :param model: The name of the model to use.
         :param batch_size: Update cycle for tqdm progress bar, default is to update every 32_768 docs.
-        :param access_token: The Gradient access token. If not provided it's read from the environment
-                             variable GRADIENT_ACCESS_TOKEN.
-        :param workspace_id: The Gradient workspace ID. If not provided it's read from the environment
-                             variable GRADIENT_WORKSPACE_ID.
+        :param access_token: The Gradient access token.
+        :param workspace_id: The Gradient workspace ID.
         :param host: The Gradient host. By default it uses https://api.gradient.ai/.
         :param progress_bar: Whether to show a progress bar while embedding the documents.
         """
@@ -64,8 +60,12 @@ class GradientDocumentEmbedder:
         self._host = host
         self._model_name = model
         self._progress_bar = progress_bar
+        self._access_token = access_token
+        self._workspace_id = workspace_id
 
-        self._gradient = Gradient(access_token=access_token, host=host, workspace_id=workspace_id)
+        self._gradient = Gradient(
+            access_token=access_token.resolve_value(), workspace_id=workspace_id.resolve_value(), host=host
+        )
 
     def _get_telemetry_data(self) -> Dict[str, Any]:
         """
@@ -77,7 +77,23 @@ class GradientDocumentEmbedder:
         """
         Serialize the component to a Python dictionary.
         """
-        return default_to_dict(self, workspace_id=self._gradient.workspace_id, model=self._model_name)
+        return default_to_dict(
+            self,
+            model=self._model_name,
+            batch_size=self._batch_size,
+            host=self._host,
+            progress_bar=self._progress_bar,
+            access_token=self._access_token.to_dict(),
+            workspace_id=self._workspace_id.to_dict(),
+        )
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "GradientDocumentEmbedder":
+        """
+        Deserialize this component from a dictionary.
+        """
+        deserialize_secrets_inplace(data["init_parameters"], keys=["access_token", "workspace_id"])
+        return default_from_dict(cls, data)
 
     def warm_up(self) -> None:
         """

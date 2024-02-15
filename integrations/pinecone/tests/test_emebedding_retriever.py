@@ -18,10 +18,10 @@ def test_init_default():
 
 
 @patch("haystack_integrations.document_stores.pinecone.document_store.pinecone")
-def test_to_dict(mock_pinecone):
+def test_to_dict(mock_pinecone, monkeypatch):
+    monkeypatch.setenv("PINECONE_API_KEY", "env-api-key")
     mock_pinecone.Index.return_value.describe_index_stats.return_value = {"dimension": 512}
     document_store = PineconeDocumentStore(
-        api_key="test-key",
         environment="gcp-starter",
         index="default",
         namespace="test-namespace",
@@ -35,6 +35,13 @@ def test_to_dict(mock_pinecone):
         "init_parameters": {
             "document_store": {
                 "init_parameters": {
+                    "api_key": {
+                        "env_vars": [
+                            "PINECONE_API_KEY",
+                        ],
+                        "strict": True,
+                        "type": "env_var",
+                    },
                     "environment": "gcp-starter",
                     "index": "default",
                     "namespace": "test-namespace",
