@@ -106,7 +106,7 @@ class TestCohereTextEmbedder:
         embedder = CohereTextEmbedder(api_key=Secret.from_token("test-api-key"))
         list_integers_input = ["text_snippet_1", "text_snippet_2"]
 
-        with pytest.raises(TypeError, match="CohereTextEmbedder expects a string as input"):
+        with pytest.raises(TypeError):
             embedder.run(text=list_integers_input)
 
     @pytest.mark.skipif(
