@@ -35,12 +35,12 @@ def test_to_dict(mock_pinecone, monkeypatch):
         "init_parameters": {
             "document_store": {
                 "init_parameters": {
-                    'api_key': {
-                        'env_vars': [
-                            'PINECONE_API_KEY',
+                    "api_key": {
+                        "env_vars": [
+                            "PINECONE_API_KEY",
                         ],
-                        'strict': True,
-                        'type': 'env_var',
+                        "strict": True,
+                        "type": "env_var",
                     },
                     "environment": "gcp-starter",
                     "index": "default",

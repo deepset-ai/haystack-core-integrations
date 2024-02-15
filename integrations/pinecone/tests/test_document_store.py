@@ -64,12 +64,12 @@ def test_to_dict(mock_pinecone, monkeypatch):
     assert document_store.to_dict() == {
         "type": "haystack_integrations.document_stores.pinecone.document_store.PineconeDocumentStore",
         "init_parameters": {
-            'api_key': {
-                'env_vars': [
-                    'PINECONE_API_KEY',
+            "api_key": {
+                "env_vars": [
+                    "PINECONE_API_KEY",
                 ],
-                'strict': True,
-                'type': 'env_var',
+                "strict": True,
+                "type": "env_var",
             },
             "environment": "gcp-starter",
             "index": "my_index",
