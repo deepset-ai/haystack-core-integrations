@@ -75,20 +75,23 @@ class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsT
 
     @patch("haystack_integrations.document_stores.mongodb_atlas.document_store.MongoClient")
     def test_from_dict(self, _):
-        docstore = MongoDBAtlasDocumentStore.from_dict({
-            "type": "haystack_integrations.document_stores.mongodb_atlas.document_store.MongoDBAtlasDocumentStore",
-            "init_parameters": {
-                "mongo_connection_string": {
-                    "env_vars": [
-                        "MONGO_CONNECTION_STRING",
-                    ],
-                    "strict": True,
-                    "type": "env_var",
+        docstore = MongoDBAtlasDocumentStore.from_dict(
+            {
+                "type": "haystack_integrations.document_stores.mongodb_atlas.document_store.MongoDBAtlasDocumentStore",
+                "init_parameters": {
+                    "mongo_connection_string": {
+                        "env_vars": [
+                            "MONGO_CONNECTION_STRING",
+                        ],
+                        "strict": True,
+                        "type": "env_var",
+                    },
+                    "database_name": "database_name",
+                    "collection_name": "collection_name",
+                    "recreate_collection": True,
                 },
-                "database_name": "database_name",
-                "collection_name": "collection_name",
-                "recreate_collection": True,
-            }})
+            }
+        )
         assert docstore.mongo_connection_string == Secret.from_env_var("MONGO_CONNECTION_STRING")
         assert docstore.database_name == "database_name"
         assert docstore.collection_name == "collection_name"
