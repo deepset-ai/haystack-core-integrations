@@ -37,7 +37,7 @@ class SupportedAuthTypes(Enum):
         return auth_types[auth_class]
 
 
-@dataclass
+@dataclass(frozen=True)
 class AuthCredentials(ABC):
     """
     Base class for all auth credentials supported by WeaviateDocumentStore.
@@ -91,7 +91,7 @@ class AuthCredentials(ABC):
         """
 
 
-@dataclass
+@dataclass(frozen=True)
 class AuthApiKey(AuthCredentials):
     """
     AuthCredentials for API key authentication.
@@ -109,7 +109,7 @@ class AuthApiKey(AuthCredentials):
         return WeaviateAuthApiKey(api_key=self.api_key.resolve_value())
 
 
-@dataclass
+@dataclass(frozen=True)
 class AuthBearerToken(AuthCredentials):
     """
     AuthCredentials for Bearer token authentication.
@@ -139,7 +139,7 @@ class AuthBearerToken(AuthCredentials):
         )
 
 
-@dataclass
+@dataclass(frozen=True)
 class AuthClientCredentials(AuthCredentials):
     """
     AuthCredentials for client credentials authentication.
@@ -164,7 +164,7 @@ class AuthClientCredentials(AuthCredentials):
         )
 
 
-@dataclass
+@dataclass(frozen=True)
 class AuthClientPassword(AuthCredentials):
     """
     AuthCredentials for username and password authentication.
