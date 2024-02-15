@@ -93,6 +93,9 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, WriteDocumentsT
     @pytest.mark.skip(reason="Pinecone only supports UPSERT operations")
     def test_write_documents_duplicate_skip(self, document_store: PineconeDocumentStore): ...
 
+    @pytest.mark.skip(reason="Pinecone creates a namespace only when the first document is written")
+    def test_delete_documents_empty_document_store(self, document_store: PineconeDocumentStore): ...
+
     def test_init_fails_wo_api_key(self, monkeypatch):
         monkeypatch.delenv("PINECONE_API_KEY", raising=False)
         with pytest.raises(ValueError):
