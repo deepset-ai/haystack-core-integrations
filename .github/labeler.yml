@@ -69,6 +69,11 @@ integration:mistral:
       - any-glob-to-any-file: "integrations/mistral/**/*"
       - any-glob-to-any-file: ".github/workflows/mistral.yml"
 
+integration:mongodb-atlas:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/mongodb_atlas/**/*"
+      - any-glob-to-any-file: ".github/workflows/mongodb_atlas.yml"
+
 integration:ollama:
   - changed-files:
       - any-glob-to-any-file: "integrations/ollama/**/*"

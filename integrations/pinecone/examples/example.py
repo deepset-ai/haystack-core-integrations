@@ -15,13 +15,19 @@ from haystack.components.converters import MarkdownToDocument
 from haystack.components.embedders import SentenceTransformersDocumentEmbedder, SentenceTransformersTextEmbedder
 from haystack.components.preprocessors import DocumentSplitter
 from haystack.components.writers import DocumentWriter
-from pinecone_haystack import PineconeDocumentStore
-from pinecone_haystack.dense_retriever import PineconeEmbeddingRetriever
+from haystack.utils import Secret
+
+from haystack_integrations.components.retrievers.pinecone import PineconeEmbeddingRetriever
+from haystack_integrations.document_stores.pinecone import PineconeDocumentStore
 
 file_paths = glob.glob("neural-search-pills/pills/*.md")
 
 document_store = PineconeDocumentStore(
-    api_key="YOUR-PINECONE-API-KEY", environment="gcp-starter", index="default", namespace="default", dimension=768
+    api_key=Secret.from_token("YOUR-PINECONE-API-KEY"),
+    environment="gcp-starter",
+    index="default",
+    namespace="default",
+    dimension=768,
 )
 
 indexing = Pipeline()
