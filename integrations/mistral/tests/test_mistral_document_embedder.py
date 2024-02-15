@@ -122,7 +122,10 @@ class TestMistralDocumentEmbedder:
     def test_run_wrong_input_format(self):
         embedder = MistralDocumentEmbedder(api_key=Secret.from_token("test-api-key"))
 
-        match_error_msg = "OpenAIDocumentEmbedder expects a list of Documents as input.In case you want to embed a string, please use the OpenAITextEmbedder."
+        match_error_msg = (
+            "OpenAIDocumentEmbedder expects a list of Documents as input.In case you want to embed a string, "
+            "please use the OpenAITextEmbedder."
+        )
 
         with pytest.raises(TypeError, match=match_error_msg):
             embedder.run(documents="text")

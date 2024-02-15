@@ -4,7 +4,6 @@
 import os
 
 import pytest
-from haystack import Document
 from haystack.utils import Secret
 from haystack_integrations.components.embedders.mistral.text_embedder import MistralTextEmbedder
 
@@ -79,10 +78,13 @@ class TestMistralTextEmbedder:
         result = embedder.run(text)
         assert all(isinstance(x, float) for x in result["embedding"])
 
-
     def test_run_wrong_input_format(self):
         embedder = MistralTextEmbedder(api_key=Secret.from_token("test-api-key"))
         list_integers_input = ["text_snippet_1", "text_snippet_2"]
-        match_error_msg = "OpenAITextEmbedder expects a string as an input.In case you want to embed a list of Documents, please use the OpenAIDocumentEmbedder."
+        match_error_msg = (
+            "OpenAITextEmbedder expects a string as an input.In case you want to embed a list of Documents,"
+            " please use the OpenAIDocumentEmbedder."
+        )
+
         with pytest.raises(TypeError, match=match_error_msg):
             embedder.run(text=list_integers_input)

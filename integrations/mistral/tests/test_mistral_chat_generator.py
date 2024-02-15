@@ -1,18 +1,16 @@
 import os
-
-import pytest
 from datetime import datetime
 from typing import Iterator
 from unittest.mock import patch
-from openai import OpenAIError
-from openai import Stream
-from openai.types.chat import ChatCompletion, ChatCompletionMessage, ChatCompletionChunk
-from openai.types.chat.chat_completion_chunk import ChoiceDelta, Choice
 
-from haystack.utils.auth import Secret
-from haystack_integrations.components.generators.mistral.chat.chat_generator import MistralChatGenerator
+import pytest
 from haystack.components.generators.utils import print_streaming_chunk
 from haystack.dataclasses import ChatMessage, StreamingChunk
+from haystack.utils.auth import Secret
+from haystack_integrations.components.generators.mistral.chat.chat_generator import MistralChatGenerator
+from openai import OpenAIError, Stream
+from openai.types.chat import ChatCompletion, ChatCompletionChunk, ChatCompletionMessage
+from openai.types.chat.chat_completion_chunk import Choice, ChoiceDelta
 
 
 @pytest.fixture
@@ -21,6 +19,7 @@ def chat_messages():
         ChatMessage.from_assistant("You are a helpful assistant"),
         ChatMessage.from_user("What's the capital of France"),
     ]
+
 
 @pytest.fixture
 def mock_chat_completion():
@@ -46,6 +45,7 @@ def mock_chat_completion():
 
         mock_chat_completion_create.return_value = completion
         yield mock_chat_completion_create
+
 
 @pytest.fixture
 def mock_chat_completion_chunk():
@@ -77,6 +77,7 @@ def mock_chat_completion_chunk():
         )
         mock_chat_completion_create.return_value = MockStream(completion, cast_to=None, response=None, client=None)
         yield mock_chat_completion_create
+
 
 class TestMistralChatGenerator:
     def test_init_default(self, monkeypatch):
@@ -142,7 +143,7 @@ class TestMistralChatGenerator:
                 "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
                 "generation_kwargs": {"max_tokens": 10, "some_test_param": "test-params"},
             },
-        }  
+        }
 
     def test_from_dict(self, monkeypatch):
         monkeypatch.setenv("MISTRAL_API_KEY", "fake-api-key")
@@ -179,7 +180,7 @@ class TestMistralChatGenerator:
         with pytest.raises(ValueError, match="None of the .* environment variables are set"):
             MistralChatGenerator.from_dict(data)
 
-    def test_run(self, chat_messages, mock_chat_completion):
+    def test_run(self, chat_messages):
         component = MistralChatGenerator(api_key=Secret.from_token("test-api-key"))
         response = component.run(chat_messages)
 
@@ -208,7 +209,7 @@ class TestMistralChatGenerator:
         assert len(response["replies"]) == 1
         assert [isinstance(reply, ChatMessage) for reply in response["replies"]]
 
-    def test_run_with_params_streaming(self, chat_messages, mock_chat_completion_chunk):
+    def test_run_with_params_streaming(self, chat_messages):
         streaming_callback_called = False
 
         def streaming_callback(chunk: StreamingChunk) -> None:

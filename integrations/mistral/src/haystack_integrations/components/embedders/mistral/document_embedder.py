@@ -60,15 +60,16 @@ class MistralDocumentEmbedder(OpenAIDocumentEmbedder):
         :param meta_fields_to_embed: List of meta fields that should be embedded along with the Document text.
         :param embedding_separator: Separator used to concatenate the meta fields to the Document text.
         """
-        super(MistralDocumentEmbedder, self).__init__(api_key,
-                                                      model,
-                                                      dimensions,
-                                                      api_base_url,
-                                                      organization,
-                                                      prefix,
-                                                      suffix,
-                                                      batch_size,
-                                                      progress_bar,
-                                                      meta_fields_to_embed,
-                                                      embedding_separator,
-                                                    )
+        super(MistralDocumentEmbedder, self).__init__(
+            api_key,
+            model,
+            dimensions,
+            api_base_url,
+            organization,
+            prefix,
+            suffix,
+            batch_size,
+            progress_bar,
+            meta_fields_to_embed,
+            embedding_separator,
+        )
