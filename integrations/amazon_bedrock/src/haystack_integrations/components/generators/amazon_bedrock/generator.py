@@ -73,11 +73,13 @@ class AmazonBedrockGenerator:
     def __init__(
         self,
         model: str,
-        aws_access_key_id: Optional[Secret] = Secret.from_env_var(["AWS_ACCESS_KEY_ID"], strict=False),
-        aws_secret_access_key: Optional[Secret] = Secret.from_env_var(["AWS_SECRET_ACCESS_KEY"], strict=False),
-        aws_session_token: Optional[Secret] = Secret.from_env_var(["AWS_SESSION_TOKEN"], strict=False),
-        aws_region_name: Optional[Secret] = Secret.from_env_var(["AWS_DEFAULT_REGION"], strict=False),
-        aws_profile_name: Optional[Secret] = Secret.from_env_var(["AWS_PROFILE"], strict=False),
+        aws_access_key_id: Optional[Secret] = Secret.from_env_var(["AWS_ACCESS_KEY_ID"], strict=False),  # noqa: B008
+        aws_secret_access_key: Optional[Secret] = Secret.from_env_var(  # noqa: B008
+            ["AWS_SECRET_ACCESS_KEY"], strict=False
+        ),
+        aws_session_token: Optional[Secret] = Secret.from_env_var(["AWS_SESSION_TOKEN"], strict=False),  # noqa: B008
+        aws_region_name: Optional[Secret] = Secret.from_env_var(["AWS_DEFAULT_REGION"], strict=False),  # noqa: B008
+        aws_profile_name: Optional[Secret] = Secret.from_env_var(["AWS_PROFILE"], strict=False),  # noqa: B008
         max_length: Optional[int] = 100,
         **kwargs,
     ):

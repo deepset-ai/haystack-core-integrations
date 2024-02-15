@@ -138,8 +138,6 @@ ignore = [
   "C901", "PLR0911", "PLR0912", "PLR0913", "PLR0915",
   # Ignore unused params
   "ARG001", "ARG002", "ARG005",
-  # Ignore perform the call within the function
-  "B008"
 ]
 unfixable = [
   # Don't touch unused imports
