@@ -50,6 +50,11 @@ def test_to_dict(mock_auto_tokenizer, mock_boto3_session, set_env_variables):
     expected_dict = {
         "type": clazz,
         "init_parameters": {
+            "aws_access_key_id": {"type": "env_var", "env_vars": ["AWS_ACCESS_KEY_ID"], "strict": False},
+            "aws_secret_access_key": {"type": "env_var", "env_vars": ["AWS_SECRET_ACCESS_KEY"], "strict": False},
+            "aws_session_token": {"type": "env_var", "env_vars": ["AWS_SESSION_TOKEN"], "strict": False},
+            "aws_region_name": {"type": "env_var", "env_vars": ["AWS_DEFAULT_REGION"], "strict": False},
+            "aws_profile_name": {"type": "env_var", "env_vars": ["AWS_PROFILE"], "strict": False},
             "model": "anthropic.claude-v2",
             "generation_kwargs": {"temperature": 0.7},
             "stop_words": [],
@@ -68,6 +73,11 @@ def test_from_dict(mock_auto_tokenizer, mock_boto3_session):
         {
             "type": clazz,
             "init_parameters": {
+                "aws_access_key_id": {"type": "env_var", "env_vars": ["AWS_ACCESS_KEY_ID"], "strict": False},
+                "aws_secret_access_key": {"type": "env_var", "env_vars": ["AWS_SECRET_ACCESS_KEY"], "strict": False},
+                "aws_session_token": {"type": "env_var", "env_vars": ["AWS_SESSION_TOKEN"], "strict": False},
+                "aws_region_name": {"type": "env_var", "env_vars": ["AWS_DEFAULT_REGION"], "strict": False},
+                "aws_profile_name": {"type": "env_var", "env_vars": ["AWS_PROFILE"], "strict": False},
                 "model": "anthropic.claude-v2",
                 "generation_kwargs": {"temperature": 0.7},
                 "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
