@@ -38,17 +38,12 @@ def mock_prompt_handler():
         yield mock_prompt_handler
 
 
-def test_to_dict(mock_auto_tokenizer, mock_boto3_session):
+def test_to_dict(mock_auto_tokenizer, mock_boto3_session, set_env_variables):
     """
     Test that the to_dict method returns the correct dictionary without aws credentials
     """
     generator = AmazonBedrockChatGenerator(
         model="anthropic.claude-v2",
-        aws_access_key_id="some_fake_id",
-        aws_secret_access_key="some_fake_key",
-        aws_session_token="some_fake_token",
-        aws_profile_name="some_fake_profile",
-        aws_region_name="fake_region",
         generation_kwargs={"temperature": 0.7},
         streaming_callback=print_streaming_chunk,
     )
@@ -84,18 +79,13 @@ def test_from_dict(mock_auto_tokenizer, mock_boto3_session):
     assert generator.streaming_callback == print_streaming_chunk
 
 
-def test_default_constructor(mock_auto_tokenizer, mock_boto3_session):
+def test_default_constructor(mock_auto_tokenizer, mock_boto3_session, set_env_variables):
     """
     Test that the default constructor sets the correct values
     """
 
     layer = AmazonBedrockChatGenerator(
         model="anthropic.claude-v2",
-        aws_access_key_id="some_fake_id",
-        aws_secret_access_key="some_fake_key",
-        aws_session_token="some_fake_token",
-        aws_profile_name="some_fake_profile",
-        aws_region_name="fake_region",
     )
 
     assert layer.model == "anthropic.claude-v2"
