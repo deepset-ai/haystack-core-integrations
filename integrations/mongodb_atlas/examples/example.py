@@ -20,7 +20,6 @@ connection_string = input("Enter your MongoDB Atlas connection string: ")
 
 # Initialize the document store
 document_store = MongoDBAtlasDocumentStore(
-    mongo_connection_string=connection_string,
     database_name="haystack_test",
     collection_name="test_collection",
 )
