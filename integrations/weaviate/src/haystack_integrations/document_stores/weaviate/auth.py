@@ -4,7 +4,6 @@ from enum import Enum
 from typing import Any, Dict, Type
 
 from haystack.core.errors import DeserializationError
-from haystack.core.serialization import default_from_dict, default_to_dict
 from haystack.utils.auth import Secret, deserialize_secrets_inplace
 
 from weaviate.auth import AuthApiKey as WeaviateAuthApiKey
@@ -49,11 +48,11 @@ class AuthCredentials(ABC):
         Converts the object to a dictionary representation for serialization.
         """
         _fields = {}
-        for field in fields(self):
-            if field.type is Secret:
-                _fields[field.name] = getattr(self, field.name).to_dict()
+        for _field in fields(self):
+            if _field.type is Secret:
+                _fields[_field.name] = getattr(self, _field.name).to_dict()
             else:
-                _fields[field.name] = getattr(self, field.name)
+                _fields[_field.name] = getattr(self, _field.name)
 
         return {"type": str(SupportedAuthTypes.from_class(self.__class__)), "init_parameters": _fields}
 
