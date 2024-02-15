@@ -8,6 +8,7 @@ from botocore.exceptions import BotoCoreError, ClientError
 from haystack import component, default_from_dict, default_to_dict
 from haystack.components.generators.utils import deserialize_callback_handler
 from haystack.dataclasses import ChatMessage, StreamingChunk
+from haystack.utils.auth import Secret
 
 from haystack_integrations.components.generators.amazon_bedrock.errors import (
     AmazonBedrockConfigurationError,
@@ -61,11 +62,13 @@ class AmazonBedrockChatGenerator:
     def __init__(
         self,
         model: str,
-        aws_access_key_id: Optional[str] = None,
-        aws_secret_access_key: Optional[str] = None,
-        aws_session_token: Optional[str] = None,
-        aws_region_name: Optional[str] = None,
-        aws_profile_name: Optional[str] = None,
+        aws_access_key_id: Optional[Secret] = Secret.from_env_var(["AWS_ACCESS_KEY_ID"], strict=False),  # noqa: B008
+        aws_secret_access_key: Optional[Secret] = Secret.from_env_var(  # noqa: B008
+            ["AWS_SECRET_ACCESS_KEY"], strict=False
+        ),
+        aws_session_token: Optional[Secret] = Secret.from_env_var(["AWS_SESSION_TOKEN"], strict=False),  # noqa: B008
+        aws_region_name: Optional[Secret] = Secret.from_env_var(["AWS_DEFAULT_REGION"], strict=False),  # noqa: B008
+        aws_profile_name: Optional[Secret] = Secret.from_env_var(["AWS_PROFILE"], strict=False),  # noqa: B008
         generation_kwargs: Optional[Dict[str, Any]] = None,
         stop_words: Optional[List[str]] = None,
         streaming_callback: Optional[Callable[[StreamingChunk], None]] = None,
@@ -111,13 +114,16 @@ class AmazonBedrockChatGenerator:
         self.model_adapter = model_adapter_cls(generation_kwargs or {})
 
         # create the AWS session and client
+        def resolve_secret(secret: Optional[Secret]) -> Optional[str]:
+            return secret.resolve_value() if secret else None
+
         try:
             session = self.get_aws_session(
-                aws_access_key_id=aws_access_key_id,
-                aws_secret_access_key=aws_secret_access_key,
-                aws_session_token=aws_session_token,
-                aws_region_name=aws_region_name,
-                aws_profile_name=aws_profile_name,
+                aws_access_key_id=resolve_secret(aws_access_key_id),
+                aws_secret_access_key=resolve_secret(aws_secret_access_key),
+                aws_session_token=resolve_secret(aws_session_token),
+                aws_region_name=resolve_secret(aws_region_name),
+                aws_profile_name=resolve_secret(aws_profile_name),
             )
             self.client = session.client("bedrock-runtime")
         except Exception as exception:
