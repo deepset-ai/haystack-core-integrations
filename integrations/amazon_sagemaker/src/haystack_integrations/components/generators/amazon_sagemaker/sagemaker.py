@@ -1,23 +1,29 @@
 import json
 import logging
-import os
 from typing import Any, ClassVar, Dict, List, Optional
 
+import boto3
 import requests
+from botocore.exceptions import BotoCoreError
 from haystack import component, default_from_dict, default_to_dict
-from haystack.lazy_imports import LazyImport
+from haystack.utils import Secret
+
 from haystack_integrations.components.generators.amazon_sagemaker.errors import (
     AWSConfigurationError,
     SagemakerInferenceError,
     SagemakerNotReadyError,
 )
 
-with LazyImport(message="Run 'pip install boto3'") as boto3_import:
-    import boto3  # type: ignore
-    from botocore.client import BaseClient  # type: ignore
-
 
 logger = logging.getLogger(__name__)
+
+AWS_CONFIGURATION_KEYS = [
+    "aws_access_key_id",
+    "aws_secret_access_key",
+    "aws_session_token",
+    "aws_region_name",
+    "aws_profile_name",
+]
 
 
 MODEL_NOT_READY_STATUS_CODE = 429
@@ -41,9 +47,8 @@ class SagemakerGenerator:
 
     Then you can use the generator as follows:
     ```python
-    from haystack.components.generators.sagemaker import SagemakerGenerator
+    from haystack_integrations.components.generators.amazon_sagemaker import SagemakerGenerator
     generator = SagemakerGenerator(model="jumpstart-dft-hf-llm-falcon-7b-instruct-bf16")
-    generator.warm_up()
     response = generator.run("What's Natural Language Processing? Be brief.")
     print(response)
     ```
@@ -59,11 +64,13 @@ class SagemakerGenerator:
     def __init__(
         self,
         model: str,
-        aws_access_key_id_var: str = "AWS_ACCESS_KEY_ID",
-        aws_secret_access_key_var: str = "AWS_SECRET_ACCESS_KEY",
-        aws_session_token_var: str = "AWS_SESSION_TOKEN",
-        aws_region_name_var: str = "AWS_REGION",
-        aws_profile_name_var: str = "AWS_PROFILE",
+        aws_access_key_id: Optional[Secret] = Secret.from_env_var(["AWS_ACCESS_KEY_ID"], strict=False),  # noqa: B008
+        aws_secret_access_key: Optional[Secret] = Secret.from_env_var(  # noqa: B008
+            ["AWS_SECRET_ACCESS_KEY"], strict=False
+        ),
+        aws_session_token: Optional[Secret] = Secret.from_env_var(["AWS_SESSION_TOKEN"], strict=False),  # noqa: B008
+        aws_region_name: Optional[Secret] = Secret.from_env_var(["AWS_DEFAULT_REGION"], strict=False),  # noqa: B008
+        aws_profile_name: Optional[Secret] = Secret.from_env_var(["AWS_PROFILE"], strict=False),  # noqa: B008
         aws_custom_attributes: Optional[Dict[str, Any]] = None,
         generation_kwargs: Optional[Dict[str, Any]] = None,
     ):
@@ -71,13 +78,16 @@ class SagemakerGenerator:
         Instantiates the session with SageMaker.
 
         :param model: The name for SageMaker Model Endpoint.
-        :param aws_access_key_id_var: The name of the env var where the AWS access key ID is stored.
-        :param aws_secret_access_key_var: The name of the env var where the AWS secret access key is stored.
-        :param aws_session_token_var: The name of the env var where the AWS session token is stored.
-        :param aws_region_name_var: The name of the env var where the AWS region name is stored.
-        :param aws_profile_name_var: The name of the env var where the AWS profile name is stored.
+
+        :param aws_access_key_id: The name of the env var where the AWS access key ID is stored.
+        :param aws_secret_access_key: The name of the env var where the AWS secret access key is stored.
+        :param aws_session_token: The name of the env var where the AWS session token is stored.
+        :param aws_region_name: The name of the env var where the AWS region name is stored.
+        :param aws_profile_name: The name of the env var where the AWS profile name is stored.
+
         :param aws_custom_attributes: Custom attributes to be passed to SageMaker, for example `{"accept_eula": True}`
             in case of Llama-2 models.
+
         :param generation_kwargs: Additional keyword arguments for text generation. For a list of supported parameters
             see your model's documentation page, for example here for HuggingFace models:
             https://huggingface.co/blog/sagemaker-huggingface-llm#4-run-inference-and-chat-with-our-model
@@ -95,21 +105,27 @@ class SagemakerGenerator:
                 be boolean. The default value for it is `False`.
         """
         self.model = model
-        self.aws_access_key_id_var = aws_access_key_id_var
-        self.aws_secret_access_key_var = aws_secret_access_key_var
-        self.aws_session_token_var = aws_session_token_var
-        self.aws_region_name_var = aws_region_name_var
-        self.aws_profile_name_var = aws_profile_name_var
         self.aws_custom_attributes = aws_custom_attributes or {}
         self.generation_kwargs = generation_kwargs or {"max_new_tokens": 1024}
-        self.client: Optional[BaseClient] = None
 
-        if not os.getenv(self.aws_access_key_id_var) or not os.getenv(self.aws_secret_access_key_var):
-            msg = (
-                f"Please provide AWS credentials via environment variables '{self.aws_access_key_id_var}' and "
-                f"'{self.aws_secret_access_key_var}'."
+        def resolve_secret(secret: Optional[Secret]) -> Optional[str]:
+            return secret.resolve_value() if secret else None
+
+        try:
+            session = self.get_aws_session(
+                aws_access_key_id=resolve_secret(aws_access_key_id),
+                aws_secret_access_key=resolve_secret(aws_secret_access_key),
+                aws_session_token=resolve_secret(aws_session_token),
+                aws_region_name=resolve_secret(aws_region_name),
+                aws_profile_name=resolve_secret(aws_profile_name),
             )
-            raise AWSConfigurationError(msg)
+            self.client = session.client("sagemaker-runtime")
+        except Exception as e:
+            msg = (
+                f"Could not connect to SageMaker Inference Endpoint '{self.model}'."
+                f"Make sure the Endpoint exists and AWS environment is configured."
+            )
+            raise AWSConfigurationError(msg) from e
 
     def _get_telemetry_data(self) -> Dict[str, Any]:
         """
@@ -124,11 +140,6 @@ class SagemakerGenerator:
         return default_to_dict(
             self,
             model=self.model,
-            aws_access_key_id_var=self.aws_access_key_id_var,
-            aws_secret_access_key_var=self.aws_secret_access_key_var,
-            aws_session_token_var=self.aws_session_token_var,
-            aws_region_name_var=self.aws_region_name_var,
-            aws_profile_name_var=self.aws_profile_name_var,
             aws_custom_attributes=self.aws_custom_attributes,
             generation_kwargs=self.generation_kwargs,
         )
@@ -140,25 +151,51 @@ class SagemakerGenerator:
         """
         return default_from_dict(cls, data)
 
-    def warm_up(self):
+    @classmethod
+    def aws_configured(cls, **kwargs) -> bool:
         """
-        Initializes the SageMaker Inference client.
+        Checks whether AWS configuration is provided.
+        :param kwargs: The kwargs passed down to the generator.
+        :return: True if AWS configuration is provided, False otherwise.
         """
-        boto3_import.check()
+        aws_config_provided = any(key in kwargs for key in AWS_CONFIGURATION_KEYS)
+        return aws_config_provided
+
+    @classmethod
+    def get_aws_session(
+        cls,
+        aws_access_key_id: Optional[str] = None,
+        aws_secret_access_key: Optional[str] = None,
+        aws_session_token: Optional[str] = None,
+        aws_region_name: Optional[str] = None,
+        aws_profile_name: Optional[str] = None,
+        **kwargs,
+    ):
+        """
+        Creates an AWS Session with the given parameters.
+        Checks if the provided AWS credentials are valid and can be used to connect to AWS.
+
+        :param aws_access_key_id: AWS access key ID.
+        :param aws_secret_access_key: AWS secret access key.
+        :param aws_session_token: AWS session token.
+        :param aws_region_name: AWS region name.
+        :param aws_profile_name: AWS profile name.
+        :param kwargs: The kwargs passed down to the service client. Supported kwargs depend on the model chosen.
+            See https://docs.aws.amazon.com/bedrock/latest/userguide/model-parameters.html.
+        :raises AWSConfigurationError: If the provided AWS credentials are invalid.
+        :return: The created AWS session.
+        """
         try:
-            session = boto3.Session(
-                aws_access_key_id=os.getenv(self.aws_access_key_id_var),
-                aws_secret_access_key=os.getenv(self.aws_secret_access_key_var),
-                aws_session_token=os.getenv(self.aws_session_token_var),
-                region_name=os.getenv(self.aws_region_name_var),
-                profile_name=os.getenv(self.aws_profile_name_var),
+            return boto3.Session(
+                aws_access_key_id=aws_access_key_id,
+                aws_secret_access_key=aws_secret_access_key,
+                aws_session_token=aws_session_token,
+                region_name=aws_region_name,
+                profile_name=aws_profile_name,
             )
-            self.client = session.client("sagemaker-runtime")
-        except Exception as e:
-            msg = (
-                f"Could not connect to SageMaker Inference Endpoint '{self.model}'."
-                f"Make sure the Endpoint exists and AWS environment is configured."
-            )
+        except BotoCoreError as e:
+            provided_aws_config = {k: v for k, v in kwargs.items() if k in AWS_CONFIGURATION_KEYS}
+            msg = f"Failed to initialize the session with provided AWS credentials {provided_aws_config}"
             raise AWSConfigurationError(msg) from e
 
     @component.output_types(replies=List[str], meta=List[Dict[str, Any]])
