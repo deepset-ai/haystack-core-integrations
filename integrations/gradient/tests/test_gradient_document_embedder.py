@@ -4,6 +4,7 @@ import numpy as np
 import pytest
 from gradientai.openapi.client.models.generate_embedding_success import GenerateEmbeddingSuccess
 from haystack import Document
+from haystack.utils import Secret
 
 from haystack_integrations.components.embedders.gradient import GradientDocumentEmbedder
 
@@ -26,16 +27,16 @@ class TestGradientDocumentEmbedder:
         monkeypatch.delenv("GRADIENT_ACCESS_TOKEN", raising=False)
 
         with pytest.raises(ValueError):
-            GradientDocumentEmbedder(workspace_id=workspace_id)
+            GradientDocumentEmbedder()
 
     def test_init_without_workspace(self, monkeypatch):
         monkeypatch.delenv("GRADIENT_WORKSPACE_ID", raising=False)
 
         with pytest.raises(ValueError):
-            GradientDocumentEmbedder(access_token=access_token)
+            GradientDocumentEmbedder()
 
     def test_init_from_params(self):
-        embedder = GradientDocumentEmbedder(access_token=access_token, workspace_id=workspace_id)
+        embedder = GradientDocumentEmbedder(access_token=Secret.from_token(access_token), workspace_id=Secret.from_token(workspace_id))
         assert embedder is not None
         assert embedder._gradient.workspace_id == workspace_id
         assert embedder._gradient._api_client.configuration.access_token == access_token
@@ -44,28 +45,39 @@ class TestGradientDocumentEmbedder:
         monkeypatch.setenv("GRADIENT_ACCESS_TOKEN", "env_access_token")
         monkeypatch.setenv("GRADIENT_WORKSPACE_ID", "env_workspace_id")
 
-        embedder = GradientDocumentEmbedder(access_token=access_token, workspace_id=workspace_id)
+        embedder = GradientDocumentEmbedder(access_token=Secret.from_token(access_token), workspace_id=Secret.from_token(workspace_id))
         assert embedder is not None
         assert embedder._gradient.workspace_id == workspace_id
         assert embedder._gradient._api_client.configuration.access_token == access_token
 
-    def test_to_dict(self):
-        component = GradientDocumentEmbedder(access_token=access_token, workspace_id=workspace_id)
+    def test_to_dict(self, monkeypatch):
+        monkeypatch.setenv("GRADIENT_ACCESS_TOKEN", access_token)
+        monkeypatch.setenv("GRADIENT_WORKSPACE_ID", workspace_id)        
+        component = GradientDocumentEmbedder()
         data = component.to_dict()
         t = "haystack_integrations.components.embedders.gradient.gradient_document_embedder.GradientDocumentEmbedder"
         assert data == {
             "type": t,
-            "init_parameters": {"workspace_id": workspace_id, "model": "bge-large"},
+            "init_parameters":{'access_token': {'env_vars': ['GRADIENT_ACCESS_TOKEN'], 'strict': True, 'type': 'env_var'},
+                                'batch_size': 32768,
+                                'host': None,
+                                'model': 'bge-large',
+                                'progress_bar': True,
+                                'workspace_id': {'env_vars': ['GRADIENT_WORKSPACE_ID'], 'strict': True, 'type': 'env_var'}},
         }
 
-    def test_warmup(self):
-        embedder = GradientDocumentEmbedder(access_token=access_token, workspace_id=workspace_id)
+    def test_warmup(self, monkeypatch):
+        monkeypatch.setenv("GRADIENT_ACCESS_TOKEN", access_token)
+        monkeypatch.setenv("GRADIENT_WORKSPACE_ID", workspace_id)
+        embedder = GradientDocumentEmbedder()
         embedder._gradient.get_embeddings_model = MagicMock()
         embedder.warm_up()
         embedder._gradient.get_embeddings_model.assert_called_once_with(slug="bge-large")
 
-    def test_warmup_doesnt_reload(self):
-        embedder = GradientDocumentEmbedder(access_token=access_token, workspace_id=workspace_id)
+    def test_warmup_doesnt_reload(self, monkeypatch):
+        monkeypatch.setenv("GRADIENT_ACCESS_TOKEN", access_token)
+        monkeypatch.setenv("GRADIENT_WORKSPACE_ID", workspace_id)
+        embedder = GradientDocumentEmbedder()
         embedder._gradient.get_embeddings_model = MagicMock(default_return_value="fake model")
         embedder.warm_up()
         embedder.warm_up()
