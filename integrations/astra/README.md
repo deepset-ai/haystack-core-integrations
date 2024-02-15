@@ -17,7 +17,7 @@ pyenv local 3.9
 Local install for the package
 `pip install -e .`
 To execute integration tests, add needed environment variables
-`ASTRA_DB_ID=<id>`
+`ASTRA_DB_API_ENDPOINT=<id>`
 `ASTRA_DB_APPLICATION_TOKEN=<token>`
 and execute
 `python examples/example.py`
@@ -30,7 +30,7 @@ Export environment variables
 export KEYSPACE_NAME=
 export COLLECTION_NAME=
 export OPENAI_API_KEY=
-export ASTRA_DB_ID=
+export ASTRA_DB_API_ENDPOINT=
 export ASTRA_DB_REGION=
 export ASTRA_DB_APPLICATION_TOKEN=
 ```
@@ -54,10 +54,8 @@ from haystack.preview.document_stores import DuplicatePolicy
 
 Load in environment variables:
 ```
-astra_id = os.getenv("ASTRA_DB_ID", "")
-astra_region = os.getenv("ASTRA_DB_REGION", "us-east1")
-
-astra_application_token = os.getenv("ASTRA_DB_APPLICATION_TOKEN", "")
+astra_api_endpoint = os.getenv("ASTRA_DB_API_ENDPOINT", "")
+astra_token = os.getenv("ASTRA_DB_APPLICATION_TOKEN", "")
 collection_name = os.getenv("COLLECTION_NAME", "haystack_vector_search")
 keyspace_name = os.getenv("KEYSPACE_NAME", "recommender_demo")
 ```
