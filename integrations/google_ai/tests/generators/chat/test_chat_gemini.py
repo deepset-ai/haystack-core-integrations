@@ -6,7 +6,6 @@ from google.ai.generativelanguage import FunctionDeclaration, Tool
 from google.generativeai import GenerationConfig, GenerativeModel
 from google.generativeai.types import HarmBlockThreshold, HarmCategory
 from haystack.dataclasses.chat_message import ChatMessage
-from haystack.utils import Secret
 
 from haystack_integrations.components.generators.google_ai import GoogleAIGeminiChatGenerator
 
