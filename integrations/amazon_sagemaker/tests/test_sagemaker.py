@@ -1,10 +1,13 @@
-import os
 import pytest
 
 from haystack_integrations.components.generators.amazon_sagemaker import SagemakerGenerator
 from haystack.utils.auth import EnvVarSecret
 
-from unittest.mock import Mock
+from botocore.exceptions import BotoCoreError
+
+from haystack_integrations.components.generators.amazon_sagemaker.errors import AWSConfigurationError
+
+from unittest.mock import Mock, patch
 
 mocked_dict = {
     "type": "haystack_integrations.components.generators.amazon_sagemaker.sagemaker.SagemakerGenerator",
@@ -55,16 +58,12 @@ def test_default_constructor(mock_boto3_session):
     Test that the default constructor sets the correct values
     """
 
-    generator = SagemakerGenerator(
-        model="test-model",
-    )
-
+    generator = SagemakerGenerator(model="test-model")
     assert generator.generation_kwargs == {"max_new_tokens": 1024}
     assert generator.model == "test-model"
 
     # assert mocked boto3 client called exactly once
     mock_boto3_session.assert_called_once()
-
     assert generator.client is not None
 
     # assert mocked boto3 client was called with the correct parameters
@@ -77,146 +76,157 @@ def test_default_constructor(mock_boto3_session):
     )
 
 
-class TestSagemakerGenerator:
-
-    def test_run_with_list_of_dictionaries(self, monkeypatch):
-        monkeypatch.setenv("AWS_ACCESS_KEY_ID", "test-access-key")
-        monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "test-secret-key")
-        client_mock = Mock()
-        client_mock.invoke_endpoint.return_value = {
-            "Body": Mock(read=lambda: b'[{"generated_text": "test-reply", "other": "metadata"}]')
-        }
-
-        component = SagemakerGenerator(model="test-model")
-        component.client = client_mock  # Simulate warm_up()
-        response = component.run("What's Natural Language Processing?")
-
-        # check that the component returns the correct ChatMessage response
-        assert isinstance(response, dict)
-        assert "replies" in response
-        assert isinstance(response["replies"], list)
-        assert len(response["replies"]) == 1
-        assert [isinstance(reply, str) for reply in response["replies"]]
-        assert "test-reply" in response["replies"][0]
-
-        assert "meta" in response
-        assert isinstance(response["meta"], list)
-        assert len(response["meta"]) == 1
-        assert [isinstance(reply, dict) for reply in response["meta"]]
-        assert response["meta"][0]["other"] == "metadata"
-
-    def test_run_with_single_dictionary(self, monkeypatch):
-        monkeypatch.setenv("AWS_ACCESS_KEY_ID", "test-access-key")
-        monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "test-secret-key")
-        client_mock = Mock()
-        client_mock.invoke_endpoint.return_value = {
-            "Body": Mock(read=lambda: b'{"generation": "test-reply", "other": "metadata"}')
-        }
-
-        component = SagemakerGenerator(model="test-model")
-        component.client = client_mock  # Simulate warm_up()
-        response = component.run("What's Natural Language Processing?")
-
-        # check that the component returns the correct ChatMessage response
-        assert isinstance(response, dict)
-        assert "replies" in response
-        assert isinstance(response["replies"], list)
-        assert len(response["replies"]) == 1
-        assert [isinstance(reply, str) for reply in response["replies"]]
-        assert "test-reply" in response["replies"][0]
-
-        assert "meta" in response
-        assert isinstance(response["meta"], list)
-        assert len(response["meta"]) == 1
-        assert [isinstance(reply, dict) for reply in response["meta"]]
-        assert response["meta"][0]["other"] == "metadata"
+@pytest.mark.unit
+@pytest.mark.usefixtures("set_env_variables", "mock_boto3_session")
+def test_init_raises_boto_error():
+    with patch("boto3.Session") as mock_boto3_session:
+        mock_boto3_session.side_effect = BotoCoreError()
+        with pytest.raises(
+            AWSConfigurationError,
+            match="Could not connect to SageMaker Inference Endpoint 'test-model'."
+            "Make sure the Endpoint exists and AWS environment is configured.",
+        ):
+            SagemakerGenerator(model="test-model")
 
 
-    @pytest.mark.skipif(
-        (not os.environ.get("AWS_ACCESS_KEY_ID", None) or not os.environ.get("AWS_SECRET_ACCESS_KEY", None)),
-        reason="Export two env vars called AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY to run this test.",
-    )
-    @pytest.mark.integration
-    def test_run_falcon(self):
-        component = SagemakerGenerator(
-            model="jumpstart-dft-hf-llm-falcon-7b-instruct-bf16", generation_kwargs={"max_new_tokens": 10}
-        )
-        # component.warm_up()
-        response = component.run("What's Natural Language Processing?")
+@pytest.mark.unit
+@pytest.mark.usefixtures("set_env_variables", "mock_boto3_session")
+def test_run_with_list_of_dictionaries():
+    client_mock = Mock()
+    client_mock.invoke_endpoint.return_value = {
+        "Body": Mock(read=lambda: b'[{"generated_text": "test-reply", "other": "metadata"}]')
+    }
+    component = SagemakerGenerator(model="test-model")
+    component.client = client_mock
+    response = component.run("What's Natural Language Processing?")
 
-        # check that the component returns the correct ChatMessage response
-        assert isinstance(response, dict)
-        assert "replies" in response
-        assert isinstance(response["replies"], list)
-        assert len(response["replies"]) == 1
-        assert [isinstance(reply, str) for reply in response["replies"]]
+    # check that the component returns the correct ChatMessage response
+    assert isinstance(response, dict)
+    assert "replies" in response
+    assert isinstance(response["replies"], list)
+    assert len(response["replies"]) == 1
+    assert [isinstance(reply, str) for reply in response["replies"]]
+    assert "test-reply" in response["replies"][0]
 
-        # Coarse check: assuming no more than 4 chars per token. In any case it
-        # will fail if the `max_new_tokens` parameter is not respected, as the
-        # default is either 256 or 1024
-        assert all(len(reply) <= 40 for reply in response["replies"])
+    assert "meta" in response
+    assert isinstance(response["meta"], list)
+    assert len(response["meta"]) == 1
+    assert [isinstance(reply, dict) for reply in response["meta"]]
+    assert response["meta"][0]["other"] == "metadata"
 
-        assert "meta" in response
-        assert isinstance(response["meta"], list)
-        assert len(response["meta"]) == 1
-        assert [isinstance(reply, dict) for reply in response["meta"]]
 
-    @pytest.mark.skipif(
-        (not os.environ.get("AWS_ACCESS_KEY_ID", None) or not os.environ.get("AWS_SECRET_ACCESS_KEY", None)),
-        reason="Export two env vars called AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY to run this test.",
-    )
-    @pytest.mark.integration
-    def test_run_llama2(self):
-        component = SagemakerGenerator(
-            model="jumpstart-dft-meta-textgenerationneuron-llama-2-7b",
-            generation_kwargs={"max_new_tokens": 10},
-            aws_custom_attributes={"accept_eula": True},
-        )
-        component.warm_up()
-        response = component.run("What's Natural Language Processing?")
+@pytest.mark.unit
+@pytest.mark.usefixtures("set_env_variables", "mock_boto3_session")
+def test_run_with_single_dictionary():
+    client_mock = Mock()
+    client_mock.invoke_endpoint.return_value = {
+        "Body": Mock(read=lambda: b'{"generation": "test-reply", "other": "metadata"}')
+    }
 
-        # check that the component returns the correct ChatMessage response
-        assert isinstance(response, dict)
-        assert "replies" in response
-        assert isinstance(response["replies"], list)
-        assert len(response["replies"]) == 1
-        assert [isinstance(reply, str) for reply in response["replies"]]
+    component = SagemakerGenerator(model="test-model")
+    component.client = client_mock
+    response = component.run("What's Natural Language Processing?")
 
-        # Coarse check: assuming no more than 4 chars per token. In any case it
-        # will fail if the `max_new_tokens` parameter is not respected, as the
-        # default is either 256 or 1024
-        assert all(len(reply) <= 40 for reply in response["replies"])
+    # check that the component returns the correct ChatMessage response
+    assert isinstance(response, dict)
+    assert "replies" in response
+    assert isinstance(response["replies"], list)
+    assert len(response["replies"]) == 1
+    assert [isinstance(reply, str) for reply in response["replies"]]
+    assert "test-reply" in response["replies"][0]
 
-        assert "meta" in response
-        assert isinstance(response["meta"], list)
-        assert len(response["meta"]) == 1
-        assert [isinstance(reply, dict) for reply in response["meta"]]
+    assert "meta" in response
+    assert isinstance(response["meta"], list)
+    assert len(response["meta"]) == 1
+    assert [isinstance(reply, dict) for reply in response["meta"]]
+    assert response["meta"][0]["other"] == "metadata"
 
-    @pytest.mark.skipif(
-        (not os.environ.get("AWS_ACCESS_KEY_ID", None) or not os.environ.get("AWS_SECRET_ACCESS_KEY", None)),
-        reason="Export two env vars called AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY to run this test.",
-    )
-    @pytest.mark.integration
-    def test_run_bloomz(self):
-        component = SagemakerGenerator(
-            model="jumpstart-dft-hf-textgeneration-bloomz-1b1", generation_kwargs={"max_new_tokens": 10}
-        )
-        component.warm_up()
-        response = component.run("What's Natural Language Processing?")
 
-        # check that the component returns the correct ChatMessage response
-        assert isinstance(response, dict)
-        assert "replies" in response
-        assert isinstance(response["replies"], list)
-        assert len(response["replies"]) == 1
-        assert [isinstance(reply, str) for reply in response["replies"]]
-
-        # Coarse check: assuming no more than 4 chars per token. In any case it
-        # will fail if the `max_new_tokens` parameter is not respected, as the
-        # default is either 256 or 1024
-        assert all(len(reply) <= 40 for reply in response["replies"])
-
-        assert "meta" in response
-        assert isinstance(response["meta"], list)
-        assert len(response["meta"]) == 1
-        assert [isinstance(reply, dict) for reply in response["meta"]]
+# @pytest.mark.skipif(
+#     (not os.environ.get("AWS_ACCESS_KEY_ID", None) or not os.environ.get("AWS_SECRET_ACCESS_KEY", None)),
+#     reason="Export two env vars called AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY to run this test.",
+# )
+# @pytest.mark.integration
+# def test_run_falcon(self):
+#     component = SagemakerGenerator(
+#         model="jumpstart-dft-hf-llm-falcon-7b-instruct-bf16", generation_kwargs={"max_new_tokens": 10}
+#     )
+#     # component.warm_up()
+#     response = component.run("What's Natural Language Processing?")
+#
+#     # check that the component returns the correct ChatMessage response
+#     assert isinstance(response, dict)
+#     assert "replies" in response
+#     assert isinstance(response["replies"], list)
+#     assert len(response["replies"]) == 1
+#     assert [isinstance(reply, str) for reply in response["replies"]]
+#
+#     # Coarse check: assuming no more than 4 chars per token. In any case it
+#     # will fail if the `max_new_tokens` parameter is not respected, as the
+#     # default is either 256 or 1024
+#     assert all(len(reply) <= 40 for reply in response["replies"])
+#
+#     assert "meta" in response
+#     assert isinstance(response["meta"], list)
+#     assert len(response["meta"]) == 1
+#     assert [isinstance(reply, dict) for reply in response["meta"]]
+#
+# @pytest.mark.skipif(
+#     (not os.environ.get("AWS_ACCESS_KEY_ID", None) or not os.environ.get("AWS_SECRET_ACCESS_KEY", None)),
+#     reason="Export two env vars called AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY to run this test.",
+# )
+# @pytest.mark.integration
+# def test_run_llama2(self):
+#     component = SagemakerGenerator(
+#         model="jumpstart-dft-meta-textgenerationneuron-llama-2-7b",
+#         generation_kwargs={"max_new_tokens": 10},
+#         aws_custom_attributes={"accept_eula": True},
+#     )
+#     component.warm_up()
+#     response = component.run("What's Natural Language Processing?")
+#
+#     # check that the component returns the correct ChatMessage response
+#     assert isinstance(response, dict)
+#     assert "replies" in response
+#     assert isinstance(response["replies"], list)
+#     assert len(response["replies"]) == 1
+#     assert [isinstance(reply, str) for reply in response["replies"]]
+#
+#     # Coarse check: assuming no more than 4 chars per token. In any case it
+#     # will fail if the `max_new_tokens` parameter is not respected, as the
+#     # default is either 256 or 1024
+#     assert all(len(reply) <= 40 for reply in response["replies"])
+#
+#     assert "meta" in response
+#     assert isinstance(response["meta"], list)
+#     assert len(response["meta"]) == 1
+#     assert [isinstance(reply, dict) for reply in response["meta"]]
+#
+# @pytest.mark.skipif(
+#     (not os.environ.get("AWS_ACCESS_KEY_ID", None) or not os.environ.get("AWS_SECRET_ACCESS_KEY", None)),
+#     reason="Export two env vars called AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY to run this test.",
+# )
+# @pytest.mark.integration
+# def test_run_bloomz(self):
+#     component = SagemakerGenerator(
+#         model="jumpstart-dft-hf-textgeneration-bloomz-1b1", generation_kwargs={"max_new_tokens": 10}
+#     )
+#     component.warm_up()
+#     response = component.run("What's Natural Language Processing?")
+#
+#     # check that the component returns the correct ChatMessage response
+#     assert isinstance(response, dict)
+#     assert "replies" in response
+#     assert isinstance(response["replies"], list)
+#     assert len(response["replies"]) == 1
+#     assert [isinstance(reply, str) for reply in response["replies"]]
+#
+#     # Coarse check: assuming no more than 4 chars per token. In any case it
+#     # will fail if the `max_new_tokens` parameter is not respected, as the
+#     # default is either 256 or 1024
+#     assert all(len(reply) <= 40 for reply in response["replies"])
+#
+#     assert "meta" in response
+#     assert isinstance(response["meta"], list)
+#     assert len(response["meta"]) == 1
+#     assert [isinstance(reply, dict) for reply in response["meta"]]

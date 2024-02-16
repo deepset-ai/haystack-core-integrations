@@ -214,10 +214,6 @@ class SagemakerGenerator:
         :return: A list of strings containing the generated responses and a list of dictionaries containing the metadata
         for each response.
         """
-        if self.client is None:
-            msg = "SageMaker Inference client is not initialized. Please call warm_up() first."
-            raise ValueError(msg)
-
         generation_kwargs = generation_kwargs or self.generation_kwargs
         custom_attributes = ";".join(
             f"{k}={str(v).lower() if isinstance(v, bool) else str(v)}" for k, v in self.aws_custom_attributes.items()
