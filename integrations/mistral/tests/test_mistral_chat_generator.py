@@ -11,7 +11,7 @@ from haystack.utils.auth import Secret
 from haystack_integrations.components.generators.mistral.chat.chat_generator import MistralChatGenerator
 from openai import OpenAIError, Stream
 from openai.types.chat import ChatCompletion, ChatCompletionChunk, ChatCompletionMessage
-from openai.types.chat.chat_completion_chunk import Choice, ChoiceDelta
+from openai.types.chat.chat_completion import Choice
 
 
 @pytest.fixture
@@ -45,38 +45,6 @@ def mock_chat_completion():
         )
 
         mock_chat_completion_create.return_value = completion
-        yield mock_chat_completion_create
-
-
-@pytest.fixture
-def mock_chat_completion_chunk():
-    """
-    Mock the OpenAI API completion chunk response and reuse it for tests
-    """
-
-    class MockStream(Stream[ChatCompletionChunk]):
-        def __init__(self, mock_chunk: ChatCompletionChunk, *args, **kwargs):
-            super().__init__(*args, **kwargs)
-            self.mock_chunk = mock_chunk
-
-        def __stream__(self) -> Iterator[ChatCompletionChunk]:
-            # Yielding only one ChatCompletionChunk object
-            yield self.mock_chunk
-
-    with patch("openai.resources.chat.completions.Completions.create") as mock_chat_completion_create:
-        completion = ChatCompletionChunk(
-            id="foo",
-            model="gpt-4",
-            object="chat.completion.chunk",
-            choices=[
-                Choice(
-                    finish_reason="stop", logprobs=None, index=0, delta=ChoiceDelta(content="Hello", role="assistant")
-                )
-            ],
-            created=int(datetime.now(tz=pytz.timezone("UTC")).timestamp()),
-            usage={"prompt_tokens": 57, "completion_tokens": 40, "total_tokens": 97},
-        )
-        mock_chat_completion_create.return_value = MockStream(completion, cast_to=None, response=None, client=None)
         yield mock_chat_completion_create
 
 
@@ -193,7 +161,7 @@ class TestMistralChatGenerator:
 
     def test_run_with_params(self, chat_messages, mock_chat_completion):
         component = MistralChatGenerator(
-            api_key=Secret.from_token("test-api-key"), generation_kwargs={"max_tokens": 10, "temperature": 0.5}
+            generation_kwargs={"max_tokens": 10, "temperature": 0.5}
         )
         response = component.run(chat_messages)
 
