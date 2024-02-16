@@ -11,28 +11,28 @@ from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumen
 from haystack.document_stores.types.policy import DuplicatePolicy
 
 import weaviate
-from weaviate.auth import AuthCredentials
 from weaviate.config import Config, ConnectionConfig
 from weaviate.embedded import EmbeddedOptions
 from weaviate.util import generate_uuid5
 
+from ._filters import convert_filters
+from .auth import AuthCredentials
+
 Number = Union[int, float]
 TimeoutType = Union[Tuple[Number, Number], Number]
 
-# This simplifies a bit how we handle deserialization of the auth credentials.
-# Otherwise we would need to use importlib to dynamically import the correct class.
-_AUTH_CLASSES = {
-    "weaviate.auth.AuthClientCredentials": weaviate.auth.AuthClientCredentials,
-    "weaviate.auth.AuthClientPassword": weaviate.auth.AuthClientPassword,
-    "weaviate.auth.AuthBearerToken": weaviate.auth.AuthBearerToken,
-    "weaviate.auth.AuthApiKey": weaviate.auth.AuthApiKey,
-}
 
 # This is the default collection properties for Weaviate.
 # It's a list of properties that will be created on the collection.
 # These are extremely similar to the Document dataclass, but with a few differences:
 # - `id` is renamed to `_original_id` as the `id` field is reserved by Weaviate.
 # - `blob` is split into `blob_data` and `blob_mime_type` as it's more efficient to store them separately.
+# Blob meta is missing as it's not usually serialized when saving a Document as we rely on the Document own meta.
+#
+# Also the Document `meta` fields are omitted as we can't make assumptions on the structure of the meta field.
+# We recommend the user to create a proper collection with the correct meta properties for their use case.
+# We mostly rely on these defaults for testing purposes using Weaviate automatic schema generation, but that's not
+# recommended for production use.
 DOCUMENT_COLLECTION_PROPERTIES = [
     {"name": "_original_id", "dataType": ["text"]},
     {"name": "content", "dataType": ["text"]},
@@ -74,14 +74,20 @@ class WeaviateDocumentStore:
             - blob_data: blob
             - blob_mime_type: text
             - score: number
+            The Document `meta` fields are omitted in the default collection settings as we can't make assumptions
+            on the structure of the meta field.
+            We heavily recommend to create a custom collection with the correct meta properties
+            for your use case.
+            Another option is relying on the automatic schema generation, but that's not recommended for
+            production use.
             See the official `Weaviate documentation<https://weaviate.io/developers/weaviate/manage-data/collections>`_
-            for more information on collections.
+            for more information on collections and their properties.
         :param auth_client_secret: Authentication credentials, defaults to None.
             Can be one of the following types depending on the authentication mode:
-            - `weaviate.auth.AuthBearerToken` to use existing access and (optionally, but recommended) refresh tokens
-            - `weaviate.auth.AuthClientPassword` to use username and password for oidc Resource Owner Password flow
-            - `weaviate.auth.AuthClientCredentials` to use a client secret for oidc client credential flow
-            - `weaviate.auth.AuthApiKey` to use an API key
+            - `AuthBearerToken` to use existing access and (optionally, but recommended) refresh tokens
+            - `AuthClientPassword` to use username and password for oidc Resource Owner Password flow
+            - `AuthClientCredentials` to use a client secret for oidc client credential flow
+            - `AuthApiKey` to use an API key
         :param timeout_config: Timeout configuration for all requests to the Weaviate server, defaults to (10, 60).
             It can be a real number or, a tuple of two real numbers: (connect timeout, read timeout).
             If only one real number is passed then both connect and read timeout will be set to
@@ -110,7 +116,7 @@ class WeaviateDocumentStore:
         """
         self._client = weaviate.Client(
             url=url,
-            auth_client_secret=auth_client_secret,
+            auth_client_secret=auth_client_secret.resolve_value() if auth_client_secret else None,
             timeout_config=timeout_config,
             proxies=proxies,
             trust_env=trust_env,
@@ -126,6 +132,7 @@ class WeaviateDocumentStore:
         if collection_settings is None:
             collection_settings = {
                 "class": "Default",
+                "invertedIndexConfig": {"indexNullState": True},
                 "properties": DOCUMENT_COLLECTION_PROPERTIES,
             }
         else:
@@ -149,11 +156,6 @@ class WeaviateDocumentStore:
         self._additional_config = additional_config
 
     def to_dict(self) -> Dict[str, Any]:
-        auth_client_secret = None
-        if self._auth_client_secret:
-            # There are different types of AuthCredentials, so even thought it's a dataclass
-            # and we could just use asdict, we need to save the type too.
-            auth_client_secret = default_to_dict(self._auth_client_secret, **asdict(self._auth_client_secret))
         embedded_options = asdict(self._embedded_options) if self._embedded_options else None
         additional_config = asdict(self._additional_config) if self._additional_config else None
 
@@ -161,7 +163,7 @@ class WeaviateDocumentStore:
             self,
             url=self._url,
             collection_settings=self._collection_settings,
-            auth_client_secret=auth_client_secret,
+            auth_client_secret=self._auth_client_secret.to_dict() if self._auth_client_secret else None,
             timeout_config=self._timeout_config,
             proxies=self._proxies,
             trust_env=self._trust_env,
@@ -178,8 +180,7 @@ class WeaviateDocumentStore:
                 tuple(timeout_config) if isinstance(timeout_config, list) else timeout_config
             )
         if (auth_client_secret := data["init_parameters"].get("auth_client_secret")) is not None:
-            auth_class = _AUTH_CLASSES[auth_client_secret["type"]]
-            data["init_parameters"]["auth_client_secret"] = default_from_dict(auth_class, auth_client_secret)
+            data["init_parameters"]["auth_client_secret"] = AuthCredentials.from_dict(auth_client_secret)
         if (embedded_options := data["init_parameters"].get("embedded_options")) is not None:
             data["init_parameters"]["embedded_options"] = EmbeddedOptions(**embedded_options)
         if (additional_config := data["init_parameters"].get("additional_config")) is not None:
@@ -199,7 +200,7 @@ class WeaviateDocumentStore:
         """
         Convert a Document to a Weviate data object ready to be saved.
         """
-        data = document.to_dict(flatten=False)
+        data = document.to_dict()
         # Weaviate forces a UUID as an id.
         # We don't know if the id of our Document is a UUID or not, so we save it on a different field
         # and let Weaviate a UUID that we're going to ignore completely.
@@ -212,10 +213,6 @@ class WeaviateDocumentStore:
             data["blob_mime_type"] = blob.pop("mime_type")
         # The embedding vector is stored separately from the rest of the data
         del data["embedding"]
-
-        # Weaviate doesn't like empty objects, let's delete meta if it's empty
-        if data["meta"] == {}:
-            del data["meta"]
 
         return data
 
@@ -241,7 +238,7 @@ class WeaviateDocumentStore:
 
         return Document.from_dict(data)
 
-    def _query(self, properties: List[str], batch_size: int, cursor=None):
+    def _query_paginated(self, properties: List[str], cursor=None):
         collection_name = self._collection_settings["class"]
         query = (
             self._client.query.get(
@@ -249,7 +246,7 @@ class WeaviateDocumentStore:
                 properties,
             )
             .with_additional(["id vector"])
-            .with_limit(batch_size)
+            .with_limit(100)
         )
 
         if cursor:
@@ -267,14 +264,39 @@ class WeaviateDocumentStore:
 
         return result["data"]["Get"][collection_name]
 
-    def filter_documents(self, filters: Optional[Dict[str, Any]] = None) -> List[Document]:  # noqa: ARG002
+    def _query_with_filters(self, properties: List[str], filters: Dict[str, Any]) -> List[Dict[str, Any]]:
+        collection_name = self._collection_settings["class"]
+        query = (
+            self._client.query.get(
+                collection_name,
+                properties,
+            )
+            .with_additional(["id vector"])
+            .with_where(convert_filters(filters))
+        )
+
+        result = query.do()
+
+        if "errors" in result:
+            errors = [e["message"] for e in result.get("errors", {})]
+            msg = "\n".join(errors)
+            msg = f"Failed to query documents in Weaviate. Errors:\n{msg}"
+            raise DocumentStoreError(msg)
+
+        return result["data"]["Get"][collection_name]
+
+    def filter_documents(self, filters: Optional[Dict[str, Any]] = None) -> List[Document]:
         properties = self._client.schema.get(self._collection_settings["class"]).get("properties", [])
         properties = [prop["name"] for prop in properties]
+
+        if filters:
+            result = self._query_with_filters(properties, filters)
+            return [self._to_document(doc) for doc in result]
 
         result = []
 
         cursor = None
-        while batch := self._query(properties, 100, cursor):
+        while batch := self._query_paginated(properties, cursor):
             # Take the cursor before we convert the batch to Documents as we manipulate
             # the batch dictionary and might lose that information.
             cursor = batch[-1]["_additional"]["id"]
@@ -383,3 +405,66 @@ class WeaviateDocumentStore:
                 "valueTextArray": [generate_uuid5(doc_id) for doc_id in document_ids],
             },
         )
+
+    def _bm25_retrieval(
+        self, query: str, filters: Optional[Dict[str, Any]] = None, top_k: Optional[int] = None
+    ) -> List[Document]:
+        collection_name = self._collection_settings["class"]
+        properties = self._client.schema.get(self._collection_settings["class"]).get("properties", [])
+        properties = [prop["name"] for prop in properties]
+
+        query_builder = (
+            self._client.query.get(collection_name, properties=properties)
+            .with_bm25(query=query, properties=["content"])
+            .with_additional(["vector"])
+        )
+
+        if filters:
+            query_builder = query_builder.with_where(convert_filters(filters))
+
+        if top_k:
+            query_builder = query_builder.with_limit(top_k)
+
+        result = query_builder.do()
+
+        return [self._to_document(doc) for doc in result["data"]["Get"][collection_name]]
+
+    def _embedding_retrieval(
+        self,
+        query_embedding: List[float],
+        filters: Optional[Dict[str, Any]] = None,
+        top_k: Optional[int] = None,
+        distance: Optional[float] = None,
+        certainty: Optional[float] = None,
+    ) -> List[Document]:
+        if distance is not None and certainty is not None:
+            msg = "Can't use 'distance' and 'certainty' parameters together"
+            raise ValueError(msg)
+
+        collection_name = self._collection_settings["class"]
+        properties = self._client.schema.get(self._collection_settings["class"]).get("properties", [])
+        properties = [prop["name"] for prop in properties]
+
+        near_vector: Dict[str, Union[float, List[float]]] = {
+            "vector": query_embedding,
+        }
+        if distance is not None:
+            near_vector["distance"] = distance
+
+        if certainty is not None:
+            near_vector["certainty"] = certainty
+
+        query_builder = (
+            self._client.query.get(collection_name, properties=properties)
+            .with_near_vector(near_vector)
+            .with_additional(["vector"])
+        )
+
+        if filters:
+            query_builder = query_builder.with_where(convert_filters(filters))
+
+        if top_k:
+            query_builder = query_builder.with_limit(top_k)
+
+        result = query_builder.do()
+        return [self._to_document(doc) for doc in result["data"]["Get"][collection_name]]
