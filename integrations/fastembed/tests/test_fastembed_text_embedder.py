@@ -19,6 +19,7 @@ class TestFastembedTextEmbedder:
         assert embedder.suffix == ""
         assert embedder.batch_size == 256
         assert embedder.progress_bar is True
+        assert embedder.parallel is None
 
     def test_init_with_parameters(self):
         """
@@ -30,12 +31,14 @@ class TestFastembedTextEmbedder:
             suffix="suffix",
             batch_size=64,
             progress_bar=False,
+            parallel=1,
         )
         assert embedder.model_name == "BAAI/bge-small-en-v1.5"
         assert embedder.prefix == "prefix"
         assert embedder.suffix == "suffix"
         assert embedder.batch_size == 64
         assert embedder.progress_bar is False
+        assert embedder.parallel == 1
 
     def test_to_dict(self):
         """
@@ -51,6 +54,7 @@ class TestFastembedTextEmbedder:
                 "suffix": "",
                 "batch_size": 256,
                 "progress_bar": True,
+                "parallel": None,
             },
         }
 
@@ -64,6 +68,7 @@ class TestFastembedTextEmbedder:
             suffix="suffix",
             batch_size=64,
             progress_bar=False,
+            parallel=1,
         )
         embedder_dict = embedder.to_dict()
         assert embedder_dict == {
@@ -74,6 +79,7 @@ class TestFastembedTextEmbedder:
                 "suffix": "suffix",
                 "batch_size": 64,
                 "progress_bar": False,
+                "parallel": 1,
             },
         }
 
@@ -89,6 +95,7 @@ class TestFastembedTextEmbedder:
                 "suffix": "",
                 "batch_size": 256,
                 "progress_bar": True,
+                "parallel": None,
             },
         }
         embedder = default_from_dict(FastembedTextEmbedder, embedder_dict)
@@ -97,6 +104,7 @@ class TestFastembedTextEmbedder:
         assert embedder.suffix == ""
         assert embedder.batch_size == 256
         assert embedder.progress_bar is True
+        assert embedder.parallel is None
 
     def test_from_dict_with_custom_init_parameters(self):
         """
@@ -110,6 +118,7 @@ class TestFastembedTextEmbedder:
                 "suffix": "suffix",
                 "batch_size": 64,
                 "progress_bar": False,
+                "parallel": 1,
             },
         }
         embedder = default_from_dict(FastembedTextEmbedder, embedder_dict)
@@ -118,6 +127,7 @@ class TestFastembedTextEmbedder:
         assert embedder.suffix == "suffix"
         assert embedder.batch_size == 64
         assert embedder.progress_bar is False
+        assert embedder.parallel == 1
 
     @patch(
         "haystack_integrations.components.embedders.fastembed.fastembed_text_embedder._FastembedEmbeddingBackendFactory"

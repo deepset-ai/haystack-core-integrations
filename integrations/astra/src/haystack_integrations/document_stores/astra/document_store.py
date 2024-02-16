@@ -11,6 +11,7 @@ from haystack import default_from_dict, default_to_dict
 from haystack.dataclasses import Document
 from haystack.document_stores.errors import DuplicateDocumentError, MissingDocumentError
 from haystack.document_stores.types import DuplicatePolicy
+from haystack.utils import Secret, deserialize_secrets_inplace
 
 from .astra_client import AstraClient
 from .errors import AstraDocumentStoreFilterError
@@ -35,11 +36,10 @@ class AstraDocumentStore:
 
     def __init__(
         self,
-        astra_id: str,
-        astra_region: str,
-        astra_application_token: str,
-        astra_keyspace: str,
-        astra_collection: str,
+        api_endpoint: Secret = Secret.from_env_var("ASTRA_API_ENDPOINT"),  # noqa: B008
+        token: Secret = Secret.from_env_var("ASTRA_TOKEN"),  # noqa: B008
+        astra_keyspace: str = "default_keyspace",
+        astra_collection: str = "documents",
         embedding_dim: int = 768,
         duplicates_policy: DuplicatePolicy = DuplicatePolicy.NONE,
         similarity: str = "cosine",
@@ -65,36 +65,50 @@ class AstraDocumentStore:
               - `DuplicatePolicy.OVERWRITE`: If a Document with the same id already exists, it is overwritten.
               - `DuplicatePolicy.FAIL`: If a Document with the same id already exists, an error is raised.
         """
+        resolved_api_endpoint = api_endpoint.resolve_value()
+        if resolved_api_endpoint is None:
+            msg = (
+                "AstraDocumentStore expects the API endpoint. "
+                "Set the ASTRA_API_ENDPOINT environment variable (recommended) or pass it explicitly."
+            )
+            raise ValueError(msg)
 
-        self.duplicates_policy = duplicates_policy
-        self.astra_id = astra_id
-        self.astra_region = astra_region
-        self.astra_application_token = astra_application_token
+        resolved_token = token.resolve_value()
+        if resolved_token is None:
+            msg = (
+                "AstraDocumentStore expects an authentication token. "
+                "Set the ASTRA_TOKEN environment variable (recommended) or pass it explicitly."
+            )
+            raise ValueError(msg)
+
+        self.api_endpoint = api_endpoint
+        self.token = token
         self.astra_keyspace = astra_keyspace
         self.astra_collection = astra_collection
         self.embedding_dim = embedding_dim
+        self.duplicates_policy = duplicates_policy
         self.similarity = similarity
 
         self.index = AstraClient(
-            astra_id=self.astra_id,
-            astra_region=self.astra_region,
-            astra_application_token=self.astra_application_token,
-            keyspace_name=self.astra_keyspace,
-            collection_name=self.astra_collection,
-            embedding_dim=self.embedding_dim,
-            similarity_function=self.similarity,
+            resolved_api_endpoint,
+            resolved_token,
+            self.astra_keyspace,
+            self.astra_collection,
+            self.embedding_dim,
+            self.similarity,
         )
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "AstraDocumentStore":
+        deserialize_secrets_inplace(data["init_parameters"], keys=["api_endpoint", "token"])
         return default_from_dict(cls, data)
 
     def to_dict(self) -> Dict[str, Any]:
         return default_to_dict(
             self,
+            api_endpoint=self.api_endpoint.to_dict(),
+            token=self.token.to_dict(),
             duplicates_policy=self.duplicates_policy.name,
-            astra_id=self.astra_id,
-            astra_region=self.astra_region,
             astra_keyspace=self.astra_keyspace,
             astra_collection=self.astra_collection,
             embedding_dim=self.embedding_dim,
