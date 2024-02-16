@@ -54,8 +54,8 @@ class TestMistralDocumentEmbedder:
             "init_parameters": {
                 "api_key": {"env_vars": ["MISTRAL_API_KEY"], "strict": True, "type": "env_var"},
                 "model": "mistral-embed",
-                "dimensions": None,
                 "api_base_url": "https://api.mistral.ai/v1",
+                "dimensions": None,
                 "organization": None,
                 "prefix": "",
                 "suffix": "",

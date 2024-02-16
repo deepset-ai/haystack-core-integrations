@@ -17,7 +17,7 @@ from openai.types.chat.chat_completion_chunk import Choice, ChoiceDelta
 @pytest.fixture
 def chat_messages():
     return [
-        ChatMessage.from_assistant("You are a helpful assistant"),
+        ChatMessage.from_system("You are a helpful assistant"),
         ChatMessage.from_user("What's the capital of France"),
     ]
 
@@ -30,7 +30,7 @@ def mock_chat_completion():
     with patch("openai.resources.chat.completions.Completions.create") as mock_chat_completion_create:
         completion = ChatCompletion(
             id="foo",
-            model="gpt-4",
+            model="mistral-tiny",
             object="chat.completion",
             choices=[
                 Choice(
@@ -172,7 +172,6 @@ class TestMistralChatGenerator:
             "init_parameters": {
                 "api_key": {"env_vars": ["MISTRAL_API_KEY"], "strict": True, "type": "env_var"},
                 "model": "mistral-small",
-                "organization": None,
                 "api_base_url": "test-base-url",
                 "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
                 "generation_kwargs": {"max_tokens": 10, "some_test_param": "test-params"},
@@ -217,8 +216,7 @@ class TestMistralChatGenerator:
             nonlocal streaming_callback_called
             streaming_callback_called = True
 
-        component = MistralChatGenerator(
-            api_key=Secret.from_token("test-api-key"), streaming_callback=streaming_callback
+        component = MistralChatGenerator(streaming_callback=streaming_callback
         )
         response = component.run(chat_messages)
 
@@ -231,7 +229,7 @@ class TestMistralChatGenerator:
         assert isinstance(response["replies"], list)
         assert len(response["replies"]) == 1
         assert [isinstance(reply, ChatMessage) for reply in response["replies"]]
-        assert "Hello" in response["replies"][0].content  # see mock_chat_completion_chunk
+        assert "Paris" in response["replies"][0].content  # see mock_chat_completion_chunk
 
     def test_check_abnormal_completions(self, caplog):
         component = MistralChatGenerator(api_key=Secret.from_token("test-api-key"))
