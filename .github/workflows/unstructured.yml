@@ -39,6 +39,7 @@ jobs:
           sudo docker image prune --all --force
 
       - name: Run Unstructured API (docker)
+        working-directory: .
         run: |
           docker run -d \
             --name unstructured-api \
