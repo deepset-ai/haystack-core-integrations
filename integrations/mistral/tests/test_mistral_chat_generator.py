@@ -216,8 +216,7 @@ class TestMistralChatGenerator:
             nonlocal streaming_callback_called
             streaming_callback_called = True
 
-        component = MistralChatGenerator(streaming_callback=streaming_callback
-        )
+        component = MistralChatGenerator(streaming_callback=streaming_callback)
         response = component.run(chat_messages)
 
         # check we called the streaming callback
