@@ -59,7 +59,6 @@ class MistralChatGenerator(OpenAIChatGenerator):
         model: str = "mistral-tiny",
         streaming_callback: Optional[Callable[[StreamingChunk], None]] = None,
         api_base_url: Optional[str] = "https://api.mistral.ai/v1",
-        organization: Optional[str] = None,
         generation_kwargs: Optional[Dict[str, Any]] = None,
     ):
         """
@@ -72,7 +71,6 @@ class MistralChatGenerator(OpenAIChatGenerator):
             The callback function accepts StreamingChunk as an argument.
         :param api_base_url: The Mistral API Base url, defaults to `https://api.mistral.ai/v1`.
                              For more details, see Mistral [docs](https://docs.mistral.ai/api/).
-        :param organization: Not yet supported with Mistral chat completion models
         :param generation_kwargs: Other parameters to use for the model. These parameters are all sent directly to
             the Mistrak endpoint. See [Mistral API docs](https://docs.mistral.ai/api/t) for
             more details.
@@ -90,5 +88,10 @@ class MistralChatGenerator(OpenAIChatGenerator):
             - `random_seed`: The seed to use for random sampling.
         """
         super(MistralChatGenerator, self).__init__(  # noqa: UP008
-            api_key, model, streaming_callback, api_base_url, organization, generation_kwargs
+            api_key=api_key,
+            model=model,
+            streaming_callback=streaming_callback,
+            api_base_url=api_base_url,
+            organization=None,
+            generation_kwargs=generation_kwargs,
         )

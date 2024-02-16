@@ -33,9 +33,7 @@ class MistralTextEmbedder(OpenAITextEmbedder):
         self,
         api_key: Secret = Secret.from_env_var("MISTRAL_API_KEY"),
         model: str = "mistral-embed",
-        dimensions: Optional[int] = None,
         api_base_url: Optional[str] = "https://api.mistral.ai/v1",
-        organization: Optional[str] = None,
         prefix: str = "",
         suffix: str = "",
     ):
@@ -44,13 +42,17 @@ class MistralTextEmbedder(OpenAITextEmbedder):
 
         :param api_key: The Misttal API key.
         :param model: The name of the Mistral embedding models to be used.
-        :param dimensions: Not yet supported with Mistral embedding models
-        :param organization: The Organization ID, defaults to `None`.
         :param api_base_url: The Mistral API Base url, defaults to `https://api.mistral.ai/v1`.
                              For more details, see Mistral [docs](https://docs.mistral.ai/api/).
-        :param prefix: Not yet supported with Mistral embedding models
-        :param suffix: Not yet supported with Mistral embedding models
+        :param prefix: A string to add to the beginning of each text.
+        :param suffix: A string to add to the end of each text.
         """
         super(MistralTextEmbedder, self).__init__(  # noqa: UP008
-            api_key, model, dimensions, api_base_url, organization, prefix, suffix
+            api_key=api_key,
+            model=model,
+            dimensions=None,
+            api_base_url=api_base_url,
+            organization=None,
+            prefix=prefix,
+            suffix=suffix,
         )

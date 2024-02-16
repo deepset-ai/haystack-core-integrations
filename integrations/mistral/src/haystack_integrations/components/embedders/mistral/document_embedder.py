@@ -34,9 +34,7 @@ class MistralDocumentEmbedder(OpenAIDocumentEmbedder):
         self,
         api_key: Secret = Secret.from_env_var("MISTRAL_API_KEY"),
         model: str = "mistral-embed",
-        dimensions: Optional[int] = None,
         api_base_url: Optional[str] = "https://api.mistral.ai/v1",
-        organization: Optional[str] = None,
         prefix: str = "",
         suffix: str = "",
         batch_size: int = 32,
@@ -48,10 +46,7 @@ class MistralDocumentEmbedder(OpenAIDocumentEmbedder):
         Create a MistralDocumentEmbedder component.
         :param api_key: The Mistral API key.
         :param model: The name of the model to use.
-        :param dimensions: Not yet supported with `mistral-embed`. Currently this model outputs `1024` dimensions.
-                           For more info, refer to the Mistral [docs](https://docs.mistral.ai/platform/endpoints/#embedding-models)
         :param api_base_url: The Mistral API Base url, defaults to None. For more details, see Mistral [docs](https://docs.mistral.ai/api/).
-        :param organization: Not yet supported with Mistral, defaults to `None`.
         :param prefix: A string to add to the beginning of each text.
         :param suffix: A string to add to the end of each text.
         :param batch_size: Number of Documents to encode at once.
@@ -61,15 +56,15 @@ class MistralDocumentEmbedder(OpenAIDocumentEmbedder):
         :param embedding_separator: Separator used to concatenate the meta fields to the Document text.
         """
         super(MistralDocumentEmbedder, self).__init__(  # noqa: UP008
-            api_key,
-            model,
-            dimensions,
-            api_base_url,
-            organization,
-            prefix,
-            suffix,
-            batch_size,
-            progress_bar,
-            meta_fields_to_embed,
-            embedding_separator,
+            api_key=api_key,
+            model=model,
+            dimensions=None,
+            api_base_url=api_base_url,
+            organization=None,
+            prefix=prefix,
+            suffix=suffix,
+            batch_size=batch_size,
+            progress_bar=progress_bar,
+            meta_fields_to_embed=meta_fields_to_embed,
+            embedding_separator=embedding_separator,
         )
