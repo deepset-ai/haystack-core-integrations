@@ -15,8 +15,8 @@ from numpy.random import rand
 def document_store(request):
     store = MongoDBAtlasDocumentStore(
         database_name="haystack_integration_test",
-        collection_name=request.node.name + str(uuid4()),
-        vector_search_index="vector_search_index",
+        collection_name="test_collection",
+        vector_search_index="vector_index",
         recreate_collection=True,
     )
     return store

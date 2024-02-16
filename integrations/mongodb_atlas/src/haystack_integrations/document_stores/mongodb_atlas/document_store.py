@@ -73,6 +73,7 @@ class MongoDBAtlasDocumentStore:
         if collection_name not in database.list_collection_names():
             database.create_collection(self.collection_name)
             database[self.collection_name].create_index("id", unique=True)
+            database[self.collection_name].create_index(self.vector_search_index)
 
         self.collection = database[self.collection_name]
 
@@ -200,6 +201,7 @@ class MongoDBAtlasDocumentStore:
         if similarity == "cosine":
             self.normalize_embedding(query_embedding)
 
+        filters = haystack_filters_to_mongo(filters)
         pipeline = [
             {
                 "$vectorSearch": {
@@ -208,15 +210,17 @@ class MongoDBAtlasDocumentStore:
                     "path": "embedding",
                     "numCandidates": 100,
                     "limit": top_k,
+                    #"filter": filters,
+                }
+            }, {
+                '$project': {
+                    '_id': 0, 
+                    'score': {
+                        '$meta': 'vectorSearchScore'
+                    }
                 }
             }
         ]
-
-        filters = haystack_filters_to_mongo(filters)
-        if filters is not None:
-            pipeline.append({"$match": filters})
-            
-        pipeline.append({"$set": {"score": {"$meta": "vectorSearchScore"}}})
         documents = list(self.collection.aggregate(pipeline))
 
         if scale_score:
