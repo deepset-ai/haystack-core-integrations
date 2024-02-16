@@ -17,14 +17,6 @@ from haystack_integrations.components.generators.amazon_sagemaker.errors import 
 
 logger = logging.getLogger(__name__)
 
-AWS_CONFIGURATION_KEYS = [
-    "aws_access_key_id",
-    "aws_secret_access_key",
-    "aws_session_token",
-    "aws_region_name",
-    "aws_profile_name",
-]
-
 
 MODEL_NOT_READY_STATUS_CODE = 429
 
@@ -38,16 +30,7 @@ class SagemakerGenerator:
 
     **Example:**
 
-    First export your AWS credentials as environment variables:
-    ```bash
-    export AWS_ACCESS_KEY_ID=<your_access_key_id>
-    export AWS_SECRET_ACCESS_KEY=<your_secret_access_key>
-
-    export AWS_SECRET_ACCESS_KEY=<your_secret_access_key>
-
-    ```
-    (Note: you may also need to set the session token and region name, depending on your AWS configuration)
-
+    Make sure your AWS credentials are set up correctly. You can use environment variables or a shared credentials file.
     Then you can use the generator as follows:
     ```python
     from haystack_integrations.components.generators.amazon_sagemaker import SagemakerGenerator
@@ -81,13 +64,6 @@ class SagemakerGenerator:
         Instantiates the session with SageMaker.
 
         :param model: The name for SageMaker Model Endpoint.
-
-        :param aws_access_key_id: The name of the env var where the AWS access key ID is stored.
-        :param aws_secret_access_key: The name of the env var where the AWS secret access key is stored.
-        :param aws_session_token: The name of the env var where the AWS session token is stored.
-        :param aws_region_name: The name of the env var where the AWS region name is stored.
-        :param aws_profile_name: The name of the env var where the AWS profile name is stored.
-
         :param aws_custom_attributes: Custom attributes to be passed to SageMaker, for example `{"accept_eula": True}`
             in case of Llama-2 models.
 
@@ -120,7 +96,7 @@ class SagemakerGenerator:
             return secret.resolve_value() if secret else None
 
         try:
-            session = self.get_aws_session(
+            session = self._get_aws_session(
                 aws_access_key_id=resolve_secret(aws_access_key_id),
                 aws_secret_access_key=resolve_secret(aws_secret_access_key),
                 aws_session_token=resolve_secret(aws_session_token),
@@ -168,15 +144,13 @@ class SagemakerGenerator:
         )
         return default_from_dict(cls, data)
 
-    @classmethod
-    def get_aws_session(
-        cls,
+    @staticmethod
+    def _get_aws_session(
         aws_access_key_id: Optional[str] = None,
         aws_secret_access_key: Optional[str] = None,
         aws_session_token: Optional[str] = None,
         aws_region_name: Optional[str] = None,
         aws_profile_name: Optional[str] = None,
-        **kwargs,
     ):
         """
         Creates an AWS Session with the given parameters.
@@ -187,8 +161,7 @@ class SagemakerGenerator:
         :param aws_session_token: AWS session token.
         :param aws_region_name: AWS region name.
         :param aws_profile_name: AWS profile name.
-        :param kwargs: The kwargs passed down to the service client. Supported kwargs depend on the model chosen.
-            See https://docs.aws.amazon.com/bedrock/latest/userguide/model-parameters.html.
+
         :raises AWSConfigurationError: If the provided AWS credentials are invalid.
         :return: The created AWS session.
         """
@@ -201,8 +174,7 @@ class SagemakerGenerator:
                 profile_name=aws_profile_name,
             )
         except BotoCoreError as e:
-            provided_aws_config = {k: v for k, v in kwargs.items() if k in AWS_CONFIGURATION_KEYS}
-            msg = f"Failed to initialize the session with provided AWS credentials {provided_aws_config}"
+            msg = f"Failed to initialize the session with provided AWS credentials: {e}."
             raise AWSConfigurationError(msg) from e
 
     @component.output_types(replies=List[str], meta=List[Dict[str, Any]])

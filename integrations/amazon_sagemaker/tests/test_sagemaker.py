@@ -7,27 +7,25 @@ from haystack.utils.auth import EnvVarSecret
 from haystack_integrations.components.generators.amazon_sagemaker import SagemakerGenerator
 from haystack_integrations.components.generators.amazon_sagemaker.errors import AWSConfigurationError
 
-mocked_dict = {
-    "type": "haystack_integrations.components.generators.amazon_sagemaker.sagemaker.SagemakerGenerator",
-    "init_parameters": {
-        "model": "model",
-        "aws_access_key_id": {"type": "env_var", "env_vars": ["AWS_ACCESS_KEY_ID"], "strict": False},
-        "aws_secret_access_key": {"type": "env_var", "env_vars": ["AWS_SECRET_ACCESS_KEY"], "strict": False},
-        "aws_session_token": {"type": "env_var", "env_vars": ["AWS_SESSION_TOKEN"], "strict": False},
-        "aws_region_name": {"type": "env_var", "env_vars": ["AWS_DEFAULT_REGION"], "strict": False},
-        "aws_profile_name": {"type": "env_var", "env_vars": ["AWS_PROFILE"], "strict": False},
-        "aws_custom_attributes": {"accept_eula": True},
-        "generation_kwargs": {"max_new_tokens": 10},
-    },
-}
 
-
-@pytest.mark.unit
-@pytest.mark.usefixtures("set_env_variables", "mock_boto3_session")
-def test_to_dict():
+def test_to_dict(set_env_variables, mock_boto3_session):  # noqa: ARG001
     """
     Test that the to_dict method returns the correct dictionary without aws credentials
     """
+
+    mocked_dict = {
+        "type": "haystack_integrations.components.generators.amazon_sagemaker.sagemaker.SagemakerGenerator",
+        "init_parameters": {
+            "model": "model",
+            "aws_access_key_id": {"type": "env_var", "env_vars": ["AWS_ACCESS_KEY_ID"], "strict": False},
+            "aws_secret_access_key": {"type": "env_var", "env_vars": ["AWS_SECRET_ACCESS_KEY"], "strict": False},
+            "aws_session_token": {"type": "env_var", "env_vars": ["AWS_SESSION_TOKEN"], "strict": False},
+            "aws_region_name": {"type": "env_var", "env_vars": ["AWS_DEFAULT_REGION"], "strict": False},
+            "aws_profile_name": {"type": "env_var", "env_vars": ["AWS_PROFILE"], "strict": False},
+            "aws_custom_attributes": {"accept_eula": True},
+            "generation_kwargs": {"max_new_tokens": 10},
+        },
+    }
 
     generator = SagemakerGenerator(
         model="model",
@@ -37,21 +35,31 @@ def test_to_dict():
     assert generator.to_dict() == mocked_dict
 
 
-@pytest.mark.unit
-@pytest.mark.usefixtures("set_env_variables", "mock_boto3_session")
-def test_from_dict():
+def test_from_dict(set_env_variables, mock_boto3_session):  # noqa: ARG001
     """
     Test that the from_dict method returns the correct object
     """
+
+    mocked_dict = {
+        "type": "haystack_integrations.components.generators.amazon_sagemaker.sagemaker.SagemakerGenerator",
+        "init_parameters": {
+            "model": "model",
+            "aws_access_key_id": {"type": "env_var", "env_vars": ["AWS_ACCESS_KEY_ID"], "strict": False},
+            "aws_secret_access_key": {"type": "env_var", "env_vars": ["AWS_SECRET_ACCESS_KEY"], "strict": False},
+            "aws_session_token": {"type": "env_var", "env_vars": ["AWS_SESSION_TOKEN"], "strict": False},
+            "aws_region_name": {"type": "env_var", "env_vars": ["AWS_DEFAULT_REGION"], "strict": False},
+            "aws_profile_name": {"type": "env_var", "env_vars": ["AWS_PROFILE"], "strict": False},
+            "aws_custom_attributes": {"accept_eula": True},
+            "generation_kwargs": {"max_new_tokens": 10},
+        },
+    }
 
     generator = SagemakerGenerator.from_dict(mocked_dict)
     assert generator.model == "model"
     assert isinstance(generator.aws_access_key_id, EnvVarSecret)
 
 
-@pytest.mark.unit
-@pytest.mark.usefixtures("set_env_variables", "mock_boto3_session")
-def test_default_constructor(mock_boto3_session):
+def test_default_constructor(set_env_variables, mock_boto3_session):  # noqa: ARG001
     """
     Test that the default constructor sets the correct values
     """
@@ -74,9 +82,7 @@ def test_default_constructor(mock_boto3_session):
     )
 
 
-@pytest.mark.unit
-@pytest.mark.usefixtures("set_env_variables", "mock_boto3_session")
-def test_init_raises_boto_error():
+def test_init_raises_boto_error(set_env_variables, mock_boto3_session):  # noqa: ARG001
     with patch("boto3.Session") as mock_boto3_session:
         mock_boto3_session.side_effect = BotoCoreError()
         with pytest.raises(
@@ -87,9 +93,7 @@ def test_init_raises_boto_error():
             SagemakerGenerator(model="test-model")
 
 
-@pytest.mark.unit
-@pytest.mark.usefixtures("set_env_variables", "mock_boto3_session")
-def test_run_with_list_of_dictionaries():
+def test_run_with_list_of_dictionaries(set_env_variables, mock_boto3_session):  # noqa: ARG001
     client_mock = Mock()
     client_mock.invoke_endpoint.return_value = {
         "Body": Mock(read=lambda: b'[{"generated_text": "test-reply", "other": "metadata"}]')
@@ -113,9 +117,7 @@ def test_run_with_list_of_dictionaries():
     assert response["meta"][0]["other"] == "metadata"
 
 
-@pytest.mark.unit
-@pytest.mark.usefixtures("set_env_variables", "mock_boto3_session")
-def test_run_with_single_dictionary():
+def test_run_with_single_dictionary(set_env_variables, mock_boto3_session):  # noqa: ARG001
     client_mock = Mock()
     client_mock.invoke_endpoint.return_value = {
         "Body": Mock(read=lambda: b'{"generation": "test-reply", "other": "metadata"}')
