@@ -1,6 +1,5 @@
 import os
 from datetime import datetime
-from typing import Iterator
 from unittest.mock import patch
 
 import pytest
@@ -9,8 +8,8 @@ from haystack.components.generators.utils import print_streaming_chunk
 from haystack.dataclasses import ChatMessage, StreamingChunk
 from haystack.utils.auth import Secret
 from haystack_integrations.components.generators.mistral.chat.chat_generator import MistralChatGenerator
-from openai import OpenAIError, Stream
-from openai.types.chat import ChatCompletion, ChatCompletionChunk, ChatCompletionMessage
+from openai import OpenAIError
+from openai.types.chat import ChatCompletion, ChatCompletionMessage
 from openai.types.chat.chat_completion import Choice
 
 
@@ -160,9 +159,7 @@ class TestMistralChatGenerator:
         assert [isinstance(reply, ChatMessage) for reply in response["replies"]]
 
     def test_run_with_params(self, chat_messages, mock_chat_completion):
-        component = MistralChatGenerator(
-            generation_kwargs={"max_tokens": 10, "temperature": 0.5}
-        )
+        component = MistralChatGenerator(generation_kwargs={"max_tokens": 10, "temperature": 0.5})
         response = component.run(chat_messages)
 
         # check that the component calls the OpenAI API with the correct parameters
