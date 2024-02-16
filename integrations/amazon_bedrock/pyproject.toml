@@ -83,11 +83,13 @@ style = [
   "ruff {args:.}",
   "black --check --diff {args:.}",
 ]
+
 fmt = [
   "black {args:.}",
   "ruff --fix {args:.}",
   "style",
 ]
+
 all = [
   "style",
   "typing",
@@ -135,7 +137,7 @@ ignore = [
   # Ignore complexity
   "C901", "PLR0911", "PLR0912", "PLR0913", "PLR0915",
   # Ignore unused params
-  "ARG001", "ARG002", "ARG005"
+  "ARG001", "ARG002", "ARG005",
 ]
 unfixable = [
   # Don't touch unused imports
@@ -153,16 +155,13 @@ ban-relative-imports = "parents"
 "tests/**/*" = ["PLR2004", "S101", "TID252"]
 
 [tool.coverage.run]
-source_pkgs = ["src", "tests"]
+source = ["haystack_integrations"]
 branch = true
 parallel = true
 
-
-[tool.coverage.paths]
-amazon_bedrock_haystack = ["src/*"]
-tests = ["tests"]
-
 [tool.coverage.report]
+omit = ["*/tests/*", "*/__init__.py"]
+show_missing=true
 exclude_lines = [
   "no cov",
   "if __name__ == .__main__.:",
