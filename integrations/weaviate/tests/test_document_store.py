@@ -15,6 +15,7 @@ from haystack.testing.document_store import (
     FilterDocumentsTest,
     WriteDocumentsTest,
 )
+from haystack_integrations.document_stores.weaviate.auth import AuthApiKey
 from haystack_integrations.document_stores.weaviate.document_store import (
     DOCUMENT_COLLECTION_PROPERTIES,
     WeaviateDocumentStore,
@@ -23,7 +24,7 @@ from numpy import array as np_array
 from numpy import array_equal as np_array_equal
 from numpy import float32 as np_float32
 from pandas import DataFrame
-from weaviate.auth import AuthApiKey
+from weaviate.auth import AuthApiKey as WeaviateAuthApiKey
 from weaviate.config import Config
 from weaviate.embedded import (
     DEFAULT_BINARY_PATH,
@@ -145,15 +146,15 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
                 assert received_meta.get(key) == expected_meta.get(key)
 
     @patch("haystack_integrations.document_stores.weaviate.document_store.weaviate.Client")
-    def test_init(self, mock_weaviate_client_class):
+    def test_init(self, mock_weaviate_client_class, monkeypatch):
         mock_client = MagicMock()
         mock_client.schema.exists.return_value = False
         mock_weaviate_client_class.return_value = mock_client
-
+        monkeypatch.setenv("WEAVIATE_API_KEY", "my_api_key")
         WeaviateDocumentStore(
             url="http://localhost:8080",
             collection_settings={"class": "My_collection"},
-            auth_client_secret=AuthApiKey("my_api_key"),
+            auth_client_secret=AuthApiKey(),
             proxies={"http": "http://proxy:1234"},
             additional_headers={"X-HuggingFace-Api-Key": "MY_HUGGINGFACE_KEY"},
             embedded_options=EmbeddedOptions(
@@ -168,7 +169,7 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
         # Verify client is created with correct parameters
         mock_weaviate_client_class.assert_called_once_with(
             url="http://localhost:8080",
-            auth_client_secret=AuthApiKey("my_api_key"),
+            auth_client_secret=WeaviateAuthApiKey("my_api_key"),
             timeout_config=(10, 60),
             proxies={"http": "http://proxy:1234"},
             trust_env=False,
@@ -191,10 +192,11 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
         )
 
     @patch("haystack_integrations.document_stores.weaviate.document_store.weaviate")
-    def test_to_dict(self, _mock_weaviate):
+    def test_to_dict(self, _mock_weaviate, monkeypatch):
+        monkeypatch.setenv("WEAVIATE_API_KEY", "my_api_key")
         document_store = WeaviateDocumentStore(
             url="http://localhost:8080",
-            auth_client_secret=AuthApiKey("my_api_key"),
+            auth_client_secret=AuthApiKey(),
             proxies={"http": "http://proxy:1234"},
             additional_headers={"X-HuggingFace-Api-Key": "MY_HUGGINGFACE_KEY"},
             embedded_options=EmbeddedOptions(
@@ -222,8 +224,10 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
                     ],
                 },
                 "auth_client_secret": {
-                    "type": "weaviate.auth.AuthApiKey",
-                    "init_parameters": {"api_key": "my_api_key"},
+                    "type": "api_key",
+                    "init_parameters": {
+                        "api_key": {"env_vars": ["WEAVIATE_API_KEY"], "strict": True, "type": "env_var"}
+                    },
                 },
                 "timeout_config": (10, 60),
                 "proxies": {"http": "http://proxy:1234"},
@@ -250,7 +254,8 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
         }
 
     @patch("haystack_integrations.document_stores.weaviate.document_store.weaviate")
-    def test_from_dict(self, _mock_weaviate):
+    def test_from_dict(self, _mock_weaviate, monkeypatch):
+        monkeypatch.setenv("WEAVIATE_API_KEY", "my_api_key")
         document_store = WeaviateDocumentStore.from_dict(
             {
                 "type": "haystack_integrations.document_stores.weaviate.document_store.WeaviateDocumentStore",
@@ -258,8 +263,10 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
                     "url": "http://localhost:8080",
                     "collection_settings": None,
                     "auth_client_secret": {
-                        "type": "weaviate.auth.AuthApiKey",
-                        "init_parameters": {"api_key": "my_api_key"},
+                        "type": "api_key",
+                        "init_parameters": {
+                            "api_key": {"env_vars": ["WEAVIATE_API_KEY"], "strict": True, "type": "env_var"}
+                        },
                     },
                     "timeout_config": [10, 60],
                     "proxies": {"http": "http://proxy:1234"},
@@ -299,7 +306,7 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
                 {"name": "score", "dataType": ["number"]},
             ],
         }
-        assert document_store._auth_client_secret == AuthApiKey("my_api_key")
+        assert document_store._auth_client_secret == AuthApiKey()
         assert document_store._timeout_config == (10, 60)
         assert document_store._proxies == {"http": "http://proxy:1234"}
         assert not document_store._trust_env

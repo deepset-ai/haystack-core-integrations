@@ -97,13 +97,11 @@ class MongoDBAtlasDocumentStore:
         deserialize_secrets_inplace(data["init_parameters"], keys=["mongo_connection_string"])
         return default_from_dict(cls, data)
 
-    def count_documents(self, filters: Optional[Dict[str, Any]] = None) -> int:
+    def count_documents(self) -> int:
         """
         Returns how many documents are present in the document store.
-
-        :param filters: The filters to apply. It counts only the documents that match the filters.
         """
-        return self.collection.count_documents(filters or {})
+        return self.collection.count_documents({})
 
     def filter_documents(self, filters: Optional[Dict[str, Any]] = None) -> List[Document]:
         """

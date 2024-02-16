@@ -21,20 +21,15 @@ HERE = Path(__file__).resolve().parent
 file_paths = [HERE / "data" / Path(name) for name in os.listdir("integrations/astra/examples/data")]
 logger.info(file_paths)
 
-astra_id = os.getenv("ASTRA_DB_ID", "")
-astra_region = os.getenv("ASTRA_DB_REGION", "us-east1")
-
-astra_application_token = os.getenv("ASTRA_DB_APPLICATION_TOKEN", "")
 collection_name = os.getenv("COLLECTION_NAME", "haystack_vector_search")
 keyspace_name = os.getenv("KEYSPACE_NAME", "recommender_demo")
 
+# Make sure ASTRA_API_ENDPOINT and ASTRA_TOKEN environment variables are set before proceeding
+
 # We support many different databases. Here, we load a simple and lightweight in-memory database.
 document_store = AstraDocumentStore(
-    astra_id=astra_id,
-    astra_region=astra_region,
     astra_collection=collection_name,
     astra_keyspace=keyspace_name,
-    astra_application_token=astra_application_token,
     duplicates_policy=DuplicatePolicy.OVERWRITE,
     embedding_dim=384,
 )
