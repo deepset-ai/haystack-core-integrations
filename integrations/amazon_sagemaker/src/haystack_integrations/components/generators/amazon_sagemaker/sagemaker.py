@@ -63,6 +63,11 @@ class SagemakerGenerator:
         """
         Instantiates the session with SageMaker.
 
+        :param aws_access_key_id: The `Secret` for AWS access key ID.
+        :param aws_secret_access_key: The `Secret` for AWS secret access key.
+        :param aws_session_token: The `Secret` for AWS session token.
+        :param aws_region_name: The `Secret` for AWS region name. If not provided, the default region will be used.
+        :param aws_profile_name: The `Secret` for AWS profile name. If not provided, the default profile will be used.
         :param model: The name for SageMaker Model Endpoint.
         :param aws_custom_attributes: Custom attributes to be passed to SageMaker, for example `{"accept_eula": True}`
             in case of Llama-2 models.
