@@ -8,6 +8,7 @@ from botocore.exceptions import BotoCoreError, ClientError
 from haystack import component, default_from_dict, default_to_dict
 from haystack.components.generators.utils import deserialize_callback_handler
 from haystack.dataclasses import ChatMessage, StreamingChunk
+from haystack.utils.auth import Secret, deserialize_secrets_inplace
 
 from haystack_integrations.components.generators.amazon_bedrock.errors import (
     AmazonBedrockConfigurationError,
@@ -106,6 +107,11 @@ class AmazonBedrockChatGenerator:
             msg = "'model' cannot be None or empty string"
             raise ValueError(msg)
         self.model = model
+        self.aws_access_key_id = aws_access_key_id
+        self.aws_secret_access_key = aws_secret_access_key
+        self.aws_session_token = aws_session_token
+        self.aws_region_name = aws_region_name
+        self.aws_profile_name = aws_profile_name
 
         # get the model adapter for the given model
         model_adapter_cls = self.get_model_adapter(model=model)
@@ -236,6 +242,11 @@ class AmazonBedrockChatGenerator:
         """
         return default_to_dict(
             self,
+            aws_access_key_id=self.aws_access_key_id.to_dict() if self.aws_access_key_id else None,
+            aws_secret_access_key=self.aws_secret_access_key.to_dict() if self.aws_secret_access_key else None,
+            aws_session_token=self.aws_session_token.to_dict() if self.aws_session_token else None,
+            aws_region_name=self.aws_region_name.to_dict() if self.aws_region_name else None,
+            aws_profile_name=self.aws_profile_name.to_dict() if self.aws_profile_name else None,
             model=self.model,
             stop_words=self.stop_words,
             generation_kwargs=self.model_adapter.generation_kwargs,
@@ -253,4 +264,8 @@ class AmazonBedrockChatGenerator:
         serialized_callback_handler = init_params.get("streaming_callback")
         if serialized_callback_handler:
             data["init_parameters"]["streaming_callback"] = deserialize_callback_handler(serialized_callback_handler)
+        deserialize_secrets_inplace(
+            data["init_parameters"],
+            ["aws_access_key_id", "aws_secret_access_key", "aws_session_token", "aws_region_name", "aws_profile_name"],
+        )
         return default_from_dict(cls, data)

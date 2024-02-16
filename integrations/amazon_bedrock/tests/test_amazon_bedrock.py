@@ -16,47 +16,24 @@ from haystack_integrations.components.generators.amazon_bedrock.adapters import 
 from haystack_integrations.components.generators.amazon_bedrock.errors import AmazonBedrockConfigurationError
 
 
-@pytest.fixture
-def mock_auto_tokenizer():
-    with patch("transformers.AutoTokenizer.from_pretrained", autospec=True) as mock_from_pretrained:
-        mock_tokenizer = MagicMock()
-        mock_from_pretrained.return_value = mock_tokenizer
-        yield mock_tokenizer
-
-
-# create a fixture with mocked boto3 client and session
-@pytest.fixture
-def mock_boto3_session():
-    with patch("boto3.Session") as mock_client:
-        yield mock_client
-
-
-@pytest.fixture
-def mock_prompt_handler():
-    with patch(
-        "haystack_integrations.components.generators.amazon_bedrock.handlers.DefaultPromptHandler"
-    ) as mock_prompt_handler:
-        yield mock_prompt_handler
-
-
 @pytest.mark.unit
-def test_to_dict(mock_auto_tokenizer, mock_boto3_session):
+def test_to_dict(mock_auto_tokenizer, mock_boto3_session, set_env_variables):
     """
     Test that the to_dict method returns the correct dictionary without aws credentials
     """
     generator = AmazonBedrockGenerator(
         model="anthropic.claude-v2",
         max_length=99,
-        aws_access_key_id="some_fake_id",
-        aws_secret_access_key="some_fake_key",
-        aws_session_token="some_fake_token",
-        aws_profile_name="some_fake_profile",
-        aws_region_name="fake_region",
     )
 
     expected_dict = {
         "type": "haystack_integrations.components.generators.amazon_bedrock.generator.AmazonBedrockGenerator",
         "init_parameters": {
+            "aws_access_key_id": {"type": "env_var", "env_vars": ["AWS_ACCESS_KEY_ID"], "strict": False},
+            "aws_secret_access_key": {"type": "env_var", "env_vars": ["AWS_SECRET_ACCESS_KEY"], "strict": False},
+            "aws_session_token": {"type": "env_var", "env_vars": ["AWS_SESSION_TOKEN"], "strict": False},
+            "aws_region_name": {"type": "env_var", "env_vars": ["AWS_DEFAULT_REGION"], "strict": False},
+            "aws_profile_name": {"type": "env_var", "env_vars": ["AWS_PROFILE"], "strict": False},
             "model": "anthropic.claude-v2",
             "max_length": 99,
         },
@@ -66,7 +43,7 @@ def test_to_dict(mock_auto_tokenizer, mock_boto3_session):
 
 
 @pytest.mark.unit
-def test_from_dict(mock_auto_tokenizer, mock_boto3_session):
+def test_from_dict(mock_auto_tokenizer, mock_boto3_session, set_env_variables):
     """
     Test that the from_dict method returns the correct object
     """
@@ -74,6 +51,11 @@ def test_from_dict(mock_auto_tokenizer, mock_boto3_session):
         {
             "type": "haystack_integrations.components.generators.amazon_bedrock.generator.AmazonBedrockGenerator",
             "init_parameters": {
+                "aws_access_key_id": {"type": "env_var", "env_vars": ["AWS_ACCESS_KEY_ID"], "strict": False},
+                "aws_secret_access_key": {"type": "env_var", "env_vars": ["AWS_SECRET_ACCESS_KEY"], "strict": False},
+                "aws_session_token": {"type": "env_var", "env_vars": ["AWS_SESSION_TOKEN"], "strict": False},
+                "aws_region_name": {"type": "env_var", "env_vars": ["AWS_DEFAULT_REGION"], "strict": False},
+                "aws_profile_name": {"type": "env_var", "env_vars": ["AWS_PROFILE"], "strict": False},
                 "model": "anthropic.claude-v2",
                 "max_length": 99,
             },
@@ -85,7 +67,7 @@ def test_from_dict(mock_auto_tokenizer, mock_boto3_session):
 
 
 @pytest.mark.unit
-def test_default_constructor(mock_auto_tokenizer, mock_boto3_session):
+def test_default_constructor(mock_auto_tokenizer, mock_boto3_session, set_env_variables):
     """
     Test that the default constructor sets the correct values
     """
@@ -93,11 +75,6 @@ def test_default_constructor(mock_auto_tokenizer, mock_boto3_session):
     layer = AmazonBedrockGenerator(
         model="anthropic.claude-v2",
         max_length=99,
-        aws_access_key_id="some_fake_id",
-        aws_secret_access_key="some_fake_key",
-        aws_session_token="some_fake_token",
-        aws_profile_name="some_fake_profile",
-        aws_region_name="fake_region",
     )
 
     assert layer.max_length == 99
@@ -120,7 +97,7 @@ def test_default_constructor(mock_auto_tokenizer, mock_boto3_session):
 
 
 @pytest.mark.unit
-def test_constructor_prompt_handler_initialized(mock_auto_tokenizer, mock_boto3_session):
+def test_constructor_prompt_handler_initialized(mock_auto_tokenizer, mock_boto3_session, mock_prompt_handler):
     """
     Test that the constructor sets the prompt_handler correctly, with the correct model_max_length for llama-2
     """
