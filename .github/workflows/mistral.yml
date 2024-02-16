@@ -1,26 +1,27 @@
 # This workflow comes from https://github.com/ofek/hatch-mypyc
 # https://github.com/ofek/hatch-mypyc/blob/5a198c0ba8660494d02716cfc9d79ce4adfb1442/.github/workflows/test.yml
-name: Test / unstructured
+name: Test / mistral
 
 on:
   schedule:
     - cron: "0 0 * * *"
   pull_request:
     paths:
-      - "integrations/unstructured/**"
-      - ".github/workflows/unstructured.yml" 
+      - "integrations/mistral/**"
+      - ".github/workflows/mistral.yml"
 
 defaults:
   run:
-    working-directory: integrations/unstructured    
+    working-directory: integrations/mistral
 
 concurrency:
-  group: unstructured-${{ github.head_ref }}
+  group: mistral-${{ github.head_ref }}
   cancel-in-progress: true
 
 env:
   PYTHONUNBUFFERED: "1"
   FORCE_COLOR: "1"
+  MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
 
 jobs:
   run:
@@ -29,26 +30,14 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest]
-        python-version: ["3.8", "3.9", "3.10", "3.11"]
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        python-version: ["3.9", "3.10"]
 
     steps:
-      - name: Free up disk space
+      - name: Support longpaths
+        if: matrix.os == 'windows-latest'
         working-directory: .
-        run: |
-          sudo docker image prune --all --force
-
-      - name: Run Unstructured API (docker)
-        working-directory: .
-        run: |
-          docker run -d \
-            --name unstructured-api \
-            -p 8000:8000 \
-            --health-cmd "curl --fail http://localhost:8000/healthcheck || exit 1" \
-            --health-interval 10s \
-            --health-timeout 1s \
-            --health-retries 10 \
-            quay.io/unstructured-io/unstructured-api:latest       
+        run: git config --system core.longpaths true
 
       - uses: actions/checkout@v4
 
@@ -61,12 +50,12 @@ jobs:
         run: pip install --upgrade hatch
 
       - name: Lint
-        if: matrix.python-version == '3.9'
+        if: matrix.python-version == '3.9' && runner.os == 'Linux'
         run: hatch run lint:all
-
+      
       - name: Generate docs
         if: matrix.python-version == '3.9' && runner.os == 'Linux'
         run: hatch run docs
 
-      - name: Run tests 
+      - name: Run tests
         run: hatch run cov
