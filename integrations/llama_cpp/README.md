@@ -1,7 +1,7 @@
 # llama-cpp-haystack
 
-[![PyPI - Version](https://img.shields.io/pypi/v/llama-cpp.svg)](https://pypi.org/project/llama-cpp-haystack)
-[![PyPI - Python Version](https://img.shields.io/pypi/pyversions/llama-cpp.svg)](https://pypi.org/project/llama-cpp)
+[![PyPI - Version](https://img.shields.io/pypi/v/llama-cpp-haystack.svg)](https://pypi.org/project/llama-cpp-haystack)
+[![PyPI - Python Version](https://img.shields.io/pypi/pyversions/llama-cpp-haystack.svg)](https://pypi.org/project/llama-cpp-haystack)
 
 -----
 
@@ -35,7 +35,7 @@ pip install llama-cpp-haystack
 
 ## Usage
 
-You can utilize the [`LlamaCppGenerator`](https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/llama_cpp/src/llama_cpp_haystack/generator.py) to load models quantized using llama.cpp (GGUF) for text generation.
+You can utilize the `LlamaCppGenerator` to load models quantized using llama.cpp (GGUF) for text generation.
 
 Information about the supported models and model parameters can be found on the llama.cpp [documentation](https://llama-cpp-python.readthedocs.io/en/latest).
 
@@ -52,7 +52,7 @@ See Llama.cpp's [model documentation](https://llama-cpp-python.readthedocs.io/en
 For example, to offload the model to GPU during initialization:
 
 ```python
-from llama_cpp_haystack import LlamaCppGenerator
+from haystack_integrations.components.generators.llama_cpp import LlamaCppGenerator
 
 generator = LlamaCppGenerator(
     model_path="/content/openchat-3.5-1210.Q3_K_S.gguf", 
@@ -79,7 +79,7 @@ See Llama.cpp's [`create_completion` documentation](https://llama-cpp-python.rea
 For example, to set the `max_tokens` and `temperature`:
 
 ```python
-from llama_cpp_haystack import LlamaCppGenerator
+from haystack_integrations.components.generators.llama_cpp import LlamaCppGenerator
 
 generator = LlamaCppGenerator(
     model_path="/content/openchat-3.5-1210.Q3_K_S.gguf",
@@ -100,7 +100,7 @@ print(generated_text)
 The `generation_kwargs` can also be passed to the `run` method of the generator directly:
 
 ```python
-from llama_cpp_haystack import LlamaCppGenerator
+from haystack_integrations.components.generators.llama_cpp import LlamaCppGenerator
 
 generator = LlamaCppGenerator(
     model_path="/content/openchat-3.5-1210.Q3_K_S.gguf",
@@ -140,7 +140,7 @@ from haystack.components.writers import DocumentWriter
 from haystack.document_stores import InMemoryDocumentStore
 
 # Import LlamaCppGenerator
-from llama_cpp_haystack import LlamaCppGenerator
+from haystack_integrations.components.generators.llama_cpp import LlamaCppGenerator
 
 # Load first 100 rows of the Simple Wikipedia Dataset from HuggingFace
 dataset = load_dataset("pszemraj/simple_wikipedia", split="validation[:100]")
