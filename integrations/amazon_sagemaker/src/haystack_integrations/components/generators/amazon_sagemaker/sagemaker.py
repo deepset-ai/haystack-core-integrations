@@ -42,13 +42,16 @@ class SagemakerGenerator:
     ```bash
     export AWS_ACCESS_KEY_ID=<your_access_key_id>
     export AWS_SECRET_ACCESS_KEY=<your_secret_access_key>
+
+    export AWS_SECRET_ACCESS_KEY=<your_secret_access_key>
+
     ```
     (Note: you may also need to set the session token and region name, depending on your AWS configuration)
 
     Then you can use the generator as follows:
     ```python
     from haystack_integrations.components.generators.amazon_sagemaker import SagemakerGenerator
-    generator = SagemakerGenerator(model="jumpstart-dft-hf-llm-falcon-7b-instruct-bf16")
+    generator = SagemakerGenerator(model="jumpstart-dft-hf-llm-falcon-7b-bf16")
     response = generator.run("What's Natural Language Processing? Be brief.")
     print(response)
     ```
@@ -124,7 +127,7 @@ class SagemakerGenerator:
                 aws_region_name=resolve_secret(aws_region_name),
                 aws_profile_name=resolve_secret(aws_profile_name),
             )
-            self.client = session.client("sagemaker-runtime")
+            self.client = session.client("runtime.sagemaker")
         except Exception as e:
             msg = (
                 f"Could not connect to SageMaker Inference Endpoint '{self.model}'."
