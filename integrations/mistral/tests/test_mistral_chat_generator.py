@@ -4,6 +4,7 @@ from typing import Iterator
 from unittest.mock import patch
 
 import pytest
+import pytz
 from haystack.components.generators.utils import print_streaming_chunk
 from haystack.dataclasses import ChatMessage, StreamingChunk
 from haystack.utils.auth import Secret
@@ -39,7 +40,7 @@ def mock_chat_completion():
                     message=ChatCompletionMessage(content="Hello world!", role="assistant"),
                 )
             ],
-            created=int(datetime.now().timestamp()),
+            created=int(datetime.now(tz=pytz.timezone("UTC")).timestamp()),
             usage={"prompt_tokens": 57, "completion_tokens": 40, "total_tokens": 97},
         )
 
@@ -72,7 +73,7 @@ def mock_chat_completion_chunk():
                     finish_reason="stop", logprobs=None, index=0, delta=ChoiceDelta(content="Hello", role="assistant")
                 )
             ],
-            created=int(datetime.now().timestamp()),
+            created=int(datetime.now(tz=pytz.timezone("UTC")).timestamp()),
             usage={"prompt_tokens": 57, "completion_tokens": 40, "total_tokens": 97},
         )
         mock_chat_completion_create.return_value = MockStream(completion, cast_to=None, response=None, client=None)
@@ -181,7 +182,7 @@ class TestMistralChatGenerator:
             MistralChatGenerator.from_dict(data)
 
     def test_run(self, chat_messages):
-        component = MistralChatGenerator(api_key=Secret.from_token("test-api-key"))
+        component = MistralChatGenerator()
         response = component.run(chat_messages)
 
         # check that the component returns the correct ChatMessage response
@@ -212,7 +213,7 @@ class TestMistralChatGenerator:
     def test_run_with_params_streaming(self, chat_messages):
         streaming_callback_called = False
 
-        def streaming_callback(chunk: StreamingChunk) -> None:
+        def streaming_callback(chunk: StreamingChunk) -> None:  # noqa: ARG001
             nonlocal streaming_callback_called
             streaming_callback_called = True
 

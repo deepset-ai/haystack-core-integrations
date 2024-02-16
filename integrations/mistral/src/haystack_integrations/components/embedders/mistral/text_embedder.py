@@ -51,6 +51,6 @@ class MistralTextEmbedder(OpenAITextEmbedder):
         :param prefix: Not yet supported with Mistral embedding models
         :param suffix: Not yet supported with Mistral embedding models
         """
-        super(MistralTextEmbedder, self).__init__(
+        super(MistralTextEmbedder, self).__init__(  # noqa: UP008
             api_key, model, dimensions, api_base_url, organization, prefix, suffix
         )
