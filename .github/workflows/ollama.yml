@@ -12,7 +12,7 @@ on:
 
 defaults:
   run:
-    working-directory: integrations/unstructured
+    working-directory: integrations/ollama
 
 concurrency:
   group: ollama-${{ github.head_ref }}
