@@ -25,8 +25,7 @@ class TestDocumentStore(DocumentStoreBaseTests):
     @pytest.fixture
     def document_store(self) -> AstraDocumentStore:
         return AstraDocumentStore(
-            astra_keyspace="astra_haystack_test",
-            astra_collection="haystack_integration",
+            collection_name="haystack_integration",
             duplicates_policy=DuplicatePolicy.OVERWRITE,
             embedding_dim=768,
         )

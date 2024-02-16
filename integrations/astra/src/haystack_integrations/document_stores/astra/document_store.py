@@ -38,9 +38,8 @@ class AstraDocumentStore:
         self,
         api_endpoint: Secret = Secret.from_env_var("ASTRA_DB_API_ENDPOINT"),  # noqa: B008
         token: Secret = Secret.from_env_var("ASTRA_DB_APPLICATION_TOKEN"),  # noqa: B008
-        astra_keyspace: str = "default_keyspace",
-        astra_collection: str = "documents",
-        embedding_dim: int = 768,
+        collection_name: str = "documents",
+        embedding_dimension: int = 768,
         duplicates_policy: DuplicatePolicy = DuplicatePolicy.NONE,
         similarity: str = "cosine",
     ):
@@ -52,9 +51,8 @@ class AstraDocumentStore:
 
         :param api_endpoint: The Astra DB API endpoint.
         :param token: The Astra DB application token.
-        :param astra_keyspace: The keyspace for the current Astra DB.
-        :param astra_collection: The current collection in the keyspace in the current Astra DB.
-        :param embedding_dim: Dimension of embedding vector.
+        :param collection_name: The current collection in the keyspace in the current Astra DB.
+        :param embedding_dimension: Dimension of embedding vector.
         :param duplicates_policy: Handle duplicate documents based on DuplicatePolicy parameter options.
               Parameter options : (SKIP, OVERWRITE, FAIL, NONE)
               - `DuplicatePolicy.NONE`: Default policy, If a Document with the same id already exists,
@@ -82,18 +80,16 @@ class AstraDocumentStore:
 
         self.api_endpoint = api_endpoint
         self.token = token
-        self.astra_keyspace = astra_keyspace
-        self.astra_collection = astra_collection
-        self.embedding_dim = embedding_dim
+        self.collection_name = collection_name
+        self.embedding_dimension = embedding_dimension
         self.duplicates_policy = duplicates_policy
         self.similarity = similarity
 
         self.index = AstraClient(
             resolved_api_endpoint,
             resolved_token,
-            self.astra_keyspace,
-            self.astra_collection,
-            self.embedding_dim,
+            self.collection_name,
+            self.embedding_dimension,
             self.similarity,
         )
 

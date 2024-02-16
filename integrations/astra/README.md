@@ -27,12 +27,10 @@ Install requirements
 
 Export environment variables
 ```
-export KEYSPACE_NAME=
+export ASTRA_DB_API_ENDPOINT=
+export ASTRA_DB_APPLICATION_TOKEN=
 export COLLECTION_NAME=
 export OPENAI_API_KEY=
-export ASTRA_DB_API_ENDPOINT=
-export ASTRA_DB_REGION=
-export ASTRA_DB_APPLICATION_TOKEN=
 ```
 
 run the python examples
@@ -54,20 +52,17 @@ from haystack.preview.document_stores import DuplicatePolicy
 
 Load in environment variables:
 ```
-astra_api_endpoint = os.getenv("ASTRA_DB_API_ENDPOINT", "")
-astra_token = os.getenv("ASTRA_DB_APPLICATION_TOKEN", "")
+api_endpoint = os.getenv("ASTRA_DB_API_ENDPOINT", "")
+token = os.getenv("ASTRA_DB_APPLICATION_TOKEN", "")
 collection_name = os.getenv("COLLECTION_NAME", "haystack_vector_search")
-keyspace_name = os.getenv("KEYSPACE_NAME", "recommender_demo")
 ```
 
 Create the Document Store object:
 ```
 document_store = AstraDocumentStore(
-    astra_id=astra_id,
-    astra_region=astra_region,
-    astra_collection=collection_name,
-    astra_keyspace=keyspace_name,
-    astra_application_token=astra_application_token,
+    api_endpoint=api_endpoint,
+    token=token,
+    collection_name=collection_name,
     duplicates_policy=DuplicatePolicy.SKIP,
     embedding_dim=384,
 )

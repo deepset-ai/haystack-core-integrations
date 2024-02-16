@@ -28,6 +28,7 @@ dependencies = [
   "haystack-ai",
   "pydantic",
   "typing_extensions",
+  "astrapy",
 ]
 
 [project.urls]
