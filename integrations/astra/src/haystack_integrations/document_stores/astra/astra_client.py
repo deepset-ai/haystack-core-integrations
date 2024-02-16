@@ -3,10 +3,9 @@ import logging
 from typing import Dict, List, Optional, Union
 from warnings import warn
 
-from pydantic.dataclasses import dataclass
-
-from astrapy.db import AstraDB
 from astrapy.api import APIRequestError
+from astrapy.db import AstraDB
+from pydantic.dataclasses import dataclass
 
 logger = logging.getLogger(__name__)
 
@@ -77,7 +76,7 @@ class AstraClient:
                 for collection in collections
                 if collection["name"] == collection_name
             ]
-            
+
             if preexisting:
                 pre_collection = preexisting[0]
                 # if it has no "indexing", it is a legacy collection;
@@ -169,7 +168,7 @@ class AstraClient:
 
         if responses is None:
             return QueryResponse(matches=[])
-        
+
         for response in responses:
             _id = response.pop("_id")
             score = response.pop("$similarity", None)
@@ -191,7 +190,7 @@ class AstraClient:
 
         return result
 
-    def find_documents(self, find_query):        
+    def find_documents(self, find_query):
         response_dict = self._astra_db_collection.find(
             filter=find_query["filter"],
             projection=find_query["sort"],
@@ -269,20 +268,20 @@ class AstraClient:
         if filters is not None:
             query = {"deleteMany": {"filter": filters}}
 
-        filter = {}
+        filter_dict = {}
         if "filter" in query["deleteMany"]:
-            filter = query["deleteMany"]["filter"]
+            filter_dict = query["deleteMany"]["filter"]
 
         deletion_counter = 0
         moredata = True
         while moredata:
             response_dict = self._astra_db_collection.delete_many(
-                filter=filter
+                filter=filter_dict
             )
 
             if "moreData" not in response_dict.get("status", {}):
                 moredata = False
-            
+
             deletion_counter += int(response_dict["status"].get("deletedCount", 0))
 
         return deletion_counter
@@ -290,7 +289,7 @@ class AstraClient:
     def count_documents(self) -> int:
         """
         Returns how many documents are present in the document store.
-        """     
+        """
         documents_count = self._astra_db_collection.count_documents()
 
         return documents_count["status"]["count"]
