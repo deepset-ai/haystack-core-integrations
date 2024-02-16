@@ -103,10 +103,9 @@ class AstraDocumentStore:
             self,
             api_endpoint=self.api_endpoint.to_dict(),
             token=self.token.to_dict(),
+            collection_name=self.collection_name,
+            embedding_dimension=self.embedding_dimension,
             duplicates_policy=self.duplicates_policy.name,
-            astra_keyspace=self.astra_keyspace,
-            astra_collection=self.astra_collection,
-            embedding_dim=self.embedding_dim,
             similarity=self.similarity,
         )
 

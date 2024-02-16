@@ -52,6 +52,7 @@ dependencies = [
   "coverage[toml]>=6.5",
   "pytest",
   "haystack-pydoc-tools",
+  "astrapy",
 ]
 [tool.hatch.envs.default.scripts]
 test = "pytest {args:tests}"
