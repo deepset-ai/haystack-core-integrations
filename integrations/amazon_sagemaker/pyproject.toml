@@ -169,12 +169,15 @@ exclude_lines = [
 
 [[tool.mypy.overrides]]
 module = [
+  "botocore.*",
+  "boto3.*",
   "haystack.*",
   "haystack_integrations.*",
   "pytest.*",
   "numpy.*",
 ]
 ignore_missing_imports = true
+
 
 
 [tool.pytest.ini_options]
