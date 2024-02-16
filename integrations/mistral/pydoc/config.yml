@@ -1,0 +1,30 @@
+loaders:
+  - type: haystack_pydoc_tools.loaders.CustomPythonLoader
+    search_path: [../src]
+    modules: [
+      "haystack_integrations.components.embedders.mistral.document_embedder",
+      "haystack_integrations.components.embedders.mistral.text_embedder",
+      "haystack_integrations.components.generators.mistral.chat.chat_generator",
+    ]
+    ignore_when_discovered: ["__init__"]
+processors:
+  - type: filter
+    expression:
+    documented_only: true
+    do_not_filter_modules: false
+    skip_empty_modules: true
+  - type: smart
+  - type: crossref
+renderer:
+  type: haystack_pydoc_tools.renderers.ReadmePreviewRenderer
+  excerpt: Mistral integration for Haystack
+  category_slug: haystack-integrations
+  title: Mistral
+  slug: integrations-mistral
+  order: 40
+  markdown:
+    descriptive_class_title: false
+    descriptive_module_title: true
+    add_method_class_prefix: true
+    add_member_class_prefix: false
+    filename: _readme_mistral.md
