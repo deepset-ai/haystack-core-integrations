@@ -68,9 +68,8 @@ class PgvectorEmbeddingRetriever:
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "PgvectorEmbeddingRetriever":
-        data["init_parameters"]["document_store"] = default_from_dict(
-            PgvectorDocumentStore, data["init_parameters"]["document_store"]
-        )
+        doc_store_params = data["init_parameters"]["document_store"]
+        data["init_parameters"]["document_store"] = PgvectorDocumentStore.from_dict(doc_store_params)
         return default_from_dict(cls, data)
 
     @component.output_types(documents=List[Document])

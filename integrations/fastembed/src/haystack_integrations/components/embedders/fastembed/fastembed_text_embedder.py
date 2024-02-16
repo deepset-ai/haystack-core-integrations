@@ -1,4 +1,4 @@
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from haystack import component, default_to_dict
 
@@ -35,6 +35,7 @@ class FastembedTextEmbedder:
         suffix: str = "",
         batch_size: int = 256,
         progress_bar: bool = True,
+        parallel: Optional[int] = None,
     ):
         """
         Create a FastembedTextEmbedder component.
@@ -44,6 +45,11 @@ class FastembedTextEmbedder:
         :param batch_size: Number of strings to encode at once.
         :param prefix: A string to add to the beginning of each text.
         :param suffix: A string to add to the end of each text.
+        :param progress_bar: If true, displays progress bar during embedding.
+        :param parallel:
+                If > 1, data-parallel encoding will be used, recommended for offline encoding of large datasets.
+                If 0, use all available cores.
+                If None, don't use data-parallel processing, use default onnxruntime threading instead.
         """
 
         # TODO add parallel
@@ -53,6 +59,7 @@ class FastembedTextEmbedder:
         self.suffix = suffix
         self.batch_size = batch_size
         self.progress_bar = progress_bar
+        self.parallel = parallel
 
     def to_dict(self) -> Dict[str, Any]:
         """
@@ -65,6 +72,7 @@ class FastembedTextEmbedder:
             suffix=self.suffix,
             batch_size=self.batch_size,
             progress_bar=self.progress_bar,
+            parallel=self.parallel,
         )
 
     def warm_up(self):
@@ -93,6 +101,7 @@ class FastembedTextEmbedder:
                 text_to_embed,
                 batch_size=self.batch_size,
                 show_progress_bar=self.progress_bar,
+                parallel=self.parallel,
             )[0]
         )
         return {"embedding": embedding}

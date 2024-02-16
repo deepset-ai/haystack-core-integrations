@@ -9,6 +9,7 @@ from haystack.core.component import component
 from haystack.core.serialization import default_from_dict, default_to_dict
 from haystack.dataclasses.byte_stream import ByteStream
 from haystack.dataclasses.chat_message import ChatMessage, ChatRole
+from haystack.utils import Secret, deserialize_secrets_inplace
 
 logger = logging.getLogger(__name__)
 
@@ -20,11 +21,12 @@ class GoogleAIGeminiChatGenerator:
 
     Sample usage:
     ```python
+    from haystack.utils import Secret
     from haystack.dataclasses.chat_message import ChatMessage
     from haystack_integrations.components.generators.google_ai import GoogleAIGeminiChatGenerator
 
 
-    gemini_chat = GoogleAIGeminiChatGenerator(model="gemini-pro", api_key="<MY_API_KEY>")
+    gemini_chat = GoogleAIGeminiChatGenerator(model="gemini-pro", api_key=Secret.from_token("<MY_API_KEY>"))
 
     messages = [ChatMessage.from_user("What is the most interesting thing you know?")]
     res = gemini_chat.run(messages=messages)
@@ -40,6 +42,7 @@ class GoogleAIGeminiChatGenerator:
 
     This is a more advanced usage that also uses function calls:
     ```python
+    from haystack.utils import Secret
     from haystack.dataclasses.chat_message import ChatMessage
     from google.ai.generativelanguage import FunctionDeclaration, Tool
 
@@ -73,7 +76,8 @@ class GoogleAIGeminiChatGenerator:
 
     messages = [ChatMessage.from_user("What is the most interesting thing you know?")]
 
-    gemini_chat = GoogleAIGeminiChatGenerator(model="gemini-pro", api_key="<MY_API_KEY>", tools=[tool])
+    gemini_chat = GoogleAIGeminiChatGenerator(model="gemini-pro", api_key=Secret.from_token("<MY_API_KEY>"),
+                                              tools=[tool])
 
     messages = [ChatMessage.from_user(content = "What is the temperature in celsius in Berlin?")]
     res = gemini_chat.run(messages=messages)
@@ -95,7 +99,7 @@ class GoogleAIGeminiChatGenerator:
     def __init__(
         self,
         *,
-        api_key: Optional[str] = None,
+        api_key: Secret = Secret.from_env_var("GOOGLE_API_KEY"),  # noqa: B008
         model: str = "gemini-pro-vision",
         generation_config: Optional[Union[GenerationConfig, Dict[str, Any]]] = None,
         safety_settings: Optional[Dict[HarmCategory, HarmBlockThreshold]] = None,
@@ -103,7 +107,6 @@ class GoogleAIGeminiChatGenerator:
     ):
         """
         Initialize a GoogleAIGeminiChatGenerator instance.
-        If `api_key` is `None` it will use the `GOOGLE_API_KEY` env variable for authentication.
 
         To get an API key, visit: https://makersuite.google.com
 
@@ -112,7 +115,7 @@ class GoogleAIGeminiChatGenerator:
         * `gemini-pro-vision`
         * `gemini-ultra`
 
-        :param api_key: Google Makersuite API key, defaults to None
+        :param api_key: Google Makersuite API key.
         :param model: Name of the model to use, defaults to "gemini-pro-vision"
         :param generation_config: The generation config to use, defaults to None.
             Can either be a GenerationConfig object or a dictionary of parameters.
@@ -130,8 +133,9 @@ class GoogleAIGeminiChatGenerator:
         """
 
         # Authenticate, if api_key is None it will use the GOOGLE_API_KEY env variable
-        genai.configure(api_key=api_key)
+        genai.configure(api_key=api_key.resolve_value())
 
+        self._api_key = api_key
         self._model_name = model
         self._generation_config = generation_config
         self._safety_settings = safety_settings
@@ -153,6 +157,7 @@ class GoogleAIGeminiChatGenerator:
     def to_dict(self) -> Dict[str, Any]:
         data = default_to_dict(
             self,
+            api_key=self._api_key.to_dict(),
             model=self._model_name,
             generation_config=self._generation_config,
             safety_settings=self._safety_settings,
@@ -168,6 +173,8 @@ class GoogleAIGeminiChatGenerator:
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "GoogleAIGeminiChatGenerator":
+        deserialize_secrets_inplace(data["init_parameters"], keys=["api_key"])
+
         if (tools := data["init_parameters"].get("tools")) is not None:
             data["init_parameters"]["tools"] = [Tool.deserialize(t) for t in tools]
         if (generation_config := data["init_parameters"].get("generation_config")) is not None:

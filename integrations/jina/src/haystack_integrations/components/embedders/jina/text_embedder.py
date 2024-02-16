@@ -1,11 +1,11 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
-import os
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 import requests
-from haystack import component, default_to_dict
+from haystack import component, default_from_dict, default_to_dict
+from haystack.utils import Secret, deserialize_secrets_inplace
 
 JINA_API_URL: str = "https://api.jina.ai/v1/embeddings"
 
@@ -33,7 +33,7 @@ class JinaTextEmbedder:
 
     def __init__(
         self,
-        api_key: Optional[str] = None,
+        api_key: Secret = Secret.from_env_var("JINA_API_KEY"),  # noqa: B008
         model: str = "jina-embeddings-v2-base-en",
         prefix: str = "",
         suffix: str = "",
@@ -48,22 +48,16 @@ class JinaTextEmbedder:
         :param suffix: A string to add to the end of each text.
         """
 
-        api_key = api_key or os.environ.get("JINA_API_KEY")
-        # we check whether api_key is None or an empty string
-        if not api_key:
-            msg = (
-                "JinaTextEmbedder expects an API key. "
-                "Set the JINA_API_KEY environment variable (recommended) or pass it explicitly."
-            )
-            raise ValueError(msg)
+        resolved_api_key = api_key.resolve_value()
 
+        self.api_key = api_key
         self.model_name = model
         self.prefix = prefix
         self.suffix = suffix
         self._session = requests.Session()
         self._session.headers.update(
             {
-                "Authorization": f"Bearer {api_key}",
+                "Authorization": f"Bearer {resolved_api_key}",
                 "Accept-Encoding": "identity",
                 "Content-type": "application/json",
             }
@@ -81,7 +75,14 @@ class JinaTextEmbedder:
         to the constructor.
         """
 
-        return default_to_dict(self, model=self.model_name, prefix=self.prefix, suffix=self.suffix)
+        return default_to_dict(
+            self, api_key=self.api_key.to_dict(), model=self.model_name, prefix=self.prefix, suffix=self.suffix
+        )
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "JinaTextEmbedder":
+        deserialize_secrets_inplace(data["init_parameters"], keys=["api_key"])
+        return default_from_dict(cls, data)
 
     @component.output_types(embedding=List[float], meta=Dict[str, Any])
     def run(self, text: str):

@@ -57,6 +57,7 @@ class FastembedDocumentEmbedder:
         suffix: str = "",
         batch_size: int = 256,
         progress_bar: bool = True,
+        parallel: Optional[int] = None,
         meta_fields_to_embed: Optional[List[str]] = None,
         embedding_separator: str = "\n",
     ):
@@ -69,6 +70,10 @@ class FastembedDocumentEmbedder:
         :param suffix: A string to add to the end of each text.
         :param batch_size: Number of strings to encode at once.
         :param progress_bar: If true, displays progress bar during embedding.
+        :param parallel:
+                If > 1, data-parallel encoding will be used, recommended for offline encoding of large datasets.
+                If 0, use all available cores.
+                If None, don't use data-parallel processing, use default onnxruntime threading instead.
         :param meta_fields_to_embed: List of meta fields that should be embedded along with the Document content.
         :param embedding_separator: Separator used to concatenate the meta fields to the Document content.
         """
@@ -78,6 +83,7 @@ class FastembedDocumentEmbedder:
         self.suffix = suffix
         self.batch_size = batch_size
         self.progress_bar = progress_bar
+        self.parallel = parallel
         self.meta_fields_to_embed = meta_fields_to_embed or []
         self.embedding_separator = embedding_separator
 
@@ -92,6 +98,7 @@ class FastembedDocumentEmbedder:
             suffix=self.suffix,
             batch_size=self.batch_size,
             progress_bar=self.progress_bar,
+            parallel=self.parallel,
             meta_fields_to_embed=self.meta_fields_to_embed,
             embedding_separator=self.embedding_separator,
         )
@@ -139,6 +146,7 @@ class FastembedDocumentEmbedder:
             texts_to_embed,
             batch_size=self.batch_size,
             show_progress_bar=self.progress_bar,
+            parallel=self.parallel,
         )
 
         for doc, emb in zip(documents, embeddings):
