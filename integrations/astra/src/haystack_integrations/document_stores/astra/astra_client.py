@@ -51,9 +51,7 @@ class AstraClient:
         self.namespace = namespace
 
         # Build the Astra DB object
-        self._astra_db = AstraDB(
-            api_endpoint=api_endpoint, token=token, namespace=namespace
-        )
+        self._astra_db = AstraDB(api_endpoint=api_endpoint, token=token, namespace=namespace)
 
         try:
             # Create and connect to the newly created collection
@@ -65,17 +63,11 @@ class AstraClient:
         except APIRequestError:
             # possibly the collection is preexisting and has legacy
             # indexing settings: verify
-            get_coll_response = self._astra_db.get_collections(
-                options={"explain": True}
-            )
+            get_coll_response = self._astra_db.get_collections(options={"explain": True})
 
             collections = (get_coll_response["status"] or {}).get("collections") or []
 
-            preexisting = [
-                collection
-                for collection in collections
-                if collection["name"] == collection_name
-            ]
+            preexisting = [collection for collection in collections if collection["name"] == collection_name]
 
             if preexisting:
                 pre_collection = preexisting[0]
@@ -221,9 +213,7 @@ class AstraClient:
         return formatted_docs
 
     def insert(self, documents: List[Dict]):
-        response_dict = self._astra_db_collection.insert_many(
-            documents=documents
-        )
+        response_dict = self._astra_db_collection.insert_many(documents=documents)
 
         inserted_ids = (
             response_dict["status"]["insertedIds"]
@@ -275,9 +265,7 @@ class AstraClient:
         deletion_counter = 0
         moredata = True
         while moredata:
-            response_dict = self._astra_db_collection.delete_many(
-                filter=filter_dict
-            )
+            response_dict = self._astra_db_collection.delete_many(filter=filter_dict)
 
             if "moreData" not in response_dict.get("status", {}):
                 moredata = False

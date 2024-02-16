@@ -8,7 +8,8 @@ from haystack_integrations.document_stores.astra import AstraDocumentStore
 
 
 @patch.dict(
-    "os.environ", {"ASTRA_DB_APPLICATION_TOKEN": "fake-token", "ASTRA_DB_API_ENDPOINT": "http://fake-url.apps.astra.datastax.com"}
+    "os.environ",
+    {"ASTRA_DB_APPLICATION_TOKEN": "fake-token", "ASTRA_DB_API_ENDPOINT": "http://fake-url.apps.astra.datastax.com"},
 )
 @patch("haystack_integrations.document_stores.astra.document_store.AstraClient")
 def test_retriever_to_json(*_):
@@ -37,7 +38,8 @@ def test_retriever_to_json(*_):
 
 
 @patch.dict(
-    "os.environ", {"ASTRA_DB_APPLICATION_TOKEN": "fake-token", "ASTRA_DB_API_ENDPOINT": "http://fake-url.apps.astra.datastax.com"}
+    "os.environ",
+    {"ASTRA_DB_APPLICATION_TOKEN": "fake-token", "ASTRA_DB_API_ENDPOINT": "http://fake-url.apps.astra.datastax.com"},
 )
 @patch("haystack_integrations.document_stores.astra.document_store.AstraClient")
 def test_retriever_from_json(*_):
