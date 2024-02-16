@@ -90,7 +90,7 @@ class MongoDBAtlasDocumentStore:
         """
         Returns how many documents are present in the document store.
         """
-        return self.collection.count_documents()
+        return self.collection.count_documents({})
 
     def filter_documents(self, filters: Optional[Dict[str, Any]] = None) -> List[Document]:
         """
