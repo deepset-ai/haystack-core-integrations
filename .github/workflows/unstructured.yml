@@ -8,7 +8,11 @@ on:
   pull_request:
     paths:
       - "integrations/unstructured/**"
-      - ".github/workflows/unstructured.yml"     
+      - ".github/workflows/unstructured.yml" 
+
+defaults:
+  run:
+    working-directory: integrations/unstructured    
 
 concurrency:
   group: unstructured-${{ github.head_ref }}
