@@ -64,7 +64,7 @@ class AmazonBedrockChatGenerator:
         model: str,
         aws_access_key_id: Optional[Secret] = Secret.from_env_var(["AWS_ACCESS_KEY_ID"], strict=False),  # noqa: B008
         aws_secret_access_key: Optional[Secret] = Secret.from_env_var(  # noqa: B008
-                ["AWS_SECRET_ACCESS_KEY"], strict=False
+            ["AWS_SECRET_ACCESS_KEY"], strict=False
         ),
         aws_session_token: Optional[Secret] = Secret.from_env_var(["AWS_SESSION_TOKEN"], strict=False),  # noqa: B008
         aws_region_name: Optional[Secret] = Secret.from_env_var(["AWS_DEFAULT_REGION"], strict=False),  # noqa: B008
@@ -129,7 +129,7 @@ class AmazonBedrockChatGenerator:
                 aws_session_token=resolve_secret(aws_session_token),
                 aws_region_name=resolve_secret(aws_region_name),
                 aws_profile_name=resolve_secret(aws_profile_name),
-                )
+            )
             self.client = session.client("bedrock-runtime")
         except Exception as exception:
             msg = (
