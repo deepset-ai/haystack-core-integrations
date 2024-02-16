@@ -62,11 +62,11 @@ class AmazonBedrockChatGenerator:
     def __init__(
         self,
         model: str,
-        aws_access_key_id: Optional[Secret] = Secret.from_env_var(["AWS_ACCESS_KEY_ID"], strict=False),# noqa: B008
+        aws_access_key_id: Optional[Secret] = Secret.from_env_var(["AWS_ACCESS_KEY_ID"], strict=False),  # noqa: B008
         aws_secret_access_key: Optional[Secret] = Secret.from_env_var(  # noqa: B008
                 ["AWS_SECRET_ACCESS_KEY"], strict=False
         ),
-        aws_session_token: Optional[Secret] = Secret.from_env_var(["AWS_SESSION_TOKEN"], strict=False), # noqa: B008
+        aws_session_token: Optional[Secret] = Secret.from_env_var(["AWS_SESSION_TOKEN"], strict=False),  # noqa: B008
         aws_region_name: Optional[Secret] = Secret.from_env_var(["AWS_DEFAULT_REGION"], strict=False),  # noqa: B008
         aws_profile_name: Optional[Secret] = Secret.from_env_var(["AWS_PROFILE"], strict=False),  # noqa: B008
         generation_kwargs: Optional[Dict[str, Any]] = None,
@@ -85,14 +85,12 @@ class AmazonBedrockChatGenerator:
 
         :param model: The model to use for generation. The model must be available in Amazon Bedrock. The model has to
         be specified in the format outlined in the Amazon Bedrock [documentation](https://docs.aws.amazon.com/bedrock/latest/userguide/model-ids-arns.html).
-
         :param aws_access_key_id: AWS access key ID.
         :param aws_secret_access_key: AWS secret access key.
         :param aws_session_token: AWS session token.
         :param aws_region_name: AWS region name.
         :param aws_profile_name: AWS profile name.
         :param generation_kwargs: Additional generation keyword arguments passed to the model. The defined keyword
-
         parameters are specific to a specific model and can be found in the model's documentation. For example, the
         Anthropic Claude generation parameters can be found [here](https://docs.anthropic.com/claude/reference/complete_post).
         :param stop_words: A list of stop words that stop model generation when encountered. They can be provided via
@@ -126,11 +124,11 @@ class AmazonBedrockChatGenerator:
 
         try:
             session = self.get_aws_session(
-                    aws_access_key_id=resolve_secret(aws_access_key_id),
-                    aws_secret_access_key=resolve_secret(aws_secret_access_key),
-                    aws_session_token=resolve_secret(aws_session_token),
-                    aws_region_name=resolve_secret(aws_region_name),
-                    aws_profile_name=resolve_secret(aws_profile_name),
+                aws_access_key_id=resolve_secret(aws_access_key_id),
+                aws_secret_access_key=resolve_secret(aws_secret_access_key),
+                aws_session_token=resolve_secret(aws_session_token),
+                aws_region_name=resolve_secret(aws_region_name),
+                aws_profile_name=resolve_secret(aws_profile_name),
                 )
             self.client = session.client("bedrock-runtime")
         except Exception as exception:
