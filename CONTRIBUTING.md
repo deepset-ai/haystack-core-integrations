@@ -162,7 +162,7 @@ $ hatch version
 
 ### Working on integrations
 
-> [!IMPORTANT]
+> [!NOTE]
 > This is a so-called monorepo, meaning that this single repository contains multiple different applications. In our case,
 > Haystack Integrations live in the `./integrations` folder, and each one must be considered an independent project.
 > All the examples shown in this section must be executed in one specific integration folder.
