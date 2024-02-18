@@ -1,5 +1,3 @@
-TEST
-
 # Chroma Document Store for Haystack
 
 [![PyPI - Version](https://img.shields.io/pypi/v/chroma-haystack.svg)](https://pypi.org/project/chroma-haystack)
