@@ -55,10 +55,8 @@ jobs:
           find . -name "_readme_*.md" -exec cp "{}" tmp \;
           ls tmp
 
-      - name: Sync preview docs with 2.0
+      - name: Sync API docs
         if: steps.changed-files.outputs.all_changed_files != ''
-        uses: readmeio/rdme@8.6.6
-        env:
-          README_API_KEY: ${{ secrets.README_API_KEY }}
+        uses: readmeio/rdme@v8
         with:
-          rdme: docs ./tmp --key="$README_API_KEY" --version=2.0
+          rdme: docs ./tmp --key=${{ secrets.README_API_KEY }} --version=2.0
