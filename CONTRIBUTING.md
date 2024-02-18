@@ -19,19 +19,21 @@ and smooth out the experience for all involved. The community looks forward to y
   - [Table of Contents](#table-of-contents)
   - [Code of Conduct](#code-of-conduct)
   - [I Have a Question](#i-have-a-question)
-  - [I Want To Contribute](#i-want-to-contribute)
-    - [Reporting Bugs](#reporting-bugs)
-      - [Before Submitting a Bug Report](#before-submitting-a-bug-report)
-      - [How Do I Submit a Good Bug Report?](#how-do-i-submit-a-good-bug-report)
-    - [Suggesting Enhancements](#suggesting-enhancements)
-      - [Before Submitting an Enhancement](#before-submitting-an-enhancement)
-      - [How Do I Submit a Good Enhancement Suggestion?](#how-do-i-submit-a-good-enhancement-suggestion)
-    - [Your First Code Contribution](#your-first-code-contribution)
+  - [Reporting Bugs](#reporting-bugs)
+    - [Before Submitting a Bug Report](#before-submitting-a-bug-report)
+    - [How Do I Submit a Good Bug Report?](#how-do-i-submit-a-good-bug-report)
+  - [Suggesting Enhancements](#suggesting-enhancements)
+    - [Before Submitting an Enhancement](#before-submitting-an-enhancement)
+    - [How Do I Submit a Good Enhancement Suggestion?](#how-do-i-submit-a-good-enhancement-suggestion)
+  - [Contribute code](#contribute-code)
+    - [Where to start](#where-to-start)
+    - [Setting up your development environment](#setting-up-your-development-environment)
+    - [Clone the git repository](#clone-the-git-repository)
+    - [Working on integrations](#working-on-integrations)
+      - [Integration version](#integration-version)
+      - [Run the linter](#run-the-linter)
+      - [Run the tests](#run-the-tests)
     - [Improving The Documentation](#improving-the-documentation)
-  - [Styleguides](#styleguides)
-    - [Commit Messages](#commit-messages)
-  - [Join The Project Team](#join-the-project-team)
-  - [Attribution](#attribution)
 
 
 ## Code of Conduct
@@ -52,16 +54,10 @@ search the internet for answers first.
 If you then still feel the need to ask a question and need clarification, you can use one of our
 [Community Channels](https://haystack.deepset.ai/community), Discord in particular is often very helpful.
 
-
-## I Want To Contribute
-
-> [!IMPORTANT]
-> When contributing to this project, you must agree that you have authored 100% of the content, that you have the necessary rights to the content and that the content you contribute may be provided under the project license.
-
-### Reporting Bugs
+## Reporting Bugs
 
 
-#### Before Submitting a Bug Report
+### Before Submitting a Bug Report
 
 A good bug report shouldn't leave others needing to chase you up for more information. Therefore, we ask you to
 investigate carefully, collect information and describe the issue in detail in your report. Please complete the
@@ -78,7 +74,7 @@ following steps in advance to help us fix any potential bug as fast as possible.
   - If you can reliably reproduce the issue, a snippet of code we can use
 
 
-#### How Do I Submit a Good Bug Report?
+### How Do I Submit a Good Bug Report?
 
 > [!IMPORTANT]
 > You must never report security related issues, vulnerabilities or bugs including sensitive information to the issue tracker, or elsewhere in public. Instead sensitive bugs must be reported using [this link](https://github.com/deepset-ai/haystack-core-integrations/security/advisories/new).
@@ -98,13 +94,13 @@ Once it's filed:
 - If the team is able to reproduce the issue, the issue will scheduled for a fix, or left to be [implemented by someone](#your-first-code-contribution).
 
 
-### Suggesting Enhancements
+## Suggesting Enhancements
 
 This section guides you through submitting an enhancement suggestion, including new integrations and improvements
 to existing ones. Following these guidelines will help maintainers and the community to understand your suggestion and find related suggestions.
 
 
-#### Before Submitting an Enhancement
+### Before Submitting an Enhancement
 
 - Make sure that you are using the latest version.
 - Read the [documentation]() carefully and find out if the functionality is already covered, maybe by an individual configuration.
@@ -112,26 +108,147 @@ to existing ones. Following these guidelines will help maintainers and the commu
 - Find out whether your idea fits with the scope and aims of the project. It's up to you to make a strong case to convince the project's developers of the merits of this feature. Keep in mind that we want features that will be useful to the majority of our users and not just a small subset. If you're just targeting a minority of users, consider writing an and distributing the integration on your own.
 
 
-#### How Do I Submit a Good Enhancement Suggestion?
+### How Do I Submit a Good Enhancement Suggestion?
 
 Enhancement suggestions are tracked as GitHub issues of type [Feature request for existing integrations](/issues/new?assignees=&labels=feature+request&projects=&template=feature-request-for-existing-integrations.md&title=).
 
 - Use a **clear and descriptive title** for the issue to identify the suggestion.
 - Fill the issue following the template
 
-### Your First Code Contribution
+## Contribute code
 
+> [!IMPORTANT]
+> When contributing to this project, you must agree that you have authored 100% of the content, that you have the necessary rights to the content and that the content you contribute may be provided under the project license.
+
+
+### Where to start
+
+If this is your first contribution, a good starting point is looking for an open issue that's marked with the label
+["good first issue"](https://github.com/deepset-ai/haystack-core-integrations/issues?q=is%3Aopen+is%3Aissue+label%3A%22good+first+issue%22).
+The core contributors periodically mark certain issues as good for first-time contributors. Those issues are usually
+limited in scope, easy fixable and low priority, so there is absolutely no reason why you should not try fixing them,
+it's a good excuse to start looking into the project and a safe space for experimenting failure: if you don't get the
+grasp of something, pick another one!
+
+### Setting up your development environment
+
+Haystack makes heavy use of [Hatch](https://hatch.pypa.io/latest/), a Python project manager that we use to set up the
+virtual environments, build the project and publish packages. As you can imagine, the first step towards becoming a
+Haystack contributor is installing Hatch. There are a variety of install methods depending on your operating system
+platform, version and personal taste: please have a look at [this page](https://hatch.pypa.io/latest/install/#installation)
+and keep reading once you can run from your terminal:
+
+```console
+$ hatch --version
+Hatch, version 1.9.3
+```
+
+### Clone the git repository
+
+You won't be able to make changes directly to this repo, so the first step is to [create a fork](https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/working-with-forks/fork-a-repo). Once your fork is ready, you can
+clone a local copy with:
+
+```console
+$ git clone https://github.com/YOUR-USERNAME/haystack-core-integrations
+```
+
+If everything worked, you should be able to do something like this (the output might be different):
+
+```console
+$ cd haystack-core-integrations/integrations/chroma
+$ hatch version
+0.13.1.dev30+g9fe18d23
+```
+
+### Working on integrations
+
+> [!IMPORTANT]
+> This is a so-called monorepo, meaning that this single repository contains multiple different applications. In our case,
+> Haystack Integrations live in the `./integrations` folder, and each one must be considered an independent project.
+> All the examples shown in this section must be executed in one specific integration folder.
+
+Hatch provides several commands we use for developing integrations, let's pick `haystack-chroma` to show a practical
+example. Before proceeding,  from the root of the repository we `cd` into the integration folder:
+
+```console
+$ cd integrations/chroma
+```
+
+#### Integration version
+
+We can get the current version of the integration with:
+
+```console
+$ hatch version
+0.13.1.dev30+g9fe18d23
+```
+
+> [!NOTE]
+> Even when you see the version number ends with a suffix like `.dev...`, this doesn't necessarily mean the integration
+> has unreleased commits. In other words, despite what the version number says, you might be looking at the latest
+> released code. This is a side effect of working with a monorepo: hatch can't tell if a certain commit in the git
+> history is releated to one integration or the other.
+
+#### Run the linter
+
+Every time you change the code, it's a good practice to run the linter, that will ensure your code is well formatted
+and the static checker is happy with the typing:
+
+```console
+$ hatch run lint:all
+```
+
+If you see Hatch reporting problems, you can try fixing them with:
+
+```console
+$ hatch run lint:fmt
+```
+
+You can also run the code formatter and the static checker separated:
+
+```console
+$ hatch run lint:style
+```
+
+and
+
+```console
+$ hatch run lint:typing
+```
+
+#### Run the tests
+
+It's important your tests pass before contributing code. To run all the tests locally:
+
+```console
+$ hatch run test
+```
+
+> [!IMPORTANT] The command above will run ALL the tests, including integration tests; some of those often need you to
+> run a certain service in background (e.g. a Vector Database) or provide credentials to external services (e.g. OpenAI)
+> in order to pass.
+
+If you want to run only a portion of the tests, for example including integration tests, Hatch will happily take the
+same options you would pass to `pytest` directly, in this case a marker with the option `-m`:
+
+```console
+$ hatch run test -m"not integration"
+```
 
 ### Improving The Documentation
 
+There are two types of documentation for this project:
 
-## Styleguides
-### Commit Messages
+1. Python API docs, and
+2. Documentation pages
 
+The Python API docs detail the source code: classes, functions and parameters that implement every integration.
+This type of documentation is extracted from the source code itself, and contributors should pay attention when they
+change the code to also change relevant comments and docstrings. This type of documentation is mostly useful to
+developers, but it can be handy for users at times. You can browse it on the dedicated section in the
+[documentation website](https://docs.haystack.deepset.ai/v2.0/reference/integrations-chroma).
 
-## Join The Project Team
-
-
-
-## Attribution
-This guide is based on the **contributing.md**. [Make your own](https://contributing.md/)!
+Documentation pages explain what an integration accomplishes and explain how to use it and how to configure it. This
+type of documentation mostly targets end-users, and contributors are welcome to make changes and keep it up-to-date.
+You can contribute changes to the documentation pages using the "Suggest Edits" button that each page shows on its
+top-right corner.
