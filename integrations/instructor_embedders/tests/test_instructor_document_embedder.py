@@ -3,7 +3,7 @@ from unittest.mock import MagicMock, patch
 import numpy as np
 import pytest
 from haystack import Document
-from haystack.utils import Secret
+from haystack.utils import ComponentDevice, Secret
 from haystack_integrations.components.embedders.instructor_embedders import InstructorDocumentEmbedder
 
 
@@ -14,7 +14,7 @@ class TestInstructorDocumentEmbedder:
         """
         embedder = InstructorDocumentEmbedder(model="hkunlp/instructor-base")
         assert embedder.model == "hkunlp/instructor-base"
-        assert embedder.device == "cpu"
+        assert embedder.device == ComponentDevice.resolve_device(None)
         assert embedder.token == Secret.from_env_var("HF_API_TOKEN", strict=False)
         assert embedder.instruction == "Represent the document"
         assert embedder.batch_size == 32
@@ -29,7 +29,7 @@ class TestInstructorDocumentEmbedder:
         """
         embedder = InstructorDocumentEmbedder(
             model="hkunlp/instructor-base",
-            device="cuda",
+            device=ComponentDevice.from_str("cuda:0"),
             token=Secret.from_token("fake-api-token"),
             instruction="Represent the 'domain' 'text_type' for 'task_objective'",
             batch_size=64,
@@ -39,7 +39,7 @@ class TestInstructorDocumentEmbedder:
             embedding_separator=" | ",
         )
         assert embedder.model == "hkunlp/instructor-base"
-        assert embedder.device == "cuda"
+        assert embedder.device == ComponentDevice.from_str("cuda:0")
         assert embedder.token == Secret.from_token("fake-api-token")
         assert embedder.instruction == "Represent the 'domain' 'text_type' for 'task_objective'"
         assert embedder.batch_size == 64
@@ -52,13 +52,13 @@ class TestInstructorDocumentEmbedder:
         """
         Test serialization of InstructorDocumentEmbedder to a dictionary, using default initialization parameters.
         """
-        embedder = InstructorDocumentEmbedder(model="hkunlp/instructor-base")
+        embedder = InstructorDocumentEmbedder(model="hkunlp/instructor-base", device=ComponentDevice.from_str("cpu"))
         embedder_dict = embedder.to_dict()
         assert embedder_dict == {
             "type": "haystack_integrations.components.embedders.instructor_embedders.instructor_document_embedder.InstructorDocumentEmbedder",  #  noqa
             "init_parameters": {
                 "model": "hkunlp/instructor-base",
-                "device": "cpu",
+                "device": ComponentDevice.from_str("cpu").to_dict(),
                 "token": {"env_vars": ["HF_API_TOKEN"], "strict": False, "type": "env_var"},
                 "instruction": "Represent the document",
                 "batch_size": 32,
@@ -75,7 +75,7 @@ class TestInstructorDocumentEmbedder:
         """
         embedder = InstructorDocumentEmbedder(
             model="hkunlp/instructor-base",
-            device="cuda",
+            device=ComponentDevice.from_str("cuda:0"),
             instruction="Represent the financial document for retrieval",
             batch_size=64,
             progress_bar=False,
@@ -88,7 +88,7 @@ class TestInstructorDocumentEmbedder:
             "type": "haystack_integrations.components.embedders.instructor_embedders.instructor_document_embedder.InstructorDocumentEmbedder",  #  noqa
             "init_parameters": {
                 "model": "hkunlp/instructor-base",
-                "device": "cuda",
+                "device": ComponentDevice.from_str("cuda:0").to_dict(),
                 "token": {"env_vars": ["HF_API_TOKEN"], "strict": False, "type": "env_var"},
                 "instruction": "Represent the financial document for retrieval",
                 "batch_size": 64,
@@ -107,7 +107,7 @@ class TestInstructorDocumentEmbedder:
             "type": "haystack_integrations.components.embedders.instructor_embedders.instructor_document_embedder.InstructorDocumentEmbedder",  #  noqa
             "init_parameters": {
                 "model": "hkunlp/instructor-base",
-                "device": "cpu",
+                "device": ComponentDevice.from_str("cpu").to_dict(),
                 "token": {"env_vars": ["HF_API_TOKEN"], "strict": False, "type": "env_var"},
                 "instruction": "Represent the 'domain' 'text_type' for 'task_objective'",
                 "batch_size": 32,
@@ -119,7 +119,7 @@ class TestInstructorDocumentEmbedder:
         }
         embedder = InstructorDocumentEmbedder.from_dict(embedder_dict)
         assert embedder.model == "hkunlp/instructor-base"
-        assert embedder.device == "cpu"
+        assert embedder.device == ComponentDevice.from_str("cpu")
         assert embedder.token == Secret.from_env_var("HF_API_TOKEN", strict=False)
         assert embedder.instruction == "Represent the 'domain' 'text_type' for 'task_objective'"
         assert embedder.batch_size == 32
@@ -136,7 +136,7 @@ class TestInstructorDocumentEmbedder:
             "type": "haystack_integrations.components.embedders.instructor_embedders.instructor_document_embedder.InstructorDocumentEmbedder",  #  noqa
             "init_parameters": {
                 "model": "hkunlp/instructor-base",
-                "device": "cuda",
+                "device": ComponentDevice.from_str("cuda:0").to_dict(),
                 "token": {"env_vars": ["HF_API_TOKEN"], "strict": False, "type": "env_var"},
                 "instruction": "Represent the financial document for retrieval",
                 "batch_size": 64,
@@ -148,7 +148,7 @@ class TestInstructorDocumentEmbedder:
         }
         embedder = InstructorDocumentEmbedder.from_dict(embedder_dict)
         assert embedder.model == "hkunlp/instructor-base"
-        assert embedder.device == "cuda"
+        assert embedder.device == ComponentDevice.from_str("cuda:0")
         assert embedder.token == Secret.from_env_var("HF_API_TOKEN", strict=False)
         assert embedder.instruction == "Represent the financial document for retrieval"
         assert embedder.batch_size == 64
@@ -164,7 +164,7 @@ class TestInstructorDocumentEmbedder:
         """
         Test for checking embedder instances after warm-up.
         """
-        embedder = InstructorDocumentEmbedder(model="hkunlp/instructor-base")
+        embedder = InstructorDocumentEmbedder(model="hkunlp/instructor-base", device=ComponentDevice.from_str("cpu"))
         mocked_factory.get_embedding_backend.assert_not_called()
         embedder.warm_up()
         mocked_factory.get_embedding_backend.assert_called_once_with(
@@ -254,7 +254,7 @@ class TestInstructorDocumentEmbedder:
     def test_run(self):
         embedder = InstructorDocumentEmbedder(
             model="hkunlp/instructor-base",
-            device="cpu",
+            device=ComponentDevice.from_str("cpu"),
             instruction="Represent the Science document for retrieval",
         )
         embedder.warm_up()

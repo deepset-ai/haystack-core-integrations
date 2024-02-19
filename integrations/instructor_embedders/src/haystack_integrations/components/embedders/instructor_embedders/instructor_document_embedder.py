@@ -4,7 +4,7 @@
 from typing import Any, Dict, List, Optional
 
 from haystack import Document, component, default_from_dict, default_to_dict
-from haystack.utils import Secret, deserialize_secrets_inplace
+from haystack.utils import ComponentDevice, Secret, deserialize_secrets_inplace
 
 from .embedding_backend.instructor_backend import _InstructorEmbeddingBackendFactory
 
@@ -20,8 +20,9 @@ class InstructorDocumentEmbedder:
     # To use this component, install the "instructor-embedders-haystack" package.
     # pip install instructor-embedders-haystack
 
-    from instructor_embedders_haystack.instructor_document_embedder import InstructorDocumentEmbedder
+    from haystack_integrations.components.embedders.instructor_embedders import InstructorDocumentEmbedder
     from haystack.dataclasses import Document
+    from haystack.utils import ComponentDevice
 
 
     doc_embedding_instruction = "Represent the Medical Document for retrieval:"
@@ -30,7 +31,7 @@ class InstructorDocumentEmbedder:
         model="hkunlp/instructor-base",
         instruction=doc_embedding_instruction,
         batch_size=32,
-        device="cpu",
+        device=ComponentDevice.from_str("cpu"),
     )
 
     doc_embedder.warm_up()
@@ -62,7 +63,7 @@ class InstructorDocumentEmbedder:
     def __init__(
         self,
         model: str = "hkunlp/instructor-base",
-        device: Optional[str] = None,
+        device: Optional[ComponentDevice] = None,
         token: Optional[Secret] = Secret.from_env_var("HF_API_TOKEN", strict=False),  # noqa: B008
         instruction: str = "Represent the document",
         batch_size: int = 32,
@@ -76,8 +77,8 @@ class InstructorDocumentEmbedder:
 
         :param model: Local path or name of the model in Hugging Face's model hub,
             such as ``'hkunlp/instructor-base'``.
-        :param device: Device (like 'cuda' / 'cpu') that should be used for computation.
-            If None, checks if a GPU can be used.
+        :param device: The device on which the model is loaded. If `None`, the default device is automatically
+            selected.
         :param use_auth_token: An API token used to download private models from Hugging Face.
             If this parameter is set to `True`, then the token generated when running
             `transformers-cli login` (stored in ~/.huggingface) will be used.
@@ -97,8 +98,7 @@ class InstructorDocumentEmbedder:
         """
 
         self.model = model
-        # TODO: remove device parameter and use Haystack's device management once migrated
-        self.device = device or "cpu"
+        self.device = ComponentDevice.resolve_device(device)
         self.token = token
         self.instruction = instruction
         self.batch_size = batch_size
@@ -114,7 +114,7 @@ class InstructorDocumentEmbedder:
         return default_to_dict(
             self,
             model=self.model,
-            device=self.device,
+            device=self.device.to_dict(),
             token=self.token.to_dict() if self.token else None,
             instruction=self.instruction,
             batch_size=self.batch_size,
@@ -129,6 +129,9 @@ class InstructorDocumentEmbedder:
         """
         Deserialize this component from a dictionary.
         """
+        serialized_device = data["init_parameters"]["device"]
+        data["init_parameters"]["device"] = ComponentDevice.from_dict(serialized_device)
+
         deserialize_secrets_inplace(data["init_parameters"], keys=["token"])
         return default_from_dict(cls, data)
 
@@ -138,7 +141,7 @@ class InstructorDocumentEmbedder:
         """
         if not hasattr(self, "embedding_backend"):
             self.embedding_backend = _InstructorEmbeddingBackendFactory.get_embedding_backend(
-                model=self.model, device=self.device, token=self.token
+                model=self.model, device=self.device.to_torch_str(), token=self.token
             )
 
     @component.output_types(documents=List[Document])
