@@ -49,6 +49,7 @@ jobs:
           for d in $ALL_CHANGED_DIRS; do
             cd $d
             hatch run docs
+            hatch env prune # clean up the environment after docs generation
             cd -
           done
           mkdir tmp
