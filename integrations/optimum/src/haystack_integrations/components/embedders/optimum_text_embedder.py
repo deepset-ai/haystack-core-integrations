@@ -1,11 +1,11 @@
 from typing import Any, Dict, List, Optional
 
-import torch
 from haystack import component, default_from_dict, default_to_dict
 from haystack.utils import Secret, deserialize_secrets_inplace
 from haystack.utils.hf import HFModelType, check_valid_model, deserialize_hf_model_kwargs, serialize_hf_model_kwargs
-from optimum.onnxruntime import ORTModelForFeatureExtraction
-from transformers import AutoTokenizer
+from haystack_integrations.components.embedders.backends.optimum_backend import (
+    _OptimumEmbeddingBackendFactory,
+)
 
 
 class OptimumTextEmbedder:
@@ -19,7 +19,7 @@ class OptimumTextEmbedder:
 
     text_to_embed = "I love pizza!"
 
-    text_embedder = OptimumTextEmbedder(model="BAAI/bge-small-en-v1.5")
+    text_embedder = OptimumTextEmbedder(model="sentence-transformers/all-mpnet-base-v2")
     text_embedder.warm_up()
 
     print(text_embedder.run(text_to_embed))
@@ -42,7 +42,7 @@ class OptimumTextEmbedder:
 
     def __init__(
         self,
-        model: str = "BAAI/bge-small-en-v1.5",
+        model: str = "sentence-transformers/all-mpnet-base-v2",
         token: Optional[Secret] = Secret.from_env_var("HF_API_TOKEN", strict=False),  # noqa: B008
         prefix: str = "",
         suffix: str = "",
@@ -53,13 +53,14 @@ class OptimumTextEmbedder:
         """
         Create a OptimumTextEmbedder component.
 
-        :param model: A string representing the model id on HF Hub. Default is "BAAI/bge-small-en-v1.5".
+        :param model: A string representing the model id on HF Hub. Defaults to
+            "sentence-transformers/all-mpnet-base-v2".
         :param token: The HuggingFace token to use as HTTP bearer authorization.
         :param prefix: A string to add to the beginning of each text.
         :param suffix: A string to add to the end of each text.
         :param normalize_embeddings: Whether to normalize the embeddings to unit length.
         :param onnx_execution_provider: The execution provider to use for ONNX models. Defaults to
-        "CPUExecutionProvider".
+        "CPUExecutionProvider". See https://onnxruntime.ai/docs/execution-providers/ for possible providers.
         :param model_kwargs: Dictionary containing additional keyword arguments to pass to the model.
             In case of duplication, these kwargs override `model`, `onnx_execution_provider`, and `token` initialization
             parameters.
@@ -88,26 +89,12 @@ class OptimumTextEmbedder:
 
     def warm_up(self):
         """
-        Convert the model to ONNX.
-
-        The model is cached if the "TensorrtExecutionProvider" is used, since it takes a while to build the TensorRT
-        engine.
+        Load the embedding backend.
         """
-        if self.embedding_model is None:
-            self.tokenizer = AutoTokenizer.from_pretrained(self.model)
-
-            if self.onnx_execution_provider == "TensorrtExecutionProvider":
-                # Cache engine for TensorRT
-                provider_options = {
-                    "trt_engine_cache_enable": True,
-                    "trt_engine_cache_path": f"tmp/trt_cache_{self.model}",
-                }
-                self.embedding_model = ORTModelForFeatureExtraction.from_pretrained(
-                    **self.model_kwargs, use_cache=False, provider_options=provider_options
-                )
-            else:
-                # export=True converts the model to ONNX on the fly
-                self.embedding_model = ORTModelForFeatureExtraction.from_pretrained(**self.model_kwargs, export=True)
+        if not hasattr(self, "embedding_backend"):
+            self.embedding_backend = _OptimumEmbeddingBackendFactory.get_embedding_backend(
+                model=self.model, token=self.token, model_kwargs=self.model_kwargs
+            )
 
     def to_dict(self) -> Dict[str, Any]:
         """
@@ -139,21 +126,6 @@ class OptimumTextEmbedder:
         deserialize_hf_model_kwargs(data["init_parameters"]["model_kwargs"])
         return default_from_dict(cls, data)
 
-    def mean_pooling(self, model_output: torch.tensor, attention_mask: torch.tensor) -> torch.tensor:
-        """
-        Perform Mean Pooling on the output of the Embedding model.
-
-        :param model_output: The output of the embedding model.
-        :param attention_mask: The attention mask of the tokenized text.
-        :return: The embeddings of the text after mean pooling.
-        """
-        # First element of model_output contains all token embeddings
-        token_embeddings = model_output[0]
-        input_mask_expanded = attention_mask.unsqueeze(-1).expand(token_embeddings.size()).float()
-        sum_embeddings = torch.sum(token_embeddings * input_mask_expanded, 1)
-        sum_mask = torch.clamp(input_mask_expanded.sum(1), min=1e-9)
-        return sum_embeddings / sum_mask
-
     @component.output_types(embedding=List[float])
     def run(self, text: str):
         """Embed a string.
@@ -168,33 +140,14 @@ class OptimumTextEmbedder:
             )
             raise TypeError(msg)
 
-        if not (self.embedding_model and self.tokenizer):
+        if not hasattr(self, "embedding_backend"):
             msg = "The embedding model has not been loaded. Please call warm_up() before running."
             raise RuntimeError(msg)
 
         text_to_embed = self.prefix + text + self.suffix
 
-        # Determine device for tokenizer output
-        device = (
-            "cuda"
-            if self.onnx_execution_provider
-            in ["CUDAExecutionProvider", "ROCMExecutionProvider", "TensorrtExecutionProvider"]
-            else "cpu"
+        embedding = self.embedding_backend.embed(
+            texts_to_embed=text_to_embed, normalize_embeddings=self.normalize_embeddings
         )
-
-        encoded_input = self.tokenizer([text_to_embed], padding=True, truncation=True, return_tensors="pt").to(device)
-
-        # Compute token embeddings
-        with torch.no_grad():
-            model_output = self.embedding_model(**encoded_input)
-
-        # Perform mean pooling
-        sentence_embeddings = self.mean_pooling(model_output, encoded_input["attention_mask"].cpu())
-
-        # Normalize Embeddings
-        if self.normalize_embeddings:
-            sentence_embeddings = torch.nn.functional.normalize(sentence_embeddings, p=2, dim=1)
-
-        embedding = sentence_embeddings.tolist()[0]
 
         return {"embedding": embedding}

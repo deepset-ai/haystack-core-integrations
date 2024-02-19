@@ -26,9 +26,9 @@ classifiers = [
 ]
 dependencies = [
   "haystack-ai",
-  "transformers[sentencepiece]==4.36.2",
+  "transformers[sentencepiece]",
   "sentence-transformers>=2.2.0",
-  "optimum[onnxruntime]==1.15.0"
+  "optimum[onnxruntime]"
 ]
 
 [project.urls]

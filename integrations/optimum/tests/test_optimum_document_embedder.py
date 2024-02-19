@@ -21,7 +21,7 @@ class TestOptimumDocumentEmbedder:
         monkeypatch.setenv("HF_API_TOKEN", "fake-api-token")
         embedder = OptimumDocumentEmbedder()
 
-        assert embedder.model == "BAAI/bge-small-en-v1.5"
+        assert embedder.model == "sentence-transformers/all-mpnet-base-v2"
         assert embedder.token == Secret.from_env_var("HF_API_TOKEN", strict=False)
         assert embedder.prefix == ""
         assert embedder.suffix == ""
@@ -32,14 +32,14 @@ class TestOptimumDocumentEmbedder:
         assert embedder.meta_fields_to_embed == []
         assert embedder.embedding_separator == "\n"
         assert embedder.model_kwargs == {
-            "model_id": "BAAI/bge-small-en-v1.5",
+            "model_id": "sentence-transformers/all-mpnet-base-v2",
             "provider": "CPUExecutionProvider",
             "use_auth_token": "fake-api-token",
         }
 
     def test_init_with_parameters(self, mock_check_valid_model):  # noqa: ARG002
         embedder = OptimumDocumentEmbedder(
-            model="sentence-transformers/all-mpnet-base-v2",
+            model="sentence-transformers/all-minilm-l6-v2",
             token=Secret.from_token("fake-api-token"),
             prefix="prefix",
             suffix="suffix",
@@ -52,7 +52,7 @@ class TestOptimumDocumentEmbedder:
             model_kwargs={"trust_remote_code": True},
         )
 
-        assert embedder.model == "sentence-transformers/all-mpnet-base-v2"
+        assert embedder.model == "sentence-transformers/all-minilm-l6-v2"
         assert embedder.token == Secret.from_token("fake-api-token")
         assert embedder.prefix == "prefix"
         assert embedder.suffix == "suffix"
@@ -64,7 +64,7 @@ class TestOptimumDocumentEmbedder:
         assert embedder.onnx_execution_provider == "CUDAExecutionProvider"
         assert embedder.model_kwargs == {
             "trust_remote_code": True,
-            "model_id": "sentence-transformers/all-mpnet-base-v2",
+            "model_id": "sentence-transformers/all-minilm-l6-v2",
             "provider": "CUDAExecutionProvider",
             "use_auth_token": "fake-api-token",
         }
@@ -81,7 +81,7 @@ class TestOptimumDocumentEmbedder:
         assert data == {
             "type": "haystack_integrations.components.embedders.optimum_document_embedder.OptimumDocumentEmbedder",
             "init_parameters": {
-                "model": "BAAI/bge-small-en-v1.5",
+                "model": "sentence-transformers/all-mpnet-base-v2",
                 "token": {"env_vars": ["HF_API_TOKEN"], "strict": False, "type": "env_var"},
                 "prefix": "",
                 "suffix": "",
@@ -92,7 +92,7 @@ class TestOptimumDocumentEmbedder:
                 "normalize_embeddings": True,
                 "onnx_execution_provider": "CPUExecutionProvider",
                 "model_kwargs": {
-                    "model_id": "BAAI/bge-small-en-v1.5",
+                    "model_id": "sentence-transformers/all-mpnet-base-v2",
                     "provider": "CPUExecutionProvider",
                     "use_auth_token": None,
                 },
@@ -101,7 +101,7 @@ class TestOptimumDocumentEmbedder:
 
     def test_to_dict_with_custom_init_parameters(self, mock_check_valid_model):  # noqa: ARG002
         component = OptimumDocumentEmbedder(
-            model="sentence-transformers/all-mpnet-base-v2",
+            model="sentence-transformers/all-minilm-l6-v2",
             token=Secret.from_env_var("ENV_VAR", strict=False),
             prefix="prefix",
             suffix="suffix",
@@ -118,7 +118,7 @@ class TestOptimumDocumentEmbedder:
         assert data == {
             "type": "haystack_integrations.components.embedders.optimum_document_embedder.OptimumDocumentEmbedder",
             "init_parameters": {
-                "model": "sentence-transformers/all-mpnet-base-v2",
+                "model": "sentence-transformers/all-minilm-l6-v2",
                 "token": {"env_vars": ["ENV_VAR"], "strict": False, "type": "env_var"},
                 "prefix": "prefix",
                 "suffix": "suffix",
@@ -130,7 +130,7 @@ class TestOptimumDocumentEmbedder:
                 "onnx_execution_provider": "CUDAExecutionProvider",
                 "model_kwargs": {
                     "trust_remote_code": True,
-                    "model_id": "sentence-transformers/all-mpnet-base-v2",
+                    "model_id": "sentence-transformers/all-minilm-l6-v2",
                     "provider": "CUDAExecutionProvider",
                     "use_auth_token": None,
                 },
@@ -143,7 +143,7 @@ class TestOptimumDocumentEmbedder:
         ]
 
         embedder = OptimumDocumentEmbedder(
-            model="sentence-transformers/all-mpnet-base-v2",
+            model="sentence-transformers/all-minilm-l6-v2",
             meta_fields_to_embed=["meta_field"],
             embedding_separator=" | ",
         )
@@ -162,7 +162,7 @@ class TestOptimumDocumentEmbedder:
         documents = [Document(content=f"document number {i}") for i in range(5)]
 
         embedder = OptimumDocumentEmbedder(
-            model="sentence-transformers/all-mpnet-base-v2",
+            model="sentence-transformers/all-minilm-l6-v2",
             prefix="my_prefix ",
             suffix=" my_suffix",
         )
@@ -179,7 +179,7 @@ class TestOptimumDocumentEmbedder:
 
     def test_run_wrong_input_format(self, mock_check_valid_model):  # noqa: ARG002
         embedder = OptimumDocumentEmbedder(
-            model="BAAI/bge-small-en-v1.5",
+            model="sentence-transformers/all-mpnet-base-v2",
         )
         embedder.warm_up()
         # wrong formats
@@ -194,7 +194,7 @@ class TestOptimumDocumentEmbedder:
 
     def test_run_on_empty_list(self, mock_check_valid_model):  # noqa: ARG002
         embedder = OptimumDocumentEmbedder(
-            model="BAAI/bge-small-en-v1.5",
+            model="sentence-transformers/all-mpnet-base-v2",
         )
         embedder.warm_up()
         empty_list_input = []
@@ -211,7 +211,7 @@ class TestOptimumDocumentEmbedder:
         ]
 
         embedder = OptimumDocumentEmbedder(
-            model="BAAI/bge-small-en-v1.5",
+            model="sentence-transformers/all-mpnet-base-v2",
             prefix="prefix ",
             suffix=" suffix",
             meta_fields_to_embed=["topic"],
@@ -229,5 +229,5 @@ class TestOptimumDocumentEmbedder:
         for doc in documents_with_embeddings:
             assert isinstance(doc, Document)
             assert isinstance(doc.embedding, list)
-            assert len(doc.embedding) == 384
+            assert len(doc.embedding) == 768
             assert all(isinstance(x, float) for x in doc.embedding)
