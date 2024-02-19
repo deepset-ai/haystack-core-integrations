@@ -16,7 +16,7 @@ processors:
 renderer:
   type: haystack_pydoc_tools.renderers.ReadmePreviewRenderer
   excerpt: Amazon Sagemaker integration for Haystack
-  category_slug: integrations-api
+  category_slug: haystack-integrations
   title: Amazon Sagemaker
   slug: integrations-amazon-sagemaker
   order: 15
