@@ -2,10 +2,7 @@ loaders:
   - type: haystack_pydoc_tools.loaders.CustomPythonLoader
     search_path: [../src]
     modules: [
-      "haystack_integrations.components.retrievers.chroma.retriever",
-      "haystack_integrations.document_stores.chroma.document_store",
-      "haystack_integrations.document_stores.chroma.errors",
-      "haystack_integrations.document_stores.chroma.utils",
+      "haystack_integrations.components.generators.amazon_sagemaker.sagemaker",
     ]
     ignore_when_discovered: ["__init__"]
 processors:
@@ -18,14 +15,14 @@ processors:
   - type: crossref
 renderer:
   type: haystack_pydoc_tools.renderers.ReadmePreviewRenderer
-  excerpt: Chroma integration for Haystack
+  excerpt: Amazon Sagemaker integration for Haystack
   category_slug: integrations-api
-  title: Chroma
-  slug: integrations-chroma
-  order: 1
+  title: Amazon Sagemaker
+  slug: integrations-amazon-sagemaker
+  order: 15
   markdown:
     descriptive_class_title: false
     descriptive_module_title: true
     add_method_class_prefix: true
     add_member_class_prefix: false
-    filename: _readme_chroma.md
+    filename: _readme_amazon_sagemaker.md

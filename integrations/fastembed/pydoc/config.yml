@@ -18,7 +18,7 @@ processors:
 renderer:
   type: haystack_pydoc_tools.renderers.ReadmePreviewRenderer
   excerpt: FastEmbed integration for Haystack
-  category_slug: haystack-integrations
+  category_slug: integrations-api
   title: FastEmbed
   slug: fastembed-embedders
   order: 55

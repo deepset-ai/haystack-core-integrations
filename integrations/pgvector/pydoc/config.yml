@@ -18,7 +18,7 @@ processors:
 renderer:
   type: haystack_pydoc_tools.renderers.ReadmePreviewRenderer
   excerpt: Pgvector integration for Haystack
-  category_slug: haystack-integrations
+  category_slug: integrations-api
   title: Pgvector
   slug: integrations-pgvector
   order: 140

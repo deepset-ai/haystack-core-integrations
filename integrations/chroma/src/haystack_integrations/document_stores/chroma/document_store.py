@@ -35,7 +35,7 @@ class ChromaDocumentStore:
         and the signature can be customized to your needs. For example, parameters needed
         to set up a database client would be passed to this method.
 
-        Note: for the component to be part of a serializable pipelie, the __init__
+        Note: for the component to be part of a serializable pipeline, the __init__
         parameters must be serializable, reason why we use a registry to configure the
         embedding function passing a string.
         """
@@ -179,7 +179,7 @@ class ChromaDocumentStore:
         Deletes all documents with a matching document_ids from the document store.
         Fails with `MissingDocumentError` if no document with this id is present in the store.
 
-        :param object_ids: the object_ids to delete
+        :param document_ids: the object_ids to delete
         """
         self._collection.delete(ids=document_ids)
 
@@ -230,7 +230,8 @@ class ChromaDocumentStore:
             **self._embedding_function_params,
         }
 
-    def _normalize_filters(self, filters: Dict[str, Any]) -> Tuple[List[str], Dict[str, Any], Dict[str, Any]]:
+    @staticmethod
+    def _normalize_filters(filters: Dict[str, Any]) -> Tuple[List[str], Dict[str, Any], Dict[str, Any]]:
         """
         Translate Haystack filters to Chroma filters. It returns three dictionaries, to be
         passed to `ids`, `where` and `where_document` respectively.
@@ -284,7 +285,8 @@ class ChromaDocumentStore:
 
         return ids, final_where, where_document
 
-    def _get_result_to_documents(self, result: GetResult) -> List[Document]:
+    @staticmethod
+    def _get_result_to_documents(result: GetResult) -> List[Document]:
         """
         Helper function to convert Chroma results into Haystack Documents
         """
@@ -309,7 +311,8 @@ class ChromaDocumentStore:
 
         return retval
 
-    def _query_result_to_documents(self, result: QueryResult) -> List[List[Document]]:
+    @staticmethod
+    def _query_result_to_documents(result: QueryResult) -> List[List[Document]]:
         """
         Helper function to convert Chroma results into Haystack Documents
         """
