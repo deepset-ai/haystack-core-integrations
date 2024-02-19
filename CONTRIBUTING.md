@@ -105,7 +105,7 @@ to existing ones. Following these guidelines will help maintainers and the commu
 - Make sure that you are using the latest version.
 - Read the [documentation]() carefully and find out if the functionality is already covered, maybe by an individual configuration.
 - Perform a [search](/issues) to see if the enhancement has already been suggested. If it has, add a comment to the existing issue instead of opening a new one.
-- Find out whether your idea fits with the scope and aims of the project. It's up to you to make a strong case to convince the project's developers of the merits of this feature. Keep in mind that we want features that will be useful to the majority of our users and not just a small subset. If you're just targeting a minority of users, consider writing an and distributing the integration on your own.
+- Find out whether your idea fits with the scope and aims of the project. It's up to you to make a strong case to convince the project's developers of the merits of this feature. Keep in mind that we want features that will be useful to the majority of our users and not just a small subset. If you're just targeting a minority of users, consider writing and distributing the integration on your own.
 
 
 ### How Do I Submit a Good Enhancement Suggestion?
@@ -242,13 +242,12 @@ There are two types of documentation for this project:
 1. Python API docs, and
 2. Documentation pages
 
-The Python API docs detail the source code: classes, functions and parameters that implement every integration.
+The Python API docs detail the source code: classes, functions, and parameters that every integration implements.
 This type of documentation is extracted from the source code itself, and contributors should pay attention when they
 change the code to also change relevant comments and docstrings. This type of documentation is mostly useful to
 developers, but it can be handy for users at times. You can browse it on the dedicated section in the
 [documentation website](https://docs.haystack.deepset.ai/v2.0/reference/integrations-chroma).
 
-Documentation pages explain what an integration accomplishes and explain how to use it and how to configure it. This
+Documentation pages explain what an integration accomplishes, how to use it, and how to configure it. This
 type of documentation mostly targets end-users, and contributors are welcome to make changes and keep it up-to-date.
-You can contribute changes to the documentation pages using the "Suggest Edits" button that each page shows on its
-top-right corner.
+You can contribute changes to the documentation using the "Suggest Edits" button in the top-right corner of each page.
