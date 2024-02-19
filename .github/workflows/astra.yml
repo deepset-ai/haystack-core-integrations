@@ -59,6 +59,6 @@ jobs:
 
     - name: Run tests
       env:
-        ASTRA_DB_API_ENDPOINT: ${{ secrets.ASTRA_DB_API_ENDPOINT }}
-        ASTRA_DB_APPLICATION_TOKEN: ${{ secrets.ASTRA_DB_APPLICATION_TOKEN }}
+        ASTRA_DB_API_ENDPOINT: ${{ secrets.ASTRA_API_ENDPOINT }}
+        ASTRA_DB_APPLICATION_TOKEN: ${{ secrets.ASTRA_TOKEN }}
       run: hatch run cov
