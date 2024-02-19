@@ -18,7 +18,7 @@ processors:
 renderer:
   type: haystack_pydoc_tools.renderers.ReadmePreviewRenderer
   excerpt: Instructor embedders integration for Haystack
-  category_slug: haystack-integrations
+  category_slug: integrations-api
   title: Instructor Embedders
   slug: integrations-instructor-embedders
   order: 90

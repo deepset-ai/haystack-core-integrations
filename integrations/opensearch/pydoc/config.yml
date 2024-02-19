@@ -19,7 +19,7 @@ processors:
 renderer:
   type: haystack_pydoc_tools.renderers.ReadmePreviewRenderer
   excerpt: OpenSearch integration for Haystack
-  category_slug: haystack-integrations
+  category_slug: integrations-api
   title: OpenSearch
   slug: integrations-opensearch
   order: 130
