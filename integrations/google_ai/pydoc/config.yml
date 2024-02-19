@@ -17,7 +17,7 @@ processors:
 renderer:
   type: haystack_pydoc_tools.renderers.ReadmePreviewRenderer
   excerpt: Google AI integration for Haystack
-  category_slug: haystack-integrations
+  category_slug: integrations-api
   title: Google AI
   slug: integrations-google-ai
   order: 60

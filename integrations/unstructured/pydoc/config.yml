@@ -16,7 +16,7 @@ processors:
 renderer:
   type: haystack_pydoc_tools.renderers.ReadmePreviewRenderer
   excerpt: Unstructured integration for Haystack
-  category_slug: haystack-integrations
+  category_slug: integrations-api
   title: Unstructured
   slug: integrations-unstructured
   order: 170

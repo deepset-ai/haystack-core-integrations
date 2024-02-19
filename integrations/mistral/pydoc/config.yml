@@ -18,7 +18,7 @@ processors:
 renderer:
   type: haystack_pydoc_tools.renderers.ReadmePreviewRenderer
   excerpt: Mistral integration for Haystack
-  category_slug: haystack-integrations
+  category_slug: integrations-api
   title: Mistral
   slug: integrations-mistral
   order: 40
