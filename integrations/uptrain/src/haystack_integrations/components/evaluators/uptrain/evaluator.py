@@ -36,6 +36,7 @@ class UpTrainEvaluator:
         api: str = "openai",
         api_key: Secret = Secret.from_env_var("OPENAI_API_KEY"),
         api_params: Optional[Dict[str, Any]] = None,
+        project_name: Optional[str] = None,
     ):
         """
         Construct a new UpTrain evaluator.
@@ -59,6 +60,7 @@ class UpTrainEvaluator:
         self.api = api
         self.api_key = api_key
         self.api_params = api_params
+        self.project_name = project_name
 
         self._init_backend()
         expected_inputs = self.descriptor.input_parameters
@@ -112,7 +114,7 @@ class UpTrainEvaluator:
         if isinstance(self._backend_client, EvalLLM):
             results = self._backend_client.evaluate(**eval_args)
         else:
-            results = self._backend_client.log_and_evaluate(**eval_args)
+            results = self._backend_client.log_and_evaluate(**eval_args, project_name=self.project_name)
 
         OutputConverters.validate_outputs(results)
         converted_results = [
