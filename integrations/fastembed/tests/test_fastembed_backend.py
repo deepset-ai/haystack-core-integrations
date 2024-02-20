@@ -27,9 +27,7 @@ def test_model_initialization(mock_instructor):
     _FastembedEmbeddingBackendFactory.get_embedding_backend(
         model_name="BAAI/bge-small-en-v1.5",
     )
-    mock_instructor.assert_called_once_with(
-        model_name="BAAI/bge-small-en-v1.5",
-    )
+    mock_instructor.assert_called_once_with(model_name="BAAI/bge-small-en-v1.5", cache_dir=None, threads=None)
     # restore the factory state
     _FastembedEmbeddingBackendFactory._instances = {}
 
