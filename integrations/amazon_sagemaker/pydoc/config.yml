@@ -19,7 +19,7 @@ renderer:
   category_slug: integrations-api
   title: Amazon Sagemaker
   slug: integrations-amazon-sagemaker
-  order: 15
+  order: 20
   markdown:
     descriptive_class_title: false
     descriptive_module_title: true

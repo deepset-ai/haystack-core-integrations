@@ -19,7 +19,7 @@ renderer:
   category_slug: integrations-api
   title: Llama.cpp
   slug: integrations-llama-cpp
-  order: 110
+  order: 140
   markdown:
     descriptive_class_title: false
     descriptive_module_title: true

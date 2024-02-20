@@ -21,7 +21,7 @@ renderer:
   category_slug: integrations-api
   title: Mistral
   slug: integrations-mistral
-  order: 40
+  order: 150
   markdown:
     descriptive_class_title: false
     descriptive_module_title: true

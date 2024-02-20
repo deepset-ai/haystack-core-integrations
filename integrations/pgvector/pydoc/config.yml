@@ -21,7 +21,7 @@ renderer:
   category_slug: integrations-api
   title: Pgvector
   slug: integrations-pgvector
-  order: 140
+  order: 190
   markdown:
     descriptive_class_title: false
     descriptive_module_title: true
