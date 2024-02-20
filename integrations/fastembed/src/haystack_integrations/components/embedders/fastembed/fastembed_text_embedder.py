@@ -31,6 +31,8 @@ class FastembedTextEmbedder:
     def __init__(
         self,
         model: str = "BAAI/bge-small-en-v1.5",
+        cache_dir: Optional[str] = None,
+        threads: Optional[int] = None,
         prefix: str = "",
         suffix: str = "",
         batch_size: int = 256,
@@ -42,6 +44,10 @@ class FastembedTextEmbedder:
 
         :param model: Local path or name of the model in Fastembed's model hub,
             such as ``'BAAI/bge-small-en-v1.5'``.
+        :param cache_dir (str, optional): The path to the cache directory.
+                Can be set using the `FASTEMBED_CACHE_PATH` env variable.
+                Defaults to `fastembed_cache` in the system's temp directory.
+        :param threads (int, optional): The number of threads single onnxruntime session can use. Defaults to None.
         :param batch_size: Number of strings to encode at once.
         :param prefix: A string to add to the beginning of each text.
         :param suffix: A string to add to the end of each text.
@@ -52,9 +58,9 @@ class FastembedTextEmbedder:
                 If None, don't use data-parallel processing, use default onnxruntime threading instead.
         """
 
-        # TODO add parallel
-
         self.model_name = model
+        self.cache_dir = cache_dir
+        self.threads = threads
         self.prefix = prefix
         self.suffix = suffix
         self.batch_size = batch_size
@@ -68,6 +74,8 @@ class FastembedTextEmbedder:
         return default_to_dict(
             self,
             model=self.model_name,
+            cache_dir=self.cache_dir,
+            threads=self.threads,
             prefix=self.prefix,
             suffix=self.suffix,
             batch_size=self.batch_size,
@@ -80,7 +88,9 @@ class FastembedTextEmbedder:
         Load the embedding backend.
         """
         if not hasattr(self, "embedding_backend"):
-            self.embedding_backend = _FastembedEmbeddingBackendFactory.get_embedding_backend(model_name=self.model_name)
+            self.embedding_backend = _FastembedEmbeddingBackendFactory.get_embedding_backend(
+                model_name=self.model_name, cache_dir=self.cache_dir, threads=self.threads
+            )
 
     @component.output_types(embedding=List[float])
     def run(self, text: str):

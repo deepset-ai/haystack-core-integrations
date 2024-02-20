@@ -29,7 +29,7 @@ class TestDocumentStore(DocumentStoreBaseTests):
         return AstraDocumentStore(
             collection_name="haystack_integration",
             duplicates_policy=DuplicatePolicy.OVERWRITE,
-            embedding_dim=768,
+            embedding_dimension=768,
         )
 
     @pytest.fixture(autouse=True)
