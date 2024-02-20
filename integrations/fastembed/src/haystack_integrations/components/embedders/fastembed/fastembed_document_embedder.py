@@ -53,6 +53,8 @@ class FastembedDocumentEmbedder:
     def __init__(
         self,
         model: str = "BAAI/bge-small-en-v1.5",
+        cache_dir: Optional[str] = None,
+        threads: Optional[int] = None,
         prefix: str = "",
         suffix: str = "",
         batch_size: int = 256,
@@ -66,6 +68,10 @@ class FastembedDocumentEmbedder:
 
         :param model: Local path or name of the model in Hugging Face's model hub,
             such as ``'BAAI/bge-small-en-v1.5'``.
+        :param cache_dir (str, optional): The path to the cache directory.
+                Can be set using the `FASTEMBED_CACHE_PATH` env variable.
+                Defaults to `fastembed_cache` in the system's temp directory.
+        :param threads (int, optional): The number of threads single onnxruntime session can use. Defaults to None.
         :param prefix: A string to add to the beginning of each text.
         :param suffix: A string to add to the end of each text.
         :param batch_size: Number of strings to encode at once.
@@ -79,6 +85,8 @@ class FastembedDocumentEmbedder:
         """
 
         self.model_name = model
+        self.cache_dir = cache_dir
+        self.threads = threads
         self.prefix = prefix
         self.suffix = suffix
         self.batch_size = batch_size
@@ -94,6 +102,8 @@ class FastembedDocumentEmbedder:
         return default_to_dict(
             self,
             model=self.model_name,
+            cache_dir=self.cache_dir,
+            threads=self.threads,
             prefix=self.prefix,
             suffix=self.suffix,
             batch_size=self.batch_size,
@@ -108,7 +118,9 @@ class FastembedDocumentEmbedder:
         Load the embedding backend.
         """
         if not hasattr(self, "embedding_backend"):
-            self.embedding_backend = _FastembedEmbeddingBackendFactory.get_embedding_backend(model_name=self.model_name)
+            self.embedding_backend = _FastembedEmbeddingBackendFactory.get_embedding_backend(
+                model_name=self.model_name, cache_dir=self.cache_dir, threads=self.threads
+            )
 
     def _prepare_texts_to_embed(self, documents: List[Document]) -> List[str]:
         texts_to_embed = []
