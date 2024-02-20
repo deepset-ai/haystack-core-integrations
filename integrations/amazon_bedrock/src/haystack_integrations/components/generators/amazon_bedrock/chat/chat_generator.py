@@ -10,7 +10,7 @@ from haystack.components.generators.utils import deserialize_callback_handler
 from haystack.dataclasses import ChatMessage, StreamingChunk
 from haystack.utils.auth import Secret, deserialize_secrets_inplace
 
-from haystack_integrations.components.generators.amazon_bedrock.errors import (
+from haystack_integrations.commons.amazon_bedrock.errors import (
     AmazonBedrockConfigurationError,
     AmazonBedrockInferenceError,
     AWSConfigurationError,

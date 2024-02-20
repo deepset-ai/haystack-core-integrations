@@ -16,11 +16,14 @@ from .adapters import (
     CohereCommandAdapter,
     MetaLlama2ChatAdapter,
 )
-from .errors import (
+from haystack_integrations.commons.amazon_bedrock.errors import (
     AmazonBedrockConfigurationError,
     AmazonBedrockInferenceError,
     AWSConfigurationError,
 )
+
+from haystack_integrations.commons.amazon_bedrock.utils import get_aws_session, AWS_CONFIGURATION_KEYS
+
 from .handlers import (
     DefaultPromptHandler,
     DefaultTokenStreamingHandler,
@@ -28,14 +31,6 @@ from .handlers import (
 )
 
 logger = logging.getLogger(__name__)
-
-AWS_CONFIGURATION_KEYS = [
-    "aws_access_key_id",
-    "aws_secret_access_key",
-    "aws_session_token",
-    "aws_region_name",
-    "aws_profile_name",
-]
 
 
 @component
@@ -98,7 +93,7 @@ class AmazonBedrockGenerator:
             return secret.resolve_value() if secret else None
 
         try:
-            session = self.get_aws_session(
+            session = get_aws_session(
                 aws_access_key_id=resolve_secret(aws_access_key_id),
                 aws_secret_access_key=resolve_secret(aws_secret_access_key),
                 aws_session_token=resolve_secret(aws_session_token),
@@ -162,7 +157,7 @@ class AmazonBedrockGenerator:
             return False
 
         try:
-            session = cls.get_aws_session(**kwargs)
+            session = get_aws_session(**kwargs)
             bedrock = session.client("bedrock")
             foundation_models_response = bedrock.list_foundation_models(byOutputModality="TEXT")
             available_model_ids = [entry["modelId"] for entry in foundation_models_response.get("modelSummaries", [])]
@@ -263,43 +258,6 @@ class AmazonBedrockGenerator:
         """
         aws_config_provided = any(key in kwargs for key in AWS_CONFIGURATION_KEYS)
         return aws_config_provided
-
-    @classmethod
-    def get_aws_session(
-        cls,
-        aws_access_key_id: Optional[str] = None,
-        aws_secret_access_key: Optional[str] = None,
-        aws_session_token: Optional[str] = None,
-        aws_region_name: Optional[str] = None,
-        aws_profile_name: Optional[str] = None,
-        **kwargs,
-    ):
-        """
-        Creates an AWS Session with the given parameters.
-        Checks if the provided AWS credentials are valid and can be used to connect to AWS.
-
-        :param aws_access_key_id: AWS access key ID.
-        :param aws_secret_access_key: AWS secret access key.
-        :param aws_session_token: AWS session token.
-        :param aws_region_name: AWS region name.
-        :param aws_profile_name: AWS profile name.
-        :param kwargs: The kwargs passed down to the service client. Supported kwargs depend on the model chosen.
-            See https://docs.aws.amazon.com/bedrock/latest/userguide/model-parameters.html.
-        :raises AWSConfigurationError: If the provided AWS credentials are invalid.
-        :return: The created AWS session.
-        """
-        try:
-            return boto3.Session(
-                aws_access_key_id=aws_access_key_id,
-                aws_secret_access_key=aws_secret_access_key,
-                aws_session_token=aws_session_token,
-                region_name=aws_region_name,
-                profile_name=aws_profile_name,
-            )
-        except BotoCoreError as e:
-            provided_aws_config = {k: v for k, v in kwargs.items() if k in AWS_CONFIGURATION_KEYS}
-            msg = f"Failed to initialize the session with provided AWS credentials {provided_aws_config}"
-            raise AWSConfigurationError(msg) from e
 
     def to_dict(self) -> Dict[str, Any]:
         """

@@ -13,7 +13,7 @@ from haystack_integrations.components.generators.amazon_bedrock.adapters import 
     CohereCommandAdapter,
     MetaLlama2ChatAdapter,
 )
-from haystack_integrations.components.generators.amazon_bedrock.errors import AmazonBedrockConfigurationError
+from haystack_integrations.commons.amazon_bedrock.errors import AmazonBedrockConfigurationError
 
 
 @pytest.mark.unit
@@ -212,7 +212,7 @@ def test_supports_for_valid_aws_configuration():
 
     # Patch the class method to return the mock session
     with patch(
-        "haystack_integrations.components.generators.amazon_bedrock.AmazonBedrockGenerator.get_aws_session",
+        "haystack_integrations.components.generators.amazon_bedrock.generator.get_aws_session",
         return_value=mock_session,
     ):
         supported = AmazonBedrockGenerator.supports(
@@ -243,7 +243,7 @@ def test_supports_for_invalid_bedrock_config():
 
     # Patch the class method to return the mock session
     with patch(
-        "haystack_integrations.components.generators.amazon_bedrock.AmazonBedrockGenerator.get_aws_session",
+        "haystack_integrations.components.generators.amazon_bedrock.generator.get_aws_session",
         return_value=mock_session,
     ), pytest.raises(AmazonBedrockConfigurationError, match="Could not connect to Amazon Bedrock."):
         AmazonBedrockGenerator.supports(
@@ -259,7 +259,7 @@ def test_supports_for_invalid_bedrock_config_error_on_list_models():
 
     # Patch the class method to return the mock session
     with patch(
-        "haystack_integrations.components.generators.amazon_bedrock.AmazonBedrockGenerator.get_aws_session",
+        "haystack_integrations.components.generators.amazon_bedrock.generator.get_aws_session",
         return_value=mock_session,
     ), pytest.raises(AmazonBedrockConfigurationError, match="Could not connect to Amazon Bedrock."):
         AmazonBedrockGenerator.supports(
@@ -291,7 +291,7 @@ def test_supports_with_stream_true_for_model_that_supports_streaming():
 
     # Patch the class method to return the mock session
     with patch(
-        "haystack_integrations.components.generators.amazon_bedrock.AmazonBedrockGenerator.get_aws_session",
+        "haystack_integrations.components.generators.amazon_bedrock.generator.get_aws_session",
         return_value=mock_session,
     ):
         supported = AmazonBedrockGenerator.supports(
@@ -312,7 +312,7 @@ def test_supports_with_stream_true_for_model_that_does_not_support_streaming():
 
     # Patch the class method to return the mock session
     with patch(
-        "haystack_integrations.components.generators.amazon_bedrock.AmazonBedrockGenerator.get_aws_session",
+        "haystack_integrations.components.generators.amazon_bedrock.generator.get_aws_session",
         return_value=mock_session,
     ), pytest.raises(
         AmazonBedrockConfigurationError,
