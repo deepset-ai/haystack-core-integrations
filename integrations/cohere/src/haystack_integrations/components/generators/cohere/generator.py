@@ -92,7 +92,7 @@ class CohereGenerator:
         return default_to_dict(
             self,
             model=self.model,
-            streaming_callback=serialize_callback_handler(self.streaming_callback),
+            streaming_callback=serialize_callback_handler(self.streaming_callback) if self.streaming_callback else None,
             api_base_url=self.api_base_url,
             api_key=self.api_key.to_dict(),
             **self.model_parameters,
