@@ -22,7 +22,7 @@ renderer:
   category_slug: integrations-api
   title: OpenSearch
   slug: integrations-opensearch
-  order: 130
+  order: 180
   markdown:
     descriptive_class_title: false
     descriptive_module_title: true

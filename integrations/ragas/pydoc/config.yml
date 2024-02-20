@@ -23,7 +23,7 @@ renderer:
   category_slug: integrations-api
   title: Ragas
   slug: integrations-ragas
-  order: 45
+  order: 220
   markdown:
     descriptive_class_title: false
     descriptive_module_title: true
