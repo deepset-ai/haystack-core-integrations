@@ -8,7 +8,8 @@ from haystack_integrations.document_stores.astra import AstraDocumentStore
 
 
 @patch.dict(
-    "os.environ", {"ASTRA_TOKEN": "fake-token", "ASTRA_API_ENDPOINT": "http://fake-url.apps.astra.datastax.com"}
+    "os.environ",
+    {"ASTRA_DB_APPLICATION_TOKEN": "fake-token", "ASTRA_DB_API_ENDPOINT": "http://fake-url.apps.astra.datastax.com"},
 )
 @patch("haystack_integrations.document_stores.astra.document_store.AstraClient")
 def test_retriever_to_json(*_):
@@ -23,12 +24,11 @@ def test_retriever_to_json(*_):
             "document_store": {
                 "type": "haystack_integrations.document_stores.astra.document_store.AstraDocumentStore",
                 "init_parameters": {
-                    "api_endpoint": {"type": "env_var", "env_vars": ["ASTRA_API_ENDPOINT"], "strict": True},
-                    "token": {"type": "env_var", "env_vars": ["ASTRA_TOKEN"], "strict": True},
+                    "api_endpoint": {"type": "env_var", "env_vars": ["ASTRA_DB_API_ENDPOINT"], "strict": True},
+                    "token": {"type": "env_var", "env_vars": ["ASTRA_DB_APPLICATION_TOKEN"], "strict": True},
+                    "collection_name": "documents",
+                    "embedding_dimension": 768,
                     "duplicates_policy": "NONE",
-                    "astra_keyspace": "default_keyspace",
-                    "astra_collection": "documents",
-                    "embedding_dim": 768,
                     "similarity": "cosine",
                 },
             },
@@ -37,7 +37,8 @@ def test_retriever_to_json(*_):
 
 
 @patch.dict(
-    "os.environ", {"ASTRA_TOKEN": "fake-token", "ASTRA_API_ENDPOINT": "http://fake-url.apps.astra.datastax.com"}
+    "os.environ",
+    {"ASTRA_DB_APPLICATION_TOKEN": "fake-token", "ASTRA_DB_API_ENDPOINT": "http://fake-url.apps.astra.datastax.com"},
 )
 @patch("haystack_integrations.document_stores.astra.document_store.AstraClient")
 def test_retriever_from_json(*_):
@@ -50,12 +51,11 @@ def test_retriever_from_json(*_):
             "document_store": {
                 "type": "haystack_integrations.document_stores.astra.document_store.AstraDocumentStore",
                 "init_parameters": {
-                    "api_endpoint": {"type": "env_var", "env_vars": ["ASTRA_API_ENDPOINT"], "strict": True},
-                    "token": {"type": "env_var", "env_vars": ["ASTRA_TOKEN"], "strict": True},
+                    "api_endpoint": {"type": "env_var", "env_vars": ["ASTRA_DB_API_ENDPOINT"], "strict": True},
+                    "token": {"type": "env_var", "env_vars": ["ASTRA_DB_APPLICATION_TOKEN"], "strict": True},
+                    "collection_name": "documents",
+                    "embedding_dimension": 768,
                     "duplicates_policy": "NONE",
-                    "astra_keyspace": "default_keyspace",
-                    "astra_collection": "documents",
-                    "embedding_dim": 768,
                     "similarity": "cosine",
                 },
             },
