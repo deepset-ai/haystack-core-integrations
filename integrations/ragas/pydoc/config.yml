@@ -20,7 +20,7 @@ processors:
 renderer:
   type: haystack_pydoc_tools.renderers.ReadmePreviewRenderer
   excerpt: Ragas integration for Haystack
-  category_slug: haystack-integrations
+  category_slug: integrations-api
   title: Ragas
   slug: integrations-ragas
   order: 45

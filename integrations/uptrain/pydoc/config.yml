@@ -20,7 +20,7 @@ processors:
 renderer:
   type: haystack_pydoc_tools.renderers.ReadmePreviewRenderer
   excerpt: UpTrain integration for Haystack
-  category_slug: haystack-integrations
+  category_slug: integrations-api
   title: UpTrain
   slug: integrations-uptrain
   order: 175

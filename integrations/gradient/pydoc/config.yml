@@ -18,7 +18,7 @@ processors:
 renderer:
   type: haystack_pydoc_tools.renderers.ReadmePreviewRenderer
   excerpt: Cohere integration for Haystack
-  category_slug: haystack-integrations
+  category_slug: integrations-api
   title: Gradient
   slug: integrations-gradient
   order: 80
