@@ -58,7 +58,7 @@ class UnstructuredFileConverter:
         """
 
         self.api_url = api_url
-        self.api_key = api_key.resolve_value() if api_key else None
+        self.api_key = api_key
         self.document_creation_mode = document_creation_mode
         self.unstructured_kwargs = unstructured_kwargs or {}
         self.separator = separator
@@ -67,7 +67,7 @@ class UnstructuredFileConverter:
         is_hosted_api = api_url == UNSTRUCTURED_HOSTED_API_URL
 
         # we check whether api_key is None or an empty string
-        if is_hosted_api and not api_key:
+        if is_hosted_api and not self.api_key:
             msg = (
                 "To use the hosted version of Unstructured, you need to set the environment variable "
                 "UNSTRUCTURED_API_KEY (recommended) or explicitly pass the parameter api_key."
@@ -194,7 +194,10 @@ class UnstructuredFileConverter:
         elements = []
         try:
             elements = partition_via_api(
-                filename=str(filepath), api_url=self.api_url, api_key=self.api_key, **self.unstructured_kwargs
+                filename=str(filepath),
+                api_url=self.api_url,
+                api_key=self.api_key.resolve_value() if self.api_key else None,
+                **self.unstructured_kwargs,
             )
         except Exception as e:
             logger.warning(f"Unstructured could not process file {filepath}. Error: {e}")

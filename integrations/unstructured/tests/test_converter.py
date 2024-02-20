@@ -7,7 +7,6 @@ from haystack_integrations.components.converters.unstructured import Unstructure
 
 
 class TestUnstructuredFileConverter:
-    @pytest.mark.usefixtures("set_env_variables")
     def test_init_default(self):
         converter = UnstructuredFileConverter()
         assert converter.api_url == "https://api.unstructured.io/general/v0/general"
@@ -17,6 +16,7 @@ class TestUnstructuredFileConverter:
         assert converter.unstructured_kwargs == {}
         assert converter.progress_bar
 
+    @pytest.mark.usefixtures("set_env_variables")
     def test_init_with_parameters(self):
         converter = UnstructuredFileConverter(
             api_url="http://custom-url:8000/general",
@@ -41,7 +41,7 @@ class TestUnstructuredFileConverter:
             "type": "haystack_integrations.components.converters.unstructured.converter.UnstructuredFileConverter",
             "init_parameters": {
                 "api_url": "https://api.unstructured.io/general/v0/general",
-                "api_key": {"env_vars": ["UNSTRUCTURED_API_KEY"], "strict": True, "type": "env_var"},
+                "api_key": {"env_vars": ["UNSTRUCTURED_API_KEY"], "strict": False, "type": "env_var"},
                 "document_creation_mode": "one-doc-per-file",
                 "separator": "\n\n",
                 "unstructured_kwargs": {},
