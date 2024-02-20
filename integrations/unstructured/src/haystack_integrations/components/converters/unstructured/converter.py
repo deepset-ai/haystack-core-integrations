@@ -30,7 +30,7 @@ class UnstructuredFileConverter:
     def __init__(
         self,
         api_url: str = UNSTRUCTURED_HOSTED_API_URL,
-        api_key: Optional[Secret] = Secret.from_env_var("UNSTRUCTURED_API_KEY"),  # noqa: B008
+        api_key: Optional[Secret] = Secret.from_env_var("UNSTRUCTURED_API_KEY", strict=False),  # noqa: B008
         document_creation_mode: Literal[
             "one-doc-per-file", "one-doc-per-page", "one-doc-per-element"
         ] = "one-doc-per-file",
@@ -64,6 +64,7 @@ class UnstructuredFileConverter:
         self.progress_bar = progress_bar
 
         is_hosted_api = api_url == UNSTRUCTURED_HOSTED_API_URL
+        api_key = api_key.resolve_value() if api_key else None
 
         # we check whether api_key is None or an empty string
         if is_hosted_api and not api_key:
