@@ -7,16 +7,16 @@ from haystack_integrations.components.converters.unstructured import Unstructure
 
 
 class TestUnstructuredFileConverter:
+    @pytest.mark.usefixtures("set_env_variables")
     def test_init_default(self):
         converter = UnstructuredFileConverter()
         assert converter.api_url == "https://api.unstructured.io/general/v0/general"
-        assert isinstance(converter.api_key, Secret)
+        assert converter.api_key.resolve_value() == "test-api-key"
         assert converter.document_creation_mode == "one-doc-per-file"
         assert converter.separator == "\n\n"
         assert converter.unstructured_kwargs == {}
         assert converter.progress_bar
 
-    @pytest.mark.usefixtures("set_env_variables")
     def test_init_with_parameters(self):
         converter = UnstructuredFileConverter(
             api_url="http://custom-url:8000/general",
@@ -26,11 +26,15 @@ class TestUnstructuredFileConverter:
             progress_bar=False,
         )
         assert converter.api_url == "http://custom-url:8000/general"
-        assert isinstance(converter.api_key, Secret)
+        assert converter.api_key.resolve_value() is None
         assert converter.document_creation_mode == "one-doc-per-element"
         assert converter.separator == "|"
         assert converter.unstructured_kwargs == {"foo": "bar"}
         assert not converter.progress_bar
+
+    def test_init_hosted_without_api_key_raises_error(self):
+        with pytest.raises(ValueError):
+            UnstructuredFileConverter(api_url="https://api.unstructured.io/general/v0/general")
 
     @pytest.mark.usefixtures("set_env_variables")
     def test_to_dict(self):
