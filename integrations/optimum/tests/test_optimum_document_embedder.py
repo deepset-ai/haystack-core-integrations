@@ -4,6 +4,7 @@ import pytest
 from haystack.dataclasses import Document
 from haystack.utils.auth import Secret
 from haystack_integrations.components.embedders import OptimumDocumentEmbedder
+from haystack_integrations.components.embedders.pooling import PoolingMode
 from huggingface_hub.utils import RepositoryNotFoundError
 
 
@@ -16,8 +17,17 @@ def mock_check_valid_model():
         yield mock
 
 
+@pytest.fixture
+def mock_get_pooling_mode():
+    with patch(
+        "haystack_integrations.components.embedders.optimum_text_embedder.HFPoolingMode.get_pooling_mode",
+        MagicMock(return_value=PoolingMode.MEAN),
+    ) as mock:
+        yield mock
+
+
 class TestOptimumDocumentEmbedder:
-    def test_init_default(self, monkeypatch, mock_check_valid_model):  # noqa: ARG002
+    def test_init_default(self, monkeypatch, mock_check_valid_model, mock_get_pooling_mode):  # noqa: ARG002
         monkeypatch.setenv("HF_API_TOKEN", "fake-api-token")
         embedder = OptimumDocumentEmbedder()
 
@@ -27,6 +37,7 @@ class TestOptimumDocumentEmbedder:
         assert embedder.suffix == ""
         assert embedder.normalize_embeddings is True
         assert embedder.onnx_execution_provider == "CPUExecutionProvider"
+        assert embedder.pooling_mode == PoolingMode.MEAN
         assert embedder.batch_size == 32
         assert embedder.progress_bar is True
         assert embedder.meta_fields_to_embed == []
@@ -48,6 +59,7 @@ class TestOptimumDocumentEmbedder:
             meta_fields_to_embed=["test_field"],
             embedding_separator=" | ",
             normalize_embeddings=False,
+            pooling_mode="max",
             onnx_execution_provider="CUDAExecutionProvider",
             model_kwargs={"trust_remote_code": True},
         )
@@ -62,6 +74,7 @@ class TestOptimumDocumentEmbedder:
         assert embedder.embedding_separator == " | "
         assert embedder.normalize_embeddings is False
         assert embedder.onnx_execution_provider == "CUDAExecutionProvider"
+        assert embedder.pooling_mode == PoolingMode.MAX
         assert embedder.model_kwargs == {
             "trust_remote_code": True,
             "model_id": "sentence-transformers/all-minilm-l6-v2",
@@ -69,12 +82,7 @@ class TestOptimumDocumentEmbedder:
             "use_auth_token": "fake-api-token",
         }
 
-    def test_initialize_with_invalid_model(self, mock_check_valid_model):
-        mock_check_valid_model.side_effect = RepositoryNotFoundError("Invalid model id")
-        with pytest.raises(RepositoryNotFoundError):
-            OptimumDocumentEmbedder(model="invalid_model_id")
-
-    def test_to_dict(self, mock_check_valid_model):  # noqa: ARG002
+    def test_to_dict(self, mock_check_valid_model, mock_get_pooling_mode):  # noqa: ARG002
         component = OptimumDocumentEmbedder()
         data = component.to_dict()
 
@@ -91,6 +99,7 @@ class TestOptimumDocumentEmbedder:
                 "embedding_separator": "\n",
                 "normalize_embeddings": True,
                 "onnx_execution_provider": "CPUExecutionProvider",
+                "pooling_mode": "mean",
                 "model_kwargs": {
                     "model_id": "sentence-transformers/all-mpnet-base-v2",
                     "provider": "CPUExecutionProvider",
@@ -99,7 +108,7 @@ class TestOptimumDocumentEmbedder:
             },
         }
 
-    def test_to_dict_with_custom_init_parameters(self, mock_check_valid_model):  # noqa: ARG002
+    def test_to_dict_with_custom_init_parameters(self, mock_check_valid_model, mock_get_pooling_mode):  # noqa: ARG002
         component = OptimumDocumentEmbedder(
             model="sentence-transformers/all-minilm-l6-v2",
             token=Secret.from_env_var("ENV_VAR", strict=False),
@@ -111,6 +120,7 @@ class TestOptimumDocumentEmbedder:
             embedding_separator=" | ",
             normalize_embeddings=False,
             onnx_execution_provider="CUDAExecutionProvider",
+            pooling_mode="max",
             model_kwargs={"trust_remote_code": True},
         )
         data = component.to_dict()
@@ -128,6 +138,7 @@ class TestOptimumDocumentEmbedder:
                 "embedding_separator": " | ",
                 "normalize_embeddings": False,
                 "onnx_execution_provider": "CUDAExecutionProvider",
+                "pooling_mode": "max",
                 "model_kwargs": {
                     "trust_remote_code": True,
                     "model_id": "sentence-transformers/all-minilm-l6-v2",
@@ -136,6 +147,52 @@ class TestOptimumDocumentEmbedder:
                 },
             },
         }
+
+    def test_initialize_with_invalid_model(self, mock_check_valid_model):
+        mock_check_valid_model.side_effect = RepositoryNotFoundError("Invalid model id")
+        with pytest.raises(RepositoryNotFoundError):
+            OptimumDocumentEmbedder(model="invalid_model_id")
+
+    def test_initialize_with_invalid_pooling_mode(self, mock_check_valid_model):  # noqa: ARG002
+        mock_get_pooling_mode.side_effect = ValueError("Invalid pooling mode")
+        with pytest.raises(ValueError):
+            OptimumDocumentEmbedder(
+                model="sentence-transformers/all-mpnet-base-v2", pooling_mode="Invalid_pooling_mode"
+            )
+
+    def test_infer_pooling_mode_from_str(self):
+        """
+        Test that the pooling mode is correctly inferred from a string.
+        The pooling mode is "mean" as per the model config.
+        """
+        for pooling_mode in PoolingMode:
+            embedder = OptimumDocumentEmbedder(
+                model="sentence-transformers/all-minilm-l6-v2",
+                pooling_mode=pooling_mode.value,
+            )
+
+            assert embedder.model == "sentence-transformers/all-minilm-l6-v2"
+            assert embedder.pooling_mode == pooling_mode
+
+    @pytest.mark.integration
+    def test_default_pooling_mode_when_config_not_found(self, mock_check_valid_model):  # noqa: ARG002
+        embedder = OptimumDocumentEmbedder(
+            model="embedding_model_finetuned",
+            pooling_mode=None,
+        )
+
+        assert embedder.model == "embedding_model_finetuned"
+        assert embedder.pooling_mode == PoolingMode.MEAN
+
+    @pytest.mark.integration
+    def test_infer_pooling_mode_from_hf(self):
+        embedder = OptimumDocumentEmbedder(
+            model="sentence-transformers/all-minilm-l6-v2",
+            pooling_mode=None,
+        )
+
+        assert embedder.model == "sentence-transformers/all-minilm-l6-v2"
+        assert embedder.pooling_mode == PoolingMode.MEAN
 
     def test_prepare_texts_to_embed_w_metadata(self, mock_check_valid_model):  # noqa: ARG002
         documents = [
@@ -146,6 +203,7 @@ class TestOptimumDocumentEmbedder:
             model="sentence-transformers/all-minilm-l6-v2",
             meta_fields_to_embed=["meta_field"],
             embedding_separator=" | ",
+            pooling_mode="mean",
         )
 
         prepared_texts = embedder._prepare_texts_to_embed(documents)
@@ -165,6 +223,7 @@ class TestOptimumDocumentEmbedder:
             model="sentence-transformers/all-minilm-l6-v2",
             prefix="my_prefix ",
             suffix=" my_suffix",
+            pooling_mode="mean",
         )
 
         prepared_texts = embedder._prepare_texts_to_embed(documents)
@@ -178,9 +237,7 @@ class TestOptimumDocumentEmbedder:
         ]
 
     def test_run_wrong_input_format(self, mock_check_valid_model):  # noqa: ARG002
-        embedder = OptimumDocumentEmbedder(
-            model="sentence-transformers/all-mpnet-base-v2",
-        )
+        embedder = OptimumDocumentEmbedder(model="sentence-transformers/all-mpnet-base-v2", pooling_mode="mean")
         embedder.warm_up()
         # wrong formats
         string_input = "text"

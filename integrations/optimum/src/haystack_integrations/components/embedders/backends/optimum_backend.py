@@ -3,6 +3,7 @@ from typing import Any, ClassVar, Dict, List, Optional, Union
 import numpy as np
 import torch
 from haystack.utils.auth import Secret
+from haystack_integrations.components.embedders.pooling import Pooling, PoolingMode
 from optimum.onnxruntime import ORTModelForFeatureExtraction
 from tqdm import tqdm
 from transformers import AutoTokenizer
@@ -38,25 +39,11 @@ class _OptimumEmbeddingBackend:
         self.model = ORTModelForFeatureExtraction.from_pretrained(**model_kwargs, export=True)
         self.tokenizer = AutoTokenizer.from_pretrained(model, token=token)
 
-    def mean_pooling(self, model_output: torch.tensor, attention_mask: torch.tensor) -> torch.tensor:
-        """
-        Perform Mean Pooling on the output of the Embedding model.
-
-        :param model_output: The output of the embedding model.
-        :param attention_mask: The attention mask of the tokenized text.
-        :return: The embeddings of the text after mean pooling.
-        """
-        # First element of model_output contains all token embeddings
-        token_embeddings = model_output[0]
-        input_mask_expanded = attention_mask.unsqueeze(-1).expand(token_embeddings.size()).float()
-        sum_embeddings = torch.sum(token_embeddings * input_mask_expanded, 1)
-        sum_mask = torch.clamp(input_mask_expanded.sum(1), min=1e-9)
-        return sum_embeddings / sum_mask
-
     def embed(
         self,
         texts_to_embed: Union[str, List[str]],
         normalize_embeddings: bool,
+        pooling_mode: PoolingMode = PoolingMode.MEAN,
         progress_bar: bool = False,
         batch_size: int = 1,
     ) -> Union[List[List[float]], List[float]]:
@@ -65,6 +52,7 @@ class _OptimumEmbeddingBackend:
 
         :param texts_to_embed: T
         :param normalize_embeddings: Whether to normalize the embeddings to unit length.
+        :param pooling_mode: The pooling mode to use. Defaults to PoolingMode.MEAN.
         :param progress_bar: Whether to show a progress bar or not, defaults to False.
         :param batch_size: Batch size to use, defaults to 1.
         :return: A single embedding if the input is a single string. A list of embeddings if the input is a list of
@@ -97,8 +85,13 @@ class _OptimumEmbeddingBackend:
             # Compute token embeddings
             model_output = self.model(**encoded_input)
 
-            # Perform mean pooling
-            sentence_embeddings = self.mean_pooling(model_output, encoded_input["attention_mask"].to(device))
+            # Pool Embeddings
+            pooling = Pooling(
+                pooling_mode=pooling_mode,
+                attention_mask=encoded_input["attention_mask"].to(device),
+                model_output=model_output,
+            )
+            sentence_embeddings = pooling.pool_embeddings()
 
             all_embeddings.extend(sentence_embeddings.tolist())
 

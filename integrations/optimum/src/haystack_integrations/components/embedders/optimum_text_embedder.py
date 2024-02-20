@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 from haystack import component, default_from_dict, default_to_dict
 from haystack.utils import Secret, deserialize_secrets_inplace
@@ -6,8 +6,10 @@ from haystack.utils.hf import HFModelType, check_valid_model, deserialize_hf_mod
 from haystack_integrations.components.embedders.backends.optimum_backend import (
     _OptimumEmbeddingBackendFactory,
 )
+from haystack_integrations.components.embedders.pooling import HFPoolingMode, PoolingMode
 
 
+@component
 class OptimumTextEmbedder:
     """
     A component to embed text using models loaded with the HuggingFace Optimum library.
@@ -48,6 +50,7 @@ class OptimumTextEmbedder:
         suffix: str = "",
         normalize_embeddings: bool = True,
         onnx_execution_provider: str = "CPUExecutionProvider",
+        pooling_mode: Optional[Union[str, PoolingMode]] = None,
         model_kwargs: Optional[Dict[str, Any]] = None,
     ):
         """
@@ -60,7 +63,40 @@ class OptimumTextEmbedder:
         :param suffix: A string to add to the end of each text.
         :param normalize_embeddings: Whether to normalize the embeddings to unit length.
         :param onnx_execution_provider: The execution provider to use for ONNX models. Defaults to
-        "CPUExecutionProvider". See https://onnxruntime.ai/docs/execution-providers/ for possible providers.
+            "CPUExecutionProvider". See https://onnxruntime.ai/docs/execution-providers/ for possible providers.
+
+            Note: Using the TensorRT execution provider
+            TensorRT requires to build its inference engine ahead of inference, which takes some time due to the model
+            optimization and nodes fusion. To avoid rebuilding the engine every time the model is loaded, ONNX Runtime
+            provides a pair of options to save the engine: `trt_engine_cache_enable` and `trt_engine_cache_path`. We
+            recommend setting these two provider options using the model_kwargs parameter, when using the TensorRT
+            execution provider. The usage is as follows:
+            ```python
+            embedder = OptimumTextEmbedder(
+                model="sentence-transformers/all-mpnet-base-v2",
+                onnx_execution_provider="TensorrtExecutionProvider",
+                model_kwargs={
+                    "provider_options": {
+                        "trt_engine_cache_enable": True,
+                        "trt_engine_cache_path": "tmp/trt_cache",
+                    }
+                },
+            )
+            ```
+        :param pooling_mode: The pooling mode to use. Defaults to None. When None, pooling mode will be inferred from
+            the model config. If not found, "mean" pooling will be used.
+            The supported pooling modes are:
+            - "cls": Perform CLS Pooling on the output of the embedding model. Uses the first token (CLS token) as text
+                representations.
+            - "max": Perform Max Pooling on the output of the embedding model. Uses max in each dimension over all
+                the tokens.
+            - "mean": Perform Mean Pooling on the output of the embedding model.
+            - "mean_sqrt_len": Perform mean-pooling on the output of the embedding model, but divide by sqrt
+                (input_length).
+            - "weighted_mean": Perform Weighted (position) Mean Pooling on the output of the embedding model. See
+                https://arxiv.org/abs/2202.08904.
+            - "last_token": Perform Last Token Pooling on the output of the embedding model. See
+                https://arxiv.org/abs/2202.08904 & https://arxiv.org/abs/2201.10005.
         :param model_kwargs: Dictionary containing additional keyword arguments to pass to the model.
             In case of duplication, these kwargs override `model`, `onnx_execution_provider`, and `token` initialization
             parameters.
@@ -70,6 +106,15 @@ class OptimumTextEmbedder:
 
         self.token = token
         token = token.resolve_value() if token else None
+
+        if isinstance(pooling_mode, str):
+            self.pooling_mode = PoolingMode.from_str(pooling_mode)
+        # Infer pooling mode from model config if not provided,
+        if pooling_mode is None:
+            self.pooling_mode = HFPoolingMode.get_pooling_mode(model, token)
+        # Set default to "mean" if not found in model config and not specified by user
+        if self.pooling_mode is None:
+            self.pooling_mode = PoolingMode.MEAN
 
         self.prefix = prefix
         self.suffix = suffix
@@ -107,6 +152,7 @@ class OptimumTextEmbedder:
             suffix=self.suffix,
             normalize_embeddings=self.normalize_embeddings,
             onnx_execution_provider=self.onnx_execution_provider,
+            pooling_mode=self.pooling_mode.value,
             model_kwargs=self.model_kwargs,
             token=self.token.to_dict() if self.token else None,
         )
@@ -122,13 +168,15 @@ class OptimumTextEmbedder:
         """
         Deserialize this component from a dictionary.
         """
+        data["init_parameters"]["pooling_mode"] = PoolingMode.from_str(data["init_parameters"]["pooling_mode"])
         deserialize_secrets_inplace(data["init_parameters"], keys=["token"])
         deserialize_hf_model_kwargs(data["init_parameters"]["model_kwargs"])
         return default_from_dict(cls, data)
 
     @component.output_types(embedding=List[float])
     def run(self, text: str):
-        """Embed a string.
+        """
+        Embed a string.
 
         :param text: The text to embed.
         :return: The embeddings of the text.
@@ -147,7 +195,7 @@ class OptimumTextEmbedder:
         text_to_embed = self.prefix + text + self.suffix
 
         embedding = self.embedding_backend.embed(
-            texts_to_embed=text_to_embed, normalize_embeddings=self.normalize_embeddings
+            texts_to_embed=text_to_embed, normalize_embeddings=self.normalize_embeddings, pooling_mode=self.pooling_mode
         )
 
         return {"embedding": embedding}
