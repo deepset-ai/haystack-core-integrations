@@ -20,7 +20,7 @@ renderer:
   category_slug: integrations-api
   title: Ollama
   slug: integrations-ollama
-  order: 120
+  order: 170
   markdown:
     descriptive_class_title: false
     descriptive_module_title: true

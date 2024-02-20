@@ -22,7 +22,7 @@ renderer:
   category_slug: integrations-api
   title: Elasticsearch
   slug: integrations-elasticsearch
-  order: 50
+  order: 70
   markdown:
     descriptive_class_title: false
     descriptive_module_title: true

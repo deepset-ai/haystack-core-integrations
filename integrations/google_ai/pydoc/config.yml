@@ -20,7 +20,7 @@ renderer:
   category_slug: integrations-api
   title: Google AI
   slug: integrations-google-ai
-  order: 60
+  order: 90
   markdown:
     descriptive_class_title: false
     descriptive_module_title: true
