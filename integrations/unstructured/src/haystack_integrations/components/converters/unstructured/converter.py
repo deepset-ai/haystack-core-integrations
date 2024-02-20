@@ -66,7 +66,6 @@ class UnstructuredFileConverter:
 
         is_hosted_api = api_url == UNSTRUCTURED_HOSTED_API_URL
 
-        # ToDo: test this exception
         # we check whether api_key is None or an empty string
         api_key_value = api_key.resolve_value() if api_key else None
         if is_hosted_api and not api_key_value:
