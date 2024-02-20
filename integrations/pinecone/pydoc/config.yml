@@ -20,7 +20,7 @@ processors:
 renderer:
   type: haystack_pydoc_tools.renderers.ReadmePreviewRenderer
   excerpt: Pinecone integration for Haystack
-  category_slug: haystack-integrations
+  category_slug: integrations-api
   title: Pinecone
   slug: integrations-pinecone
   order: 150

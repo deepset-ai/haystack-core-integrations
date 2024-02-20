@@ -19,7 +19,7 @@ processors:
 renderer:
   type: haystack_pydoc_tools.renderers.ReadmePreviewRenderer
   excerpt: Elasticsearch integration for Haystack
-  category_slug: haystack-integrations
+  category_slug: integrations-api
   title: Elasticsearch
   slug: integrations-elasticsearch
   order: 50

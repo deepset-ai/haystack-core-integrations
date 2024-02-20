@@ -8,7 +8,11 @@ on:
   pull_request:
     paths:
       - "integrations/unstructured/**"
-      - ".github/workflows/unstructured.yml"     
+      - ".github/workflows/unstructured.yml" 
+
+defaults:
+  run:
+    working-directory: integrations/unstructured    
 
 concurrency:
   group: unstructured-${{ github.head_ref }}
@@ -30,10 +34,12 @@ jobs:
 
     steps:
       - name: Free up disk space
+        working-directory: .
         run: |
           sudo docker image prune --all --force
 
       - name: Run Unstructured API (docker)
+        working-directory: .
         run: |
           docker run -d \
             --name unstructured-api \
@@ -55,15 +61,12 @@ jobs:
         run: pip install --upgrade hatch
 
       - name: Lint
-        working-directory: integrations/unstructured
         if: matrix.python-version == '3.9'
         run: hatch run lint:all
 
       - name: Generate docs
-        working-directory: integrations/unstructured
         if: matrix.python-version == '3.9' && runner.os == 'Linux'
         run: hatch run docs
 
-      - name: Run tests
-        working-directory: integrations/unstructured  
+      - name: Run tests 
         run: hatch run cov
