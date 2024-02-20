@@ -8,7 +8,7 @@ from haystack_integrations.components.embedders.fastembed.embedding_backend.fast
 @patch("haystack_integrations.components.embedders.fastembed.embedding_backend.fastembed_backend.TextEmbedding")
 def test_factory_behavior(mock_instructor):  # noqa: ARG001
     embedding_backend = _FastembedEmbeddingBackendFactory.get_embedding_backend(model_name="BAAI/bge-small-en-v1.5")
-    same_embedding_backend = _FastembedEmbeddingBackendFactory.get_embedding_backend("BAAI/bge-small-en-v1.5")
+    same_embedding_backend = _FastembedEmbeddingBackendFactory.get_embedding_backend(model_name="BAAI/bge-small-en-v1.5", cache_dir=None, threads=None)
     another_embedding_backend = _FastembedEmbeddingBackendFactory.get_embedding_backend(
         model_name="BAAI/bge-base-en-v1.5"
     )
