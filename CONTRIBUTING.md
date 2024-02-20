@@ -33,6 +33,7 @@ and smooth out the experience for all involved. The community looks forward to y
       - [Integration version](#integration-version)
       - [Run the linter](#run-the-linter)
       - [Run the tests](#run-the-tests)
+      - [Create a new integration](#create-a-new-integration)
     - [Improving The Documentation](#improving-the-documentation)
       - [Python API docs](#python-api-docs)
       - [Documentation pages](#documentation-pages)
@@ -235,6 +236,37 @@ same options you would pass to `pytest` directly, in this case a marker with the
 
 ```console
 $ hatch run test -m"not integration"
+```
+
+#### Create a new integration
+
+> [!IMPORTANT]
+> Core integrations follow the naming convention `PREFIX-haystack`, where `PREFIX` can be the name of the technology
+> you're integrating Haystack with. For example, a deepset integration would be named as `deepset-haystack`.
+
+To create a new integration, from the root of the repo change directory into `integrations`:
+
+```sh
+cd integrations
+```
+
+From there, use `hatch` to create the scaffold of the new integration:
+
+```sh
+$ hatch --config hatch.toml new -i
+Project name: deepset-haystack
+Description []: An example integration, this text can be edited later
+
+deepset-haystack
+├── src
+│   └── deepset_haystack
+│       ├── __about__.py
+│       └── __init__.py
+├── tests
+│   └── __init__.py
+├── LICENSE.txt
+├── README.md
+└── pyproject.toml
 ```
 
 ### Improving The Documentation
