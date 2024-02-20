@@ -36,27 +36,23 @@ class AstraDocumentStore:
 
     def __init__(
         self,
-        api_endpoint: Secret = Secret.from_env_var("ASTRA_API_ENDPOINT"),  # noqa: B008
-        token: Secret = Secret.from_env_var("ASTRA_TOKEN"),  # noqa: B008
-        astra_keyspace: str = "default_keyspace",
-        astra_collection: str = "documents",
-        embedding_dim: int = 768,
+        api_endpoint: Secret = Secret.from_env_var("ASTRA_DB_API_ENDPOINT"),  # noqa: B008
+        token: Secret = Secret.from_env_var("ASTRA_DB_APPLICATION_TOKEN"),  # noqa: B008
+        collection_name: str = "documents",
+        embedding_dimension: int = 768,
         duplicates_policy: DuplicatePolicy = DuplicatePolicy.NONE,
         similarity: str = "cosine",
     ):
         """
         The connection to Astra DB is established and managed through the JSON API.
-        The required credentials (database ID, region, and application token) can be generated
+        The required credentials (api endpoint andapplication token) can be generated
         through the UI by clicking and the connect tab, and then selecting JSON API and
         Generate Configuration.
 
-        :param astra_id: id of the Astra DB instance.
-        :param astra_region: Region of cloud servers (can be found when generating the token).
-        :param astra_application_token: the connection token for Astra.
-        :param astra_keyspace: The keyspace for the current Astra DB.
-        :param astra_collection: The current collection in the keyspace in the current Astra DB.
-        :param embedding_dim: Dimension of embedding vector.
-        :param similarity: The similarity function used to compare document vectors.
+        :param api_endpoint: The Astra DB API endpoint.
+        :param token: The Astra DB application token.
+        :param collection_name: The current collection in the keyspace in the current Astra DB.
+        :param embedding_dimension: Dimension of embedding vector.
         :param duplicates_policy: Handle duplicate documents based on DuplicatePolicy parameter options.
               Parameter options : (SKIP, OVERWRITE, FAIL, NONE)
               - `DuplicatePolicy.NONE`: Default policy, If a Document with the same id already exists,
@@ -64,12 +60,13 @@ class AstraDocumentStore:
               - `DuplicatePolicy.SKIP`: If a Document with the same id already exists, it is skipped and not written.
               - `DuplicatePolicy.OVERWRITE`: If a Document with the same id already exists, it is overwritten.
               - `DuplicatePolicy.FAIL`: If a Document with the same id already exists, an error is raised.
+        :param similarity: The similarity function used to compare document vectors.
         """
         resolved_api_endpoint = api_endpoint.resolve_value()
         if resolved_api_endpoint is None:
             msg = (
                 "AstraDocumentStore expects the API endpoint. "
-                "Set the ASTRA_API_ENDPOINT environment variable (recommended) or pass it explicitly."
+                "Set the ASTRA_DB_API_ENDPOINT environment variable (recommended) or pass it explicitly."
             )
             raise ValueError(msg)
 
@@ -77,24 +74,22 @@ class AstraDocumentStore:
         if resolved_token is None:
             msg = (
                 "AstraDocumentStore expects an authentication token. "
-                "Set the ASTRA_TOKEN environment variable (recommended) or pass it explicitly."
+                "Set the ASTRA_DB_APPLICATION_TOKEN environment variable (recommended) or pass it explicitly."
             )
             raise ValueError(msg)
 
         self.api_endpoint = api_endpoint
         self.token = token
-        self.astra_keyspace = astra_keyspace
-        self.astra_collection = astra_collection
-        self.embedding_dim = embedding_dim
+        self.collection_name = collection_name
+        self.embedding_dimension = embedding_dimension
         self.duplicates_policy = duplicates_policy
         self.similarity = similarity
 
         self.index = AstraClient(
             resolved_api_endpoint,
             resolved_token,
-            self.astra_keyspace,
-            self.astra_collection,
-            self.embedding_dim,
+            self.collection_name,
+            self.embedding_dimension,
             self.similarity,
         )
 
@@ -108,10 +103,9 @@ class AstraDocumentStore:
             self,
             api_endpoint=self.api_endpoint.to_dict(),
             token=self.token.to_dict(),
+            collection_name=self.collection_name,
+            embedding_dimension=self.embedding_dimension,
             duplicates_policy=self.duplicates_policy.name,
-            astra_keyspace=self.astra_keyspace,
-            astra_collection=self.astra_collection,
-            embedding_dim=self.embedding_dim,
             similarity=self.similarity,
         )
 

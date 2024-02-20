@@ -28,6 +28,7 @@ dependencies = [
   "haystack-ai",
   "pydantic",
   "typing_extensions",
+  "astrapy",
 ]
 
 [project.urls]
@@ -185,6 +186,7 @@ markers = [
 [[tool.mypy.overrides]]
 module = [
   "astra_client.*",
+  "astrapy.*",
   "pydantic.*",
   "haystack.*",
   "haystack_integrations.*",
