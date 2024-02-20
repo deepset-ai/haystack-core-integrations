@@ -1,22 +1,17 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
-from pathlib import Path
-
 import pytest
+from haystack.utils import Secret
 from haystack_integrations.components.converters.unstructured import UnstructuredFileConverter
 
 
-@pytest.fixture
-def samples_path():
-    return Path(__file__).parent / "samples"
-
-
 class TestUnstructuredFileConverter:
+    @pytest.mark.usefixtures("set_env_variables")
     def test_init_default(self):
-        converter = UnstructuredFileConverter(api_key="test-api-key")
+        converter = UnstructuredFileConverter()
         assert converter.api_url == "https://api.unstructured.io/general/v0/general"
-        assert converter.api_key == "test-api-key"
+        assert isinstance(converter.api_key, Secret)
         assert converter.document_creation_mode == "one-doc-per-file"
         assert converter.separator == "\n\n"
         assert converter.unstructured_kwargs == {}
@@ -31,20 +26,22 @@ class TestUnstructuredFileConverter:
             progress_bar=False,
         )
         assert converter.api_url == "http://custom-url:8000/general"
-        assert converter.api_key is None
+        assert isinstance(converter.api_key, Secret)
         assert converter.document_creation_mode == "one-doc-per-element"
         assert converter.separator == "|"
         assert converter.unstructured_kwargs == {"foo": "bar"}
         assert not converter.progress_bar
 
+    @pytest.mark.usefixtures("set_env_variables")
     def test_to_dict(self):
-        converter = UnstructuredFileConverter(api_key="test-api-key")
+        converter = UnstructuredFileConverter()
         converter_dict = converter.to_dict()
 
         assert converter_dict == {
             "type": "haystack_integrations.components.converters.unstructured.converter.UnstructuredFileConverter",
             "init_parameters": {
                 "api_url": "https://api.unstructured.io/general/v0/general",
+                "api_key": {"env_vars": ["UNSTRUCTURED_API_KEY"], "strict": True, "type": "env_var"},
                 "document_creation_mode": "one-doc-per-file",
                 "separator": "\n\n",
                 "unstructured_kwargs": {},

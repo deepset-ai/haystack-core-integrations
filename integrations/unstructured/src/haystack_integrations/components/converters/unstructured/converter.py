@@ -10,6 +10,7 @@ from typing import Any, Dict, List, Literal, Optional, Union
 
 from haystack import Document, component, default_to_dict
 from haystack.components.converters.utils import normalize_metadata
+from haystack.utils import Secret
 from tqdm import tqdm
 
 from unstructured.documents.elements import Element  # type: ignore[import]
@@ -29,7 +30,7 @@ class UnstructuredFileConverter:
     def __init__(
         self,
         api_url: str = UNSTRUCTURED_HOSTED_API_URL,
-        api_key: Optional[str] = None,
+        api_key: Optional[Secret] = Secret.from_env_var("UNSTRUCTURED_API_KEY"),  # noqa: B008
         document_creation_mode: Literal[
             "one-doc-per-file", "one-doc-per-page", "one-doc-per-element"
         ] = "one-doc-per-file",
@@ -64,12 +65,11 @@ class UnstructuredFileConverter:
 
         is_hosted_api = api_url == UNSTRUCTURED_HOSTED_API_URL
 
-        api_key = api_key or os.environ.get("UNSTRUCTURED_API_KEY")
         # we check whether api_key is None or an empty string
         if is_hosted_api and not api_key:
             msg = (
                 "To use the hosted version of Unstructured, you need to set the environment variable "
-                "UNSTRUCTURED_API_KEY (recommended) or explictly pass the parameter api_key."
+                "UNSTRUCTURED_API_KEY (recommended) or explicitly pass the parameter api_key."
             )
             raise ValueError(msg)
 
@@ -84,6 +84,7 @@ class UnstructuredFileConverter:
         return default_to_dict(
             self,
             api_url=self.api_url,
+            api_key=self.api_key.to_dict() if self.api_key else None,
             document_creation_mode=self.document_creation_mode,
             separator=self.separator,
             unstructured_kwargs=self.unstructured_kwargs,
@@ -140,8 +141,8 @@ class UnstructuredFileConverter:
             documents.extend(docs_for_file)
         return {"documents": documents}
 
+    @staticmethod
     def _create_documents(
-        self,
         filepath: Path,
         elements: List[Element],
         document_creation_mode: Literal["one-doc-per-file", "one-doc-per-page", "one-doc-per-element"],
