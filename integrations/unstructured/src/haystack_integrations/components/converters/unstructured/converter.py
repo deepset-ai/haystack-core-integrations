@@ -58,13 +58,13 @@ class UnstructuredFileConverter:
         """
 
         self.api_url = api_url
+        self.api_key = api_key.resolve_value() if api_key else None
         self.document_creation_mode = document_creation_mode
         self.unstructured_kwargs = unstructured_kwargs or {}
         self.separator = separator
         self.progress_bar = progress_bar
 
         is_hosted_api = api_url == UNSTRUCTURED_HOSTED_API_URL
-        api_key = api_key.resolve_value() if api_key else None
 
         # we check whether api_key is None or an empty string
         if is_hosted_api and not api_key:
@@ -73,8 +73,6 @@ class UnstructuredFileConverter:
                 "UNSTRUCTURED_API_KEY (recommended) or explicitly pass the parameter api_key."
             )
             raise ValueError(msg)
-
-        self.api_key = api_key
 
     def to_dict(self) -> Dict[str, Any]:
         """
