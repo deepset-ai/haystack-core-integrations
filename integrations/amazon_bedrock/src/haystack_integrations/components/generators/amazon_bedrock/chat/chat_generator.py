@@ -6,7 +6,7 @@ from typing import Any, Callable, ClassVar, Dict, List, Optional, Type
 import boto3
 from botocore.exceptions import BotoCoreError, ClientError
 from haystack import component, default_from_dict, default_to_dict
-from haystack.components.generators.utils import deserialize_callback_handler
+from haystack.components.generators.utils import deserialize_callback_handler, serialize_callback_handler
 from haystack.dataclasses import ChatMessage, StreamingChunk
 from haystack.utils.auth import Secret, deserialize_secrets_inplace
 
@@ -248,7 +248,7 @@ class AmazonBedrockChatGenerator:
             model=self.model,
             stop_words=self.stop_words,
             generation_kwargs=self.model_adapter.generation_kwargs,
-            streaming_callback=self.streaming_callback,
+            streaming_callback=serialize_callback_handler(self.streaming_callback),
         )
 
     @classmethod
