@@ -161,7 +161,8 @@ class AstraDocumentStore:
 
             if "dataframe" in document_dict and document_dict["dataframe"] is not None:
                 document_dict["dataframe"] = document_dict.pop("dataframe").to_json()
-            document_dict["$vector"] = document_dict.pop("embedding", None)
+            if embedding := document_dict.pop("embedding", []):
+                document_dict["$vector"] = embedding
 
             return document_dict
 
