@@ -2,12 +2,11 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 import logging
-import sys
 from typing import Any, Callable, Dict, List, Optional, cast
 
-from haystack import DeserializationError, component, default_from_dict, default_to_dict
-from haystack.dataclasses import StreamingChunk
+from haystack import component, default_from_dict, default_to_dict
 from haystack.components.generators.utils import deserialize_callback_handler, serialize_callback_handler
+from haystack.dataclasses import StreamingChunk
 from haystack.utils import Secret, deserialize_secrets_inplace
 
 from cohere import COHERE_API_URL, Client
@@ -107,7 +106,9 @@ class CohereGenerator:
         init_params = data.get("init_parameters", {})
         deserialize_secrets_inplace(init_params, ["api_key"])
         if "streaming_callback" in init_params and init_params["streaming_callback"] is not None:
-            data["init_parameters"]["streaming_callback"] = deserialize_callback_handler(init_params["streaming_callback"])
+            data["init_parameters"]["streaming_callback"] = deserialize_callback_handler(
+                init_params["streaming_callback"]
+            )
         return default_from_dict(cls, data)
 
     @component.output_types(replies=List[str], meta=List[Dict[str, Any]])
