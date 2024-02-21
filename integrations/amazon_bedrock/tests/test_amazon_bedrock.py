@@ -2,7 +2,6 @@ from typing import Optional, Type
 from unittest.mock import MagicMock, call, patch
 
 import pytest
-from botocore.exceptions import BotoCoreError
 
 from haystack_integrations.components.generators.amazon_bedrock import AmazonBedrockGenerator
 from haystack_integrations.components.generators.amazon_bedrock.adapters import (
@@ -13,7 +12,6 @@ from haystack_integrations.components.generators.amazon_bedrock.adapters import 
     CohereCommandAdapter,
     MetaLlama2ChatAdapter,
 )
-from haystack_integrations.commons.amazon_bedrock.errors import AmazonBedrockConfigurationError
 
 
 @pytest.mark.unit
@@ -201,128 +199,6 @@ def test_long_prompt_is_truncated(mock_boto3_session):
 
     # The prompt exceeds the limit, _ensure_token_limit truncates it
     assert prompt_after_resize == truncated_prompt_text
-
-
-@pytest.mark.unit
-def test_supports_for_valid_aws_configuration():
-    mock_session = MagicMock()
-    mock_session.client("bedrock").list_foundation_models.return_value = {
-        "modelSummaries": [{"modelId": "anthropic.claude-v2"}]
-    }
-
-    # Patch the class method to return the mock session
-    with patch(
-        "haystack_integrations.components.generators.amazon_bedrock.generator.get_aws_session",
-        return_value=mock_session,
-    ):
-        supported = AmazonBedrockGenerator.supports(
-            model="anthropic.claude-v2",
-            aws_profile_name="some_real_profile",
-        )
-    args, kwargs = mock_session.client("bedrock").list_foundation_models.call_args
-    assert kwargs["byOutputModality"] == "TEXT"
-
-    assert supported
-
-
-@pytest.mark.unit
-def test_supports_raises_on_invalid_aws_profile_name():
-    with patch("boto3.Session") as mock_boto3_session:
-        mock_boto3_session.side_effect = BotoCoreError()
-        with pytest.raises(AmazonBedrockConfigurationError, match="Failed to initialize the session"):
-            AmazonBedrockGenerator.supports(
-                model="anthropic.claude-v2",
-                aws_profile_name="some_fake_profile",
-            )
-
-
-@pytest.mark.unit
-def test_supports_for_invalid_bedrock_config():
-    mock_session = MagicMock()
-    mock_session.client.side_effect = BotoCoreError()
-
-    # Patch the class method to return the mock session
-    with patch(
-        "haystack_integrations.components.generators.amazon_bedrock.generator.get_aws_session",
-        return_value=mock_session,
-    ), pytest.raises(AmazonBedrockConfigurationError, match="Could not connect to Amazon Bedrock."):
-        AmazonBedrockGenerator.supports(
-            model="anthropic.claude-v2",
-            aws_profile_name="some_real_profile",
-        )
-
-
-@pytest.mark.unit
-def test_supports_for_invalid_bedrock_config_error_on_list_models():
-    mock_session = MagicMock()
-    mock_session.client("bedrock").list_foundation_models.side_effect = BotoCoreError()
-
-    # Patch the class method to return the mock session
-    with patch(
-        "haystack_integrations.components.generators.amazon_bedrock.generator.get_aws_session",
-        return_value=mock_session,
-    ), pytest.raises(AmazonBedrockConfigurationError, match="Could not connect to Amazon Bedrock."):
-        AmazonBedrockGenerator.supports(
-            model="anthropic.claude-v2",
-            aws_profile_name="some_real_profile",
-        )
-
-
-@pytest.mark.unit
-def test_supports_for_no_aws_params():
-    supported = AmazonBedrockGenerator.supports(model="anthropic.claude-v2")
-
-    assert supported is False
-
-
-@pytest.mark.unit
-def test_supports_for_unknown_model():
-    supported = AmazonBedrockGenerator.supports(model="unknown_model", aws_profile_name="some_real_profile")
-
-    assert supported is False
-
-
-@pytest.mark.unit
-def test_supports_with_stream_true_for_model_that_supports_streaming():
-    mock_session = MagicMock()
-    mock_session.client("bedrock").list_foundation_models.return_value = {
-        "modelSummaries": [{"modelId": "anthropic.claude-v2", "responseStreamingSupported": True}]
-    }
-
-    # Patch the class method to return the mock session
-    with patch(
-        "haystack_integrations.components.generators.amazon_bedrock.generator.get_aws_session",
-        return_value=mock_session,
-    ):
-        supported = AmazonBedrockGenerator.supports(
-            model="anthropic.claude-v2",
-            aws_profile_name="some_real_profile",
-            stream=True,
-        )
-
-        assert supported
-
-
-@pytest.mark.unit
-def test_supports_with_stream_true_for_model_that_does_not_support_streaming():
-    mock_session = MagicMock()
-    mock_session.client("bedrock").list_foundation_models.return_value = {
-        "modelSummaries": [{"modelId": "ai21.j2-mid-v1", "responseStreamingSupported": False}]
-    }
-
-    # Patch the class method to return the mock session
-    with patch(
-        "haystack_integrations.components.generators.amazon_bedrock.generator.get_aws_session",
-        return_value=mock_session,
-    ), pytest.raises(
-        AmazonBedrockConfigurationError,
-        match="The model ai21.j2-mid-v1 doesn't support streaming.",
-    ):
-        AmazonBedrockGenerator.supports(
-            model="ai21.j2-mid-v1",
-            aws_profile_name="some_real_profile",
-            stream=True,
-        )
 
 
 @pytest.mark.unit

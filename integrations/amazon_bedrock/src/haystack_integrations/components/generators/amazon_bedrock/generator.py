@@ -3,10 +3,15 @@ import logging
 import re
 from typing import Any, ClassVar, Dict, List, Optional, Type, Union
 
-import boto3
-from botocore.exceptions import BotoCoreError, ClientError
+from botocore.exceptions import ClientError
 from haystack import component, default_from_dict, default_to_dict
 from haystack.utils.auth import Secret, deserialize_secrets_inplace
+
+from haystack_integrations.commons.amazon_bedrock.errors import (
+    AmazonBedrockConfigurationError,
+    AmazonBedrockInferenceError,
+)
+from haystack_integrations.commons.amazon_bedrock.utils import get_aws_session
 
 from .adapters import (
     AI21LabsJurassic2Adapter,
@@ -16,14 +21,6 @@ from .adapters import (
     CohereCommandAdapter,
     MetaLlama2ChatAdapter,
 )
-from haystack_integrations.commons.amazon_bedrock.errors import (
-    AmazonBedrockConfigurationError,
-    AmazonBedrockInferenceError,
-    AWSConfigurationError,
-)
-
-from haystack_integrations.commons.amazon_bedrock.utils import get_aws_session, AWS_CONFIGURATION_KEYS
-
 from .handlers import (
     DefaultPromptHandler,
     DefaultTokenStreamingHandler,
@@ -150,48 +147,6 @@ class AmazonBedrockGenerator:
             )
         return str(resize_info["resized_prompt"])
 
-    @classmethod
-    def supports(cls, model, **kwargs):
-        model_supported = cls.get_model_adapter(model) is not None
-        if not model_supported or not cls.aws_configured(**kwargs):
-            return False
-
-        try:
-            session = get_aws_session(**kwargs)
-            bedrock = session.client("bedrock")
-            foundation_models_response = bedrock.list_foundation_models(byOutputModality="TEXT")
-            available_model_ids = [entry["modelId"] for entry in foundation_models_response.get("modelSummaries", [])]
-            model_ids_supporting_streaming = [
-                entry["modelId"]
-                for entry in foundation_models_response.get("modelSummaries", [])
-                if entry.get("responseStreamingSupported", False)
-            ]
-        except AWSConfigurationError as exception:
-            raise AmazonBedrockConfigurationError(message=exception.message) from exception
-        except Exception as exception:
-            msg = (
-                "Could not connect to Amazon Bedrock. Make sure the AWS environment is configured correctly. "
-                "See https://boto3.amazonaws.com/v1/documentation/api/latest/guide/quickstart.html#configuration"
-            )
-            raise AmazonBedrockConfigurationError(msg) from exception
-
-        model_available = model in available_model_ids
-        if not model_available:
-            msg = (
-                f"The model {model} is not available in Amazon Bedrock. "
-                f"Make sure the model you want to use is available in the configured AWS region and "
-                f"you have access."
-            )
-            raise AmazonBedrockConfigurationError(msg)
-
-        stream: bool = kwargs.get("stream", False)
-        model_supports_streaming = model in model_ids_supporting_streaming
-        if stream and not model_supports_streaming:
-            msg = f"The model {model} doesn't support streaming. Remove the `stream` parameter."
-            raise AmazonBedrockConfigurationError(msg)
-
-        return model_supported
-
     def invoke(self, *args, **kwargs):
         kwargs = kwargs.copy()
         prompt: str = kwargs.pop("prompt", None)
@@ -248,16 +203,6 @@ class AmazonBedrockGenerator:
             if re.fullmatch(pattern, model):
                 return adapter
         return None
-
-    @classmethod
-    def aws_configured(cls, **kwargs) -> bool:
-        """
-        Checks whether AWS configuration is provided.
-        :param kwargs: The kwargs passed down to the generator.
-        :return: True if AWS configuration is provided, False otherwise.
-        """
-        aws_config_provided = any(key in kwargs for key in AWS_CONFIGURATION_KEYS)
-        return aws_config_provided
 
     def to_dict(self) -> Dict[str, Any]:
         """
