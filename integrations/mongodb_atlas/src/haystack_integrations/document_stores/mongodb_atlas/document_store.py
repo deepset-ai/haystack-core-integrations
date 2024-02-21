@@ -174,7 +174,7 @@ class MongoDBAtlasDocumentStore:
             msg = "Query embedding must not be empty"
             raise ValueError(msg)
 
-        query_embedding = np.array(query_embedding).astype(np.float32)
+        query_embedding_np = np.array(query_embedding).astype(np.float32)
 
         filters = haystack_filters_to_mongo(filters)
         pipeline = [
@@ -182,7 +182,7 @@ class MongoDBAtlasDocumentStore:
                 "$vectorSearch": {
                     "index": self.vector_search_index,
                     "path": "embedding",
-                    "queryVector": query_embedding.tolist(),
+                    "queryVector": query_embedding_np.tolist(),
                     "numCandidates": 100,
                     "limit": top_k,
                     # "filter": filters,

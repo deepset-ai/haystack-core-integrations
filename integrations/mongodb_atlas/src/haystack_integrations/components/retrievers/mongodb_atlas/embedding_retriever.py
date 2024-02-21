@@ -85,7 +85,7 @@ class MongoDBAtlasEmbeddingRetriever:
         top_k = top_k or self.top_k
 
         docs = self.document_store.embedding_retrieval(
-            query_embedding=query_embedding,
+            query_embedding_np=query_embedding,
             filters=filters,
             top_k=top_k,
         )
