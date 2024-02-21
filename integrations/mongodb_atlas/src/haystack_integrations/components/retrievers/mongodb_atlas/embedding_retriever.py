@@ -28,8 +28,8 @@ class MongoDBAtlasEmbeddingRetriever:
         Create the MongoDBAtlasDocumentStore component.
 
         :param document_store: An instance of MongoDBAtlasDocumentStore.
-        :param filters: Filters applied to the retrieved Documents. Defaults to None.
-        :param top_k: Maximum number of Documents to return, defaults to 10.
+        :param filters: Filters applied to the retrieved Documents.
+        :param top_k: Maximum number of Documents to return.
         """
         if not isinstance(document_store, MongoDBAtlasDocumentStore):
             msg = "document_store must be an instance of MongoDBAtlasDocumentStore"
