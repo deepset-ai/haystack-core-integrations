@@ -23,7 +23,7 @@ renderer:
   category_slug: haystack-integrations
   title: Optimum
   slug: integrations-optimum
-  order: 190
+  order: 185
   markdown:
     descriptive_class_title: false
     descriptive_module_title: true
