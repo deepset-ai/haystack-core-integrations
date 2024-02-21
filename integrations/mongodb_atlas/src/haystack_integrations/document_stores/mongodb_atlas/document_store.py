@@ -164,9 +164,9 @@ class MongoDBAtlasDocumentStore:
         top_k: int = 10,
     ) -> List[Document]:
         """
-        Find the documents that are most similar to the provided `query_emb` by using a vector similarity metric.
+        Find the documents that are most similar to the provided `query_embedding` by using a vector similarity metric.
 
-        :param query_emb: Embedding of the query
+        :param query_embedding: Embedding of the query
         :param filters: optional filters (see get_all_documents for description).
         :param top_k: How many documents to return.
         """
