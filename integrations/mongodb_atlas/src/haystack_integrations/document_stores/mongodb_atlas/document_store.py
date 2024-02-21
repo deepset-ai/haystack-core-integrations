@@ -188,7 +188,19 @@ class MongoDBAtlasDocumentStore:
                     # "filter": filters,
                 }
             },
-            {"$project": {"_id": 0, "content": 1, "score": {"$meta": "vectorSearchScore"}}},
+            {
+                "$project": {
+                    "_id": 0, 
+                    "content": 1, 
+                    "dataframe": 1,
+                    "blob": 1,
+                    "meta": 1,
+                    "embedding": 1,
+                    "score": {
+                        "$meta": "vectorSearchScore"
+                    }
+                }
+            },
         ]
         try:
             documents = list(self.collection.aggregate(pipeline))
