@@ -76,8 +76,8 @@ class MongoDBAtlasEmbeddingRetriever:
         Retrieve documents from the MongoDBAtlasDocumentStore, based on their embeddings.
 
         :param query_embedding: Embedding of the query.
-        :param filters: Filters applied to the retrieved Documents.
-        :param top_k: Maximum number of Documents to return.
+        :param filters: Filters applied to the retrieved Documents. Overrides the value specified at initialization.
+        :param top_k: Maximum number of Documents to return. Overrides the value specified at initialization.
         :return: List of Documents similar to `query_embedding`.
         """
         filters = filters or self.filters
