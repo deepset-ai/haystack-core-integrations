@@ -58,7 +58,7 @@ def test_to_dict(mock_auto_tokenizer, mock_boto3_session, set_env_variables):
             "model": "anthropic.claude-v2",
             "generation_kwargs": {"temperature": 0.7},
             "stop_words": [],
-            "streaming_callback": print_streaming_chunk,
+            "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
         },
     }
 
