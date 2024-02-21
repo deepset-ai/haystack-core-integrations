@@ -23,7 +23,7 @@ renderer:
   category_slug: integrations-api
   title: UpTrain
   slug: integrations-uptrain
-  order: 175
+  order: 240
   markdown:
     descriptive_class_title: false
     descriptive_module_title: true

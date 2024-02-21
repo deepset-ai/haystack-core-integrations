@@ -22,7 +22,7 @@ renderer:
   category_slug: integrations-api
   title: Amazon Bedrock
   slug: integrations-amazon-bedrock
-  order: 10
+  order: 9
   markdown:
     descriptive_class_title: false
     descriptive_module_title: true

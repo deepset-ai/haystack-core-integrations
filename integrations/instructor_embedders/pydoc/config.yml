@@ -21,7 +21,7 @@ renderer:
   category_slug: integrations-api
   title: Instructor Embedders
   slug: integrations-instructor-embedders
-  order: 90
+  order: 120
   markdown:
     descriptive_class_title: false
     descriptive_module_title: true

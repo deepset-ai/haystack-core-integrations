@@ -14,8 +14,10 @@ from haystack_integrations.document_stores.astra import AstraDocumentStore
 
 
 @pytest.mark.integration
-@pytest.mark.skipif(os.environ.get("ASTRA_TOKEN", "") == "", reason="ASTRA_TOKEN env var not set")
-@pytest.mark.skipif(os.environ.get("ASTRA_API_ENDPOINT", "") == "", reason="ASTRA_API_ENDPOINT env var not set")
+@pytest.mark.skipif(
+    os.environ.get("ASTRA_DB_APPLICATION_TOKEN", "") == "", reason="ASTRA_DB_APPLICATION_TOKEN env var not set"
+)
+@pytest.mark.skipif(os.environ.get("ASTRA_DB_API_ENDPOINT", "") == "", reason="ASTRA_DB_API_ENDPOINT env var not set")
 class TestDocumentStore(DocumentStoreBaseTests):
     """
     Common test cases will be provided by `DocumentStoreBaseTests` but
@@ -25,10 +27,9 @@ class TestDocumentStore(DocumentStoreBaseTests):
     @pytest.fixture
     def document_store(self) -> AstraDocumentStore:
         return AstraDocumentStore(
-            astra_keyspace="astra_haystack_test",
-            astra_collection="haystack_integration",
+            collection_name="haystack_integration",
             duplicates_policy=DuplicatePolicy.OVERWRITE,
-            embedding_dim=768,
+            embedding_dimension=768,
         )
 
     @pytest.fixture(autouse=True)

@@ -23,7 +23,7 @@ renderer:
   category_slug: integrations-api
   title: Weaviate
   slug: integrations-weaviate
-  order: 180
+  order: 250
   markdown:
     descriptive_class_title: false
     descriptive_module_title: true

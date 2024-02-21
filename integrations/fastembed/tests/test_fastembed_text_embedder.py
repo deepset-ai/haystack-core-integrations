@@ -15,6 +15,8 @@ class TestFastembedTextEmbedder:
         """
         embedder = FastembedTextEmbedder(model="BAAI/bge-small-en-v1.5")
         assert embedder.model_name == "BAAI/bge-small-en-v1.5"
+        assert embedder.cache_dir is None
+        assert embedder.threads is None
         assert embedder.prefix == ""
         assert embedder.suffix == ""
         assert embedder.batch_size == 256
@@ -27,6 +29,8 @@ class TestFastembedTextEmbedder:
         """
         embedder = FastembedTextEmbedder(
             model="BAAI/bge-small-en-v1.5",
+            cache_dir="fake_dir",
+            threads=2,
             prefix="prefix",
             suffix="suffix",
             batch_size=64,
@@ -34,6 +38,8 @@ class TestFastembedTextEmbedder:
             parallel=1,
         )
         assert embedder.model_name == "BAAI/bge-small-en-v1.5"
+        assert embedder.cache_dir == "fake_dir"
+        assert embedder.threads == 2
         assert embedder.prefix == "prefix"
         assert embedder.suffix == "suffix"
         assert embedder.batch_size == 64
@@ -50,6 +56,8 @@ class TestFastembedTextEmbedder:
             "type": "haystack_integrations.components.embedders.fastembed.fastembed_text_embedder.FastembedTextEmbedder",  # noqa
             "init_parameters": {
                 "model": "BAAI/bge-small-en-v1.5",
+                "cache_dir": None,
+                "threads": None,
                 "prefix": "",
                 "suffix": "",
                 "batch_size": 256,
@@ -64,6 +72,8 @@ class TestFastembedTextEmbedder:
         """
         embedder = FastembedTextEmbedder(
             model="BAAI/bge-small-en-v1.5",
+            cache_dir="fake_dir",
+            threads=2,
             prefix="prefix",
             suffix="suffix",
             batch_size=64,
@@ -75,6 +85,8 @@ class TestFastembedTextEmbedder:
             "type": "haystack_integrations.components.embedders.fastembed.fastembed_text_embedder.FastembedTextEmbedder",  # noqa
             "init_parameters": {
                 "model": "BAAI/bge-small-en-v1.5",
+                "cache_dir": "fake_dir",
+                "threads": 2,
                 "prefix": "prefix",
                 "suffix": "suffix",
                 "batch_size": 64,
@@ -91,6 +103,8 @@ class TestFastembedTextEmbedder:
             "type": "haystack_integrations.components.embedders.fastembed.fastembed_text_embedder.FastembedTextEmbedder",  # noqa
             "init_parameters": {
                 "model": "BAAI/bge-small-en-v1.5",
+                "cache_dir": None,
+                "threads": None,
                 "prefix": "",
                 "suffix": "",
                 "batch_size": 256,
@@ -100,6 +114,8 @@ class TestFastembedTextEmbedder:
         }
         embedder = default_from_dict(FastembedTextEmbedder, embedder_dict)
         assert embedder.model_name == "BAAI/bge-small-en-v1.5"
+        assert embedder.cache_dir is None
+        assert embedder.threads is None
         assert embedder.prefix == ""
         assert embedder.suffix == ""
         assert embedder.batch_size == 256
@@ -114,6 +130,8 @@ class TestFastembedTextEmbedder:
             "type": "haystack_integrations.components.embedders.fastembed.fastembed_text_embedder.FastembedTextEmbedder",  # noqa
             "init_parameters": {
                 "model": "BAAI/bge-small-en-v1.5",
+                "cache_dir": "fake_dir",
+                "threads": 2,
                 "prefix": "prefix",
                 "suffix": "suffix",
                 "batch_size": 64,
@@ -123,6 +141,8 @@ class TestFastembedTextEmbedder:
         }
         embedder = default_from_dict(FastembedTextEmbedder, embedder_dict)
         assert embedder.model_name == "BAAI/bge-small-en-v1.5"
+        assert embedder.cache_dir == "fake_dir"
+        assert embedder.threads == 2
         assert embedder.prefix == "prefix"
         assert embedder.suffix == "suffix"
         assert embedder.batch_size == 64
@@ -139,7 +159,9 @@ class TestFastembedTextEmbedder:
         embedder = FastembedTextEmbedder(model="BAAI/bge-small-en-v1.5")
         mocked_factory.get_embedding_backend.assert_not_called()
         embedder.warm_up()
-        mocked_factory.get_embedding_backend.assert_called_once_with(model_name="BAAI/bge-small-en-v1.5")
+        mocked_factory.get_embedding_backend.assert_called_once_with(
+            model_name="BAAI/bge-small-en-v1.5", cache_dir=None, threads=None
+        )
 
     @patch(
         "haystack_integrations.components.embedders.fastembed.fastembed_text_embedder._FastembedEmbeddingBackendFactory"

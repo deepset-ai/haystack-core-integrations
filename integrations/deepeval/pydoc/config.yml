@@ -23,7 +23,7 @@ renderer:
   category_slug: integrations-api
   title: DeepEval
   slug: integrations-deepeval
-  order: 45
+  order: 60
   markdown:
     descriptive_class_title: false
     descriptive_module_title: true

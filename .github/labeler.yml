@@ -84,6 +84,11 @@ integration:opensearch:
       - any-glob-to-any-file: "integrations/opensearch/**/*"
       - any-glob-to-any-file: ".github/workflows/opensearch.yml"
 
+integration:optimum:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/optimum/**/*"
+      - any-glob-to-any-file: ".github/workflows/optimum.yml"
+
 integration:pgvector:
   - changed-files:
       - any-glob-to-any-file: "integrations/pgvector/**/*"
