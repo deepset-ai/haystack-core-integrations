@@ -40,6 +40,9 @@ class MongoDBAtlasEmbeddingRetriever:
         self.top_k = top_k
 
     def to_dict(self) -> Dict[str, Any]:
+        """
+        Serializes this component into a dictionary.
+        """
         return default_to_dict(
             self,
             filters=self.filters,
