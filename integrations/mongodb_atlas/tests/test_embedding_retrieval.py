@@ -14,7 +14,6 @@ from haystack_integrations.document_stores.mongodb_atlas import MongoDBAtlasDocu
     reason="No MongoDB Atlas connection string provided",
 )
 class TestEmbeddingRetrieval:
-
     def test_embedding_retrieval_cosine_similarity(self):
         document_store = MongoDBAtlasDocumentStore(
             database_name="haystack_integration_test",

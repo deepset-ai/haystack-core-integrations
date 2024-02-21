@@ -44,7 +44,6 @@ def document_store():
     reason="No MongoDB Atlas connection string provided",
 )
 class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsTest):
-
     def test_write_documents(self, document_store: MongoDBAtlasDocumentStore):
         docs = [Document(content="some text")]
         assert document_store.write_documents(docs) == 1
