@@ -1,4 +1,4 @@
-from typing import Any, ClassVar, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union
 
 import numpy as np
 import torch
@@ -9,32 +9,19 @@ from tqdm import tqdm
 from transformers import AutoTokenizer
 
 
-class _OptimumEmbeddingBackendFactory:
-    """
-    Factory class to create instances of Sentence Transformers embedding backends.
-    """
-
-    _instances: ClassVar[Dict[str, "_OptimumEmbeddingBackend"]] = {}
-
-    @staticmethod
-    def get_embedding_backend(
-        model: str, token: Optional[Secret] = None, model_kwargs: Optional[Dict[str, Any]] = None
-    ):
-        embedding_backend_id = f"{model}{token}"
-
-        if embedding_backend_id in _OptimumEmbeddingBackendFactory._instances:
-            return _OptimumEmbeddingBackendFactory._instances[embedding_backend_id]
-        embedding_backend = _OptimumEmbeddingBackend(model=model, token=token, model_kwargs=model_kwargs)
-        _OptimumEmbeddingBackendFactory._instances[embedding_backend_id] = embedding_backend
-        return embedding_backend
-
-
-class _OptimumEmbeddingBackend:
+class OptimumEmbeddingBackend:
     """
     Class to manage Optimum embeddings.
     """
 
-    def __init__(self, model: str, token: Optional[Secret] = None, model_kwargs: Optional[Dict[str, Any]] = None):
+    def __init__(self, model: str, model_kwargs: Dict[str, Any], token: Optional[Secret] = None):
+        """
+        Create an instance of OptimumEmbeddingBackend.
+
+        :param model: A string representing the model id on HF Hub.
+        :param model_kwargs: Keyword arguments to pass to the model.
+        :param token: The HuggingFace token to use as HTTP bearer authorization.
+        """
         # export=True converts the model to ONNX on the fly
         self.model = ORTModelForFeatureExtraction.from_pretrained(**model_kwargs, export=True)
         self.tokenizer = AutoTokenizer.from_pretrained(model, token=token)
@@ -50,11 +37,11 @@ class _OptimumEmbeddingBackend:
         """
         Embed text or list of texts using the Optimum model.
 
-        :param texts_to_embed: T
+        :param texts_to_embed: The text or list of texts to embed.
         :param normalize_embeddings: Whether to normalize the embeddings to unit length.
-        :param pooling_mode: The pooling mode to use. Defaults to PoolingMode.MEAN.
-        :param progress_bar: Whether to show a progress bar or not, defaults to False.
-        :param batch_size: Batch size to use, defaults to 1.
+        :param pooling_mode: The pooling mode to use.
+        :param progress_bar: Whether to show a progress bar or not.
+        :param batch_size: Batch size to use.
         :return: A single embedding if the input is a single string. A list of embeddings if the input is a list of
             strings.
         """
@@ -81,8 +68,6 @@ class _OptimumEmbeddingBackend:
             inputs_to_remove = set(encoded_input.keys()).difference(self.model.inputs_names)
             for key in inputs_to_remove:
                 encoded_input.pop(key)
-
-            # Compute token embeddings
             model_output = self.model(**encoded_input)
 
             # Pool Embeddings
@@ -92,18 +77,23 @@ class _OptimumEmbeddingBackend:
                 model_output=model_output,
             )
             sentence_embeddings = pooling.pool_embeddings()
+            all_embeddings.append(sentence_embeddings)
 
-            all_embeddings.extend(sentence_embeddings.tolist())
-
-        # Reorder embeddings according to original order
-        all_embeddings = [all_embeddings[idx] for idx in np.argsort(length_sorted_idx)]
+        embeddings = torch.cat(all_embeddings, dim=0)
 
         # Normalize all embeddings
         if normalize_embeddings:
-            all_embeddings = torch.nn.functional.normalize(torch.tensor(all_embeddings), p=2, dim=1).tolist()
+            embeddings = torch.nn.functional.normalize(embeddings, p=2, dim=1)
+
+        embeddings = embeddings.tolist()
+
+        # Reorder embeddings according to original order
+        reordered_embeddings: List[List[float]] = [[]] * len(texts)
+        for embedding, idx in zip(embeddings, length_sorted_idx):
+            reordered_embeddings[idx] = embedding
 
         if isinstance(texts_to_embed, str):
             # Return the embedding if only one text was passed
-            all_embeddings = all_embeddings[0]
+            return reordered_embeddings[0]
 
-        return all_embeddings
+        return reordered_embeddings

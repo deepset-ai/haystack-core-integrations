@@ -149,13 +149,11 @@ class TestOptimumTextEmbedder:
 
     @pytest.mark.integration
     def test_default_pooling_mode_when_config_not_found(self, mock_check_valid_model):  # noqa: ARG002
-        embedder = OptimumTextEmbedder(
-            model="embedding_model_finetuned",
-            pooling_mode=None,
-        )
-
-        assert embedder.model == "embedding_model_finetuned"
-        assert embedder.pooling_mode == PoolingMode.MEAN
+        with pytest.raises(ValueError):
+            OptimumTextEmbedder(
+                model="embedding_model_finetuned",
+                pooling_mode=None,
+            )
 
     @pytest.mark.integration
     def test_infer_pooling_mode_from_hf(self):

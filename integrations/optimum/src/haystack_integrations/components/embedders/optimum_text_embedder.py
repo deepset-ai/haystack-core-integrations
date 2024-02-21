@@ -3,9 +3,7 @@ from typing import Any, Dict, List, Optional, Union
 from haystack import component, default_from_dict, default_to_dict
 from haystack.utils import Secret, deserialize_secrets_inplace
 from haystack.utils.hf import HFModelType, check_valid_model, deserialize_hf_model_kwargs, serialize_hf_model_kwargs
-from haystack_integrations.components.embedders.backends.optimum_backend import (
-    _OptimumEmbeddingBackendFactory,
-)
+from haystack_integrations.components.embedders.optimum_backend import OptimumEmbeddingBackend
 from haystack_integrations.components.embedders.pooling import HFPoolingMode, PoolingMode
 
 
@@ -56,14 +54,13 @@ class OptimumTextEmbedder:
         """
         Create a OptimumTextEmbedder component.
 
-        :param model: A string representing the model id on HF Hub. Defaults to
-            "sentence-transformers/all-mpnet-base-v2".
+        :param model: A string representing the model id on HF Hub.
         :param token: The HuggingFace token to use as HTTP bearer authorization.
         :param prefix: A string to add to the beginning of each text.
         :param suffix: A string to add to the end of each text.
         :param normalize_embeddings: Whether to normalize the embeddings to unit length.
-        :param onnx_execution_provider: The execution provider to use for ONNX models. Defaults to
-            "CPUExecutionProvider". See https://onnxruntime.ai/docs/execution-providers/ for possible providers.
+        :param onnx_execution_provider: The execution provider to use for ONNX models. See
+            https://onnxruntime.ai/docs/execution-providers/ for possible providers.
 
             Note: Using the TensorRT execution provider
             TensorRT requires to build its inference engine ahead of inference, which takes some time due to the model
@@ -83,8 +80,7 @@ class OptimumTextEmbedder:
                 },
             )
             ```
-        :param pooling_mode: The pooling mode to use. Defaults to None. When None, pooling mode will be inferred from
-            the model config. If not found, "mean" pooling will be used.
+        :param pooling_mode: The pooling mode to use. When None, pooling mode will be inferred from the model config.
             The supported pooling modes are:
             - "cls": Perform CLS Pooling on the output of the embedding model. Uses the first token (CLS token) as text
                 representations.
@@ -112,9 +108,14 @@ class OptimumTextEmbedder:
         # Infer pooling mode from model config if not provided,
         if pooling_mode is None:
             self.pooling_mode = HFPoolingMode.get_pooling_mode(model, token)
-        # Set default to "mean" if not found in model config and not specified by user
+        # Raise error if pooling mode is not found in model config and not specified by user
         if self.pooling_mode is None:
-            self.pooling_mode = PoolingMode.MEAN
+            modes = {e.value: e for e in PoolingMode}
+            msg = (
+                f"Pooling mode not found in model config and not specified by user."
+                f" Supported modes are: {list(modes.keys())}"
+            )
+            raise ValueError(msg)
 
         self.prefix = prefix
         self.suffix = suffix
@@ -129,15 +130,14 @@ class OptimumTextEmbedder:
         model_kwargs.setdefault("use_auth_token", token)
 
         self.model_kwargs = model_kwargs
-        self.embedding_model = None
-        self.tokenizer = None
+        self.embedding_backend = None
 
     def warm_up(self):
         """
         Load the embedding backend.
         """
-        if not hasattr(self, "embedding_backend"):
-            self.embedding_backend = _OptimumEmbeddingBackendFactory.get_embedding_backend(
+        if self.embedding_backend is None:
+            self.embedding_backend = OptimumEmbeddingBackend(
                 model=self.model, token=self.token, model_kwargs=self.model_kwargs
             )
 
@@ -188,7 +188,7 @@ class OptimumTextEmbedder:
             )
             raise TypeError(msg)
 
-        if not hasattr(self, "embedding_backend"):
+        if self.embedding_backend is None:
             msg = "The embedding model has not been loaded. Please call warm_up() before running."
             raise RuntimeError(msg)
 

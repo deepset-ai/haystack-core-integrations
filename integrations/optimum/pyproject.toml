@@ -185,7 +185,8 @@ module = [
   "optimum.*",
   "torch.*",
   "transformers.*",
-  "huggingface_hub.*"
+  "huggingface_hub.*",
+  "sentence_transformers.*"
 ]
 ignore_missing_imports = true
 
