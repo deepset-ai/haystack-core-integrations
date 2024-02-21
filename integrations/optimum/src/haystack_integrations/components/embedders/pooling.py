@@ -47,7 +47,7 @@ POOLING_MODES_MAP = {
     "pooling_mode_max_tokens": PoolingMode.MAX,
     "pooling_mode_mean_sqrt_len_tokens": PoolingMode.MEAN_SQRT_LEN,
     "pooling_mode_weightedmean_tokens": PoolingMode.WEIGHTED_MEAN,
-    "pooling_mode_last_token": PoolingMode.LAST_TOKEN,
+    "pooling_mode_lasttoken": PoolingMode.LAST_TOKEN,
 }
 
 INVERSE_POOLING_MODES_MAP = {mode: name for name, mode in POOLING_MODES_MAP.items()}
@@ -120,6 +120,12 @@ class Pooling:
         pooling_func_map = {
             INVERSE_POOLING_MODES_MAP[self.pooling_mode]: True,
         }
+        # By default, sentence-transformers uses mean pooling
+        # If multiple pooling methods are specified, the output dimension of the embeddings is scaled by the number of
+        # pooling methods selected
+        if self.pooling_mode != PoolingMode.MEAN:
+            pooling_func_map[INVERSE_POOLING_MODES_MAP[PoolingMode.MEAN]] = False
+
         # First element of model_output contains all token embeddings
         token_embeddings = self.model_output[0]
         word_embedding_dimension = token_embeddings.size(dim=2)
