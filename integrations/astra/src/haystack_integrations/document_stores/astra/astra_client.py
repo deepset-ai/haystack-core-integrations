@@ -185,7 +185,7 @@ class AstraClient:
     def find_documents(self, find_query):
         response_dict = self._astra_db_collection.find(
             filter=find_query.get("filter"),
-            projection=find_query.get("sort"),
+            sort=find_query.get("sort"),
             options=find_query.get("options"),
         )
 
