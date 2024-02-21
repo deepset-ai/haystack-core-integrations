@@ -1,9 +1,9 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
-import pytest
 from unittest.mock import Mock
 
+import pytest
 from haystack.dataclasses import Document
 from haystack.utils.auth import EnvVarSecret
 from haystack_integrations.components.retrievers.mongodb_atlas import MongoDBAtlasEmbeddingRetriever
@@ -29,25 +29,29 @@ class TestRetriever:
 
     def test_init(self, document_store: MongoDBAtlasDocumentStore):
         retriever = MongoDBAtlasEmbeddingRetriever(
-            document_store=document_store, filters={"field": "value"}, top_k=5,
+            document_store=document_store,
+            filters={"field": "value"},
+            top_k=5,
         )
         assert retriever.document_store == document_store
         assert retriever.filters == {"field": "value"}
         assert retriever.top_k == 5
 
     def test_to_dict(self, document_store: MongoDBAtlasDocumentStore):
-        retriever = MongoDBAtlasEmbeddingRetriever(
-            document_store=document_store, filters={"field": "value"}, top_k=5
-        )
+        retriever = MongoDBAtlasEmbeddingRetriever(document_store=document_store, filters={"field": "value"}, top_k=5)
         res = retriever.to_dict()
-        t = "haystack_integrations.components.retrievers.mongodb_atlas.embedding_retriever.MongoDBAtlasEmbeddingRetriever"
+        t = "haystack_integrations.components.retrievers.mongodb_atlas.embedding_retriever.MongoDBAtlasEmbeddingRetriever"  # noqa: E501
         assert res == {
             "type": t,
             "init_parameters": {
                 "document_store": {
-                    "type": "haystack_integrations.document_stores.mongodb_atlas.document_store.MongoDBAtlasDocumentStore",
+                    "type": "haystack_integrations.document_stores.mongodb_atlas.document_store.MongoDBAtlasDocumentStore",  # noqa: E501
                     "init_parameters": {
-                        "mongo_connection_string": {"env_vars": ["MONGO_CONNECTION_STRING"], "strict": True, "type": "env_var"},
+                        "mongo_connection_string": {
+                            "env_vars": ["MONGO_CONNECTION_STRING"],
+                            "strict": True,
+                            "type": "env_var",
+                        },
                         "database_name": "haystack_integration_test",
                         "collection_name": "test_embeddings_collection",
                         "vector_search_index": "cosine_index",
@@ -59,14 +63,18 @@ class TestRetriever:
         }
 
     def test_from_dict(self):
-        t = "haystack_integrations.components.retrievers.mongodb_atlas.embedding_retriever.MongoDBAtlasEmbeddingRetriever"
+        t = "haystack_integrations.components.retrievers.mongodb_atlas.embedding_retriever.MongoDBAtlasEmbeddingRetriever"  # noqa: E501
         data = {
             "type": t,
             "init_parameters": {
                 "document_store": {
-                    "type": "haystack_integrations.document_stores.mongodb_atlas.document_store.MongoDBAtlasDocumentStore",
+                    "type": "haystack_integrations.document_stores.mongodb_atlas.document_store.MongoDBAtlasDocumentStore",  # noqa: E501
                     "init_parameters": {
-                        "mongo_connection_string": {"env_vars": ["MONGO_CONNECTION_STRING"], "strict": True, "type": "env_var"},
+                        "mongo_connection_string": {
+                            "env_vars": ["MONGO_CONNECTION_STRING"],
+                            "strict": True,
+                            "type": "env_var",
+                        },
                         "database_name": "haystack_integration_test",
                         "collection_name": "test_embeddings_collection",
                         "vector_search_index": "cosine_index",
@@ -96,8 +104,6 @@ class TestRetriever:
         retriever = MongoDBAtlasEmbeddingRetriever(document_store=mock_store)
         res = retriever.run(query_embedding=[0.3, 0.5])
 
-        mock_store.embedding_retrieval.assert_called_once_with(
-            query_embedding=[0.3, 0.5], filters={}, top_k=10
-        )
+        mock_store.embedding_retrieval.assert_called_once_with(query_embedding=[0.3, 0.5], filters={}, top_k=10)
 
         assert res == {"documents": [doc]}

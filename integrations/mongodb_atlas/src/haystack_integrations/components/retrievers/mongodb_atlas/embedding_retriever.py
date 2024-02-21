@@ -1,13 +1,12 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
-from typing import Any, Dict, List, Literal, Optional
+from typing import Any, Dict, List, Optional
 
 from haystack import component, default_from_dict, default_to_dict
-from haystack.utils import Secret, deserialize_secrets_inplace
 from haystack.dataclasses import Document
+from haystack.utils import deserialize_secrets_inplace
 from haystack_integrations.document_stores.mongodb_atlas import MongoDBAtlasDocumentStore
-from haystack_integrations.document_stores.mongodb_atlas.document_store import METRIC_TYPES
 
 
 @component
@@ -50,7 +49,9 @@ class MongoDBAtlasEmbeddingRetriever:
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "MongoDBAtlasEmbeddingRetriever":
-        deserialize_secrets_inplace(data["init_parameters"]["document_store"]["init_parameters"], keys=["mongo_connection_string"]) 
+        deserialize_secrets_inplace(
+            data["init_parameters"]["document_store"]["init_parameters"], keys=["mongo_connection_string"]
+        )
         data["init_parameters"]["document_store"] = default_from_dict(
             MongoDBAtlasDocumentStore, data["init_parameters"]["document_store"]
         )

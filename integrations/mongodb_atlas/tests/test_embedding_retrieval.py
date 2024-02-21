@@ -1,19 +1,20 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
-from typing import List
 import os
+from typing import List
 
 import pytest
 from haystack.document_stores.errors import DocumentStoreError
 from haystack_integrations.document_stores.mongodb_atlas import MongoDBAtlasDocumentStore
+
 
 @pytest.mark.skipif(
     "MONGO_CONNECTION_STRING" not in os.environ,
     reason="No MongoDB Atlas connection string provided",
 )
 class TestEmbeddingRetrieval:
-    
+
     def test_embedding_retrieval_cosine_similarity(self):
         document_store = MongoDBAtlasDocumentStore(
             database_name="haystack_integration_test",
@@ -21,9 +22,7 @@ class TestEmbeddingRetrieval:
             vector_search_index="cosine_index",
         )
         query_embedding = [0.1] * 768
-        results = document_store.embedding_retrieval(
-            query_embedding=query_embedding, top_k=2, filters={}
-        )
+        results = document_store.embedding_retrieval(query_embedding=query_embedding, top_k=2, filters={})
         assert len(results) == 2
         assert results[0].content == "Document A"
         assert results[1].content == "Document B"
@@ -36,15 +35,12 @@ class TestEmbeddingRetrieval:
             vector_search_index="dotProduct_index",
         )
         query_embedding = [0.1] * 768
-        results = document_store.embedding_retrieval(
-            query_embedding=query_embedding, top_k=2, filters={}
-        )
+        results = document_store.embedding_retrieval(query_embedding=query_embedding, top_k=2, filters={})
         assert len(results) == 2
         assert results[0].content == "Document A"
         assert results[1].content == "Document B"
         assert results[0].score > results[1].score
 
-    
     def test_embedding_retrieval_euclidean(self):
         document_store = MongoDBAtlasDocumentStore(
             database_name="haystack_integration_test",
@@ -52,9 +48,7 @@ class TestEmbeddingRetrieval:
             vector_search_index="euclidean_index",
         )
         query_embedding = [0.1] * 768
-        results = document_store.embedding_retrieval(
-            query_embedding=query_embedding, top_k=2, filters={}
-        )
+        results = document_store.embedding_retrieval(query_embedding=query_embedding, top_k=2, filters={})
         assert len(results) == 2
         assert results[0].content == "Document C"
         assert results[1].content == "Document B"

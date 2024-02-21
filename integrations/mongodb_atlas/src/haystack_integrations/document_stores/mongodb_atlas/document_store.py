@@ -8,7 +8,7 @@ from typing import Any, Dict, List, Optional, Union
 import numpy as np
 from haystack import default_from_dict, default_to_dict
 from haystack.dataclasses.document import Document
-from haystack.document_stores.errors import DuplicateDocumentError, DocumentStoreError
+from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
 from haystack.utils import Secret, deserialize_secrets_inplace
 from haystack_integrations.document_stores.mongodb_atlas.filters import haystack_filters_to_mongo
@@ -17,9 +17,6 @@ from pymongo.driver_info import DriverInfo  # type: ignore
 from pymongo.errors import BulkWriteError  # type: ignore
 
 logger = logging.getLogger(__name__)
-
-
-METRIC_TYPES = ["euclidean", "cosine", "dotProduct"]
 
 
 class MongoDBAtlasDocumentStore:
@@ -66,7 +63,8 @@ class MongoDBAtlasDocumentStore:
         database = self.connection[self.database_name]
 
         if collection_name not in database.list_collection_names():
-            raise ValueError(f"Collection '{collection_name}' does not exist in database '{database_name}'.")
+            msg = f"Collection '{collection_name}' does not exist in database '{database_name}'."
+            raise ValueError(msg)
         self.collection = database[self.collection_name]
 
     def to_dict(self) -> Dict[str, Any]:
@@ -80,7 +78,7 @@ class MongoDBAtlasDocumentStore:
             collection_name=self.collection_name,
             vector_search_index=self.vector_search_index,
         )
-    
+
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "MongoDBAtlasDocumentStore":
         """
@@ -166,8 +164,6 @@ class MongoDBAtlasDocumentStore:
         query_embedding: np.ndarray,
         filters: Optional[Dict[str, Any]] = None,
         top_k: int = 10,
-        similarity: str = "cosine",
-        scale_score: bool = True,
     ) -> List[Document]:
         """
         Find the documents that are most similar to the provided `query_emb` by using a vector similarity metric.
@@ -175,25 +171,12 @@ class MongoDBAtlasDocumentStore:
         :param query_emb: Embedding of the query
         :param filters: optional filters (see get_all_documents for description).
         :param top_k: How many documents to return.
-        :param similarity: The similarity function to use. Currently supported: `dotProduct`, `cosine` and `euclidean`.
-        :param scale_score: Whether to scale the similarity score to the unit interval (range of [0,1]).
-                            If true (default) similarity scores (e.g. cosine or dot_product) which naturally have a 
-                            different value range will be scaled to a range of [0,1], where 1 means extremely relevant.
-                            Otherwise raw similarity scores (e.g. cosine or dot_product) will be used.
         """
         if not query_embedding:
-            raise ValueError("Query embedding must not be empty")
-        
-        if similarity not in METRIC_TYPES:
-            raise ValueError(
-                "MongoDB Atlas currently supports 'dotProduct', 'cosine' and 'euclidean' similarity metrics. \
-                Please set 'similarity' to one of the above."
-            )
-        
-        query_embedding = np.array(query_embedding).astype(np.float32)
+            msg = "Query embedding must not be empty"
+            raise ValueError(msg)
 
-        if similarity == "cosine":
-            self.normalize_embedding(query_embedding)
+        query_embedding = np.array(query_embedding).astype(np.float32)
 
         filters = haystack_filters_to_mongo(filters)
         pipeline = [
@@ -204,30 +187,20 @@ class MongoDBAtlasDocumentStore:
                     "queryVector": query_embedding.tolist(),
                     "numCandidates": 100,
                     "limit": top_k,
-                    #"filter": filters,
+                    # "filter": filters,
                 }
-            }, {
-                '$project': {
-                    '_id': 0, 
-                    'content': 1,  
-                    'score': {
-                        '$meta': 'vectorSearchScore'
-                    }
-                }
-            }
+            },
+            {"$project": {"_id": 0, "content": 1, "score": {"$meta": "vectorSearchScore"}}},
         ]
         try:
             documents = list(self.collection.aggregate(pipeline))
         except Exception as e:
-            raise DocumentStoreError(f"Retrieval of documents from MongoDB Atlas failed: {e}") from e
-        
-        if scale_score:
-            for doc in documents:
-                doc["score"] = self.scale_to_unit_interval(doc["score"], similarity)
+            msg = f"Retrieval of documents from MongoDB Atlas failed: {e}"
+            raise DocumentStoreError(msg) from e
 
         documents = [self.mongo_doc_to_haystack_doc(doc) for doc in documents]
         return documents
-    
+
     def mongo_doc_to_haystack_doc(self, mongo_doc: Dict[str, Any]) -> Document:
         """
         Converts the dictionary coming out of MongoDB into a Haystack document
@@ -237,16 +210,3 @@ class MongoDBAtlasDocumentStore:
         """
         mongo_doc.pop("_id", None)
         return Document.from_dict(mongo_doc)
-    
-    def normalize_embedding(self, emb: np.ndarray) -> None:
-        """
-        Performs L2 normalization of a 1D embeddings vector **inplace**. 
-        """
-        norm = np.sqrt(emb.dot(emb))  # faster than np.linalg.norm()
-        if norm != 0.0:
-            emb /= norm
-
-    def scale_to_unit_interval(self, score: float, similarity: Optional[str]) -> float:
-        if similarity == "cosine":
-            return (score + 1) / 2
-        return float(1 / (1 + np.exp(-score / 100)))

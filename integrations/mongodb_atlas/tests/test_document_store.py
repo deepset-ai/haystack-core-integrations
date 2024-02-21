@@ -2,8 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 import os
-from unittest.mock import patch
-from uuid import uuid4
 
 import pytest
 from haystack.dataclasses.document import ByteStream, Document
@@ -19,8 +17,8 @@ from pymongo.driver_info import DriverInfo  # type: ignore
 
 @pytest.fixture
 def document_store():
-    database_name="haystack_integration_test"
-    collection_name="test_collection"
+    database_name = "haystack_integration_test"
+    collection_name = "test_collection"
 
     connection: MongoClient = MongoClient(
         os.environ["MONGO_CONNECTION_STRING"], driver=DriverInfo(name="MongoDBAtlasHaystackIntegration")
@@ -38,7 +36,6 @@ def document_store():
     )
     yield store
     database[collection_name].drop()
-
 
 
 @pytest.mark.skipif(
