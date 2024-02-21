@@ -43,8 +43,6 @@ class MongoDBAtlasDocumentStore:
         :param vector_search_index: The name of the vector search index to use for vector search operations.
             Create a vector_search_index in the Atlas web UI and specify the init params of MongoDBAtlasDocumentStore. \
             See https://www.mongodb.com/docs/atlas/atlas-vector-search/create-index/#std-label-avs-create-index
-        :param recreate_collection: Whether to recreate the collection when initializing the document store. Defaults
-            to False.
         """
         if collection_name and not bool(re.match(r"^[a-zA-Z0-9\-_]+$", collection_name)):
             msg = f'Invalid collection name: "{collection_name}". It can only contain letters, numbers, -, or _.'
