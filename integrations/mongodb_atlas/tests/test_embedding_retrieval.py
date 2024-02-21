@@ -22,7 +22,7 @@ class TestEmbeddingRetrieval:
         )
         query_embedding = [0.1] * 768
         results = document_store.embedding_retrieval(
-            query_embedding=query_embedding, top_k=2, filters={}, similarity="cosine"
+            query_embedding=query_embedding, top_k=2, filters={}
         )
         assert len(results) == 2
         assert results[0].content == "Document A"
@@ -37,7 +37,7 @@ class TestEmbeddingRetrieval:
         )
         query_embedding = [0.1] * 768
         results = document_store.embedding_retrieval(
-            query_embedding=query_embedding, top_k=2, filters={}, similarity="dotProduct"
+            query_embedding=query_embedding, top_k=2, filters={}
         )
         assert len(results) == 2
         assert results[0].content == "Document A"
@@ -53,7 +53,7 @@ class TestEmbeddingRetrieval:
         )
         query_embedding = [0.1] * 768
         results = document_store.embedding_retrieval(
-            query_embedding=query_embedding, top_k=2, filters={}, similarity="euclidean"
+            query_embedding=query_embedding, top_k=2, filters={}
         )
         assert len(results) == 2
         assert results[0].content == "Document C"

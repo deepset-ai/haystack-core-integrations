@@ -13,17 +13,32 @@ from haystack.testing.document_store import CountDocumentsTest, DeleteDocumentsT
 from haystack.utils import Secret
 from haystack_integrations.document_stores.mongodb_atlas import MongoDBAtlasDocumentStore
 from pandas import DataFrame
+from pymongo import MongoClient  # type: ignore
+from pymongo.driver_info import DriverInfo  # type: ignore
 
 
 @pytest.fixture
 def document_store():
-    store = MongoDBAtlasDocumentStore(
-        database_name="haystack_integration_test",
-        collection_name="test_collection",
-        vector_search_index="vector_index",
-        recreate_collection=True,
+    database_name="haystack_integration_test"
+    collection_name="test_collection"
+
+    connection: MongoClient = MongoClient(
+        os.environ["MONGO_CONNECTION_STRING"], driver=DriverInfo(name="MongoDBAtlasHaystackIntegration")
     )
-    return store
+    database = connection[database_name]
+    if collection_name in database.list_collection_names():
+        database[collection_name].drop()
+    database.create_collection(collection_name)
+    database[collection_name].create_index("id", unique=True)
+
+    store = MongoDBAtlasDocumentStore(
+        database_name=database_name,
+        collection_name=collection_name,
+        vector_search_index="cosine_index",
+    )
+    yield store
+    database[collection_name].drop()
+
 
 
 @pytest.mark.skipif(
@@ -52,13 +67,7 @@ class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsT
         retrieved_docs = document_store.filter_documents()
         assert retrieved_docs == docs
 
-    @patch("haystack_integrations.document_stores.mongodb_atlas.document_store.MongoClient")
-    def test_to_dict(self, _):
-        document_store = MongoDBAtlasDocumentStore(
-            database_name="database_name",
-            collection_name="collection_name",
-            vector_search_index="vector_search_index",
-        )
+    def test_to_dict(self, document_store):
         assert document_store.to_dict() == {
             "type": "haystack_integrations.document_stores.mongodb_atlas.document_store.MongoDBAtlasDocumentStore",
             "init_parameters": {
@@ -69,15 +78,13 @@ class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsT
                     "strict": True,
                     "type": "env_var",
                 },
-                "database_name": "database_name",
-                "collection_name": "collection_name",
-                "recreate_collection": False,
-                "vector_search_index": "vector_search_index",
+                "database_name": "haystack_integration_test",
+                "collection_name": "test_collection",
+                "vector_search_index": "cosine_index",
             },
         }
 
-    @patch("haystack_integrations.document_stores.mongodb_atlas.document_store.MongoClient")
-    def test_from_dict(self, _):
+    def test_from_dict(self):
         docstore = MongoDBAtlasDocumentStore.from_dict(
             {
                 "type": "haystack_integrations.document_stores.mongodb_atlas.document_store.MongoDBAtlasDocumentStore",
@@ -89,15 +96,13 @@ class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsT
                         "strict": True,
                         "type": "env_var",
                     },
-                    "database_name": "database_name",
-                    "collection_name": "collection_name",
-                    "vector_search_index": "vector_search_index",
-                    "recreate_collection": True,
+                    "database_name": "haystack_integration_test",
+                    "collection_name": "test_embeddings_collection",
+                    "vector_search_index": "cosine_index",
                 },
             }
         )
         assert docstore.mongo_connection_string == Secret.from_env_var("MONGO_CONNECTION_STRING")
-        assert docstore.database_name == "database_name"
-        assert docstore.collection_name == "collection_name"
-        assert docstore.vector_search_index == "vector_search_index"
-        assert docstore.recreate_collection
+        assert docstore.database_name == "haystack_integration_test"
+        assert docstore.collection_name == "test_embeddings_collection"
+        assert docstore.vector_search_index == "cosine_index"
