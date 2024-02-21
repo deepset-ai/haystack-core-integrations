@@ -66,7 +66,9 @@ class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsT
         assert retrieved_docs == docs
 
     def test_to_dict(self, document_store):
-        assert document_store.to_dict() == {
+        serialized_store = document_store.to_dict()
+        assert serialized_store["init_parameters"].pop("collection_name").startswith("test_collection_")
+        assert serialized_store == {
             "type": "haystack_integrations.document_stores.mongodb_atlas.document_store.MongoDBAtlasDocumentStore",
             "init_parameters": {
                 "mongo_connection_string": {
@@ -77,7 +79,6 @@ class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsT
                     "type": "env_var",
                 },
                 "database_name": "haystack_integration_test",
-                "collection_name": "test_collection",
                 "vector_search_index": "cosine_index",
             },
         }
