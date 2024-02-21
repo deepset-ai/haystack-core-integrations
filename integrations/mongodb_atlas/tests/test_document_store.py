@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 import os
+from uuid import uuid4
 
 import pytest
 from haystack.dataclasses.document import ByteStream, Document
@@ -18,7 +19,7 @@ from pymongo.driver_info import DriverInfo  # type: ignore
 @pytest.fixture
 def document_store():
     database_name = "haystack_integration_test"
-    collection_name = "test_collection"
+    collection_name = "test_collection_"+str(uuid4())
 
     connection: MongoClient = MongoClient(
         os.environ["MONGO_CONNECTION_STRING"], driver=DriverInfo(name="MongoDBAtlasHaystackIntegration")
