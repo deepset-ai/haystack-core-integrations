@@ -159,7 +159,7 @@ class MongoDBAtlasDocumentStore:
 
     def embedding_retrieval(
         self,
-        query_embedding: np.ndarray,
+        query_embedding: List[float]
         filters: Optional[Dict[str, Any]] = None,
         top_k: int = 10,
     ) -> List[Document]:
