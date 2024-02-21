@@ -3,7 +3,7 @@ from typing import Optional
 import boto3
 from botocore.exceptions import BotoCoreError
 
-from haystack_integrations.commons.amazon_bedrock.errors import AWSConfigurationError
+from haystack_integrations.common.amazon_bedrock.errors import AWSConfigurationError
 
 AWS_CONFIGURATION_KEYS = [
     "aws_access_key_id",

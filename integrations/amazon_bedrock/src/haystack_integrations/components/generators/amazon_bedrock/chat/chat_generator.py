@@ -9,11 +9,11 @@ from haystack.components.generators.utils import deserialize_callback_handler
 from haystack.dataclasses import ChatMessage, StreamingChunk
 from haystack.utils.auth import Secret, deserialize_secrets_inplace
 
-from haystack_integrations.commons.amazon_bedrock.errors import (
+from haystack_integrations.common.amazon_bedrock.errors import (
     AmazonBedrockConfigurationError,
     AmazonBedrockInferenceError,
 )
-from haystack_integrations.commons.amazon_bedrock.utils import get_aws_session
+from haystack_integrations.common.amazon_bedrock.utils import get_aws_session
 
 from .adapters import AnthropicClaudeChatAdapter, BedrockModelChatAdapter, MetaLlama2ChatAdapter
 
