@@ -3,7 +3,7 @@ from typing import Any, Callable, Dict, List, Optional
 
 import requests
 from haystack import component, default_from_dict, default_to_dict
-from haystack.components.generators.utils import deserialize_callback_handler, serialize_callback_handler
+from haystack.utils.callable_serialization import deserialize_callable, serialize_callable
 from haystack.dataclasses import StreamingChunk
 from requests import Response
 
@@ -57,7 +57,7 @@ class OllamaGenerator:
         Serialize this component to a dictionary.
         :return: The serialized component as a dictionary.
         """
-        callback_name = serialize_callback_handler(self.streaming_callback) if self.streaming_callback else None
+        callback_name = serialize_callable(self.streaming_callback) if self.streaming_callback else None
         return default_to_dict(
             self,
             timeout=self.timeout,
@@ -80,7 +80,7 @@ class OllamaGenerator:
         init_params = data.get("init_parameters", {})
         serialized_callback_handler = init_params.get("streaming_callback")
         if serialized_callback_handler:
-            data["init_parameters"]["streaming_callback"] = deserialize_callback_handler(serialized_callback_handler)
+            data["init_parameters"]["streaming_callback"] = deserialize_callable(serialized_callback_handler)
         return default_from_dict(cls, data)
 
     def _create_json_payload(self, prompt: str, stream: bool, generation_kwargs=None) -> Dict[str, Any]:
