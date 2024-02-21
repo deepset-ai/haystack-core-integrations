@@ -190,15 +190,13 @@ class MongoDBAtlasDocumentStore:
             },
             {
                 "$project": {
-                    "_id": 0, 
-                    "content": 1, 
+                    "_id": 0,
+                    "content": 1,
                     "dataframe": 1,
                     "blob": 1,
                     "meta": 1,
                     "embedding": 1,
-                    "score": {
-                        "$meta": "vectorSearchScore"
-                    }
+                    "score": {"$meta": "vectorSearchScore"},
                 }
             },
         ]
