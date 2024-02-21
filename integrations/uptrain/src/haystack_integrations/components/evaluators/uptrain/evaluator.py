@@ -53,6 +53,8 @@ class UpTrainEvaluator:
             The API key to use.
         :param api_params:
             Additional parameters to pass to the API client.
+        :param project_name:
+            Name of the project required when using UpTrain API.
         """
         self.metric = metric if isinstance(metric, UpTrainMetric) else UpTrainMetric.from_str(metric)
         self.metric_params = metric_params
@@ -195,6 +197,9 @@ class UpTrainEvaluator:
         if self.api == "openai":
             backend_client = EvalLLM(openai_api_key=api_key)
         elif self.api == "uptrain":
+            if not self.project_name:
+                msg = f"project_name not provided. UpTrain API requires a project name."
+                raise ValueError(msg)
             backend_client = APIClient(uptrain_api_key=api_key)
 
         self._backend_metric = backend_metric
