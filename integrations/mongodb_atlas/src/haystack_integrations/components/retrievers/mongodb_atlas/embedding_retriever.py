@@ -52,6 +52,11 @@ class MongoDBAtlasEmbeddingRetriever:
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "MongoDBAtlasEmbeddingRetriever":
+        """
+        Deserializes a dictionary created with `MongoDBAtlasEmbeddingRetriever. to_dict()` into a `MongoDBAtlasEmbeddingRetriever` instance.
+    
+        :param data: the dictionary returned by `MongoDBAtlasEmbeddingRetriever. to_dict()`
+        """
         deserialize_secrets_inplace(
             data["init_parameters"]["document_store"]["init_parameters"], keys=["mongo_connection_string"]
         )
