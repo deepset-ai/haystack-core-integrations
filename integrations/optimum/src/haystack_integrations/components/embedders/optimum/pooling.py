@@ -71,6 +71,9 @@ class HFPoolingMode:
             The pooling mode.
         """
         try:
+            pooling_config_path = hf_hub_download(
+                repo_id=model, token=token.resolve_value() if token else None, filename="1_Pooling/config.json"
+            )
 
             with open(pooling_config_path) as f:
                 pooling_config = json.load(f)
