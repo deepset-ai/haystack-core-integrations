@@ -2,15 +2,15 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 from haystack.utils.auth import Secret
-from haystack_integrations.components.embedders import OptimumTextEmbedder
-from haystack_integrations.components.embedders.pooling import PoolingMode
+from haystack_integrations.components.embedders.optimum import OptimumTextEmbedder
+from haystack_integrations.components.embedders.optimum.pooling import PoolingMode
 from huggingface_hub.utils import RepositoryNotFoundError
 
 
 @pytest.fixture
 def mock_check_valid_model():
     with patch(
-        "haystack_integrations.components.embedders.optimum_text_embedder.check_valid_model",
+        "haystack_integrations.components.embedders.optimum.optimum_text_embedder.check_valid_model",
         MagicMock(return_value=None),
     ) as mock:
         yield mock
@@ -19,7 +19,7 @@ def mock_check_valid_model():
 @pytest.fixture
 def mock_get_pooling_mode():
     with patch(
-        "haystack_integrations.components.embedders.optimum_text_embedder.HFPoolingMode.get_pooling_mode",
+        "haystack_integrations.components.embedders.optimum.optimum_text_embedder.HFPoolingMode.get_pooling_mode",
         MagicMock(return_value=PoolingMode.MEAN),
     ) as mock:
         yield mock
@@ -74,7 +74,7 @@ class TestOptimumTextEmbedder:
         data = component.to_dict()
 
         assert data == {
-            "type": "haystack_integrations.components.embedders.optimum_text_embedder.OptimumTextEmbedder",
+            "type": "haystack_integrations.components.embedders.optimum.optimum_text_embedder.OptimumTextEmbedder",
             "init_parameters": {
                 "model": "sentence-transformers/all-mpnet-base-v2",
                 "token": {"env_vars": ["HF_API_TOKEN"], "strict": False, "type": "env_var"},
@@ -105,7 +105,7 @@ class TestOptimumTextEmbedder:
         data = component.to_dict()
 
         assert data == {
-            "type": "haystack_integrations.components.embedders.optimum_text_embedder.OptimumTextEmbedder",
+            "type": "haystack_integrations.components.embedders.optimum.optimum_text_embedder.OptimumTextEmbedder",
             "init_parameters": {
                 "model": "sentence-transformers/all-minilm-l6-v2",
                 "token": {"env_vars": ["ENV_VAR"], "strict": False, "type": "env_var"},

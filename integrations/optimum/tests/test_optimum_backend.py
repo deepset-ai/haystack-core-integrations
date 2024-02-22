@@ -1,6 +1,6 @@
 import pytest
-from haystack_integrations.components.embedders.optimum_backend import OptimumEmbeddingBackend
-from haystack_integrations.components.embedders.pooling import PoolingMode
+from haystack_integrations.components.embedders.optimum.optimum_backend import OptimumEmbeddingBackend
+from haystack_integrations.components.embedders.optimum.pooling import PoolingMode
 
 
 @pytest.fixture

@@ -71,7 +71,6 @@ class HFPoolingMode:
             The pooling mode.
         """
         try:
-            pooling_config_path = hf_hub_download(repo_id=model, token=token, filename="1_Pooling/config.json")
 
             with open(pooling_config_path) as f:
                 pooling_config = json.load(f)
@@ -103,12 +102,12 @@ class Pooling:
     :param model_output: The output of the embedding model.
     """
 
-    def __init__(self, pooling_mode: PoolingMode, attention_mask: torch.tensor, model_output: torch.tensor):
+    def __init__(self, pooling_mode: PoolingMode, attention_mask: torch.Tensor, model_output: torch.Tensor):
         self.pooling_mode = pooling_mode
         self.attention_mask = attention_mask
         self.model_output = model_output
 
-    def pool_embeddings(self) -> torch.tensor:
+    def pool_embeddings(self) -> torch.Tensor:
         """
         Perform pooling on the output of the embedding model.
 
