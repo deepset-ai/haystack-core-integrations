@@ -3,7 +3,6 @@ from enum import Enum
 from typing import Optional
 
 import torch
-from haystack.utils import Secret
 from huggingface_hub import hf_hub_download
 from sentence_transformers.models import Pooling as PoolingLayer
 
@@ -59,7 +58,7 @@ class HFPoolingMode:
     """
 
     @staticmethod
-    def get_pooling_mode(model: str, token: Optional[Secret] = None) -> Optional[PoolingMode]:
+    def get_pooling_mode(model: str, token: Optional[str] = None) -> Optional[PoolingMode]:
         """
         Gets the pooling mode of the model from the Hugging Face Hub.
 
@@ -103,18 +102,15 @@ class Pooling:
     :param model_output: The output of the embedding model.
     """
 
-    def __init__(self, pooling_mode: PoolingMode, attention_mask: torch.tensor, model_output: torch.tensor):
+    def __init__(self, pooling_mode: PoolingMode, attention_mask: torch.Tensor, model_output: torch.Tensor):
         self.pooling_mode = pooling_mode
         self.attention_mask = attention_mask
         self.model_output = model_output
 
-    def pool_embeddings(self) -> torch.tensor:
+    def pool_embeddings(self) -> torch.Tensor:
         """
         Perform pooling on the output of the embedding model.
 
-        :param pooling_mode: The pooling mode to use.
-        :param attention_mask: The attention mask of the tokenized text.
-        :param model_output: The output of the embedding model.
         :return: The embeddings of the text after pooling.
         """
         pooling_func_map = {

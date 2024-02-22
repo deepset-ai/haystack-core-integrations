@@ -3,15 +3,15 @@ from unittest.mock import MagicMock, patch
 import pytest
 from haystack.dataclasses import Document
 from haystack.utils.auth import Secret
-from haystack_integrations.components.embedders import OptimumDocumentEmbedder
-from haystack_integrations.components.embedders.pooling import PoolingMode
+from haystack_integrations.components.embedders.optimum import OptimumDocumentEmbedder
+from haystack_integrations.components.embedders.optimum.pooling import PoolingMode
 from huggingface_hub.utils import RepositoryNotFoundError
 
 
 @pytest.fixture
 def mock_check_valid_model():
     with patch(
-        "haystack_integrations.components.embedders.optimum_document_embedder.check_valid_model",
+        "haystack_integrations.components.embedders.optimum.optimum_document_embedder.check_valid_model",
         MagicMock(return_value=None),
     ) as mock:
         yield mock
@@ -20,7 +20,7 @@ def mock_check_valid_model():
 @pytest.fixture
 def mock_get_pooling_mode():
     with patch(
-        "haystack_integrations.components.embedders.optimum_text_embedder.HFPoolingMode.get_pooling_mode",
+        "haystack_integrations.components.embedders.optimum.optimum_text_embedder.HFPoolingMode.get_pooling_mode",
         MagicMock(return_value=PoolingMode.MEAN),
     ) as mock:
         yield mock
@@ -82,12 +82,12 @@ class TestOptimumDocumentEmbedder:
             "use_auth_token": "fake-api-token",
         }
 
-    def test_to_dict(self, mock_check_valid_model, mock_get_pooling_mode):  # noqa: ARG002
+    def test_to_and_from_dict(self, mock_check_valid_model, mock_get_pooling_mode):  # noqa: ARG002
         component = OptimumDocumentEmbedder()
         data = component.to_dict()
 
         assert data == {
-            "type": "haystack_integrations.components.embedders.optimum_document_embedder.OptimumDocumentEmbedder",
+            "type": "haystack_integrations.components.embedders.optimum.optimum_document_embedder.OptimumDocumentEmbedder",
             "init_parameters": {
                 "model": "sentence-transformers/all-mpnet-base-v2",
                 "token": {"env_vars": ["HF_API_TOKEN"], "strict": False, "type": "env_var"},
@@ -103,12 +103,31 @@ class TestOptimumDocumentEmbedder:
                 "model_kwargs": {
                     "model_id": "sentence-transformers/all-mpnet-base-v2",
                     "provider": "CPUExecutionProvider",
-                    "use_auth_token": None,
                 },
             },
         }
 
-    def test_to_dict_with_custom_init_parameters(self, mock_check_valid_model, mock_get_pooling_mode):  # noqa: ARG002
+        embedder = OptimumDocumentEmbedder.from_dict(data)
+        assert embedder.model == "sentence-transformers/all-mpnet-base-v2"
+        assert embedder.token == Secret.from_env_var("HF_API_TOKEN", strict=False)
+        assert embedder.prefix == ""
+        assert embedder.suffix == ""
+        assert embedder.normalize_embeddings is True
+        assert embedder.onnx_execution_provider == "CPUExecutionProvider"
+        assert embedder.pooling_mode == PoolingMode.MEAN
+        assert embedder.batch_size == 32
+        assert embedder.progress_bar is True
+        assert embedder.meta_fields_to_embed == []
+        assert embedder.embedding_separator == "\n"
+        assert embedder.model_kwargs == {
+            "model_id": "sentence-transformers/all-mpnet-base-v2",
+            "provider": "CPUExecutionProvider",
+            "use_auth_token": None,
+        }
+
+    def test_to_and_from_dict_with_custom_init_parameters(
+        self, mock_check_valid_model, mock_get_pooling_mode
+    ):  # noqa: ARG002
         component = OptimumDocumentEmbedder(
             model="sentence-transformers/all-minilm-l6-v2",
             token=Secret.from_env_var("ENV_VAR", strict=False),
@@ -126,7 +145,7 @@ class TestOptimumDocumentEmbedder:
         data = component.to_dict()
 
         assert data == {
-            "type": "haystack_integrations.components.embedders.optimum_document_embedder.OptimumDocumentEmbedder",
+            "type": "haystack_integrations.components.embedders.optimum.optimum_document_embedder.OptimumDocumentEmbedder",
             "init_parameters": {
                 "model": "sentence-transformers/all-minilm-l6-v2",
                 "token": {"env_vars": ["ENV_VAR"], "strict": False, "type": "env_var"},
@@ -143,9 +162,27 @@ class TestOptimumDocumentEmbedder:
                     "trust_remote_code": True,
                     "model_id": "sentence-transformers/all-minilm-l6-v2",
                     "provider": "CUDAExecutionProvider",
-                    "use_auth_token": None,
                 },
             },
+        }
+
+        embedder = OptimumDocumentEmbedder.from_dict(data)
+        assert embedder.model == "sentence-transformers/all-minilm-l6-v2"
+        assert embedder.token == Secret.from_env_var("ENV_VAR", strict=False)
+        assert embedder.prefix == "prefix"
+        assert embedder.suffix == "suffix"
+        assert embedder.batch_size == 64
+        assert embedder.progress_bar is False
+        assert embedder.meta_fields_to_embed == ["test_field"]
+        assert embedder.embedding_separator == " | "
+        assert embedder.normalize_embeddings is False
+        assert embedder.onnx_execution_provider == "CUDAExecutionProvider"
+        assert embedder.pooling_mode == PoolingMode.MAX
+        assert embedder.model_kwargs == {
+            "trust_remote_code": True,
+            "model_id": "sentence-transformers/all-minilm-l6-v2",
+            "provider": "CUDAExecutionProvider",
+            "use_auth_token": None,
         }
 
     def test_initialize_with_invalid_model(self, mock_check_valid_model):

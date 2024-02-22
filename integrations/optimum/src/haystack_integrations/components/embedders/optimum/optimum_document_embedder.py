@@ -1,30 +1,35 @@
 from typing import Any, Dict, List, Optional, Union
 
-from haystack import component, default_from_dict, default_to_dict
+from haystack import Document, component, default_from_dict, default_to_dict
 from haystack.utils import Secret, deserialize_secrets_inplace
 from haystack.utils.hf import HFModelType, check_valid_model, deserialize_hf_model_kwargs, serialize_hf_model_kwargs
-from haystack_integrations.components.embedders.optimum_backend import OptimumEmbeddingBackend
-from haystack_integrations.components.embedders.pooling import HFPoolingMode, PoolingMode
+
+from .optimum_backend import OptimumEmbeddingBackend
+from .pooling import HFPoolingMode, PoolingMode
 
 
 @component
-class OptimumTextEmbedder:
+class OptimumDocumentEmbedder:
     """
-    A component to embed text using models loaded with the HuggingFace Optimum library.
+    A component for computing Document embeddings using models loaded with the HuggingFace Optimum library.
     This component is designed to seamlessly inference models using the high speed ONNX runtime.
+
+    The embedding of each Document is stored in the `embedding` field of the Document.
 
     Usage example:
     ```python
-    from haystack_integrations.components.embedders import OptimumTextEmbedder
+    from haystack.dataclasses import Document
+    from haystack_integrations.components.optimum.embedders import OptimumDocumentEmbedder
 
-    text_to_embed = "I love pizza!"
+    doc = Document(content="I love pizza!")
 
-    text_embedder = OptimumTextEmbedder(model="sentence-transformers/all-mpnet-base-v2")
-    text_embedder.warm_up()
+    document_embedder = OptimumDocumentEmbedder(model="sentence-transformers/all-mpnet-base-v2")
+    document_embedder.warm_up()
 
-    print(text_embedder.run(text_to_embed))
+    result = document_embedder.run([doc])
+    print(result["documents"][0].embedding)
 
-    # {'embedding': [-0.07804739475250244, 0.1498992145061493,, ...]}
+    # [0.017020374536514282, -0.023255806416273117, ...]
     ```
 
     Key Features and Compatibility:
@@ -50,9 +55,13 @@ class OptimumTextEmbedder:
         onnx_execution_provider: str = "CPUExecutionProvider",
         pooling_mode: Optional[Union[str, PoolingMode]] = None,
         model_kwargs: Optional[Dict[str, Any]] = None,
+        batch_size: int = 32,
+        progress_bar: bool = True,
+        meta_fields_to_embed: Optional[List[str]] = None,
+        embedding_separator: str = "\n",
     ):
         """
-        Create a OptimumTextEmbedder component.
+        Create a OptimumDocumentEmbedder component.
 
         :param model: A string representing the model id on HF Hub.
         :param token: The HuggingFace token to use as HTTP bearer authorization.
@@ -69,7 +78,7 @@ class OptimumTextEmbedder:
             recommend setting these two provider options using the model_kwargs parameter, when using the TensorRT
             execution provider. The usage is as follows:
             ```python
-            embedder = OptimumTextEmbedder(
+            embedder = OptimumDocumentEmbedder(
                 model="sentence-transformers/all-mpnet-base-v2",
                 onnx_execution_provider="TensorrtExecutionProvider",
                 model_kwargs={
@@ -96,18 +105,26 @@ class OptimumTextEmbedder:
         :param model_kwargs: Dictionary containing additional keyword arguments to pass to the model.
             In case of duplication, these kwargs override `model`, `onnx_execution_provider`, and `token` initialization
             parameters.
+        :param batch_size: Number of Documents to encode at once.
+        :param progress_bar: Whether to show a progress bar or not. Can be helpful to disable in production deployments
+            to keep the logs clean.
+        :param meta_fields_to_embed: List of meta fields that should be embedded along with the Document text.
+        :param embedding_separator: Separator used to concatenate the meta fields to the Document text.
         """
         check_valid_model(model, HFModelType.EMBEDDING, token)
         self.model = model
 
         self.token = token
-        token = token.resolve_value() if token else None
+        resolved_token = token.resolve_value() if token else None
 
-        if isinstance(pooling_mode, str):
+        self.pooling_mode: Optional[PoolingMode] = None
+        if isinstance(pooling_mode, PoolingMode):
+            self.pooling_mode = pooling_mode
+        elif isinstance(pooling_mode, str):
             self.pooling_mode = PoolingMode.from_str(pooling_mode)
-        # Infer pooling mode from model config if not provided,
-        if pooling_mode is None:
-            self.pooling_mode = HFPoolingMode.get_pooling_mode(model, token)
+        else:
+            self.pooling_mode = HFPoolingMode.get_pooling_mode(model, resolved_token)
+
         # Raise error if pooling mode is not found in model config and not specified by user
         if self.pooling_mode is None:
             modes = {e.value: e for e in PoolingMode}
@@ -121,13 +138,17 @@ class OptimumTextEmbedder:
         self.suffix = suffix
         self.normalize_embeddings = normalize_embeddings
         self.onnx_execution_provider = onnx_execution_provider
+        self.batch_size = batch_size
+        self.progress_bar = progress_bar
+        self.meta_fields_to_embed = meta_fields_to_embed or []
+        self.embedding_separator = embedding_separator
 
         model_kwargs = model_kwargs or {}
 
         # Check if the model_kwargs contain the parameters, otherwise, populate them with values from init parameters
         model_kwargs.setdefault("model_id", model)
         model_kwargs.setdefault("provider", onnx_execution_provider)
-        model_kwargs.setdefault("use_auth_token", token)
+        model_kwargs.setdefault("use_auth_token", resolved_token)
 
         self.model_kwargs = model_kwargs
         self.embedding_backend = None
@@ -145,6 +166,7 @@ class OptimumTextEmbedder:
         """
         Serialize this component to a dictionary.
         """
+        assert self.pooling_mode is not None
         serialization_dict = default_to_dict(
             self,
             model=self.model,
@@ -153,18 +175,22 @@ class OptimumTextEmbedder:
             normalize_embeddings=self.normalize_embeddings,
             onnx_execution_provider=self.onnx_execution_provider,
             pooling_mode=self.pooling_mode.value,
+            batch_size=self.batch_size,
+            progress_bar=self.progress_bar,
+            meta_fields_to_embed=self.meta_fields_to_embed,
+            embedding_separator=self.embedding_separator,
             model_kwargs=self.model_kwargs,
             token=self.token.to_dict() if self.token else None,
         )
 
         model_kwargs = serialization_dict["init_parameters"]["model_kwargs"]
-        model_kwargs.pop("token", None)
+        model_kwargs.pop("use_auth_token", None)
 
         serialize_hf_model_kwargs(model_kwargs)
         return serialization_dict
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "OptimumTextEmbedder":
+    def from_dict(cls, data: Dict[str, Any]) -> "OptimumDocumentEmbedder":
         """
         Deserialize this component from a dictionary.
         """
@@ -173,18 +199,36 @@ class OptimumTextEmbedder:
         deserialize_hf_model_kwargs(data["init_parameters"]["model_kwargs"])
         return default_from_dict(cls, data)
 
-    @component.output_types(embedding=List[float])
-    def run(self, text: str):
+    def _prepare_texts_to_embed(self, documents: List[Document]) -> List[str]:
         """
-        Embed a string.
+        Prepare the texts to embed by concatenating the Document text with the metadata fields to embed.
+        """
+        texts_to_embed = []
+        for doc in documents:
+            meta_values_to_embed = [
+                str(doc.meta[key]) for key in self.meta_fields_to_embed if key in doc.meta and doc.meta[key] is not None
+            ]
 
-        :param text: The text to embed.
-        :return: The embeddings of the text.
+            text_to_embed = (
+                self.prefix + self.embedding_separator.join([*meta_values_to_embed, doc.content or ""]) + self.suffix
+            )
+
+            texts_to_embed.append(text_to_embed)
+        return texts_to_embed
+
+    @component.output_types(documents=List[Document])
+    def run(self, documents: List[Document]):
         """
-        if not isinstance(text, str):
+        Embed a list of Documents.
+        The embedding of each Document is stored in the `embedding` field of the Document.
+
+        :param documents: A list of Documents to embed.
+        :return: A dictionary containing the updated Documents with their embeddings.
+        """
+        if not isinstance(documents, list) or documents and not isinstance(documents[0], Document):
             msg = (
-                "OptimumTextEmbedder expects a string as an input. "
-                "In case you want to embed a list of Documents, please use the OptimumDocumentEmbedder."
+                "OptimumDocumentEmbedder expects a list of Documents as input."
+                " In case you want to embed a string, please use the OptimumTextEmbedder."
             )
             raise TypeError(msg)
 
@@ -192,10 +236,21 @@ class OptimumTextEmbedder:
             msg = "The embedding model has not been loaded. Please call warm_up() before running."
             raise RuntimeError(msg)
 
-        text_to_embed = self.prefix + text + self.suffix
+        # Return empty list if no documents
+        if not documents:
+            return {"documents": []}
 
-        embedding = self.embedding_backend.embed(
-            texts_to_embed=text_to_embed, normalize_embeddings=self.normalize_embeddings, pooling_mode=self.pooling_mode
+        texts_to_embed = self._prepare_texts_to_embed(documents=documents)
+
+        embeddings = self.embedding_backend.embed(
+            texts_to_embed=texts_to_embed,
+            normalize_embeddings=self.normalize_embeddings,
+            pooling_mode=self.pooling_mode,
+            progress_bar=self.progress_bar,
+            batch_size=self.batch_size,
         )
 
-        return {"embedding": embedding}
+        for doc, emb in zip(documents, embeddings):
+            doc.embedding = emb
+
+        return {"documents": documents}
