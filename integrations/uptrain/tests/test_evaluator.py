@@ -115,16 +115,31 @@ def test_evaluator_api(monkeypatch):
         UpTrainMetric.RESPONSE_COMPLETENESS,
         api="uptrain",
         api_key=Secret.from_env_var("UPTRAIN_API_KEY"),
-        project_name="test",
+        api_params={"project_name": "test"},
     )
     assert eval.api == "uptrain"
     assert eval.api_key == Secret.from_env_var("UPTRAIN_API_KEY")
+    assert eval.api_params == {"project_name": "test"}
 
     with pytest.raises(ValueError, match="Unsupported API"):
         UpTrainEvaluator(UpTrainMetric.CONTEXT_RELEVANCE, api="cohere")
 
     with pytest.raises(ValueError, match="None of the following authentication environment variables are set"):
         UpTrainEvaluator(UpTrainMetric.CONTEXT_RELEVANCE, api="uptrain", api_key=Secret.from_env_var("asd39920qqq"))
+
+    with pytest.raises(ValueError, match="does not support additional parameters"):
+        UpTrainEvaluator(
+            UpTrainMetric.CONTEXT_RELEVANCE,
+            api_params={"project_name": "test"},
+            api="openai",
+        )
+
+    with pytest.raises(ValueError, match="requires .* API parameter"):
+        UpTrainEvaluator(
+            UpTrainMetric.CONTEXT_RELEVANCE,
+            api_params=None,
+            api="uptrain",
+        )
 
 
 def test_evaluator_metric_init_params():
@@ -158,8 +173,7 @@ def test_evaluator_serde(os_environ_get):
         "metric_params": {"method": "rouge"},
         "api": "uptrain",
         "api_key": Secret.from_env_var("ENV_VAR", strict=False),
-        "api_params": {"eval_name": "test"},
-        "project_name": "test",
+        "api_params": {"project_name": "test"},
     }
     eval = UpTrainEvaluator(**init_params)
     serde_data = eval.to_dict()
@@ -170,13 +184,12 @@ def test_evaluator_serde(os_environ_get):
     assert eval.api_key == new_eval.api_key
     assert eval.metric_params == new_eval.metric_params
     assert eval.api_params == new_eval.api_params
-    assert eval.project_name == new_eval.project_name
     assert type(new_eval._backend_client) == type(eval._backend_client)
     assert type(new_eval._backend_metric) == type(eval._backend_metric)
 
     with pytest.raises(DeserializationError, match=r"cannot serialize the API/metric parameters"):
         init_params3 = copy.deepcopy(init_params)
-        init_params3["api_params"] = {"arg": Unserializable("")}
+        init_params3["api_params"] = {"arg": Unserializable(""), "project_name": "test"}
         eval = UpTrainEvaluator(**init_params3)
         eval.to_dict()
 
@@ -205,10 +218,8 @@ def test_evaluator_valid_inputs(metric, inputs, params):
     init_params = {
         "metric": metric,
         "metric_params": params,
-        "api": "uptrain",
         "api_key": Secret.from_token("Aaa"),
         "api_params": None,
-        "project_name": "test",
     }
     eval = UpTrainEvaluator(**init_params)
     eval._backend_client = MockBackend([metric])
@@ -234,10 +245,8 @@ def test_evaluator_invalid_inputs(metric, inputs, error_string, params):
         init_params = {
             "metric": metric,
             "metric_params": params,
-            "api": "uptrain",
             "api_key": Secret.from_token("Aaa"),
             "api_params": None,
-            "project_name": "test",
         }
         eval = UpTrainEvaluator(**init_params)
         eval._backend_client = MockBackend([metric])
@@ -311,10 +320,8 @@ def test_evaluator_outputs(metric, inputs, expected_outputs, metric_params):
     init_params = {
         "metric": metric,
         "metric_params": metric_params,
-        "api": "uptrain",
         "api_key": Secret.from_token("Aaa"),
         "api_params": None,
-        "project_name": "test",
     }
     eval = UpTrainEvaluator(**init_params)
     eval._backend_client = MockBackend([metric])
