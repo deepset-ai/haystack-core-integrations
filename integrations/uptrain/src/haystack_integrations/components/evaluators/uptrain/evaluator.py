@@ -148,6 +148,7 @@ class UpTrainEvaluator:
             api=self.api,
             api_key=self.api_key.to_dict(),
             api_params=self.api_params,
+            project_name=self.project_name,
         )
 
     @classmethod
