@@ -1,5 +1,4 @@
 from typing import Optional, Type
-from unittest.mock import MagicMock, patch
 
 import pytest
 from haystack.components.generators.utils import print_streaming_chunk
@@ -13,6 +12,7 @@ from haystack_integrations.components.generators.amazon_bedrock.chat.adapters im
 )
 
 clazz = "haystack_integrations.components.generators.amazon_bedrock.chat.chat_generator.AmazonBedrockChatGenerator"
+
 
 def test_to_dict(mock_boto3_session):
     """
