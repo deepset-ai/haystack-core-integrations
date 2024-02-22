@@ -11,7 +11,7 @@ from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumen
 from haystack.document_stores.types.policy import DuplicatePolicy
 
 import weaviate
-from weaviate.config import Config, ConnectionConfig
+from weaviate.config import AdditionalConfig, Config, ConnectionConfig
 from weaviate.embedded import EmbeddedOptions
 from weaviate.util import generate_uuid5
 
@@ -54,13 +54,11 @@ class WeaviateDocumentStore:
         url: Optional[str] = None,
         collection_settings: Optional[Dict[str, Any]] = None,
         auth_client_secret: Optional[AuthCredentials] = None,
-        timeout_config: TimeoutType = (10, 60),
-        proxies: Optional[Union[Dict, str]] = None,
-        trust_env: bool = False,
         additional_headers: Optional[Dict] = None,
-        startup_period: Optional[int] = 5,
         embedded_options: Optional[EmbeddedOptions] = None,
-        additional_config: Optional[Config] = None,
+        additional_config: Optional[AdditionalConfig] = None,
+        grpc_port: int = 50051,
+        grpc_secure: bool = False,
     ):
         """
         Create a new instance of WeaviateDocumentStore and connects to the Weaviate instance.
@@ -88,43 +86,31 @@ class WeaviateDocumentStore:
             - `AuthClientPassword` to use username and password for oidc Resource Owner Password flow
             - `AuthClientCredentials` to use a client secret for oidc client credential flow
             - `AuthApiKey` to use an API key
-        :param timeout_config: Timeout configuration for all requests to the Weaviate server, defaults to (10, 60).
-            It can be a real number or, a tuple of two real numbers: (connect timeout, read timeout).
-            If only one real number is passed then both connect and read timeout will be set to
-            that value, by default (2, 20).
-        :param proxies: Proxy configuration, defaults to None.
-            Can be passed as a dict using the
-            ``requests` format<https://docs.python-requests.org/en/stable/user/advanced/#proxies>`_,
-            or a string. If a string is passed it will be used for both HTTP and HTTPS requests.
-        :param trust_env: Whether to read proxies from the ENV variables, defaults to False.
-            Proxies will be read from the following ENV variables:
-            * `HTTP_PROXY`
-            * `http_proxy`
-            * `HTTPS_PROXY`
-            * `https_proxy`
-            If `proxies` is not None, `trust_env` is ignored.
         :param additional_headers: Additional headers to include in the requests, defaults to None.
             Can be used to set OpenAI/HuggingFace keys. OpenAI/HuggingFace key looks like this:
             ```
             {"X-OpenAI-Api-Key": "<THE-KEY>"}, {"X-HuggingFace-Api-Key": "<THE-KEY>"}
             ```
-        :param startup_period: How many seconds the client will wait for Weaviate to start before
-            raising a RequestsConnectionError, defaults to 5.
         :param embedded_options: If set create an embedded Weaviate cluster inside the client, defaults to None.
             For a full list of options see `weaviate.embedded.EmbeddedOptions`.
         :param additional_config: Additional and advanced configuration options for weaviate, defaults to None.
+        :param grpc_port: The port to use for the gRPC connection, defaults to 50051.
+        :param grpc_secure: Whether to use a secure channel for the underlying gRPC API.
         """
-        self._client = weaviate.Client(
-            url=url,
-            auth_client_secret=auth_client_secret.resolve_value() if auth_client_secret else None,
-            timeout_config=timeout_config,
-            proxies=proxies,
-            trust_env=trust_env,
-            additional_headers=additional_headers,
-            startup_period=startup_period,
-            embedded_options=embedded_options,
-            additional_config=additional_config,
+        # proxies, timeout_config, trust_env are part of additional_config now
+        # startup_period has been removed
+        connection_params = weaviate.connect.base.ConnectionParams.from_url(
+            url=url, grpc_port=grpc_port, grpc_secure=grpc_secure
         )
+        self._client = weaviate.WeaviateClient(
+            connection_params=connection_params,
+            auth_client_secret=auth_client_secret.resolve_value() if auth_client_secret else None,
+            additional_config=additional_config,
+            additional_headers=additional_headers,
+            embedded_options=embedded_options,
+            skip_init_checks=False,
+        )
+        self._client.connect()
 
         # Test connection, it will raise an exception if it fails.
         self._client.schema.get()
@@ -147,11 +133,7 @@ class WeaviateDocumentStore:
         self._url = url
         self._collection_settings = collection_settings
         self._auth_client_secret = auth_client_secret
-        self._timeout_config = timeout_config
-        self._proxies = proxies
-        self._trust_env = trust_env
         self._additional_headers = additional_headers
-        self._startup_period = startup_period
         self._embedded_options = embedded_options
         self._additional_config = additional_config
 
@@ -164,11 +146,7 @@ class WeaviateDocumentStore:
             url=self._url,
             collection_settings=self._collection_settings,
             auth_client_secret=self._auth_client_secret.to_dict() if self._auth_client_secret else None,
-            timeout_config=self._timeout_config,
-            proxies=self._proxies,
-            trust_env=self._trust_env,
             additional_headers=self._additional_headers,
-            startup_period=self._startup_period,
             embedded_options=embedded_options,
             additional_config=additional_config,
         )
