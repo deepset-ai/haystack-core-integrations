@@ -104,12 +104,14 @@ class OptimumTextEmbedder:
         self.token = token
         resolved_token = token.resolve_value() if token else None
 
-        self.pooling_mode: Optional[PoolingMode]
-        if isinstance(pooling_mode, str):
+        self.pooling_mode: Optional[PoolingMode] = None
+        if isinstance(pooling_mode, PoolingMode):
+            self.pooling_mode = pooling_mode
+        elif isinstance(pooling_mode, str):
             self.pooling_mode = PoolingMode.from_str(pooling_mode)
-        # Infer pooling mode from model config if not provided,
-        if pooling_mode is None:
+        else:
             self.pooling_mode = HFPoolingMode.get_pooling_mode(model, resolved_token)
+
         # Raise error if pooling mode is not found in model config and not specified by user
         if self.pooling_mode is None:
             modes = {e.value: e for e in PoolingMode}
@@ -129,7 +131,7 @@ class OptimumTextEmbedder:
         # Check if the model_kwargs contain the parameters, otherwise, populate them with values from init parameters
         model_kwargs.setdefault("model_id", model)
         model_kwargs.setdefault("provider", onnx_execution_provider)
-        model_kwargs.setdefault("use_auth_token", token)
+        model_kwargs.setdefault("use_auth_token", resolved_token)
 
         self.model_kwargs = model_kwargs
         self.embedding_backend = None
@@ -161,7 +163,7 @@ class OptimumTextEmbedder:
         )
 
         model_kwargs = serialization_dict["init_parameters"]["model_kwargs"]
-        model_kwargs.pop("token", None)
+        model_kwargs.pop("use_auth_token", None)
 
         serialize_hf_model_kwargs(model_kwargs)
         return serialization_dict
