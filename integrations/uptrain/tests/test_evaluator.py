@@ -112,10 +112,7 @@ def test_evaluator_api(monkeypatch):
     assert eval.api_key == Secret.from_env_var("OPENAI_API_KEY")
 
     eval = UpTrainEvaluator(
-        UpTrainMetric.RESPONSE_COMPLETENESS,
-        api="uptrain",
-        api_key=Secret.from_env_var("UPTRAIN_API_KEY"),
-        project_name="test",
+        UpTrainMetric.RESPONSE_COMPLETENESS, api="uptrain", api_key=Secret.from_env_var("UPTRAIN_API_KEY")
     )
     assert eval.api == "uptrain"
     assert eval.api_key == Secret.from_env_var("UPTRAIN_API_KEY")
@@ -159,7 +156,6 @@ def test_evaluator_serde(os_environ_get):
         "api": "uptrain",
         "api_key": Secret.from_env_var("ENV_VAR", strict=False),
         "api_params": {"eval_name": "test"},
-        "project_name": "test",
     }
     eval = UpTrainEvaluator(**init_params)
     serde_data = eval.to_dict()
@@ -170,7 +166,6 @@ def test_evaluator_serde(os_environ_get):
     assert eval.api_key == new_eval.api_key
     assert eval.metric_params == new_eval.metric_params
     assert eval.api_params == new_eval.api_params
-    assert eval.project_name == new_eval.project_name
     assert type(new_eval._backend_client) == type(eval._backend_client)
     assert type(new_eval._backend_metric) == type(eval._backend_metric)
 
@@ -208,7 +203,6 @@ def test_evaluator_valid_inputs(metric, inputs, params):
         "api": "uptrain",
         "api_key": Secret.from_token("Aaa"),
         "api_params": None,
-        "project_name": "test",
     }
     eval = UpTrainEvaluator(**init_params)
     eval._backend_client = MockBackend([metric])
@@ -237,7 +231,6 @@ def test_evaluator_invalid_inputs(metric, inputs, error_string, params):
             "api": "uptrain",
             "api_key": Secret.from_token("Aaa"),
             "api_params": None,
-            "project_name": "test",
         }
         eval = UpTrainEvaluator(**init_params)
         eval._backend_client = MockBackend([metric])
@@ -314,7 +307,6 @@ def test_evaluator_outputs(metric, inputs, expected_outputs, metric_params):
         "api": "uptrain",
         "api_key": Secret.from_token("Aaa"),
         "api_params": None,
-        "project_name": "test",
     }
     eval = UpTrainEvaluator(**init_params)
     eval._backend_client = MockBackend([metric])
@@ -334,7 +326,6 @@ def test_evaluator_outputs(metric, inputs, expected_outputs, metric_params):
 # This integration test validates the evaluator by running it against the
 # OpenAI API. It is parameterized by the metric, the inputs to the evalutor
 # and the metric parameters.
-@pytest.mark.integration
 @pytest.mark.skipif("OPENAI_API_KEY" not in os.environ, reason="OPENAI_API_KEY not set")
 @pytest.mark.parametrize(
     "metric, inputs, metric_params",

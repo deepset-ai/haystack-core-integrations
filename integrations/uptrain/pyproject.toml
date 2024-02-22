@@ -21,12 +21,7 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
-dependencies = [
-  "haystack-ai>=2.0.0b6",
-  "uptrain==0.5.0",
-  "nest_asyncio",
-  "litellm",
-]
+dependencies = ["haystack-ai>=2.0.0b6", "uptrain==0.5.0"]
 
 [project.urls]
 Source = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/uptrain"

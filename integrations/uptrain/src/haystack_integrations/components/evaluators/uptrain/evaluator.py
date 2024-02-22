@@ -36,7 +36,6 @@ class UpTrainEvaluator:
         api: str = "openai",
         api_key: Secret = Secret.from_env_var("OPENAI_API_KEY"),
         api_params: Optional[Dict[str, Any]] = None,
-        project_name: Optional[str] = None,
     ):
         """
         Construct a new UpTrain evaluator.
@@ -53,8 +52,6 @@ class UpTrainEvaluator:
             The API key to use.
         :param api_params:
             Additional parameters to pass to the API client.
-        :param project_name:
-            Name of the project required when using UpTrain API.
         """
         self.metric = metric if isinstance(metric, UpTrainMetric) else UpTrainMetric.from_str(metric)
         self.metric_params = metric_params
@@ -62,7 +59,6 @@ class UpTrainEvaluator:
         self.api = api
         self.api_key = api_key
         self.api_params = api_params
-        self.project_name = project_name
 
         self._init_backend()
         expected_inputs = self.descriptor.input_parameters
@@ -116,7 +112,7 @@ class UpTrainEvaluator:
         if isinstance(self._backend_client, EvalLLM):
             results = self._backend_client.evaluate(**eval_args)
         else:
-            results = self._backend_client.log_and_evaluate(**eval_args, project_name=self.project_name)
+            results = self._backend_client.log_and_evaluate(**eval_args)
 
         OutputConverters.validate_outputs(results)
         converted_results = [
@@ -148,7 +144,6 @@ class UpTrainEvaluator:
             api=self.api,
             api_key=self.api_key.to_dict(),
             api_params=self.api_params,
-            project_name=self.project_name,
         )
 
     @classmethod
@@ -198,9 +193,6 @@ class UpTrainEvaluator:
         if self.api == "openai":
             backend_client = EvalLLM(openai_api_key=api_key)
         elif self.api == "uptrain":
-            if not self.project_name:
-                msg = "project_name not provided. UpTrain API requires a project name."
-                raise ValueError(msg)
             backend_client = APIClient(uptrain_api_key=api_key)
 
         self._backend_metric = backend_metric
