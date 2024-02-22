@@ -113,7 +113,7 @@ class WeaviateDocumentStore:
         self._client.connect()
 
         # Test connection, it will raise an exception if it fails.
-        self._client.schema.get()
+        self._client.collections._get_all(simple=True)
 
         if collection_settings is None:
             collection_settings = {
@@ -127,8 +127,8 @@ class WeaviateDocumentStore:
             # Set the properties if they're not set
             collection_settings["properties"] = collection_settings.get("properties", DOCUMENT_COLLECTION_PROPERTIES)
 
-        if not self._client.schema.exists(collection_settings["class"]):
-            self._client.schema.create_class(collection_settings)
+        if not self._client.collections.exists(collection_settings["class"]):
+            self._client.collections.create_from_dict(collection_settings)
 
         self._url = url
         self._collection_settings = collection_settings
