@@ -58,11 +58,8 @@ class MongoDBAtlasEmbeddingRetriever:
 
         :param data: the dictionary returned by `MongoDBAtlasEmbeddingRetriever. to_dict()`
         """
-        deserialize_secrets_inplace(
-            data["init_parameters"]["document_store"]["init_parameters"], keys=["mongo_connection_string"]
-        )
-        data["init_parameters"]["document_store"] = default_from_dict(
-            MongoDBAtlasDocumentStore, data["init_parameters"]["document_store"]
+        data["init_parameters"]["document_store"] = MongoDBAtlasDocumentStore.from_dict(
+            data["init_parameters"]["document_store"]
         )
         return default_from_dict(cls, data)
 

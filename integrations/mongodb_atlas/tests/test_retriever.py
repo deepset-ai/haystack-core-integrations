@@ -40,9 +40,8 @@ class TestRetriever:
     def test_to_dict(self, document_store: MongoDBAtlasDocumentStore):
         retriever = MongoDBAtlasEmbeddingRetriever(document_store=document_store, filters={"field": "value"}, top_k=5)
         res = retriever.to_dict()
-        t = "haystack_integrations.components.retrievers.mongodb_atlas.embedding_retriever.MongoDBAtlasEmbeddingRetriever"  # noqa: E501
         assert res == {
-            "type": t,
+            "type": "haystack_integrations.components.retrievers.mongodb_atlas.embedding_retriever.MongoDBAtlasEmbeddingRetriever",  # noqa: E501
             "init_parameters": {
                 "document_store": {
                     "type": "haystack_integrations.document_stores.mongodb_atlas.document_store.MongoDBAtlasDocumentStore",  # noqa: E501
@@ -63,9 +62,8 @@ class TestRetriever:
         }
 
     def test_from_dict(self):
-        t = "haystack_integrations.components.retrievers.mongodb_atlas.embedding_retriever.MongoDBAtlasEmbeddingRetriever"  # noqa: E501
         data = {
-            "type": t,
+            "type": "haystack_integrations.components.retrievers.mongodb_atlas.embedding_retriever.MongoDBAtlasEmbeddingRetriever",  # noqa: E501
             "init_parameters": {
                 "document_store": {
                     "type": "haystack_integrations.document_stores.mongodb_atlas.document_store.MongoDBAtlasDocumentStore",  # noqa: E501
