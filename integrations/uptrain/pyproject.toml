@@ -23,7 +23,7 @@ classifiers = [
 ]
 dependencies = [
   "haystack-ai>=2.0.0b6",
-  "uptrain>=0.5",
+  "uptrain==0.5.0",
   "nest_asyncio",
   "litellm",
 ]
