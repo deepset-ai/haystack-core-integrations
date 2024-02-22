@@ -5,7 +5,6 @@ from typing import Any, Dict, List, Optional
 
 from haystack import component, default_from_dict, default_to_dict
 from haystack.dataclasses import Document
-from haystack.utils import deserialize_secrets_inplace
 from haystack_integrations.document_stores.mongodb_atlas import MongoDBAtlasDocumentStore
 
 
