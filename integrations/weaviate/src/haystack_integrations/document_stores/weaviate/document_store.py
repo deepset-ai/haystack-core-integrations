@@ -136,6 +136,7 @@ class WeaviateDocumentStore:
         self._additional_headers = additional_headers
         self._embedded_options = embedded_options
         self._additional_config = additional_config
+        self._collection = self._client.collections.get(collection_settings["class"])
 
     def to_dict(self) -> Dict[str, Any]:
         embedded_options = asdict(self._embedded_options) if self._embedded_options else None
