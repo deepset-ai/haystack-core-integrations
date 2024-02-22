@@ -15,7 +15,7 @@ from haystack_integrations.components.generators.amazon_bedrock.adapters import 
 
 
 @pytest.mark.unit
-def test_to_dict(mock_auto_tokenizer, mock_boto3_session, set_env_variables):
+def test_to_dict(mock_boto3_session, set_env_variables):
     """
     Test that the to_dict method returns the correct dictionary without aws credentials
     """
