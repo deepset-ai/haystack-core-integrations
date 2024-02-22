@@ -6,9 +6,9 @@ from typing import Any, Callable, ClassVar, Dict, List, Optional, Type
 import boto3
 from botocore.exceptions import BotoCoreError, ClientError
 from haystack import component, default_from_dict, default_to_dict
-from haystack.utils.callable_serialization import serialize_callable, deserialize_callable
 from haystack.dataclasses import ChatMessage, StreamingChunk
 from haystack.utils.auth import Secret, deserialize_secrets_inplace
+from haystack.utils.callable_serialization import deserialize_callable, serialize_callable
 
 from haystack_integrations.components.generators.amazon_bedrock.errors import (
     AmazonBedrockConfigurationError,
