@@ -215,3 +215,32 @@ class TestAmazonBedrockDocumentEmbedder:
         for i, doc in enumerate(result):
             assert doc.content == docs[i].content
             assert doc.embedding == [0.1, 0.2, 0.3] if i % 2 == 0 else [0.4, 0.5, 0.6]
+
+    def test_embed_titan(self, mock_boto3_session):
+        embedder = AmazonBedrockDocumentEmbedder(model="amazon.titan-embed-text-v1")
+
+        mock_response = {
+            "body": io.StringIO('{"embedding": [0.1, 0.2, 0.3]}'),
+        }
+
+        def mock_invoke_model(*args, **kwargs):
+            # since the response body is read in the method, we need to reset the StringIO object
+            mock_response["body"].seek(0)
+            return mock_response
+
+        with patch.object(embedder, "_client") as mock_client:
+            mock_client.invoke_model.side_effect = mock_invoke_model
+
+            docs = [Document(content="some text"), Document(content="some other text")]
+
+            result = embedder._embed_titan(documents=docs)
+
+        assert mock_client.invoke_model.call_count == 2
+        assert mock_client.invoke_model.call_args_list[0][1]["modelId"] == "amazon.titan-embed-text-v1"
+        assert mock_client.invoke_model.call_args_list[0][1]["body"] == '{"inputText": "some text"}'
+        assert mock_client.invoke_model.call_args_list[1][1]["modelId"] == "amazon.titan-embed-text-v1"
+        assert mock_client.invoke_model.call_args_list[1][1]["body"] == '{"inputText": "some other text"}'
+
+        for i, doc in enumerate(result):
+            assert doc.content == docs[i].content
+            assert doc.embedding == [0.1, 0.2, 0.3]
