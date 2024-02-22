@@ -3,8 +3,8 @@ from typing import Any, Callable, Dict, List, Optional
 
 import requests
 from haystack import component, default_from_dict, default_to_dict
-from haystack.utils.callable_serialization import deserialize_callable, serialize_callable
 from haystack.dataclasses import StreamingChunk
+from haystack.utils.callable_serialization import deserialize_callable, serialize_callable
 from requests import Response
 
 
