@@ -3,7 +3,6 @@ from enum import Enum
 from typing import Optional
 
 import torch
-from haystack.utils import Secret
 from huggingface_hub import hf_hub_download
 from sentence_transformers.models import Pooling as PoolingLayer
 
@@ -59,7 +58,7 @@ class HFPoolingMode:
     """
 
     @staticmethod
-    def get_pooling_mode(model: str, token: Optional[Secret] = None) -> Optional[PoolingMode]:
+    def get_pooling_mode(model: str, token: Optional[str] = None) -> Optional[PoolingMode]:
         """
         Gets the pooling mode of the model from the Hugging Face Hub.
 
@@ -71,9 +70,7 @@ class HFPoolingMode:
             The pooling mode.
         """
         try:
-            pooling_config_path = hf_hub_download(
-                repo_id=model, token=token.resolve_value() if token else None, filename="1_Pooling/config.json"
-            )
+            pooling_config_path = hf_hub_download(repo_id=model, token=token, filename="1_Pooling/config.json")
 
             with open(pooling_config_path) as f:
                 pooling_config = json.load(f)

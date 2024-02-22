@@ -3,6 +3,7 @@ from typing import Any, Dict, List, Optional, Union
 from haystack import component, default_from_dict, default_to_dict
 from haystack.utils import Secret, deserialize_secrets_inplace
 from haystack.utils.hf import HFModelType, check_valid_model, deserialize_hf_model_kwargs, serialize_hf_model_kwargs
+
 from .optimum_backend import OptimumEmbeddingBackend
 from .pooling import HFPoolingMode, PoolingMode
 
@@ -101,13 +102,14 @@ class OptimumTextEmbedder:
         self.model = model
 
         self.token = token
-        token = token.resolve_value() if token else None
+        resolved_token = token.resolve_value() if token else None
 
+        self.pooling_mode: Optional[PoolingMode]
         if isinstance(pooling_mode, str):
             self.pooling_mode = PoolingMode.from_str(pooling_mode)
         # Infer pooling mode from model config if not provided,
         if pooling_mode is None:
-            self.pooling_mode = HFPoolingMode.get_pooling_mode(model, token)
+            self.pooling_mode = HFPoolingMode.get_pooling_mode(model, resolved_token)
         # Raise error if pooling mode is not found in model config and not specified by user
         if self.pooling_mode is None:
             modes = {e.value: e for e in PoolingMode}
@@ -145,6 +147,7 @@ class OptimumTextEmbedder:
         """
         Serialize this component to a dictionary.
         """
+        assert self.pooling_mode is not None
         serialization_dict = default_to_dict(
             self,
             model=self.model,

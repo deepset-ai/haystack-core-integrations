@@ -128,11 +128,14 @@ ignore = [
   "PLR0912",
   "PLR0913",
   "PLR0915",
+  # Asserts
+  "S101",
 ]
 unfixable = [
   # Don't touch unused imports
   "F401",
 ]
+extend-exclude = ["tests", "example"]
 
 [tool.ruff.lint.flake8-tidy-imports]
 ban-relative-imports = "parents"

@@ -3,10 +3,12 @@ from typing import Any, Dict, List, Optional, Union
 import numpy as np
 import torch
 from haystack.utils.auth import Secret
-from .pooling import Pooling, PoolingMode
-from optimum.onnxruntime import ORTModelForFeatureExtraction
 from tqdm import tqdm
 from transformers import AutoTokenizer
+
+from optimum.onnxruntime import ORTModelForFeatureExtraction
+
+from .pooling import Pooling, PoolingMode
 
 
 class OptimumEmbeddingBackend:
