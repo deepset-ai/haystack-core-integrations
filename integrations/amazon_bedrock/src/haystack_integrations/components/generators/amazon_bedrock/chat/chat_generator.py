@@ -5,9 +5,9 @@ from typing import Any, Callable, ClassVar, Dict, List, Optional, Type
 
 from botocore.exceptions import ClientError
 from haystack import component, default_from_dict, default_to_dict
-from haystack.components.generators.utils import deserialize_callback_handler, serialize_callback_handler
 from haystack.dataclasses import ChatMessage, StreamingChunk
 from haystack.utils.auth import Secret, deserialize_secrets_inplace
+from haystack.utils.callable_serialization import deserialize_callable, serialize_callable
 
 from haystack_integrations.common.amazon_bedrock.errors import (
     AmazonBedrockConfigurationError,
@@ -192,7 +192,7 @@ class AmazonBedrockChatGenerator:
             model=self.model,
             stop_words=self.stop_words,
             generation_kwargs=self.model_adapter.generation_kwargs,
-            streaming_callback=serialize_callback_handler(self.streaming_callback),
+            streaming_callback=serialize_callable(self.streaming_callback),
         )
 
     @classmethod
@@ -205,7 +205,7 @@ class AmazonBedrockChatGenerator:
         init_params = data.get("init_parameters", {})
         serialized_callback_handler = init_params.get("streaming_callback")
         if serialized_callback_handler:
-            data["init_parameters"]["streaming_callback"] = deserialize_callback_handler(serialized_callback_handler)
+            data["init_parameters"]["streaming_callback"] = deserialize_callable(serialized_callback_handler)
         deserialize_secrets_inplace(
             data["init_parameters"],
             ["aws_access_key_id", "aws_secret_access_key", "aws_session_token", "aws_region_name", "aws_profile_name"],
