@@ -1,4 +1,4 @@
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -10,14 +10,6 @@ def set_env_variables(monkeypatch):
     monkeypatch.setenv("AWS_SESSION_TOKEN", "some_fake_token")
     monkeypatch.setenv("AWS_DEFAULT_REGION", "fake_region")
     monkeypatch.setenv("AWS_PROFILE", "some_fake_profile")
-
-
-@pytest.fixture
-def mock_auto_tokenizer():
-    with patch("transformers.AutoTokenizer.from_pretrained", autospec=True) as mock_from_pretrained:
-        mock_tokenizer = MagicMock()
-        mock_from_pretrained.return_value = mock_tokenizer
-        yield mock_tokenizer
 
 
 # create a fixture with mocked boto3 client and session
