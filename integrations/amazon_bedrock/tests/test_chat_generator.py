@@ -1,5 +1,4 @@
 from typing import Optional, Type
-from unittest.mock import MagicMock, patch
 
 import pytest
 from haystack.components.generators.utils import print_streaming_chunk
@@ -15,30 +14,7 @@ from haystack_integrations.components.generators.amazon_bedrock.chat.adapters im
 clazz = "haystack_integrations.components.generators.amazon_bedrock.chat.chat_generator.AmazonBedrockChatGenerator"
 
 
-@pytest.fixture
-def mock_auto_tokenizer():
-    with patch("transformers.AutoTokenizer.from_pretrained", autospec=True) as mock_from_pretrained:
-        mock_tokenizer = MagicMock()
-        mock_from_pretrained.return_value = mock_tokenizer
-        yield mock_tokenizer
-
-
-# create a fixture with mocked boto3 client and session
-@pytest.fixture
-def mock_boto3_session():
-    with patch("boto3.Session") as mock_client:
-        yield mock_client
-
-
-@pytest.fixture
-def mock_prompt_handler():
-    with patch(
-        "haystack_integrations.components.generators.amazon_bedrock.handlers.DefaultPromptHandler"
-    ) as mock_prompt_handler:
-        yield mock_prompt_handler
-
-
-def test_to_dict(mock_auto_tokenizer, mock_boto3_session, set_env_variables):
+def test_to_dict(mock_boto3_session):
     """
     Test that the to_dict method returns the correct dictionary without aws credentials
     """
@@ -58,14 +34,14 @@ def test_to_dict(mock_auto_tokenizer, mock_boto3_session, set_env_variables):
             "model": "anthropic.claude-v2",
             "generation_kwargs": {"temperature": 0.7},
             "stop_words": [],
-            "streaming_callback": print_streaming_chunk,
+            "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
         },
     }
 
     assert generator.to_dict() == expected_dict
 
 
-def test_from_dict(mock_auto_tokenizer, mock_boto3_session):
+def test_from_dict(mock_boto3_session):
     """
     Test that the from_dict method returns the correct object
     """
@@ -89,7 +65,7 @@ def test_from_dict(mock_auto_tokenizer, mock_boto3_session):
     assert generator.streaming_callback == print_streaming_chunk
 
 
-def test_default_constructor(mock_auto_tokenizer, mock_boto3_session, set_env_variables):
+def test_default_constructor(mock_boto3_session, set_env_variables):
     """
     Test that the default constructor sets the correct values
     """
@@ -116,7 +92,7 @@ def test_default_constructor(mock_auto_tokenizer, mock_boto3_session, set_env_va
     )
 
 
-def test_constructor_with_generation_kwargs(mock_auto_tokenizer, mock_boto3_session):
+def test_constructor_with_generation_kwargs(mock_boto3_session):
     """
     Test that model_kwargs are correctly set in the constructor
     """
@@ -135,8 +111,7 @@ def test_constructor_with_empty_model():
         AmazonBedrockChatGenerator(model="")
 
 
-@pytest.mark.unit
-def test_invoke_with_no_kwargs(mock_auto_tokenizer, mock_boto3_session):
+def test_invoke_with_no_kwargs(mock_boto3_session):
     """
     Test invoke raises an error if no messages are provided
     """
@@ -145,7 +120,6 @@ def test_invoke_with_no_kwargs(mock_auto_tokenizer, mock_boto3_session):
         layer.invoke()
 
 
-@pytest.mark.unit
 @pytest.mark.parametrize(
     "model, expected_model_adapter",
     [
@@ -168,7 +142,7 @@ def test_get_model_adapter(model: str, expected_model_adapter: Optional[Type[Bed
 
 
 class TestAnthropicClaudeAdapter:
-    def test_prepare_body_with_default_params(self, mock_auto_tokenizer) -> None:
+    def test_prepare_body_with_default_params(self) -> None:
         layer = AnthropicClaudeChatAdapter(generation_kwargs={})
         prompt = "Hello, how are you?"
         expected_body = {
@@ -181,7 +155,7 @@ class TestAnthropicClaudeAdapter:
 
         assert body == expected_body
 
-    def test_prepare_body_with_custom_inference_params(self, mock_auto_tokenizer) -> None:
+    def test_prepare_body_with_custom_inference_params(self) -> None:
         layer = AnthropicClaudeChatAdapter(generation_kwargs={"temperature": 0.7, "top_p": 0.8, "top_k": 4})
         prompt = "Hello, how are you?"
         expected_body = {

@@ -14,8 +14,7 @@ from haystack_integrations.components.generators.amazon_bedrock.adapters import 
 )
 
 
-@pytest.mark.unit
-def test_to_dict(mock_boto3_session, set_env_variables):
+def test_to_dict(mock_boto3_session):
     """
     Test that the to_dict method returns the correct dictionary without aws credentials
     """
@@ -40,8 +39,7 @@ def test_to_dict(mock_boto3_session, set_env_variables):
     assert generator.to_dict() == expected_dict
 
 
-@pytest.mark.unit
-def test_from_dict(mock_auto_tokenizer, mock_boto3_session, set_env_variables):
+def test_from_dict(mock_boto3_session):
     """
     Test that the from_dict method returns the correct object
     """
@@ -64,8 +62,7 @@ def test_from_dict(mock_auto_tokenizer, mock_boto3_session, set_env_variables):
     assert generator.model == "anthropic.claude-v2"
 
 
-@pytest.mark.unit
-def test_default_constructor(mock_auto_tokenizer, mock_boto3_session, set_env_variables):
+def test_default_constructor(mock_boto3_session, set_env_variables):
     """
     Test that the default constructor sets the correct values
     """
@@ -94,8 +91,7 @@ def test_default_constructor(mock_auto_tokenizer, mock_boto3_session, set_env_va
     )
 
 
-@pytest.mark.unit
-def test_constructor_prompt_handler_initialized(mock_auto_tokenizer, mock_boto3_session, mock_prompt_handler):
+def test_constructor_prompt_handler_initialized(mock_boto3_session, mock_prompt_handler):
     """
     Test that the constructor sets the prompt_handler correctly, with the correct model_max_length for llama-2
     """
@@ -104,8 +100,7 @@ def test_constructor_prompt_handler_initialized(mock_auto_tokenizer, mock_boto3_
     assert layer.prompt_handler.model_max_length == 4096
 
 
-@pytest.mark.unit
-def test_constructor_with_model_kwargs(mock_auto_tokenizer, mock_boto3_session):
+def test_constructor_with_model_kwargs(mock_boto3_session):
     """
     Test that model_kwargs are correctly set in the constructor
     """
@@ -116,7 +111,6 @@ def test_constructor_with_model_kwargs(mock_auto_tokenizer, mock_boto3_session):
     assert layer.model_adapter.model_kwargs["temperature"] == 0.7
 
 
-@pytest.mark.unit
 def test_constructor_with_empty_model():
     """
     Test that the constructor raises an error when the model is empty
@@ -125,8 +119,7 @@ def test_constructor_with_empty_model():
         AmazonBedrockGenerator(model="")
 
 
-@pytest.mark.unit
-def test_invoke_with_no_kwargs(mock_auto_tokenizer, mock_boto3_session):
+def test_invoke_with_no_kwargs(mock_boto3_session):
     """
     Test invoke raises an error if no prompt is provided
     """
@@ -135,7 +128,6 @@ def test_invoke_with_no_kwargs(mock_auto_tokenizer, mock_boto3_session):
         layer.invoke()
 
 
-@pytest.mark.unit
 def test_short_prompt_is_not_truncated(mock_boto3_session):
     """
     Test that a short prompt is not truncated
@@ -166,7 +158,6 @@ def test_short_prompt_is_not_truncated(mock_boto3_session):
     assert prompt_after_resize == mock_prompt_text
 
 
-@pytest.mark.unit
 def test_long_prompt_is_truncated(mock_boto3_session):
     """
     Test that a long prompt is truncated
@@ -201,7 +192,6 @@ def test_long_prompt_is_truncated(mock_boto3_session):
     assert prompt_after_resize == truncated_prompt_text
 
 
-@pytest.mark.unit
 @pytest.mark.parametrize(
     "model, expected_model_adapter",
     [
