@@ -47,7 +47,7 @@ class AmazonBedrockDocumentEmbedder:
 
     # [0.002, 0.032, 0.504, ...]
     ```
-    """    
+    """
 
     def __init__(
         self,
@@ -83,15 +83,15 @@ class AmazonBedrockDocumentEmbedder:
         :param aws_session_token: AWS session token.
         :param aws_region_name: AWS region name.
         :param aws_profile_name: AWS profile name.
-        :param batch_size: Number of Documents to encode at once. Default is 32. 
-            Only Cohere models support batch inference. This parameter is ignored for Amazon Titan models. 
+        :param batch_size: Number of Documents to encode at once. Default is 32.
+            Only Cohere models support batch inference. This parameter is ignored for Amazon Titan models.
         :param progress_bar: Whether to show a progress bar or not. Can be helpful to disable in production deployments
             to keep the logs clean.
         :param meta_fields_to_embed: List of meta fields that should be embedded along with the Document text.
         :param embedding_separator: Separator used to concatenate the meta fields to the Document text.
         :param kwargs: Additional parameters to pass for model inference. For example, `input_type` and `truncate` for
             Cohere models.
-        """        
+        """
 
         if not model or model not in SUPPORTED_EMBEDDING_MODELS:
             msg = "Please provide a valid model from the list of supported models: " + ", ".join(
