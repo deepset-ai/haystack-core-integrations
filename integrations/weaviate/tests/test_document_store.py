@@ -245,9 +245,11 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
                 },
                 "additional_config": {
                     "grpc_port_experimental": 12345,
+                    'grpc_secure_experimental': False,
                     "connection_config": {
                         "session_pool_connections": 20,
-                        "session_pool_maxsize": 20,
+                        "session_pool_maxsize": 100,
+                        'session_pool_max_retries': 3,
                     },
                 },
             },
