@@ -111,9 +111,6 @@ class Pooling:
         """
         Perform pooling on the output of the embedding model.
 
-        :param pooling_mode: The pooling mode to use.
-        :param attention_mask: The attention mask of the tokenized text.
-        :param model_output: The output of the embedding model.
         :return: The embeddings of the text after pooling.
         """
         pooling_func_map = {
