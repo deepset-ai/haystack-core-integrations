@@ -3,10 +3,9 @@ loaders:
     search_path: [../src]
     modules:
       [
-        "haystack_integrations.components.embedders.optimum_backend",
-        "haystack_integrations.components.embedders.optimum_document_embedder",
-        "haystack_integrations.components.embedders.optimum_text_embedder",
-        "haystack_integrations.components.embedders.pooling",
+        "haystack_integrations.components.embedders.optimum.optimum_document_embedder",
+        "haystack_integrations.components.embedders.optimum.optimum_text_embedder",
+        "haystack_integrations.components.embedders.optimum.pooling",
       ]
     ignore_when_discovered: ["__init__"]
 processors:
@@ -15,6 +14,8 @@ processors:
     documented_only: true
     do_not_filter_modules: false
     skip_empty_modules: true
+  - type: filter
+    expression: "name not in ['Pooling', 'POOLING_MODES_MAP', 'INVERSE_POOLING_MODES_MAP', 'HFPoolingMode']"
   - type: smart
   - type: crossref
 renderer:
