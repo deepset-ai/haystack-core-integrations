@@ -84,67 +84,62 @@ class TestAmazonBedrockTextEmbedder:
         assert embedder.model == "cohere.embed-english-v3"
         assert embedder.kwargs == {"input_type": "search_query"}
 
+    def test_init_invalid_model(self):
+        with pytest.raises(ValueError):
+            AmazonBedrockTextEmbedder(model="")
 
-def test_init_invalid_model():
-    with pytest.raises(ValueError):
-        AmazonBedrockTextEmbedder(model="")
+        with pytest.raises(ValueError):
+            AmazonBedrockTextEmbedder(model="my-unsupported-model")
 
-    with pytest.raises(ValueError):
-        AmazonBedrockTextEmbedder(model="my-unsupported-model")
+    def test_run_wrong_type(self, mock_boto3_session):
+        embedder = AmazonBedrockTextEmbedder(model="cohere.embed-english-v3")
+        with pytest.raises(TypeError):
+            embedder.run(text=123)
 
+    def test_cohere_invocation(self, mock_boto3_session):
+        embedder = AmazonBedrockTextEmbedder(model="cohere.embed-english-v3")
 
-def test_run_wrong_type(mock_boto3_session):
-    embedder = AmazonBedrockTextEmbedder(model="cohere.embed-english-v3")
-    with pytest.raises(TypeError):
-        embedder.run(text=123)
+        with patch.object(embedder._client, "invoke_model") as mock_invoke_model:
+            mock_invoke_model.return_value = {
+                "body": io.StringIO('{"embeddings": [[0.1, 0.2, 0.3]]}'),
+            }
+            result = embedder.run(text="some text")
 
+            mock_invoke_model.assert_called_once_with(
+                body='{"texts": ["some text"], "input_type": "search_query"}',
+                modelId="cohere.embed-english-v3",
+                accept="*/*",
+                contentType="application/json",
+            )
 
-def test_cohere_invocation(mock_boto3_session):
-    embedder = AmazonBedrockTextEmbedder(model="cohere.embed-english-v3")
+            assert result == {"embedding": [0.1, 0.2, 0.3]}
 
-    with patch.object(embedder._client, "invoke_model") as mock_invoke_model:
-        mock_invoke_model.return_value = {
-            "body": io.StringIO('{"embeddings": [[0.1, 0.2, 0.3]]}'),
-        }
-        result = embedder.run(text="some text")
+    def test_titan_invocation(self, mock_boto3_session):
+        embedder = AmazonBedrockTextEmbedder(model="amazon.titan-embed-text-v1")
 
-        mock_invoke_model.assert_called_once_with(
-            body='{"texts": ["some text"], "input_type": "search_query"}',
-            modelId="cohere.embed-english-v3",
-            accept="*/*",
-            contentType="application/json",
-        )
+        with patch.object(embedder._client, "invoke_model") as mock_invoke_model:
+            mock_invoke_model.return_value = {
+                "body": io.StringIO('{"embedding": [0.1, 0.2, 0.3]}'),
+            }
+            result = embedder.run(text="some text")
 
-        assert result == {"embedding": [0.1, 0.2, 0.3]}
+            mock_invoke_model.assert_called_once_with(
+                body='{"inputText": "some text"}',
+                modelId="amazon.titan-embed-text-v1",
+                accept="*/*",
+                contentType="application/json",
+            )
 
+            assert result == {"embedding": [0.1, 0.2, 0.3]}
 
-def test_titan_invocation(mock_boto3_session):
-    embedder = AmazonBedrockTextEmbedder(model="amazon.titan-embed-text-v1")
+    def test_run_invocation_error(self, mock_boto3_session):
+        embedder = AmazonBedrockTextEmbedder(model="cohere.embed-english-v3")
 
-    with patch.object(embedder._client, "invoke_model") as mock_invoke_model:
-        mock_invoke_model.return_value = {
-            "body": io.StringIO('{"embedding": [0.1, 0.2, 0.3]}'),
-        }
-        result = embedder.run(text="some text")
+        with patch.object(embedder._client, "invoke_model") as mock_invoke_model:
+            mock_invoke_model.side_effect = ClientError(
+                error_response={"Error": {"Code": "some_code", "Message": "some_message"}},
+                operation_name="some_operation",
+            )
 
-        mock_invoke_model.assert_called_once_with(
-            body='{"inputText": "some text"}',
-            modelId="amazon.titan-embed-text-v1",
-            accept="*/*",
-            contentType="application/json",
-        )
-
-        assert result == {"embedding": [0.1, 0.2, 0.3]}
-
-
-def test_run_invocation_error(mock_boto3_session):
-    embedder = AmazonBedrockTextEmbedder(model="cohere.embed-english-v3")
-
-    with patch.object(embedder._client, "invoke_model") as mock_invoke_model:
-        mock_invoke_model.side_effect = ClientError(
-            error_response={"Error": {"Code": "some_code", "Message": "some_message"}},
-            operation_name="some_operation",
-        )
-
-        with pytest.raises(AmazonBedrockInferenceError):
-            embedder.run(text="some text")
+            with pytest.raises(AmazonBedrockInferenceError):
+                embedder.run(text="some text")
