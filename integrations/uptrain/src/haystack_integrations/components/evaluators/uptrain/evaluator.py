@@ -198,7 +198,7 @@ class UpTrainEvaluator:
             backend_client = EvalLLM(openai_api_key=api_key)
         elif self.api == "uptrain":
             if not self.project_name:
-                msg = f"project_name not provided. UpTrain API requires a project name."
+                msg = "project_name not provided. UpTrain API requires a project name."
                 raise ValueError(msg)
             backend_client = APIClient(uptrain_api_key=api_key)
 
