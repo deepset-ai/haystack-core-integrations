@@ -39,11 +39,11 @@ packages = ["src/haystack_integrations"]
 
 [tool.hatch.version]
 source = "vcs"
-tag-pattern = 'integrations\/mongodb-atlas-v(?P<version>.*)'
+tag-pattern = 'integrations\/mongodb_atlas-v(?P<version>.*)'
 
 [tool.hatch.version.raw-options]
 root = "../.."
-git_describe_command = 'git describe --tags --match="integrations/mongodb-atlas-v[0-9]*"'
+git_describe_command = 'git describe --tags --match="integrations/mongodb_atlas-v[0-9]*"'
 
 [tool.hatch.envs.default]
 dependencies = [
