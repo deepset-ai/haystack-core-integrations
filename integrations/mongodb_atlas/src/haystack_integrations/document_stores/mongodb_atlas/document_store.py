@@ -11,7 +11,6 @@ from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumen
 from haystack.document_stores.types import DuplicatePolicy
 from haystack.utils import Secret, deserialize_secrets_inplace
 from haystack_integrations.document_stores.mongodb_atlas.filters import haystack_filters_to_mongo
-from numpy import array, float32
 from pymongo import InsertOne, MongoClient, ReplaceOne, UpdateOne  # type: ignore
 from pymongo.driver_info import DriverInfo  # type: ignore
 from pymongo.errors import BulkWriteError  # type: ignore
@@ -174,15 +173,13 @@ class MongoDBAtlasDocumentStore:
             msg = "Query embedding must not be empty"
             raise ValueError(msg)
 
-        query_embedding_np = array(query_embedding).astype(float32)
-
         filters = haystack_filters_to_mongo(filters)
         pipeline = [
             {
                 "$vectorSearch": {
                     "index": self.vector_search_index,
                     "path": "embedding",
-                    "queryVector": query_embedding_np.tolist(),
+                    "queryVector": query_embedding,
                     "numCandidates": 100,
                     "limit": top_k,
                     # "filter": filters,
