@@ -153,8 +153,8 @@ branch = true
 parallel = true
 
 [tool.coverage.paths]
-optimum = ["src/haystack_integrations", "*/optimum/src/haystack_integrations"]
-tests = ["tests", "*/optimum/tests"]
+optimum = ["src/haystack_integrations"]
+tests = ["tests"]
 
 [tool.coverage.report]
 exclude_lines = ["no cov", "if __name__ == .__main__.:", "if TYPE_CHECKING:"]
