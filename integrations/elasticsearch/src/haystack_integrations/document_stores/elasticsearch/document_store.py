@@ -13,6 +13,7 @@ from haystack.dataclasses import Document
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
 from haystack.utils.filters import convert
+from haystack.version import __version__ as haystack_version
 
 from elasticsearch import Elasticsearch, helpers  # type: ignore[import-not-found]
 
@@ -90,7 +91,11 @@ class ElasticsearchDocumentStore:
         :param **kwargs: Optional arguments that ``Elasticsearch`` takes.
         """
         self._hosts = hosts
-        self._client = Elasticsearch(hosts, **kwargs)
+        self._client = Elasticsearch(
+            hosts,
+            headers={"user-agent": f"haystack-py-ds/{haystack_version}"},
+            **kwargs,
+        )
         self._index = index
         self._embedding_similarity_function = embedding_similarity_function
         self._kwargs = kwargs
