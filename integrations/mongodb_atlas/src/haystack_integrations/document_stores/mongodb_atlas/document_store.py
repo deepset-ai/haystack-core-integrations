@@ -5,13 +5,13 @@ import logging
 import re
 from typing import Any, Dict, List, Optional, Union
 
-from numpy import array, float32
 from haystack import default_from_dict, default_to_dict
 from haystack.dataclasses.document import Document
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
 from haystack.utils import Secret, deserialize_secrets_inplace
 from haystack_integrations.document_stores.mongodb_atlas.filters import haystack_filters_to_mongo
+from numpy import array, float32
 from pymongo import InsertOne, MongoClient, ReplaceOne, UpdateOne  # type: ignore
 from pymongo.driver_info import DriverInfo  # type: ignore
 from pymongo.errors import BulkWriteError  # type: ignore
