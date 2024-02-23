@@ -5,7 +5,7 @@ import logging
 import re
 from typing import Any, Dict, List, Optional, Union
 
-import numpy as np
+from numpy import array, float32
 from haystack import default_from_dict, default_to_dict
 from haystack.dataclasses.document import Document
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
@@ -174,7 +174,7 @@ class MongoDBAtlasDocumentStore:
             msg = "Query embedding must not be empty"
             raise ValueError(msg)
 
-        query_embedding_np = np.array(query_embedding).astype(np.float32)
+        query_embedding_np = array(query_embedding).astype(float32)
 
         filters = haystack_filters_to_mongo(filters)
         pipeline = [
