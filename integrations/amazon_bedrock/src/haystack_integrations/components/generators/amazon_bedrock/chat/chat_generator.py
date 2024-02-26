@@ -3,30 +3,21 @@ import logging
 import re
 from typing import Any, Callable, ClassVar, Dict, List, Optional, Type
 
-import boto3
-from botocore.exceptions import BotoCoreError, ClientError
+from botocore.exceptions import ClientError
 from haystack import component, default_from_dict, default_to_dict
-from haystack.components.generators.utils import deserialize_callback_handler, serialize_callback_handler
 from haystack.dataclasses import ChatMessage, StreamingChunk
 from haystack.utils.auth import Secret, deserialize_secrets_inplace
+from haystack.utils.callable_serialization import deserialize_callable, serialize_callable
 
-from haystack_integrations.components.generators.amazon_bedrock.errors import (
+from haystack_integrations.common.amazon_bedrock.errors import (
     AmazonBedrockConfigurationError,
     AmazonBedrockInferenceError,
-    AWSConfigurationError,
 )
+from haystack_integrations.common.amazon_bedrock.utils import get_aws_session
 
 from .adapters import AnthropicClaudeChatAdapter, BedrockModelChatAdapter, MetaLlama2ChatAdapter
 
 logger = logging.getLogger(__name__)
-
-AWS_CONFIGURATION_KEYS = [
-    "aws_access_key_id",
-    "aws_secret_access_key",
-    "aws_session_token",
-    "aws_region_name",
-    "aws_profile_name",
-]
 
 
 @component
@@ -123,7 +114,7 @@ class AmazonBedrockChatGenerator:
             return secret.resolve_value() if secret else None
 
         try:
-            session = self.get_aws_session(
+            session = get_aws_session(
                 aws_access_key_id=resolve_secret(aws_access_key_id),
                 aws_secret_access_key=resolve_secret(aws_secret_access_key),
                 aws_session_token=resolve_secret(aws_session_token),
@@ -186,53 +177,6 @@ class AmazonBedrockChatGenerator:
                 return adapter
         return None
 
-    @classmethod
-    def aws_configured(cls, **kwargs) -> bool:
-        """
-        Checks whether AWS configuration is provided.
-        :param kwargs: The kwargs passed down to the generator.
-        :return: True if AWS configuration is provided, False otherwise.
-        """
-        aws_config_provided = any(key in kwargs for key in AWS_CONFIGURATION_KEYS)
-        return aws_config_provided
-
-    @classmethod
-    def get_aws_session(
-        cls,
-        aws_access_key_id: Optional[str] = None,
-        aws_secret_access_key: Optional[str] = None,
-        aws_session_token: Optional[str] = None,
-        aws_region_name: Optional[str] = None,
-        aws_profile_name: Optional[str] = None,
-        **kwargs,
-    ):
-        """
-        Creates an AWS Session with the given parameters.
-        Checks if the provided AWS credentials are valid and can be used to connect to AWS.
-
-        :param aws_access_key_id: AWS access key ID.
-        :param aws_secret_access_key: AWS secret access key.
-        :param aws_session_token: AWS session token.
-        :param aws_region_name: AWS region name.
-        :param aws_profile_name: AWS profile name.
-        :param kwargs: The kwargs passed down to the service client. Supported kwargs depend on the model chosen.
-            See https://docs.aws.amazon.com/bedrock/latest/userguide/model-parameters.html.
-        :raises AWSConfigurationError: If the provided AWS credentials are invalid.
-        :return: The created AWS session.
-        """
-        try:
-            return boto3.Session(
-                aws_access_key_id=aws_access_key_id,
-                aws_secret_access_key=aws_secret_access_key,
-                aws_session_token=aws_session_token,
-                region_name=aws_region_name,
-                profile_name=aws_profile_name,
-            )
-        except BotoCoreError as e:
-            provided_aws_config = {k: v for k, v in kwargs.items() if k in AWS_CONFIGURATION_KEYS}
-            msg = f"Failed to initialize the session with provided AWS credentials {provided_aws_config}"
-            raise AWSConfigurationError(msg) from e
-
     def to_dict(self) -> Dict[str, Any]:
         """
         Serialize this component to a dictionary.
@@ -248,7 +192,7 @@ class AmazonBedrockChatGenerator:
             model=self.model,
             stop_words=self.stop_words,
             generation_kwargs=self.model_adapter.generation_kwargs,
-            streaming_callback=serialize_callback_handler(self.streaming_callback),
+            streaming_callback=serialize_callable(self.streaming_callback),
         )
 
     @classmethod
@@ -261,7 +205,7 @@ class AmazonBedrockChatGenerator:
         init_params = data.get("init_parameters", {})
         serialized_callback_handler = init_params.get("streaming_callback")
         if serialized_callback_handler:
-            data["init_parameters"]["streaming_callback"] = deserialize_callback_handler(serialized_callback_handler)
+            data["init_parameters"]["streaming_callback"] = deserialize_callable(serialized_callback_handler)
         deserialize_secrets_inplace(
             data["init_parameters"],
             ["aws_access_key_id", "aws_secret_access_key", "aws_session_token", "aws_region_name", "aws_profile_name"],

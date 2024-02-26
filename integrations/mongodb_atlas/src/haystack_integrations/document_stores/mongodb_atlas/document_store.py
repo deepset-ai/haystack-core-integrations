@@ -7,7 +7,7 @@ from typing import Any, Dict, List, Optional, Union
 
 from haystack import default_from_dict, default_to_dict
 from haystack.dataclasses.document import Document
-from haystack.document_stores.errors import DuplicateDocumentError
+from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
 from haystack.utils import Secret, deserialize_secrets_inplace
 from haystack_integrations.document_stores.mongodb_atlas.filters import haystack_filters_to_mongo
@@ -25,7 +25,7 @@ class MongoDBAtlasDocumentStore:
         mongo_connection_string: Secret = Secret.from_env_var("MONGO_CONNECTION_STRING"),  # noqa: B008
         database_name: str,
         collection_name: str,
-        recreate_collection: bool = False,
+        vector_search_index: str,
     ):
         """
         Creates a new MongoDBAtlasDocumentStore instance.
@@ -37,8 +37,11 @@ class MongoDBAtlasDocumentStore:
             This can be obtained on the MongoDB Atlas Dashboard by clicking on the `CONNECT` button.
             This value will be read automatically from the env var "MONGO_CONNECTION_STRING".
         :param database_name: Name of the database to use.
-        :param collection_name: Name of the collection to use.
-        :param recreate_collection: Whether to recreate the collection when initializing the document store.
+        :param collection_name: Name of the collection to use. To use this document store for embedding retrieval,
+            this collection needs to have a vector search index set up on the `embedding` field.
+        :param vector_search_index: The name of the vector search index to use for vector search operations.
+            Create a vector_search_index in the Atlas web UI and specify the init params of MongoDBAtlasDocumentStore. \
+            See https://www.mongodb.com/docs/atlas/atlas-vector-search/create-index/#std-label-avs-create-index
         """
         if collection_name and not bool(re.match(r"^[a-zA-Z0-9\-_]+$", collection_name)):
             msg = f'Invalid collection name: "{collection_name}". It can only contain letters, numbers, -, or _.'
@@ -49,21 +52,16 @@ class MongoDBAtlasDocumentStore:
 
         self.database_name = database_name
         self.collection_name = collection_name
-        self.recreate_collection = recreate_collection
+        self.vector_search_index = vector_search_index
 
         self.connection: MongoClient = MongoClient(
             resolved_connection_string, driver=DriverInfo(name="MongoDBAtlasHaystackIntegration")
         )
         database = self.connection[self.database_name]
 
-        if self.recreate_collection and self.collection_name in database.list_collection_names():
-            database[self.collection_name].drop()
-
-        # Implicitly create the collection if it doesn't exist
         if collection_name not in database.list_collection_names():
-            database.create_collection(self.collection_name)
-            database[self.collection_name].create_index("id", unique=True)
-
+            msg = f"Collection '{collection_name}' does not exist in database '{database_name}'."
+            raise ValueError(msg)
         self.collection = database[self.collection_name]
 
     def to_dict(self) -> Dict[str, Any]:
@@ -75,7 +73,7 @@ class MongoDBAtlasDocumentStore:
             mongo_connection_string=self.mongo_connection_string.to_dict(),
             database_name=self.database_name,
             collection_name=self.collection_name,
-            recreate_collection=self.recreate_collection,
+            vector_search_index=self.vector_search_index,
         )
 
     @classmethod
@@ -157,3 +155,63 @@ class MongoDBAtlasDocumentStore:
         if not document_ids:
             return
         self.collection.delete_many(filter={"id": {"$in": document_ids}})
+
+    def embedding_retrieval(
+        self,
+        query_embedding: List[float],
+        filters: Optional[Dict[str, Any]] = None,
+        top_k: int = 10,
+    ) -> List[Document]:
+        """
+        Find the documents that are most similar to the provided `query_embedding` by using a vector similarity metric.
+
+        :param query_embedding: Embedding of the query
+        :param filters: Optional filters.
+        :param top_k: How many documents to return.
+        """
+        if not query_embedding:
+            msg = "Query embedding must not be empty"
+            raise ValueError(msg)
+
+        filters = haystack_filters_to_mongo(filters)
+        pipeline = [
+            {
+                "$vectorSearch": {
+                    "index": self.vector_search_index,
+                    "path": "embedding",
+                    "queryVector": query_embedding,
+                    "numCandidates": 100,
+                    "limit": top_k,
+                    # "filter": filters,
+                }
+            },
+            {
+                "$project": {
+                    "_id": 0,
+                    "content": 1,
+                    "dataframe": 1,
+                    "blob": 1,
+                    "meta": 1,
+                    "embedding": 1,
+                    "score": {"$meta": "vectorSearchScore"},
+                }
+            },
+        ]
+        try:
+            documents = list(self.collection.aggregate(pipeline))
+        except Exception as e:
+            msg = f"Retrieval of documents from MongoDB Atlas failed: {e}"
+            raise DocumentStoreError(msg) from e
+
+        documents = [self.mongo_doc_to_haystack_doc(doc) for doc in documents]
+        return documents
+
+    def mongo_doc_to_haystack_doc(self, mongo_doc: Dict[str, Any]) -> Document:
+        """
+        Converts the dictionary coming out of MongoDB into a Haystack document
+
+        :param mongo_doc: A dictionary representing a document as stored in MongoDB
+        :return: A Haystack Document object
+        """
+        mongo_doc.pop("_id", None)
+        return Document.from_dict(mongo_doc)

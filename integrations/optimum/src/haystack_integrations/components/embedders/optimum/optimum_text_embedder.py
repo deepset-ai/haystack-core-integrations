@@ -1,10 +1,10 @@
 from typing import Any, Dict, List, Optional, Union
 
 from haystack import component, default_from_dict, default_to_dict
-from haystack.utils import Secret, deserialize_secrets_inplace
-from haystack.utils.hf import HFModelType, check_valid_model, deserialize_hf_model_kwargs, serialize_hf_model_kwargs
-from haystack_integrations.components.embedders.optimum_backend import OptimumEmbeddingBackend
-from haystack_integrations.components.embedders.pooling import HFPoolingMode, PoolingMode
+from haystack.utils import Secret
+
+from ._backend import _EmbedderBackend, _EmbedderParams
+from .pooling import OptimumEmbedderPooling
 
 
 @component
@@ -15,7 +15,7 @@ class OptimumTextEmbedder:
 
     Usage example:
     ```python
-    from haystack_integrations.components.embedders import OptimumTextEmbedder
+    from haystack_integrations.components.optimum.embedders import OptimumTextEmbedder
 
     text_to_embed = "I love pizza!"
 
@@ -48,7 +48,7 @@ class OptimumTextEmbedder:
         suffix: str = "",
         normalize_embeddings: bool = True,
         onnx_execution_provider: str = "CPUExecutionProvider",
-        pooling_mode: Optional[Union[str, PoolingMode]] = None,
+        pooling_mode: Optional[Union[str, OptimumEmbedderPooling]] = None,
         model_kwargs: Optional[Dict[str, Any]] = None,
     ):
         """
@@ -81,96 +81,52 @@ class OptimumTextEmbedder:
             )
             ```
         :param pooling_mode: The pooling mode to use. When None, pooling mode will be inferred from the model config.
-            The supported pooling modes are:
-            - "cls": Perform CLS Pooling on the output of the embedding model. Uses the first token (CLS token) as text
-                representations.
-            - "max": Perform Max Pooling on the output of the embedding model. Uses max in each dimension over all
-                the tokens.
-            - "mean": Perform Mean Pooling on the output of the embedding model.
-            - "mean_sqrt_len": Perform mean-pooling on the output of the embedding model, but divide by sqrt
-                (input_length).
-            - "weighted_mean": Perform Weighted (position) Mean Pooling on the output of the embedding model. See
-                https://arxiv.org/abs/2202.08904.
-            - "last_token": Perform Last Token Pooling on the output of the embedding model. See
-                https://arxiv.org/abs/2202.08904 & https://arxiv.org/abs/2201.10005.
+            Refer to the OptimumEmbedderPooling enum for supported pooling modes.
         :param model_kwargs: Dictionary containing additional keyword arguments to pass to the model.
             In case of duplication, these kwargs override `model`, `onnx_execution_provider`, and `token` initialization
             parameters.
         """
-        check_valid_model(model, HFModelType.EMBEDDING, token)
-        self.model = model
-
-        self.token = token
-        token = token.resolve_value() if token else None
-
-        if isinstance(pooling_mode, str):
-            self.pooling_mode = PoolingMode.from_str(pooling_mode)
-        # Infer pooling mode from model config if not provided,
-        if pooling_mode is None:
-            self.pooling_mode = HFPoolingMode.get_pooling_mode(model, token)
-        # Raise error if pooling mode is not found in model config and not specified by user
-        if self.pooling_mode is None:
-            modes = {e.value: e for e in PoolingMode}
-            msg = (
-                f"Pooling mode not found in model config and not specified by user."
-                f" Supported modes are: {list(modes.keys())}"
-            )
-            raise ValueError(msg)
-
-        self.prefix = prefix
-        self.suffix = suffix
-        self.normalize_embeddings = normalize_embeddings
-        self.onnx_execution_provider = onnx_execution_provider
-
-        model_kwargs = model_kwargs or {}
-
-        # Check if the model_kwargs contain the parameters, otherwise, populate them with values from init parameters
-        model_kwargs.setdefault("model_id", model)
-        model_kwargs.setdefault("provider", onnx_execution_provider)
-        model_kwargs.setdefault("use_auth_token", token)
-
-        self.model_kwargs = model_kwargs
-        self.embedding_backend = None
+        params = _EmbedderParams(
+            model=model,
+            token=token,
+            prefix=prefix,
+            suffix=suffix,
+            normalize_embeddings=normalize_embeddings,
+            onnx_execution_provider=onnx_execution_provider,
+            batch_size=1,
+            progress_bar=False,
+            pooling_mode=pooling_mode,
+            model_kwargs=model_kwargs,
+        )
+        self._backend = _EmbedderBackend(params)
+        self._initialized = False
 
     def warm_up(self):
         """
         Load the embedding backend.
         """
-        if self.embedding_backend is None:
-            self.embedding_backend = OptimumEmbeddingBackend(
-                model=self.model, token=self.token, model_kwargs=self.model_kwargs
-            )
+        if self._initialized:
+            return
+
+        self._backend.warm_up()
+        self._initialized = True
 
     def to_dict(self) -> Dict[str, Any]:
         """
         Serialize this component to a dictionary.
         """
-        serialization_dict = default_to_dict(
-            self,
-            model=self.model,
-            prefix=self.prefix,
-            suffix=self.suffix,
-            normalize_embeddings=self.normalize_embeddings,
-            onnx_execution_provider=self.onnx_execution_provider,
-            pooling_mode=self.pooling_mode.value,
-            model_kwargs=self.model_kwargs,
-            token=self.token.to_dict() if self.token else None,
-        )
-
-        model_kwargs = serialization_dict["init_parameters"]["model_kwargs"]
-        model_kwargs.pop("token", None)
-
-        serialize_hf_model_kwargs(model_kwargs)
-        return serialization_dict
+        init_params = self._backend.parameters.serialize()
+        # Remove init params that are not provided to the text embedder.
+        init_params.pop("batch_size")
+        init_params.pop("progress_bar")
+        return default_to_dict(self, **init_params)
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "OptimumTextEmbedder":
         """
         Deserialize this component from a dictionary.
         """
-        data["init_parameters"]["pooling_mode"] = PoolingMode.from_str(data["init_parameters"]["pooling_mode"])
-        deserialize_secrets_inplace(data["init_parameters"], keys=["token"])
-        deserialize_hf_model_kwargs(data["init_parameters"]["model_kwargs"])
+        _EmbedderParams.deserialize_inplace(data["init_parameters"])
         return default_from_dict(cls, data)
 
     @component.output_types(embedding=List[float])
@@ -181,6 +137,10 @@ class OptimumTextEmbedder:
         :param text: The text to embed.
         :return: The embeddings of the text.
         """
+        if not self._initialized:
+            msg = "The embedding model has not been loaded. Please call warm_up() before running."
+            raise RuntimeError(msg)
+
         if not isinstance(text, str):
             msg = (
                 "OptimumTextEmbedder expects a string as an input. "
@@ -188,14 +148,6 @@ class OptimumTextEmbedder:
             )
             raise TypeError(msg)
 
-        if self.embedding_backend is None:
-            msg = "The embedding model has not been loaded. Please call warm_up() before running."
-            raise RuntimeError(msg)
-
-        text_to_embed = self.prefix + text + self.suffix
-
-        embedding = self.embedding_backend.embed(
-            texts_to_embed=text_to_embed, normalize_embeddings=self.normalize_embeddings, pooling_mode=self.pooling_mode
-        )
-
+        text_to_embed = self._backend.parameters.prefix + text + self._backend.parameters.suffix
+        embedding = self._backend.embed_texts(text_to_embed)
         return {"embedding": embedding}

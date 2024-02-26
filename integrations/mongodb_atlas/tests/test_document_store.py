@@ -2,7 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 import os
-from unittest.mock import patch
 from uuid import uuid4
 
 import pytest
@@ -13,16 +12,31 @@ from haystack.testing.document_store import CountDocumentsTest, DeleteDocumentsT
 from haystack.utils import Secret
 from haystack_integrations.document_stores.mongodb_atlas import MongoDBAtlasDocumentStore
 from pandas import DataFrame
+from pymongo import MongoClient  # type: ignore
+from pymongo.driver_info import DriverInfo  # type: ignore
 
 
 @pytest.fixture
-def document_store(request):
+def document_store():
+    database_name = "haystack_integration_test"
+    collection_name = "test_collection_" + str(uuid4())
+
+    connection: MongoClient = MongoClient(
+        os.environ["MONGO_CONNECTION_STRING"], driver=DriverInfo(name="MongoDBAtlasHaystackIntegration")
+    )
+    database = connection[database_name]
+    if collection_name in database.list_collection_names():
+        database[collection_name].drop()
+    database.create_collection(collection_name)
+    database[collection_name].create_index("id", unique=True)
+
     store = MongoDBAtlasDocumentStore(
-        database_name="haystack_integration_test",
-        collection_name=request.node.name + str(uuid4()),
+        database_name=database_name,
+        collection_name=collection_name,
+        vector_search_index="cosine_index",
     )
     yield store
-    store.collection.drop()
+    database[collection_name].drop()
 
 
 @pytest.mark.skipif(
@@ -30,7 +44,6 @@ def document_store(request):
     reason="No MongoDB Atlas connection string provided",
 )
 class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsTest):
-
     def test_write_documents(self, document_store: MongoDBAtlasDocumentStore):
         docs = [Document(content="some text")]
         assert document_store.write_documents(docs) == 1
@@ -51,13 +64,10 @@ class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsT
         retrieved_docs = document_store.filter_documents()
         assert retrieved_docs == docs
 
-    @patch("haystack_integrations.document_stores.mongodb_atlas.document_store.MongoClient")
-    def test_to_dict(self, _):
-        document_store = MongoDBAtlasDocumentStore(
-            database_name="database_name",
-            collection_name="collection_name",
-        )
-        assert document_store.to_dict() == {
+    def test_to_dict(self, document_store):
+        serialized_store = document_store.to_dict()
+        assert serialized_store["init_parameters"].pop("collection_name").startswith("test_collection_")
+        assert serialized_store == {
             "type": "haystack_integrations.document_stores.mongodb_atlas.document_store.MongoDBAtlasDocumentStore",
             "init_parameters": {
                 "mongo_connection_string": {
@@ -67,14 +77,12 @@ class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsT
                     "strict": True,
                     "type": "env_var",
                 },
-                "database_name": "database_name",
-                "collection_name": "collection_name",
-                "recreate_collection": False,
+                "database_name": "haystack_integration_test",
+                "vector_search_index": "cosine_index",
             },
         }
 
-    @patch("haystack_integrations.document_stores.mongodb_atlas.document_store.MongoClient")
-    def test_from_dict(self, _):
+    def test_from_dict(self):
         docstore = MongoDBAtlasDocumentStore.from_dict(
             {
                 "type": "haystack_integrations.document_stores.mongodb_atlas.document_store.MongoDBAtlasDocumentStore",
@@ -86,13 +94,13 @@ class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsT
                         "strict": True,
                         "type": "env_var",
                     },
-                    "database_name": "database_name",
-                    "collection_name": "collection_name",
-                    "recreate_collection": True,
+                    "database_name": "haystack_integration_test",
+                    "collection_name": "test_embeddings_collection",
+                    "vector_search_index": "cosine_index",
                 },
             }
         )
         assert docstore.mongo_connection_string == Secret.from_env_var("MONGO_CONNECTION_STRING")
-        assert docstore.database_name == "database_name"
-        assert docstore.collection_name == "collection_name"
-        assert docstore.recreate_collection
+        assert docstore.database_name == "haystack_integration_test"
+        assert docstore.collection_name == "test_embeddings_collection"
+        assert docstore.vector_search_index == "cosine_index"

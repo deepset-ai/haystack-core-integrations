@@ -2,10 +2,10 @@ import logging
 from typing import Any, Callable, Dict, List, Optional
 
 from haystack import component, default_from_dict, default_to_dict
-from haystack.components.generators.utils import deserialize_callback_handler, serialize_callback_handler
 from haystack.dataclasses import ChatMessage, ChatRole, StreamingChunk
 from haystack.lazy_imports import LazyImport
 from haystack.utils import Secret, deserialize_secrets_inplace
+from haystack.utils.callable_serialization import deserialize_callable, serialize_callable
 
 with LazyImport(message="Run 'pip install cohere'") as cohere_import:
     import cohere
@@ -92,7 +92,7 @@ class CohereChatGenerator:
         Serialize this component to a dictionary.
         :return: The serialized component as a dictionary.
         """
-        callback_name = serialize_callback_handler(self.streaming_callback) if self.streaming_callback else None
+        callback_name = serialize_callable(self.streaming_callback) if self.streaming_callback else None
         return default_to_dict(
             self,
             model=self.model,
@@ -113,7 +113,7 @@ class CohereChatGenerator:
         deserialize_secrets_inplace(init_params, ["api_key"])
         serialized_callback_handler = init_params.get("streaming_callback")
         if serialized_callback_handler:
-            data["init_parameters"]["streaming_callback"] = deserialize_callback_handler(serialized_callback_handler)
+            data["init_parameters"]["streaming_callback"] = deserialize_callable(serialized_callback_handler)
         return default_from_dict(cls, data)
 
     def _message_to_dict(self, message: ChatMessage) -> Dict[str, str]:

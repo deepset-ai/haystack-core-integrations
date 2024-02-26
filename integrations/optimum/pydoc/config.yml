@@ -3,10 +3,9 @@ loaders:
     search_path: [../src]
     modules:
       [
-        "haystack_integrations.components.embedders.optimum_backend",
-        "haystack_integrations.components.embedders.optimum_document_embedder",
-        "haystack_integrations.components.embedders.optimum_text_embedder",
-        "haystack_integrations.components.embedders.pooling",
+        "haystack_integrations.components.embedders.optimum.optimum_document_embedder",
+        "haystack_integrations.components.embedders.optimum.optimum_text_embedder",
+        "haystack_integrations.components.embedders.optimum.pooling",
       ]
     ignore_when_discovered: ["__init__"]
 processors:

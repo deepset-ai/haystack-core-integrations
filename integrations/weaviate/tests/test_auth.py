@@ -14,7 +14,7 @@ from weaviate.auth import AuthClientPassword as WeaviateAuthClientPassword
 class TestAuthApiKey:
     def test_init(self):
         credentials = AuthApiKey()
-        assert credentials.api_key._env_vars == ["WEAVIATE_API_KEY"]
+        assert credentials.api_key._env_vars == ("WEAVIATE_API_KEY",)
         assert credentials.api_key._strict
 
     def test_to_dict(self):
@@ -33,7 +33,7 @@ class TestAuthApiKey:
             }
         )
         assert isinstance(credentials, AuthApiKey)
-        assert credentials.api_key._env_vars == ["WEAVIATE_API_KEY"]
+        assert credentials.api_key._env_vars == ("WEAVIATE_API_KEY",)
         assert credentials.api_key._strict
 
     def test_resolve_value(self, monkeypatch):
@@ -47,10 +47,10 @@ class TestAuthApiKey:
 class TestAuthBearerToken:
     def test_init(self):
         credentials = AuthBearerToken()
-        assert credentials.access_token._env_vars == ["WEAVIATE_ACCESS_TOKEN"]
+        assert credentials.access_token._env_vars == ("WEAVIATE_ACCESS_TOKEN",)
         assert credentials.access_token._strict
         assert credentials.expires_in == 60
-        assert credentials.refresh_token._env_vars == ["WEAVIATE_REFRESH_TOKEN"]
+        assert credentials.refresh_token._env_vars == ("WEAVIATE_REFRESH_TOKEN",)
         assert not credentials.refresh_token._strict
 
     def test_to_dict(self):
@@ -75,10 +75,10 @@ class TestAuthBearerToken:
                 },
             }
         )
-        assert credentials.access_token._env_vars == ["WEAVIATE_ACCESS_TOKEN"]
+        assert credentials.access_token._env_vars == ("WEAVIATE_ACCESS_TOKEN",)
         assert credentials.access_token._strict
         assert credentials.expires_in == 10
-        assert credentials.refresh_token._env_vars == ["WEAVIATE_REFRESH_TOKEN"]
+        assert credentials.refresh_token._env_vars == ("WEAVIATE_REFRESH_TOKEN",)
         assert not credentials.refresh_token._strict
 
     def test_resolve_value(self, monkeypatch):
@@ -95,9 +95,9 @@ class TestAuthBearerToken:
 class TestAuthClientCredentials:
     def test_init(self):
         credentials = AuthClientCredentials()
-        assert credentials.client_secret._env_vars == ["WEAVIATE_CLIENT_SECRET"]
+        assert credentials.client_secret._env_vars == ("WEAVIATE_CLIENT_SECRET",)
         assert credentials.client_secret._strict
-        assert credentials.scope._env_vars == ["WEAVIATE_SCOPE"]
+        assert credentials.scope._env_vars == ("WEAVIATE_SCOPE",)
         assert not credentials.scope._strict
 
     def test_to_dict(self):
@@ -120,9 +120,9 @@ class TestAuthClientCredentials:
                 },
             }
         )
-        assert credentials.client_secret._env_vars == ["WEAVIATE_CLIENT_SECRET"]
+        assert credentials.client_secret._env_vars == ("WEAVIATE_CLIENT_SECRET",)
         assert credentials.client_secret._strict
-        assert credentials.scope._env_vars == ["WEAVIATE_SCOPE"]
+        assert credentials.scope._env_vars == ("WEAVIATE_SCOPE",)
         assert not credentials.scope._strict
 
     def test_resolve_value(self, monkeypatch):
@@ -138,11 +138,11 @@ class TestAuthClientCredentials:
 class TestAuthClientPassword:
     def test_init(self):
         credentials = AuthClientPassword()
-        assert credentials.username._env_vars == ["WEAVIATE_USERNAME"]
+        assert credentials.username._env_vars == ("WEAVIATE_USERNAME",)
         assert credentials.username._strict
-        assert credentials.password._env_vars == ["WEAVIATE_PASSWORD"]
+        assert credentials.password._env_vars == ("WEAVIATE_PASSWORD",)
         assert credentials.password._strict
-        assert credentials.scope._env_vars == ["WEAVIATE_SCOPE"]
+        assert credentials.scope._env_vars == ("WEAVIATE_SCOPE",)
         assert not credentials.scope._strict
 
     def test_to_dict(self):
@@ -167,11 +167,11 @@ class TestAuthClientPassword:
                 },
             }
         )
-        assert credentials.username._env_vars == ["WEAVIATE_USERNAME"]
+        assert credentials.username._env_vars == ("WEAVIATE_USERNAME",)
         assert credentials.username._strict
-        assert credentials.password._env_vars == ["WEAVIATE_PASSWORD"]
+        assert credentials.password._env_vars == ("WEAVIATE_PASSWORD",)
         assert credentials.password._strict
-        assert credentials.scope._env_vars == ["WEAVIATE_SCOPE"]
+        assert credentials.scope._env_vars == ("WEAVIATE_SCOPE",)
         assert not credentials.scope._strict
 
     def test_resolve_value(self, monkeypatch):

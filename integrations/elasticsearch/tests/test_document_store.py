@@ -95,6 +95,9 @@ class TestDocumentStore(DocumentStoreBaseTests):
         assert document_store._index == "default"
         assert document_store._embedding_similarity_function == "cosine"
 
+    def test_user_agent_header(self, document_store: ElasticsearchDocumentStore):
+        assert document_store._client._headers["user-agent"].startswith("haystack-py-ds/")
+
     def test_write_documents(self, document_store: ElasticsearchDocumentStore):
         docs = [Document(id="1")]
         assert document_store.write_documents(docs) == 1

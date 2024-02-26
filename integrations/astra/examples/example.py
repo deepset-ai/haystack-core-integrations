@@ -22,16 +22,14 @@ file_paths = [HERE / "data" / Path(name) for name in os.listdir("integrations/as
 logger.info(file_paths)
 
 collection_name = os.getenv("COLLECTION_NAME", "haystack_vector_search")
-keyspace_name = os.getenv("KEYSPACE_NAME", "recommender_demo")
 
-# Make sure ASTRA_API_ENDPOINT and ASTRA_TOKEN environment variables are set before proceeding
+# Make sure ASTRA_DB_API_ENDPOINT and ASTRA_DB_APPLICATION_TOKEN environment variables are set before proceeding
 
 # We support many different databases. Here, we load a simple and lightweight in-memory database.
 document_store = AstraDocumentStore(
-    astra_collection=collection_name,
-    astra_keyspace=keyspace_name,
+    collection_name=collection_name,
     duplicates_policy=DuplicatePolicy.OVERWRITE,
-    embedding_dim=384,
+    embedding_dimension=384,
 )
 
 # Create components and an indexing pipeline that converts txt files to documents,
