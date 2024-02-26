@@ -11,9 +11,12 @@ pytestmark = pytest.mark.embedders
 
 
 class TestMistralTextEmbedder:
-    def test_init_default(self):
+    def test_init_default(self, monkeypatch):
+        monkeypatch.setenv("MISTRAL_API_KEY", "test-api-key")
+
         embedder = MistralTextEmbedder()
         assert embedder.api_key == Secret.from_env_var(["MISTRAL_API_KEY"])
+        assert embedder.api_base_url == "https://api.mistral.ai/v1"
         assert embedder.model == "mistral-embed"
         assert embedder.prefix == ""
         assert embedder.suffix == ""
@@ -26,11 +29,14 @@ class TestMistralTextEmbedder:
             suffix="END",
         )
         assert embedder.api_key == Secret.from_token("test-api-key")
+        assert embedder.api_base_url == "https://api.mistral.ai/v1"
         assert embedder.model == "mistral-embed-v2"
         assert embedder.prefix == "START"
         assert embedder.suffix == "END"
 
-    def test_to_dict(self):
+    def test_to_dict(self, monkeypatch):
+        monkeypatch.setenv("MISTRAL_API_KEY", "test-api-key")
+
         embedder_component = MistralTextEmbedder()
         component_dict = embedder_component.to_dict()
         assert component_dict == {
@@ -38,6 +44,7 @@ class TestMistralTextEmbedder:
             "init_parameters": {
                 "api_key": {"env_vars": ["MISTRAL_API_KEY"], "strict": True, "type": "env_var"},
                 "model": "mistral-embed",
+                "api_base_url": "https://api.mistral.ai/v1",
                 "dimensions": None,
                 "organization": None,
                 "prefix": "",
@@ -60,6 +67,7 @@ class TestMistralTextEmbedder:
             "init_parameters": {
                 "api_key": {"env_vars": ["ENV_VAR"], "strict": False, "type": "env_var"},
                 "model": "mistral-embed-v2",
+                "api_base_url": "https://custom-api-base-url.com",
                 "dimensions": None,
                 "organization": None,
                 "prefix": "START",
@@ -69,7 +77,7 @@ class TestMistralTextEmbedder:
 
     @pytest.mark.skipif(
         not os.environ.get("MISTRAL_API_KEY", None),
-        reason="Export an env var called MISTRAL_API_KEY containing the Cohere API key to run this test.",
+        reason="Export an env var called MISTRAL_API_KEY containing the Mistral API key to run this test.",
     )
     @pytest.mark.integration
     def test_run(self):
