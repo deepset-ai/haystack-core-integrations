@@ -1,3 +1,4 @@
 haystack-ai==2.0.0b4
 sentence_transformers==2.2.2
 openai==1.6.1
+astrapy>=0.7.0
