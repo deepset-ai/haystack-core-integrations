@@ -12,7 +12,9 @@ pytestmark = pytest.mark.embedders
 
 
 class TestMistralDocumentEmbedder:
-    def test_init_default(self):
+    def test_init_default(self, monkeypatch):
+        monkeypatch.setenv("MISTRAL_API_KEY", "test-api-key")
+
         embedder = MistralDocumentEmbedder()
         assert embedder.api_key == Secret.from_env_var(["MISTRAL_API_KEY"])
         assert embedder.model == "mistral-embed"
@@ -46,7 +48,9 @@ class TestMistralDocumentEmbedder:
         assert embedder.meta_fields_to_embed == ["test_field"]
         assert embedder.embedding_separator == "-"
 
-    def test_to_dict(self):
+    def test_to_dict(self, monkeypatch):
+        monkeypatch.setenv("MISTRAL_API_KEY", "test-api-key")
+
         embedder_component = MistralDocumentEmbedder()
         component_dict = embedder_component.to_dict()
         assert component_dict == {
@@ -99,7 +103,7 @@ class TestMistralDocumentEmbedder:
 
     @pytest.mark.skipif(
         not os.environ.get("MISTRAL_API_KEY", None),
-        reason="Export an env var called MISTRAL_API_KEY containing the Cohere API key to run this test.",
+        reason="Export an env var called MISTRAL_API_KEY containing the Mistral API key to run this test.",
     )
     @pytest.mark.integration
     def test_run(self):

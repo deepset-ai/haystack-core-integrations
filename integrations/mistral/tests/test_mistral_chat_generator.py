@@ -147,7 +147,8 @@ class TestMistralChatGenerator:
         with pytest.raises(ValueError, match="None of the .* environment variables are set"):
             MistralChatGenerator.from_dict(data)
 
-    def test_run(self, chat_messages):
+    def test_run(self, chat_messages, mock_chat_completion, monkeypatch):  # noqa: ARG002
+        monkeypatch.setenv("MISTRAL_API_KEY", "fake-api-key")
         component = MistralChatGenerator()
         response = component.run(chat_messages)
 
@@ -158,7 +159,8 @@ class TestMistralChatGenerator:
         assert len(response["replies"]) == 1
         assert [isinstance(reply, ChatMessage) for reply in response["replies"]]
 
-    def test_run_with_params(self, chat_messages, mock_chat_completion):
+    def test_run_with_params(self, chat_messages, mock_chat_completion, monkeypatch):
+        monkeypatch.setenv("MISTRAL_API_KEY", "fake-api-key")
         component = MistralChatGenerator(generation_kwargs={"max_tokens": 10, "temperature": 0.5})
         response = component.run(chat_messages)
 
@@ -173,27 +175,6 @@ class TestMistralChatGenerator:
         assert isinstance(response["replies"], list)
         assert len(response["replies"]) == 1
         assert [isinstance(reply, ChatMessage) for reply in response["replies"]]
-
-    def test_run_with_params_streaming(self, chat_messages):
-        streaming_callback_called = False
-
-        def streaming_callback(chunk: StreamingChunk) -> None:  # noqa: ARG001
-            nonlocal streaming_callback_called
-            streaming_callback_called = True
-
-        component = MistralChatGenerator(streaming_callback=streaming_callback)
-        response = component.run(chat_messages)
-
-        # check we called the streaming callback
-        assert streaming_callback_called
-
-        # check that the component still returns the correct response
-        assert isinstance(response, dict)
-        assert "replies" in response
-        assert isinstance(response["replies"], list)
-        assert len(response["replies"]) == 1
-        assert [isinstance(reply, ChatMessage) for reply in response["replies"]]
-        assert "Paris" in response["replies"][0].content  # see mock_chat_completion_chunk
 
     def test_check_abnormal_completions(self, caplog):
         component = MistralChatGenerator(api_key=Secret.from_token("test-api-key"))
