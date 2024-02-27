@@ -47,4 +47,5 @@ class WeaviateBM25Retriever:
     def run(self, query: str, filters: Optional[Dict[str, Any]] = None, top_k: Optional[int] = None):
         filters = filters or self._filters
         top_k = top_k or self._top_k
-        return self._document_store._bm25_retrieval(query=query, filters=filters, top_k=top_k)
+        documents = self._document_store._bm25_retrieval(query=query, filters=filters, top_k=top_k)
+        return {"documents": documents}
