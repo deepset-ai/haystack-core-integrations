@@ -217,31 +217,33 @@ class WeaviateDocumentStore:
 
         return Document.from_dict(data)
 
-    def _query_paginated(self, properties: List[str], cursor=None):
-        collection_name = self._collection_settings["class"]
-        query = (
-            self._client.query.get(
-                collection_name,
-                properties,
-            )
-            .with_additional(["id vector"])
-            .with_limit(100)
-        )
+    def _query_paginated(self, properties: List[str]):
+        # collection_name = self._collection_settings["class"]
+        # query = (
+        #     self._client.query.get(
+        #         collection_name,
+        #         properties,
+        #     )
+        #     .with_additional(["id vector"])
+        #     .with_limit(100)
+        # )
 
-        if cursor:
-            # Fetch the next set of results
-            result = query.with_after(cursor).do()
-        else:
-            # Fetch the first set of results
-            result = query.do()
+        # if cursor:
+        #     # Fetch the next set of results
+        #     result = query.with_after(cursor).do()
+        # else:
+        #     # Fetch the first set of results
+        #     result = query.do()
 
-        if "errors" in result:
-            errors = [e["message"] for e in result.get("errors", {})]
-            msg = "\n".join(errors)
-            msg = f"Failed to query documents in Weaviate. Errors:\n{msg}"
-            raise DocumentStoreError(msg)
+        # if "errors" in result:
+        #     errors = [e["message"] for e in result.get("errors", {})]
+        #     msg = "\n".join(errors)
+        #     msg = f"Failed to query documents in Weaviate. Errors:\n{msg}"
+        #     raise DocumentStoreError(msg)
 
-        return result["data"]["Get"][collection_name]
+        # return result["data"]["Get"][collection_name]
+        result = self._collection.iterator(include_vector=True, return_properties=properties)
+        return list(result)
 
     def _query_with_filters(self, properties: List[str], filters: Dict[str, Any]) -> List[Dict[str, Any]]:
         collection_name = self._collection_settings["class"]
