@@ -448,25 +448,34 @@ class WeaviateDocumentStore:
     def _bm25_retrieval(
         self, query: str, filters: Optional[Dict[str, Any]] = None, top_k: Optional[int] = None
     ) -> List[Document]:
-        collection_name = self._collection_settings["class"]
-        properties = self._client.schema.get(self._collection_settings["class"]).get("properties", [])
-        properties = [prop["name"] for prop in properties]
+        # collection_name = self._collection_settings["class"]
+        # properties = self._client.schema.get(self._collection_settings["class"]).get("properties", [])
+        # properties = [prop["name"] for prop in properties]
 
-        query_builder = (
-            self._client.query.get(collection_name, properties=properties)
-            .with_bm25(query=query, properties=["content"])
-            .with_additional(["vector"])
+        # query_builder = (
+        #     self._client.query.get(collection_name, properties=properties)
+        #     .with_bm25(query=query, properties=["content"])
+        #     .with_additional(["vector"])
+        # )
+
+        # if filters:
+        #     query_builder = query_builder.with_where(convert_filters(filters))
+
+        # if top_k:
+        #     query_builder = query_builder.with_limit(top_k)
+
+        # result = query_builder.do()
+
+        # return [self._to_document(doc) for doc in result["data"]["Get"][collection_name]]
+        result = self._collection.query.bm25(
+            query=query,
+            filters=filters,
+            limit=top_k,
+            include_vector=True,
+            query_properties=["content"],
         )
 
-        if filters:
-            query_builder = query_builder.with_where(convert_filters(filters))
-
-        if top_k:
-            query_builder = query_builder.with_limit(top_k)
-
-        result = query_builder.do()
-
-        return [self._to_document(doc) for doc in result["data"]["Get"][collection_name]]
+        return [self._to_document(self._convert_weaviate_v4_object_to_v3_object(doc)) for doc in result.objects]
 
     def _embedding_retrieval(
         self,
