@@ -33,7 +33,7 @@ OPERATOR_INVERSE = {
     "not in": "in",
     "AND": "OR",
     "OR": "AND",
-    "NOT": "AND",
+    "NOT": "OR",
 }
 
 
