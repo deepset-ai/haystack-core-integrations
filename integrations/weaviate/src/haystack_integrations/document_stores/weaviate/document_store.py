@@ -494,30 +494,41 @@ class WeaviateDocumentStore:
             msg = "Can't use 'distance' and 'certainty' parameters together"
             raise ValueError(msg)
 
-        collection_name = self._collection_settings["class"]
-        properties = self._client.schema.get(self._collection_settings["class"]).get("properties", [])
-        properties = [prop["name"] for prop in properties]
+        # collection_name = self._collection_settings["class"]
+        # properties = self._client.schema.get(self._collection_settings["class"]).get("properties", [])
+        # properties = [prop["name"] for prop in properties]
 
-        near_vector: Dict[str, Union[float, List[float]]] = {
-            "vector": query_embedding,
-        }
-        if distance is not None:
-            near_vector["distance"] = distance
+        # near_vector: Dict[str, Union[float, List[float]]] = {
+        #     "vector": query_embedding,
+        # }
+        # if distance is not None:
+        #     near_vector["distance"] = distance
 
-        if certainty is not None:
-            near_vector["certainty"] = certainty
+        # if certainty is not None:
+        #     near_vector["certainty"] = certainty
 
-        query_builder = (
-            self._client.query.get(collection_name, properties=properties)
-            .with_near_vector(near_vector)
-            .with_additional(["vector"])
+        # query_builder = (
+        #     self._client.query.get(collection_name, properties=properties)
+        #     .with_near_vector(near_vector)
+        #     .with_additional(["vector"])
+        # )
+
+        # if filters:
+        #     query_builder = query_builder.with_where(convert_filters(filters))
+
+        # if top_k:
+        #     query_builder = query_builder.with_limit(top_k)
+
+        # result = query_builder.do()
+        # return [self._to_document(doc) for doc in result["data"]["Get"][collection_name]]
+
+        result = self._collection.query.near_vector(
+            near_vector=query_embedding,
+            distance=distance,
+            certainty=certainty,
+            include_vector=True,
+            filters=convert_filters(filters) if filters else None,
+            limit=top_k,
         )
 
-        if filters:
-            query_builder = query_builder.with_where(convert_filters(filters))
-
-        if top_k:
-            query_builder = query_builder.with_limit(top_k)
-
-        result = query_builder.do()
-        return [self._to_document(doc) for doc in result["data"]["Get"][collection_name]]
+        return [self._to_document(self._convert_weaviate_v4_object_to_v3_object(doc)) for doc in result.objects]
