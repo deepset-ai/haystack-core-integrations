@@ -4,7 +4,6 @@ from typing import List
 from unittest.mock import MagicMock, patch
 
 import pytest
-import weaviate
 from dateutil import parser
 from haystack.dataclasses.byte_stream import ByteStream
 from haystack.dataclasses.document import Document
@@ -532,8 +531,7 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
                 Document(content="PHP is a object oriented programming language"),
             ]
         )
-        # filters = {"field": "content", "operator": "==", "value": "Haskell"}
-        filters = weaviate.classes.query.Filter.by_property("content").equal("Haskell")
+        filters = {"field": "content", "operator": "==", "value": "Haskell"}
         result = document_store._bm25_retrieval("functional Haskell", filters=filters)
         assert len(result) == 1
         assert "Haskell is a functional programming language" == result[0].content

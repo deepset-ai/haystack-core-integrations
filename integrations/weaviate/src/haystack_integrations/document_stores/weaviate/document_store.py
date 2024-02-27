@@ -474,7 +474,7 @@ class WeaviateDocumentStore:
         # return [self._to_document(doc) for doc in result["data"]["Get"][collection_name]]
         result = self._collection.query.bm25(
             query=query,
-            filters=filters,
+            filters=convert_filters(filters) if filters else None,
             limit=top_k,
             include_vector=True,
             query_properties=["content"],
