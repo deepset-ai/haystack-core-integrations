@@ -245,26 +245,35 @@ class WeaviateDocumentStore:
         result = self._collection.iterator(include_vector=True, return_properties=properties)
         return list(result)
 
-    def _query_with_filters(self, properties: List[str], filters: Dict[str, Any]) -> List[Dict[str, Any]]:
-        collection_name = self._collection_settings["class"]
-        query = (
-            self._client.query.get(
-                collection_name,
-                properties,
-            )
-            .with_additional(["id vector"])
-            .with_where(convert_filters(filters))
-        )
+    def _query_with_filters(self, filters: weaviate.collections.classes.filters.Filter) -> List[Dict[str, Any]]:
+        # collection_name = self._collection_settings["class"]
 
-        result = query.do()
+        try:
+            result = self._collection.query.fetch_objects(filters=convert_filters(filters), include_vector=True)
+        except weaviate.exceptions.WeaviateQueryError as e:
+            msg = f"Failed to query documents in Weaviate. Error: {e.message}"
+            raise DocumentStoreError(msg) from None
 
-        if "errors" in result:
-            errors = [e["message"] for e in result.get("errors", {})]
-            msg = "\n".join(errors)
-            msg = f"Failed to query documents in Weaviate. Errors:\n{msg}"
-            raise DocumentStoreError(msg)
+        # query = (
+        #     self._client.query.get(
+        #         collection_name,
+        #         properties,
+        #     )
+        #     .with_additional(["id vector"])
+        #     .with_where(convert_filters(filters))
+        # )
 
-        return result["data"]["Get"][collection_name]
+        # result = query.do()
+
+        # if "errors" in result:
+        #     errors = [e["message"] for e in result.get("errors", {})]
+        #     msg = "\n".join(errors)
+        #     msg = f"Failed to query documents in Weaviate. Errors:\n{msg}"
+        #     raise DocumentStoreError(msg)
+
+        # return result["data"]["Get"][collection_name]
+
+        return result.objects
 
     def filter_documents(self, filters: Optional[Dict[str, Any]] = None) -> List[Document]:
         properties = self._client.schema.get(self._collection_settings["class"]).get("properties", [])
