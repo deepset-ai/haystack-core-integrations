@@ -199,7 +199,7 @@ class WeaviateDocumentStore:
     def _convert_weaviate_v4_object_to_v3_object(self, data: Object) -> Dict[str, Any]:
         properties = self._collection.config.get().properties
         properties_with_date_type = [
-            p.name for p in properties if p.data_type.name == "DATE" and p.name in data.properties
+            p.name for p in properties if p.data_type.name == "DATE" and data.properties.get(p.name)
         ]
 
         v4_object = data.__dict__
