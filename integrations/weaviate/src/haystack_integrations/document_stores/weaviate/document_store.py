@@ -11,6 +11,7 @@ from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumen
 from haystack.document_stores.types.policy import DuplicatePolicy
 
 import weaviate
+from weaviate.collections.classes.internal import Object
 from weaviate.config import AdditionalConfig, Config, ConnectionConfig
 from weaviate.embedded import EmbeddedOptions
 from weaviate.util import generate_uuid5
@@ -195,6 +196,16 @@ class WeaviateDocumentStore:
 
         return data
 
+    def _convert_weaviate_v4_object_to_v3_object(self, data: Object) -> Dict[str, Any]:
+        v4_object = data.__dict__
+        v3_object = v4_object.pop("properties")
+        v3_object["_additional"] = {"vector": v4_object.pop("vector").get("default")}
+
+        if "blob_data" not in v3_object:
+            v3_object["blob_data"] = None
+            v3_object["blob_mime_type"] = None
+        return v3_object
+
     def _to_document(self, data: Dict[str, Any]) -> Document:
         """
         Convert a data object read from Weaviate into a Document.
@@ -275,25 +286,28 @@ class WeaviateDocumentStore:
 
         return result.objects
 
-    def filter_documents(self, filters: Optional[Dict[str, Any]] = None) -> List[Document]:
-        properties = self._client.schema.get(self._collection_settings["class"]).get("properties", [])
-        properties = [prop["name"] for prop in properties]
+    def filter_documents(self, filters: Optional[weaviate.collections.classes.filters.Filter] = None) -> List[Document]:
+        # properties = self._client.schema.get(self._collection_settings["class"]).get("properties", [])
+        properties = self._collection.config.get().properties
+        properties = [prop.name for prop in properties]
 
         if filters:
-            result = self._query_with_filters(properties, filters)
+            result = self._query_with_filters(filters)
             return [self._to_document(doc) for doc in result]
 
-        result = []
+        # result = []
 
-        cursor = None
-        while batch := self._query_paginated(properties, cursor):
-            # Take the cursor before we convert the batch to Documents as we manipulate
-            # the batch dictionary and might lose that information.
-            cursor = batch[-1]["_additional"]["id"]
+        # cursor = None
+        # while batch := self._query_paginated(properties, cursor):
+        #     # Take the cursor before we convert the batch to Documents as we manipulate
+        #     # the batch dictionary and might lose that information.
+        #     cursor = batch[-1]["_additional"]["id"]
 
-            for doc in batch:
-                result.append(self._to_document(doc))
-            # Move the cursor to the last returned uuid
+        #     for doc in batch:
+        #         result.append(self._to_document(doc))
+        #     # Move the cursor to the last returned uuid
+        result = self._query_paginated(properties)
+        result = [self._to_document(self._convert_weaviate_v4_object_to_v3_object(doc)) for doc in result]
         return result
 
     def _batch_write(self, documents: List[Document]) -> int:
