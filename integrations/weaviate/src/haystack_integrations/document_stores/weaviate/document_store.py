@@ -398,22 +398,25 @@ class WeaviateDocumentStore:
                 msg = f"Expected a Document, got '{type(doc)}' instead."
                 raise ValueError(msg)
 
-            if policy == DuplicatePolicy.SKIP and self._client.data_object.exists(
-                uuid=generate_uuid5(doc.id),
-                class_name=self._collection_settings["class"],
-            ):
+            if policy == DuplicatePolicy.SKIP and self._collection.data.exists(uuid=generate_uuid5(doc.id)):
                 # This Document already exists, we skip it
                 continue
 
             try:
-                self._client.data_object.create(
+                # self._client.data_object.create(
+                #     uuid=generate_uuid5(doc.id),
+                #     data_object=self._to_data_object(doc),
+                #     class_name=self._collection_settings["class"],
+                #     vector=doc.embedding,
+                # )
+                self._collection.data.insert(
                     uuid=generate_uuid5(doc.id),
-                    data_object=self._to_data_object(doc),
-                    class_name=self._collection_settings["class"],
+                    properties=self._to_data_object(doc),
                     vector=doc.embedding,
                 )
+
                 written += 1
-            except weaviate.exceptions.ObjectAlreadyExistsException:
+            except weaviate.exceptions.UnexpectedStatusCodeError:
                 if policy == DuplicatePolicy.FAIL:
                     duplicate_errors_ids.append(doc.id)
         if duplicate_errors_ids:
