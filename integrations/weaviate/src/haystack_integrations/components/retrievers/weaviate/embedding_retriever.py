@@ -71,10 +71,11 @@ class WeaviateEmbeddingRetriever:
         top_k = top_k or self._top_k
         distance = distance or self._distance
         certainty = certainty or self._certainty
-        return self._document_store._embedding_retrieval(
+        documents = self._document_store._embedding_retrieval(
             query_embedding=query_embedding,
             filters=filters,
             top_k=top_k,
             distance=distance,
             certainty=certainty,
         )
+        return {"documents": documents}
