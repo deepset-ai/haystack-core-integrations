@@ -268,7 +268,14 @@ class WeaviateDocumentStore:
         # collection_name = self._collection_settings["class"]
 
         try:
-            result = self._collection.query.fetch_objects(filters=convert_filters(filters), include_vector=True)
+            # this is the default value for max number of objects to retrieve in Weaviate
+            # see QUERY_MAXIMUM_RESULTS
+            # see https://weaviate.io/developers/weaviate/config-refs/env-vars#overview
+            # and https://weaviate.io/developers/weaviate/api/graphql/additional-operators#pagination-with-offset
+            limit = 10_000
+            result = self._collection.query.fetch_objects(
+                filters=convert_filters(filters), include_vector=True, limit=limit
+            )
         except weaviate.exceptions.WeaviateQueryError as e:
             msg = f"Failed to query documents in Weaviate. Error: {e.message}"
             raise DocumentStoreError(msg) from None
