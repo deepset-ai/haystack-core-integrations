@@ -172,9 +172,11 @@ class WeaviateDocumentStore:
         )
 
     def count_documents(self) -> int:
-        collection_name = self._collection_settings["class"]
-        res = self._client.query.aggregate(collection_name).with_meta_count().do()
-        return res.get("data", {}).get("Aggregate", {}).get(collection_name, [{}])[0].get("meta", {}).get("count", 0)
+        # collection_name = self._collection_settings["class"]
+        # res = self._client.query.aggregate(collection_name).with_meta_count().do()
+        # return res.get("data", {}).get("Aggregate", {}).get(collection_name, [{}])[0].get("meta", {}).get("count", 0)
+        total = self._collection.aggregate.over_all(total_count=True).total_count
+        return total if total else 0
 
     def _to_data_object(self, document: Document) -> Dict[str, Any]:
         """
