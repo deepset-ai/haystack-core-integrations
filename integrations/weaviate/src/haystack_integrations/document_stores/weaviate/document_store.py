@@ -299,7 +299,7 @@ class WeaviateDocumentStore:
 
         if filters:
             result = self._query_with_filters(filters)
-            return [self._to_document(doc) for doc in result]
+            return [self._to_document(self._convert_weaviate_v4_object_to_v3_object(doc)) for doc in result]
 
         # result = []
 
