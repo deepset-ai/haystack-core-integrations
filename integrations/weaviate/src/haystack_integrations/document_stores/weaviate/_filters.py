@@ -120,14 +120,16 @@ def _handle_date(value: Any) -> str:
 
 def _equal(field: str, value: Any) -> Dict[str, Any]:
     if value is None:
-        return {"path": field, "operator": "IsNull", "valueBoolean": True}
+        # return {"path": field, "operator": "IsNull", "valueBoolean": True}
+        return weaviate.classes.query.Filter.by_property(field).is_none(True)
     # return {"path": field, "operator": "Equal", _infer_value_type(value): _handle_date(value)}
     return weaviate.classes.query.Filter.by_property(field).equal(_handle_date(value))
 
 
 def _not_equal(field: str, value: Any) -> Dict[str, Any]:
     if value is None:
-        return {"path": field, "operator": "IsNull", "valueBoolean": False}
+        # return {"path": field, "operator": "IsNull", "valueBoolean": False}
+        return weaviate.classes.query.Filter.by_property(field).is_none(False)
     # return {
     #     "operator": "Or",
     #     "operands": [
