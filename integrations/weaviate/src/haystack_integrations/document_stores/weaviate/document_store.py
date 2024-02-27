@@ -434,14 +434,16 @@ class WeaviateDocumentStore:
         return self._write(documents, policy)
 
     def delete_documents(self, document_ids: List[str]) -> None:
-        self._client.batch.delete_objects(
-            class_name=self._collection_settings["class"],
-            where={
-                "path": ["id"],
-                "operator": "ContainsAny",
-                "valueTextArray": [generate_uuid5(doc_id) for doc_id in document_ids],
-            },
-        )
+        # self._client.batch.delete_objects(
+        #     class_name=self._collection_settings["class"],
+        #     where={
+        #         "path": ["id"],
+        #         "operator": "ContainsAny",
+        #         "valueTextArray": [generate_uuid5(doc_id) for doc_id in document_ids],
+        #     },
+        # )
+        weaviate_ids = [generate_uuid5(doc_id) for doc_id in document_ids]
+        self._collection.data.delete_many(where=weaviate.classes.query.Filter.by_id().contains_any(weaviate_ids))
 
     def _bm25_retrieval(
         self, query: str, filters: Optional[Dict[str, Any]] = None, top_k: Optional[int] = None
