@@ -291,33 +291,51 @@ class WeaviateDocumentStore:
         Documents with the same id will be overwritten.
         Raises in case of errors.
         """
-        statuses = []
-        for doc in documents:
-            if not isinstance(doc, Document):
-                msg = f"Expected a Document, got '{type(doc)}' instead."
-                raise ValueError(msg)
-            if self._client.batch.num_objects() == self._client.batch.recommended_num_objects:
-                # Batch is full, let's create the objects
-                statuses.extend(self._client.batch.create_objects())
-            self._client.batch.add_data_object(
-                uuid=generate_uuid5(doc.id),
-                data_object=self._to_data_object(doc),
-                class_name=self._collection_settings["class"],
-                vector=doc.embedding,
+        # statuses = []
+        # for doc in documents:
+        #     if not isinstance(doc, Document):
+        #         msg = f"Expected a Document, got '{type(doc)}' instead."
+        #         raise ValueError(msg)
+        #     if self._client.batch.num_objects() == self._client.batch.recommended_num_objects:
+        #         # Batch is full, let's create the objects
+        #         statuses.extend(self._client.batch.create_objects())
+        #     self._client.batch.add_data_object(
+        #         uuid=generate_uuid5(doc.id),
+        #         data_object=self._to_data_object(doc),
+        #         class_name=self._collection_settings["class"],
+        #         vector=doc.embedding,
+        #     )
+        # # Write remaining documents
+        # statuses.extend(self._client.batch.create_objects())
+
+        # errors = []
+        # # Gather errors and number of written documents
+        # for status in statuses:
+        #     result_status = status.get("result", {}).get("status")
+        #     if result_status == "FAILED":
+        #         errors.extend([e["message"] for e in status["result"]["errors"]["error"]])
+
+        # if errors:
+        #     msg = "\n".join(errors)
+        #     msg = f"Failed to write documents in Weaviate. Errors:\n{msg}"
+        #     raise DocumentStoreError(msg)
+
+        with self._client.batch.dynamic() as batch:
+            for doc in documents:
+                batch.add_object(
+                    properties=self._to_data_object(doc),
+                    collection=self._collection.name,
+                    uuid=generate_uuid5(doc.id),
+                    vector=doc.embedding,
+                )
+        failed_objects = self._client.batch.failed_objects
+        if failed_objects:
+            msg = "\n".join(
+                [
+                    f"Failed to write object with id '{obj.object_._original_id}'. Error: '{obj.message}'"
+                    for obj in failed_objects
+                ]
             )
-        # Write remaining documents
-        statuses.extend(self._client.batch.create_objects())
-
-        errors = []
-        # Gather errors and number of written documents
-        for status in statuses:
-            result_status = status.get("result", {}).get("status")
-            if result_status == "FAILED":
-                errors.extend([e["message"] for e in status["result"]["errors"]["error"]])
-
-        if errors:
-            msg = "\n".join(errors)
-            msg = f"Failed to write documents in Weaviate. Errors:\n{msg}"
             raise DocumentStoreError(msg)
 
         # If the document already exists we get no status message back from Weaviate.
