@@ -22,6 +22,7 @@ env:
   PYTHONUNBUFFERED: "1"
   FORCE_COLOR: "1"
   LLM_FOR_TESTS: "orca-mini"
+  EMBEDDER_FOR_TESTS: "nomic-embed-text"
 
 jobs:
   run:
@@ -55,7 +56,10 @@ jobs:
         run: hatch run lint:all
 
       - name: Pull the LLM in the Ollama service
-        run: docker exec ollama ollama pull ${{ env.LLM_FOR_TESTS }}        
+        run: docker exec ollama ollama pull ${{ env.LLM_FOR_TESTS }}    
+
+      - name: Pull the Embedding Model in the Ollama service
+        run: docker exec ollama ollama pull ${{ env.EMBEDDER_FOR_TESTS }}
 
       - name: Generate docs
         if: matrix.python-version == '3.9' && runner.os == 'Linux'
