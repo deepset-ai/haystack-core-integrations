@@ -46,8 +46,8 @@ This package includes Astra Document Store and Astra Embedding Retriever classes
 
 Import the Document Store:
 ```
-from astra_store.document_store import AstraDocumentStore
-from haystack.preview.document_stores import DuplicatePolicy
+from haystack_integrations.document_stores.astra import AstraDocumentStore
+from haystack.document_stores.types.policy import DuplicatePolicy
 ```
 
 Load in environment variables:
@@ -76,7 +76,7 @@ Then you can use the document store functions like count_document below:
 Create the Document Store object like above, then import and create the Pipeline:
 
 ```
-from haystack.preview import Pipeline
+from haystack import Pipeline
 pipeline = Pipeline()
 ```
 
