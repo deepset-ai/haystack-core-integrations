@@ -11,22 +11,21 @@ from haystack.utils.auth import Secret
 @component
 class MistralTextEmbedder(OpenAITextEmbedder):
     """
-     A component for embedding strings using Mistral models.
+    A component for embedding strings using Mistral models.
 
-     Usage example:
+    Usage example:
      ```python
     from haystack_integrations.components.embedders.mistral.text_embedder import MistralTextEmbedder
 
-     text_to_embed = "I love pizza!"
+    text_to_embed = "I love pizza!"
+    text_embedder = MistralTextEmbedder()
+    print(text_embedder.run(text_to_embed))
 
-     text_embedder = MistralTextEmbedder()
-
-     print(text_embedder.run(text_to_embed))
-
-     # {'embedding': [0.017020374536514282, -0.023255806416273117, ...],
-     # 'meta': {'model': 'text-embedding-ada-002-v2',
-     #          'usage': {'prompt_tokens': 4, 'total_tokens': 4}}}
-     ```
+    # output:
+    # {'embedding': [0.017020374536514282, -0.023255806416273117, ...],
+    # 'meta': {'model': 'mistral-embed',
+    #          'usage': {'prompt_tokens': 4, 'total_tokens': 4}}}
+    ```
     """
 
     def __init__(
@@ -38,14 +37,19 @@ class MistralTextEmbedder(OpenAITextEmbedder):
         suffix: str = "",
     ):
         """
-        Create an MistralTextEmbedder component.
+        Creates an MistralTextEmbedder component.
 
-        :param api_key: The Misttal API key.
-        :param model: The name of the Mistral embedding models to be used.
-        :param api_base_url: The Mistral API Base url, defaults to `https://api.mistral.ai/v1`.
-                             For more details, see Mistral [docs](https://docs.mistral.ai/api/).
-        :param prefix: A string to add to the beginning of each text.
-        :param suffix: A string to add to the end of each text.
+        :param api_key:
+            The Mistral API key.
+        :param model:
+            The name of the Mistral embedding model to be used.
+        :param api_base_url:
+            The Mistral API Base url.
+            For more details, see Mistral [docs](https://docs.mistral.ai/api/).
+        :param prefix:
+            A string to add to the beginning of each text.
+        :param suffix:
+            A string to add to the end of each text.
         """
         super(MistralTextEmbedder, self).__init__(  # noqa: UP008
             api_key=api_key,
