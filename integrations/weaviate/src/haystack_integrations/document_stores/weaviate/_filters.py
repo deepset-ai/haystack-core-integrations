@@ -85,28 +85,6 @@ def _parse_logical_condition(condition: Dict[str, Any]) -> Dict[str, Any]:
         raise FilterError(msg)
 
 
-def _infer_value_type(value: Any) -> str:
-    if value is None:
-        return "valueNull"
-
-    if isinstance(value, bool):
-        return "valueBoolean"
-    if isinstance(value, int):
-        return "valueInt"
-    if isinstance(value, float):
-        return "valueNumber"
-
-    if isinstance(value, str):
-        try:
-            parser.isoparse(value)
-            return "valueDate"
-        except ValueError:
-            return "valueText"
-
-    msg = f"Unknown value type {type(value)}"
-    raise FilterError(msg)
-
-
 def _handle_date(value: Any) -> str:
     if isinstance(value, str):
         try:
