@@ -28,7 +28,7 @@ class MistralChatGenerator(OpenAIChatGenerator):
     This component uses the ChatMessage format for structuring both input and output,
     ensuring coherent and contextually relevant responses in chat-based text generation scenarios.
     Details on the ChatMessage format can be found in the
-    [OpenAI docs](https://github.com/openai/openai-python/blob/main/chatml.md)
+    [Haystack docs](https://docs.haystack.deepset.ai/v2.0/docs/data-classes#chatmessage)
 
     For more details on the parameters supported by the Mistral API, refer to the
     [Mistral API Docs](https://docs.mistral.ai/api/).
@@ -72,7 +72,7 @@ class MistralChatGenerator(OpenAIChatGenerator):
             A callback function that is called when a new token is received from the stream.
             The callback function accepts StreamingChunk as an argument.
         :param api_base_url:
-            The Mistral API Base url, defaults to `https://api.mistral.ai/v1`.
+            The Mistral API Base url.
             For more details, see Mistral [docs](https://docs.mistral.ai/api/).
         :param generation_kwargs:
             Other parameters to use for the model. These parameters are all sent directly to

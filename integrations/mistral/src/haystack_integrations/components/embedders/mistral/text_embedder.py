@@ -44,7 +44,7 @@ class MistralTextEmbedder(OpenAITextEmbedder):
         :param model:
             The name of the Mistral embedding model to be used.
         :param api_base_url:
-            The Mistral API Base url, defaults to `https://api.mistral.ai/v1`.
+            The Mistral API Base url.
             For more details, see Mistral [docs](https://docs.mistral.ai/api/).
         :param prefix:
             A string to add to the beginning of each text.
