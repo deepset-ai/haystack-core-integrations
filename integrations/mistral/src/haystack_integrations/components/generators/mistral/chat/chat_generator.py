@@ -12,11 +12,10 @@ from haystack.utils.auth import Secret
 @component
 class MistralChatGenerator(OpenAIChatGenerator):
     """
-    Enables text generation using Mistral's large language models (LLMs).
-    Currently supports `mistral-tiny`, `mistral-small` and `mistral-medium`
-    models accessed through the chat completions API endpoint.
+    Enables text generation using Mistral AI generative models.
+    For supported models, see [Mistral AI docs](https://docs.mistral.ai/platform/endpoints/#operation/listModels).
 
-    Users can pass any text generation parameters valid for the `openai.ChatCompletion.create` method
+    Users can pass any text generation parameters valid for the Mistral Chat Completion API
     directly to this component via the `generation_kwargs` parameter in `__init__` or the `generation_kwargs`
     parameter in `run` method.
 
@@ -86,7 +85,6 @@ class MistralChatGenerator(OpenAIChatGenerator):
                 comprising the top 10% probability mass are considered.
             - `stream`: Whether to stream back partial progress. If set, tokens will be sent as data-only server-sent
                 events as they become available, with the stream terminated by a data: [DONE] message.
-            - `stop`: One or more sequences after which the LLM should stop generating tokens.
             - `safe_prompt`: Whether to inject a safety prompt before all conversations.
             - `random_seed`: The seed to use for random sampling.
         """
