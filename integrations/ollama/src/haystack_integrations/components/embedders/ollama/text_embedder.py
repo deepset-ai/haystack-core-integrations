@@ -8,14 +8,14 @@ from haystack import component
 class OllamaTextEmbedder:
     def __init__(
         self,
-        model: str = "orca-mini",
+        model: str = "nomic-embed-text",
         url: str = "http://localhost:11434/api/embeddings",
         generation_kwargs: Optional[Dict[str, Any]] = None,
         timeout: int = 120,
     ):
         """
         :param model: The name of the model to use. The model should be available in the running Ollama instance.
-            Default is "orca-mini".
+            Default is "nomic-embed-text". "https://ollama.com/library/nomic-embed-text"
         :param url: The URL of the chat endpoint of a running Ollama instance.
             Default is "http://localhost:11434/api/embeddings".
         :param generation_kwargs: Optional arguments to pass to the Ollama generation endpoint, such as temperature,

@@ -4,6 +4,14 @@ import pytest
 from haystack.utils.auth import Secret
 from haystack_integrations.components.embedders.optimum import OptimumTextEmbedder
 from haystack_integrations.components.embedders.optimum.pooling import OptimumEmbedderPooling
+from haystack_integrations.components.embedders.optimum.optimization import (
+    OptimumEmbedderOptimizationConfig,
+    OptimumEmbedderOptimizationMode,
+)
+from haystack_integrations.components.embedders.optimum.quantization import (
+    OptimumEmbedderQuantizationConfig,
+    OptimumEmbedderQuantizationMode,
+)
 from huggingface_hub.utils import RepositoryNotFoundError
 
 
@@ -53,6 +61,9 @@ class TestOptimumTextEmbedder:
             pooling_mode="max",
             onnx_execution_provider="CUDAExecutionProvider",
             model_kwargs={"trust_remote_code": True},
+            working_dir="working_dir",
+            optimizer_settings=None,
+            quantizer_settings=None,
         )
 
         assert embedder._backend.parameters.model == "sentence-transformers/all-minilm-l6-v2"
@@ -68,6 +79,9 @@ class TestOptimumTextEmbedder:
             "provider": "CUDAExecutionProvider",
             "use_auth_token": "fake-api-token",
         }
+        assert embedder._backend.parameters.working_dir == "working_dir"
+        assert embedder._backend.parameters.optimizer_settings is None
+        assert embedder._backend.parameters.quantizer_settings is None
 
     def test_to_and_from_dict(self, mock_check_valid_model, mock_get_pooling_mode):  # noqa: ARG002
         component = OptimumTextEmbedder()
@@ -83,10 +97,13 @@ class TestOptimumTextEmbedder:
                 "normalize_embeddings": True,
                 "onnx_execution_provider": "CPUExecutionProvider",
                 "pooling_mode": "mean",
+                "working_dir": None,
                 "model_kwargs": {
                     "model_id": "sentence-transformers/all-mpnet-base-v2",
                     "provider": "CPUExecutionProvider",
                 },
+                "optimizer_settings": None,
+                "quantizer_settings": None,
             },
         }
 
@@ -103,6 +120,9 @@ class TestOptimumTextEmbedder:
             "provider": "CPUExecutionProvider",
             "use_auth_token": None,
         }
+        assert embedder._backend.parameters.working_dir is None
+        assert embedder._backend.parameters.optimizer_settings is None
+        assert embedder._backend.parameters.quantizer_settings is None
 
     def test_to_and_from_dict_with_custom_init_parameters(self, mock_check_valid_model):  # noqa: ARG002
         component = OptimumTextEmbedder(
@@ -114,6 +134,11 @@ class TestOptimumTextEmbedder:
             onnx_execution_provider="CUDAExecutionProvider",
             pooling_mode="max",
             model_kwargs={"trust_remote_code": True},
+            working_dir="working_dir",
+            optimizer_settings=OptimumEmbedderOptimizationConfig(OptimumEmbedderOptimizationMode.O1, for_gpu=True),
+            quantizer_settings=OptimumEmbedderQuantizationConfig(
+                OptimumEmbedderQuantizationMode.ARM64, per_channel=True
+            ),
         )
         data = component.to_dict()
 
@@ -132,6 +157,9 @@ class TestOptimumTextEmbedder:
                     "model_id": "sentence-transformers/all-minilm-l6-v2",
                     "provider": "CUDAExecutionProvider",
                 },
+                "working_dir": "working_dir",
+                "optimizer_settings": {"mode": "o1", "for_gpu": True},
+                "quantizer_settings": {"mode": "arm64", "per_channel": True},
             },
         }
 
@@ -149,6 +177,13 @@ class TestOptimumTextEmbedder:
             "provider": "CUDAExecutionProvider",
             "use_auth_token": None,
         }
+        assert embedder._backend.parameters.working_dir == "working_dir"
+        assert embedder._backend.parameters.optimizer_settings == OptimumEmbedderOptimizationConfig(
+            OptimumEmbedderOptimizationMode.O1, for_gpu=True
+        )
+        assert embedder._backend.parameters.quantizer_settings == OptimumEmbedderQuantizationConfig(
+            OptimumEmbedderQuantizationMode.ARM64, per_channel=True
+        )
 
     def test_initialize_with_invalid_model(self, mock_check_valid_model):
         mock_check_valid_model.side_effect = RepositoryNotFoundError("Invalid model id")
@@ -194,7 +229,7 @@ class TestOptimumTextEmbedder:
 
     def test_run_wrong_input_format(self, mock_check_valid_model):  # noqa: ARG002
         embedder = OptimumTextEmbedder(
-            model="sentence-transformers/all-mpnet-base-v2",
+            model="sentence-transformers/paraphrase-albert-small-v2",
             token=Secret.from_token("fake-api-token"),
             pooling_mode="mean",
         )
@@ -209,7 +244,7 @@ class TestOptimumTextEmbedder:
     def test_run(self):
         for pooling_mode in OptimumEmbedderPooling:
             embedder = OptimumTextEmbedder(
-                model="sentence-transformers/all-mpnet-base-v2",
+                model="sentence-transformers/paraphrase-albert-small-v2",
                 prefix="prefix ",
                 suffix=" suffix",
                 pooling_mode=pooling_mode,

@@ -10,7 +10,7 @@ class TestOllamaTextEmbedder:
         assert embedder.timeout == 120
         assert embedder.generation_kwargs == {}
         assert embedder.url == "http://localhost:11434/api/embeddings"
-        assert embedder.model == "orca-mini"
+        assert embedder.model == "nomic-embed-text"
 
     def test_init(self):
         embedder = OllamaTextEmbedder(
@@ -34,10 +34,10 @@ class TestOllamaTextEmbedder:
 
     @pytest.mark.integration
     def test_run(self):
-        embedder = OllamaTextEmbedder(model="orca-mini")
+        embedder = OllamaTextEmbedder(model="nomic-embed-text")
 
         reply = embedder.run("hello")
 
         assert isinstance(reply, dict)
         assert all(isinstance(element, float) for element in reply["embedding"])
-        assert reply["meta"]["model"] == "orca-mini"
+        assert reply["meta"]["model"] == "nomic-embed-text"
