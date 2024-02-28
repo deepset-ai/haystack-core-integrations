@@ -17,7 +17,7 @@ class MistralChatGenerator(OpenAIChatGenerator):
     models accessed through the chat completions API endpoint.
 
     Users can pass any text generation parameters valid for the `openai.ChatCompletion.create` method
-    directly to this component via the `**generation_kwargs` parameter in __init__ or the `**generation_kwargs`
+    directly to this component via the `generation_kwargs` parameter in `__init__` or the `generation_kwargs`
     parameter in `run` method.
 
     Key Features and Compatibility:
@@ -29,7 +29,6 @@ class MistralChatGenerator(OpenAIChatGenerator):
     ensuring coherent and contextually relevant responses in chat-based text generation scenarios.
     Details on the ChatMessage format can be found in the
     [OpenAI docs](https://github.com/openai/openai-python/blob/main/chatml.md)
-    Note that the Mistral API does not accept `system` messages yet. You can use `user` and `assistant` messages.
 
     For more details on the parameters supported by the Mistral API, refer to the
     [Mistral API Docs](https://docs.mistral.ai/api/).
@@ -77,7 +76,7 @@ class MistralChatGenerator(OpenAIChatGenerator):
             For more details, see Mistral [docs](https://docs.mistral.ai/api/).
         :param generation_kwargs:
             Other parameters to use for the model. These parameters are all sent directly to
-            the Mistrak endpoint. See [Mistral API docs](https://docs.mistral.ai/api/t) for more details.
+            the Mistral endpoint. See [Mistral API docs](https://docs.mistral.ai/api/) for more details.
             Some of the supported parameters:
             - `max_tokens`: The maximum number of tokens the output text can have.
             - `temperature`: What sampling temperature to use. Higher values mean the model will take more risks.

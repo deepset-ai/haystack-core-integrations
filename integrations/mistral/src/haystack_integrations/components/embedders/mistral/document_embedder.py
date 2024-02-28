@@ -50,7 +50,7 @@ class MistralDocumentEmbedder(OpenAIDocumentEmbedder):
         :param model:
             The name of the model to use.
         :param api_base_url:
-            The Mistral API Base url, defaults to None. For more details, see Mistral [docs](https://docs.mistral.ai/api/).
+            The Mistral API Base url. For more details, see Mistral [docs](https://docs.mistral.ai/api/).
         :param prefix:
             A string to add to the beginning of each text.
         :param suffix:

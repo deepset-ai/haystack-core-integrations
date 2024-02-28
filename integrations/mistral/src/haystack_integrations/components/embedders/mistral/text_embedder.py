@@ -23,7 +23,7 @@ class MistralTextEmbedder(OpenAITextEmbedder):
 
     # output:
     # {'embedding': [0.017020374536514282, -0.023255806416273117, ...],
-    # 'meta': {'model': 'text-embedding-ada-002-v2',
+    # 'meta': {'model': 'mistral-embed',
     #          'usage': {'prompt_tokens': 4, 'total_tokens': 4}}}
     ```
     """
@@ -40,9 +40,9 @@ class MistralTextEmbedder(OpenAITextEmbedder):
         Creates an MistralTextEmbedder component.
 
         :param api_key:
-            The Misttal API key.
+            The Mistral API key.
         :param model:
-            The name of the Mistral embedding models to be used.
+            The name of the Mistral embedding model to be used.
         :param api_base_url:
             The Mistral API Base url, defaults to `https://api.mistral.ai/v1`.
             For more details, see Mistral [docs](https://docs.mistral.ai/api/).
