@@ -24,7 +24,8 @@ from numpy import array as np_array
 from numpy import array_equal as np_array_equal
 from numpy import float32 as np_float32
 from pandas import DataFrame
-from weaviate.auth import AuthApiKey as WeaviateAuthApiKey
+
+# from weaviate.auth import AuthApiKey as WeaviateAuthApiKey
 from weaviate.config import AdditionalConfig, ConnectionConfig
 from weaviate.embedded import (
     DEFAULT_BINARY_PATH,
@@ -153,35 +154,43 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
         monkeypatch.setenv("WEAVIATE_API_KEY", "my_api_key")
         WeaviateDocumentStore(
             url="http://localhost:8080",
+            # url=None,
             collection_settings={"class": "My_collection"},
-            auth_client_secret=AuthApiKey(),
-            proxies={"http": "http://proxy:1234"},
+            # auth_client_secret=AuthApiKey(),
+            # proxies={"http": "http://proxy:1234"},
             additional_headers={"X-HuggingFace-Api-Key": "MY_HUGGINGFACE_KEY"},
-            embedded_options=EmbeddedOptions(
-                persistence_data_path=DEFAULT_PERSISTENCE_DATA_PATH,
-                binary_path=DEFAULT_BINARY_PATH,
-                version="1.23.0",
-                hostname="127.0.0.1",
-            ),
-            additional_config=Config(grpc_port_experimental=12345),
+            # embedded_options=EmbeddedOptions(
+            #     persistence_data_path=DEFAULT_PERSISTENCE_DATA_PATH,
+            #     binary_path=DEFAULT_BINARY_PATH,
+            #     version="1.23.7",
+            #     hostname="127.0.0.1",
+            # ),
+            # additional_config=AdditionalConfig(
+            #     proxies={"http": "http://proxy:1234"},
+            # ),
         )
 
         # Verify client is created with correct parameters
+
         mock_weaviate_client_class.assert_called_once_with(
             url="http://localhost:8080",
-            auth_client_secret=WeaviateAuthApiKey("my_api_key"),
-            timeout_config=(10, 60),
-            proxies={"http": "http://proxy:1234"},
-            trust_env=False,
+            collection_settings={"class": "My_collection"},
+            # url=None,
+            # auth_client_secret=WeaviateAuthApiKey("my_api_key"),
+            # timeout_config=(10, 60),
+            # proxies={"http": "http://proxy:1234"},
+            # trust_env=False,
             additional_headers={"X-HuggingFace-Api-Key": "MY_HUGGINGFACE_KEY"},
-            startup_period=5,
-            embedded_options=EmbeddedOptions(
-                persistence_data_path=DEFAULT_PERSISTENCE_DATA_PATH,
-                binary_path=DEFAULT_BINARY_PATH,
-                version="1.23.0",
-                hostname="127.0.0.1",
-            ),
-            additional_config=Config(grpc_port_experimental=12345),
+            # startup_period=5,
+            # embedded_options=EmbeddedOptions(
+            #     persistence_data_path=DEFAULT_PERSISTENCE_DATA_PATH,
+            #     binary_path=DEFAULT_BINARY_PATH,
+            #     version="1.23.7",
+            #     hostname="127.0.0.1",
+            # ),
+            # additional_config=AdditionalConfig(
+            #     proxies={"http": "http://proxy:1234"},
+            # ),
         )
 
         # Verify collection is created

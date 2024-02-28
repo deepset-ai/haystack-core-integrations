@@ -101,11 +101,12 @@ class WeaviateDocumentStore:
         """
         # proxies, timeout_config, trust_env are part of additional_config now
         # startup_period has been removed
-        connection_params = weaviate.connect.base.ConnectionParams.from_url(
-            url=url, grpc_port=grpc_port, grpc_secure=grpc_secure
-        )
         self._client = weaviate.WeaviateClient(
-            connection_params=connection_params,
+            connection_params=(
+                weaviate.connect.base.ConnectionParams.from_url(url=url, grpc_port=grpc_port, grpc_secure=grpc_secure)
+                if url
+                else None
+            ),
             auth_client_secret=auth_client_secret.resolve_value() if auth_client_secret else None,
             additional_config=additional_config,
             additional_headers=additional_headers,
