@@ -4,14 +4,17 @@ from haystack import Document, component, default_from_dict, default_to_dict
 from haystack.utils import Secret
 
 from ._backend import _EmbedderBackend, _EmbedderParams
+from .optimization import OptimumEmbedderOptimizationConfig
 from .pooling import OptimumEmbedderPooling
+from .quantization import OptimumEmbedderQuantizationConfig
 
 
 @component
 class OptimumDocumentEmbedder:
     """
-    A component for computing Document embeddings using models loaded with the HuggingFace Optimum library.
-    This component is designed to seamlessly inference models using the high speed ONNX runtime.
+    A component for computing `Document` embeddings using models loaded with the
+    [HuggingFace Optimum](https://huggingface.co/docs/optimum/index) library,
+    leveraging the ONNX runtime for high-speed inference.
 
     The embedding of each Document is stored in the `embedding` field of the Document.
 
@@ -30,18 +33,6 @@ class OptimumDocumentEmbedder:
 
     # [0.017020374536514282, -0.023255806416273117, ...]
     ```
-
-    Key Features and Compatibility:
-        - **Primary Compatibility**: Designed to work seamlessly with any embedding model present on the Hugging Face
-        Hub.
-        - **Conversion to ONNX**: The models are converted to ONNX using the HuggingFace Optimum library. This is
-        performed in real-time, during the warm-up step.
-        - **Accelerated Inference on GPU**: Supports using different execution providers such as CUDA and TensorRT, to
-        accelerate ONNX Runtime inference on GPUs.
-        Simply pass the execution provider as the onnx_execution_provider parameter. Additonal parameters can be passed
-        to the model using the model_kwargs parameter.
-        For more details refer to the HuggingFace documentation:
-        https://huggingface.co/docs/optimum/onnxruntime/usage_guides/gpu.
     """
 
     def __init__(
@@ -54,6 +45,9 @@ class OptimumDocumentEmbedder:
         onnx_execution_provider: str = "CPUExecutionProvider",
         pooling_mode: Optional[Union[str, OptimumEmbedderPooling]] = None,
         model_kwargs: Optional[Dict[str, Any]] = None,
+        working_dir: Optional[str] = None,
+        optimizer_settings: Optional[OptimumEmbedderOptimizationConfig] = None,
+        quantizer_settings: Optional[OptimumEmbedderQuantizationConfig] = None,
         batch_size: int = 32,
         progress_bar: bool = True,
         meta_fields_to_embed: Optional[List[str]] = None,
@@ -62,13 +56,19 @@ class OptimumDocumentEmbedder:
         """
         Create a OptimumDocumentEmbedder component.
 
-        :param model: A string representing the model id on HF Hub.
-        :param token: The HuggingFace token to use as HTTP bearer authorization.
-        :param prefix: A string to add to the beginning of each text.
-        :param suffix: A string to add to the end of each text.
-        :param normalize_embeddings: Whether to normalize the embeddings to unit length.
-        :param onnx_execution_provider: The execution provider to use for ONNX models. See
-            https://onnxruntime.ai/docs/execution-providers/ for possible providers.
+        :param model:
+            A string representing the model id on HF Hub.
+        :param token:
+            The HuggingFace token to use as HTTP bearer authorization.
+        :param prefix:
+            A string to add to the beginning of each text.
+        :param suffix:
+            A string to add to the end of each text.
+        :param normalize_embeddings:
+            Whether to normalize the embeddings to unit length.
+        :param onnx_execution_provider:
+            The [execution provider](https://onnxruntime.ai/docs/execution-providers/)
+            to use for ONNX models.
 
             Note: Using the TensorRT execution provider
             TensorRT requires to build its inference engine ahead of inference, which takes some time due to the model
@@ -88,16 +88,31 @@ class OptimumDocumentEmbedder:
                 },
             )
             ```
-        :param pooling_mode: The pooling mode to use. When None, pooling mode will be inferred from the model config.
-            Refer to the OptimumEmbedderPooling enum for supported pooling modes.
-        :param model_kwargs: Dictionary containing additional keyword arguments to pass to the model.
-            In case of duplication, these kwargs override `model`, `onnx_execution_provider`, and `token` initialization
-            parameters.
-        :param batch_size: Number of Documents to encode at once.
-        :param progress_bar: Whether to show a progress bar or not. Can be helpful to disable in production deployments
-            to keep the logs clean.
-        :param meta_fields_to_embed: List of meta fields that should be embedded along with the Document text.
-        :param embedding_separator: Separator used to concatenate the meta fields to the Document text.
+        :param pooling_mode:
+            The pooling mode to use. When `None`, pooling mode will be inferred from the model config.
+        :param model_kwargs:
+            Dictionary containing additional keyword arguments to pass to the model.
+            In case of duplication, these kwargs override `model`, `onnx_execution_provider`
+            and `token` initialization parameters.
+         :param working_dir:
+             The directory to use for storing intermediate files
+             generated during model optimization/quantization.
+
+             Required for optimization and quantization.
+         :param optimizer_settings:
+             Configuration for Optimum Embedder Optimization.
+             If `None`, no additional optimization is be applied.
+         :param quantizer_settings:
+             Configuration for Optimum Embedder Quantization.
+             If `None`, no quantization is be applied.
+        :param batch_size:
+            Number of Documents to encode at once.
+        :param progress_bar:
+            Whether to show a progress bar or not.
+        :param meta_fields_to_embed:
+            List of meta fields that should be embedded along with the Document text.
+        :param embedding_separator:
+            Separator used to concatenate the meta fields to the Document text.
         """
         params = _EmbedderParams(
             model=model,
@@ -110,6 +125,9 @@ class OptimumDocumentEmbedder:
             progress_bar=progress_bar,
             pooling_mode=pooling_mode,
             model_kwargs=model_kwargs,
+            working_dir=working_dir,
+            optimizer_settings=optimizer_settings,
+            quantizer_settings=quantizer_settings,
         )
         self.meta_fields_to_embed = meta_fields_to_embed or []
         self.embedding_separator = embedding_separator
@@ -119,7 +137,7 @@ class OptimumDocumentEmbedder:
 
     def warm_up(self):
         """
-        Load the embedding backend.
+        Initializes the component.
         """
         if self._initialized:
             return
@@ -129,7 +147,10 @@ class OptimumDocumentEmbedder:
 
     def to_dict(self) -> Dict[str, Any]:
         """
-        Serialize this component to a dictionary.
+        Serializes the component to a dictionary.
+
+        :returns:
+            Dictionary with serialized data.
         """
         init_params = self._backend.parameters.serialize()
         init_params["meta_fields_to_embed"] = self.meta_fields_to_embed
@@ -139,7 +160,12 @@ class OptimumDocumentEmbedder:
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "OptimumDocumentEmbedder":
         """
-        Deserialize this component from a dictionary.
+        Deserializes the component from a dictionary.
+
+        :param data:
+            The dictionary to deserialize from.
+        :returns:
+            The deserialized component.
         """
         _EmbedderParams.deserialize_inplace(data["init_parameters"])
         return default_from_dict(cls, data)
@@ -169,8 +195,10 @@ class OptimumDocumentEmbedder:
         Embed a list of Documents.
         The embedding of each Document is stored in the `embedding` field of the Document.
 
-        :param documents: A list of Documents to embed.
-        :return: A dictionary containing the updated Documents with their embeddings.
+        :param documents:
+            A list of Documents to embed.
+        :returns:
+            The updated Documents with their embeddings.
         """
         if not self._initialized:
             msg = "The embedding model has not been loaded. Please call warm_up() before running."

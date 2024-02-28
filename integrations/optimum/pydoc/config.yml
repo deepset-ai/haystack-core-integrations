@@ -6,6 +6,8 @@ loaders:
         "haystack_integrations.components.embedders.optimum.optimum_document_embedder",
         "haystack_integrations.components.embedders.optimum.optimum_text_embedder",
         "haystack_integrations.components.embedders.optimum.pooling",
+        "haystack_integrations.components.embedders.optimum.optimization",
+        "haystack_integrations.components.embedders.optimum.quantization",
       ]
     ignore_when_discovered: ["__init__"]
 processors:

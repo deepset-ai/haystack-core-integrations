@@ -1,7 +1,8 @@
 import copy
 import json
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Union
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import torch
@@ -11,10 +12,17 @@ from huggingface_hub import hf_hub_download
 from sentence_transformers.models import Pooling as SentenceTransformerPoolingLayer
 from tqdm import tqdm
 from transformers import AutoTokenizer
+from transformers.modeling_outputs import BaseModelOutput
 
-from optimum.onnxruntime import ORTModelForFeatureExtraction
+from optimum.onnxruntime import (
+    ORTModelForFeatureExtraction,
+    ORTOptimizer,
+    ORTQuantizer,
+)
 
+from .optimization import OptimumEmbedderOptimizationConfig
 from .pooling import OptimumEmbedderPooling
+from .quantization import OptimumEmbedderQuantizationConfig
 
 
 @dataclass
@@ -29,16 +37,29 @@ class _EmbedderParams:
     progress_bar: bool
     pooling_mode: Optional[Union[str, OptimumEmbedderPooling]]
     model_kwargs: Optional[Dict[str, Any]]
+    working_dir: Optional[str]
+    optimizer_settings: Optional[OptimumEmbedderOptimizationConfig]
+    quantizer_settings: Optional[OptimumEmbedderQuantizationConfig]
 
     def serialize(self) -> Dict[str, Any]:
         out = {}
         for field in self.__dataclass_fields__.keys():
+            if field in [
+                "pooling_mode",
+                "token",
+                "optimizer_settings",
+                "quantizer_settings",
+            ]:
+                continue
             out[field] = copy.deepcopy(getattr(self, field))
 
         # Fixups.
         assert isinstance(self.pooling_mode, OptimumEmbedderPooling)
-        out["pooling_mode"] = self.pooling_mode.value
+        out["pooling_mode"] = str(self.pooling_mode)
         out["token"] = self.token.to_dict() if self.token else None
+        out["optimizer_settings"] = self.optimizer_settings.to_dict() if self.optimizer_settings else None
+        out["quantizer_settings"] = self.quantizer_settings.to_dict() if self.quantizer_settings else None
+
         out["model_kwargs"].pop("use_auth_token", None)
         serialize_hf_model_kwargs(out["model_kwargs"])
         return out
@@ -46,6 +67,11 @@ class _EmbedderParams:
     @classmethod
     def deserialize_inplace(cls, data: Dict[str, Any]) -> Dict[str, Any]:
         data["pooling_mode"] = OptimumEmbedderPooling.from_str(data["pooling_mode"])
+        if data["optimizer_settings"] is not None:
+            data["optimizer_settings"] = OptimumEmbedderOptimizationConfig.from_dict(data["optimizer_settings"])
+        if data["quantizer_settings"] is not None:
+            data["quantizer_settings"] = OptimumEmbedderQuantizationConfig.from_dict(data["quantizer_settings"])
+
         deserialize_secrets_inplace(data, keys=["token"])
         deserialize_hf_model_kwargs(data["model_kwargs"])
         return data
@@ -71,6 +97,11 @@ class _EmbedderBackend:
 
         params.model_kwargs = params.model_kwargs or {}
 
+        if params.optimizer_settings or params.quantizer_settings:
+            if not params.working_dir:
+                msg = "Working directory is required for optimization and quantization"
+                raise ValueError(msg)
+
         # Check if the model_kwargs contain the parameters, otherwise, populate them with values from init parameters
         params.model_kwargs.setdefault("model_id", params.model)
         params.model_kwargs.setdefault("provider", params.onnx_execution_provider)
@@ -82,18 +113,48 @@ class _EmbedderBackend:
         self.pooling_layer = None
 
     def warm_up(self):
-        self.model = ORTModelForFeatureExtraction.from_pretrained(**self.params.model_kwargs, export=True)
+        assert self.params.model_kwargs
+        model_kwargs = copy.deepcopy(self.params.model_kwargs)
+        model = ORTModelForFeatureExtraction.from_pretrained(**model_kwargs, export=True)
+
+        # Model ID will be passed explicitly if optimization/quantization is enabled.
+        model_kwargs.pop("model_id", None)
+
+        optimized_model = False
+        if self.params.optimizer_settings:
+            assert self.params.working_dir
+            optimizer = ORTOptimizer.from_pretrained(model)
+            save_dir = optimizer.optimize(
+                save_dir=self.params.working_dir, optimization_config=self.params.optimizer_settings.to_optimum_config()
+            )
+            model = ORTModelForFeatureExtraction.from_pretrained(model_id=save_dir, **model_kwargs)
+            optimized_model = True
+
+        if self.params.quantizer_settings:
+            assert self.params.working_dir
+
+            # We need to create a subfolder for models that were optimized before quantization
+            # since Optimum expects no more than one ONXX model in the working directory. There's
+            # a file name parameter, but the optimizer only returns the working directory.
+            working_dir = (
+                Path(self.params.working_dir) if not optimized_model else Path(self.params.working_dir) / "quantized"
+            )
+            quantizer = ORTQuantizer.from_pretrained(model)
+            save_dir = quantizer.quantize(
+                save_dir=working_dir, quantization_config=self.params.quantizer_settings.to_optimum_config()
+            )
+            model = ORTModelForFeatureExtraction.from_pretrained(model_id=save_dir, **model_kwargs)
+
+        self.model = model
         self.tokenizer = AutoTokenizer.from_pretrained(
             self.params.model, token=self.params.token.resolve_value() if self.params.token else None
         )
 
         # We need the width of the embeddings to initialize the pooling layer
         # so we do a dummy forward pass with the model.
-        dummy_input = self.tokenizer(["dummy input"], padding=True, truncation=True, return_tensors="pt").to(
-            self.model.device
-        )
-        dummy_output = self.model(input_ids=dummy_input["input_ids"], attention_mask=dummy_input["attention_mask"])
-        width = dummy_output[0].size(dim=2)  # BaseModelOutput.last_hidden_state
+        width = self._tokenize_and_generate_outputs(["dummy input"])[1][0].size(
+            dim=2
+        )  # BaseModelOutput.last_hidden_state
 
         self.pooling_layer = SentenceTransformerPoolingLayer(
             width,
@@ -104,6 +165,17 @@ class _EmbedderBackend:
             pooling_mode_weightedmean_tokens=self.params.pooling_mode == OptimumEmbedderPooling.WEIGHTED_MEAN,
             pooling_mode_lasttoken=self.params.pooling_mode == OptimumEmbedderPooling.LAST_TOKEN,
         )
+
+    def _tokenize_and_generate_outputs(self, texts: List[str]) -> Tuple[Dict[str, Any], BaseModelOutput]:
+        assert self.model is not None
+        assert self.tokenizer is not None
+
+        tokenizer_outputs = self.tokenizer(texts, padding=True, truncation=True, return_tensors="pt").to(
+            self.model.device
+        )
+        model_inputs = {k: v for k, v in tokenizer_outputs.items() if k in self.model.inputs_names}
+        model_outputs = self.model(**model_inputs)
+        return tokenizer_outputs, model_outputs
 
     @property
     def parameters(self) -> _EmbedderParams:
@@ -140,11 +212,8 @@ class _EmbedderBackend:
             desc="Calculating embeddings",
         ):
             batch = sentences_sorted[i : i + self.params.batch_size]
-            encoded_input = self.tokenizer(batch, padding=True, truncation=True, return_tensors="pt").to(device)
-            model_output = self.model(
-                input_ids=encoded_input["input_ids"], attention_mask=encoded_input["attention_mask"]
-            )
-            sentence_embeddings = self.pool_embeddings(model_output[0], encoded_input["attention_mask"].to(device))
+            tokenizer_output, model_output = self._tokenize_and_generate_outputs(batch)
+            sentence_embeddings = self.pool_embeddings(model_output[0], tokenizer_output["attention_mask"].to(device))
             all_embeddings.append(sentence_embeddings)
 
         embeddings = torch.cat(all_embeddings, dim=0)

@@ -1,12 +1,21 @@
 from unittest.mock import MagicMock, patch
+import tempfile
+import copy
 
 import pytest
 from haystack.dataclasses import Document
 from haystack.utils.auth import Secret
 from haystack_integrations.components.embedders.optimum import OptimumDocumentEmbedder
 from haystack_integrations.components.embedders.optimum.pooling import OptimumEmbedderPooling
+from haystack_integrations.components.embedders.optimum.optimization import (
+    OptimumEmbedderOptimizationConfig,
+    OptimumEmbedderOptimizationMode,
+)
+from haystack_integrations.components.embedders.optimum.quantization import (
+    OptimumEmbedderQuantizationConfig,
+    OptimumEmbedderQuantizationMode,
+)
 from huggingface_hub.utils import RepositoryNotFoundError
-import copy
 
 
 @pytest.fixture
@@ -63,6 +72,9 @@ class TestOptimumDocumentEmbedder:
             pooling_mode="max",
             onnx_execution_provider="CUDAExecutionProvider",
             model_kwargs={"trust_remote_code": True},
+            working_dir="working_dir",
+            optimizer_settings=None,
+            quantizer_settings=None,
         )
 
         assert embedder._backend.parameters.model == "sentence-transformers/all-minilm-l6-v2"
@@ -82,6 +94,9 @@ class TestOptimumDocumentEmbedder:
             "provider": "CUDAExecutionProvider",
             "use_auth_token": "fake-api-token",
         }
+        assert embedder._backend.parameters.working_dir == "working_dir"
+        assert embedder._backend.parameters.optimizer_settings is None
+        assert embedder._backend.parameters.quantizer_settings is None
 
     def test_to_and_from_dict(self, mock_check_valid_model, mock_get_pooling_mode):  # noqa: ARG002
         component = OptimumDocumentEmbedder()
@@ -105,6 +120,9 @@ class TestOptimumDocumentEmbedder:
                     "model_id": "sentence-transformers/all-mpnet-base-v2",
                     "provider": "CPUExecutionProvider",
                 },
+                "working_dir": None,
+                "optimizer_settings": None,
+                "quantizer_settings": None,
             },
         }
 
@@ -125,6 +143,9 @@ class TestOptimumDocumentEmbedder:
             "provider": "CPUExecutionProvider",
             "use_auth_token": None,
         }
+        assert embedder._backend.parameters.working_dir is None
+        assert embedder._backend.parameters.optimizer_settings is None
+        assert embedder._backend.parameters.quantizer_settings is None
 
     def test_to_and_from_dict_with_custom_init_parameters(
         self, mock_check_valid_model, mock_get_pooling_mode
@@ -142,6 +163,11 @@ class TestOptimumDocumentEmbedder:
             onnx_execution_provider="CUDAExecutionProvider",
             pooling_mode="max",
             model_kwargs={"trust_remote_code": True},
+            working_dir="working_dir",
+            optimizer_settings=OptimumEmbedderOptimizationConfig(OptimumEmbedderOptimizationMode.O1, for_gpu=True),
+            quantizer_settings=OptimumEmbedderQuantizationConfig(
+                OptimumEmbedderQuantizationMode.ARM64, per_channel=True
+            ),
         )
         data = component.to_dict()
 
@@ -164,6 +190,9 @@ class TestOptimumDocumentEmbedder:
                     "model_id": "sentence-transformers/all-minilm-l6-v2",
                     "provider": "CUDAExecutionProvider",
                 },
+                "working_dir": "working_dir",
+                "optimizer_settings": {"mode": "o1", "for_gpu": True},
+                "quantizer_settings": {"mode": "arm64", "per_channel": True},
             },
         }
 
@@ -185,6 +214,13 @@ class TestOptimumDocumentEmbedder:
             "provider": "CUDAExecutionProvider",
             "use_auth_token": None,
         }
+        assert embedder._backend.parameters.working_dir == "working_dir"
+        assert embedder._backend.parameters.optimizer_settings == OptimumEmbedderOptimizationConfig(
+            OptimumEmbedderOptimizationMode.O1, for_gpu=True
+        )
+        assert embedder._backend.parameters.quantizer_settings == OptimumEmbedderQuantizationConfig(
+            OptimumEmbedderQuantizationMode.ARM64, per_channel=True
+        )
 
     def test_initialize_with_invalid_model(self, mock_check_valid_model):
         mock_check_valid_model.side_effect = RepositoryNotFoundError("Invalid model id")
@@ -287,7 +323,7 @@ class TestOptimumDocumentEmbedder:
 
     def test_run_on_empty_list(self, mock_check_valid_model):  # noqa: ARG002
         embedder = OptimumDocumentEmbedder(
-            model="sentence-transformers/all-mpnet-base-v2",
+            model="sentence-transformers/paraphrase-albert-small-v2",
         )
         embedder.warm_up()
         empty_list_input = []
@@ -297,7 +333,24 @@ class TestOptimumDocumentEmbedder:
         assert not result["documents"]  # empty list
 
     @pytest.mark.integration
-    def test_run(self):
+    @pytest.mark.parametrize(
+        "opt_config, quant_config",
+        [
+            (None, None),
+            (
+                OptimumEmbedderOptimizationConfig(OptimumEmbedderOptimizationMode.O1, for_gpu=False),
+                None,
+            ),
+            (None, OptimumEmbedderQuantizationConfig(OptimumEmbedderQuantizationMode.AVX2)),
+            # onxxruntime 1.17.x breaks support for quantizing optimized models.
+            # c.f https://discuss.huggingface.co/t/optimize-and-quantize-with-optimum/23675/12
+            # (
+            #     OptimumEmbedderOptimizationConfig(OptimumEmbedderOptimizationMode.O2, for_gpu=False),
+            #     OptimumEmbedderQuantizationConfig(OptimumEmbedderQuantizationMode.AVX2),
+            # ),
+        ],
+    )
+    def test_run(self, opt_config, quant_config):
         docs = [
             Document(content="I love cheese", meta={"topic": "Cuisine"}),
             Document(content="A transformer is a deep learning architecture", meta={"topic": "ML"}),
@@ -305,18 +358,22 @@ class TestOptimumDocumentEmbedder:
         ]
         docs_copy = copy.deepcopy(docs)
 
-        embedder = OptimumDocumentEmbedder(
-            model="sentence-transformers/all-mpnet-base-v2",
-            prefix="prefix ",
-            suffix=" suffix",
-            meta_fields_to_embed=["topic"],
-            embedding_separator=" | ",
-            batch_size=1,
-        )
-        embedder.warm_up()
+        with tempfile.TemporaryDirectory() as tmpdirname:
+            embedder = OptimumDocumentEmbedder(
+                model="sentence-transformers/paraphrase-albert-small-v2",
+                prefix="prefix ",
+                suffix=" suffix",
+                meta_fields_to_embed=["topic"],
+                embedding_separator=" | ",
+                batch_size=1,
+                working_dir=tmpdirname,
+                optimizer_settings=opt_config,
+                quantizer_settings=quant_config,
+            )
+            embedder.warm_up()
 
-        result = embedder.run(documents=docs)
-        expected = [embedder.run([d]) for d in docs_copy]
+            result = embedder.run(documents=docs)
+            expected = [embedder.run([d]) for d in docs_copy]
 
         documents_with_embeddings = result["documents"]
 
