@@ -3,6 +3,13 @@
 # Astra Store
 
 ## Installation
+
+```bash
+pip install astra-haystack
+
+```
+
+### Local Development
 install astra-haystack package locally to run integration tests:
 
 Open in gitpod:
