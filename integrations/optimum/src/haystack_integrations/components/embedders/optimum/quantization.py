@@ -17,7 +17,7 @@ class OptimumEmbedderQuantizationMode(Enum):
     #: Quantization with AVX-2 instructions.
     AVX2 = "avx2"
 
-    #: Quantization with AVX-2 instructions.
+    #: Quantization with AVX-512 instructions.
     AVX512 = "avx512"
 
     #: Quantization with AVX-512 and VNNI instructions.
