@@ -155,7 +155,7 @@ class AstraDocumentStore:
                 it is skipped and not written.
             - `DuplicatePolicy.OVERWRITE`: If a Document with the same ID already exists, it is overwritten.
             - `DuplicatePolicy.FAIL`: If a Document with the same ID already exists, an error is raised.
-        :return: number of documents written.
+        :returns: number of documents written.
         :raises ValueError: If the documents are not of type Document or dict.
         :raises DuplicateDocumentError: If a document with the same ID already exists and policy is set to FAIL.
         :raises Exception: If the document ID is not a string or if `id` and `_id` are both present in the document.

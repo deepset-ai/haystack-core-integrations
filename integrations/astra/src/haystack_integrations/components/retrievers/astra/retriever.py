@@ -48,10 +48,10 @@ class AstraEmbeddingRetriever:
     def run(self, query_embedding: List[float], filters: Optional[Dict[str, Any]] = None, top_k: Optional[int] = None):
         """Retrieve documents from the AstraDocumentStore.
 
-        :param query_embedding: Floats representing the query embedding
-        :param filters: Filters to narrow down the search space.
+        :param query_embedding: floats representing the query embedding
+        :param filters: filters to narrow down the search space.
         :param top_k: the maximum number of documents to retrieve.
-        :return: A dictionary with the following keys:
+        :returns: a dictionary with the following keys:
             - documents: A list of documents retrieved from the AstraDocumentStore.
         """
 

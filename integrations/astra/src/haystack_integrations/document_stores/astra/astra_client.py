@@ -194,7 +194,7 @@ class AstraClient:
         Find documents in the Astra index.
 
         :param find_query: a dictionary with the query options
-        :return: the documents found in the index
+        :returns: the documents found in the index
         """
         response_dict = self._astra_db_collection.find(
             filter=find_query.get("filter"),
@@ -213,7 +213,7 @@ class AstraClient:
 
         :param ids: a list of document ids
         :param batch_size: the batch size to use when querying the index
-        :return: the documents found in the index
+        :returns: the documents found in the index
         """
         document_batch = []
 
@@ -237,7 +237,7 @@ class AstraClient:
         Insert documents into the Astra index.
 
         :param documents: a list of documents to insert
-        :return: the ids of the inserted documents
+        :returns: the ids of the inserted documents
         """
         response_dict = self._astra_db_collection.insert_many(documents=documents)
 
@@ -257,7 +257,7 @@ class AstraClient:
 
         :param document: the document to update
         :param id_key: the key to use as the document id
-        :return: whether the document was updated successfully
+        :returns: whether the document was updated successfully
         """
         document_id = document.pop(id_key)
 
