@@ -22,11 +22,10 @@ class OptimumEmbedderPooling(Enum):
     MEAN_SQRT_LEN = "mean_sqrt_len"
 
     #: Perform weighted (position) mean pooling on the output of the
-    #: embedding model. See https://arxiv.org/abs/2202.08904.
+    #: embedding model.
     WEIGHTED_MEAN = "weighted_mean"
 
     #: Perform Last Token Pooling on the output of the embedding model.
-    #: See https://arxiv.org/abs/2202.08904 & https://arxiv.org/abs/2201.10005.
     LAST_TOKEN = "last_token"
 
     def __str__(self):
@@ -38,9 +37,9 @@ class OptimumEmbedderPooling(Enum):
         Create a pooling mode from a string.
 
         :param string:
-            The string to convert.
+            String to convert.
         :returns:
-            The pooling mode.
+            Pooling mode.
         """
         enum_map = {e.value: e for e in OptimumEmbedderPooling}
         pooling_mode = enum_map.get(string)
