@@ -265,7 +265,11 @@ class WeaviateDocumentStore:
         #     raise DocumentStoreError(msg)
 
         # return result["data"]["Get"][collection_name]
-        result = self._collection.iterator(include_vector=True, return_properties=properties)
+        try:
+            result = self._collection.iterator(include_vector=True, return_properties=properties)
+        except weaviate.exceptions.WeaviateQueryError as e:
+            msg = f"Failed to query documents in Weaviate. Error: {e.message}"
+            raise DocumentStoreError(msg) from None
         return list(result)
 
     def _query_with_filters(self, filters: weaviate.collections.classes.filters.Filter) -> List[Dict[str, Any]]:
