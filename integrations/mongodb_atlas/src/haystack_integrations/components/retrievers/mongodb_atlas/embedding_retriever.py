@@ -40,7 +40,10 @@ class MongoDBAtlasEmbeddingRetriever:
 
     def to_dict(self) -> Dict[str, Any]:
         """
-        Serializes this component into a dictionary.
+        Serializes the component to a dictionary.
+
+        :returns: 
+            Dictionary with serialized data.
         """
         return default_to_dict(
             self,
@@ -52,10 +55,12 @@ class MongoDBAtlasEmbeddingRetriever:
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "MongoDBAtlasEmbeddingRetriever":
         """
-        Deserializes a dictionary created with `MongoDBAtlasEmbeddingRetriever.to_dict()` into a
-        `MongoDBAtlasEmbeddingRetriever` instance.
+        Deserializes the component from a dictionary.
 
-        :param data: the dictionary returned by `MongoDBAtlasEmbeddingRetriever.to_dict()`
+        :param data:
+            The dictionary to deserialize from.
+        :returns:
+            The deserialized component.
         """
         data["init_parameters"]["document_store"] = MongoDBAtlasDocumentStore.from_dict(
             data["init_parameters"]["document_store"]
@@ -75,7 +80,7 @@ class MongoDBAtlasEmbeddingRetriever:
         :param query_embedding: Embedding of the query.
         :param filters: Filters applied to the retrieved Documents. Overrides the value specified at initialization.
         :param top_k: Maximum number of Documents to return. Overrides the value specified at initialization.
-        :return: List of Documents similar to `query_embedding`.
+        :returns: List of Documents similar to `query_embedding`.
         """
         filters = filters or self.filters
         top_k = top_k or self.top_k
