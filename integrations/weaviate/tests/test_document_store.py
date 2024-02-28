@@ -15,7 +15,6 @@ from haystack.testing.document_store import (
     FilterDocumentsTest,
     WriteDocumentsTest,
 )
-import weaviate
 from haystack_integrations.document_stores.weaviate.auth import AuthApiKey
 from haystack_integrations.document_stores.weaviate.document_store import (
     DOCUMENT_COLLECTION_PROPERTIES,
@@ -150,11 +149,11 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
     @patch("haystack_integrations.document_stores.weaviate.document_store.weaviate.WeaviateClient")
     def test_init(self, mock_weaviate_client_class, monkeypatch):
         mock_client = MagicMock()
-        mock_client.schema.exists.return_value = False
+        mock_client.collections.exists.return_value = False
         mock_weaviate_client_class.return_value = mock_client
         monkeypatch.setenv("WEAVIATE_API_KEY", "my_api_key")
         WeaviateDocumentStore(
-            # collection_settings={"class": "My_collection"},
+            collection_settings={"class": "My_collection"},
             # auth_client_secret=AuthApiKey(),
             # proxies={"http": "http://proxy:1234"},
             additional_headers={"X-HuggingFace-Api-Key": "MY_HUGGINGFACE_KEY"},
@@ -178,9 +177,9 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
             # timeout_config=(10, 60),
             # proxies={"http": "http://proxy:1234"},
             # trust_env=False,
-            connection_params=None, 
-            auth_client_secret=None, 
-            additional_config=None, 
+            connection_params=None,
+            auth_client_secret=None,
+            additional_config=None,
             additional_headers={"X-HuggingFace-Api-Key": "MY_HUGGINGFACE_KEY"},
             embedded_options=EmbeddedOptions(
                 persistence_data_path=DEFAULT_PERSISTENCE_DATA_PATH,
@@ -192,11 +191,15 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
         )
 
         # Verify collection is created
-        mock_client.schema.get.assert_called_once()
-        mock_client.schema.exists.assert_called_once_with("My_collection")
-        mock_client.schema.create_class.assert_called_once_with(
+        # mock_client.schema.get.assert_called_once()
+        # mock_client.schema.exists.assert_called_once_with("My_collection")
+        mock_client.collections.exists.assert_called_once_with("My_collection")
+        mock_client.collections.create_from_dict.assert_called_once_with(
             {"class": "My_collection", "properties": DOCUMENT_COLLECTION_PROPERTIES}
         )
+        # mock_client.schema.create_class.assert_called_once_with(
+        #     {"class": "My_collection", "properties": DOCUMENT_COLLECTION_PROPERTIES}
+        # )
 
     @patch("haystack_integrations.document_stores.weaviate.document_store.weaviate")
     def test_to_dict(self, _mock_weaviate, monkeypatch):
