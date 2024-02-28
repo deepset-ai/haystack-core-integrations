@@ -363,7 +363,12 @@ class WeaviateDocumentStore:
         #     raise DocumentStoreError(msg)
 
         with self._client.batch.dynamic() as batch:
+
             for doc in documents:
+                if not isinstance(doc, Document):
+                    msg = f"Expected a Document, got '{type(doc)}' instead."
+                    raise ValueError(msg)
+
                 batch.add_object(
                     properties=self._to_data_object(doc),
                     collection=self._collection.name,
