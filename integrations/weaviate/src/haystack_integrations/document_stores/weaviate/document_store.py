@@ -13,7 +13,7 @@ from haystack.document_stores.types.policy import DuplicatePolicy
 
 import weaviate
 from weaviate.collections.classes.internal import Object
-from weaviate.config import AdditionalConfig  # , Config, ConnectionConfig
+from weaviate.config import AdditionalConfig
 from weaviate.embedded import EmbeddedOptions
 from weaviate.util import generate_uuid5
 
@@ -157,16 +157,12 @@ class WeaviateDocumentStore:
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "WeaviateDocumentStore":
-        # if (timeout_config := data["init_parameters"].get("timeout_config")) is not None:
-        #     data["init_parameters"]["timeout_config"] = (
-        #         tuple(timeout_config) if isinstance(timeout_config, list) else timeout_config
-        #     )
+
         if (auth_client_secret := data["init_parameters"].get("auth_client_secret")) is not None:
             data["init_parameters"]["auth_client_secret"] = AuthCredentials.from_dict(auth_client_secret)
         if (embedded_options := data["init_parameters"].get("embedded_options")) is not None:
             data["init_parameters"]["embedded_options"] = EmbeddedOptions(**embedded_options)
         if (additional_config := data["init_parameters"].get("additional_config")) is not None:
-            # additional_config["connection_config"] = ConnectionConfig(**additional_config["connection_config"])
             data["init_parameters"]["additional_config"] = AdditionalConfig(**additional_config)
         return default_from_dict(
             cls,
@@ -174,9 +170,6 @@ class WeaviateDocumentStore:
         )
 
     def count_documents(self) -> int:
-        # collection_name = self._collection_settings["class"]
-        # res = self._client.query.aggregate(collection_name).with_meta_count().do()
-        # return res.get("data", {}).get("Aggregate", {}).get(collection_name, [{}])[0].get("meta", {}).get("count", 0)
         total = self._collection.aggregate.over_all(total_count=True).total_count
         return total if total else 0
 
@@ -241,30 +234,7 @@ class WeaviateDocumentStore:
         return Document.from_dict(data)
 
     def _query_paginated(self, properties: List[str]):
-        # collection_name = self._collection_settings["class"]
-        # query = (
-        #     self._client.query.get(
-        #         collection_name,
-        #         properties,
-        #     )
-        #     .with_additional(["id vector"])
-        #     .with_limit(100)
-        # )
 
-        # if cursor:
-        #     # Fetch the next set of results
-        #     result = query.with_after(cursor).do()
-        # else:
-        #     # Fetch the first set of results
-        #     result = query.do()
-
-        # if "errors" in result:
-        #     errors = [e["message"] for e in result.get("errors", {})]
-        #     msg = "\n".join(errors)
-        #     msg = f"Failed to query documents in Weaviate. Errors:\n{msg}"
-        #     raise DocumentStoreError(msg)
-
-        # return result["data"]["Get"][collection_name]
         try:
             result = self._collection.iterator(include_vector=True, return_properties=properties)
         except weaviate.exceptions.WeaviateQueryError as e:
@@ -273,7 +243,6 @@ class WeaviateDocumentStore:
         return list(result)
 
     def _query_with_filters(self, filters: weaviate.collections.classes.filters.Filter) -> List[Dict[str, Any]]:
-        # collection_name = self._collection_settings["class"]
 
         try:
             # this is the default value for max number of objects to retrieve in Weaviate
@@ -288,29 +257,9 @@ class WeaviateDocumentStore:
             msg = f"Failed to query documents in Weaviate. Error: {e.message}"
             raise DocumentStoreError(msg) from None
 
-        # query = (
-        #     self._client.query.get(
-        #         collection_name,
-        #         properties,
-        #     )
-        #     .with_additional(["id vector"])
-        #     .with_where(convert_filters(filters))
-        # )
-
-        # result = query.do()
-
-        # if "errors" in result:
-        #     errors = [e["message"] for e in result.get("errors", {})]
-        #     msg = "\n".join(errors)
-        #     msg = f"Failed to query documents in Weaviate. Errors:\n{msg}"
-        #     raise DocumentStoreError(msg)
-
-        # return result["data"]["Get"][collection_name]
-
         return result.objects
 
     def filter_documents(self, filters: Optional[weaviate.collections.classes.filters.Filter] = None) -> List[Document]:
-        # properties = self._client.schema.get(self._collection_settings["class"]).get("properties", [])
         properties = self._collection.config.get().properties
         properties = [prop.name for prop in properties]
 
@@ -318,17 +267,6 @@ class WeaviateDocumentStore:
             result = self._query_with_filters(filters)
             return [self._to_document(self._convert_weaviate_v4_object_to_v3_object(doc)) for doc in result]
 
-        # result = []
-
-        # cursor = None
-        # while batch := self._query_paginated(properties, cursor):
-        #     # Take the cursor before we convert the batch to Documents as we manipulate
-        #     # the batch dictionary and might lose that information.
-        #     cursor = batch[-1]["_additional"]["id"]
-
-        #     for doc in batch:
-        #         result.append(self._to_document(doc))
-        #     # Move the cursor to the last returned uuid
         result = self._query_paginated(properties)
         result = [self._to_document(self._convert_weaviate_v4_object_to_v3_object(doc)) for doc in result]
         return result
@@ -339,34 +277,6 @@ class WeaviateDocumentStore:
         Documents with the same id will be overwritten.
         Raises in case of errors.
         """
-        # statuses = []
-        # for doc in documents:
-        #     if not isinstance(doc, Document):
-        #         msg = f"Expected a Document, got '{type(doc)}' instead."
-        #         raise ValueError(msg)
-        #     if self._client.batch.num_objects() == self._client.batch.recommended_num_objects:
-        #         # Batch is full, let's create the objects
-        #         statuses.extend(self._client.batch.create_objects())
-        #     self._client.batch.add_data_object(
-        #         uuid=generate_uuid5(doc.id),
-        #         data_object=self._to_data_object(doc),
-        #         class_name=self._collection_settings["class"],
-        #         vector=doc.embedding,
-        #     )
-        # # Write remaining documents
-        # statuses.extend(self._client.batch.create_objects())
-
-        # errors = []
-        # # Gather errors and number of written documents
-        # for status in statuses:
-        #     result_status = status.get("result", {}).get("status")
-        #     if result_status == "FAILED":
-        #         errors.extend([e["message"] for e in status["result"]["errors"]["error"]])
-
-        # if errors:
-        #     msg = "\n".join(errors)
-        #     msg = f"Failed to write documents in Weaviate. Errors:\n{msg}"
-        #     raise DocumentStoreError(msg)
 
         with self._client.batch.dynamic() as batch:
 
@@ -414,12 +324,6 @@ class WeaviateDocumentStore:
                 continue
 
             try:
-                # self._client.data_object.create(
-                #     uuid=generate_uuid5(doc.id),
-                #     data_object=self._to_data_object(doc),
-                #     class_name=self._collection_settings["class"],
-                #     vector=doc.embedding,
-                # )
                 self._collection.data.insert(
                     uuid=generate_uuid5(doc.id),
                     properties=self._to_data_object(doc),
@@ -450,39 +354,14 @@ class WeaviateDocumentStore:
         return self._write(documents, policy)
 
     def delete_documents(self, document_ids: List[str]) -> None:
-        # self._client.batch.delete_objects(
-        #     class_name=self._collection_settings["class"],
-        #     where={
-        #         "path": ["id"],
-        #         "operator": "ContainsAny",
-        #         "valueTextArray": [generate_uuid5(doc_id) for doc_id in document_ids],
-        #     },
-        # )
+
         weaviate_ids = [generate_uuid5(doc_id) for doc_id in document_ids]
         self._collection.data.delete_many(where=weaviate.classes.query.Filter.by_id().contains_any(weaviate_ids))
 
     def _bm25_retrieval(
         self, query: str, filters: Optional[Dict[str, Any]] = None, top_k: Optional[int] = None
     ) -> List[Document]:
-        # collection_name = self._collection_settings["class"]
-        # properties = self._client.schema.get(self._collection_settings["class"]).get("properties", [])
-        # properties = [prop["name"] for prop in properties]
 
-        # query_builder = (
-        #     self._client.query.get(collection_name, properties=properties)
-        #     .with_bm25(query=query, properties=["content"])
-        #     .with_additional(["vector"])
-        # )
-
-        # if filters:
-        #     query_builder = query_builder.with_where(convert_filters(filters))
-
-        # if top_k:
-        #     query_builder = query_builder.with_limit(top_k)
-
-        # result = query_builder.do()
-
-        # return [self._to_document(doc) for doc in result["data"]["Get"][collection_name]]
         result = self._collection.query.bm25(
             query=query,
             filters=convert_filters(filters) if filters else None,
@@ -504,34 +383,6 @@ class WeaviateDocumentStore:
         if distance is not None and certainty is not None:
             msg = "Can't use 'distance' and 'certainty' parameters together"
             raise ValueError(msg)
-
-        # collection_name = self._collection_settings["class"]
-        # properties = self._client.schema.get(self._collection_settings["class"]).get("properties", [])
-        # properties = [prop["name"] for prop in properties]
-
-        # near_vector: Dict[str, Union[float, List[float]]] = {
-        #     "vector": query_embedding,
-        # }
-        # if distance is not None:
-        #     near_vector["distance"] = distance
-
-        # if certainty is not None:
-        #     near_vector["certainty"] = certainty
-
-        # query_builder = (
-        #     self._client.query.get(collection_name, properties=properties)
-        #     .with_near_vector(near_vector)
-        #     .with_additional(["vector"])
-        # )
-
-        # if filters:
-        #     query_builder = query_builder.with_where(convert_filters(filters))
-
-        # if top_k:
-        #     query_builder = query_builder.with_limit(top_k)
-
-        # result = query_builder.do()
-        # return [self._to_document(doc) for doc in result["data"]["Get"][collection_name]]
 
         result = self._collection.query.near_vector(
             near_vector=query_embedding,

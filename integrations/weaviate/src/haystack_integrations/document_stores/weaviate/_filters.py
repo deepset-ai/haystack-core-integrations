@@ -17,7 +17,6 @@ def convert_filters(filters: Dict[str, Any]) -> Dict[str, Any]:
         raise FilterError(msg)
 
     if "field" in filters:
-        # return {"operator": "And", "operands": [_parse_comparison_condition(filters)]}
         return _FilterAnd(_parse_comparison_condition(filters))
     return _parse_logical_condition(filters)
 
@@ -77,7 +76,6 @@ def _parse_logical_condition(condition: Dict[str, Any]) -> Dict[str, Any]:
                 operands.append(_parse_logical_condition(c))
             else:
                 operands.append(_parse_comparison_condition(c))
-        # return {"operator": operator.lower().capitalize(), "operands": operands}
         return LOGICAL_OPERATORS[operator](*operands)
     elif operator == "NOT":
         inverted_conditions = _invert_condition(condition)
@@ -120,23 +118,14 @@ def _handle_date(value: Any) -> str:
 
 def _equal(field: str, value: Any) -> Dict[str, Any]:
     if value is None:
-        # return {"path": field, "operator": "IsNull", "valueBoolean": True}
         return weaviate.classes.query.Filter.by_property(field).is_none(True)
-    # return {"path": field, "operator": "Equal", _infer_value_type(value): _handle_date(value)}
     return weaviate.classes.query.Filter.by_property(field).equal(_handle_date(value))
 
 
 def _not_equal(field: str, value: Any) -> Dict[str, Any]:
     if value is None:
-        # return {"path": field, "operator": "IsNull", "valueBoolean": False}
         return weaviate.classes.query.Filter.by_property(field).is_none(False)
-    # return {
-    #     "operator": "Or",
-    #     "operands": [
-    #         {"path": field, "operator": "NotEqual", _infer_value_type(value): _handle_date(value)},
-    #         {"path": field, "operator": "IsNull", "valueBoolean": True},
-    #     ],
-    # }
+
     return weaviate.classes.query.Filter.by_property(field).not_equal(
         _handle_date(value)
     ) | weaviate.classes.query.Filter.by_property(field).is_none(True)
@@ -161,7 +150,6 @@ def _greater_than(field: str, value: Any) -> Dict[str, Any]:
     if type(value) in [list, DataFrame]:
         msg = f"Filter value can't be of type {type(value)} using operators '>', '>=', '<', '<='"
         raise FilterError(msg)
-    # return {"path": field, "operator": "GreaterThan", _infer_value_type(value): _handle_date(value)}
     return weaviate.classes.query.Filter.by_property(field).greater_than(_handle_date(value))
 
 
@@ -184,7 +172,6 @@ def _greater_than_equal(field: str, value: Any) -> Dict[str, Any]:
     if type(value) in [list, DataFrame]:
         msg = f"Filter value can't be of type {type(value)} using operators '>', '>=', '<', '<='"
         raise FilterError(msg)
-    # return {"path": field, "operator": "GreaterThanEqual", _infer_value_type(value): _handle_date(value)}
     return weaviate.classes.query.Filter.by_property(field).greater_or_equal(_handle_date(value))
 
 
@@ -207,7 +194,6 @@ def _less_than(field: str, value: Any) -> Dict[str, Any]:
     if type(value) in [list, DataFrame]:
         msg = f"Filter value can't be of type {type(value)} using operators '>', '>=', '<', '<='"
         raise FilterError(msg)
-    # return {"path": field, "operator": "LessThan", _infer_value_type(value): _handle_date(value)}
     return weaviate.classes.query.Filter.by_property(field).less_than(_handle_date(value))
 
 
@@ -230,7 +216,6 @@ def _less_than_equal(field: str, value: Any) -> Dict[str, Any]:
     if type(value) in [list, DataFrame]:
         msg = f"Filter value can't be of type {type(value)} using operators '>', '>=', '<', '<='"
         raise FilterError(msg)
-    # return {"path": field, "operator": "LessThanEqual", _infer_value_type(value): _handle_date(value)}
     return weaviate.classes.query.Filter.by_property(field).less_or_equal(_handle_date(value))
 
 
@@ -239,7 +224,6 @@ def _in(field: str, value: Any) -> Dict[str, Any]:
         msg = f"{field}'s value must be a list when using 'in' or 'not in' comparators"
         raise FilterError(msg)
 
-    # return {"operator": "And", "operands": [_equal(field, v) for v in value]}
     return weaviate.classes.query.Filter.by_property(field).contains_any(value)
 
 
@@ -247,7 +231,6 @@ def _not_in(field: str, value: Any) -> Dict[str, Any]:
     if not isinstance(value, list):
         msg = f"{field}'s value must be a list when using 'in' or 'not in' comparators"
         raise FilterError(msg)
-    # return {"operator": "And", "operands": [_not_equal(field, v) for v in value]}
     operands = [weaviate.classes.query.Filter.by_property(field).not_equal(v) for v in value]
     return _FilterAnd(*operands)
 
@@ -294,13 +277,6 @@ def _match_no_document(field: str) -> Dict[str, Any]:
     Returns a filters that will match no Document, this is used to keep the behavior consistent
     between different Document Stores.
     """
-    # return {
-    #     "operator": "And",
-    #     "operands": [
-    #         {"path": field, "operator": "IsNull", "valueBoolean": False},
-    #         {"path": field, "operator": "IsNull", "valueBoolean": True},
-    #     ],
-    # }
 
     operands = [weaviate.classes.query.Filter.by_property(field).is_none(val) for val in [False, True]]
     return _FilterAnd(*operands)
