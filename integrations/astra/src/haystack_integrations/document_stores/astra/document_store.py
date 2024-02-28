@@ -62,20 +62,20 @@ class AstraDocumentStore:
         through the UI by clicking and the connect tab, and then selecting JSON API and
         Generate Configuration.
 
-        :param api_endpoint: The Astra DB API endpoint.
-        :param token: The Astra DB application token.
-        :param collection_name: The current collection in the keyspace in the current Astra DB.
-        :param embedding_dimension: Dimension of embedding vector.
-        :param duplicates_policy: Handle duplicate documents based on DuplicatePolicy parameter options.
+        :param api_endpoint: the Astra DB API endpoint.
+        :param token: the Astra DB application token.
+        :param collection_name: the current collection in the keyspace in the current Astra DB.
+        :param embedding_dimension: dimension of embedding vector.
+        :param duplicates_policy: handle duplicate documents based on DuplicatePolicy parameter options.
               Parameter options : (`SKIP`, `OVERWRITE`, `FAIL`, `NONE`)
               - `DuplicatePolicy.NONE`: Default policy, If a Document with the same ID already exists,
                     it is skipped and not written.
-              - `DuplicatePolicy.SKIP`: If a Document with the same ID already exists, it is skipped and not written.
-              - `DuplicatePolicy.OVERWRITE`: If a Document with the same ID already exists, it is overwritten.
-              - `DuplicatePolicy.FAIL`: If a Document with the same ID already exists, an error is raised.
-        :param similarity: The similarity function used to compare document vectors.
+              - `DuplicatePolicy.SKIP`: if a Document with the same ID already exists, it is skipped and not written.
+              - `DuplicatePolicy.OVERWRITE`: if a Document with the same ID already exists, it is overwritten.
+              - `DuplicatePolicy.FAIL`: if a Document with the same ID already exists, an error is raised.
+        :param similarity: the similarity function used to compare document vectors.
 
-        :raises ValueError: If the API endpoint or token is not set.
+        :raises ValueError: if the API endpoint or token is not set.
         """
         resolved_api_endpoint = api_endpoint.resolve_value()
         if resolved_api_endpoint is None:
@@ -147,7 +147,7 @@ class AstraDocumentStore:
         Indexes documents for later queries.
 
         :param documents: a list of Haystack Document objects.
-        :param policy: Handle duplicate documents based on DuplicatePolicy parameter options.
+        :param policy: handle duplicate documents based on DuplicatePolicy parameter options.
             Parameter options : (`SKIP`, `OVERWRITE`, `FAIL`, `NONE`)
             - `DuplicatePolicy.NONE`: Default policy, If a Document with the same ID already exists,
                 it is skipped and not written.
@@ -156,9 +156,9 @@ class AstraDocumentStore:
             - `DuplicatePolicy.OVERWRITE`: If a Document with the same ID already exists, it is overwritten.
             - `DuplicatePolicy.FAIL`: If a Document with the same ID already exists, an error is raised.
         :returns: number of documents written.
-        :raises ValueError: If the documents are not of type Document or dict.
-        :raises DuplicateDocumentError: If a document with the same ID already exists and policy is set to FAIL.
-        :raises Exception: If the document ID is not a string or if `id` and `_id` are both present in the document.
+        :raises ValueError: if the documents are not of type Document or dict.
+        :raises DuplicateDocumentError: if a document with the same ID already exists and policy is set to FAIL.
+        :raises Exception: if the document ID is not a string or if `id` and `_id` are both present in the document.
         """
         if policy is None or policy == DuplicatePolicy.NONE:
             if self.duplicates_policy is not None and self.duplicates_policy != DuplicatePolicy.NONE:
@@ -260,7 +260,7 @@ class AstraDocumentStore:
         """
         Counts the number of documents in the document store.
 
-        :return: the number of documents in the document store.
+        :returns: the number of documents in the document store.
         """
         return self.index.count_documents()
 
@@ -268,9 +268,9 @@ class AstraDocumentStore:
         """
         Returns at most 1000 documents that match the filter.
 
-        :param filters: ilters to apply. Defaults to None.
-        :return: Matching documents.
-        :raises AstraDocumentStoreFilterError: If the filter is invalid or not supported by this class.
+        :param filters: filters to apply.
+        :returns: matching documents.
+        :raises AstraDocumentStoreFilterError: if the filter is invalid or not supported by this class.
         """
         if not isinstance(filters, dict) and filters is not None:
             msg = "Filters must be a dictionary or None"
@@ -332,7 +332,7 @@ class AstraDocumentStore:
         Gets documents by their IDs.
 
         :param ids: the IDs of the documents to retrieve.
-        :return: the matching documents.
+        :returns: the matching documents.
         """
         results = self.index.get_documents(ids=ids)
         ret = self._get_result_to_documents(results)
@@ -343,7 +343,7 @@ class AstraDocumentStore:
         Gets a document by its ID.
 
         :param document_id: the ID to filter by
-        :return: the found document
+        :returns: the found document
         :raises MissingDocumentError: if the document is not found
         """
         document = self.index.get_documents(ids=[document_id])
@@ -359,10 +359,10 @@ class AstraDocumentStore:
         """
         Perform a search for a list of queries.
 
-        :param query_embedding: A list of query embeddings.
-        :param top_k: The number of results to return.
-        :param filters: Filters to apply during search.
-        :return: Matching documents.
+        :param query_embedding: a list of query embeddings.
+        :param top_k: the number of results to return.
+        :param filters: filters to apply during search.
+        :returns: matching documents.
         """
         converted_filters = _convert_filters(filters)
 

@@ -33,8 +33,8 @@ class AstraEmbeddingRetriever:
 
     def __init__(self, document_store: AstraDocumentStore, filters: Optional[Dict[str, Any]] = None, top_k: int = 10):
         """
-        :param filters: A dictionary with filters to narrow down the search space.
-        :param top_k: The maximum number of documents to retrieve.
+        :param filters: a dictionary with filters to narrow down the search space.
+        :param top_k: the maximum number of documents to retrieve.
         """
         self.filters = filters
         self.top_k = top_k
@@ -68,7 +68,7 @@ class AstraEmbeddingRetriever:
         Serializes the component to a dictionary.
 
         :returns:
-        	Dictionary with serialized data.
+            Dictionary with serialized data.
         """
         return default_to_dict(
             self,

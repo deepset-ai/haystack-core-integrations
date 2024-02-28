@@ -49,12 +49,12 @@ class AstraClient:
         through the UI by clicking and the connect tab, and then selecting JSON API and
         Generate Configuration.
 
-        :param api_endpoint: The Astra DB API endpoint.
-        :param token: The Astra DB application token.
-        :param collection_name: The current collection in the keyspace in the current Astra DB.
-        :param embedding_dimension: Dimension of embedding vector.
-        :param similarity_function: The similarity function to use for the index.
-        :param namespace: The namespace to use for the collection.
+        :param api_endpoint: the Astra DB API endpoint.
+        :param token: the Astra DB application token.
+        :param collection_name: the current collection in the keyspace in the current Astra DB.
+        :param embedding_dimension: dimension of embedding vector.
+        :param similarity_function: the similarity function to use for the index.
+        :param namespace: the namespace to use for the collection.
         """
         self.api_endpoint = api_endpoint
         self.token = token
@@ -136,13 +136,13 @@ class AstraClient:
 
         :param vector: the query vector. This should be the same length as the dimension of the index being queried.
             Each `query()` request can contain only one of the parameters `queries`, `id` or `vector`.
-        :param query_filter: The filter to apply. You can use vector metadata to limit your search.
-        :param top_k: The number of results to return for each query. Must be an integer greater than 1.
-        :param include_metadata: Indicates whether metadata is included in the response as well as the ids.
+        :param query_filter: the filter to apply. You can use vector metadata to limit your search.
+        :param top_k: the number of results to return for each query. Must be an integer greater than 1.
+        :param include_metadata: indicates whether metadata is included in the response as well as the ids.
             If omitted the server will use the default value of `False`.
-        :param include_values: Indicates whether values/vector is included in the response as well as the ids.
+        :param include_values: indicates whether values/vector is included in the response as well as the ids.
             If omitted the server will use the default value of `False`.
-        :return: object which contains the list of the closest vectors as ScoredVector objects, and namespace name.
+        :returns: object which contains the list of the closest vectors as ScoredVector objects, and namespace name.
         """
         # get vector data and scores
         if vector is None:
@@ -237,7 +237,7 @@ class AstraClient:
         Insert documents into the Astra index.
 
         :param documents: a list of documents to insert
-        :returns: the ids of the inserted documents
+        :returns: the IDs of the inserted documents
         """
         response_dict = self._astra_db_collection.insert_many(documents=documents)
 
@@ -289,7 +289,7 @@ class AstraClient:
         :param ids: the ids of the documents to delete
         :param delete_all: if `True`, delete all documents from the index
         :param filters: additional filters to apply when deleting documents
-        :return: the number of documents deleted
+        :returns: the number of documents deleted
         """
         if delete_all:
             query = {"deleteMany": {}}  # type: dict
@@ -317,7 +317,7 @@ class AstraClient:
     def count_documents(self) -> int:
         """
         Count the number of documents in the Astra index.
-        :return: the number of documents in the index
+        :returns: the number of documents in the index
         """
         documents_count = self._astra_db_collection.count_documents()
 
