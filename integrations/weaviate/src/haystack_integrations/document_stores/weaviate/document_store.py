@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 import base64
+import json
 from dataclasses import asdict
 from typing import Any, Dict, List, Optional, Tuple, Union
 
@@ -141,7 +142,7 @@ class WeaviateDocumentStore:
 
     def to_dict(self) -> Dict[str, Any]:
         embedded_options = asdict(self._embedded_options) if self._embedded_options else None
-        additional_config = asdict(self._additional_config) if self._additional_config else None
+        additional_config = json.loads(self._additional_config.model_dump_json()) if self._additional_config else None
 
         return default_to_dict(
             self,

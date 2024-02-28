@@ -25,7 +25,7 @@ from numpy import array_equal as np_array_equal
 from numpy import float32 as np_float32
 from pandas import DataFrame
 from weaviate.auth import AuthApiKey as WeaviateAuthApiKey
-from weaviate.config import Config
+from weaviate.config import AdditionalConfig, ConnectionConfig
 from weaviate.embedded import (
     DEFAULT_BINARY_PATH,
     DEFAULT_GRPC_PORT,
@@ -197,7 +197,6 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
         document_store = WeaviateDocumentStore(
             url="http://localhost:8080",
             auth_client_secret=AuthApiKey(),
-            proxies={"http": "http://proxy:1234"},
             additional_headers={"X-HuggingFace-Api-Key": "MY_HUGGINGFACE_KEY"},
             embedded_options=EmbeddedOptions(
                 persistence_data_path=DEFAULT_PERSISTENCE_DATA_PATH,
@@ -205,7 +204,12 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
                 version="1.23.0",
                 hostname="127.0.0.1",
             ),
-            additional_config=Config(grpc_port_experimental=12345),
+            additional_config=AdditionalConfig(
+                connection=ConnectionConfig(),
+                timeout=(30, 90),
+                trust_env=False,
+                proxies={"http": "http://proxy:1234"},
+            ),
         )
         assert document_store.to_dict() == {
             "type": "haystack_integrations.document_stores.weaviate.document_store.WeaviateDocumentStore",
@@ -229,11 +233,7 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
                         "api_key": {"env_vars": ["WEAVIATE_API_KEY"], "strict": True, "type": "env_var"}
                     },
                 },
-                "timeout_config": (10, 60),
-                "proxies": {"http": "http://proxy:1234"},
-                "trust_env": False,
                 "additional_headers": {"X-HuggingFace-Api-Key": "MY_HUGGINGFACE_KEY"},
-                "startup_period": 5,
                 "embedded_options": {
                     "persistence_data_path": DEFAULT_PERSISTENCE_DATA_PATH,
                     "binary_path": DEFAULT_BINARY_PATH,
@@ -244,13 +244,14 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
                     "grpc_port": DEFAULT_GRPC_PORT,
                 },
                 "additional_config": {
-                    "grpc_port_experimental": 12345,
-                    "grpc_secure_experimental": False,
-                    "connection_config": {
+                    "connection": {
                         "session_pool_connections": 20,
                         "session_pool_maxsize": 100,
                         "session_pool_max_retries": 3,
                     },
+                    "proxies": {"http": "http://proxy:1234"},
+                    "timeout": [30, 90],
+                    "trust_env": False,
                 },
             },
         }
