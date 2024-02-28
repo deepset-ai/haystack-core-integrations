@@ -93,10 +93,10 @@ class OptimumTextEmbedder:
              Required for optimization and quantization.
          :param optimizer_settings:
              Configuration for Optimum Embedder Optimization.
-             If `None`, no additional optimization is be applied.
+             If `None`, no additional optimization is applied.
          :param quantizer_settings:
              Configuration for Optimum Embedder Quantization.
-             If `None`, no quantization is be applied.
+             If `None`, no quantization is applied.
         """
         params = _EmbedderParams(
             model=model,
