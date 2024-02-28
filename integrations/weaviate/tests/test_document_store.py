@@ -270,11 +270,7 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
                             "api_key": {"env_vars": ["WEAVIATE_API_KEY"], "strict": True, "type": "env_var"}
                         },
                     },
-                    "timeout_config": [10, 60],
-                    "proxies": {"http": "http://proxy:1234"},
-                    "trust_env": False,
                     "additional_headers": {"X-HuggingFace-Api-Key": "MY_HUGGINGFACE_KEY"},
-                    "startup_period": 5,
                     "embedded_options": {
                         "persistence_data_path": DEFAULT_PERSISTENCE_DATA_PATH,
                         "binary_path": DEFAULT_BINARY_PATH,
@@ -285,11 +281,13 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
                         "grpc_port": DEFAULT_GRPC_PORT,
                     },
                     "additional_config": {
-                        "grpc_port_experimental": 12345,
-                        "connection_config": {
+                        "connection": {
                             "session_pool_connections": 20,
                             "session_pool_maxsize": 20,
                         },
+                        "proxies": {"http": "http://proxy:1234"},
+                        "timeout": [10, 60],
+                        "trust_env": False,
                     },
                 },
             }
@@ -309,11 +307,11 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
             ],
         }
         assert document_store._auth_client_secret == AuthApiKey()
-        assert document_store._timeout_config == (10, 60)
-        assert document_store._proxies == {"http": "http://proxy:1234"}
-        assert not document_store._trust_env
+        assert document_store._additional_config.timeout == (10, 60)
+        assert document_store._additional_config.proxies == {"http": "http://proxy:1234"}
+        assert not document_store._additional_config.trust_env
         assert document_store._additional_headers == {"X-HuggingFace-Api-Key": "MY_HUGGINGFACE_KEY"}
-        assert document_store._startup_period == 5
+        # assert document_store._startup_period == 5
         assert document_store._embedded_options.persistence_data_path == DEFAULT_PERSISTENCE_DATA_PATH
         assert document_store._embedded_options.binary_path == DEFAULT_BINARY_PATH
         assert document_store._embedded_options.version == "1.23.0"
@@ -321,9 +319,9 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
         assert document_store._embedded_options.hostname == "127.0.0.1"
         assert document_store._embedded_options.additional_env_vars is None
         assert document_store._embedded_options.grpc_port == DEFAULT_GRPC_PORT
-        assert document_store._additional_config.grpc_port_experimental == 12345
-        assert document_store._additional_config.connection_config.session_pool_connections == 20
-        assert document_store._additional_config.connection_config.session_pool_maxsize == 20
+        # assert document_store._additional_config.grpc_port_experimental == 12345
+        assert document_store._additional_config.connection.session_pool_connections == 20
+        assert document_store._additional_config.connection.session_pool_maxsize == 20
 
     def test_to_data_object(self, document_store, test_files_path):
         doc = Document(content="test doc")

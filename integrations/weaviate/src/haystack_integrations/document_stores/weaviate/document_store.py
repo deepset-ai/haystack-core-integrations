@@ -12,7 +12,7 @@ from haystack.document_stores.types.policy import DuplicatePolicy
 
 import weaviate
 from weaviate.collections.classes.internal import Object
-from weaviate.config import AdditionalConfig, Config, ConnectionConfig
+from weaviate.config import AdditionalConfig  # , Config, ConnectionConfig
 from weaviate.embedded import EmbeddedOptions
 from weaviate.util import generate_uuid5
 
@@ -155,17 +155,17 @@ class WeaviateDocumentStore:
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "WeaviateDocumentStore":
-        if (timeout_config := data["init_parameters"].get("timeout_config")) is not None:
-            data["init_parameters"]["timeout_config"] = (
-                tuple(timeout_config) if isinstance(timeout_config, list) else timeout_config
-            )
+        # if (timeout_config := data["init_parameters"].get("timeout_config")) is not None:
+        #     data["init_parameters"]["timeout_config"] = (
+        #         tuple(timeout_config) if isinstance(timeout_config, list) else timeout_config
+        #     )
         if (auth_client_secret := data["init_parameters"].get("auth_client_secret")) is not None:
             data["init_parameters"]["auth_client_secret"] = AuthCredentials.from_dict(auth_client_secret)
         if (embedded_options := data["init_parameters"].get("embedded_options")) is not None:
             data["init_parameters"]["embedded_options"] = EmbeddedOptions(**embedded_options)
         if (additional_config := data["init_parameters"].get("additional_config")) is not None:
-            additional_config["connection_config"] = ConnectionConfig(**additional_config["connection_config"])
-            data["init_parameters"]["additional_config"] = Config(**additional_config)
+            # additional_config["connection_config"] = ConnectionConfig(**additional_config["connection_config"])
+            data["init_parameters"]["additional_config"] = AdditionalConfig(**additional_config)
         return default_from_dict(
             cls,
             data,
