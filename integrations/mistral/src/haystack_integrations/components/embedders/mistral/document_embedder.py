@@ -43,17 +43,27 @@ class MistralDocumentEmbedder(OpenAIDocumentEmbedder):
         embedding_separator: str = "\n",
     ):
         """
-        Create a MistralDocumentEmbedder component.
-        :param api_key: The Mistral API key.
-        :param model: The name of the model to use.
-        :param api_base_url: The Mistral API Base url, defaults to None. For more details, see Mistral [docs](https://docs.mistral.ai/api/).
-        :param prefix: A string to add to the beginning of each text.
-        :param suffix: A string to add to the end of each text.
-        :param batch_size: Number of Documents to encode at once.
-        :param progress_bar: Whether to show a progress bar or not. Can be helpful to disable in production deployments
-                             to keep the logs clean.
-        :param meta_fields_to_embed: List of meta fields that should be embedded along with the Document text.
-        :param embedding_separator: Separator used to concatenate the meta fields to the Document text.
+        Creates a MistralDocumentEmbedder component.
+
+        :param api_key:
+            The Mistral API key.
+        :param model:
+            The name of the model to use.
+        :param api_base_url:
+            The Mistral API Base url, defaults to None. For more details, see Mistral [docs](https://docs.mistral.ai/api/).
+        :param prefix:
+            A string to add to the beginning of each text.
+        :param suffix:
+            A string to add to the end of each text.
+        :param batch_size:
+            Number of Documents to encode at once.
+        :param progress_bar:
+            Whether to show a progress bar or not. Can be helpful to disable in production deployments to keep
+            the logs clean.
+        :param meta_fields_to_embed:
+            List of meta fields that should be embedded along with the Document text.
+        :param embedding_separator:
+            Separator used to concatenate the meta fields to the Document text.
         """
         super(MistralDocumentEmbedder, self).__init__(  # noqa: UP008
             api_key=api_key,
