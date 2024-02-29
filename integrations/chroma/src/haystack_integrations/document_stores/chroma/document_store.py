@@ -187,8 +187,6 @@ class ChromaDocumentStore:
         """
         Deletes all documents with a matching document_ids from the document store.
 
-        Fails with `MissingDocumentError` if no document with this id is present in the store.
-
         :param document_ids: the object_ids to delete
         """
         self._collection.delete(ids=document_ids)
@@ -213,11 +211,11 @@ class ChromaDocumentStore:
 
         :param query_embeddings: a list of embeddings to use as queries.
         :param top_k: the maximum number of documents to retrieve.
-        :param filters: a dictionary of filters to apply to the search.
+        :param filters: a dictionary of filters to apply to the search. Accepts filters in haystack format.
+
 
         :returns: a list of lists of documents that match the given filters.
 
-        Accepts filters in haystack format.
         """
         if filters is None:
             results = self._collection.query(
