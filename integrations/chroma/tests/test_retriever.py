@@ -13,17 +13,17 @@ def test_retriever_to_json(request):
     )
     retriever = ChromaQueryTextRetriever(ds, filters={"foo": "bar"}, top_k=99)
     assert retriever.to_dict() == {
-        'type': 'haystack_integrations.components.retrievers.chroma.retriever.ChromaQueryTextRetriever',
-        'init_parameters': {
-            'filters': {'foo': 'bar'},
-            'top_k': 99,
-            'document_store': {
-                'type': 'haystack_integrations.document_stores.chroma.document_store.ChromaDocumentStore',
-                'init_parameters': {
-                    'collection_name': 'test_retriever_to_json',
-                    'embedding_function': 'HuggingFaceEmbeddingFunction',
-                    'persist_path': None,
-                    'api_key': '1234567890',
+        "type": "haystack_integrations.components.retrievers.chroma.retriever.ChromaQueryTextRetriever",
+        "init_parameters": {
+            "filters": {"foo": "bar"},
+            "top_k": 99,
+            "document_store": {
+                "type": "haystack_integrations.document_stores.chroma.document_store.ChromaDocumentStore",
+                "init_parameters": {
+                    "collection_name": "test_retriever_to_json",
+                    "embedding_function": "HuggingFaceEmbeddingFunction",
+                    "persist_path": None,
+                    "api_key": "1234567890",
                 },
             },
         },
@@ -33,17 +33,17 @@ def test_retriever_to_json(request):
 @pytest.mark.integration
 def test_retriever_from_json(request):
     data = {
-        'type': 'haystack_integrations.components.retrievers.chroma.retriever.ChromaQueryTextRetriever',
-        'init_parameters': {
-            'filters': {'bar': 'baz'},
-            'top_k': 42,
-            'document_store': {
-                'type': 'haystack_integrations.document_stores.chroma.document_store.ChromaDocumentStore',
-                'init_parameters': {
-                    'collection_name': 'test_retriever_from_json',
-                    'embedding_function': 'HuggingFaceEmbeddingFunction',
-                    'persist_path': '.',
-                    'api_key': '1234567890',
+        "type": "haystack_integrations.components.retrievers.chroma.retriever.ChromaQueryTextRetriever",
+        "init_parameters": {
+            "filters": {"bar": "baz"},
+            "top_k": 42,
+            "document_store": {
+                "type": "haystack_integrations.document_stores.chroma.document_store.ChromaDocumentStore",
+                "init_parameters": {
+                    "collection_name": "test_retriever_from_json",
+                    "embedding_function": "HuggingFaceEmbeddingFunction",
+                    "persist_path": ".",
+                    "api_key": "1234567890",
                 },
             },
         },

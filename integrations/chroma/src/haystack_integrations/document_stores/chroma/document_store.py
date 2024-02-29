@@ -6,8 +6,8 @@ from collections import defaultdict
 from typing import Any, Dict, List, Optional, Tuple
 
 import chromadb
-from chromadb.api.types import GetResult, QueryResult, validate_where, validate_where_document
 import numpy as np
+from chromadb.api.types import GetResult, QueryResult, validate_where, validate_where_document
 from haystack import default_from_dict, default_to_dict
 from haystack.dataclasses import Document
 from haystack.document_stores.types import DuplicatePolicy
