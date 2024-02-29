@@ -32,6 +32,13 @@ FUNCTION_REGISTRY = {
 
 
 def get_embedding_function(function_name: str, **kwargs) -> EmbeddingFunction:
+    """Load an embedding function by name.
+
+    :param function_name: the name of the embedding function.
+    :param kwargs: additional arguments to pass to the embedding function.
+    :returns: the loaded embedding function.
+    :raises ChromaDocumentStoreConfigError: if the function name is invalid.
+    """
     try:
         return FUNCTION_REGISTRY[function_name](**kwargs)
     except KeyError:
