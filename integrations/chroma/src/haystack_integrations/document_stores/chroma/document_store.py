@@ -154,14 +154,20 @@ class ChromaDocumentStore:
 
         return self._get_result_to_documents(result)
 
-    def write_documents(self, documents: List[Document], policy: DuplicatePolicy = DuplicatePolicy.FAIL) -> None:
+    def write_documents(self, documents: List[Document], policy: DuplicatePolicy = DuplicatePolicy.FAIL) -> int:
         """
         Writes (or overwrites) documents into the store.
 
-        :param documents: a list of documents.
-        :param policy: not supported at the moment
-        :raises DuplicateDocumentError: Exception trigger on duplicate document if `policy=DuplicatePolicy.FAIL`
-        :returns: None
+        :param documents:
+            A list of documents to write into the document store.
+        :param policy:
+            Not supported at the moment.
+
+        :raises ValueError:
+            When input is not valid.
+
+        :returns:
+            The number of documents written
         """
         for doc in documents:
             if not isinstance(doc, Document):
@@ -182,6 +188,8 @@ class ChromaDocumentStore:
                 data["embeddings"] = [doc.embedding]
 
             self._collection.add(**data)
+
+        return len(documents)
 
     def delete_documents(self, document_ids: List[str]) -> None:
         """
