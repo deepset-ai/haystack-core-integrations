@@ -239,7 +239,7 @@ class WeaviateDocumentStore:
             result = self._collection.iterator(include_vector=True, return_properties=properties)
         except weaviate.exceptions.WeaviateQueryError as e:
             msg = f"Failed to query documents in Weaviate. Error: {e.message}"
-            raise DocumentStoreError(msg) from None
+            raise DocumentStoreError(msg) from e
         return list(result)
 
     def _query_with_filters(self, filters: weaviate.collections.classes.filters.Filter) -> List[Dict[str, Any]]:
@@ -255,7 +255,7 @@ class WeaviateDocumentStore:
             )
         except weaviate.exceptions.WeaviateQueryError as e:
             msg = f"Failed to query documents in Weaviate. Error: {e.message}"
-            raise DocumentStoreError(msg) from None
+            raise DocumentStoreError(msg) from e
 
         return result.objects
 
