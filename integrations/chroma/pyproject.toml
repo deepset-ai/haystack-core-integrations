@@ -189,6 +189,7 @@ module = [
   "chromadb.*",
   "haystack.*",
   "haystack_integrations.*",
-  "pytest.*"
+  "pytest.*",
+  "numpy.*"
 ]
 ignore_missing_imports = true

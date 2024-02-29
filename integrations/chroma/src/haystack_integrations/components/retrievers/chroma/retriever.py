@@ -73,18 +73,6 @@ class ChromaQueryTextRetriever:
 
         return {"documents": self.document_store.search([query], top_k)[0]}
 
-    def to_dict(self) -> Dict[str, Any]:
-        """
-        Serializes the component to a dictionary.
-
-        :returns:
-            Dictionary with serialized data.
-        """
-        d = default_to_dict(self, filters=self.filters, top_k=self.top_k)
-        d["init_parameters"]["document_store"] = self.document_store.to_dict()
-
-        return d
-
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "ChromaQueryTextRetriever":
         """
@@ -98,6 +86,20 @@ class ChromaQueryTextRetriever:
         document_store = ChromaDocumentStore.from_dict(data["init_parameters"]["document_store"])
         data["init_parameters"]["document_store"] = document_store
         return default_from_dict(cls, data)
+
+    def to_dict(self) -> Dict[str, Any]:
+        """
+        Serializes the component to a dictionary.
+
+        :returns:
+            Dictionary with serialized data.
+        """
+        return default_to_dict(
+            self,
+            filters=self.filters,
+            top_k=self.top_k,
+            document_store=self.document_store.to_dict(),
+        )
 
 
 @component
