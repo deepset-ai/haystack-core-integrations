@@ -4,7 +4,6 @@ loaders:
     modules: [
       "haystack_integrations.components.retrievers.pgvector.embedding_retriever",
       "haystack_integrations.document_stores.pgvector.document_store",
-      "haystack_integrations.document_stores.pgvector.filters",
     ]
     ignore_when_discovered: ["__init__"]
 processors:
