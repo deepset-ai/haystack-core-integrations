@@ -30,7 +30,6 @@ class OllamaTextEmbedder:
         """
         :param model:
             The name of the model to use. The model should be available in the running Ollama instance.
-            Default is ["nomic-embed-text"](https://ollama.com/library/nomic-embed-text)
         :param url:
             The URL of the chat endpoint of a running Ollama instance.
         :param generation_kwargs:
