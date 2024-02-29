@@ -191,15 +191,10 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
         )
 
         # Verify collection is created
-        # mock_client.schema.get.assert_called_once()
-        # mock_client.schema.exists.assert_called_once_with("My_collection")
         mock_client.collections.exists.assert_called_once_with("My_collection")
         mock_client.collections.create_from_dict.assert_called_once_with(
             {"class": "My_collection", "properties": DOCUMENT_COLLECTION_PROPERTIES}
         )
-        # mock_client.schema.create_class.assert_called_once_with(
-        #     {"class": "My_collection", "properties": DOCUMENT_COLLECTION_PROPERTIES}
-        # )
 
     @patch("haystack_integrations.document_stores.weaviate.document_store.weaviate")
     def test_to_dict(self, _mock_weaviate, monkeypatch):
@@ -322,7 +317,6 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
         assert document_store._additional_config.proxies == {"http": "http://proxy:1234"}
         assert not document_store._additional_config.trust_env
         assert document_store._additional_headers == {"X-HuggingFace-Api-Key": "MY_HUGGINGFACE_KEY"}
-        # assert document_store._startup_period == 5
         assert document_store._embedded_options.persistence_data_path == DEFAULT_PERSISTENCE_DATA_PATH
         assert document_store._embedded_options.binary_path == DEFAULT_BINARY_PATH
         assert document_store._embedded_options.version == "1.23.0"
@@ -330,7 +324,6 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
         assert document_store._embedded_options.hostname == "127.0.0.1"
         assert document_store._embedded_options.additional_env_vars is None
         assert document_store._embedded_options.grpc_port == DEFAULT_GRPC_PORT
-        # assert document_store._additional_config.grpc_port_experimental == 12345
         assert document_store._additional_config.connection.session_pool_connections == 20
         assert document_store._additional_config.connection.session_pool_maxsize == 20
 
