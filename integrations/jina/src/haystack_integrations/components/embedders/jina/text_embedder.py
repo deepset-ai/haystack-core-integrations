@@ -17,10 +17,9 @@ class JinaTextEmbedder:
 
     Usage example:
     ```python
-    import os
     from haystack_integrations.components.embedders.jina import JinaTextEmbedder
 
-    os.environ("JINA_API_KEY") = "YOUR_JINA_API_KEY"
+    # Make sure that the environment variable JINA_API_KEY is set
 
     text_embedder = JinaTextEmbedder()
 
@@ -42,6 +41,8 @@ class JinaTextEmbedder:
         suffix: str = "",
     ):
         """
+        Create a JinaTextEmbedder component.
+
         :param api_key: The Jina API key. It can be explicitly provided or automatically read from the
             environment variable `JINA_API_KEY` (recommended).
         :param model: The name of the Jina model to use.

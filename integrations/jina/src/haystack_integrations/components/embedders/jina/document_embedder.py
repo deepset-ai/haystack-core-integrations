@@ -19,11 +19,11 @@ class JinaDocumentEmbedder:
 
     Usage example:
     ```python
-    import os
     from haystack import Document
     from haystack_integrations.components.embedders.jina import JinaDocumentEmbedder
 
-    os.environ("JINA_API_KEY") = "YOUR_JINA_API_KEY"
+    # Make sure that the environment variable JINA_API_KEY is set
+
     document_embedder = JinaDocumentEmbedder()
 
     doc = Document(content="I love pizza!")
@@ -47,6 +47,8 @@ class JinaDocumentEmbedder:
         embedding_separator: str = "\n",
     ):
         """
+        Create a JinaDocumentEmbedder component.
+
         :param api_key: The Jina API key.
         :param model: The name of the Jina model to use.
             Check the list of available models on [Jina documentation](https://jina.ai/embeddings/).
