@@ -20,11 +20,13 @@ class JinaDocumentEmbedder:
     Usage example:
     ```python
     from haystack import Document
-    from jina_haystack import JinaDocumentEmbedder
+    from haystack_integrations.components.embedders.jina import JinaDocumentEmbedder
 
-    doc = Document(content="I love pizza!")
+    # Make sure that the environment variable JINA_API_KEY is set
 
     document_embedder = JinaDocumentEmbedder()
+
+    doc = Document(content="I love pizza!")
 
     result = document_embedder.run([doc])
     print(result['documents'][0].embedding)
@@ -46,8 +48,10 @@ class JinaDocumentEmbedder:
     ):
         """
         Create a JinaDocumentEmbedder component.
+
         :param api_key: The Jina API key.
-        :param model: The name of the Jina model to use. Check the list of available models on `https://jina.ai/embeddings/`
+        :param model: The name of the Jina model to use.
+            Check the list of available models on [Jina documentation](https://jina.ai/embeddings/).
         :param prefix: A string to add to the beginning of each text.
         :param suffix: A string to add to the end of each text.
         :param batch_size: Number of Documents to encode at once.
@@ -83,8 +87,9 @@ class JinaDocumentEmbedder:
 
     def to_dict(self) -> Dict[str, Any]:
         """
-        This method overrides the default serializer in order to avoid leaking the `api_key` value passed
-        to the constructor.
+        Serializes the component to a dictionary.
+        :returns:
+            Dictionary with serialized data.
         """
         return default_to_dict(
             self,
@@ -100,6 +105,13 @@ class JinaDocumentEmbedder:
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "JinaDocumentEmbedder":
+        """
+        Deserializes the component from a dictionary.
+        :param data:
+            Dictionary to deserialize from.
+        :returns:
+            Deserialized component.
+        """
         deserialize_secrets_inplace(data["init_parameters"], keys=["api_key"])
         return default_from_dict(cls, data)
 
@@ -151,10 +163,13 @@ class JinaDocumentEmbedder:
     @component.output_types(documents=List[Document], meta=Dict[str, Any])
     def run(self, documents: List[Document]):
         """
-        Embed a list of Documents.
-        The embedding of each Document is stored in the `embedding` field of the Document.
+        Compute the embeddings for a list of Documents.
 
         :param documents: A list of Documents to embed.
+        :returns: A dictionary with following keys:
+            - `documents`: List of Documents, each with an `embedding` field containing the computed embedding.
+            - `meta`: A dictionary with metadata including the model name and usage statistics.
+        :raises TypeError: If the input is not a list of Documents.
         """
         if not isinstance(documents, list) or documents and not isinstance(documents[0], Document):
             msg = (
