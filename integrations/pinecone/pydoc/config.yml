@@ -4,9 +4,7 @@ loaders:
     modules:
       [
         "haystack_integrations.components.retrievers.pinecone.embedding_retriever",
-        "haystack_integrations.document_stores.pinecone.document_store",
-        "haystack_integrations.document_stores.pinecone.errors",
-        "haystack_integrations.document_stores.pinecone.filters",
+        "haystack_integrations.document_stores.pinecone.document_store"
       ]
     ignore_when_discovered: ["__init__"]
 processors:

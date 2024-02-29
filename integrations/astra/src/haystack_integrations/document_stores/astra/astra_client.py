@@ -43,6 +43,19 @@ class AstraClient:
         similarity_function: str,
         namespace: Optional[str] = None,
     ):
+        """
+        The connection to Astra DB is established and managed through the JSON API.
+        The required credentials (api endpoint and application token) can be generated
+        through the UI by clicking and the connect tab, and then selecting JSON API and
+        Generate Configuration.
+
+        :param api_endpoint: the Astra DB API endpoint.
+        :param token: the Astra DB application token.
+        :param collection_name: the current collection in the keyspace in the current Astra DB.
+        :param embedding_dimension: dimension of embedding vector.
+        :param similarity_function: the similarity function to use for the index.
+        :param namespace: the namespace to use for the collection.
+        """
         self.api_endpoint = api_endpoint
         self.token = token
         self.collection_name = collection_name
@@ -119,23 +132,17 @@ class AstraClient:
         include_values: Optional[bool] = None,
     ) -> QueryResponse:
         """
-        The Query operation searches a namespace, using a query vector.
-        It retrieves the ids of the most similar items in a namespace, along with their similarity scores.
+        Search the Astra index using a query vector.
 
-        Args:
-            vector (List[float]): The query vector. This should be the same length as the dimension of the index
-                                  being queried. Each `query()` request can contain only one of the parameters
-                                  `queries`, `id` or `vector`... [optional]
-            top_k (int): The number of results to return for each query. Must be an integer greater than 1.
-            query_filter (Dict[str, Union[str, float, int, bool, List, dict]):
-                    The filter to apply. You can use vector metadata to limit your search. [optional]
-            include_metadata (bool): Indicates whether metadata is included in the response as well as the ids.
-                                     If omitted the server will use the default value of False  [optional]
-            include_values (bool): Indicates whether values/vector is included in the response as well as the ids.
-                                     If omitted the server will use the default value of False  [optional]
-
-        Returns: object which contains the list of the closest vectors as ScoredVector objects,
-                 and namespace name.
+        :param vector: the query vector. This should be the same length as the dimension of the index being queried.
+            Each `query()` request can contain only one of the parameters `queries`, `id` or `vector`.
+        :param query_filter: the filter to apply. You can use vector metadata to limit your search.
+        :param top_k: the number of results to return for each query. Must be an integer greater than 1.
+        :param include_metadata: indicates whether metadata is included in the response as well as the ids.
+            If omitted the server will use the default value of `False`.
+        :param include_values: indicates whether values/vector is included in the response as well as the ids.
+            If omitted the server will use the default value of `False`.
+        :returns: object which contains the list of the closest vectors as ScoredVector objects, and namespace name.
         """
         # get vector data and scores
         if vector is None:
@@ -183,6 +190,12 @@ class AstraClient:
         return result
 
     def find_documents(self, find_query):
+        """
+        Find documents in the Astra index.
+
+        :param find_query: a dictionary with the query options
+        :returns: the documents found in the index
+        """
         response_dict = self._astra_db_collection.find(
             filter=find_query.get("filter"),
             sort=find_query.get("sort"),
@@ -195,6 +208,13 @@ class AstraClient:
             logger.warning(f"No documents found: {response_dict}")
 
     def get_documents(self, ids: List[str], batch_size: int = 20) -> QueryResponse:
+        """
+        Get documents from the Astra index by their ids.
+
+        :param ids: a list of document ids
+        :param batch_size: the batch size to use when querying the index
+        :returns: the documents found in the index
+        """
         document_batch = []
 
         def batch_generator(chunks, batch_size):
@@ -213,6 +233,12 @@ class AstraClient:
         return formatted_docs
 
     def insert(self, documents: List[Dict]):
+        """
+        Insert documents into the Astra index.
+
+        :param documents: a list of documents to insert
+        :returns: the IDs of the inserted documents
+        """
         response_dict = self._astra_db_collection.insert_many(documents=documents)
 
         inserted_ids = (
@@ -226,6 +252,13 @@ class AstraClient:
         return inserted_ids
 
     def update_document(self, document: Dict, id_key: str):
+        """
+        Update a document in the Astra index.
+
+        :param document: the document to update
+        :param id_key: the key to use as the document id
+        :returns: whether the document was updated successfully
+        """
         document_id = document.pop(id_key)
 
         response_dict = self._astra_db_collection.find_one_and_update(
@@ -251,6 +284,13 @@ class AstraClient:
         delete_all: Optional[bool] = None,
         filters: Optional[Dict[str, Union[str, float, int, bool, List, dict]]] = None,
     ) -> int:
+        """Delete documents from the Astra index.
+
+        :param ids: the ids of the documents to delete
+        :param delete_all: if `True`, delete all documents from the index
+        :param filters: additional filters to apply when deleting documents
+        :returns: the number of documents deleted
+        """
         if delete_all:
             query = {"deleteMany": {}}  # type: dict
         if ids is not None:
@@ -276,7 +316,8 @@ class AstraClient:
 
     def count_documents(self) -> int:
         """
-        Returns how many documents are present in the document store.
+        Count the number of documents in the Astra index.
+        :returns: the number of documents in the index
         """
         documents_count = self._astra_db_collection.count_documents()
 
