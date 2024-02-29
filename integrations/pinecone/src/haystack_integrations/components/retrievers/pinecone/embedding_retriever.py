@@ -14,7 +14,7 @@ class PineconeEmbeddingRetriever:
     """
     Retrieves documents from the `PineconeDocumentStore`, based on their dense embeddings.
 
-    Example usage:
+    Usage example:
     ```python
     import os
     from haystack.document_stores.types import DuplicatePolicy
