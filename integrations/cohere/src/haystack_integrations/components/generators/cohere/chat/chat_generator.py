@@ -14,8 +14,10 @@ logger = logging.getLogger(__name__)
 
 @component
 class CohereChatGenerator:
-    """Enables text generation using Cohere's chat endpoint. This component is designed to inference
-    Cohere's chat models.
+    """
+    Enables text generation using Cohere's chat endpoint.
+
+    This component is designed to inference Cohere's chat models.
 
     Users can pass any text generation parameters valid for the `cohere.Client,chat` method
     directly to this component via the `**generation_kwargs` parameter in __init__ or the `**generation_kwargs`
@@ -23,6 +25,16 @@ class CohereChatGenerator:
 
     Invocations are made using 'cohere' package.
     See [Cohere API](https://docs.cohere.com/reference/chat) for more details.
+
+    Example usage:
+    ```python
+    from haystack_integrations.components.generators.cohere import CohereChatGenerator
+
+    component = CohereChatGenerator(api_key=Secret.from_token("test-api-key"))
+    response = component.run(chat_messages)
+
+    assert response["replies"]
+    ```
     """
 
     def __init__(
@@ -37,12 +49,12 @@ class CohereChatGenerator:
         """
         Initialize the CohereChatGenerator instance.
 
-        :param api_key: The API key for the Cohere API.
+        :param api_key: the API key for the Cohere API.
         :param model: The name of the model to use. Available models are: [command, command-light, command-nightly,
-            command-nightly-light]. Defaults to "command".
-        :param streaming_callback: A callback function to be called with the streaming response. Defaults to None.
-        :param api_base_url: The base URL of the Cohere API. Defaults to "https://api.cohere.ai".
-        :param generation_kwargs: Additional model parameters. These will be used during generation. Refer to
+            command-nightly-light].
+        :param streaming_callback: a callback function to be called with the streaming response.
+        :param api_base_url: the base URL of the Cohere API.
+        :param generation_kwargs: additional model parameters. These will be used during generation. Refer to
             https://docs.cohere.com/reference/chat for more details.
             Some of the parameters are:
             - 'chat_history': A list of previous messages between the user and the model, meant to give the model
@@ -89,8 +101,10 @@ class CohereChatGenerator:
 
     def to_dict(self) -> Dict[str, Any]:
         """
-        Serialize this component to a dictionary.
-        :return: The serialized component as a dictionary.
+        Serializes the component to a dictionary.
+
+        :returns:
+                Dictionary with serialized data.
         """
         callback_name = serialize_callable(self.streaming_callback) if self.streaming_callback else None
         return default_to_dict(
@@ -105,9 +119,12 @@ class CohereChatGenerator:
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "CohereChatGenerator":
         """
-        Deserialize this component from a dictionary.
-        :param data: The dictionary representation of this component.
-        :return: The deserialized component instance.
+        Deserializes the component from a dictionary.
+
+        :param data:
+            Dictionary to deserialize from.
+        :returns:
+               Deserialized component.
         """
         init_params = data.get("init_parameters", {})
         deserialize_secrets_inplace(init_params, ["api_key"])
@@ -126,12 +143,13 @@ class CohereChatGenerator:
         """
         Invoke the text generation inference based on the provided messages and generation parameters.
 
-        :param messages: A list of ChatMessage instances representing the input messages.
-        :param generation_kwargs: Additional keyword arguments for text generation. These parameters will
-        potentially override the parameters passed in the __init__ method.
-        For more details on the parameters supported by the Cohere API, refer to the
-        Cohere [documentation](https://docs.cohere.com/reference/chat).
-        :return: A list containing the generated responses as ChatMessage instances.
+        :param messages: list of `ChatMessage` instances representing the input messages.
+        :param generation_kwargs: additional keyword arguments for text generation. These parameters will
+            potentially override the parameters passed in the __init__ method.
+            For more details on the parameters supported by the Cohere API, refer to the
+            Cohere [documentation](https://docs.cohere.com/reference/chat).
+        :returns: A dictionary with the following keys:
+            - "replies": a list of `ChatMessage` instances representing the generated responses.
         """
         # update generation kwargs by merging with the generation kwargs passed to the run method
         generation_kwargs = {**self.generation_kwargs, **(generation_kwargs or {})}
