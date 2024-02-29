@@ -17,11 +17,14 @@ class JinaTextEmbedder:
 
     Usage example:
     ```python
-    from jina_haystack import JinaTextEmbedder
+    import os
+    from haystack_integrations.components.embedders.jina import JinaTextEmbedder
 
-    text_to_embed = "I love pizza!"
+    os.environ("JINA_API_KEY") = "YOUR_JINA_API_KEY"
 
     text_embedder = JinaTextEmbedder()
+
+    text_to_embed = "I love pizza!"
 
     print(text_embedder.run(text_to_embed))
 
@@ -39,11 +42,10 @@ class JinaTextEmbedder:
         suffix: str = "",
     ):
         """
-        Create an JinaTextEmbedder component.
-
         :param api_key: The Jina API key. It can be explicitly provided or automatically read from the
-            environment variable JINA_API_KEY (recommended).
-        :param model: The name of the Jina model to use. Check the list of available models on `https://jina.ai/embeddings/`
+            environment variable `JINA_API_KEY` (recommended).
+        :param model: The name of the Jina model to use. 
+            Check the list of available models on [Jina documentation](https://jina.ai/embeddings/).
         :param prefix: A string to add to the beginning of each text.
         :param suffix: A string to add to the end of each text.
         """
