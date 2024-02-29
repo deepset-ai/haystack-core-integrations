@@ -16,9 +16,9 @@ class CohereTextEmbedder:
     """
     A component for embedding strings using Cohere models.
 
-    Usage Example:
+    Usage example:
     ```python
-    from cohere_haystack.embedders.text_embedder import CohereTextEmbedder
+    from haystack_integrations.components.embedders.cohere import CohereDocumentEmbedder
 
     text_to_embed = "I love pizza!"
 
@@ -43,27 +43,25 @@ class CohereTextEmbedder:
         timeout: int = 120,
     ):
         """
-        Create a CohereTextEmbedder component.
-
-        :param api_key: The Cohere API key.
-        :param model: The name of the model to use, defaults to `"embed-english-v2.0"`. Supported Models are:
+        :param api_key: the Cohere API key.
+        :param model: the name of the model to use. Supported Models are:
             `"embed-english-v3.0"`, `"embed-english-light-v3.0"`, `"embed-multilingual-v3.0"`,
             `"embed-multilingual-light-v3.0"`, `"embed-english-v2.0"`, `"embed-english-light-v2.0"`,
             `"embed-multilingual-v2.0"`. This list of all supported models can be found in the
             [model documentation](https://docs.cohere.com/docs/models#representation).
-        :param input_type: Specifies the type of input you're giving to the model. Supported values are
-        "search_document", "search_query", "classification" and "clustering". Defaults to "search_document". Not
-        required for older versions of the embedding models (meaning anything lower than v3), but is required for more
-        recent versions (meaning anything bigger than v2).
-        :param api_base_url: The Cohere API Base url, defaults to `https://api.cohere.ai/v1/embed`.
-        :param truncate: Truncate embeddings that are too long from start or end, ("NONE"|"START"|"END"), defaults to
-            `"END"`. Passing START will discard the start of the input. END will discard the end of the input. In both
+        :param input_type: specifies the type of input you're giving to the model. Supported values are
+        "search_document", "search_query", "classification" and "clustering". Not
+            required for older versions of the embedding models (meaning anything lower than v3), but is required for more
+            recent versions (meaning anything bigger than v2).
+        :param api_base_url: the Cohere API Base url.
+        :param truncate: truncate embeddings that are too long from start or end, ("NONE"|"START"|"END"), defaults to
+            `"END"`. Passing "START" will discard the start of the input. "END" will discard the end of the input. In both
             cases, input is discarded until the remaining input is exactly the maximum input token length for the model.
-            If NONE is selected, when the input exceeds the maximum input token length an error will be returned.
-        :param use_async_client: Flag to select the AsyncClient, defaults to `False`. It is recommended to use
+            If "NONE" is selected, when the input exceeds the maximum input token length an error will be returned.
+        :param use_async_client: flag to select the AsyncClient. It is recommended to use
             AsyncClient for applications with many concurrent calls.
-        :param max_retries: Maximum number of retries for requests, defaults to `3`.
-        :param timeout: Request timeout in seconds, defaults to `120`.
+        :param max_retries: maximum number of retries for requests.
+        :param timeout: request timeout in seconds.
         """
 
         self.api_key = api_key
@@ -77,7 +75,10 @@ class CohereTextEmbedder:
 
     def to_dict(self) -> Dict[str, Any]:
         """
-        Serialize this component to a dictionary omitting the api_key field.
+        Serializes the component to a dictionary.
+
+        :returns:
+            Dictionary with serialized data.
         """
         return default_to_dict(
             self,
@@ -94,9 +95,12 @@ class CohereTextEmbedder:
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "CohereTextEmbedder":
         """
-        Deserialize this component from a dictionary.
-        :param data: The dictionary representation of this component.
-        :return: The deserialized component instance.
+        Deserializes the component from a dictionary.
+
+        :param data:
+            Dictionary to deserialize from.
+        :returns:
+               Deserialized component.
         """
         init_params = data.get("init_parameters", {})
         deserialize_secrets_inplace(init_params, ["api_key"])
@@ -104,7 +108,14 @@ class CohereTextEmbedder:
 
     @component.output_types(embedding=List[float], meta=Dict[str, Any])
     def run(self, text: str):
-        """Embed a string."""
+        """Embed text.
+
+        :param text: the text to embed.
+        :returns: A dictionary with the following keys:
+            - "embedding": the embedding of the text.
+            - "meta": metadata about the request.
+        :raises TypeError: If the input is not a string.
+        """
         if not isinstance(text, str):
             msg = (
                 "CohereTextEmbedder expects a string as input."
