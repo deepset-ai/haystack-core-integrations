@@ -16,7 +16,6 @@ class PgvectorEmbeddingRetriever:
 
     Example usage:
     ```python
-    import os
     from haystack.document_stores import DuplicatePolicy
     from haystack import Document, Pipeline
     from haystack.components.embedders import SentenceTransformersTextEmbedder, SentenceTransformersDocumentEmbedder
@@ -24,7 +23,8 @@ class PgvectorEmbeddingRetriever:
     from haystack_integrations.document_stores.pgvector import PgvectorDocumentStore
     from haystack_integrations.components.retrievers.pgvector import PgvectorEmbeddingRetriever
 
-    os.environ["PG_CONN_STR"] = "postgresql://postgres:postgres@localhost:5432/postgres"
+    # Set an environment variable `PG_CONN_STR` with the connection string to your PostgreSQL database.
+    # e.g., "postgresql://USER:PASSWORD@HOST:PORT/DB_NAME"
 
     document_store = PgvectorDocumentStore(
         embedding_dimension=768,

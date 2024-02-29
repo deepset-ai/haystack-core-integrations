@@ -11,7 +11,6 @@
 # git clone https://github.com/anakin87/neural-search-pills
 
 import glob
-import os
 
 from haystack import Pipeline
 from haystack.components.converters import MarkdownToDocument
@@ -21,7 +20,8 @@ from haystack.components.writers import DocumentWriter
 from haystack_integrations.components.retrievers.pgvector import PgvectorEmbeddingRetriever
 from haystack_integrations.document_stores.pgvector import PgvectorDocumentStore
 
-os.environ["PG_CONN_STR"] = "postgresql://postgres:postgres@localhost:5432/postgres"
+# Set an environment variable `PG_CONN_STR` with the connection string to your PostgreSQL database.
+# e.g., "postgresql://USER:PASSWORD@HOST:PORT/DB_NAME"
 
 # Initialize PgvectorDocumentStore
 document_store = PgvectorDocumentStore(
