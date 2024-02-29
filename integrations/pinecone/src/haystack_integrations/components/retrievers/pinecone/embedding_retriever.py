@@ -16,7 +16,6 @@ class PineconeEmbeddingRetriever:
 
     Example usage:
     ```python
-    import os
     from haystack.document_stores.types import DuplicatePolicy
     from haystack import Document
     from haystack import Pipeline
@@ -24,7 +23,8 @@ class PineconeEmbeddingRetriever:
     from haystack_integrations.components.retrievers.pinecone import PineconeEmbeddingRetriever
     from haystack_integrations.document_stores.pinecone import PineconeDocumentStore
 
-    os.environ["PINECONE_API_KEY"] = "YOUR_PINECONE_API_KEY"
+    # Make sure the PINECONE_API_KEY environment variable is set
+    
     document_store = PineconeDocumentStore(index="my_index", namespace="my_namespace", dimension=768)
 
     documents = [Document(content="There are over 7,000 languages spoken around the world today."),
