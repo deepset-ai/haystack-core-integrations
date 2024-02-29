@@ -12,9 +12,47 @@ from haystack_integrations.document_stores.pgvector.document_store import VALID_
 @component
 class PgvectorEmbeddingRetriever:
     """
-    Retrieves documents from the PgvectorDocumentStore, based on their dense embeddings.
+    Retrieves documents from the `PgvectorDocumentStore`, based on their dense embeddings.
 
-    Needs to be connected to the PgvectorDocumentStore.
+    Example usage:
+    ```python
+    import os
+    from haystack.document_stores import DuplicatePolicy
+    from haystack import Document, Pipeline
+    from haystack.components.embedders import SentenceTransformersTextEmbedder, SentenceTransformersDocumentEmbedder
+
+    from haystack_integrations.document_stores.pgvector import PgvectorDocumentStore
+    from haystack_integrations.components.retrievers.pgvector import PgvectorEmbeddingRetriever
+
+    os.environ["PG_CONN_STR"] = "postgresql://postgres:postgres@localhost:5432/postgres"
+
+    document_store = PgvectorDocumentStore(
+        embedding_dimension=768,
+        vector_function="cosine_similarity",
+        recreate_table=True,
+    )
+
+    documents = [Document(content="There are over 7,000 languages spoken around the world today."),
+                 Document(content="Elephants have been observed to behave in a way that indicates..."),
+                 Document(content="In certain places, you can witness the phenomenon of bioluminescent waves.")]
+
+    document_embedder = SentenceTransformersDocumentEmbedder()
+    document_embedder.warm_up()
+    documents_with_embeddings = document_embedder.run(documents)
+
+    document_store.write_documents(documents_with_embeddings.get("documents"), policy=DuplicatePolicy.OVERWRITE)
+
+    query_pipeline = Pipeline()
+    query_pipeline.add_component("text_embedder", SentenceTransformersTextEmbedder())
+    query_pipeline.add_component("retriever", PgvectorEmbeddingRetriever(document_store=document_store))
+    query_pipeline.connect("text_embedder.embedding", "retriever.query_embedding")
+
+    query = "How many languages are there?"
+
+    res = query_pipeline.run({"text_embedder": {"text": query}})
+
+    assert res['retriever']['documents'][0].content == "There are over 7,000 languages spoken around the world today."
+    ```
     """
 
     def __init__(
@@ -26,23 +64,20 @@ class PgvectorEmbeddingRetriever:
         vector_function: Optional[Literal["cosine_similarity", "inner_product", "l2_distance"]] = None,
     ):
         """
-        Create the PgvectorEmbeddingRetriever component.
-
-        :param document_store: An instance of PgvectorDocumentStore.
-        :param filters: Filters applied to the retrieved Documents. Defaults to None.
-        :param top_k: Maximum number of Documents to return, defaults to 10.
+        :param document_store: An instance of `PgvectorDocumentStore}.
+        :param filters: Filters applied to the retrieved Documents.
+        :param top_k: Maximum number of Documents to return.
         :param vector_function: The similarity function to use when searching for similar embeddings.
             Defaults to the one set in the `document_store` instance.
-            "cosine_similarity" and "inner_product" are similarity functions and
+            `"cosine_similarity"` and `"inner_product"` are similarity functions and
             higher scores indicate greater similarity between the documents.
-            "l2_distance" returns the straight-line distance between vectors,
+            `"l2_distance"` returns the straight-line distance between vectors,
             and the most similar documents are the ones with the smallest score.
-
-            Important: if the document store is using the "hnsw" search strategy, the vector function
+            **Important**: if the document store is using the `"hnsw"` search strategy, the vector function
             should match the one utilized during index creation to take advantage of the index.
-        :type vector_function: Literal["cosine_similarity", "inner_product", "l2_distance"]
 
-        :raises ValueError: If `document_store` is not an instance of PgvectorDocumentStore.
+        :raises ValueError: If `document_store` is not an instance of `PgvectorDocumentStore` or if `vector_function`
+            is not one of the valid options.
         """
         if not isinstance(document_store, PgvectorDocumentStore):
             msg = "document_store must be an instance of PgvectorDocumentStore"
@@ -58,6 +93,12 @@ class PgvectorEmbeddingRetriever:
         self.vector_function = vector_function or document_store.vector_function
 
     def to_dict(self) -> Dict[str, Any]:
+        """
+        Serializes the component to a dictionary.
+
+        :returns:
+            Dictionary with serialized data.
+        """
         return default_to_dict(
             self,
             filters=self.filters,
@@ -68,6 +109,14 @@ class PgvectorEmbeddingRetriever:
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "PgvectorEmbeddingRetriever":
+        """
+        Deserializes the component from a dictionary.
+
+        :param data:
+            Dictionary to deserialize from.
+        :returns:
+            Deserialized component.
+        """
         doc_store_params = data["init_parameters"]["document_store"]
         data["init_parameters"]["document_store"] = PgvectorDocumentStore.from_dict(doc_store_params)
         return default_from_dict(cls, data)
@@ -81,14 +130,14 @@ class PgvectorEmbeddingRetriever:
         vector_function: Optional[Literal["cosine_similarity", "inner_product", "l2_distance"]] = None,
     ):
         """
-        Retrieve documents from the PgvectorDocumentStore, based on their embeddings.
+        Retrieve documents from the `PgvectorDocumentStore`, based on their embeddings.
 
         :param query_embedding: Embedding of the query.
         :param filters: Filters applied to the retrieved Documents.
         :param top_k: Maximum number of Documents to return.
         :param vector_function: The similarity function to use when searching for similar embeddings.
-        :type vector_function: Literal["cosine_similarity", "inner_product", "l2_distance"]
-        :return: List of Documents similar to `query_embedding`.
+
+        :returns: List of Documents similar to `query_embedding`.
         """
         filters = filters or self.filters
         top_k = top_k or self.top_k
