@@ -213,7 +213,6 @@ class ChromaDocumentStore:
         :param top_k: the maximum number of documents to retrieve.
         :param filters: a dictionary of filters to apply to the search. Accepts filters in haystack format.
 
-
         :returns: a list of lists of documents that match the given filters.
 
         """
