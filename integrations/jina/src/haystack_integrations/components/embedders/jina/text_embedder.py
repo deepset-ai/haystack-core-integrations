@@ -13,7 +13,7 @@ JINA_API_URL: str = "https://api.jina.ai/v1/embeddings"
 @component
 class JinaTextEmbedder:
     """
-    A component for embedding strings using Jina models.
+    A component for embedding strings using Jina AI models.
 
     Usage example:
     ```python
@@ -44,7 +44,7 @@ class JinaTextEmbedder:
         """
         :param api_key: The Jina API key. It can be explicitly provided or automatically read from the
             environment variable `JINA_API_KEY` (recommended).
-        :param model: The name of the Jina model to use. 
+        :param model: The name of the Jina model to use.
             Check the list of available models on [Jina documentation](https://jina.ai/embeddings/).
         :param prefix: A string to add to the beginning of each text.
         :param suffix: A string to add to the end of each text.
@@ -73,22 +73,37 @@ class JinaTextEmbedder:
 
     def to_dict(self) -> Dict[str, Any]:
         """
-        This method overrides the default serializer in order to avoid leaking the `api_key` value passed
-        to the constructor.
+        Serializes the component to a dictionary.
+        :returns:
+            Dictionary with serialized data.
         """
-
         return default_to_dict(
             self, api_key=self.api_key.to_dict(), model=self.model_name, prefix=self.prefix, suffix=self.suffix
         )
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "JinaTextEmbedder":
+        """
+        Deserializes the component from a dictionary.
+        :param data:
+            Dictionary to deserialize from.
+        :returns:
+            Deserialized component.
+        """
         deserialize_secrets_inplace(data["init_parameters"], keys=["api_key"])
         return default_from_dict(cls, data)
 
     @component.output_types(embedding=List[float], meta=Dict[str, Any])
     def run(self, text: str):
-        """Embed a string."""
+        """
+        Embed a string.
+
+        :param text: The string to embed.
+        :returns: A dictionary with following keys:
+            - `embedding`: The embedding of the input string.
+            - `meta`: A dictionary with metadata including the model name and usage statistics.
+        :raises TypeError: If the input is not a string.
+        """
         if not isinstance(text, str):
             msg = (
                 "JinaTextEmbedder expects a string as an input."
