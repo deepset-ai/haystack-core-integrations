@@ -57,7 +57,7 @@ class PineconeEmbeddingRetriever:
         top_k: int = 10,
     ):
         """
-        :param document_store: An instance of `PineconeDocumentStore`.
+        :param document_store: The Pinecone Document Store.
         :param filters: Filters applied to the retrieved Documents.
         :param top_k: Maximum number of Documents to return.
 
