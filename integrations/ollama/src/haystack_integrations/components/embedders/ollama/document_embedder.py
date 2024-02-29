@@ -7,6 +7,23 @@ from tqdm import tqdm
 
 @component
 class OllamaDocumentEmbedder:
+    """
+    Computes the embeddings of a list of Documents and stores the obtained vectors in the embedding field of each
+    Document. It uses embedding models compatible with the Ollama Library.
+
+    Usage example:
+    ```python
+    from haystack import Document
+    from haystack_integrations.components.embedders.ollama import OllamaDocumentEmbedder
+
+    doc = Document(content="What do llamas say once you have thanked them? No probllama!")
+    document_embedder = OllamaDocumentEmbedder()
+
+    result = document_embedder.run([doc])
+    print(result['documents'][0].embedding)
+    ```
+    """
+
     def __init__(
         self,
         model: str = "nomic-embed-text",
@@ -20,15 +37,16 @@ class OllamaDocumentEmbedder:
         embedding_separator: str = "\n",
     ):
         """
-        :param model: The name of the model to use. The model should be available in the running Ollama instance.
-            Default is "nomic-embed-text". "https://ollama.com/library/nomic-embed-text"
-        :param url: The URL of the chat endpoint of a running Ollama instance.
-            Default is "http://localhost:11434/api/embeddings".
-        :param generation_kwargs: Optional arguments to pass to the Ollama generation endpoint, such as temperature,
-            top_p, and others. See the available arguments in
+        :param model:
+            The name of the model to use. The model should be available in the running Ollama instance.
+        :param url:
+            The URL of the chat endpoint of a running Ollama instance.
+        :param generation_kwargs:
+            Optional arguments to pass to the Ollama generation endpoint, such as temperature, top_p, and others.
+            See the available arguments in
             [Ollama docs](https://github.com/jmorganca/ollama/blob/main/docs/modelfile.md#valid-parameters-and-values).
-        :param timeout: The number of seconds before throwing a timeout error from the Ollama API.
-            Default is 120 seconds.
+        :param timeout:
+            The number of seconds before throwing a timeout error from the Ollama API.
         """
         self.timeout = timeout
         self.generation_kwargs = generation_kwargs or {}
@@ -44,15 +62,12 @@ class OllamaDocumentEmbedder:
     def _create_json_payload(self, text: str, generation_kwargs: Optional[Dict[str, Any]]) -> Dict[str, Any]:
         """
         Returns A dictionary of JSON arguments for a POST request to an Ollama service
-          :param text: Text that is to be converted to an embedding
-          :param generation_kwargs:
-          :return: A dictionary of arguments for a POST request to an Ollama service
         """
         return {"model": self.model, "prompt": text, "options": {**self.generation_kwargs, **(generation_kwargs or {})}}
 
     def _prepare_texts_to_embed(self, documents: List[Document]) -> List[str]:
         """
-        Prepare the texts to embed by concatenating the Document text with the metadata fields to embed.
+        Prepares the texts to embed by concatenating the Document text with the metadata fields to embed.
         """
         texts_to_embed = []
         for doc in documents:
@@ -101,12 +116,17 @@ class OllamaDocumentEmbedder:
     @component.output_types(documents=List[Document], meta=Dict[str, Any])
     def run(self, documents: List[Document], generation_kwargs: Optional[Dict[str, Any]] = None):
         """
-        Run an Ollama Model on a provided documents.
-        :param documents: Documents to be converted to an embedding.
-        :param generation_kwargs: Optional arguments to pass to the Ollama generation endpoint, such as temperature,
+        Runs an Ollama Model to compute embeddings of the provided documents.
+
+        :param documents:
+            Documents to be converted to an embedding.
+        :param generation_kwargs:
+            Optional arguments to pass to the Ollama generation endpoint, such as temperature,
             top_p, etc. See the
             [Ollama docs](https://github.com/jmorganca/ollama/blob/main/docs/modelfile.md#valid-parameters-and-values).
-        :return: Documents with embedding information attached and metadata in a dictionary
+        :returns: A dictionary with the following keys:
+            - `documents`: Documents with embedding information attached
+            - `meta`: The metadata collected during the embedding process
         """
         if not isinstance(documents, list) or documents and not isinstance(documents[0], Document):
             msg = (
