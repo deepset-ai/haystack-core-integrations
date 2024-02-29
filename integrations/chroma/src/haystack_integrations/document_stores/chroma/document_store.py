@@ -6,8 +6,9 @@ from collections import defaultdict
 from typing import Any, Dict, List, Optional, Tuple
 
 import chromadb
-import numpy as np
 from chromadb.api.types import GetResult, QueryResult, validate_where, validate_where_document
+import numpy as np
+from haystack import default_from_dict, default_to_dict
 from haystack.dataclasses import Document
 from haystack.document_stores.types import DuplicatePolicy
 
@@ -50,6 +51,7 @@ class ChromaDocumentStore:
         self._collection_name = collection_name
         self._embedding_function = embedding_function
         self._embedding_function_params = embedding_function_params
+        self._persist_path = persist_path
         # Create the client instance
         if persist_path is None:
             self._chroma_client = chromadb.Client()
@@ -244,20 +246,22 @@ class ChromaDocumentStore:
         :returns:
             Deserialized component.
         """
-        return ChromaDocumentStore(**data)
+        return default_from_dict(cls, data)
 
     def to_dict(self) -> Dict[str, Any]:
         """
         Serializes the component to a dictionary.
 
         :returns:
-           Dictionary with serialized data.
+            Dictionary with serialized data.
         """
-        return {
-            "collection_name": self._collection_name,
-            "embedding_function": self._embedding_function,
+        return default_to_dict(
+            self,
+            collection_name=self._collection_name,
+            embedding_function=self._embedding_function,
+            persist_path=self._persist_path,
             **self._embedding_function_params,
-        }
+        )
 
     @staticmethod
     def _normalize_filters(filters: Dict[str, Any]) -> Tuple[List[str], Dict[str, Any], Dict[str, Any]]:
