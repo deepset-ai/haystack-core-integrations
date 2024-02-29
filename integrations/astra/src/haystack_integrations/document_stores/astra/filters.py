@@ -19,7 +19,7 @@ def _normalize_filters(filters: Dict[str, Any]) -> Dict[str, Any]:
 
 def _convert_filters(filters: Optional[Dict[str, Any]] = None) -> Optional[Dict[str, Any]]:
     """
-    Convert haystack filters to astra filterstring capturing all boolean operators
+    Convert haystack filters to astra filter string capturing all boolean operators
     """
     if not filters:
         return None
