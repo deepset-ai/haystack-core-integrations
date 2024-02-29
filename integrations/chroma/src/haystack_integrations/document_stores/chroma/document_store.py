@@ -19,6 +19,8 @@ logger = logging.getLogger(__name__)
 
 class ChromaDocumentStore:
     """
+    A document store using [Chroma](https://docs.trychroma.com/) as the backend.
+
     We use the `collection.get` API to implement the document store protocol,
     the `collection.search` API will be used in the retriever instead.
     """
@@ -38,6 +40,11 @@ class ChromaDocumentStore:
         Note: for the component to be part of a serializable pipeline, the __init__
         parameters must be serializable, reason why we use a registry to configure the
         embedding function passing a string.
+
+        :param collection_name: the name of the collection to use in the database.
+        :param embedding_function: the name of the embedding function to use to embed the query
+        :param persist_path: where to store the database. If None, the database will be `in-memory`.
+        :param embedding_function_params: additional parameters to pass to the embedding function.
         """
         # Store the params for marshalling
         self._collection_name = collection_name
@@ -56,6 +63,8 @@ class ChromaDocumentStore:
     def count_documents(self) -> int:
         """
         Returns how many documents are present in the document store.
+
+        :returns: how many documents are present in the document store.
         """
         return self._collection.count()
 
@@ -128,7 +137,7 @@ class ChromaDocumentStore:
         ```
 
         :param filters: the filters to apply to the document list.
-        :return: a list of Documents that match the given filters.
+        :returns: a list of Documents that match the given filters.
         """
         if filters:
             ids, where, where_document = self._normalize_filters(filters)
@@ -152,7 +161,7 @@ class ChromaDocumentStore:
         :param documents: a list of documents.
         :param policy: not supported at the moment
         :raises DuplicateDocumentError: Exception trigger on duplicate document if `policy=DuplicatePolicy.FAIL`
-        :return: None
+        :returns: None
         """
         for doc in documents:
             if not isinstance(doc, Document):
@@ -177,15 +186,17 @@ class ChromaDocumentStore:
     def delete_documents(self, document_ids: List[str]) -> None:
         """
         Deletes all documents with a matching document_ids from the document store.
-        Fails with `MissingDocumentError` if no document with this id is present in the store.
 
         :param document_ids: the object_ids to delete
         """
         self._collection.delete(ids=document_ids)
 
     def search(self, queries: List[str], top_k: int) -> List[List[Document]]:
-        """
-        Perform vector search on the stored documents
+        """Search the documents in the store using the provided text queries.
+
+        :param queries: the list of queries to search for.
+        :param top_k: top_k documents to return for each query.
+        :return: matching documents for each query.
         """
         results = self._collection.query(
             query_texts=queries, n_results=top_k, include=["embeddings", "documents", "metadatas", "distances"]
@@ -196,10 +207,14 @@ class ChromaDocumentStore:
         self, query_embeddings: List[List[float]], top_k: int, filters: Optional[Dict[str, Any]] = None
     ) -> List[List[Document]]:
         """
-        Perform vector search on the stored document, pass the embeddings of the queries
-        instead of their text.
+        Perform vector search on the stored document, pass the embeddings of the queries instead of their text.
 
-        Accepts filters in haystack format.
+        :param query_embeddings: a list of embeddings to use as queries.
+        :param top_k: the maximum number of documents to retrieve.
+        :param filters: a dictionary of filters to apply to the search. Accepts filters in haystack format.
+
+        :returns: a list of lists of documents that match the given filters.
+
         """
         if filters is None:
             results = self._collection.query(
@@ -221,9 +236,23 @@ class ChromaDocumentStore:
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "ChromaDocumentStore":
+        """
+        Deserializes the component from a dictionary.
+
+        :param data:
+            Dictionary to deserialize from.
+        :returns:
+            Deserialized component.
+        """
         return ChromaDocumentStore(**data)
 
     def to_dict(self) -> Dict[str, Any]:
+        """
+        Serializes the component to a dictionary.
+
+        :returns:
+           Dictionary with serialized data.
+        """
         return {
             "collection_name": self._collection_name,
             "embedding_function": self._embedding_function,

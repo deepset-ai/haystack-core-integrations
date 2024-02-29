@@ -26,6 +26,10 @@ TOP_K_LIMIT = 1_000
 
 
 class PineconeDocumentStore:
+    """
+    A Document Store using [Pinecone vector database](https://www.pinecone.io/).
+    """
+
     def __init__(
         self,
         *,
@@ -42,20 +46,17 @@ class PineconeDocumentStore:
         It is meant to be connected to a Pinecone index and namespace.
 
         :param api_key: The Pinecone API key. It can be explicitly provided or automatically read from the
-            environment variable PINECONE_API_KEY (recommended).
-        :param environment: The Pinecone environment to connect to. Defaults to "us-west1-gcp".
+            environment variable `PINECONE_API_KEY` (recommended).
+        :param environment: The Pinecone environment to connect to.
         :param index: The Pinecone index to connect to. If the index does not exist, it will be created.
-            Defaults to "default".
         :param namespace: The Pinecone namespace to connect to. If the namespace does not exist, it will be created
-            at the first write. Defaults to "default".
-        :param batch_size: The number of documents to write in a single batch. Defaults to 100, as recommended by
-            Pinecone.
+            at the first write.
+        :param batch_size: The number of documents to write in a single batch. When setting this parameter,
+            consider [documented Pinecone limits](https://docs.pinecone.io/docs/limits).
         :param dimension: The dimension of the embeddings. This parameter is only used when creating a new index.
-            Defaults to 768.
         :param index_creation_kwargs: Additional keyword arguments to pass to the index creation method.
-            For example, you can specify `metric`, `pods`, `replicas`...
             You can find the full list of supported arguments in the
-            [API reference](https://docs.pinecone.io/reference/create_index-1).
+            [API reference](https://docs.pinecone.io/reference/create_index).
 
         """
         resolved_api_key = api_key.resolve_value()
@@ -95,10 +96,22 @@ class PineconeDocumentStore:
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "PineconeDocumentStore":
+        """
+        Deserializes the component from a dictionary.
+        :param data:
+            Dictionary to deserialize from.
+        :returns:
+            Deserialized component.
+        """
         deserialize_secrets_inplace(data["init_parameters"], keys=["api_key"])
         return default_from_dict(cls, data)
 
     def to_dict(self) -> Dict[str, Any]:
+        """
+        Serializes the component to a dictionary.
+        :returns:
+            Dictionary with serialized data.
+        """
         return default_to_dict(
             self,
             api_key=self.api_key.to_dict(),
@@ -128,7 +141,7 @@ class PineconeDocumentStore:
         :param policy: The duplicate policy to use when writing documents.
             PineconeDocumentStore only supports `DuplicatePolicy.OVERWRITE`.
 
-        :return: The number of documents written to the document store.
+        :returns: The number of documents written to the document store.
         """
         if len(documents) > 0 and not isinstance(documents[0], Document):
             msg = "param 'documents' must contain a list of objects of type Document"
@@ -157,7 +170,7 @@ class PineconeDocumentStore:
         refer to the [documentation](https://docs.haystack.deepset.ai/v2.0/docs/metadata-filtering)
 
         :param filters: The filters to apply to the document list.
-        :return: A list of Documents that match the given filters.
+        :returns: A list of Documents that match the given filters.
         """
 
         # Pinecone only performs vector similarity search
@@ -178,7 +191,7 @@ class PineconeDocumentStore:
 
     def delete_documents(self, document_ids: List[str]) -> None:
         """
-        Deletes all documents with a matching document_ids from the document store.
+        Deletes documents that match the provided `document_ids` from the document store.
 
         :param document_ids: the document ids to delete
         """
@@ -197,14 +210,14 @@ class PineconeDocumentStore:
 
         This method is not mean to be part of the public interface of
         `PineconeDocumentStore` nor called directly.
-        `PineconeDenseRetriever` uses this method directly and is the public interface for it.
+        `PineconeEmbeddingRetriever` uses this method directly and is the public interface for it.
 
         :param query_embedding: Embedding of the query.
         :param namespace: Pinecone namespace to query. Defaults the namespace of the document store.
-        :param filters: Filters applied to the retrieved Documents. Defaults to None.
-        :param top_k: Maximum number of Documents to return, defaults to 10
+        :param filters: Filters applied to the retrieved Documents.
+        :param top_k: Maximum number of Documents to return.
 
-        :return: List of Document that are most similar to `query_embedding`
+        :returns: List of Document that are most similar to `query_embedding`
         """
 
         if not query_embedding:

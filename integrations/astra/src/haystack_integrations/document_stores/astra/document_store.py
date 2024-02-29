@@ -32,6 +32,19 @@ def _batches(input_list, batch_size):
 class AstraDocumentStore:
     """
     An AstraDocumentStore document store for Haystack.
+
+    Example Usage:
+    ```python
+    from haystack_integrations.document_stores.astra import AstraDocumentStore
+
+    document_store = AstraDocumentStore(
+        api_endpoint=api_endpoint,
+        token=token,
+        collection_name=collection_name,
+        duplicates_policy=DuplicatePolicy.SKIP,
+        embedding_dim=384,
+    )
+    ```
     """
 
     def __init__(
@@ -45,22 +58,24 @@ class AstraDocumentStore:
     ):
         """
         The connection to Astra DB is established and managed through the JSON API.
-        The required credentials (api endpoint andapplication token) can be generated
+        The required credentials (api endpoint and application token) can be generated
         through the UI by clicking and the connect tab, and then selecting JSON API and
         Generate Configuration.
 
-        :param api_endpoint: The Astra DB API endpoint.
-        :param token: The Astra DB application token.
-        :param collection_name: The current collection in the keyspace in the current Astra DB.
-        :param embedding_dimension: Dimension of embedding vector.
-        :param duplicates_policy: Handle duplicate documents based on DuplicatePolicy parameter options.
-              Parameter options : (SKIP, OVERWRITE, FAIL, NONE)
-              - `DuplicatePolicy.NONE`: Default policy, If a Document with the same id already exists,
+        :param api_endpoint: the Astra DB API endpoint.
+        :param token: the Astra DB application token.
+        :param collection_name: the current collection in the keyspace in the current Astra DB.
+        :param embedding_dimension: dimension of embedding vector.
+        :param duplicates_policy: handle duplicate documents based on DuplicatePolicy parameter options.
+              Parameter options : (`SKIP`, `OVERWRITE`, `FAIL`, `NONE`)
+              - `DuplicatePolicy.NONE`: Default policy, If a Document with the same ID already exists,
                     it is skipped and not written.
-              - `DuplicatePolicy.SKIP`: If a Document with the same id already exists, it is skipped and not written.
-              - `DuplicatePolicy.OVERWRITE`: If a Document with the same id already exists, it is overwritten.
-              - `DuplicatePolicy.FAIL`: If a Document with the same id already exists, an error is raised.
-        :param similarity: The similarity function used to compare document vectors.
+              - `DuplicatePolicy.SKIP`: if a Document with the same ID already exists, it is skipped and not written.
+              - `DuplicatePolicy.OVERWRITE`: if a Document with the same ID already exists, it is overwritten.
+              - `DuplicatePolicy.FAIL`: if a Document with the same ID already exists, an error is raised.
+        :param similarity: the similarity function used to compare document vectors.
+
+        :raises ValueError: if the API endpoint or token is not set.
         """
         resolved_api_endpoint = api_endpoint.resolve_value()
         if resolved_api_endpoint is None:
@@ -95,10 +110,24 @@ class AstraDocumentStore:
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "AstraDocumentStore":
+        """
+        Deserializes the component from a dictionary.
+
+        :param data:
+            Dictionary to deserialize from.
+        :returns:
+            Deserialized component.
+        """
         deserialize_secrets_inplace(data["init_parameters"], keys=["api_endpoint", "token"])
         return default_from_dict(cls, data)
 
     def to_dict(self) -> Dict[str, Any]:
+        """
+        Serializes the component to a dictionary.
+
+        :returns:
+            Dictionary with serialized data.
+        """
         return default_to_dict(
             self,
             api_endpoint=self.api_endpoint.to_dict(),
@@ -118,15 +147,18 @@ class AstraDocumentStore:
         Indexes documents for later queries.
 
         :param documents: a list of Haystack Document objects.
-        :param policy:  Handle duplicate documents based on DuplicatePolicy parameter options.
-                      Parameter options : (SKIP, OVERWRITE, FAIL, NONE)
-                      - `DuplicatePolicy.NONE`: Default policy, If a Document with the same id already exists,
-                            it is skipped and not written.
-                      - `DuplicatePolicy.SKIP`: If a Document with the same id already exists,
-                            it is skipped and not written.
-                      - `DuplicatePolicy.OVERWRITE`: If a Document with the same id already exists, it is overwritten.
-                      - `DuplicatePolicy.FAIL`: If a Document with the same id already exists, an error is raised.
-        :return: int
+        :param policy: handle duplicate documents based on DuplicatePolicy parameter options.
+            Parameter options : (`SKIP`, `OVERWRITE`, `FAIL`, `NONE`)
+            - `DuplicatePolicy.NONE`: Default policy, If a Document with the same ID already exists,
+                it is skipped and not written.
+            - `DuplicatePolicy.SKIP`: If a Document with the same ID already exists,
+                it is skipped and not written.
+            - `DuplicatePolicy.OVERWRITE`: If a Document with the same ID already exists, it is overwritten.
+            - `DuplicatePolicy.FAIL`: If a Document with the same ID already exists, an error is raised.
+        :returns: number of documents written.
+        :raises ValueError: if the documents are not of type Document or dict.
+        :raises DuplicateDocumentError: if a document with the same ID already exists and policy is set to FAIL.
+        :raises Exception: if the document ID is not a string or if `id` and `_id` are both present in the document.
         """
         if policy is None or policy == DuplicatePolicy.NONE:
             if self.duplicates_policy is not None and self.duplicates_policy != DuplicatePolicy.NONE:
@@ -226,21 +258,19 @@ class AstraDocumentStore:
 
     def count_documents(self) -> int:
         """
-        Returns how many documents are present in the document store.
+        Counts the number of documents in the document store.
+
+        :returns: the number of documents in the document store.
         """
         return self.index.count_documents()
 
     def filter_documents(self, filters: Optional[Dict[str, Any]] = None) -> List[Document]:
-        """Returns at most 1000 documents that match the filter
+        """
+        Returns at most 1000 documents that match the filter.
 
-        Args:
-            filters (Optional[Dict[str, Any]], optional): Filters to apply. Defaults to None.
-
-        Raises:
-            AstraDocumentStoreFilterError: If the filter is invalid or not supported by this class.
-
-        Returns:
-            List[Document]: A list of matching documents.
+        :param filters: filters to apply.
+        :returns: matching documents.
+        :raises AstraDocumentStoreFilterError: if the filter is invalid or not supported by this class.
         """
         if not isinstance(filters, dict) and filters is not None:
             msg = "Filters must be a dictionary or None"
@@ -299,7 +329,10 @@ class AstraDocumentStore:
 
     def get_documents_by_id(self, ids: List[str]) -> List[Document]:
         """
-        Returns documents with given ids.
+        Gets documents by their IDs.
+
+        :param ids: the IDs of the documents to retrieve.
+        :returns: the matching documents.
         """
         results = self.index.get_documents(ids=ids)
         ret = self._get_result_to_documents(results)
@@ -307,9 +340,11 @@ class AstraDocumentStore:
 
     def get_document_by_id(self, document_id: str) -> Document:
         """
-        :param document_id: id of the document to retrieve
-        Returns documents with given ids.
-        Raises MissingDocumentError when document_id does not exist in document store
+        Gets a document by its ID.
+
+        :param document_id: the ID to filter by
+        :returns: the found document
+        :raises MissingDocumentError: if the document is not found
         """
         document = self.index.get_documents(ids=[document_id])
         ret = self._get_result_to_documents(document)
@@ -321,15 +356,13 @@ class AstraDocumentStore:
     def search(
         self, query_embedding: List[float], top_k: int, filters: Optional[Dict[str, Any]] = None
     ) -> List[Document]:
-        """Perform a search for a list of queries.
+        """
+        Perform a search for a list of queries.
 
-        Args:
-            query_embedding (List[float]): A list of query embeddings.
-            top_k (int): The number of results to return.
-            filters (Optional[Dict[str, Any]], optional): Filters to apply during search. Defaults to None.
-
-        Returns:
-            List[Document]: A list of matching documents.
+        :param query_embedding: a list of query embeddings.
+        :param top_k: the number of results to return.
+        :param filters: filters to apply during search.
+        :returns: matching documents.
         """
         converted_filters = _convert_filters(filters)
 
@@ -348,13 +381,12 @@ class AstraDocumentStore:
 
     def delete_documents(self, document_ids: Optional[List[str]] = None, delete_all: Optional[bool] = None) -> None:
         """
-        Deletes all documents with a matching document_ids from the document store.
-        Fails with `MissingDocumentError` if no document with this id is present in the store.
+        Deletes documents from the document store.
 
-        :param document_ids: the document_ids to delete.
-        :param delete_all: delete all documents.
+        :param document_ids: IDs of the documents to delete.
+        :param delete_all: if `True`, delete all documents.
+        :raises MissingDocumentError: if no document was deleted but document IDs were provided.
         """
-
         deletion_counter = 0
         if self.index.count_documents() > 0:
             if document_ids is not None:

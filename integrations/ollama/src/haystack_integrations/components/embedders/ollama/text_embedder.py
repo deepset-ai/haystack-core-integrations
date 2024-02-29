@@ -6,6 +6,20 @@ from haystack import component
 
 @component
 class OllamaTextEmbedder:
+    """
+    Computes the embeddings of a list of Documents and stores the obtained vectors in the embedding field of
+    each Document. It uses embedding models compatible with the Ollama Library.
+
+    Usage example:
+    ```python
+    from haystack_integrations.components.embedders.ollama import OllamaTextEmbedder
+
+    embedder = OllamaTextEmbedder()
+    result = embedder.run(text="What do llamas say once you have thanked them? No probllama!")
+    print(result['embedding'])
+    ```
+    """
+
     def __init__(
         self,
         model: str = "nomic-embed-text",
@@ -14,15 +28,16 @@ class OllamaTextEmbedder:
         timeout: int = 120,
     ):
         """
-        :param model: The name of the model to use. The model should be available in the running Ollama instance.
-            Default is "nomic-embed-text". "https://ollama.com/library/nomic-embed-text"
-        :param url: The URL of the chat endpoint of a running Ollama instance.
-            Default is "http://localhost:11434/api/embeddings".
-        :param generation_kwargs: Optional arguments to pass to the Ollama generation endpoint, such as temperature,
+        :param model:
+            The name of the model to use. The model should be available in the running Ollama instance.
+        :param url:
+            The URL of the chat endpoint of a running Ollama instance.
+        :param generation_kwargs:
+            Optional arguments to pass to the Ollama generation endpoint, such as temperature,
             top_p, and others. See the available arguments in
             [Ollama docs](https://github.com/jmorganca/ollama/blob/main/docs/modelfile.md#valid-parameters-and-values).
-        :param timeout: The number of seconds before throwing a timeout error from the Ollama API.
-            Default is 120 seconds.
+        :param timeout:
+            The number of seconds before throwing a timeout error from the Ollama API.
         """
         self.timeout = timeout
         self.generation_kwargs = generation_kwargs or {}
@@ -32,21 +47,23 @@ class OllamaTextEmbedder:
     def _create_json_payload(self, text: str, generation_kwargs: Optional[Dict[str, Any]]) -> Dict[str, Any]:
         """
         Returns A dictionary of JSON arguments for a POST request to an Ollama service
-          :param text: Text that is to be converted to an embedding
-          :param generation_kwargs:
-          :return: A dictionary of arguments for a POST request to an Ollama service
         """
         return {"model": self.model, "prompt": text, "options": {**self.generation_kwargs, **(generation_kwargs or {})}}
 
     @component.output_types(embedding=List[float], meta=Dict[str, Any])
     def run(self, text: str, generation_kwargs: Optional[Dict[str, Any]] = None):
         """
-        Run an Ollama Model on a given chat history.
-        :param text: Text to be converted to an embedding.
-        :param generation_kwargs: Optional arguments to pass to the Ollama generation endpoint, such as temperature,
+        Runs an Ollama Model to compute embeddings of the provided text.
+
+        :param text:
+            Text to be converted to an embedding.
+        :param generation_kwargs:
+            Optional arguments to pass to the Ollama generation endpoint, such as temperature,
             top_p, etc. See the
             [Ollama docs](https://github.com/jmorganca/ollama/blob/main/docs/modelfile.md#valid-parameters-and-values).
-        :return: A dictionary with the key "embedding" and a list of floats as the value
+        :returns: A dictionary with the following keys:
+            - `embedding`: The computed embeddings
+            - `meta`: The metadata collected during the embedding process
         """
 
         payload = self._create_json_payload(text, generation_kwargs)
