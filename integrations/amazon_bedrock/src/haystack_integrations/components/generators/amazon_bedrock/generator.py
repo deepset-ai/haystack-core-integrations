@@ -33,16 +33,18 @@ logger = logging.getLogger(__name__)
 @component
 class AmazonBedrockGenerator:
     """
-    Generator based on a Hugging Face model.
-    This component provides an interface to generate text using a Hugging Face model that runs locally.
+    `AmazonBedrockGenerator` enables text generation via Amazon Bedrock hosted LLMs.
+
+    For example, to use the Anthropic Claude model, simply initialize the `AmazonBedrockGenerator` with the
+    'anthropic.claude-v2' model name. Provide AWS credentials either via local AWS profile or directly via
+    `aws_access_key_id`, `aws_secret_access_key`, `aws_session_token`, and `aws_region_name` parameters.
 
     Usage example:
     ```python
-    from amazon_bedrock_haystack.generators.amazon_bedrock import AmazonBedrockGenerator
+    from haystack_integrations.components.generators.amazon_bedrock import AmazonBedrockGenerator
 
     generator = AmazonBedrockGenerator(
         model="anthropic.claude-v2",
-        max_length=99,
         aws_access_key_id="...",
         aws_secret_access_key="...",
         aws_session_token="...",
@@ -75,6 +77,19 @@ class AmazonBedrockGenerator:
         max_length: Optional[int] = 100,
         **kwargs,
     ):
+        """
+        Create a new `AmazonBedrockGenerator` instance.
+
+        :param model: The name of the model to use.
+        :param aws_access_key_id: The AWS access key ID.
+        :param aws_secret_access_key: The AWS secret access key.
+        :param aws_session_token: The AWS session token.
+        :param aws_region_name: The AWS region name.
+        :param aws_profile_name: The AWS profile name.
+        :param max_length: The maximum length of the generated text.
+        :param kwargs: Additional keyword arguments to be passed to the model.
+
+        """
         if not model:
             msg = "'model' cannot be None or empty string"
             raise ValueError(msg)
@@ -126,6 +141,13 @@ class AmazonBedrockGenerator:
         self.model_adapter = model_adapter_cls(model_kwargs=model_input_kwargs, max_length=self.max_length)
 
     def _ensure_token_limit(self, prompt: Union[str, List[Dict[str, str]]]) -> Union[str, List[Dict[str, str]]]:
+        """
+        Ensures that the prompt and answer token lengths together are within the model_max_length specified during
+        the initialization of the component.
+
+        :param prompt: The prompt to be sent to the model.
+        :return: The resized prompt.
+        """
         # the prompt for this model will be of the type str
         if isinstance(prompt, List):
             msg = (
@@ -148,6 +170,13 @@ class AmazonBedrockGenerator:
         return str(resize_info["resized_prompt"])
 
     def invoke(self, *args, **kwargs):
+        """
+        Invokes the model with the given prompt.
+
+        :param args: Additional positional arguments passed to the generator.
+        :param kwargs: Additional keyword arguments passed to the generator.
+        :return: A list of generated responses (strings).
+       """
         kwargs = kwargs.copy()
         prompt: str = kwargs.pop("prompt", None)
         stream: bool = kwargs.get("stream", self.model_adapter.model_kwargs.get("stream", False))
@@ -193,12 +222,26 @@ class AmazonBedrockGenerator:
 
         return responses
 
-    @component.output_types(replies=List[str], metadata=List[Dict[str, Any]])
+    @component.output_types(replies=List[str])
     def run(self, prompt: str, generation_kwargs: Optional[Dict[str, Any]] = None):
+        """
+        Generates a list of string response to the given prompt.
+
+        :param prompt: The prompt to generate a response for.
+        :param generation_kwargs: Additional keyword arguments passed to the generator.
+        :return: A dictionary with the following keys:
+            - `replies`: A list of generated responses (strings).
+        """
         return {"replies": self.invoke(prompt=prompt, **(generation_kwargs or {}))}
 
     @classmethod
     def get_model_adapter(cls, model: str) -> Optional[Type[BedrockModelAdapter]]:
+        """
+        Gets the model adapter for the given model.
+
+        :param model: The model name.
+        :return: The model adapter class, or None if no adapter is found.
+        """
         for pattern, adapter in cls.SUPPORTED_MODEL_PATTERNS.items():
             if re.fullmatch(pattern, model):
                 return adapter
@@ -206,8 +249,10 @@ class AmazonBedrockGenerator:
 
     def to_dict(self) -> Dict[str, Any]:
         """
-        Serialize this component to a dictionary.
-        :return: The serialized component as a dictionary.
+        Serializes the component to a dictionary.
+
+        :returns:
+            Dictionary with serialized data.
         """
         return default_to_dict(
             self,
@@ -223,9 +268,12 @@ class AmazonBedrockGenerator:
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "AmazonBedrockGenerator":
         """
-        Deserialize this component from a dictionary.
-        :param data: The dictionary representation of this component.
-        :return: The deserialized component instance.
+        Deserializes the component from a dictionary.
+
+        :param data:
+            Dictionary to deserialize from.
+        :returns:
+              Deserialized component.
         """
         deserialize_secrets_inplace(
             data["init_parameters"],

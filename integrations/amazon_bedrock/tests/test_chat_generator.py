@@ -173,6 +173,18 @@ class TestAnthropicClaudeAdapter:
 
         assert body == expected_body
 
+    @pytest.mark.integration
+    def test_get_responses(self) -> None:
+        adapter = AnthropicClaudeChatAdapter(generation_kwargs={})
+        response_body = {"completion": "This is a single response."}
+        expected_response = "This is a single response."
+        response_message = adapter.get_responses(response_body)
+        # assert that the type of each item in the list is a ChatMessage
+        for message in response_message:
+            assert isinstance(message, ChatMessage)
+
+        assert response_message == [ChatMessage.from_assistant(expected_response)]
+
 
 class TestMetaLlama2ChatAdapter:
     @pytest.mark.integration
@@ -221,4 +233,8 @@ class TestMetaLlama2ChatAdapter:
         response_body = {"generation": "This is a single response."}
         expected_response = "This is a single response."
         response_message = adapter.get_responses(response_body)
+        # assert that the type of each item in the list is a ChatMessage
+        for message in response_message:
+            assert isinstance(message, ChatMessage)
+
         assert response_message == [ChatMessage.from_assistant(expected_response)]
