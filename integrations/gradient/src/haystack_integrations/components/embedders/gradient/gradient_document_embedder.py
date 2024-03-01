@@ -23,8 +23,10 @@ def _alt_progress_bar(x: Any) -> Any:
 class GradientDocumentEmbedder:
     """
     A component for computing Document embeddings using Gradient AI API.
+
     The embedding of each Document is stored in the `embedding` field of the Document.
 
+    Usage example:
     ```python
     embedder = GradientDocumentEmbedder(model="bge_large")
     p = Pipeline()
@@ -53,7 +55,7 @@ class GradientDocumentEmbedder:
         :param batch_size: Update cycle for tqdm progress bar, default is to update every 32_768 docs.
         :param access_token: The Gradient access token.
         :param workspace_id: The Gradient workspace ID.
-        :param host: The Gradient host. By default it uses https://api.gradient.ai/.
+        :param host: The Gradient host. By default, it uses https://api.gradient.ai/.
         :param progress_bar: Whether to show a progress bar while embedding the documents.
         """
         self._batch_size = batch_size
@@ -75,8 +77,12 @@ class GradientDocumentEmbedder:
 
     def to_dict(self) -> dict:
         """
-        Serialize the component to a Python dictionary.
+        Serialize this component to a dictionary.
+
+        :returns:
+            The serialized component as a dictionary.
         """
+
         return default_to_dict(
             self,
             model=self._model_name,
@@ -91,13 +97,17 @@ class GradientDocumentEmbedder:
     def from_dict(cls, data: Dict[str, Any]) -> "GradientDocumentEmbedder":
         """
         Deserialize this component from a dictionary.
+
+        :param data: The dictionary representation of this component.
+        :returns:
+            The deserialized component instance.
         """
         deserialize_secrets_inplace(data["init_parameters"], keys=["access_token", "workspace_id"])
         return default_from_dict(cls, data)
 
     def warm_up(self) -> None:
         """
-        Load the embedding model.
+        Initializes the component.
         """
         if not hasattr(self, "_embedding_model"):
             self._embedding_model = self._gradient.get_embeddings_model(slug=self._model_name)
@@ -125,6 +135,7 @@ class GradientDocumentEmbedder:
     def run(self, documents: List[Document]):
         """
         Embed a list of Documents.
+
         The embedding of each Document is stored in the `embedding` field of the Document.
 
         :param documents: A list of Documents to embed.

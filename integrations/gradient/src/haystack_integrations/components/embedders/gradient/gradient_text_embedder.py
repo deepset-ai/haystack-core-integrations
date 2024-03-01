@@ -8,8 +8,9 @@ from haystack.utils import Secret, deserialize_secrets_inplace
 @component
 class GradientTextEmbedder:
     """
-    A component for embedding strings using models hosted on Gradient AI (https://gradient.ai).
+    A component for embedding strings using models hosted on [Gradient AI](https://gradient.ai).
 
+    Usage example:
     ```python
     embedder = GradientTextEmbedder(model="bge_large")
     p = Pipeline()
@@ -34,7 +35,7 @@ class GradientTextEmbedder:
         :param model: The name of the model to use.
         :param access_token: The Gradient access token.
         :param workspace_id: The Gradient workspace ID.
-        :param host: The Gradient host. By default it uses https://api.gradient.ai/.
+        :param host: The Gradient host. By default, it uses https://api.gradient.ai/.
         """
         self._host = host
         self._model_name = model
@@ -53,7 +54,10 @@ class GradientTextEmbedder:
 
     def to_dict(self) -> dict:
         """
-        Serialize the component to a Python dictionary.
+        Serialize this component to a dictionary.
+
+        :returns:
+            The serialized component as a dictionary.
         """
         return default_to_dict(
             self,
@@ -67,13 +71,17 @@ class GradientTextEmbedder:
     def from_dict(cls, data: Dict[str, Any]) -> "GradientTextEmbedder":
         """
         Deserialize this component from a dictionary.
+
+        :param data: The dictionary representation of this component.
+        :returns:
+            The deserialized component instance.
         """
         deserialize_secrets_inplace(data["init_parameters"], keys=["access_token", "workspace_id"])
         return default_from_dict(cls, data)
 
     def warm_up(self) -> None:
         """
-        Load the embedding model.
+        Initializes the component.
         """
         if not hasattr(self, "_embedding_model"):
             self._embedding_model = self._gradient.get_embeddings_model(slug=self._model_name)
