@@ -28,11 +28,11 @@ doc_embedder = SentenceTransformersDocumentEmbedder(model="sentence-transformers
 
 # Indexing Pipeline
 indexing_pipeline = Pipeline()
-indexing_pipeline.add_component(instance=doc_embedder, name="DocEmbedder")
-indexing_pipeline.add_component(instance=DocumentWriter(document_store=doc_store), name="DocWriter")
-indexing_pipeline.connect(connect_from="DocEmbedder", connect_to="DocWriter")
+indexing_pipeline.add_component(instance=doc_embedder, name="doc_embedder")
+indexing_pipeline.add_component(instance=DocumentWriter(document_store=doc_store), name="doc_writer")
+indexing_pipeline.connect("doc_embedder", "doc_writer")
 
-indexing_pipeline.run({"DocEmbedder": {"documents": docs}})
+indexing_pipeline.run({"doc_embedder": {"documents": docs}})
 
 
 # RAG Pipeline
@@ -50,7 +50,7 @@ rag_pipeline = Pipeline()
 text_embedder = SentenceTransformersTextEmbedder(model="sentence-transformers/all-MiniLM-L6-v2")
 
 model_path = "openchat-3.5-1210.Q3_K_S.gguf"
-generator = LlamaCppGenerator(model_path=model_path, n_ctx=4096, n_batch=128)
+generator = LlamaCppGenerator(model=model_path, n_ctx=4096, n_batch=128)
 
 rag_pipeline.add_component(
     instance=text_embedder,
