@@ -139,6 +139,10 @@ class GradientDocumentEmbedder:
         The embedding of each Document is stored in the `embedding` field of the Document.
 
         :param documents: A list of Documents to embed.
+        :returns:
+            A dictionary with the following keys:
+            - documents: The embedded Documents.
+
         """
         if not isinstance(documents, list) or documents and any(not isinstance(doc, Document) for doc in documents):
             msg = "GradientDocumentEmbedder expects a list of Documents as input.\
