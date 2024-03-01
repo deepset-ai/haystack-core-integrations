@@ -21,7 +21,7 @@ class OptimumDocumentEmbedder:
     Usage example:
     ```python
     from haystack.dataclasses import Document
-    from haystack_integrations.components.optimum.embedders import OptimumDocumentEmbedder
+    from haystack_integrations.components.embedders.optimum import OptimumDocumentEmbedder
 
     doc = Document(content="I love pizza!")
 
@@ -182,7 +182,7 @@ class OptimumDocumentEmbedder:
 
             text_to_embed = (
                 self._backend.parameters.prefix
-                + self.embedding_separator.join([*meta_values_to_embed, doc.content or ""])
+                + self.embedding_separator.join(meta_values_to_embed + (doc.content or [""]))
                 + self._backend.parameters.suffix
             )
 

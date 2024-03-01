@@ -18,7 +18,7 @@ class OptimumTextEmbedder:
 
     Usage example:
     ```python
-    from haystack_integrations.components.optimum.embedders import OptimumTextEmbedder
+    from haystack_integrations.components.embedders.optimum import OptimumTextEmbedder
 
     text_to_embed = "I love pizza!"
 
