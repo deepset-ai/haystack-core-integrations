@@ -8,7 +8,8 @@ from .embedding_backend.fastembed_backend import _FastembedEmbeddingBackendFacto
 @component
 class FastembedDocumentEmbedder:
     """
-    A component for computing Document embeddings using Fastembed embedding models.
+    FastembedDocumentEmbedder computes Document embeddings using Fastembed embedding models.
+    
     The embedding of each Document is stored in the `embedding` field of the Document.
 
     Usage example:
@@ -48,6 +49,7 @@ class FastembedDocumentEmbedder:
     print(f"Document Text: {result['documents'][0].content}")
     print(f"Document Embedding: {result['documents'][0].embedding}")
     print(f"Embedding Dimension: {len(result['documents'][0].embedding)}")
+    ```
     """  # noqa: E501
 
     def __init__(
@@ -97,7 +99,9 @@ class FastembedDocumentEmbedder:
 
     def to_dict(self) -> Dict[str, Any]:
         """
-        Serialize this component to a dictionary.
+        Serializes the component to a dictionary.
+        :returns:
+            Dictionary with serialized data.
         """
         return default_to_dict(
             self,
@@ -115,7 +119,7 @@ class FastembedDocumentEmbedder:
 
     def warm_up(self):
         """
-        Load the embedding backend.
+        Initializes the component.
         """
         if not hasattr(self, "embedding_backend"):
             self.embedding_backend = _FastembedEmbeddingBackendFactory.get_embedding_backend(
@@ -138,8 +142,11 @@ class FastembedDocumentEmbedder:
     @component.output_types(documents=List[Document])
     def run(self, documents: List[Document]):
         """
-        Embed a list of Documents.
-        The embedding of each Document is stored in the `embedding` field of the Document.
+        Embeds a list of Documents.
+
+        :param documents: List of Documents to embed.
+        :return: A dictionary with the following keys:
+            - `documents`: List of Documents with each Document's `embedding` field set to the computed embeddings.
         """
         if not isinstance(documents, list) or documents and not isinstance(documents[0], Document):
             msg = (
