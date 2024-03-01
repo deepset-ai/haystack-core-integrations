@@ -39,7 +39,6 @@ class LlamaCppGenerator:
             If the model path is also specified in the `model_kwargs`, this parameter will be ignored.
         :param n_ctx: The number of tokens in the context. When set to 0, the context will be taken from the model.
         :param n_batch: Prompt processing maximum batch size.
-            If `n_batch` is also specified in the `model_kwargs`, this parameter will be ignored.
         :param model_kwargs: Dictionary containing keyword arguments used to initialize the LLM for text generation.
             These keyword arguments provide fine-grained control over the model loading.
             In case of duplication, these kwargs override `model`, `n_ctx`, and `n_batch` init parameters.
