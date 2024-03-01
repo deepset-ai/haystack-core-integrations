@@ -43,7 +43,10 @@ class AmazonBedrockGenerator:
     ```python
     from haystack_integrations.components.generators.amazon_bedrock import AmazonBedrockGenerator
 
-    generator = AmazonBedrockGenerator(
+generator = AmazonBedrockGenerator(
+        model="anthropic.claude-v2",
+        max_length=99,
+)
         model="anthropic.claude-v2",
         aws_access_key_id="...",
         aws_secret_access_key="...",
