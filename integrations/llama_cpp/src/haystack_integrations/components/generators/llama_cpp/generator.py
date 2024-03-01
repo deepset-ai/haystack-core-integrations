@@ -19,9 +19,7 @@ class LlamaCppGenerator:
     Usage example:
     ```python
     from haystack_integrations.components.generators.llama_cpp import LlamaCppGenerator
-    generator = LlamaCppGenerator(model="zephyr-7b-beta.Q4_0.gguf",
-                                  n_ctx=2048,
-                                  n_batch=512)
+    generator = LlamaCppGenerator(model="zephyr-7b-beta.Q4_0.gguf", n_ctx=2048, n_batch=512)
 
     print(generator.run("Who is the best American actor?", generation_kwargs={"max_tokens": 128}))
     # {'replies': ['John Cusack'], 'meta': [{"object": "text_completion", ...}]}
