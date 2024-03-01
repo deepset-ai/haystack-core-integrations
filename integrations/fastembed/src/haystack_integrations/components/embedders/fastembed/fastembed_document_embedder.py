@@ -9,7 +9,6 @@ from .embedding_backend.fastembed_backend import _FastembedEmbeddingBackendFacto
 class FastembedDocumentEmbedder:
     """
     FastembedDocumentEmbedder computes Document embeddings using Fastembed embedding models.
-    
     The embedding of each Document is stored in the `embedding` field of the Document.
 
     Usage example:
