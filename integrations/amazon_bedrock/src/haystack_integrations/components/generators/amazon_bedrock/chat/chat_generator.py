@@ -45,7 +45,7 @@ class AmazonBedrockChatGenerator:
     If you prefer non-streaming mode, simply remove the `streaming_callback` parameter, capture the return value of the
     component's run method and the `AmazonBedrockChatGenerator` will return the response in a non-streaming mode.
     """
-    
+
     SUPPORTED_MODEL_PATTERNS: ClassVar[Dict[str, Type[BedrockModelChatAdapter]]] = {
         r"anthropic.claude.*": AnthropicClaudeChatAdapter,
         r"meta.llama2.*": MetaLlama2ChatAdapter,
