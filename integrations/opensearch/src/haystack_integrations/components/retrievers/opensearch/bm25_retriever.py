@@ -46,6 +46,12 @@ class OpenSearchBM25Retriever:
         self._all_terms_must_match = all_terms_must_match
 
     def to_dict(self) -> Dict[str, Any]:
+        """
+        Serializes the component to a dictionary.
+
+        :returns:
+            Dictionary with serialized data.
+        """
         return default_to_dict(
             self,
             filters=self._filters,
@@ -57,6 +63,15 @@ class OpenSearchBM25Retriever:
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "OpenSearchBM25Retriever":
+        """
+        Deserializes the component from a dictionary.
+
+        :param data:
+            Dictionary to deserialize from.
+
+        :returns:
+            Deserialized component.
+        """
         data["init_parameters"]["document_store"] = OpenSearchDocumentStore.from_dict(
             data["init_parameters"]["document_store"]
         )
@@ -82,7 +97,11 @@ class OpenSearchBM25Retriever:
         :param fuzziness: Fuzziness parameter for full-text queries.
         :param scale_score: Whether to scale the score of retrieved documents between 0 and 1.
             This is useful when comparing documents across different indexes.
-        :return: A dictionary containing the retrieved documents.
+
+        :returns:
+            A dictionary containing the retrieved documents with the following structure:
+            - documents: List of retrieved Documents.
+
         """
         if filters is None:
             filters = self._filters
