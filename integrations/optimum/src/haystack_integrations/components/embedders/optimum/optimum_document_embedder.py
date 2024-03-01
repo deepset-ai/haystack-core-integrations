@@ -182,7 +182,7 @@ class OptimumDocumentEmbedder:
 
             text_to_embed = (
                 self._backend.parameters.prefix
-                + self.embedding_separator.join(meta_values_to_embed + (doc.content or [""]))
+                + self.embedding_separator.join([*meta_values_to_embed, doc.content or ""])
                 + self._backend.parameters.suffix
             )
 
