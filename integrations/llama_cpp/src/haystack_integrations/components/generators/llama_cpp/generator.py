@@ -47,7 +47,6 @@ class LlamaCppGenerator:
             For more information on the available kwargs, see
             [llama.cpp documentation](https://llama-cpp-python.readthedocs.io/en/latest/api-reference/#llama_cpp.Llama.__init__).
         :param generation_kwargs:  A dictionary containing keyword arguments to customize text generation.
-            Some examples: `max_tokens`, `temperature`, `top_k`, `top_p`,...
             For more information on the available kwargs, see
             [llama.cpp documentation](https://llama-cpp-python.readthedocs.io/en/latest/api-reference/#llama_cpp.Llama.create_completion).
         """
