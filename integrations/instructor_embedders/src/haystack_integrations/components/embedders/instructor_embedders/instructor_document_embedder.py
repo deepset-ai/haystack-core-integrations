@@ -24,9 +24,7 @@ class InstructorDocumentEmbedder:
     from haystack.dataclasses import Document
     from haystack.utils import ComponentDevice
 
-
     doc_embedding_instruction = "Represent the Medical Document for retrieval:"
-
     doc_embedder = InstructorDocumentEmbedder(
         model="hkunlp/instructor-base",
         instruction=doc_embedding_instruction,
@@ -58,6 +56,7 @@ class InstructorDocumentEmbedder:
     print(f"Document Text: {result['documents'][0].content}")
     print(f"Document Embedding: {result['documents'][0].embedding}")
     print(f"Embedding Dimension: {len(result['documents'][0].embedding)}")
+    ```
     """  # noqa: E501
 
     def __init__(
@@ -79,7 +78,7 @@ class InstructorDocumentEmbedder:
             such as ``'hkunlp/instructor-base'``.
         :param device: The device on which the model is loaded. If `None`, the default device is automatically
             selected.
-        :param use_auth_token: An API token used to download private models from Hugging Face.
+        :param token: An API token used to download private models from Hugging Face.
             If this parameter is set to `True`, then the token generated when running
             `transformers-cli login` (stored in ~/.huggingface) will be used.
         :param instruction: The instruction string to be used while computing domain-specific embeddings.
@@ -89,7 +88,7 @@ class InstructorDocumentEmbedder:
             - "text_type" is required, and it specifies the encoding unit, e.g., sentence, document, paragraph, etc.
             - "task_objective" is optional, and it specifies the objective of embedding, e.g., retrieve a document,
              classify the sentence, etc.
-            Check some examples of instructions here: https://github.com/xlang-ai/instructor-embedding#use-cases.
+            Check some examples of instructions [here](https://github.com/xlang-ai/instructor-embedding#use-cases).
         :param batch_size: Number of strings to encode at once.
         :param progress_bar: If true, displays progress bar during embedding.
         :param normalize_embeddings: If set to true, returned vectors will have the length of 1.
@@ -109,7 +108,10 @@ class InstructorDocumentEmbedder:
 
     def to_dict(self) -> Dict[str, Any]:
         """
-        Serialize this component to a dictionary.
+        Serializes the component to a dictionary.
+
+        :returns:
+            Dictionary with serialized data.
         """
         return default_to_dict(
             self,
@@ -127,7 +129,12 @@ class InstructorDocumentEmbedder:
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "InstructorDocumentEmbedder":
         """
-        Deserialize this component from a dictionary.
+        Deserializes the component from a dictionary.
+
+        :param data:
+            Dictionary to deserialize from.
+        :returns:
+            Deserialized component.
         """
         serialized_device = data["init_parameters"]["device"]
         data["init_parameters"]["device"] = ComponentDevice.from_dict(serialized_device)
@@ -137,7 +144,7 @@ class InstructorDocumentEmbedder:
 
     def warm_up(self):
         """
-        Load the embedding backend.
+        Initializes the component.
         """
         if not hasattr(self, "embedding_backend"):
             self.embedding_backend = _InstructorEmbeddingBackendFactory.get_embedding_backend(
@@ -147,8 +154,9 @@ class InstructorDocumentEmbedder:
     @component.output_types(documents=List[Document])
     def run(self, documents: List[Document]):
         """
-        Embed a list of Documents.
-        The embedding of each Document is stored in the `embedding` field of the Document.
+        Embed a list of Documents. The embedding of each Document is stored in the `embedding` field of the Document.
+
+        param documents: A list of Documents to embed.
         """
         if not isinstance(documents, list) or documents and not isinstance(documents[0], Document):
             msg = (
@@ -160,8 +168,7 @@ class InstructorDocumentEmbedder:
             msg = "The embedding model has not been loaded. Please call warm_up() before running."
             raise RuntimeError(msg)
 
-        # TODO: once non textual Documents are properly supported, we should also prepare them for embedding here
-
+        # TODO: once non-textual Documents are properly supported, we should also prepare them for embedding here
         texts_to_embed = []
         for doc in documents:
             meta_values_to_embed = [
