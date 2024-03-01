@@ -55,7 +55,7 @@ class GradientDocumentEmbedder:
         :param batch_size: Update cycle for tqdm progress bar, default is to update every 32_768 docs.
         :param access_token: The Gradient access token.
         :param workspace_id: The Gradient workspace ID.
-        :param host: The Gradient host. By default, it uses https://api.gradient.ai/.
+        :param host: The Gradient host. By default, it uses [Gradient AI](https://api.gradient.ai/).
         :param progress_bar: Whether to show a progress bar while embedding the documents.
         """
         self._batch_size = batch_size

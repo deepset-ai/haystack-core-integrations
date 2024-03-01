@@ -35,7 +35,7 @@ class GradientTextEmbedder:
         :param model: The name of the model to use.
         :param access_token: The Gradient access token.
         :param workspace_id: The Gradient workspace ID.
-        :param host: The Gradient host. By default, it uses https://api.gradient.ai/.
+        :param host: The Gradient host. By default, it uses [Gradient AI](https://api.gradient.ai/).
         """
         self._host = host
         self._model_name = model

@@ -44,7 +44,7 @@ class GradientGenerator:
         :param access_token: The Gradient access token. If not provided it's read from the environment
                              variable `GRADIENT_ACCESS_TOKEN`.
         :param base_model_slug: The base model slug to use.
-        :param host: The Gradient host. By default, it uses (gradient.ai)[https://api.gradient.ai/].
+        :param host: The Gradient host. By default, it uses [Gradient AI](https://api.gradient.ai/).
         :param max_generated_token_count: The maximum number of tokens to generate.
         :param model_adapter_id: The model adapter ID to use.
         :param temperature: The temperature to use.
