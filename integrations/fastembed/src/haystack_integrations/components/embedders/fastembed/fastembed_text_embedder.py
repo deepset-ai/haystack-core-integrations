@@ -8,7 +8,7 @@ from .embedding_backend.fastembed_backend import _FastembedEmbeddingBackendFacto
 @component
 class FastembedTextEmbedder:
     """
-    A component for embedding strings using fastembed embedding models.
+    FastembedTextEmbedder computes string embedding using fastembed embedding models.
 
     Usage example:
     ```python
@@ -69,7 +69,10 @@ class FastembedTextEmbedder:
 
     def to_dict(self) -> Dict[str, Any]:
         """
-        Serialize this component to a dictionary.
+        Serializes the component to a dictionary.
+
+        :returns:
+            Dictionary with serialized data.
         """
         return default_to_dict(
             self,
@@ -85,7 +88,7 @@ class FastembedTextEmbedder:
 
     def warm_up(self):
         """
-        Load the embedding backend.
+        Initializes the component.
         """
         if not hasattr(self, "embedding_backend"):
             self.embedding_backend = _FastembedEmbeddingBackendFactory.get_embedding_backend(
@@ -94,7 +97,15 @@ class FastembedTextEmbedder:
 
     @component.output_types(embedding=List[float])
     def run(self, text: str):
-        """Embed a string."""
+        """
+        Embeds text using the Fastembed model.
+
+        :param text: A string to embed.
+        :return: A dictionary with the following keys:
+            - `embedding`: A list of floats representing the embedding of the input text.
+        :raises TypeError: If the input is not a string.
+        :raises RuntimeError: If the embedding model has not been loaded.
+        """
         if not isinstance(text, str):
             msg = (
                 "FastembedTextEmbedder expects a string as input. "
