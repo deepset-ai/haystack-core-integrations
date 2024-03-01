@@ -21,7 +21,7 @@ class OptimumDocumentEmbedder:
     Usage example:
     ```python
     from haystack.dataclasses import Document
-    from haystack_integrations.components.optimum.embedders import OptimumDocumentEmbedder
+    from haystack_integrations.components.embedders.optimum import OptimumDocumentEmbedder
 
     doc = Document(content="I love pizza!")
 
