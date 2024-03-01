@@ -43,16 +43,9 @@ class AmazonBedrockGenerator:
     ```python
     from haystack_integrations.components.generators.amazon_bedrock import AmazonBedrockGenerator
 
-generator = AmazonBedrockGenerator(
-        model="anthropic.claude-v2",
-        max_length=99,
-)
-        model="anthropic.claude-v2",
-        aws_access_key_id="...",
-        aws_secret_access_key="...",
-        aws_session_token="...",
-        aws_profile_name="...",
-        aws_region_name="..."
+    generator = AmazonBedrockGenerator(
+            model="anthropic.claude-v2",
+            max_length=99
     )
 
     print(generator.run("Who is the best American actor?"))
@@ -179,7 +172,7 @@ generator = AmazonBedrockGenerator(
         :param args: Additional positional arguments passed to the generator.
         :param kwargs: Additional keyword arguments passed to the generator.
         :return: A list of generated responses (strings).
-       """
+        """
         kwargs = kwargs.copy()
         prompt: str = kwargs.pop("prompt", None)
         stream: bool = kwargs.get("stream", self.model_adapter.model_kwargs.get("stream", False))
