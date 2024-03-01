@@ -315,7 +315,8 @@ class ChromaDocumentStore:
         for k in keys_to_remove:
             del filters[k]
 
-        final_where = dict(filters | where)
+        final_where = dict(filters)
+        final_where.update(dict(where))
         try:
             if final_where:
                 validate_where(final_where)
