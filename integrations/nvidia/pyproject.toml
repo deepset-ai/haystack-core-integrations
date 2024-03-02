@@ -3,16 +3,14 @@ requires = ["hatchling", "hatch-vcs"]
 build-backend = "hatchling.build"
 
 [project]
-name = "chroma-haystack"
+name = "nvidia-haystack"
 dynamic = ["version"]
 description = ''
 readme = "README.md"
 requires-python = ">=3.8"
 license = "Apache-2.0"
 keywords = []
-authors = [
-  { name = "John Doe", email = "jd@example.com" },
-]
+authors = [{ name = "deepset GmbH", email = "info@deepset.ai" }]
 classifiers = [
   "Development Status :: 4 - Beta",
   "Programming Language :: Python",
@@ -20,81 +18,48 @@ classifiers = [
   "Programming Language :: Python :: 3.9",
   "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
-dependencies = [
-  "haystack-ai",
-  "chromadb<0.4.20",  #  FIXME: investigate why filtering tests broke on 0.4.20
-  "typing_extensions>=4.8.0",
-]
+dependencies = ["haystack-ai>=2.0.0b6"]
 
 [project.urls]
-Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/chroma#readme"
+Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/nvidia#readme"
 Issues = "https://github.com/deepset-ai/haystack-core-integrations/issues"
-Source = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/chroma"
+Source = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/nvidia"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/haystack_integrations"]
 
 [tool.hatch.version]
 source = "vcs"
-tag-pattern = 'integrations\/chroma-v(?P<version>.*)'
+tag-pattern = 'integrations\/nvidia-v(?P<version>.*)'
 
 [tool.hatch.version.raw-options]
 root = "../.."
-git_describe_command = 'git describe --tags --match="integrations/chroma-v[0-9]*"'
+git_describe_command = 'git describe --tags --match="integrations/nvidia-v[0-9]*"'
 
 [tool.hatch.envs.default]
-dependencies = [
-  "coverage[toml]>=6.5",
-  "pytest",
-  "haystack-pydoc-tools",
-]
+dependencies = ["coverage[toml]>=6.5", "pytest", "haystack-pydoc-tools"]
 [tool.hatch.envs.default.scripts]
 test = "pytest {args:tests}"
 test-cov = "coverage run -m pytest {args:tests}"
-cov-report = [
-  "- coverage combine",
-  "coverage report",
-]
-cov = [
-  "test-cov",
-  "cov-report",
-]
-docs = [
-  "pydoc-markdown pydoc/config.yml"
-]
+cov-report = ["- coverage combine", "coverage report"]
+cov = ["test-cov", "cov-report"]
+docs = ["echo 'skip doc gen'"]
 
 [[tool.hatch.envs.all.matrix]]
-python = ["3.9", "3.10"]
+python = ["3.7", "3.8", "3.9", "3.10", "3.11"]
 
 [tool.hatch.envs.lint]
 detached = true
-dependencies = [
-  "black>=23.1.0",
-  "mypy>=1.0.0",
-  "ruff>=0.0.243",
-  "numpy",  # we need the stubs from the main package
-]
+dependencies = ["black>=23.1.0", "mypy>=1.0.0", "ruff>=0.0.243"]
 [tool.hatch.envs.lint.scripts]
 typing = "mypy --install-types --non-interactive --explicit-package-bases {args:src/ tests}"
-style = [
-  "ruff {args:.}",
-  "black --check --diff {args:.}",
-]
-fmt = [
-  "black {args:.}",
-  "ruff --fix {args:.}",
-  "style",
-]
-all = [
-  "style",
-  "typing",
-]
-
-[tool.hatch.metadata]
-allow-direct-references = true
+style = ["ruff {args:.}", "black --check --diff {args:.}"]
+fmt = ["black {args:.}", "ruff --fix {args:.}", "style"]
+all = ["style", "typing"]
 
 [tool.black]
 target-version = ["py37"]
@@ -113,7 +78,6 @@ select = [
   "E",
   "EM",
   "F",
-  "FBT",
   "I",
   "ICN",
   "ISC",
@@ -134,20 +98,24 @@ select = [
 ignore = [
   # Allow non-abstract empty methods in abstract base classes
   "B027",
-  # Allow boolean positional values in function calls, like `dict.get(... True)`
-  "FBT003",
   # Ignore checks for possible passwords
-  "S105", "S106", "S107",
+  "S105",
+  "S106",
+  "S107",
   # Ignore complexity
-  "C901", "PLR0911", "PLR0912", "PLR0913", "PLR0915",
-  # Ignore unused params
-  "ARG002",
+  "C901",
+  "PLR0911",
+  "PLR0912",
+  "PLR0913",
+  "PLR0915",
+  # Misc
+  "B008",
+  "S101",
 ]
 unfixable = [
   # Don't touch unused imports
   "F401",
 ]
-exclude = ["example"]
 
 [tool.ruff.isort]
 known-first-party = ["src"]
@@ -163,34 +131,34 @@ ban-relative-imports = "parents"
 source_pkgs = ["src", "tests"]
 branch = true
 parallel = true
-omit = [
-  "example"
-]
 
 [tool.coverage.paths]
-chroma_haystack = ["src/haystack_integrations", "*/chroma-haystack/src/chroma_haystack"]
-tests = ["tests"]
+nvidia_haystack = [
+  "src/haystack_integrations",
+  "*/nvidia/src/haystack_integrations",
+]
+tests = ["tests", "*/nvidia/tests"]
 
 [tool.coverage.report]
-exclude_lines = [
-  "no cov",
-  "if __name__ == .__main__.:",
-  "if TYPE_CHECKING:",
-]
-
-[tool.pytest.ini_options]
-minversion = "6.0"
-markers = [
-  "unit: unit tests",
-  "integration: integration tests"
-]
+exclude_lines = ["no cov", "if __name__ == .__main__.:", "if TYPE_CHECKING:"]
 
 [[tool.mypy.overrides]]
 module = [
-  "chromadb.*",
+  "nvidia.*",
   "haystack.*",
   "haystack_integrations.*",
   "pytest.*",
-  "numpy.*"
+  "numpy.*",
 ]
 ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+addopts = "--strict-markers"
+markers = [
+  "integration: integration tests",
+  "unit: unit tests",
+  "embedders: embedders tests",
+  "generators: generators tests",
+  "chat_generators: chat_generators tests",
+]
+log_cli = true

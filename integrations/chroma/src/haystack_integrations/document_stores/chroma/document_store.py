@@ -8,6 +8,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import chromadb
 import numpy as np
 from chromadb.api.types import GetResult, QueryResult, validate_where, validate_where_document
+from haystack import default_from_dict, default_to_dict
 from haystack.dataclasses import Document
 from haystack.document_stores.types import DuplicatePolicy
 
@@ -50,6 +51,7 @@ class ChromaDocumentStore:
         self._collection_name = collection_name
         self._embedding_function = embedding_function
         self._embedding_function_params = embedding_function_params
+        self._persist_path = persist_path
         # Create the client instance
         if persist_path is None:
             self._chroma_client = chromadb.Client()
@@ -154,14 +156,20 @@ class ChromaDocumentStore:
 
         return self._get_result_to_documents(result)
 
-    def write_documents(self, documents: List[Document], policy: DuplicatePolicy = DuplicatePolicy.FAIL) -> None:
+    def write_documents(self, documents: List[Document], policy: DuplicatePolicy = DuplicatePolicy.FAIL) -> int:
         """
         Writes (or overwrites) documents into the store.
 
-        :param documents: a list of documents.
-        :param policy: not supported at the moment
-        :raises DuplicateDocumentError: Exception trigger on duplicate document if `policy=DuplicatePolicy.FAIL`
-        :returns: None
+        :param documents:
+            A list of documents to write into the document store.
+        :param policy:
+            Not supported at the moment.
+
+        :raises ValueError:
+            When input is not valid.
+
+        :returns:
+            The number of documents written
         """
         for doc in documents:
             if not isinstance(doc, Document):
@@ -182,6 +190,8 @@ class ChromaDocumentStore:
                 data["embeddings"] = [doc.embedding]
 
             self._collection.add(**data)
+
+        return len(documents)
 
     def delete_documents(self, document_ids: List[str]) -> None:
         """
@@ -244,20 +254,22 @@ class ChromaDocumentStore:
         :returns:
             Deserialized component.
         """
-        return ChromaDocumentStore(**data)
+        return default_from_dict(cls, data)
 
     def to_dict(self) -> Dict[str, Any]:
         """
         Serializes the component to a dictionary.
 
         :returns:
-           Dictionary with serialized data.
+            Dictionary with serialized data.
         """
-        return {
-            "collection_name": self._collection_name,
-            "embedding_function": self._embedding_function,
+        return default_to_dict(
+            self,
+            collection_name=self._collection_name,
+            embedding_function=self._embedding_function,
+            persist_path=self._persist_path,
             **self._embedding_function_params,
-        }
+        )
 
     @staticmethod
     def _normalize_filters(filters: Dict[str, Any]) -> Tuple[List[str], Dict[str, Any], Dict[str, Any]]:
@@ -303,7 +315,8 @@ class ChromaDocumentStore:
         for k in keys_to_remove:
             del filters[k]
 
-        final_where = dict(filters | where)
+        final_where = dict(filters)
+        final_where.update(dict(where))
         try:
             if final_where:
                 validate_where(final_where)

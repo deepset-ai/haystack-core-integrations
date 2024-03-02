@@ -15,17 +15,35 @@ logger = logging.getLogger(__name__)
 class BedrockModelChatAdapter(ABC):
     """
     Base class for Amazon Bedrock chat model adapters.
+
+    Each subclass of this class is designed to address the unique specificities of a particular chat LLM it adapts,
+    focusing on preparing the requests and extracting the responses from the Amazon Bedrock hosted chat LLMs.
     """
 
     def __init__(self, generation_kwargs: Dict[str, Any]) -> None:
+        """
+        Initializes the chat adapter with the generation kwargs.
+        """
         self.generation_kwargs = generation_kwargs
 
     @abstractmethod
     def prepare_body(self, messages: List[ChatMessage], **inference_kwargs) -> Dict[str, Any]:
-        """Prepares the body for the Amazon Bedrock request."""
+        """
+        Prepares the body for the Amazon Bedrock request.
+        Subclasses should override this method to package the chat messages into the request.
+
+        :param messages: The chat messages to package into the request.
+        :param inference_kwargs: Additional inference kwargs to use.
+        :return: The prepared body.
+        """
 
     def get_responses(self, response_body: Dict[str, Any]) -> List[ChatMessage]:
-        """Extracts the responses from the Amazon Bedrock response."""
+        """
+        Extracts the responses from the Amazon Bedrock response.
+
+        :param response_body: The response body.
+        :return: The extracted responses.
+        """
         return self._extract_messages_from_response(self.response_body_message_key(), response_body)
 
     def get_stream_responses(self, stream: EventStream, stream_handler: Callable[[StreamingChunk], None]) -> List[str]:
@@ -79,6 +97,11 @@ class BedrockModelChatAdapter(ABC):
         return kwargs
 
     def _ensure_token_limit(self, prompt: str) -> str:
+        """
+        Ensures that the prompt is within the token limit for the model.
+        :param prompt: The prompt to check.
+        :return: The resized prompt.
+        """
         resize_info = self.check_prompt(prompt)
         if resize_info["prompt_length"] != resize_info["new_prompt_length"]:
             logger.warning(
@@ -95,34 +118,56 @@ class BedrockModelChatAdapter(ABC):
     @abstractmethod
     def check_prompt(self, prompt: str) -> Dict[str, Any]:
         """
-        Checks the prompt length and resizes it if necessary.
+        Checks the prompt length and resizes it if necessary. If the prompt is too long, it will be truncated.
 
         :param prompt: The prompt to check.
         :return: A dictionary containing the resized prompt and additional information.
         """
 
     def _extract_messages_from_response(self, message_tag: str, response_body: Dict[str, Any]) -> List[ChatMessage]:
+        """
+        Extracts the messages from the response body.
+
+        :param message_tag: The key for the message in the response body.
+        :param response_body: The response body.
+        :return: The extracted ChatMessage list.
+        """
         metadata = {k: v for (k, v) in response_body.items() if k != message_tag}
         return [ChatMessage.from_assistant(response_body[message_tag], meta=metadata)]
 
     @abstractmethod
     def response_body_message_key(self) -> str:
-        """Returns the key for the message in the response body."""
+        """
+        Returns the key for the message in the response body.
+        Subclasses should override this method to return the correct message key - where the response is located.
+
+        :return: The key for the message in the response body.
+        """
 
     @abstractmethod
     def _extract_token_from_stream(self, chunk: Dict[str, Any]) -> str:
-        """Extracts the token from a streaming chunk."""
+        """
+        Extracts the token from a streaming chunk.
+
+        :param chunk: The streaming chunk.
+        :return: The extracted token.
+        """
 
 
 class AnthropicClaudeChatAdapter(BedrockModelChatAdapter):
     """
-    Model adapter for the Anthropic Claude model.
+    Model adapter for the Anthropic Claude chat model.
     """
 
     ANTHROPIC_USER_TOKEN = "\n\nHuman:"
     ANTHROPIC_ASSISTANT_TOKEN = "\n\nAssistant:"
 
     def __init__(self, generation_kwargs: Dict[str, Any]):
+        """
+        Initializes the Anthropic Claude chat adapter.
+
+        :param generation_kwargs: The generation kwargs.
+        """
         super().__init__(generation_kwargs)
 
         # We pop the model_max_length as it is not sent to the model
@@ -142,6 +187,13 @@ class AnthropicClaudeChatAdapter(BedrockModelChatAdapter):
         )
 
     def prepare_body(self, messages: List[ChatMessage], **inference_kwargs) -> Dict[str, Any]:
+        """
+        Prepares the body for the Anthropic Claude request.
+
+        :param messages: The chat messages to package into the request.
+        :param inference_kwargs: Additional inference kwargs to use.
+        :return: The prepared body.
+        """
         default_params = {
             "max_tokens_to_sample": self.generation_kwargs.get("max_tokens_to_sample") or 512,
             "stop_sequences": ["\n\nHuman:"],
@@ -156,6 +208,12 @@ class AnthropicClaudeChatAdapter(BedrockModelChatAdapter):
         return body
 
     def prepare_chat_messages(self, messages: List[ChatMessage]) -> str:
+        """
+        Prepares the chat messages for the Anthropic Claude request.
+
+        :param messages: The chat messages to prepare.
+        :return: The prepared chat messages as a string.
+        """
         conversation = []
         for index, message in enumerate(messages):
             if message.is_from(ChatRole.USER):
@@ -179,12 +237,29 @@ class AnthropicClaudeChatAdapter(BedrockModelChatAdapter):
         return self._ensure_token_limit(prepared_prompt)
 
     def check_prompt(self, prompt: str) -> Dict[str, Any]:
+        """
+        Checks the prompt length and resizes it if necessary. If the prompt is too long, it will be truncated.
+
+        :param prompt: The prompt to check.
+        :return: A dictionary containing the resized prompt and additional information.
+        """
         return self.prompt_handler(prompt)
 
     def response_body_message_key(self) -> str:
+        """
+        Returns the key for the message in the response body for Anthropic Claude i.e. "completion".
+
+        :return: The key for the message in the response body.
+        """
         return "completion"
 
     def _extract_token_from_stream(self, chunk: Dict[str, Any]) -> str:
+        """
+        Extracts the token from a streaming chunk.
+
+        :param chunk: The streaming chunk.
+        :return: The extracted token.
+        """
         return chunk.get("completion", "")
 
 
@@ -219,6 +294,10 @@ class MetaLlama2ChatAdapter(BedrockModelChatAdapter):
     )
 
     def __init__(self, generation_kwargs: Dict[str, Any]) -> None:
+        """
+        Initializes the Meta Llama 2 chat adapter.
+        :param generation_kwargs: The generation kwargs.
+        """
         super().__init__(generation_kwargs)
         # We pop the model_max_length as it is not sent to the model
         # but used to truncate the prompt if needed
@@ -240,6 +319,12 @@ class MetaLlama2ChatAdapter(BedrockModelChatAdapter):
         )
 
     def prepare_body(self, messages: List[ChatMessage], **inference_kwargs) -> Dict[str, Any]:
+        """
+        Prepares the body for the Meta Llama 2 request.
+
+        :param messages: The chat messages to package into the request.
+        :param inference_kwargs: Additional inference kwargs to use.
+        """
         default_params = {"max_gen_len": self.generation_kwargs.get("max_gen_len") or 512}
 
         # combine stop words with default stop sequences, remove stop_words as MetaLlama2 does not support it
@@ -251,16 +336,40 @@ class MetaLlama2ChatAdapter(BedrockModelChatAdapter):
         return body
 
     def prepare_chat_messages(self, messages: List[ChatMessage]) -> str:
+        """
+        Prepares the chat messages for the Meta Llama 2 request.
+
+        :param messages: The chat messages to prepare.
+        :return: The prepared chat messages as a string ready for the model.
+        """
         prepared_prompt: str = self.prompt_handler.tokenizer.apply_chat_template(
             conversation=messages, tokenize=False, chat_template=self.chat_template
         )
         return self._ensure_token_limit(prepared_prompt)
 
     def check_prompt(self, prompt: str) -> Dict[str, Any]:
+        """
+        Checks the prompt length and resizes it if necessary. If the prompt is too long, it will be truncated.
+
+        :param prompt: The prompt to check.
+        :return: A dictionary containing the resized prompt and additional information.
+
+        """
         return self.prompt_handler(prompt)
 
     def response_body_message_key(self) -> str:
+        """
+        Returns the key for the message in the response body for Meta Llama 2 i.e. "generation".
+
+        :return: The key for the message in the response body.
+        """
         return "generation"
 
     def _extract_token_from_stream(self, chunk: Dict[str, Any]) -> str:
+        """
+        Extracts the token from a streaming chunk.
+
+        :param chunk: The streaming chunk.
+        :return: The extracted token.
+        """
         return chunk.get("generation", "")

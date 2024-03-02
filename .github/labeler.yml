@@ -74,6 +74,11 @@ integration:mongodb-atlas:
       - any-glob-to-any-file: "integrations/mongodb_atlas/**/*"
       - any-glob-to-any-file: ".github/workflows/mongodb_atlas.yml"
 
+integration:nvidia:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/nvidia/**/*"
+      - any-glob-to-any-file: ".github/workflows/nvidia.yml"
+
 integration:ollama:
   - changed-files:
       - any-glob-to-any-file: "integrations/ollama/**/*"
@@ -92,7 +97,7 @@ integration:optimum:
 integration:pgvector:
   - changed-files:
       - any-glob-to-any-file: "integrations/pgvector/**/*"
-      - any-glob-to-any-file: ".github/workflows/pgvector.yml"      
+      - any-glob-to-any-file: ".github/workflows/pgvector.yml"
 
 integration:pinecone:
   - changed-files:
