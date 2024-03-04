@@ -17,10 +17,31 @@ from .metrics import (
 @component
 class DeepEvalEvaluator:
     """
-    A component that uses the DeepEval framework to evaluate inputs against a specific metric.
+    A component that uses the [DeepEval framework](https://docs.confident-ai.com/docs/evaluation-introduction)
+    to evaluate inputs against a specific metric. Supported metrics are defined by `DeepEvalMetric`.
 
-    The supported metrics are defined by :class:`DeepEvalMetric`. The inputs of the component
-    metric-dependent.
+    Usage example:
+    ```python
+    from haystack_integrations.components.evaluators.deepeval import DeepEvalEvaluator, DeepEvalMetric
+
+    evaluator = DeepEvalEvaluator(
+        metric=DeepEvalMetric.FAITHFULNESS,
+        metric_params={"model": "gpt-4"},
+    )
+    output = evaluator.run(
+        questions=["Which is the most popular global sport?"],
+        contexts=[
+            [
+                "Football is undoubtedly the world's most popular sport with"
+                "major events like the FIFA World Cup and sports personalities"
+                "like Ronaldo and Messi, drawing a followership of more than 4"
+                "billion people."
+            ]
+        ],
+        responses=["Football is the most popular sport with around 4 billion" "followers worldwide"],
+    )
+    print(output["results"])
+    ```
     """
 
     _backend_metric: BaseMetric
@@ -39,6 +60,10 @@ class DeepEvalEvaluator:
             The metric to use for evaluation.
         :param metric_params:
             Parameters to pass to the metric's constructor.
+            All metrics require a `model` parameter, which
+            specifies the model to use for evaluation. Refer
+            to the DeepEval documentation for the supported
+            models.
         """
         self.metric = metric if isinstance(metric, DeepEvalMetric) else DeepEvalMetric.from_str(metric)
         self.metric_params = metric_params
@@ -51,37 +76,19 @@ class DeepEvalEvaluator:
     @component.output_types(results=List[List[Dict[str, Any]]])
     def run(self, **inputs) -> Dict[str, Any]:
         """
-        Run the DeepEval evaluator.
-
-        Example:
-        ```python
-        pipeline = Pipeline()
-        evaluator = DeepEvalEvaluator(
-            metric=DeepEvalMetric.ANSWER_RELEVANCY,
-            metric_params={"model": "gpt-4"},
-        )
-        pipeline.add_component("evaluator", evaluator)
-
-        # Each metric expects a specific set of parameters as input. Refer to the
-        # DeepEvalMetric class' documentation for more details.
-        output = pipeline.run({"evaluator": {
-            "questions": ["question],
-            "contexts": [["context"]],
-            "responses": ["response"]
-        }})
-        ```
+        Run the DeepEval evaluator on the provided inputs.
 
         :param inputs:
             The inputs to evaluate. These are determined by the
-            metric being calculated. See :class:`DeepEvalMetric` for more
+            metric being calculated. See `DeepEvalMetric` for more
             information.
         :returns:
             A nested list of metric results. Each input can have one or more
             results, depending on the metric. Each result is a dictionary
             containing the following keys and values:
-                * `name` - The name of the metric.
-                * `score` - The score of the metric.
-                * `explanation` - An optional explanation of the score.
+            - `name` - The name of the metric.
+            - `score` - The score of the metric.
+            - `explanation` - An optional explanation of the score.
         """
         InputConverters.validate_input_parameters(self.metric, self.descriptor.input_parameters, inputs)
         converted_inputs: List[LLMTestCase] = list(self.descriptor.input_converter(**inputs))  # type: ignore
@@ -93,7 +100,12 @@ class DeepEvalEvaluator:
 
     def to_dict(self) -> Dict[str, Any]:
         """
-        Serialize this component to a dictionary.
+        Serializes the component to a dictionary.
+
+        :returns:
+            Dictionary with serialized data.
+        :raises DeserializationError:
+            If the component cannot be serialized.
         """
 
         def check_serializable(obj: Any):
@@ -116,10 +128,12 @@ class DeepEvalEvaluator:
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "DeepEvalEvaluator":
         """
-        Deserialize a component from a dictionary.
+        Deserializes the component from a dictionary.
 
         :param data:
-            The dictionary to deserialize from.
+            Dictionary to deserialize from.
+        :returns:
+            Deserialized component.
         """
         return default_from_dict(cls, data)
 
