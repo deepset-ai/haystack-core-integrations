@@ -123,7 +123,7 @@ class UnstructuredFileConverter:
             This value can be either a list of dictionaries or a single dictionary.
             If it's a single dictionary, its content is added to the metadata of all produced Documents.
             If it's a list, the length of the list must match the number of paths, because the two lists will be zipped.
-            Please note that if the paths contain directories, meta can only be a single dictionary
+            Please note that if the paths contain directories, `meta` can only be a single dictionary
             (same metadata for all files).
 
         :returns: A dictionary with the following key:
