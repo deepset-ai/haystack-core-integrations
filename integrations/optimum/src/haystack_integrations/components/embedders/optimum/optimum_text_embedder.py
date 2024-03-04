@@ -46,57 +46,58 @@ class OptimumTextEmbedder:
         quantizer_settings: Optional[OptimumEmbedderQuantizationConfig] = None,
     ):
         """
-         Create a OptimumTextEmbedder component.
+        Create a OptimumTextEmbedder component.
 
         :param model:
-             A string representing the model id on HF Hub.
-         :param token:
-             The HuggingFace token to use as HTTP bearer authorization.
-         :param prefix:
-             A string to add to the beginning of each text.
-         :param suffix:
-             A string to add to the end of each text.
-         :param normalize_embeddings:
-             Whether to normalize the embeddings to unit length.
-         :param onnx_execution_provider:
-             The [execution provider](https://onnxruntime.ai/docs/execution-providers/)
-             to use for ONNX models.
+            A string representing the model id on HF Hub.
+        :param token:
+            The HuggingFace token to use as HTTP bearer authorization.
+        :param prefix:
+            A string to add to the beginning of each text.
+        :param suffix:
+            A string to add to the end of each text.
+        :param normalize_embeddings:
+            Whether to normalize the embeddings to unit length.
+        :param onnx_execution_provider:
+            The [execution provider](https://onnxruntime.ai/docs/execution-providers/)
+            to use for ONNX models.
 
-             Note: Using the TensorRT execution provider
-             TensorRT requires to build its inference engine ahead of inference, which takes some time due to the model
-             optimization and nodes fusion. To avoid rebuilding the engine every time the model is loaded, ONNX Runtime
-             provides a pair of options to save the engine: `trt_engine_cache_enable` and `trt_engine_cache_path`. We
-             recommend setting these two provider options using the model_kwargs parameter, when using the TensorRT
-             execution provider. The usage is as follows:
-             ```python
-             embedder = OptimumDocumentEmbedder(
-                 model="sentence-transformers/all-mpnet-base-v2",
-                 onnx_execution_provider="TensorrtExecutionProvider",
-                 model_kwargs={
-                     "provider_options": {
-                         "trt_engine_cache_enable": True,
-                         "trt_engine_cache_path": "tmp/trt_cache",
-                     }
-                 },
-             )
-             ```
-         :param pooling_mode:
-             The pooling mode to use. When `None`, pooling mode will be inferred from the model config.
-         :param model_kwargs:
-             Dictionary containing additional keyword arguments to pass to the model.
-             In case of duplication, these kwargs override `model`, `onnx_execution_provider`
-             and `token` initialization parameters.
-         :param working_dir:
-             The directory to use for storing intermediate files
-             generated during model optimization/quantization.
-
-             Required for optimization and quantization.
-         :param optimizer_settings:
-             Configuration for Optimum Embedder Optimization.
-             If `None`, no additional optimization is applied.
-         :param quantizer_settings:
-             Configuration for Optimum Embedder Quantization.
-             If `None`, no quantization is applied.
+                Note: Using the TensorRT execution provider
+                TensorRT requires to build its inference engine ahead of inference,
+                which takes some time due to the model optimization and nodes fusion.
+                To avoid rebuilding the engine every time the model is loaded, ONNX
+                Runtime provides a pair of options to save the engine: `trt_engine_cache_enable`
+                and `trt_engine_cache_path`. We recommend setting these two provider
+                options using the model_kwargs parameter, when using the TensorRT execution provider.
+                The usage is as follows:
+                ```python
+                embedder = OptimumDocumentEmbedder(
+                    model="sentence-transformers/all-mpnet-base-v2",
+                    onnx_execution_provider="TensorrtExecutionProvider",
+                    model_kwargs={
+                        "provider_options": {
+                            "trt_engine_cache_enable": True,
+                            "trt_engine_cache_path": "tmp/trt_cache",
+                        }
+                    },
+                )
+                ```
+        :param pooling_mode:
+            The pooling mode to use. When `None`, pooling mode will be inferred from the model config.
+        :param model_kwargs:
+            Dictionary containing additional keyword arguments to pass to the model.
+            In case of duplication, these kwargs override `model`, `onnx_execution_provider`
+            and `token` initialization parameters.
+        :param working_dir:
+            The directory to use for storing intermediate files
+            generated during model optimization/quantization. Required
+            for optimization and quantization.
+        :param optimizer_settings:
+            Configuration for Optimum Embedder Optimization.
+            If `None`, no additional optimization is be applied.
+        :param quantizer_settings:
+            Configuration for Optimum Embedder Quantization.
+            If `None`, no quantization is be applied.
         """
         params = _EmbedderParams(
             model=model,
@@ -161,6 +162,10 @@ class OptimumTextEmbedder:
             The text to embed.
         :returns:
             The embeddings of the text.
+        :raises RuntimeError:
+            If the component was not initialized.
+        :raises TypeError:
+            If the input is not a string.
         """
         if not self._initialized:
             msg = "The embedding model has not been loaded. Please call warm_up() before running."

@@ -7,7 +7,7 @@ from optimum.onnxruntime.configuration import AutoOptimizationConfig, Optimizati
 
 class OptimumEmbedderOptimizationMode(Enum):
     """
-    [ONXX Optimization Modes](https://huggingface.co/docs/optimum/onnxruntime/usage_guides/optimization.html)
+    [ONXX Optimization modes](https://huggingface.co/docs/optimum/onnxruntime/usage_guides/optimization.html)
     support by the Optimum Embedders.
     """
 
