@@ -28,11 +28,12 @@ class GradientDocumentEmbedder:
 
     Usage example:
     ```python
-    from haystack_integrations.components.embedders.gradient import GradientDocumentEmbedder
-    from haystack.components.retrievers.in_memory import InMemoryEmbeddingRetriever
     from haystack import Pipeline
+    from haystack.document_stores.in_memory import InMemoryDocumentStore
+    from haystack.components.writers import DocumentWriter
+    from haystack import Document
 
-    embedder = GradientDocumentEmbedder(model="bge_large")
+    from haystack_integrations.components.embedders.gradient import GradientDocumentEmbedder
 
     documents = [
         Document(content="My name is Jean and I live in Paris."),
@@ -40,12 +41,12 @@ class GradientDocumentEmbedder:
         Document(content="My name is Giorgio and I live in Rome."),
     ]
 
-    p = Pipeline()
-    p.add_component(embedder, name="document_embedder")
-    p.add_component(instance=GradientDocumentEmbedder(), name="document_embedder")
-    p.add_component(instance=DocumentWriter(document_store=InMemoryDocumentStore()), name="document_writer")
-    p.connect("document_embedder", "document_writer")
-    p.run(data={"document_embedder": {"documents": documents}})
+    indexing_pipeline = Pipeline()
+    indexing_pipeline.add_component(instance=GradientDocumentEmbedder(), name="document_embedder")
+    indexing_pipeline.add_component(instance=DocumentWriter(document_store=InMemoryDocumentStore()), name="document_writer")
+    indexing_pipeline.connect("document_embedder", "document_writer")
+    indexing_pipeline.run({"document_embedder": {"documents": documents}})
+    >>> {'document_writer': {'documents_written': 3}}
     ```
     """
 

@@ -14,14 +14,17 @@ class GradientTextEmbedder:
     ```python
     from haystack_integrations.components.embedders.gradient import GradientTextEmbedder
     from haystack.components.retrievers.in_memory import InMemoryEmbeddingRetriever
+    from haystack.document_stores.in_memory import InMemoryDocumentStore
     from haystack import Pipeline
 
-    embedder = GradientTextEmbedder(model="bge_large")
+    embedder =
     p = Pipeline()
-    p.add_component(instance=embedder, name="text_embedder")
-    p.add_component(instance=InMemoryEmbeddingRetriever(document_store=InMemoryDocumentStore()), name="retriever")
+    p.add_component("text_embedder", GradientTextEmbedder(model="bge-large"))
+    p.add_component("retriever", InMemoryEmbeddingRetriever(document_store=InMemoryDocumentStore()))
     p.connect("text_embedder", "retriever")
-    p.run("embed me!!!")
+    p.run(data={"text_embedder": {"text":"You can embed me put I'll return no matching documents"}})
+    >>> No Documents found with embeddings. Returning empty list. To generate embeddings, use a DocumentEmbedder.
+    >>> {'retriever': {'documents': []}}
     ```
     """
 
