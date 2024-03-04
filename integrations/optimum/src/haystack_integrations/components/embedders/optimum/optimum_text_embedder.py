@@ -68,7 +68,7 @@ class OptimumTextEmbedder:
                 To avoid rebuilding the engine every time the model is loaded, ONNX
                 Runtime provides a pair of options to save the engine: `trt_engine_cache_enable`
                 and `trt_engine_cache_path`. We recommend setting these two provider
-                options using the model_kwargs parameter, when using the TensorRT execution provider.
+                options using the `model_kwargs` parameter, when using the TensorRT execution provider.
                 The usage is as follows:
                 ```python
                 embedder = OptimumDocumentEmbedder(
