@@ -28,13 +28,24 @@ class GradientDocumentEmbedder:
 
     Usage example:
     ```python
+    from haystack_integrations.components.embedders.gradient import GradientDocumentEmbedder
+    from haystack.components.retrievers.in_memory import InMemoryEmbeddingRetriever
+    from haystack import Pipeline
+
     embedder = GradientDocumentEmbedder(model="bge_large")
+
+    documents = [
+        Document(content="My name is Jean and I live in Paris."),
+        Document(content="My name is Mark and I live in Berlin."),
+        Document(content="My name is Giorgio and I live in Rome."),
+    ]
+
     p = Pipeline()
     p.add_component(embedder, name="document_embedder")
-    p.add_component(instance=GradientDocumentEmbedder(
+    p.add_component(instance=GradientDocumentEmbedder(), name="document_embedder")
     p.add_component(instance=DocumentWriter(document_store=InMemoryDocumentStore()), name="document_writer")
     p.connect("document_embedder", "document_writer")
-    p.run({"document_embedder": {"documents": documents}})
+    p.run(data={"document_embedder": {"documents": documents}})
     ```
     """
 
@@ -141,7 +152,7 @@ class GradientDocumentEmbedder:
         :param documents: A list of Documents to embed.
         :returns:
             A dictionary with the following keys:
-            - documents: The embedded Documents.
+            - `documents`: The embedded Documents.
 
         """
         if not isinstance(documents, list) or documents and any(not isinstance(doc, Document) for doc in documents):

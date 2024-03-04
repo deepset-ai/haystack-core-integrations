@@ -18,6 +18,8 @@ class GradientGenerator:
 
     Usage example:
     ```python
+    from haystack_integrations.components.generators.gradient import GradientGenerator
+
     llm = GradientGenerator(base_model_slug="llama2-7b-chat")
     llm.warm_up()
     print(llm.run(prompt="What is the meaning of life?"))

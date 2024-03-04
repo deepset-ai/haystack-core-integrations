@@ -12,6 +12,10 @@ class GradientTextEmbedder:
 
     Usage example:
     ```python
+    from haystack_integrations.components.embedders.gradient import GradientTextEmbedder
+    from haystack.components.retrievers.in_memory import InMemoryEmbeddingRetriever
+    from haystack import Pipeline
+
     embedder = GradientTextEmbedder(model="bge_large")
     p = Pipeline()
     p.add_component(instance=embedder, name="text_embedder")
