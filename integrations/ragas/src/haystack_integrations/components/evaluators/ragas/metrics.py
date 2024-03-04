@@ -50,40 +50,44 @@ class RagasMetric(RagasBaseEnum):
     Metrics supported by Ragas.
     """
 
-    #: Answer correctness
-    #: Inputs - `questions: List[str], responses: List[str], ground_truths: List[str]`
+    #: Answer correctness.\
+    #: Inputs - `questions: List[str], responses: List[str], ground_truths: List[str]`\
+    #: Parameters - `weights: Tuple[float, float]`
     ANSWER_CORRECTNESS = "answer_correctness"
 
-    #: Faithfulness
+    #: Faithfulness.\
     #: Inputs - `questions: List[str], contexts: List[List[str]], responses: List[str]`
     FAITHFULNESS = "faithfulness"
 
-    #: Answer similarity
-    #: Inputs - `responses: List[str], ground_truths: List[str]`
+    #: Answer similarity.\
+    #: Inputs - `responses: List[str], ground_truths: List[str]`\
+    #: Parameters - `threshold: float`
     ANSWER_SIMILARITY = "answer_similarity"
 
-    #: Context precision
+    #: Context precision.\
     #: Inputs - `questions: List[str], contexts: List[List[str]], ground_truths: List[str]`
     CONTEXT_PRECISION = "context_precision"
 
-    #: Context utilization
-    #: Inputs - `questions: List[str], contexts: List[List[str]], responses: List[str]`
+    #: Context utilization.
+    #: Inputs - `questions: List[str], contexts: List[List[str]], responses: List[str]`\
     CONTEXT_UTILIZATION = "context_utilization"
 
-    #: Context recall
-    #: Inputs - `questions: List[str], contexts: List[List[str]], ground_truths: List[str]`
+    #: Context recall.
+    #: Inputs - `questions: List[str], contexts: List[List[str]], ground_truths: List[str]`\
     CONTEXT_RECALL = "context_recall"
 
-    #: Aspect critique
-    #: Inputs - `questions: List[str], contexts: List[List[str]], responses: List[str]`
+    #: Aspect critique.
+    #: Inputs - `questions: List[str], contexts: List[List[str]], responses: List[str]`\
+    #: Parameters - `name: str, definition: str, strictness: int`
     ASPECT_CRITIQUE = "aspect_critique"
 
-    #: Context relevancy
+    #: Context relevancy.\
     #: Inputs - `questions: List[str], contexts: List[List[str]]`
     CONTEXT_RELEVANCY = "context_relevancy"
 
-    #: Answer relevancy
-    #: Inputs - `questions: List[str], contexts: List[List[str]], responses: List[str]`
+    #: Answer relevancy.\
+    #: Inputs - `questions: List[str], contexts: List[List[str]], responses: List[str]`\
+    #: Parameters - `strictness: int`
     ANSWER_RELEVANCY = "answer_relevancy"
 
 
