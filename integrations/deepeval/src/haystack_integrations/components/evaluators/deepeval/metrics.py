@@ -20,27 +20,31 @@ from deepeval.test_case import LLMTestCase
 class DeepEvalMetric(Enum):
     """
     Metrics supported by DeepEval.
+
+    All metrics require a `model` parameter, which specifies
+    the model to use for evaluation. Refer to the DeepEval
+    documentation for information on the supported models.
     """
 
-    #: Answer relevancy.
+    #: Answer relevancy.\
     #: Inputs - `questions: List[str], contexts: List[List[str]], responses: List[str]`
     ANSWER_RELEVANCY = "answer_relevancy"
 
-    #: Faithfulness.
+    #: Faithfulness.\
     #: Inputs - `questions: List[str], contexts: List[List[str]], responses: List[str]`
     FAITHFULNESS = "faithfulness"
 
-    #: Contextual precision.
-    #: Inputs - `questions: List[str], contexts: List[List[str]], responses: List[str], ground_truths: List[str]`
+    #: Contextual precision.\
+    #: Inputs - `questions: List[str], contexts: List[List[str]], responses: List[str], ground_truths: List[str]`\
     #: The ground truth is the expected response.
     CONTEXTUAL_PRECISION = "contextual_precision"
 
-    #: Contextual recall.
-    #: Inputs - `questions: List[str], contexts: List[List[str]], responses: List[str], ground_truths: List[str]`
-    #: The ground truth is the expected response.
+    #: Contextual recall.\
+    #: Inputs - `questions: List[str], contexts: List[List[str]], responses: List[str], ground_truths: List[str]`\
+    #: The ground truth is the expected response.\
     CONTEXTUAL_RECALL = "contextual_recall"
 
-    #: Contextual relevance.
+    #: Contextual relevance.\
     #: Inputs - `questions: List[str], contexts: List[List[str]], responses: List[str]`
     CONTEXTUAL_RELEVANCE = "contextual_relevance"
 

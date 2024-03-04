@@ -60,10 +60,8 @@ class DeepEvalEvaluator:
             The metric to use for evaluation.
         :param metric_params:
             Parameters to pass to the metric's constructor.
-            All metrics require a `model` parameter, which
-            specifies the model to use for evaluation. Refer
-            to the DeepEval documentation for the supported
-            models.
+            Refer to the `RagasMetric` class for more details
+            on required parameters.
         """
         self.metric = metric if isinstance(metric, DeepEvalMetric) else DeepEvalMetric.from_str(metric)
         self.metric_params = metric_params
@@ -83,7 +81,8 @@ class DeepEvalEvaluator:
             metric being calculated. See `DeepEvalMetric` for more
             information.
         :returns:
-            A nested list of metric results. Each input can have one or more
+            A dictionary with a single `results` entry that contains
+            a nested list of metric results. Each input can have one or more
             results, depending on the metric. Each result is a dictionary
             containing the following keys and values:
             - `name` - The name of the metric.
