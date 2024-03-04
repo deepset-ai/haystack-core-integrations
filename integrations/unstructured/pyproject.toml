@@ -180,6 +180,7 @@ markers = [
 module = [
   "haystack.*",
   "haystack_integrations.*",
-  "pytest.*"
+  "pytest.*",
+  "unstructured.*",
 ]
 ignore_missing_imports = true
