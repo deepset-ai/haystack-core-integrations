@@ -52,6 +52,27 @@ class TestUnstructuredFileConverter:
             },
         }
 
+    def test_from_dict(self, monkeypatch):
+        monkeypatch.setenv("UNSTRUCTURED_API_KEY", "test-api-key")
+        converter_dict = {
+            "type": "haystack_integrations.components.converters.unstructured.converter.UnstructuredFileConverter",
+            "init_parameters": {
+                "api_url": "http://custom-url:8000/general",
+                "api_key": {"env_vars": ["UNSTRUCTURED_API_KEY"], "strict": False, "type": "env_var"},
+                "document_creation_mode": "one-doc-per-element",
+                "separator": "|",
+                "unstructured_kwargs": {"foo": "bar"},
+                "progress_bar": False,
+            },
+        }
+        converter = UnstructuredFileConverter.from_dict(converter_dict)
+        assert converter.api_url == "http://custom-url:8000/general"
+        assert converter.api_key.resolve_value() == "test-api-key"
+        assert converter.document_creation_mode == "one-doc-per-element"
+        assert converter.separator == "|"
+        assert converter.unstructured_kwargs == {"foo": "bar"}
+        assert not converter.progress_bar
+
     @pytest.mark.integration
     def test_run_one_doc_per_file(self, samples_path):
         pdf_path = samples_path / "sample_pdf.pdf"

@@ -8,9 +8,9 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Any, Dict, List, Literal, Optional, Union
 
-from haystack import Document, component, default_to_dict
+from haystack import Document, component, default_from_dict, default_to_dict
 from haystack.components.converters.utils import normalize_metadata
-from haystack.utils import Secret
+from haystack.utils import Secret, deserialize_secrets_inplace
 from tqdm import tqdm
 
 from unstructured.documents.elements import Element
@@ -107,6 +107,18 @@ class UnstructuredFileConverter:
             unstructured_kwargs=self.unstructured_kwargs,
             progress_bar=self.progress_bar,
         )
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "UnstructuredFileConverter":
+        """
+        Deserializes the component from a dictionary.
+        :param data:
+            Dictionary to deserialize from.
+        :returns:
+            Deserialized component.
+        """
+        deserialize_secrets_inplace(data["init_parameters"], keys=["api_key"])
+        return default_from_dict(cls, data)
 
     @component.output_types(documents=List[Document])
     def run(
