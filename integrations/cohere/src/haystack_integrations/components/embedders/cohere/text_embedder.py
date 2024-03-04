@@ -51,11 +51,11 @@ class CohereTextEmbedder:
             [model documentation](https://docs.cohere.com/docs/models#representation).
         :param input_type: specifies the type of input you're giving to the model. Supported values are
         "search_document", "search_query", "classification" and "clustering". Not
-            required for older versions of the embedding models (meaning anything lower than v3), but is required for more
-            recent versions (meaning anything bigger than v2).
+            required for older versions of the embedding models (meaning anything lower than v3), but is required for
+            more recent versions (meaning anything bigger than v2).
         :param api_base_url: the Cohere API Base url.
-        :param truncate: truncate embeddings that are too long from start or end, ("NONE"|"START"|"END"), defaults to
-            `"END"`. Passing "START" will discard the start of the input. "END" will discard the end of the input. In both
+        :param truncate: truncate embeddings that are too long from start or end, ("NONE"|"START"|"END").
+            Passing "START" will discard the start of the input. "END" will discard the end of the input. In both
             cases, input is discarded until the remaining input is exactly the maximum input token length for the model.
             If "NONE" is selected, when the input exceeds the maximum input token length an error will be returned.
         :param use_async_client: flag to select the AsyncClient. It is recommended to use
