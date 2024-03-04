@@ -35,16 +35,16 @@ BM25_SCALING_FACTOR = 8
 
 class ElasticsearchDocumentStore:
     """
-    ElasticsearchDocumentStore is a Document Store for Elasticsearch.
-    It can be used with Elastic Cloud or your own Elasticsearch cluster.
+    ElasticsearchDocumentStore is a Document Store for Elasticsearch. It can be used with Elastic Cloud or your own
+    Elasticsearch cluster.
 
-    Simple usage with Elastic Cloud:
+    Usage example with Elastic Cloud:
     ```python
     from haystack.document_store.elasticsearch import ElasticsearchDocumentStore
     document_store = ElasticsearchDocumentStore(cloud_id="YOUR_CLOUD_ID", api_key="YOUR_API_KEY")
     ```
 
-    One can also connect to a self-hosted Elasticsearch instance:
+    Usage example with a self-hosted Elasticsearch instance:
     ```python
     from haystack.document_store.elasticsearch import ElasticsearchDocumentStore
     document_store = ElasticsearchDocumentStore(hosts="http://localhost:9200")
@@ -53,8 +53,8 @@ class ElasticsearchDocumentStore:
     We strongly recommend to enable security so that only authorized users can access your data.
 
     For more details on how to connect to Elasticsearch and configure security,
-    see the official Elasticsearch documentation:
-    https://www.elastic.co/guide/en/elasticsearch/client/python-api/current/connecting.html
+    see the official Elasticsearch
+    [documentation](https://www.elastic.co/guide/en/elasticsearch/client/python-api/current/connecting.html)
 
     All extra keyword arguments will be passed to the Elasticsearch client.
     """
@@ -75,19 +75,19 @@ class ElasticsearchDocumentStore:
         One can also set the similarity function used to compare Documents embeddings. This is mostly useful
         when using the `ElasticsearchDocumentStore` in a Pipeline with an `ElasticsearchEmbeddingRetriever`.
 
-        For more information on connection parameters, see the official Elasticsearch documentation:
-        https://www.elastic.co/guide/en/elasticsearch/client/python-api/current/connecting.html
+        For more information on connection parameters, see the official Elasticsearch
+        [documentation](https://www.elastic.co/guide/en/elasticsearch/client/python-api/current/connecting.html)
 
-        For the full list of supported kwargs, see the official Elasticsearch reference:
-        https://elasticsearch-py.readthedocs.io/en/stable/api.html#module-elasticsearch
+        For the full list of supported kwargs, see the official Elasticsearch
+        [reference](https://elasticsearch-py.readthedocs.io/en/stable/api.html#module-elasticsearch)
 
         :param hosts: List of hosts running the Elasticsearch client. Defaults to None
         :param index: Name of index in Elasticsearch, if it doesn't exist it will be created. Defaults to "default"
         :param embedding_similarity_function: The similarity function used to compare Documents embeddings.
             Defaults to "cosine". This parameter only takes effect if the index does not yet exist and is created.
             To choose the most appropriate function, look for information about your embedding model.
-            To understand how document scores are computed, see the Elasticsearch documentation:
-            https://www.elastic.co/guide/en/elasticsearch/reference/current/dense-vector.html#dense-vector-params
+            To understand how document scores are computed, see the Elasticsearch
+            [documentation](https://www.elastic.co/guide/en/elasticsearch/reference/current/dense-vector.html#dense-vector-params)
         :param **kwargs: Optional arguments that ``Elasticsearch`` takes.
         """
         self._hosts = hosts
@@ -115,6 +115,12 @@ class ElasticsearchDocumentStore:
             self._client.indices.create(index=index, mappings=mappings)
 
     def to_dict(self) -> Dict[str, Any]:
+        """
+        Serializes the component to a dictionary.
+
+        :returns:
+            Dictionary with serialized data.
+        """
         # This is not the best solution to serialise this class but is the fastest to implement.
         # Not all kwargs types can be serialised to text so this can fail. We must serialise each
         # type explicitly to handle this properly.
@@ -128,11 +134,20 @@ class ElasticsearchDocumentStore:
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "ElasticsearchDocumentStore":
+        """
+        Deserializes the component from a dictionary.
+
+        :param data:
+            Dictionary to deserialize from.
+        :returns:
+              Deserialized component.
+        """
         return default_from_dict(cls, data)
 
     def count_documents(self) -> int:
         """
         Returns how many documents are present in the document store.
+        :returns: Number of documents in the document store.
         """
         return self._client.count(index=self._index)["count"]
 
@@ -165,6 +180,14 @@ class ElasticsearchDocumentStore:
         return documents
 
     def filter_documents(self, filters: Optional[Dict[str, Any]] = None) -> List[Document]:
+        """
+        The main query method for the document store. It retrieves all documents that match the filters.
+
+        :param filters: A dictionary of filters to apply. For more information on the structure of the filters,
+            see the official Elasticsearch
+            [documentation](https://www.elastic.co/guide/en/elasticsearch/reference/current/query-dsl.html)
+        :returns: List of Documents that match the filters.
+        """
         if filters and "operator" not in filters and "conditions" not in filters:
             filters = convert(filters)
 
@@ -175,8 +198,13 @@ class ElasticsearchDocumentStore:
     def write_documents(self, documents: List[Document], policy: DuplicatePolicy = DuplicatePolicy.NONE) -> int:
         """
         Writes Documents to Elasticsearch.
+
         If policy is not specified or set to DuplicatePolicy.NONE, it will raise an exception if a document with the
         same ID already exists in the document store.
+
+        :param documents: List of Documents to write to the document store.
+        :param policy: DuplicatePolicy to apply when a document with the same ID already exists in the document store.
+        :returns: Number of documents written to the document store.
         """
         if len(documents) > 0:
             if not isinstance(documents[0], Document):
@@ -229,6 +257,9 @@ class ElasticsearchDocumentStore:
         """
         Creates a Document from the search hit provided.
         This is mostly useful in self.filter_documents().
+
+        :param hit: A search hit from Elasticsearch.
+        :returns: Document created from the search hit.
         """
         data = hit["_source"]
 
@@ -242,7 +273,7 @@ class ElasticsearchDocumentStore:
         """
         Deletes all documents with a matching document_ids from the document store.
 
-        :param object_ids: the object_ids to delete
+        :param document_ids: the object_ids to delete
         """
 
         #
@@ -272,18 +303,19 @@ class ElasticsearchDocumentStore:
         `ElasticsearchDocumentStore` nor called directly.
         `ElasticsearchBM25Retriever` uses this method directly and is the public interface for it.
 
-        `query` must be a non empty string, otherwise a `ValueError` will be raised.
+        `query` must be a non-empty string, otherwise a `ValueError` will be raised.
 
         :param query: String to search in saved Documents' text.
         :param filters: Filters applied to the retrieved Documents, for more info
                         see `ElasticsearchDocumentStore.filter_documents`, defaults to None
         :param fuzziness: Fuzziness parameter passed to Elasticsearch, defaults to "AUTO".
-                          see the official documentation for valid values:
-                          https://www.elastic.co/guide/en/elasticsearch/reference/current/common-options.html#fuzziness
+                          see the official
+        [documentation](https://www.elastic.co/guide/en/elasticsearch/reference/current/common-options.html#fuzziness)
+        for valid values.
         :param top_k: Maximum number of Documents to return, defaults to 10
         :param scale_score: If `True` scales the Document`s scores between 0 and 1, defaults to False
         :raises ValueError: If `query` is an empty string
-        :return: List of Document that match `query`
+        :returns: List of Document that match `query`
         """
 
         if not query:
@@ -341,10 +373,10 @@ class ElasticsearchDocumentStore:
         :param top_k: Maximum number of Documents to return, defaults to 10
         :param num_candidates: Number of approximate nearest neighbor candidates on each shard. Defaults to top_k * 10.
             Increasing this value will improve search accuracy at the cost of slower search speeds.
-            You can read more about it in the Elasticsearch documentation:
-            https://www.elastic.co/guide/en/elasticsearch/reference/current/knn-search.html#tune-approximate-knn-for-speed-accuracy
+            You can read more about it in the Elasticsearch
+        [documentation](https://www.elastic.co/guide/en/elasticsearch/reference/current/knn-search.html#tune-approximate-knn-for-speed-accuracy)
         :raises ValueError: If `query_embedding` is an empty list
-        :return: List of Document that are most similar to `query_embedding`
+        :returns: List of Document that are most similar to `query_embedding`
         """
 
         if not query_embedding:

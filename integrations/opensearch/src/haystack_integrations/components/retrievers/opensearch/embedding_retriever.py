@@ -41,6 +41,12 @@ class OpenSearchEmbeddingRetriever:
         self._top_k = top_k
 
     def to_dict(self) -> Dict[str, Any]:
+        """
+        Serializes the component to a dictionary.
+
+        :returns:
+            Dictionary with serialized data.
+        """
         return default_to_dict(
             self,
             filters=self._filters,
@@ -50,6 +56,15 @@ class OpenSearchEmbeddingRetriever:
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "OpenSearchEmbeddingRetriever":
+        """
+        Deserializes the component from a dictionary.
+
+        :param data:
+            Dictionary to deserialize from.
+
+        :returns:
+            Deserialized component.
+        """
         data["init_parameters"]["document_store"] = OpenSearchDocumentStore.from_dict(
             data["init_parameters"]["document_store"]
         )
@@ -63,7 +78,9 @@ class OpenSearchEmbeddingRetriever:
         :param query_embedding: Embedding of the query.
         :param filters: Optional filters to narrow down the search space.
         :param top_k: Maximum number of Documents to return.
-        :return: List of Document similar to `query_embedding`.
+        :returns:
+            Dictionary with key "documents" containing the retrieved Documents.
+            - documents: List of Document similar to `query_embedding`.
         """
         if filters is None:
             filters = self._filters
