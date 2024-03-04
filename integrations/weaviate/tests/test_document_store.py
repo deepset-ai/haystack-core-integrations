@@ -27,7 +27,7 @@ from pandas import DataFrame
 from weaviate.collections.classes.data import DataObject
 
 # from weaviate.auth import AuthApiKey as WeaviateAuthApiKey
-from weaviate.config import AdditionalConfig, ConnectionConfig
+from weaviate.config import AdditionalConfig, ConnectionConfig, Proxies, Timeout
 from weaviate.embedded import (
     DEFAULT_BINARY_PATH,
     DEFAULT_GRPC_PORT,
@@ -314,8 +314,8 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
             ],
         }
         assert document_store._auth_client_secret == AuthApiKey()
-        assert document_store._additional_config.timeout == (10, 60)
-        assert document_store._additional_config.proxies == {"http": "http://proxy:1234"}
+        assert document_store._additional_config.timeout == Timeout(query=10, insert=60)
+        assert document_store._additional_config.proxies == Proxies(http="http://proxy:1234", https=None, grpc=None)
         assert not document_store._additional_config.trust_env
         assert document_store._additional_headers == {"X-HuggingFace-Api-Key": "MY_HUGGINGFACE_KEY"}
         assert document_store._embedded_options.persistence_data_path == DEFAULT_PERSISTENCE_DATA_PATH
