@@ -56,7 +56,9 @@ class ElasticsearchBM25Retriever:
         :param filters: Filters applied to the retrieved Documents, for more info
                         see `ElasticsearchDocumentStore.filter_documents`, defaults to None
         :param fuzziness: Fuzziness parameter passed to Elasticsearch, defaults to "AUTO".
-                          See the [official documentation](https://www.elastic.co/guide/en/elasticsearch/reference/current/common-options.html#fuzziness) for more details
+                          See the official
+        [documentation](https://www.elastic.co/guide/en/elasticsearch/reference/current/common-options.html#fuzziness)
+        for more details.
         :param top_k: Maximum number of Documents to return, defaults to 10
         :param scale_score: If `True` scales the Document`s scores between 0 and 1, defaults to False
         """

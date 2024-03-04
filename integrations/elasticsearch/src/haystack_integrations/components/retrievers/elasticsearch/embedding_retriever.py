@@ -59,7 +59,8 @@ class ElasticsearchEmbeddingRetriever:
         :param top_k: Maximum number of Documents to return, defaults to 10
         :param num_candidates: Number of approximate nearest neighbor candidates on each shard. Defaults to top_k * 10.
             Increasing this value will improve search accuracy at the cost of slower search speeds.
-            You can read more about it in the [Elasticsearch documentation](https://www.elastic.co/guide/en/elasticsearch/reference/current/knn-search.html#tune-approximate-knn-for-speed-accuracy)
+            You can read more about it in the Elasticsearch
+            [documentation](https://www.elastic.co/guide/en/elasticsearch/reference/current/knn-search.html#tune-approximate-knn-for-speed-accuracy)
         :raises ValueError: If `document_store` is not an instance of ElasticsearchDocumentStore.
         """
         if not isinstance(document_store, ElasticsearchDocumentStore):
