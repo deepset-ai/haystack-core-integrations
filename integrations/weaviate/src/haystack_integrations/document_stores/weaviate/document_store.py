@@ -12,6 +12,7 @@ from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumen
 from haystack.document_stores.types.policy import DuplicatePolicy
 
 import weaviate
+from weaviate.collections.classes.data import DataObject
 from weaviate.collections.classes.internal import Object
 from weaviate.config import AdditionalConfig
 from weaviate.embedded import EmbeddedOptions
@@ -211,27 +212,25 @@ class WeaviateDocumentStore:
             v3_object[date_prop] = v3_object[date_prop].strftime("%Y-%m-%dT%H:%M:%SZ")
         return v3_object
 
-    def _to_document(self, data: Dict[str, Any]) -> Document:
+    def _to_document(self, data: DataObject) -> Document:
         """
         Convert a data object read from Weaviate into a Document.
         """
-        data["id"] = data.pop("_original_id")
-        data["embedding"] = data["_additional"].pop("vector") if data["_additional"].get("vector") else None
+        document_data = data.properties
+        document_data["id"] = document_data.pop("_original_id")
+        document_data["embedding"] = data.vector if data.vector else None
 
-        if (blob_data := data.get("blob_data")) is not None:
-            data["blob"] = {
+        if (blob_data := document_data.get("blob_data")) is not None:
+            document_data["blob"] = {
                 "data": base64.b64decode(blob_data),
-                "mime_type": data.get("blob_mime_type"),
+                "mime_type": document_data.get("blob_mime_type"),
             }
+
         # We always delete these fields as they're not part of the Document dataclass
-        data.pop("blob_data")
-        data.pop("blob_mime_type")
+        document_data.pop("blob_data", None)
+        document_data.pop("blob_mime_type", None)
 
-        # We don't need these fields anymore, this usually only contains the uuid
-        # used by Weaviate to identify the object and the embedding vector that we already extracted.
-        del data["_additional"]
-
-        return Document.from_dict(data)
+        return Document.from_dict(document_data)
 
     def _query_paginated(self, properties: List[str]):
 

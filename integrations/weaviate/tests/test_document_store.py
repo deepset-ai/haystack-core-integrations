@@ -24,6 +24,7 @@ from numpy import array as np_array
 from numpy import array_equal as np_array_equal
 from numpy import float32 as np_float32
 from pandas import DataFrame
+from weaviate.collections.classes.data import DataObject
 
 # from weaviate.auth import AuthApiKey as WeaviateAuthApiKey
 from weaviate.config import AdditionalConfig, ConnectionConfig
@@ -357,18 +358,18 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
 
     def test_to_document(self, document_store, test_files_path):
         image = ByteStream.from_file_path(test_files_path / "robot1.jpg", mime_type="image/jpeg")
-        data = {
-            "_additional": {
-                "vector": [1, 2, 3],
+        data = DataObject(
+            properties={
+                "_original_id": "123",
+                "content": "some content",
+                "blob_data": base64.b64encode(image.data).decode(),
+                "blob_mime_type": "image/jpeg",
+                "dataframe": None,
+                "score": None,
+                "key": "value",
             },
-            "_original_id": "123",
-            "content": "some content",
-            "blob_data": base64.b64encode(image.data).decode(),
-            "blob_mime_type": "image/jpeg",
-            "dataframe": None,
-            "score": None,
-            "meta": {"key": "value"},
-        }
+            vector=[1, 2, 3],
+        )
 
         doc = document_store._to_document(data)
         assert doc.id == "123"
