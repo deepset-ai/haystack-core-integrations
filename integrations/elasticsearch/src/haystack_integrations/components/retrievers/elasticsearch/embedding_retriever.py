@@ -11,9 +11,30 @@ from haystack_integrations.document_stores.elasticsearch.document_store import E
 @component
 class ElasticsearchEmbeddingRetriever:
     """
-    Uses a vector similarity metric to retrieve documents from the ElasticsearchDocumentStore.
+    ElasticsearchEmbeddingRetriever retrieves documents from the ElasticsearchDocumentStore using vector similarity.
 
-    Needs to be connected to the ElasticsearchDocumentStore to run.
+    Usage example:
+    ```python
+    from haystack import Document
+    from haystack_integrations.document_stores.elasticsearch import ElasticsearchDocumentStore
+    from haystack_integrations.components.retrievers.elasticsearch import ElasticsearchEmbeddingRetriever
+
+    document_store = ElasticsearchDocumentStore(hosts="http://localhost:9200")
+    retriever = ElasticsearchEmbeddingRetriever(document_store=document_store)
+
+    # Add documents to DocumentStore
+    documents = [
+        Document(text="My name is Carla and I live in Berlin"),
+        Document(text="My name is Paul and I live in New York"),
+        Document(text="My name is Silvano and I live in Matera"),
+        Document(text="My name is Usagi Tsukino and I live in Tokyo"),
+    ]
+    document_store.write_documents(documents)
+
+    result = retriever.run(query="Who lives in Berlin?")
+    for doc in result["documents"]:
+        print(doc.text)
+    ```
     """
 
     def __init__(
@@ -47,6 +68,12 @@ class ElasticsearchEmbeddingRetriever:
         self._num_candidates = num_candidates
 
     def to_dict(self) -> Dict[str, Any]:
+        """
+        Serializes the component to a dictionary.
+
+        :returns:
+            Dictionary with serialized data.
+        """
         return default_to_dict(
             self,
             filters=self._filters,
@@ -57,6 +84,14 @@ class ElasticsearchEmbeddingRetriever:
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "ElasticsearchEmbeddingRetriever":
+        """
+        Deserializes the component from a dictionary.
+
+        :param data:
+            Dictionary to deserialize from.
+        :returns:
+              Deserialized component.
+        """
         data["init_parameters"]["document_store"] = ElasticsearchDocumentStore.from_dict(
             data["init_parameters"]["document_store"]
         )
@@ -70,7 +105,8 @@ class ElasticsearchEmbeddingRetriever:
         :param query_embedding: Embedding of the query.
         :param filters: Filters applied to the retrieved Documents.
         :param top_k: Maximum number of Documents to return.
-        :return: List of Documents similar to `query_embedding`.
+        :return: A dictionary with the following keys:
+            - `documents`: List of Documents most similar to the given query_embedding
         """
         docs = self._document_store._embedding_retrieval(
             query_embedding=query_embedding,

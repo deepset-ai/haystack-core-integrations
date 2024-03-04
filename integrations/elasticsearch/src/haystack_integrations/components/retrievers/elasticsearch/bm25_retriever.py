@@ -11,8 +11,9 @@ from haystack_integrations.document_stores.elasticsearch.document_store import E
 @component
 class ElasticsearchBM25Retriever:
     """
-    ElasticsearchBM25Retriever is a keyword-based retriever that uses BM25 to find the most
-    similar documents to a user's query.
+    ElasticsearchBM25Retriever retrieves documents from the ElasticsearchDocumentStore using BM25 algorithm to find the
+    most similar documents to a user's query.
+
     This retriever is only compatible with ElasticsearchDocumentStore.
 
     Usage example:
@@ -72,6 +73,12 @@ class ElasticsearchBM25Retriever:
         self._scale_score = scale_score
 
     def to_dict(self) -> Dict[str, Any]:
+        """
+        Serializes the component to a dictionary.
+
+        :returns:
+            Dictionary with serialized data.
+        """
         return default_to_dict(
             self,
             filters=self._filters,
@@ -83,6 +90,14 @@ class ElasticsearchBM25Retriever:
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "ElasticsearchBM25Retriever":
+        """
+        Deserializes the component from a dictionary.
+
+        :param data:
+            Dictionary to deserialize from.
+        :returns:
+              Deserialized component.
+        """
         data["init_parameters"]["document_store"] = ElasticsearchDocumentStore.from_dict(
             data["init_parameters"]["document_store"]
         )
@@ -96,7 +111,8 @@ class ElasticsearchBM25Retriever:
         :param query: String to search in Documents' text.
         :param filters: Filters applied to the retrieved Documents.
         :param top_k: Maximum number of Documents to return.
-        :return: List of Documents that match the query.
+        :return: A dictionary with the following keys:
+            - `documents`: List of Documents that match the query.
         """
         docs = self._document_store._bm25_retrieval(
             query=query,

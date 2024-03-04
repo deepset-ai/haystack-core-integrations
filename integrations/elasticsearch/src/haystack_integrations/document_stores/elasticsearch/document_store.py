@@ -35,16 +35,16 @@ BM25_SCALING_FACTOR = 8
 
 class ElasticsearchDocumentStore:
     """
-    ElasticsearchDocumentStore is a Document Store for Elasticsearch.
-    It can be used with Elastic Cloud or your own Elasticsearch cluster.
+    ElasticsearchDocumentStore is a Document Store for Elasticsearch. It can be used with Elastic Cloud or your own
+    Elasticsearch cluster.
 
-    Simple usage with Elastic Cloud:
+    Usage example with Elastic Cloud:
     ```python
     from haystack.document_store.elasticsearch import ElasticsearchDocumentStore
     document_store = ElasticsearchDocumentStore(cloud_id="YOUR_CLOUD_ID", api_key="YOUR_API_KEY")
     ```
 
-    One can also connect to a self-hosted Elasticsearch instance:
+    Usage example with a self-hosted Elasticsearch instance:
     ```python
     from haystack.document_store.elasticsearch import ElasticsearchDocumentStore
     document_store = ElasticsearchDocumentStore(hosts="http://localhost:9200")
@@ -115,6 +115,12 @@ class ElasticsearchDocumentStore:
             self._client.indices.create(index=index, mappings=mappings)
 
     def to_dict(self) -> Dict[str, Any]:
+        """
+        Serializes the component to a dictionary.
+
+        :returns:
+            Dictionary with serialized data.
+        """
         # This is not the best solution to serialise this class but is the fastest to implement.
         # Not all kwargs types can be serialised to text so this can fail. We must serialise each
         # type explicitly to handle this properly.
@@ -128,11 +134,20 @@ class ElasticsearchDocumentStore:
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "ElasticsearchDocumentStore":
+        """
+        Deserializes the component from a dictionary.
+
+        :param data:
+            Dictionary to deserialize from.
+        :returns:
+              Deserialized component.
+        """
         return default_from_dict(cls, data)
 
     def count_documents(self) -> int:
         """
         Returns how many documents are present in the document store.
+        :return: Number of documents in the document store.
         """
         return self._client.count(index=self._index)["count"]
 
@@ -165,6 +180,14 @@ class ElasticsearchDocumentStore:
         return documents
 
     def filter_documents(self, filters: Optional[Dict[str, Any]] = None) -> List[Document]:
+        """
+        The main query method for the document store. It retrieves all documents that match the filters.
+
+        :param filters: A dictionary of filters to apply. For more information on the structure of the filters,
+            see the official Elasticsearch documentation:
+            https://www.elastic.co/guide/en/elasticsearch/reference/current/query-dsl.html
+        :return: List of Documents that match the filters.
+        """
         if filters and "operator" not in filters and "conditions" not in filters:
             filters = convert(filters)
 
@@ -175,8 +198,13 @@ class ElasticsearchDocumentStore:
     def write_documents(self, documents: List[Document], policy: DuplicatePolicy = DuplicatePolicy.NONE) -> int:
         """
         Writes Documents to Elasticsearch.
+
         If policy is not specified or set to DuplicatePolicy.NONE, it will raise an exception if a document with the
         same ID already exists in the document store.
+
+        :param documents: List of Documents to write to the document store.
+        :param policy: DuplicatePolicy to apply when a document with the same ID already exists in the document store.
+        :return: Number of documents written to the document store.
         """
         if len(documents) > 0:
             if not isinstance(documents[0], Document):
@@ -229,6 +257,8 @@ class ElasticsearchDocumentStore:
         """
         Creates a Document from the search hit provided.
         This is mostly useful in self.filter_documents().
+
+        :param hit: A search hit from Elasticsearch.
         """
         data = hit["_source"]
 
@@ -242,7 +272,7 @@ class ElasticsearchDocumentStore:
         """
         Deletes all documents with a matching document_ids from the document store.
 
-        :param object_ids: the object_ids to delete
+        :param document_ids: the object_ids to delete
         """
 
         #
