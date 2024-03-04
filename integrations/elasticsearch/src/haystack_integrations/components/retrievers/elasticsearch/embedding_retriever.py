@@ -16,6 +16,7 @@ class ElasticsearchEmbeddingRetriever:
     Usage example:
     ```python
     from haystack import Document
+    from haystack.components.embedders import SentenceTransformersTextEmbedder
     from haystack_integrations.document_stores.elasticsearch import ElasticsearchDocumentStore
     from haystack_integrations.components.retrievers.elasticsearch import ElasticsearchEmbeddingRetriever
 
@@ -31,9 +32,13 @@ class ElasticsearchEmbeddingRetriever:
     ]
     document_store.write_documents(documents)
 
-    result = retriever.run(query="Who lives in Berlin?")
+    te = SentenceTransformersTextEmbedder()
+    te.warm_up()
+    query_embeddings = te.run("Who lives in Berlin?")["embedding"]
+
+    result = retriever.run(query=query_embeddings)
     for doc in result["documents"]:
-        print(doc.text)
+    print(doc.content)
     ```
     """
 
@@ -54,8 +59,7 @@ class ElasticsearchEmbeddingRetriever:
         :param top_k: Maximum number of Documents to return, defaults to 10
         :param num_candidates: Number of approximate nearest neighbor candidates on each shard. Defaults to top_k * 10.
             Increasing this value will improve search accuracy at the cost of slower search speeds.
-            You can read more about it in the Elasticsearch documentation:
-            https://www.elastic.co/guide/en/elasticsearch/reference/current/knn-search.html#tune-approximate-knn-for-speed-accuracy
+            You can read more about it in the [Elasticsearch documentation](https://www.elastic.co/guide/en/elasticsearch/reference/current/knn-search.html#tune-approximate-knn-for-speed-accuracy)
         :raises ValueError: If `document_store` is not an instance of ElasticsearchDocumentStore.
         """
         if not isinstance(document_store, ElasticsearchDocumentStore):
@@ -105,7 +109,7 @@ class ElasticsearchEmbeddingRetriever:
         :param query_embedding: Embedding of the query.
         :param filters: Filters applied to the retrieved Documents.
         :param top_k: Maximum number of Documents to return.
-        :return: A dictionary with the following keys:
+        :returns: A dictionary with the following keys:
             - `documents`: List of Documents most similar to the given query_embedding
         """
         docs = self._document_store._embedding_retrieval(

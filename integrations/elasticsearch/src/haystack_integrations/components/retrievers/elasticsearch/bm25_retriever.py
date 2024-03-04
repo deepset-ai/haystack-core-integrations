@@ -36,7 +36,7 @@ class ElasticsearchBM25Retriever:
 
     result = retriever.run(query="Who lives in Berlin?")
     for doc in result["documents"]:
-        print(doc.text)
+        print(doc.content)
     ```
     """
 
@@ -56,8 +56,7 @@ class ElasticsearchBM25Retriever:
         :param filters: Filters applied to the retrieved Documents, for more info
                         see `ElasticsearchDocumentStore.filter_documents`, defaults to None
         :param fuzziness: Fuzziness parameter passed to Elasticsearch, defaults to "AUTO".
-                          see the official documentation for valid values:
-                          https://www.elastic.co/guide/en/elasticsearch/reference/current/common-options.html#fuzziness
+                          See the [official documentation](https://www.elastic.co/guide/en/elasticsearch/reference/current/common-options.html#fuzziness) for more details
         :param top_k: Maximum number of Documents to return, defaults to 10
         :param scale_score: If `True` scales the Document`s scores between 0 and 1, defaults to False
         """
@@ -111,7 +110,7 @@ class ElasticsearchBM25Retriever:
         :param query: String to search in Documents' text.
         :param filters: Filters applied to the retrieved Documents.
         :param top_k: Maximum number of Documents to return.
-        :return: A dictionary with the following keys:
+        :returns: A dictionary with the following keys:
             - `documents`: List of Documents that match the query.
         """
         docs = self._document_store._bm25_retrieval(
