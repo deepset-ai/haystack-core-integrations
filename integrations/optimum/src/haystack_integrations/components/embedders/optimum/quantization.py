@@ -7,7 +7,7 @@ from optimum.onnxruntime.configuration import AutoQuantizationConfig, Quantizati
 
 class OptimumEmbedderQuantizationMode(Enum):
     """
-    [Dynamic Quantization Modes](https://huggingface.co/docs/optimum/onnxruntime/usage_guides/quantization)
+    [Dynamic Quantization modes](https://huggingface.co/docs/optimum/onnxruntime/usage_guides/quantization)
     support by the Optimum Embedders.
     """
 

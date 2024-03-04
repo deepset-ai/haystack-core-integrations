@@ -3,7 +3,7 @@ from enum import Enum
 
 class OptimumEmbedderPooling(Enum):
     """
-    Pooling Modes support by the Optimum Embedders.
+    Pooling modes support by the Optimum Embedders.
     """
 
     #: Perform CLS Pooling on the output of the embedding model
