@@ -194,24 +194,6 @@ class WeaviateDocumentStore:
 
         return data
 
-    def _convert_weaviate_v4_object_to_v3_object(self, data: Object) -> Dict[str, Any]:
-        properties = self._collection.config.get().properties
-        properties_with_date_type = [
-            p.name for p in properties if p.data_type.name == "DATE" and data.properties.get(p.name)
-        ]
-
-        v4_object = data.__dict__
-        v3_object = v4_object.pop("properties")
-        v3_object["_additional"] = {"vector": v4_object.pop("vector").get("default")}
-
-        if "blob_data" not in v3_object:
-            v3_object["blob_data"] = None
-            v3_object["blob_mime_type"] = None
-
-        for date_prop in properties_with_date_type:
-            v3_object[date_prop] = v3_object[date_prop].strftime("%Y-%m-%dT%H:%M:%SZ")
-        return v3_object
-
     def _to_document(self, data: DataObject) -> Document:
         """
         Convert a data object read from Weaviate into a Document.
@@ -264,10 +246,10 @@ class WeaviateDocumentStore:
 
         if filters:
             result = self._query_with_filters(filters)
-            return [self._to_document(self._convert_weaviate_v4_object_to_v3_object(doc)) for doc in result]
+            return [self._to_document(doc) for doc in result]
 
         result = self._query_paginated(properties)
-        result = [self._to_document(self._convert_weaviate_v4_object_to_v3_object(doc)) for doc in result]
+        result = [self._to_document(doc) for doc in result]
         return result
 
     def _batch_write(self, documents: List[Document]) -> int:
@@ -369,7 +351,7 @@ class WeaviateDocumentStore:
             query_properties=["content"],
         )
 
-        return [self._to_document(self._convert_weaviate_v4_object_to_v3_object(doc)) for doc in result.objects]
+        return [self._to_document(doc) for doc in result.objects]
 
     def _embedding_retrieval(
         self,
@@ -392,4 +374,4 @@ class WeaviateDocumentStore:
             limit=top_k,
         )
 
-        return [self._to_document(self._convert_weaviate_v4_object_to_v3_object(doc)) for doc in result.objects]
+        return [self._to_document(doc) for doc in result.objects]
