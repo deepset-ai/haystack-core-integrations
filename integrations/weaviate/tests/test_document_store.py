@@ -255,7 +255,7 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
                         "session_pool_maxsize": 100,
                         "session_pool_max_retries": 3,
                     },
-                    "proxies": {"http": "http://proxy:1234"},
+                    "proxies": {"http": "http://proxy:1234", "https": None, "grpc": None},
                     "timeout": [30, 90],
                     "trust_env": False,
                 },
