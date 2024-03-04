@@ -252,7 +252,7 @@ class OpenSearchDocumentStore:
         :param query: String to search in saved Documents' text.
         :param filters: Optional filters to narrow down the search space.
         :param fuzziness: Fuzziness parameter passed to OpenSearch, defaults to "AUTO". see the official documentation
-        for valid [fuziness values](https://www.elastic.co/guide/en/OpenSearch/reference/current/common-options.html#fuzziness)
+                          for valid [fuziness values](https://www.elastic.co/guide/en/OpenSearch/reference/current/common-options.html#fuzziness)
         :param top_k: Maximum number of Documents to return, defaults to 10
         :param scale_score: If `True` scales the Document`s scores between 0 and 1, defaults to False
         :param all_terms_must_match: If `True` all terms in `query` must be present in the Document, defaults to False
