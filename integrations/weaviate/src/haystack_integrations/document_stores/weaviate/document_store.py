@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 import base64
+import datetime
 import json
 from dataclasses import asdict
 from typing import Any, Dict, List, Optional, Tuple, Union
@@ -13,7 +14,6 @@ from haystack.document_stores.types.policy import DuplicatePolicy
 
 import weaviate
 from weaviate.collections.classes.data import DataObject
-from weaviate.collections.classes.internal import Object
 from weaviate.config import AdditionalConfig
 from weaviate.embedded import EmbeddedOptions
 from weaviate.util import generate_uuid5
@@ -202,7 +202,7 @@ class WeaviateDocumentStore:
         """
         document_data = data.properties
         document_data["id"] = document_data.pop("_original_id")
-        document_data["embedding"] = data.vector if data.vector else None
+        document_data["embedding"] = data.vector["default"] if data.vector else None
 
         if (blob_data := document_data.get("blob_data")) is not None:
             document_data["blob"] = {
@@ -213,6 +213,10 @@ class WeaviateDocumentStore:
         # We always delete these fields as they're not part of the Document dataclass
         document_data.pop("blob_data", None)
         document_data.pop("blob_mime_type", None)
+
+        for key, value in document_data.items():
+            if isinstance(value, datetime.datetime):
+                document_data[key] = value.strftime("%Y-%m-%dT%H:%M:%SZ")
 
         return Document.from_dict(document_data)
 

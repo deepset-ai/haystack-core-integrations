@@ -5,7 +5,7 @@ from haystack.errors import FilterError
 from pandas import DataFrame
 
 import weaviate
-from weaviate.collections.classes.filters import _FilterAnd, _FilterOr
+from weaviate.collections.classes.filters import Filter
 
 
 def convert_filters(filters: Dict[str, Any]) -> Dict[str, Any]:
@@ -17,7 +17,7 @@ def convert_filters(filters: Dict[str, Any]) -> Dict[str, Any]:
         raise FilterError(msg)
 
     if "field" in filters:
-        return _FilterAnd(_parse_comparison_condition(filters))
+        return Filter.all_of([_parse_comparison_condition(filters)])
     return _parse_logical_condition(filters)
 
 
@@ -55,8 +55,8 @@ def _invert_condition(filters: Dict[str, Any]) -> Dict[str, Any]:
 
 
 LOGICAL_OPERATORS = {
-    "AND": _FilterAnd,
-    "OR": _FilterOr,
+    "AND": Filter.all_of,
+    "OR": Filter.any_of,
 }
 
 
@@ -76,7 +76,7 @@ def _parse_logical_condition(condition: Dict[str, Any]) -> Dict[str, Any]:
                 operands.append(_parse_logical_condition(c))
             else:
                 operands.append(_parse_comparison_condition(c))
-        return LOGICAL_OPERATORS[operator](*operands)
+        return LOGICAL_OPERATORS[operator](operands)
     elif operator == "NOT":
         inverted_conditions = _invert_condition(condition)
         return _parse_logical_condition(inverted_conditions)
@@ -210,7 +210,7 @@ def _not_in(field: str, value: Any) -> Dict[str, Any]:
         msg = f"{field}'s value must be a list when using 'in' or 'not in' comparators"
         raise FilterError(msg)
     operands = [weaviate.classes.query.Filter.by_property(field).not_equal(v) for v in value]
-    return _FilterAnd(*operands)
+    return Filter.all_of(operands)
 
 
 COMPARISON_OPERATORS = {
@@ -257,4 +257,4 @@ def _match_no_document(field: str) -> Dict[str, Any]:
     """
 
     operands = [weaviate.classes.query.Filter.by_property(field).is_none(val) for val in [False, True]]
-    return _FilterAnd(*operands)
+    return Filter.all_of(operands)

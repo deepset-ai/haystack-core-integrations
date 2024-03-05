@@ -368,7 +368,7 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
                 "score": None,
                 "key": "value",
             },
-            vector=[1, 2, 3],
+            vector={"default": [1, 2, 3]},
         )
 
         doc = document_store._to_document(data)
