@@ -22,6 +22,34 @@ logger = logging.getLogger(__name__)
 
 @component
 class VertexAIGeminiGenerator:
+    """
+    `VertexAIGeminiGenerator` enables text generation using Google Gemini models.
+
+    `VertexAIGeminiGenerator` supports both `gemini-pro` and `gemini-pro-vision` models.
+    Prompting with images requires `gemini-pro-vision`. Function calling, instead, requires `gemini-pro`.
+
+    Usage example:
+    ```python
+    from haystack_integrations.components.generators.google_vertex import VertexAIGeminiGenerator
+
+
+    gemini = VertexAIGeminiGenerator(project_id=project_id)
+    result = gemini.run(parts = ["What is the most interesting thing you know?"])
+    for answer in result["answers"]:
+        print(answer)
+
+    >>> 1. **The Origin of Life:** How and where did life begin? The answers to this question are still shrouded in mystery, but scientists continuously uncover new insights into the remarkable story of our planet's earliest forms of life.
+    >>> 2. **The Unseen Universe:** The vast majority of the universe is comprised of matter and energy that we cannot directly observe. Dark matter and dark energy make up over 95% of the universe, yet we still don't fully understand their properties or how they influence the cosmos.
+    >>> 3. **Quantum Entanglement:** This eerie phenomenon in quantum mechanics allows two particles to become so intertwined that they share the same fate, regardless of how far apart they are. This has mind-bending implications for our understanding of reality and could potentially lead to advancements in communication and computing.
+    >>> 4. **Time Dilation:** Einstein's theory of relativity revealed that time can pass at different rates for different observers. Astronauts traveling at high speeds, for example, experience time dilation relative to people on Earth. This phenomenon could have significant implications for future space travel.
+    >>> 5. **The Fermi Paradox:** Despite the vastness of the universe and the abundance of potential life-supporting planets, we have yet to find any concrete evidence of extraterrestrial life. This contradiction between scientific expectations and observational reality is known as the Fermi Paradox and remains one of the most intriguing mysteries in modern science.
+    >>> 6. **Biological Evolution:** The idea that life evolves over time through natural selection is one of the most profound and transformative scientific discoveries. It explains the diversity of life on Earth and provides insights into our own origins and the interconnectedness of all living things.
+    >>> 7. **Neuroplasticity:** The brain's ability to adapt and change throughout life, known as neuroplasticity, is a remarkable phenomenon that has important implications for learning, memory, and recovery from brain injuries.
+    >>> 8. **The Goldilocks Zone:** The concept of the habitable zone, or the Goldilocks zone, refers to the range of distances from a star within which liquid water can exist on a planet's surface. This zone is critical for the potential existence of life as we know it and has been used to guide the search for exoplanets that could support life.
+    >>> 9. **String Theory:** This theoretical framework in physics aims to unify all the fundamental forces of nature into a single coherent theory. It suggests that the universe has extra dimensions beyond the familiar three spatial dimensions and time.
+    >>> 10. **Consciousness:** The nature of human consciousness and how it arises from the brain's physical processes remain one of the most profound and elusive mysteries in science. Understanding consciousness is crucial for unraveling the complexities of the human mind and our place in the universe.
+    ```
+    """
     def __init__(
         self,
         *,
@@ -33,18 +61,17 @@ class VertexAIGeminiGenerator:
         tools: Optional[List[Tool]] = None,
     ):
         """
-        Multi modal generator using Gemini model via Google Vertex AI.
+        Multi-modal generator using Gemini model via Google Vertex AI.
 
         Authenticates using Google Cloud Application Default Credentials (ADCs).
-        For more information see the official Google documentation:
-        https://cloud.google.com/docs/authentication/provide-credentials-adc
+        For more information see the official [Google documentation](https://cloud.google.com/docs/authentication/provide-credentials-adc).
 
         :param project_id: ID of the GCP project to use.
-        :param model: Name of the model to use, defaults to "gemini-pro-vision".
+        :param model: Name of the model to use.
         :param location: The default location to use when making API calls, if not set uses us-central-1.
-            Defaults to None.
-        :param generation_config: The generation config to use, defaults to None.
-            Can either be a GenerationConfig object or a dictionary of parameters.
+        :param generation_config: The generation config to use.
+            Can either be a [`GenerationConfig`](https://cloud.google.com/python/docs/reference/aiplatform/latest/vertexai.preview.generative_models.GenerationConfig)
+            object or a dictionary of parameters.
             Accepted fields are:
                 - temperature
                 - top_p
@@ -52,10 +79,13 @@ class VertexAIGeminiGenerator:
                 - candidate_count
                 - max_output_tokens
                 - stop_sequences
-        :param safety_settings: The safety settings to use, defaults to None.
-            A dictionary of HarmCategory to HarmBlockThreshold.
-        :param tools: The tools to use, defaults to None.
-            A list of Tool objects that can be used to modify the generation process.
+        :param safety_settings: The safety settings to use. See the documentation
+            for [HarmBlockThreshold](https://cloud.google.com/python/docs/reference/aiplatform/latest/vertexai.preview.generative_models.HarmBlockThreshold)
+            and [HarmCategory](https://cloud.google.com/python/docs/reference/aiplatform/latest/vertexai.preview.generative_models.HarmCategory)
+            for more details.
+        :param tools: List of tools to use when generating content. See the documentation for
+            [Tool](https://cloud.google.com/python/docs/reference/aiplatform/latest/vertexai.preview.generative_models.Tool)
+            the list of supported arguments.
         """
 
         # Login to GCP. This will fail if user has not set up their gcloud SDK
@@ -95,6 +125,12 @@ class VertexAIGeminiGenerator:
         }
 
     def to_dict(self) -> Dict[str, Any]:
+        """
+        Serializes the component to a dictionary.
+
+        :returns:
+            Dictionary with serialized data.
+        """
         data = default_to_dict(
             self,
             model=self._model_name,
@@ -112,6 +148,14 @@ class VertexAIGeminiGenerator:
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "VertexAIGeminiGenerator":
+        """
+        Deserializes the component from a dictionary.
+
+        :param data:
+            Dictionary to deserialize from.
+        :returns:
+           Deserialized component.
+        """
         if (tools := data["init_parameters"].get("tools")) is not None:
             data["init_parameters"]["tools"] = [Tool.from_dict(t) for t in tools]
         if (generation_config := data["init_parameters"].get("generation_config")) is not None:
@@ -132,6 +176,13 @@ class VertexAIGeminiGenerator:
 
     @component.output_types(answers=List[Union[str, Dict[str, str]]])
     def run(self, parts: Variadic[Union[str, ByteStream, Part]]):
+        """
+        Generates content using the Gemini model.
+
+        :param parts: Prompt for the model.
+        :returns: A dictionary with the following keys:
+            - `answers`: A list of generated content.
+        """
         converted_parts = [self._convert_part(p) for p in parts]
 
         contents = [Content(parts=converted_parts, role="user")]

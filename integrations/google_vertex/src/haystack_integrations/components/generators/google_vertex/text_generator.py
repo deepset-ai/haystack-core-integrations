@@ -13,18 +13,45 @@ logger = logging.getLogger(__name__)
 
 @component
 class VertexAITextGenerator:
+    """
+    This component enables text generation using Google Vertex AI generative models.
+
+    `VertexAITextGenerator` supports `text-bison`, `text-unicorn` and `text-bison-32k` models.
+
+    Authenticates using Google Cloud Application Default Credentials (ADCs).
+    For more information see the official [Google documentation](https://cloud.google.com/docs/authentication/provide-credentials-adc).
+
+    Usage example:
+    ```python
+        from haystack_integrations.components.generators.google_vertex import VertexAITextGenerator
+
+        generator = VertexAITextGenerator(project_id=project_id)
+        res = generator.run("Tell me a good interview question for a software engineer.")
+
+        print(res["answers"][0])
+
+        >>> **Question:** You are given a list of integers and a target sum. Find all unique combinations of numbers in the list that add up to the target sum.
+        >>>
+        >>> **Example:**
+        >>>
+        >>> ```
+        >>> Input: [1, 2, 3, 4, 5], target = 7
+        >>> Output: [[1, 2, 4], [3, 4]]
+        >>> ```
+        >>>
+        >>> **Follow-up:** What if the list contains duplicate numbers?
+    ```
+    """
     def __init__(self, *, model: str = "text-bison", project_id: str, location: Optional[str] = None, **kwargs):
         """
         Generate text using a Google Vertex AI model.
 
         Authenticates using Google Cloud Application Default Credentials (ADCs).
-        For more information see the official Google documentation:
-        https://cloud.google.com/docs/authentication/provide-credentials-adc
+        For more information see the official [Google documentation](https://cloud.google.com/docs/authentication/provide-credentials-adc).
 
         :param project_id: ID of the GCP project to use.
-        :param model: Name of the model to use, defaults to "text-bison".
+        :param model: Name of the model to use.
         :param location: The default location to use when making API calls, if not set uses us-central-1.
-            Defaults to None.
         :param kwargs: Additional keyword arguments to pass to the model.
             For a list of supported arguments see the `TextGenerationModel.predict()` documentation.
         """
@@ -40,6 +67,12 @@ class VertexAITextGenerator:
         self._model = TextGenerationModel.from_pretrained(self._model_name)
 
     def to_dict(self) -> Dict[str, Any]:
+        """
+        Serializes the component to a dictionary.
+
+        :returns:
+            Dictionary with serialized data.
+        """
         data = default_to_dict(
             self, model=self._model_name, project_id=self._project_id, location=self._location, **self._kwargs
         )
@@ -57,6 +90,14 @@ class VertexAITextGenerator:
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "VertexAITextGenerator":
+        """
+        Deserializes the component from a dictionary.
+
+        :param data:
+            Dictionary to deserialize from.
+        :returns:
+           Deserialized component.
+        """
         if (grounding_source := data["init_parameters"].get("grounding_source")) is not None:
             module_name, class_name = grounding_source["type"].rsplit(".", 1)
             module = importlib.import_module(module_name)
@@ -67,6 +108,15 @@ class VertexAITextGenerator:
 
     @component.output_types(answers=List[str], safety_attributes=Dict[str, float], citations=List[Dict[str, Any]])
     def run(self, prompt: str):
+        """Prompts the model to generate text.
+
+        :param prompt: The prompt to use for text generation.
+        :returns:  A dictionary with the following keys:
+            - answers: A list of generated answers.
+            - safety_attributes: A dictionary with the [safety scores](https://cloud.google.com/vertex-ai/generative-ai/docs/learn/responsible-ai#safety_attribute_descriptions)
+              of each answer.
+            - citations: A list of citations for each answer.
+        """
         res = self._model.predict(prompt=prompt, **self._kwargs)
 
         answers = []
