@@ -34,6 +34,7 @@ class VertexAIImageQA:
     >>> white
     ```
     """
+
     def __init__(self, *, model: str = "imagetext", project_id: str, location: Optional[str] = None, **kwargs):
         """
         Answers questions about an image using a Google Vertex AI model.

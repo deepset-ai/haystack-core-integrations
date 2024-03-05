@@ -44,6 +44,7 @@ class VertexAITextGenerator:
         >>> **Follow-up:** What if the list contains duplicate numbers?
     ```
     """
+
     def __init__(self, *, model: str = "text-bison", project_id: str, location: Optional[str] = None, **kwargs):
         """
         Generate text using a Google Vertex AI model.

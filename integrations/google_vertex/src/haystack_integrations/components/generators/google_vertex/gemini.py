@@ -50,6 +50,7 @@ class VertexAIGeminiGenerator:
     >>> 10. **Consciousness:** The nature of human consciousness and how it arises ...
     ```
     """
+
     def __init__(
         self,
         *,

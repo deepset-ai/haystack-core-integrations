@@ -29,6 +29,7 @@ class VertexAIImageGenerator:
     result["images"][0].to_file(Path("my_image.png"))
     ```
     """
+
     def __init__(self, *, model: str = "imagegeneration", project_id: str, location: Optional[str] = None, **kwargs):
         """
         Generates images using a Google Vertex AI model.
