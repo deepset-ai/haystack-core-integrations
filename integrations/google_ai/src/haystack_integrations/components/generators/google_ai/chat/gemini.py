@@ -101,7 +101,7 @@ class GoogleAIGeminiChatGenerator:
         tools: Optional[List[Tool]] = None,
     ):
         """
-        Initialize a `GoogleAIGeminiChatGenerator` instance.
+        Initializes a `GoogleAIGeminiChatGenerator` instance.
 
         To get an API key, visit: https://makersuite.google.com
 
@@ -251,7 +251,7 @@ class GoogleAIGeminiChatGenerator:
     @component.output_types(replies=List[ChatMessage])
     def run(self, messages: List[ChatMessage]):
         """
-        Generate text based on the provided messages.
+        Generates text based on the provided messages.
 
         :param messages:
             A list of `ChatMessage` instances, representing the input messages.

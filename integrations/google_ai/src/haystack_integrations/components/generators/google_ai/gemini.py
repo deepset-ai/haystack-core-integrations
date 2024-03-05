@@ -70,7 +70,7 @@ class GoogleAIGeminiGenerator:
         tools: Optional[List[Tool]] = None,
     ):
         """
-        Initialize a `GoogleAIGeminiGenerator` instance.
+        Initializes a `GoogleAIGeminiGenerator` instance.
 
         To get an API key, visit: https://makersuite.google.com
 
@@ -176,7 +176,7 @@ class GoogleAIGeminiGenerator:
     @component.output_types(answers=List[Union[str, Dict[str, str]]])
     def run(self, parts: Variadic[Union[str, ByteStream, Part]]):
         """
-        Generate text based on the given input parts.
+        Generates text based on the given input parts.
 
         :param parts:
             A heterogeneous list of strings, `ByteStream` or `Part` objects.
