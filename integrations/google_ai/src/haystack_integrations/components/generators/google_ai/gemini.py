@@ -17,9 +17,9 @@ logger = logging.getLogger(__name__)
 @component
 class GoogleAIGeminiGenerator:
     """
-    GoogleAIGeminiGenerator is a multi modal generator supporting Gemini via Google Makersuite.
+    `GoogleAIGeminiGenerator` is a multimodal generator supporting Gemini via Google AI Studio.
 
-    Sample usage:
+    Usage example:
     ```python
     from haystack.utils import Secret
     from haystack_integrations.components.generators.google_ai import GoogleAIGeminiGenerator
@@ -30,7 +30,7 @@ class GoogleAIGeminiGenerator:
         print(answer)
     ```
 
-    This is a more advanced usage that also uses text and images as input:
+    Multimodal usage example:
     ```python
     import requests
     from haystack.utils import Secret
@@ -58,12 +58,6 @@ class GoogleAIGeminiGenerator:
     for answer in result["answers"]:
         print(answer)
     ```
-
-    Input:
-    - **parts** A eterogeneous list of strings, ByteStream or Part objects.
-
-    Output:
-    - **answers** A list of strings or dictionaries with function calls.
     """
 
     def __init__(
@@ -76,7 +70,7 @@ class GoogleAIGeminiGenerator:
         tools: Optional[List[Tool]] = None,
     ):
         """
-        Initialize a GoogleAIGeminiGenerator instance.
+        Initializes a `GoogleAIGeminiGenerator` instance.
 
         To get an API key, visit: https://makersuite.google.com
 
@@ -85,21 +79,16 @@ class GoogleAIGeminiGenerator:
         * `gemini-pro-vision`
         * `gemini-ultra`
 
-        :param api_key: Google Makersuite API key.
-        :param model: Name of the model to use, defaults to "gemini-pro-vision"
-        :param generation_config: The generation config to use, defaults to None.
-            Can either be a GenerationConfig object or a dictionary of parameters.
-            Accepted parameters are:
-                - temperature
-                - top_p
-                - top_k
-                - candidate_count
-                - max_output_tokens
-                - stop_sequences
-        :param safety_settings: The safety settings to use, defaults to None.
-            A dictionary of HarmCategory to HarmBlockThreshold.
-        :param tools: The tools to use, defaults to None.
-            A list of Tool objects that can be used to modify the generation process.
+        :param api_key: Google AI Studio API key.
+        :param model: Name of the model to use.
+        :param generation_config: The generation config to use.
+            Can either be a `GenerationConfig` object or a dictionary of parameters.
+            For the available parameters, see
+            [the `GenerationConfig` API reference](https://ai.google.dev/api/python/google/generativeai/GenerationConfig).
+        :param safety_settings: The safety settings to use.
+            A dictionary with `HarmCategory` as keys and `HarmBlockThreshold` as values.
+            For more information, see [the API reference](https://ai.google.dev/api)
+        :param tools: A list of Tool objects that can be used for [Function calling](https://ai.google.dev/docs/function_calling).
         """
         genai.configure(api_key=api_key.resolve_value())
 
@@ -123,6 +112,12 @@ class GoogleAIGeminiGenerator:
         }
 
     def to_dict(self) -> Dict[str, Any]:
+        """
+        Serializes the component to a dictionary.
+
+        :returns:
+            Dictionary with serialized data.
+        """
         data = default_to_dict(
             self,
             api_key=self._api_key.to_dict(),
@@ -141,6 +136,14 @@ class GoogleAIGeminiGenerator:
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "GoogleAIGeminiGenerator":
+        """
+        Deserializes the component from a dictionary.
+
+        :param data:
+            Dictionary to deserialize from.
+        :returns:
+            Deserialized component.
+        """
         deserialize_secrets_inplace(data["init_parameters"], keys=["api_key"])
 
         if (tools := data["init_parameters"].get("tools")) is not None:
@@ -172,6 +175,16 @@ class GoogleAIGeminiGenerator:
 
     @component.output_types(answers=List[Union[str, Dict[str, str]]])
     def run(self, parts: Variadic[Union[str, ByteStream, Part]]):
+        """
+        Generates text based on the given input parts.
+
+        :param parts:
+            A heterogeneous list of strings, `ByteStream` or `Part` objects.
+        :returns:
+            A dictionary containing the following key:
+            - `answers`: A list of strings or dictionaries with function calls.
+        """
+
         converted_parts = [self._convert_part(p) for p in parts]
 
         contents = [Content(parts=converted_parts, role="user")]
