@@ -155,8 +155,7 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
         monkeypatch.setenv("WEAVIATE_API_KEY", "my_api_key")
         WeaviateDocumentStore(
             collection_settings={"class": "My_collection"},
-            # auth_client_secret=AuthApiKey(),
-            # proxies={"http": "http://proxy:1234"},
+            auth_client_secret=AuthApiKey(),
             additional_headers={"X-HuggingFace-Api-Key": "MY_HUGGINGFACE_KEY"},
             embedded_options=EmbeddedOptions(
                 persistence_data_path=DEFAULT_PERSISTENCE_DATA_PATH,
@@ -164,23 +163,16 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
                 version="1.23.7",
                 hostname="127.0.0.1",
             ),
-            # additional_config=AdditionalConfig(
-            #     proxies={"http": "http://proxy:1234"},
-            # ),
+            additional_config=AdditionalConfig(
+                proxies={"http": "http://proxy:1234"}, trust_env=False, timeout=(10, 60)
+            ),
         )
 
         # Verify client is created with correct parameters
 
         mock_weaviate_client_class.assert_called_once_with(
-            # connection_params = connection_params,
-            # collection_settings={"class": "My_collection"},
-            # auth_client_secret=WeaviateAuthApiKey("my_api_key"),
-            # timeout_config=(10, 60),
-            # proxies={"http": "http://proxy:1234"},
-            # trust_env=False,
+            auth_client_secret=AuthApiKey().resolve_value(),
             connection_params=None,
-            auth_client_secret=None,
-            additional_config=None,
             additional_headers={"X-HuggingFace-Api-Key": "MY_HUGGINGFACE_KEY"},
             embedded_options=EmbeddedOptions(
                 persistence_data_path=DEFAULT_PERSISTENCE_DATA_PATH,
@@ -189,6 +181,9 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
                 hostname="127.0.0.1",
             ),
             skip_init_checks=False,
+            additional_config=AdditionalConfig(
+                proxies={"http": "http://proxy:1234"}, trust_env=False, timeout=(10, 60)
+            ),
         )
 
         # Verify collection is created
