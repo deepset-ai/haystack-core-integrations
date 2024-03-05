@@ -30,7 +30,9 @@ class VertexAITextGenerator:
 
         print(res["answers"][0])
 
-        >>> **Question:** You are given a list of integers and a target sum. Find all unique combinations of numbers in the list that add up to the target sum.
+        >>> **Question:**
+        >>> You are given a list of integers and a target sum.
+        >>> Find all unique combinations of numbers in the list that add up to the target sum.
         >>>
         >>> **Example:**
         >>>
