@@ -16,7 +16,10 @@ class GradientGenerator:
     Queries the LLM using Gradient AI's SDK ('gradientai' package).
     See [Gradient AI API](https://docs.gradient.ai/docs/sdk-quickstart) for more details.
 
+    Usage example:
     ```python
+    from haystack_integrations.components.generators.gradient import GradientGenerator
+
     llm = GradientGenerator(base_model_slug="llama2-7b-chat")
     llm.warm_up()
     print(llm.run(prompt="What is the meaning of life?"))
@@ -40,17 +43,17 @@ class GradientGenerator:
         """
         Create a GradientGenerator component.
 
-        :param access_token: The Gradient access token. If not provided it's read from the environment
-                             variable GRADIENT_ACCESS_TOKEN.
+        :param access_token: The Gradient access token as a `Secret`. If not provided it's read from the environment
+                             variable `GRADIENT_ACCESS_TOKEN`.
         :param base_model_slug: The base model slug to use.
-        :param host: The Gradient host. By default it uses https://api.gradient.ai/.
+        :param host: The Gradient host. By default, it uses [Gradient AI](https://api.gradient.ai/).
         :param max_generated_token_count: The maximum number of tokens to generate.
         :param model_adapter_id: The model adapter ID to use.
         :param temperature: The temperature to use.
         :param top_k: The top k to use.
         :param top_p: The top p to use.
-        :param workspace_id: The Gradient workspace ID. If not provided it's read from the environment
-                             variable GRADIENT_WORKSPACE_ID.
+        :param workspace_id: The Gradient workspace ID as a `Secret`. If not provided it's read from the environment
+                             variable `GRADIENT_WORKSPACE_ID`.
         """
         self._access_token = access_token
         self._base_model_slug = base_model_slug
@@ -84,6 +87,9 @@ class GradientGenerator:
     def to_dict(self) -> Dict[str, Any]:
         """
         Serialize this component to a dictionary.
+
+        :returns:
+            The serialized component as a dictionary.
         """
         return default_to_dict(
             self,
@@ -102,7 +108,12 @@ class GradientGenerator:
     def from_dict(cls, data: Dict[str, Any]) -> "GradientGenerator":
         """
         Deserialize this component from a dictionary.
+
+        :param data: The dictionary representation of this component.
+        :returns:
+            The deserialized component instance.
         """
+
         deserialize_secrets_inplace(data["init_parameters"], keys=["access_token", "workspace_id"])
         return default_from_dict(cls, data)
 
