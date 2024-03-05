@@ -14,48 +14,51 @@ class UpTrainMetric(Enum):
     Metrics supported by UpTrain.
     """
 
-    #: Context relevance.
+    #: Context relevance.\
     #: Inputs - `questions: List[str], contexts: List[List[str]]`
     CONTEXT_RELEVANCE = "context_relevance"
 
-    #: Factual accuracy.
+    #: Factual accuracy.\
     #: Inputs - `questions: List[str], contexts: List[List[str]], responses: List[str]`
     FACTUAL_ACCURACY = "factual_accuracy"
 
-    #: Response relevance.
+    #: Response relevance.\
     #: Inputs - `questions: List[str], responses: List[str]`
     RESPONSE_RELEVANCE = "response_relevance"
 
-    #: Response completeness.
+    #: Response completeness.\
     #: Inputs - `questions: List[str], responses: List[str]`
     RESPONSE_COMPLETENESS = "response_completeness"
 
-    #: Response completeness with respect to context.
+    #: Response completeness with respect to context.\
     #: Inputs - `questions: List[str], contexts: List[List[str]], responses: List[str]`
     RESPONSE_COMPLETENESS_WRT_CONTEXT = "response_completeness_wrt_context"
 
-    #: Response consistency.
+    #: Response consistency.\
     #: Inputs - `questions: List[str], contexts: List[List[str]], responses: List[str]`
     RESPONSE_CONSISTENCY = "response_consistency"
 
-    #: Response conciseness.
+    #: Response conciseness.\
     #: Inputs - `questions: List[str], responses: List[str]`
     RESPONSE_CONCISENESS = "response_conciseness"
 
-    #: Language critique.
+    #: Language critique.\
     #: Inputs - `responses: List[str]`
     CRITIQUE_LANGUAGE = "critique_language"
 
-    #: Tone critique.
-    #: Inputs - `responses: List[str]`
+    #: Tone critique.\
+    #: Inputs - `responses: List[str]`\
+    #: Parameters - `llm_persona: str`
     CRITIQUE_TONE = "critique_tone"
 
-    #: Guideline adherence.
-    #: Inputs - `questions: List[str], responses: List[str]`
+    #: Guideline adherence.\
+    #: Inputs - `questions: List[str], responses: List[str]`\
+    #: Parameters - `guideline: str`, `guideline_name: str`, `response_schema: Optional[str]`
     GUIDELINE_ADHERENCE = "guideline_adherence"
 
-    #: Response matching.
-    #: Inputs - `responses: List[str], ground_truths: List[str]`
+    #: Response matching.\
+    #: Inputs - `responses: List[str], ground_truths: List[str]`\
+    #: Parameters - `method: str`
     RESPONSE_MATCHING = "response_matching"
 
     def __str__(self):
