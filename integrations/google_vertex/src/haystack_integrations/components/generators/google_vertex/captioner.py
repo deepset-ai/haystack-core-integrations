@@ -27,7 +27,11 @@ class VertexAIImageCaptioner:
 
     captioner = VertexAIImageCaptioner(project_id=project_id)
 
-    image = ByteStream(data=requests.get("https://raw.githubusercontent.com/silvanocerza/robots/main/robot1.jpg").content)
+    image = ByteStream(
+        data=requests.get(
+            "https://raw.githubusercontent.com/deepset-ai/haystack-core-integrations/main/integrations/google_vertex/example_assets/robot1.jpg"
+        ).content
+    )
     result = captioner.run(image=image)
 
     for caption in result["captions"]:
