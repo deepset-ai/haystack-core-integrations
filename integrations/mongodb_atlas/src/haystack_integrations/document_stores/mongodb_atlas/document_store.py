@@ -19,6 +19,38 @@ logger = logging.getLogger(__name__)
 
 
 class MongoDBAtlasDocumentStore:
+    """
+    MongoDBAtlasDocumentStore is a DocumentStore implementation that uses MongoDB Atlas - a fully managed cloud database
+    service that is easy to deploy, operate, and scale.
+
+    To connect to MongoDB Atlas, you need to provide a connection string in the format:
+    "mongodb+srv://{mongo_atlas_username}:{mongo_atlas_password}@{mongo_atlas_host}/?{mongo_atlas_params_string}".
+
+    This connection string can be obtained on the MongoDB Atlas Dashboard by clicking on the `CONNECT` button, selecting
+    Python as the driver, and copying the connection string. The connection string can be provided as an environment
+    variable `MONGO_CONNECTION_STRING` or directly as a parameter to the `MongoDBAtlasDocumentStore` constructor.
+
+    After providing the connection string, you'll need to specify the `database_name` and `collection_name` to use.
+    Most likely that you'll create these via the MongoDB Atlas web UI but one can also create them via the MongoDB
+    Python driver. Creating databases and collections is beyond the scope of MongoDBAtlasDocumentStore. The primary
+    purpose of this document store is to read and write documents to an existing collection.
+
+    The last parameter users needs to provide is a `vector_search_index` - used for vector search operations. This index
+    can support a chosen metric (i.e. cosine, dot product, or euclidean) and can be created in the Atlas web UI.
+
+    For more details on MongoDB Atlas, see the official
+    MongoDB Atlas [documentation](https://www.mongodb.com/docs/atlas/getting-started/)
+
+    Usage example:
+    ```python
+    from haystack_integrations.document_stores.mongodb_atlas import MongoDBAtlasDocumentStore
+
+    store = MongoDBAtlasDocumentStore(database_name="your_existing_db",
+                                      collection_name="your_existing_collection",
+                                      vector_search_index="your_existing_index")
+    print(store.count_documents())
+    ```
+    """
     def __init__(
         self,
         *,
@@ -30,8 +62,6 @@ class MongoDBAtlasDocumentStore:
         """
         Creates a new MongoDBAtlasDocumentStore instance.
 
-        This Document Store uses MongoDB Atlas as a backend (https://www.mongodb.com/docs/atlas/getting-started/).
-
         :param mongo_connection_string: MongoDB Atlas connection string in the format:
             "mongodb+srv://{mongo_atlas_username}:{mongo_atlas_password}@{mongo_atlas_host}/?{mongo_atlas_params_string}".
             This can be obtained on the MongoDB Atlas Dashboard by clicking on the `CONNECT` button.
@@ -41,7 +71,8 @@ class MongoDBAtlasDocumentStore:
             this collection needs to have a vector search index set up on the `embedding` field.
         :param vector_search_index: The name of the vector search index to use for vector search operations.
             Create a vector_search_index in the Atlas web UI and specify the init params of MongoDBAtlasDocumentStore. \
-            See https://www.mongodb.com/docs/atlas/atlas-vector-search/create-index/#std-label-avs-create-index
+            For more details refer to MongoDB
+            Atlas [documentation](https://www.mongodb.com/docs/atlas/atlas-vector-search/create-index/#std-label-avs-create-index)
         """
         if collection_name and not bool(re.match(r"^[a-zA-Z0-9\-_]+$", collection_name)):
             msg = f'Invalid collection name: "{collection_name}". It can only contain letters, numbers, -, or _.'
@@ -66,7 +97,10 @@ class MongoDBAtlasDocumentStore:
 
     def to_dict(self) -> Dict[str, Any]:
         """
-        Utility function that serializes this Document Store's configuration into a dictionary.
+        Serializes the component to a dictionary.
+
+        :returns:
+            Dictionary with serialized data.
         """
         return default_to_dict(
             self,
@@ -79,7 +113,12 @@ class MongoDBAtlasDocumentStore:
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "MongoDBAtlasDocumentStore":
         """
-        Utility function that deserializes this Document Store's configuration from a dictionary.
+        Deserializes the component from a dictionary.
+
+        :param data:
+            Dictionary to deserialize from.
+        :returns:
+              Deserialized component.
         """
         deserialize_secrets_inplace(data["init_parameters"], keys=["mongo_connection_string"])
         return default_from_dict(cls, data)
@@ -87,6 +126,8 @@ class MongoDBAtlasDocumentStore:
     def count_documents(self) -> int:
         """
         Returns how many documents are present in the document store.
+
+        :returns: The number of documents in the document store.
         """
         return self.collection.count_documents({})
 
@@ -95,10 +136,10 @@ class MongoDBAtlasDocumentStore:
         Returns the documents that match the filters provided.
 
         For a detailed specification of the filters,
-        refer to the [documentation](https://docs.haystack.deepset.ai/v2.0/docs/metadata-filtering).
+        refer to the Haystack [documentation](https://docs.haystack.deepset.ai/v2.0/docs/metadata-filtering).
 
         :param filters: The filters to apply. It returns only the documents that match the filters.
-        :return: A list of Documents that match the given filters.
+        :returns: A list of Documents that match the given filters.
         """
         mongo_filters = haystack_filters_to_mongo(filters)
         documents = list(self.collection.find(mongo_filters))
@@ -108,13 +149,13 @@ class MongoDBAtlasDocumentStore:
 
     def write_documents(self, documents: List[Document], policy: DuplicatePolicy = DuplicatePolicy.NONE) -> int:
         """
-        Writes documents into to PgvectorDocumentStore.
+        Writes documents into the MongoDB Atlas collection.
 
         :param documents: A list of Documents to write to the document store.
         :param policy: The duplicate policy to use when writing documents.
         :raises DuplicateDocumentError: If a document with the same id already exists in the document store
              and the policy is set to DuplicatePolicy.FAIL (or not specified).
-        :return: The number of documents written to the document store.
+        :returns: The number of documents written to the document store.
         """
 
         if len(documents) > 0:
@@ -168,6 +209,7 @@ class MongoDBAtlasDocumentStore:
         :param query_embedding: Embedding of the query
         :param filters: Optional filters.
         :param top_k: How many documents to return.
+        :returns: A list of Documents that are most similar to the given `query_embedding`
         """
         if not query_embedding:
             msg = "Query embedding must not be empty"
@@ -211,7 +253,7 @@ class MongoDBAtlasDocumentStore:
         Converts the dictionary coming out of MongoDB into a Haystack document
 
         :param mongo_doc: A dictionary representing a document as stored in MongoDB
-        :return: A Haystack Document object
+        :returns: A Haystack Document object
         """
         mongo_doc.pop("_id", None)
         return Document.from_dict(mongo_doc)
