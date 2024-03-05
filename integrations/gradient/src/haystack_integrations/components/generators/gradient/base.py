@@ -43,7 +43,7 @@ class GradientGenerator:
         """
         Create a GradientGenerator component.
 
-        :param access_token: The Gradient access token. If not provided it's read from the environment
+        :param access_token: The Gradient access token as a `Secret`. If not provided it's read from the environment
                              variable `GRADIENT_ACCESS_TOKEN`.
         :param base_model_slug: The base model slug to use.
         :param host: The Gradient host. By default, it uses [Gradient AI](https://api.gradient.ai/).
@@ -52,7 +52,7 @@ class GradientGenerator:
         :param temperature: The temperature to use.
         :param top_k: The top k to use.
         :param top_p: The top p to use.
-        :param workspace_id: The Gradient workspace ID. If not provided it's read from the environment
+        :param workspace_id: The Gradient workspace ID as a `Secret`. If not provided it's read from the environment
                              variable `GRADIENT_WORKSPACE_ID`.
         """
         self._access_token = access_token
