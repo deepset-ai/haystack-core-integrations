@@ -98,7 +98,7 @@ class MongoDBAtlasDocumentStore:
         refer to the [documentation](https://docs.haystack.deepset.ai/v2.0/docs/metadata-filtering).
 
         :param filters: The filters to apply. It returns only the documents that match the filters.
-        :return: A list of Documents that match the given filters.
+        :returns: A list of Documents that match the given filters.
         """
         mongo_filters = haystack_filters_to_mongo(filters)
         documents = list(self.collection.find(mongo_filters))
@@ -114,7 +114,7 @@ class MongoDBAtlasDocumentStore:
         :param policy: The duplicate policy to use when writing documents.
         :raises DuplicateDocumentError: If a document with the same id already exists in the document store
              and the policy is set to DuplicatePolicy.FAIL (or not specified).
-        :return: The number of documents written to the document store.
+        :returns: The number of documents written to the document store.
         """
 
         if len(documents) > 0:
@@ -211,7 +211,7 @@ class MongoDBAtlasDocumentStore:
         Converts the dictionary coming out of MongoDB into a Haystack document
 
         :param mongo_doc: A dictionary representing a document as stored in MongoDB
-        :return: A Haystack Document object
+        :returns: A Haystack Document object
         """
         mongo_doc.pop("_id", None)
         return Document.from_dict(mongo_doc)

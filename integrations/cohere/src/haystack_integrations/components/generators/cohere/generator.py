@@ -153,7 +153,7 @@ class CohereGenerator:
         """
         Converts the response from the Cohere API to a StreamingChunk.
         :param chunk: The chunk returned by the OpenAI API.
-        :return: The StreamingChunk.
+        :returns: The StreamingChunk.
         """
         streaming_chunk = StreamingChunk(content=chunk.text, meta={"index": chunk.index})
         return streaming_chunk

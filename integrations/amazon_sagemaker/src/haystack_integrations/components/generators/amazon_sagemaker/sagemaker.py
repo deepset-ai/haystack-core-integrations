@@ -179,7 +179,7 @@ class SagemakerGenerator:
         :param aws_profile_name: AWS profile name.
 
         :raises AWSConfigurationError: If the provided AWS credentials are invalid.
-        :return: The created AWS session.
+        :returns: The created AWS session.
         """
         try:
             return boto3.Session(
@@ -202,7 +202,7 @@ class SagemakerGenerator:
         :param generation_kwargs: Additional keyword arguments for text generation. These parameters will
         potentially override the parameters passed in the `__init__` method.
 
-        :return: A dictionary with the following keys:
+        :returns: A dictionary with the following keys:
             - `replies`: A list of strings containing the generated responses
             - `meta`: A list of dictionaries containing the metadata for each response.
         """

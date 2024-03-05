@@ -186,7 +186,7 @@ class CohereChatGenerator:
         Converts the response from the Cohere API to a StreamingChunk.
         :param chunk: The chunk returned by the OpenAI API.
         :param choice: The choice returned by the OpenAI API.
-        :return: The StreamingChunk.
+        :returns: The StreamingChunk.
         """
         chat_message = StreamingChunk(content=chunk.text, meta={"index": chunk.index, "event_type": chunk.event_type})
         return chat_message
@@ -195,7 +195,7 @@ class CohereChatGenerator:
         """
         Converts the non-streaming response from the Cohere API to a ChatMessage.
         :param cohere_response: The completion returned by the Cohere API.
-        :return: The ChatMessage.
+        :returns: The ChatMessage.
         """
         content = cohere_response.text
         message = ChatMessage.from_assistant(content=content)

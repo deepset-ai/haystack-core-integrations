@@ -101,7 +101,7 @@ class FastembedTextEmbedder:
         Embeds text using the Fastembed model.
 
         :param text: A string to embed.
-        :return: A dictionary with the following keys:
+        :returns: A dictionary with the following keys:
             - `embedding`: A list of floats representing the embedding of the input text.
         :raises TypeError: If the input is not a string.
         :raises RuntimeError: If the embedding model has not been loaded.

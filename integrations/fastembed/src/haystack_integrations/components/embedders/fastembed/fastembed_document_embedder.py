@@ -144,7 +144,7 @@ class FastembedDocumentEmbedder:
         Embeds a list of Documents.
 
         :param documents: List of Documents to embed.
-        :return: A dictionary with the following keys:
+        :returns: A dictionary with the following keys:
             - `documents`: List of Documents with each Document's `embedding` field set to the computed embeddings.
         """
         if not isinstance(documents, list) or documents and not isinstance(documents[0], Document):

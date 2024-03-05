@@ -34,7 +34,7 @@ class BedrockModelChatAdapter(ABC):
 
         :param messages: The chat messages to package into the request.
         :param inference_kwargs: Additional inference kwargs to use.
-        :return: The prepared body.
+        :returns: The prepared body.
         """
 
     def get_responses(self, response_body: Dict[str, Any]) -> List[ChatMessage]:
@@ -42,7 +42,7 @@ class BedrockModelChatAdapter(ABC):
         Extracts the responses from the Amazon Bedrock response.
 
         :param response_body: The response body.
-        :return: The extracted responses.
+        :returns: The extracted responses.
         """
         return self._extract_messages_from_response(self.response_body_message_key(), response_body)
 
@@ -85,7 +85,7 @@ class BedrockModelChatAdapter(ABC):
 
         :param inference_kwargs: The inference kwargs to merge.
         :param default_params: The default params to start with.
-        :return: The merged params.
+        :returns: The merged params.
         """
         # Start with a copy of default_params
         kwargs = default_params.copy()
@@ -100,7 +100,7 @@ class BedrockModelChatAdapter(ABC):
         """
         Ensures that the prompt is within the token limit for the model.
         :param prompt: The prompt to check.
-        :return: The resized prompt.
+        :returns: The resized prompt.
         """
         resize_info = self.check_prompt(prompt)
         if resize_info["prompt_length"] != resize_info["new_prompt_length"]:
@@ -121,7 +121,7 @@ class BedrockModelChatAdapter(ABC):
         Checks the prompt length and resizes it if necessary. If the prompt is too long, it will be truncated.
 
         :param prompt: The prompt to check.
-        :return: A dictionary containing the resized prompt and additional information.
+        :returns: A dictionary containing the resized prompt and additional information.
         """
 
     def _extract_messages_from_response(self, message_tag: str, response_body: Dict[str, Any]) -> List[ChatMessage]:
@@ -130,7 +130,7 @@ class BedrockModelChatAdapter(ABC):
 
         :param message_tag: The key for the message in the response body.
         :param response_body: The response body.
-        :return: The extracted ChatMessage list.
+        :returns: The extracted ChatMessage list.
         """
         metadata = {k: v for (k, v) in response_body.items() if k != message_tag}
         return [ChatMessage.from_assistant(response_body[message_tag], meta=metadata)]
@@ -141,7 +141,7 @@ class BedrockModelChatAdapter(ABC):
         Returns the key for the message in the response body.
         Subclasses should override this method to return the correct message key - where the response is located.
 
-        :return: The key for the message in the response body.
+        :returns: The key for the message in the response body.
         """
 
     @abstractmethod
@@ -150,7 +150,7 @@ class BedrockModelChatAdapter(ABC):
         Extracts the token from a streaming chunk.
 
         :param chunk: The streaming chunk.
-        :return: The extracted token.
+        :returns: The extracted token.
         """
 
 
@@ -192,7 +192,7 @@ class AnthropicClaudeChatAdapter(BedrockModelChatAdapter):
 
         :param messages: The chat messages to package into the request.
         :param inference_kwargs: Additional inference kwargs to use.
-        :return: The prepared body.
+        :returns: The prepared body.
         """
         default_params = {
             "max_tokens_to_sample": self.generation_kwargs.get("max_tokens_to_sample") or 512,
@@ -212,7 +212,7 @@ class AnthropicClaudeChatAdapter(BedrockModelChatAdapter):
         Prepares the chat messages for the Anthropic Claude request.
 
         :param messages: The chat messages to prepare.
-        :return: The prepared chat messages as a string.
+        :returns: The prepared chat messages as a string.
         """
         conversation = []
         for index, message in enumerate(messages):
@@ -241,7 +241,7 @@ class AnthropicClaudeChatAdapter(BedrockModelChatAdapter):
         Checks the prompt length and resizes it if necessary. If the prompt is too long, it will be truncated.
 
         :param prompt: The prompt to check.
-        :return: A dictionary containing the resized prompt and additional information.
+        :returns: A dictionary containing the resized prompt and additional information.
         """
         return self.prompt_handler(prompt)
 
@@ -249,7 +249,7 @@ class AnthropicClaudeChatAdapter(BedrockModelChatAdapter):
         """
         Returns the key for the message in the response body for Anthropic Claude i.e. "completion".
 
-        :return: The key for the message in the response body.
+        :returns: The key for the message in the response body.
         """
         return "completion"
 
@@ -258,7 +258,7 @@ class AnthropicClaudeChatAdapter(BedrockModelChatAdapter):
         Extracts the token from a streaming chunk.
 
         :param chunk: The streaming chunk.
-        :return: The extracted token.
+        :returns: The extracted token.
         """
         return chunk.get("completion", "")
 
@@ -340,7 +340,7 @@ class MetaLlama2ChatAdapter(BedrockModelChatAdapter):
         Prepares the chat messages for the Meta Llama 2 request.
 
         :param messages: The chat messages to prepare.
-        :return: The prepared chat messages as a string ready for the model.
+        :returns: The prepared chat messages as a string ready for the model.
         """
         prepared_prompt: str = self.prompt_handler.tokenizer.apply_chat_template(
             conversation=messages, tokenize=False, chat_template=self.chat_template
@@ -352,7 +352,7 @@ class MetaLlama2ChatAdapter(BedrockModelChatAdapter):
         Checks the prompt length and resizes it if necessary. If the prompt is too long, it will be truncated.
 
         :param prompt: The prompt to check.
-        :return: A dictionary containing the resized prompt and additional information.
+        :returns: A dictionary containing the resized prompt and additional information.
 
         """
         return self.prompt_handler(prompt)
@@ -361,7 +361,7 @@ class MetaLlama2ChatAdapter(BedrockModelChatAdapter):
         """
         Returns the key for the message in the response body for Meta Llama 2 i.e. "generation".
 
-        :return: The key for the message in the response body.
+        :returns: The key for the message in the response body.
         """
         return "generation"
 
@@ -370,6 +370,6 @@ class MetaLlama2ChatAdapter(BedrockModelChatAdapter):
         Extracts the token from a streaming chunk.
 
         :param chunk: The streaming chunk.
-        :return: The extracted token.
+        :returns: The extracted token.
         """
         return chunk.get("generation", "")
