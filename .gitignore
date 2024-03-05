@@ -134,3 +134,4 @@ dmypy.json
 
 # Docs generation artifacts
 _readme_*.md
+.idea
