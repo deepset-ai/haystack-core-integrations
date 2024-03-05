@@ -10,7 +10,9 @@ from haystack.dataclasses.document import Document
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
 from haystack.utils import Secret, deserialize_secrets_inplace
-from haystack_integrations.document_stores.mongodb_atlas.filters import haystack_filters_to_mongo
+from haystack_integrations.document_stores.mongodb_atlas.filters import _normalize_filters
+from haystack.utils.filters import convert
+
 from pymongo import InsertOne, MongoClient, ReplaceOne, UpdateOne  # type: ignore
 from pymongo.driver_info import DriverInfo  # type: ignore
 from pymongo.errors import BulkWriteError  # type: ignore
@@ -100,8 +102,10 @@ class MongoDBAtlasDocumentStore:
         :param filters: The filters to apply. It returns only the documents that match the filters.
         :return: A list of Documents that match the given filters.
         """
-        mongo_filters = haystack_filters_to_mongo(filters)
-        documents = list(self.collection.find(mongo_filters))
+        if filters and "operator" not in filters and "conditions" not in filters:
+            filters = convert(filters)
+        filters = _normalize_filters(filters) if filters else None
+        documents = list(self.collection.find(filters))
         for doc in documents:
             doc.pop("_id", None)  # MongoDB's internal id doesn't belong into a Haystack document, so we remove it.
         return [Document.from_dict(doc) for doc in documents]
