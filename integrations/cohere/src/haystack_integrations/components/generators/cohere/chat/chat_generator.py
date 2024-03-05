@@ -149,7 +149,7 @@ class CohereChatGenerator:
             For more details on the parameters supported by the Cohere API, refer to the
             Cohere [documentation](https://docs.cohere.com/reference/chat).
         :returns: A dictionary with the following keys:
-            - "replies": a list of `ChatMessage` instances representing the generated responses.
+            - `replies`: a list of `ChatMessage` instances representing the generated responses.
         """
         # update generation kwargs by merging with the generation kwargs passed to the run method
         generation_kwargs = {**self.generation_kwargs, **(generation_kwargs or {})}

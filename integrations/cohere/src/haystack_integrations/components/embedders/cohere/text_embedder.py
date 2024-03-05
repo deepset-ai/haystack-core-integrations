@@ -112,8 +112,8 @@ class CohereTextEmbedder:
 
         :param text: the text to embed.
         :returns: A dictionary with the following keys:
-            - "embedding": the embedding of the text.
-            - "meta": metadata about the request.
+            - `embedding`: the embedding of the text.
+            - `meta`: metadata about the request.
         :raises TypeError: If the input is not a string.
         """
         if not isinstance(text, str):
