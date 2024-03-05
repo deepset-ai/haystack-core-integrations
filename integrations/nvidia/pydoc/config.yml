@@ -1,7 +1,12 @@
 loaders:
   - type: haystack_pydoc_tools.loaders.CustomPythonLoader
     search_path: [../src]
-    modules: []
+    modules:
+      [
+        "haystack_integrations.components.embedders.nvidia.document_embedder",
+        "haystack_integrations.components.embedders.nvidia.text_embedder",
+        "haystack_integrations.components.embedders.nvidia.models",
+      ]
     ignore_when_discovered: ["__init__"]
 processors:
   - type: filter
