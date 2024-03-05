@@ -102,6 +102,6 @@ class TestRetriever:
         retriever = MongoDBAtlasEmbeddingRetriever(document_store=mock_store)
         res = retriever.run(query_embedding=[0.3, 0.5])
 
-        mock_store.embedding_retrieval.assert_called_once_with(query_embedding_np=[0.3, 0.5], filters={}, top_k=10)
+        mock_store.embedding_retrieval.assert_called_once_with(query_embedding=[0.3, 0.5], filters={}, top_k=10)
 
         assert res == {"documents": [doc]}

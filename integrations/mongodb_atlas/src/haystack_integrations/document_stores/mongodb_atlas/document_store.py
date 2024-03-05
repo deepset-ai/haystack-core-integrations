@@ -51,6 +51,7 @@ class MongoDBAtlasDocumentStore:
     print(store.count_documents())
     ```
     """
+
     def __init__(
         self,
         *,
