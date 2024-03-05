@@ -43,7 +43,9 @@ class GradientDocumentEmbedder:
 
     indexing_pipeline = Pipeline()
     indexing_pipeline.add_component(instance=GradientDocumentEmbedder(), name="document_embedder")
-    indexing_pipeline.add_component(instance=DocumentWriter(document_store=InMemoryDocumentStore()), name="document_writer")
+    indexing_pipeline.add_component(
+        instance=DocumentWriter(document_store=InMemoryDocumentStore()), name="document_writer")
+    )
     indexing_pipeline.connect("document_embedder", "document_writer")
     indexing_pipeline.run({"document_embedder": {"documents": documents}})
     >>> {'document_writer': {'documents_written': 3}}
