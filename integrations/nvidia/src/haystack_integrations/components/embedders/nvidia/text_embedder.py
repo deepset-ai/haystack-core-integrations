@@ -74,7 +74,7 @@ class NvidiaTextEmbedder:
         if self._initialized:
             return
 
-        self.nvcf_id = get_model_nvcf_id(self.model, self.client)
+        self.nvcf_id = self.client.get_model_nvcf_id(str(self.model))
         self._initialized = True
 
     def to_dict(self) -> Dict[str, Any]:

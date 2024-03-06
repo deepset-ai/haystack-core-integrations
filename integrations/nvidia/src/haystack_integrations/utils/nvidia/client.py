@@ -64,3 +64,19 @@ class NvidiaCloudFunctionsClient:
             )
             for f in response.json()["functions"]
         }
+
+    def get_model_nvcf_id(self, model: str) -> str:
+        """
+        Returns the Nvidia Cloud Functions UUID for the given model.
+        """
+
+        available_functions = self.available_functions()
+        func = available_functions.get(model)
+        if func is None:
+            msg = f"Model '{model}' was not found on the Nvidia Cloud Functions backend"
+            raise ValueError(msg)
+        elif func.status != "ACTIVE":
+            msg = f"Model '{model}' is not currently active/usable on the Nvidia Cloud Functions backend"
+            raise ValueError(msg)
+
+        return func.id
