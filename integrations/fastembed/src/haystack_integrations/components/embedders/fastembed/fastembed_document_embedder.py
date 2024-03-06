@@ -68,11 +68,11 @@ class FastembedDocumentEmbedder:
         Create an FastembedDocumentEmbedder component.
 
         :param model: Local path or name of the model in Hugging Face's model hub,
-            such as ``'BAAI/bge-small-en-v1.5'``.
-        :param cache_dir (str, optional): The path to the cache directory.
+            such as `BAAI/bge-small-en-v1.5`.
+        :param cache_dir: The path to the cache directory.
                 Can be set using the `FASTEMBED_CACHE_PATH` env variable.
                 Defaults to `fastembed_cache` in the system's temp directory.
-        :param threads (int, optional): The number of threads single onnxruntime session can use. Defaults to None.
+        :param threads: The number of threads single onnxruntime session can use. Defaults to None.
         :param prefix: A string to add to the beginning of each text.
         :param suffix: A string to add to the end of each text.
         :param batch_size: Number of strings to encode at once.
