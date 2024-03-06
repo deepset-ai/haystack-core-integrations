@@ -167,7 +167,7 @@ class AmazonBedrockGenerator:
             )
         return str(resize_info["resized_prompt"])
 
-    def _invoke(self, *args, **kwargs):
+    def invoke(self, *args, **kwargs):
         """
         Invokes the model with the given prompt.
 
@@ -232,7 +232,7 @@ class AmazonBedrockGenerator:
         :raises ValueError: If the prompt is empty or None.
         :raises AmazonBedrockInferenceError: If the model cannot be invoked.
         """
-        return {"replies": self._invoke(prompt=prompt, **(generation_kwargs or {}))}
+        return {"replies": self.invoke(prompt=prompt, **(generation_kwargs or {}))}
 
     @classmethod
     def get_model_adapter(cls, model: str) -> Optional[Type[BedrockModelAdapter]]:
