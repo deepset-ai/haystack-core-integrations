@@ -41,7 +41,20 @@ jobs:
         run: |
           curl -fsSL https://ollama.com/install.sh | sh
           ollama serve &
-          sleep 10
+          
+          # Check if the service is up and running with a timeout of 60 seconds
+          timeout=60
+          while [ $timeout -gt 0 ] && ! curl -sSf http://localhost:11434/ > /dev/null; do
+            echo "Waiting for Ollama service to start..."
+            sleep 5
+            ((timeout-=5))
+          done
+
+          if [ $timeout -eq 0 ]; then
+            echo "Timed out waiting for Ollama service to start."
+            exit 1
+          fi
+          
           ollama pull ${{ env.LLM_FOR_TESTS }}
           ollama pull ${{ env.EMBEDDER_FOR_TESTS }}
 
