@@ -97,11 +97,11 @@ class TestRetriever:
     def test_run(self):
         mock_store = Mock(spec=MongoDBAtlasDocumentStore)
         doc = Document(content="Test doc", embedding=[0.1, 0.2])
-        mock_store.embedding_retrieval.return_value = [doc]
+        mock_store._embedding_retrieval.return_value = [doc]
 
         retriever = MongoDBAtlasEmbeddingRetriever(document_store=mock_store)
         res = retriever.run(query_embedding=[0.3, 0.5])
 
-        mock_store.embedding_retrieval.assert_called_once_with(query_embedding_np=[0.3, 0.5], filters={}, top_k=10)
+        mock_store._embedding_retrieval.assert_called_once_with(query_embedding=[0.3, 0.5], filters={}, top_k=10)
 
         assert res == {"documents": [doc]}
