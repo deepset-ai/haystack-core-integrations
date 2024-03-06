@@ -204,8 +204,7 @@ class ElasticsearchDocumentStore:
         :raises ValueError: If `documents` is not a list of `Document`s.
         :raises DuplicateDocumentError: If a document with the same ID already exists in the document store and
             `policy` is set to `DuplicatePolicy.FAIL` or `DuplicatePolicy.NONE`.
-        :raises DocumentStoreError: If an error occurs while writing the documents to the document store and the
-            `policy` is set to `DuplicatePolicy.FAIL` or `DuplicatePolicy.NONE`.
+        :raises DocumentStoreError: If an error occurs while writing the documents to the document store.
         :returns: Number of documents written to the document store.
         """
         if len(documents) > 0:
