@@ -206,7 +206,7 @@ class ChromaDocumentStore:
 
         :param queries: the list of queries to search for.
         :param top_k: top_k documents to return for each query.
-        :return: matching documents for each query.
+        :returns: matching documents for each query.
         """
         results = self._collection.query(
             query_texts=queries, n_results=top_k, include=["embeddings", "documents", "metadatas", "distances"]

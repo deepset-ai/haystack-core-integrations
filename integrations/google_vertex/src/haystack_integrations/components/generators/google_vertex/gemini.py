@@ -22,6 +22,35 @@ logger = logging.getLogger(__name__)
 
 @component
 class VertexAIGeminiGenerator:
+    """
+    `VertexAIGeminiGenerator` enables text generation using Google Gemini models.
+
+    `VertexAIGeminiGenerator` supports both `gemini-pro` and `gemini-pro-vision` models.
+    Prompting with images requires `gemini-pro-vision`. Function calling, instead, requires `gemini-pro`.
+
+    Usage example:
+    ```python
+    from haystack_integrations.components.generators.google_vertex import VertexAIGeminiGenerator
+
+
+    gemini = VertexAIGeminiGenerator(project_id=project_id)
+    result = gemini.run(parts = ["What is the most interesting thing you know?"])
+    for answer in result["answers"]:
+        print(answer)
+
+    >>> 1. **The Origin of Life:** How and where did life begin? The answers to this ...
+    >>> 2. **The Unseen Universe:** The vast majority of the universe is ...
+    >>> 3. **Quantum Entanglement:** This eerie phenomenon in quantum mechanics allows ...
+    >>> 4. **Time Dilation:** Einstein's theory of relativity revealed that time can ...
+    >>> 5. **The Fermi Paradox:** Despite the vastness of the universe and the ...
+    >>> 6. **Biological Evolution:** The idea that life evolves over time through natural ...
+    >>> 7. **Neuroplasticity:** The brain's ability to adapt and change throughout life, ...
+    >>> 8. **The Goldilocks Zone:** The concept of the habitable zone, or the Goldilocks zone, ...
+    >>> 9. **String Theory:** This theoretical framework in physics aims to unify all ...
+    >>> 10. **Consciousness:** The nature of human consciousness and how it arises ...
+    ```
+    """
+
     def __init__(
         self,
         *,
@@ -33,18 +62,17 @@ class VertexAIGeminiGenerator:
         tools: Optional[List[Tool]] = None,
     ):
         """
-        Multi modal generator using Gemini model via Google Vertex AI.
+        Multi-modal generator using Gemini model via Google Vertex AI.
 
         Authenticates using Google Cloud Application Default Credentials (ADCs).
-        For more information see the official Google documentation:
-        https://cloud.google.com/docs/authentication/provide-credentials-adc
+        For more information see the official [Google documentation](https://cloud.google.com/docs/authentication/provide-credentials-adc).
 
         :param project_id: ID of the GCP project to use.
-        :param model: Name of the model to use, defaults to "gemini-pro-vision".
+        :param model: Name of the model to use.
         :param location: The default location to use when making API calls, if not set uses us-central-1.
-            Defaults to None.
-        :param generation_config: The generation config to use, defaults to None.
-            Can either be a GenerationConfig object or a dictionary of parameters.
+        :param generation_config: The generation config to use.
+            Can either be a [`GenerationConfig`](https://cloud.google.com/python/docs/reference/aiplatform/latest/vertexai.preview.generative_models.GenerationConfig)
+            object or a dictionary of parameters.
             Accepted fields are:
                 - temperature
                 - top_p
@@ -52,10 +80,13 @@ class VertexAIGeminiGenerator:
                 - candidate_count
                 - max_output_tokens
                 - stop_sequences
-        :param safety_settings: The safety settings to use, defaults to None.
-            A dictionary of HarmCategory to HarmBlockThreshold.
-        :param tools: The tools to use, defaults to None.
-            A list of Tool objects that can be used to modify the generation process.
+        :param safety_settings: The safety settings to use. See the documentation
+            for [HarmBlockThreshold](https://cloud.google.com/python/docs/reference/aiplatform/latest/vertexai.preview.generative_models.HarmBlockThreshold)
+            and [HarmCategory](https://cloud.google.com/python/docs/reference/aiplatform/latest/vertexai.preview.generative_models.HarmCategory)
+            for more details.
+        :param tools: List of tools to use when generating content. See the documentation for
+            [Tool](https://cloud.google.com/python/docs/reference/aiplatform/latest/vertexai.preview.generative_models.Tool)
+            the list of supported arguments.
         """
 
         # Login to GCP. This will fail if user has not set up their gcloud SDK
@@ -95,6 +126,12 @@ class VertexAIGeminiGenerator:
         }
 
     def to_dict(self) -> Dict[str, Any]:
+        """
+        Serializes the component to a dictionary.
+
+        :returns:
+            Dictionary with serialized data.
+        """
         data = default_to_dict(
             self,
             model=self._model_name,
@@ -112,6 +149,14 @@ class VertexAIGeminiGenerator:
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "VertexAIGeminiGenerator":
+        """
+        Deserializes the component from a dictionary.
+
+        :param data:
+            Dictionary to deserialize from.
+        :returns:
+           Deserialized component.
+        """
         if (tools := data["init_parameters"].get("tools")) is not None:
             data["init_parameters"]["tools"] = [Tool.from_dict(t) for t in tools]
         if (generation_config := data["init_parameters"].get("generation_config")) is not None:
@@ -132,6 +177,13 @@ class VertexAIGeminiGenerator:
 
     @component.output_types(answers=List[Union[str, Dict[str, str]]])
     def run(self, parts: Variadic[Union[str, ByteStream, Part]]):
+        """
+        Generates content using the Gemini model.
+
+        :param parts: Prompt for the model.
+        :returns: A dictionary with the following keys:
+            - `answers`: A list of generated content.
+        """
         converted_parts = [self._convert_part(p) for p in parts]
 
         contents = [Content(parts=converted_parts, role="user")]

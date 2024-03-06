@@ -34,7 +34,7 @@ def get_aws_session(
     :param kwargs: The kwargs passed down to the service client. Supported kwargs depend on the model chosen.
         See https://docs.aws.amazon.com/bedrock/latest/userguide/model-parameters.html.
     :raises AWSConfigurationError: If the provided AWS credentials are invalid.
-    :return: The created AWS session.
+    :returns: The created AWS session.
     """
     try:
         return boto3.Session(
@@ -54,7 +54,7 @@ def aws_configured(**kwargs) -> bool:
     """
     Checks whether AWS configuration is provided.
     :param kwargs: The kwargs passed down to the generator.
-    :return: True if AWS configuration is provided, False otherwise.
+    :returns: True if AWS configuration is provided, False otherwise.
     """
     aws_config_provided = any(key in kwargs for key in AWS_CONFIGURATION_KEYS)
     return aws_config_provided
