@@ -76,7 +76,8 @@ class JinaRanker:
         self.score_threshold = score_threshold
 
         if self.top_k <= 0:
-            raise ValueError(f"top_k must be > 0, but got {top_k}")
+            msg = f"top_k must be > 0, but got {top_k}"
+            raise ValueError(msg)
         # if the user does not provide the API key, check if it is set in the module client
         self._session = requests.Session()
         self._session.headers.update(
@@ -126,7 +127,8 @@ class JinaRanker:
         score_threshold = score_threshold or self.score_threshold
 
         if top_k <= 0:
-            raise ValueError(f"top_k must be > 0, but got {top_k}")
+            msg = f"top_k must be > 0, but got {top_k}"
+            raise ValueError(msg)
         resp = self._session.post(  # type: ignore
             JINA_API_URL,
             json={
