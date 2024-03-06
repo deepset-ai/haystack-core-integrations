@@ -235,7 +235,7 @@ class AmazonBedrockDocumentEmbedder:
     def to_dict(self) -> Dict[str, Any]:
         """
         Serialize this component to a dictionary.
-        :return: The serialized component as a dictionary.
+        :returns: The serialized component as a dictionary.
         """
         return default_to_dict(
             self,

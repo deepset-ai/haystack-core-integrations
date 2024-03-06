@@ -64,8 +64,8 @@ class ChromaQueryTextRetriever:
         :param query: The input data for the retriever. In this case, a plain-text query.
         :param top_k: The maximum number of documents to retrieve.
             If not specified, the default value from the constructor is used.
-        :return: A dictionary with the following keys:
-            - "documents": List of documents returned by the search engine.
+        :returns: A dictionary with the following keys:
+            - `documents`: List of documents returned by the search engine.
 
         :raises ValueError: If the specified document store is not found or is not a MemoryDocumentStore instance.
         """
@@ -119,8 +119,8 @@ class ChromaEmbeddingRetriever(ChromaQueryTextRetriever):
         Run the retriever on the given input data.
 
         :param query_embedding: the query embeddings.
-        :return: a dictionary with the following keys:
-            - "documents": List of documents returned by the search engine.
+        :returns: a dictionary with the following keys:
+            - `documents`: List of documents returned by the search engine.
         """
         top_k = top_k or self.top_k
 

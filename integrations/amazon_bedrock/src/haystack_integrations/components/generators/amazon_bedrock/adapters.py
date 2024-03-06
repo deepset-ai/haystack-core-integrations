@@ -25,7 +25,7 @@ class BedrockModelAdapter(ABC):
 
         :param prompt: The prompt to be sent to the model.
         :param inference_kwargs: Additional keyword arguments passed to the handler.
-        :return: A dictionary containing the body for the request.
+        :returns: A dictionary containing the body for the request.
         """
 
     def get_responses(self, response_body: Dict[str, Any]) -> List[str]:
@@ -33,7 +33,7 @@ class BedrockModelAdapter(ABC):
         Extracts the responses from the Amazon Bedrock response.
 
         :param response_body: The response body from the Amazon Bedrock request.
-        :return: A list of responses.
+        :returns: A list of responses.
         """
         completions = self._extract_completions_from_response(response_body)
         responses = [completion.lstrip() for completion in completions]
@@ -45,7 +45,7 @@ class BedrockModelAdapter(ABC):
 
         :param stream: The streaming response from the Amazon Bedrock request.
         :param stream_handler: The handler for the streaming response.
-        :return: A list of string responses.
+        :returns: A list of string responses.
         """
         tokens: List[str] = []
         for event in stream:
@@ -64,7 +64,7 @@ class BedrockModelAdapter(ABC):
         Includes param if it's in kwargs or its default is not None (i.e. it is actually defined).
         :param inference_kwargs: The inference kwargs.
         :param default_params: The default params.
-        :return: A dictionary containing the merged params.
+        :returns: A dictionary containing the merged params.
         """
         kwargs = self.model_kwargs.copy()
         kwargs.update(inference_kwargs)
@@ -80,7 +80,7 @@ class BedrockModelAdapter(ABC):
         Extracts the responses from the Amazon Bedrock response.
 
         :param response_body: The response body from the Amazon Bedrock request.
-        :return: A list of string responses.
+        :returns: A list of string responses.
         """
 
     @abstractmethod
@@ -89,7 +89,7 @@ class BedrockModelAdapter(ABC):
         Extracts the token from a streaming chunk.
 
         :param chunk: The streaming chunk.
-        :return: A string token.
+        :returns: A string token.
         """
 
 
@@ -121,7 +121,7 @@ class AnthropicClaudeAdapter(BedrockModelAdapter):
         Extracts the responses from the Amazon Bedrock response.
 
         :param response_body: The response body from the Amazon Bedrock request.
-        :return: A list of string responses.
+        :returns: A list of string responses.
         """
         return [response_body["completion"]]
 
@@ -130,7 +130,7 @@ class AnthropicClaudeAdapter(BedrockModelAdapter):
         Extracts the token from a streaming chunk.
 
         :param chunk: The streaming chunk.
-        :return: A string token.
+        :returns: A string token.
         """
         return chunk.get("completion", "")
 
@@ -146,7 +146,7 @@ class CohereCommandAdapter(BedrockModelAdapter):
 
         :param prompt: The prompt to be sent to the model.
         :param inference_kwargs: Additional keyword arguments passed to the handler.
-        :return: A dictionary containing the body for the request.
+        :returns: A dictionary containing the body for the request.
         """
         default_params = {
             "max_tokens": self.max_length,
@@ -170,7 +170,7 @@ class CohereCommandAdapter(BedrockModelAdapter):
         Extracts the responses from the Cohere Command model response.
 
         :param response_body: The response body from the Amazon Bedrock request.
-        :return: A list of string responses.
+        :returns: A list of string responses.
         """
         responses = [generation["text"] for generation in response_body["generations"]]
         return responses
@@ -180,7 +180,7 @@ class CohereCommandAdapter(BedrockModelAdapter):
         Extracts the token from a streaming chunk.
 
         :param chunk: The streaming chunk.
-        :return: A string token.
+        :returns: A string token.
         """
         return chunk.get("text", "")
 
@@ -226,7 +226,7 @@ class AmazonTitanAdapter(BedrockModelAdapter):
 
         :param prompt: The prompt to be sent to the model.
         :param inference_kwargs: Additional keyword arguments passed to the handler.
-        :return: A dictionary containing the body for the request.
+        :returns: A dictionary containing the body for the request.
         """
         default_params = {
             "maxTokenCount": self.max_length,
@@ -244,7 +244,7 @@ class AmazonTitanAdapter(BedrockModelAdapter):
         Extracts the responses from the Titan model response.
 
         :param response_body: The response body for Titan model response.
-        :return: A list of string responses.
+        :returns: A list of string responses.
         """
         responses = [result["outputText"] for result in response_body["results"]]
         return responses
@@ -254,7 +254,7 @@ class AmazonTitanAdapter(BedrockModelAdapter):
         Extracts the token from a streaming chunk.
 
         :param chunk: The streaming chunk.
-        :return: A string token.
+        :returns: A string token.
         """
         return chunk.get("outputText", "")
 
@@ -270,7 +270,7 @@ class MetaLlama2ChatAdapter(BedrockModelAdapter):
 
         :param prompt: The prompt to be sent to the model.
         :param inference_kwargs: Additional keyword arguments passed to the handler.
-        :return: A dictionary containing the body for the request.
+        :returns: A dictionary containing the body for the request.
         """
         default_params = {
             "max_gen_len": self.max_length,
@@ -287,7 +287,7 @@ class MetaLlama2ChatAdapter(BedrockModelAdapter):
         Extracts the responses from the Llama2 model response.
 
         :param response_body: The response body from the Llama2 model request.
-        :return: A list of string responses.
+        :returns: A list of string responses.
         """
         return [response_body["generation"]]
 
@@ -296,6 +296,6 @@ class MetaLlama2ChatAdapter(BedrockModelAdapter):
         Extracts the token from a streaming chunk.
 
         :param chunk: The streaming chunk.
-        :return: A string token.
+        :returns: A string token.
         """
         return chunk.get("generation", "")

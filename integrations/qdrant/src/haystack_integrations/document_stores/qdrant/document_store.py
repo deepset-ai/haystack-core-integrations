@@ -420,7 +420,7 @@ class QdrantDocumentStore:
                                     overwrite: Update any existing documents with the same ID when adding documents.
                                     fail: an error is raised if the document ID of the document being added already
                                     exists.
-        :return: A list of Haystack Document objects.
+        :returns: A list of Haystack Document objects.
         """
 
         index = index or self.index
@@ -443,7 +443,7 @@ class QdrantDocumentStore:
 
         :param documents: A list of Haystack Document objects.
         :param index: name of the index
-        :return: A list of Haystack Document objects.
+        :returns: A list of Haystack Document objects.
         """
         _hash_ids: Set = set()
         _documents: List[Document] = []

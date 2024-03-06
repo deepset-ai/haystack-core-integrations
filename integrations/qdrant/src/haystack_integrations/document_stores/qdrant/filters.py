@@ -186,7 +186,7 @@ class QdrantFilterConverter(BaseFilterConverter):
         Simplify given payload filter, if the nested structure might be unnested.
         That happens if there is a single clause in that filter.
         :param payload_filter:
-        :return:
+        :returns:
         """
         filter_parts = {
             "must": payload_filter.must,

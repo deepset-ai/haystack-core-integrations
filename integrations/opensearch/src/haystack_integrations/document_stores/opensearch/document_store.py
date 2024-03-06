@@ -257,7 +257,7 @@ class OpenSearchDocumentStore:
         :param scale_score: If `True` scales the Document`s scores between 0 and 1, defaults to False
         :param all_terms_must_match: If `True` all terms in `query` must be present in the Document, defaults to False
         :raises ValueError: If `query` is an empty string
-        :return: List of Document that match `query`
+        :returns: List of Document that match `query`
         """
 
         if not query:
@@ -314,7 +314,7 @@ class OpenSearchDocumentStore:
             Filters are applied during the approximate kNN search to ensure that top_k matching documents are returned.
         :param top_k: Maximum number of Documents to return, defaults to 10
         :raises ValueError: If `query_embedding` is an empty list
-        :return: List of Document that are most similar to `query_embedding`
+        :returns: List of Document that are most similar to `query_embedding`
         """
 
         if not query_embedding:
