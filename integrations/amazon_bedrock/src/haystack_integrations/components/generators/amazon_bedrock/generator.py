@@ -84,7 +84,9 @@ class AmazonBedrockGenerator:
         :param aws_profile_name: The AWS profile name.
         :param max_length: The maximum length of the generated text.
         :param kwargs: Additional keyword arguments to be passed to the model.
-
+        :raises ValueError: If the model name is empty or None.
+        :raises AmazonBedrockConfigurationError: If the AWS environment is not configured correctly or the model is
+            not supported.
         """
         if not model:
             msg = "'model' cannot be None or empty string"
@@ -165,7 +167,7 @@ class AmazonBedrockGenerator:
             )
         return str(resize_info["resized_prompt"])
 
-    def invoke(self, *args, **kwargs):
+    def _invoke(self, *args, **kwargs):
         """
         Invokes the model with the given prompt.
 
@@ -226,9 +228,11 @@ class AmazonBedrockGenerator:
         :param prompt: The prompt to generate a response for.
         :param generation_kwargs: Additional keyword arguments passed to the generator.
         :returns: A dictionary with the following keys:
-            - `replies`: A list of generated responses (strings).
+            - `replies`: A list of generated responses.
+        :raises ValueError: If the prompt is empty or None.
+        :raises AmazonBedrockInferenceError: If the model cannot be invoked.
         """
-        return {"replies": self.invoke(prompt=prompt, **(generation_kwargs or {}))}
+        return {"replies": self._invoke(prompt=prompt, **(generation_kwargs or {}))}
 
     @classmethod
     def get_model_adapter(cls, model: str) -> Optional[Type[BedrockModelAdapter]]:
@@ -269,7 +273,7 @@ class AmazonBedrockGenerator:
         :param data:
             Dictionary to deserialize from.
         :returns:
-              Deserialized component.
+            Deserialized component.
         """
         deserialize_secrets_inplace(
             data["init_parameters"],

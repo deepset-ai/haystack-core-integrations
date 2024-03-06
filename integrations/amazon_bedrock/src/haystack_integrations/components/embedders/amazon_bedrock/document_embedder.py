@@ -77,13 +77,12 @@ class AmazonBedrockDocumentEmbedder:
 
         :param model: The embedding model to use. The model has to be specified in the format outlined in the Amazon
             Bedrock [documentation](https://docs.aws.amazon.com/bedrock/latest/userguide/model-ids.html).
-        :type model: Literal["amazon.titan-embed-text-v1", "cohere.embed-english-v3", "cohere.embed-multilingual-v3"]
         :param aws_access_key_id: AWS access key ID.
         :param aws_secret_access_key: AWS secret access key.
         :param aws_session_token: AWS session token.
         :param aws_region_name: AWS region name.
         :param aws_profile_name: AWS profile name.
-        :param batch_size: Number of Documents to encode at once. Default is 32.
+        :param batch_size: Number of Documents to encode at once.
             Only Cohere models support batch inference. This parameter is ignored for Amazon Titan models.
         :param progress_bar: Whether to show a progress bar or not. Can be helpful to disable in production deployments
             to keep the logs clean.
@@ -91,6 +90,8 @@ class AmazonBedrockDocumentEmbedder:
         :param embedding_separator: Separator used to concatenate the meta fields to the Document text.
         :param kwargs: Additional parameters to pass for model inference. For example, `input_type` and `truncate` for
             Cohere models.
+        :raises ValueError: If the model is not supported.
+        :raises AmazonBedrockConfigurationError: If the AWS environment is not configured correctly.
         """
 
         if not model or model not in SUPPORTED_EMBEDDING_MODELS:
@@ -218,6 +219,13 @@ class AmazonBedrockDocumentEmbedder:
 
     @component.output_types(documents=List[Document])
     def run(self, documents: List[Document]):
+        """Embed the provided `Document`s using the specified model.
+
+        :param documents: The `Document`s to embed.
+        :returns: A dictionary with the following keys
+            - `documents`: The `Document`s with the `embedding` field populated.
+        :raises AmazonBedrockInferenceError: If the inference fails.
+        """
         if not isinstance(documents, list) or documents and not isinstance(documents[0], Document):
             msg = (
                 "AmazonBedrockDocumentEmbedder expects a list of Documents as input."
@@ -234,8 +242,10 @@ class AmazonBedrockDocumentEmbedder:
 
     def to_dict(self) -> Dict[str, Any]:
         """
-        Serialize this component to a dictionary.
-        :returns: The serialized component as a dictionary.
+        Serializes the component to a dictionary.
+
+        :returns:
+            Dictionary with serialized data.
         """
         return default_to_dict(
             self,
@@ -255,7 +265,12 @@ class AmazonBedrockDocumentEmbedder:
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "AmazonBedrockDocumentEmbedder":
         """
-        Deserialize this component from a dictionary.
+        Deserializes the component from a dictionary.
+
+        :param data:
+            Dictionary to deserialize from.
+        :returns:
+            Deserialized component.
         """
         deserialize_secrets_inplace(
             data["init_parameters"],
