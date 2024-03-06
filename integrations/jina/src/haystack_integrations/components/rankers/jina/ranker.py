@@ -30,11 +30,11 @@ class JinaRanker:
     """
 
     def __init__(
-            self,
-            model: str = "jina-reranker-v1-base-en",
-            api_key: Secret = Secret.from_env_var("JINA_API_KEY"),  # noqa: B008,
-            top_k: Optional[int] = None,
-            score_threshold: Optional[float] = None,
+        self,
+        model: str = "jina-reranker-v1-base-en",
+        api_key: Secret = Secret.from_env_var("JINA_API_KEY"),  # noqa: B008,
+        top_k: Optional[int] = None,
+        score_threshold: Optional[float] = None,
     ):
         """
         Creates an instance of JinaRanker.
@@ -105,11 +105,11 @@ class JinaRanker:
 
     @component.output_types(documents=List[Document])
     def run(
-            self,
-            query: str,
-            documents: List[Document],
-            top_k: Optional[int] = None,
-            score_threshold: Optional[float] = None,
+        self,
+        query: str,
+        documents: List[Document],
+        top_k: Optional[int] = None,
+        score_threshold: Optional[float] = None,
     ):
         """
         Returns a list of Documents ranked by their similarity to the given query.
@@ -139,21 +139,22 @@ class JinaRanker:
         top_k = top_k or self.top_k
         score_threshold = score_threshold or self.score_threshold
 
-        data = {"query": query,
-                "documents": [doc.content or "" for doc in documents],
-                "model": self.model}
+        data = {"query": query, "documents": [doc.content or "" for doc in documents], "model": self.model}
+
         if top_k is not None:
-            data["top_n"] = top_k
+            data["top_n"] = top_k  # type: ignore
+
         resp = self._session.post(  # type: ignore
             JINA_API_URL,
             json=data,
         ).json()
+
         if "results" not in resp:
             raise RuntimeError(resp["detail"])
 
-        results = resp["results"]
+        results = resp["results"]  # type: ignore
 
-        ranked_docs = []
+        ranked_docs: List[Document] = []
         for result in results:
             index = result["index"]
             relevance_score = result["relevance_score"]

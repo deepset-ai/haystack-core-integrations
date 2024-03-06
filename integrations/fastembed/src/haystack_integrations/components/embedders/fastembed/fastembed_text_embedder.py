@@ -42,12 +42,11 @@ class FastembedTextEmbedder:
         """
         Create a FastembedTextEmbedder component.
 
-        :param model: Local path or name of the model in Fastembed's model hub,
-            such as ``'BAAI/bge-small-en-v1.5'``.
-        :param cache_dir (str, optional): The path to the cache directory.
+        :param model: Local path or name of the model in Fastembed's model hub, such as `BAAI/bge-small-en-v1.5`
+        :param cache_dir: The path to the cache directory.
                 Can be set using the `FASTEMBED_CACHE_PATH` env variable.
                 Defaults to `fastembed_cache` in the system's temp directory.
-        :param threads (int, optional): The number of threads single onnxruntime session can use. Defaults to None.
+        :param threads: The number of threads single onnxruntime session can use. Defaults to None.
         :param batch_size: Number of strings to encode at once.
         :param prefix: A string to add to the beginning of each text.
         :param suffix: A string to add to the end of each text.
@@ -101,7 +100,7 @@ class FastembedTextEmbedder:
         Embeds text using the Fastembed model.
 
         :param text: A string to embed.
-        :return: A dictionary with the following keys:
+        :returns: A dictionary with the following keys:
             - `embedding`: A list of floats representing the embedding of the input text.
         :raises TypeError: If the input is not a string.
         :raises RuntimeError: If the embedding model has not been loaded.

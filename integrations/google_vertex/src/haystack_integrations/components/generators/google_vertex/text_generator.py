@@ -115,10 +115,10 @@ class VertexAITextGenerator:
 
         :param prompt: The prompt to use for text generation.
         :returns:  A dictionary with the following keys:
-            - answers: A list of generated answers.
-            - safety_attributes: A dictionary with the [safety scores](https://cloud.google.com/vertex-ai/generative-ai/docs/learn/responsible-ai#safety_attribute_descriptions)
+            - `answers`: A list of generated answers.
+            - `safety_attributes`: A dictionary with the [safety scores](https://cloud.google.com/vertex-ai/generative-ai/docs/learn/responsible-ai#safety_attribute_descriptions)
               of each answer.
-            - citations: A list of citations for each answer.
+            - `citations`: A list of citations for each answer.
         """
         res = self._model.predict(prompt=prompt, **self._kwargs)
 

@@ -34,7 +34,7 @@ class DefaultPromptHandler:
 
         :param prompt: the prompt to be sent to the model.
         :param kwargs: Additional keyword arguments passed to the handler.
-        :return: A dictionary containing the resized prompt and additional information.
+        :returns: A dictionary containing the resized prompt and additional information.
         """
         resized_prompt = prompt
         prompt_length = 0
@@ -75,7 +75,7 @@ class TokenStreamingHandler(ABC):
 
         :param token_received: The token received from the stream.
         :param kwargs: Additional keyword arguments passed to the handler.
-        :return: The token to be sent to the stream.
+        :returns: The token to be sent to the stream.
         """
         pass
 
@@ -87,7 +87,7 @@ class DefaultTokenStreamingHandler(TokenStreamingHandler):
 
         :param token_received: The token received from the stream.
         :param kwargs: Additional keyword arguments passed to the handler.
-        :return: The token to be sent to the stream.
+        :returns: The token to be sent to the stream.
         """
         print(token_received, flush=True, end="")  # noqa: T201
         return token_received

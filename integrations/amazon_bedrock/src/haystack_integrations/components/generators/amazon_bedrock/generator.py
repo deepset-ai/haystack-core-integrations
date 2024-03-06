@@ -142,7 +142,7 @@ class AmazonBedrockGenerator:
         the initialization of the component.
 
         :param prompt: The prompt to be sent to the model.
-        :return: The resized prompt.
+        :returns: The resized prompt.
         """
         # the prompt for this model will be of the type str
         if isinstance(prompt, List):
@@ -171,7 +171,7 @@ class AmazonBedrockGenerator:
 
         :param args: Additional positional arguments passed to the generator.
         :param kwargs: Additional keyword arguments passed to the generator.
-        :return: A list of generated responses (strings).
+        :returns: A list of generated responses (strings).
         """
         kwargs = kwargs.copy()
         prompt: str = kwargs.pop("prompt", None)
@@ -225,7 +225,7 @@ class AmazonBedrockGenerator:
 
         :param prompt: The prompt to generate a response for.
         :param generation_kwargs: Additional keyword arguments passed to the generator.
-        :return: A dictionary with the following keys:
+        :returns: A dictionary with the following keys:
             - `replies`: A list of generated responses (strings).
         """
         return {"replies": self.invoke(prompt=prompt, **(generation_kwargs or {}))}
@@ -236,7 +236,7 @@ class AmazonBedrockGenerator:
         Gets the model adapter for the given model.
 
         :param model: The model name.
-        :return: The model adapter class, or None if no adapter is found.
+        :returns: The model adapter class, or None if no adapter is found.
         """
         for pattern, adapter in cls.SUPPORTED_MODEL_PATTERNS.items():
             if re.fullmatch(pattern, model):

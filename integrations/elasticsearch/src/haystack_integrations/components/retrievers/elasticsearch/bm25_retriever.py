@@ -54,13 +54,13 @@ class ElasticsearchBM25Retriever:
 
         :param document_store: An instance of ElasticsearchDocumentStore.
         :param filters: Filters applied to the retrieved Documents, for more info
-                        see `ElasticsearchDocumentStore.filter_documents`, defaults to None
-        :param fuzziness: Fuzziness parameter passed to Elasticsearch, defaults to "AUTO".
-                          See the official
-        [documentation](https://www.elastic.co/guide/en/elasticsearch/reference/current/common-options.html#fuzziness)
-        for more details.
-        :param top_k: Maximum number of Documents to return, defaults to 10
-        :param scale_score: If `True` scales the Document`s scores between 0 and 1, defaults to False
+                        see `ElasticsearchDocumentStore.filter_documents`.
+        :param fuzziness: Fuzziness parameter passed to Elasticsearch. See the official
+            [documentation](https://www.elastic.co/guide/en/elasticsearch/reference/current/common-options.html#fuzziness)
+            for more details.
+        :param top_k: Maximum number of Documents to return.
+        :param scale_score: If `True` scales the Document`s scores between 0 and 1.
+        :raises ValueError: If `document_store` is not an instance of `ElasticsearchDocumentStore`.
         """
 
         if not isinstance(document_store, ElasticsearchDocumentStore):
@@ -97,7 +97,7 @@ class ElasticsearchBM25Retriever:
         :param data:
             Dictionary to deserialize from.
         :returns:
-              Deserialized component.
+            Deserialized component.
         """
         data["init_parameters"]["document_store"] = ElasticsearchDocumentStore.from_dict(
             data["init_parameters"]["document_store"]
@@ -109,11 +109,11 @@ class ElasticsearchBM25Retriever:
         """
         Retrieve documents using the BM25 keyword-based algorithm.
 
-        :param query: String to search in Documents' text.
-        :param filters: Filters applied to the retrieved Documents.
-        :param top_k: Maximum number of Documents to return.
+        :param query: String to search in `Document`s' text.
+        :param filters: Filters applied to the retrieved `Document`s.
+        :param top_k: Maximum number of `Document` to return.
         :returns: A dictionary with the following keys:
-            - `documents`: List of Documents that match the query.
+            - `documents`: List of `Document`s that match the query.
         """
         docs = self._document_store._bm25_retrieval(
             query=query,

@@ -85,7 +85,7 @@ class VertexAIImageGenerator:
         :param negative_prompt: A description of what you want to omit in
                 the generated images.
         :returns: A dictionary with the following keys:
-            - images: A list of ByteStream objects, each containing an image.
+            - `images`: A list of ByteStream objects, each containing an image.
         """
         negative_prompt = negative_prompt or self._kwargs.get("negative_prompt")
         res = self._model.generate_images(prompt=prompt, negative_prompt=negative_prompt, **self._kwargs)

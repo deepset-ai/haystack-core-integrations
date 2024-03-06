@@ -16,7 +16,10 @@ def mock_session_post_response(*args, **kwargs):  # noqa: ARG001
     documents = kwargs["json"]["documents"]
     mock_response = requests.Response()
     mock_response.status_code = 200
-    results = [{"index": i, "relevance_score": len(documents) - i, "document": {"text": doc}} for i, doc in enumerate(documents)]
+    results = [
+        {"index": i, "relevance_score": len(documents) - i, "document": {"text": doc}}
+        for i, doc in enumerate(documents)
+    ]
     mock_response._content = json.dumps(
         {"model": model, "usage": {"total_tokens": 4, "prompt_tokens": 4}, "results": results}
     ).encode()
@@ -33,12 +36,7 @@ class TestJinaRanker:
         assert embedder.model == "jina-reranker-v1-base-en"
 
     def test_init_with_parameters(self):
-        embedder = JinaRanker(
-            api_key=Secret.from_token("fake-api-key"),
-            model="model",
-            top_k=64,
-            score_threshold=0.5
-        )
+        embedder = JinaRanker(api_key=Secret.from_token("fake-api-key"), model="model", top_k=64, score_threshold=0.5)
 
         assert embedder.api_key == Secret.from_token("fake-api-key")
         assert embedder.model == "model"
@@ -60,17 +58,13 @@ class TestJinaRanker:
                 "api_key": {"env_vars": ["JINA_API_KEY"], "strict": True, "type": "env_var"},
                 "model": "jina-reranker-v1-base-en",
                 "top_k": None,
-                "score_threshold": None
+                "score_threshold": None,
             },
         }
 
     def test_to_dict_with_custom_init_parameters(self, monkeypatch):
         monkeypatch.setenv("JINA_API_KEY", "fake-api-key")
-        component = JinaRanker(
-            model="model",
-            top_k=64,
-            score_threshold=0.5
-        )
+        component = JinaRanker(model="model", top_k=64, score_threshold=0.5)
         data = component.to_dict()
         assert data == {
             "type": "haystack_integrations.components.rankers.jina.ranker.JinaRanker",
