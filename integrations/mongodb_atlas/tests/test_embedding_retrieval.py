@@ -77,13 +77,12 @@ class TestEmbeddingRetrieval:
     def test_embedding_retrieval_with_filters(self):
         document_store = MongoDBAtlasDocumentStore(
             database_name="haystack_integration_test",
-            collection_name="fake",
+            collection_name="test_embeddings_collection",
             vector_search_index="cosine_index",
         )
-        print(document_store.filter_documents())
         query_embedding = [0.1] * 768
-        # document_store.write_documents([Document(content="Document B", embedding=query_embedding, meta={"category": "test"})])
         filters = {"field": "content", "operator": "!=", "value": "Document A"}
-        results = document_store.embedding_retrieval(query_embedding=query_embedding, top_k=100, filters=filters)
-        assert len(results) == 1
-        assert results[0].content == "Document B"
+        results = document_store.embedding_retrieval(query_embedding=query_embedding, top_k=2, filters=filters)
+        assert len(results) == 2
+        for doc in results:
+            assert doc.content != "Document A"
