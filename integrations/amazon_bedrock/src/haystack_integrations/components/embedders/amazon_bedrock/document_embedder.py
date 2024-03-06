@@ -222,7 +222,7 @@ class AmazonBedrockDocumentEmbedder:
         """Embed the provided `Document`s using the specified model.
 
         :param documents: The `Document`s to embed.
-        :returns: A dictionary with the following keys
+        :returns: A dictionary with the following keys:
             - `documents`: The `Document`s with the `embedding` field populated.
         :raises AmazonBedrockInferenceError: If the inference fails.
         """
