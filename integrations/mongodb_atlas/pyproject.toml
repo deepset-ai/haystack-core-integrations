@@ -156,20 +156,20 @@ ban-relative-imports = "parents"
 "examples/**/*" = ["T201"]
 
 [tool.coverage.run]
-source_pkgs = ["src", "tests"]
+source = ["haystack_integrations"]
 branch = true
-parallel = true
+parallel = false
 
-
-[tool.coverage.paths]
-tests = ["tests", "*/mongodb-atlas-haystack/tests"]
 
 [tool.coverage.report]
+omit = ["*/tests/*", "*/__init__.py"]
+show_missing=true
 exclude_lines = [
   "no cov",
   "if __name__ == .__main__.:",
   "if TYPE_CHECKING:",
 ]
+
 
 [[tool.mypy.overrides]]
 module = [
