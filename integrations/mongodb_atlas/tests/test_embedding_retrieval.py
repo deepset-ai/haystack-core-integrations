@@ -7,13 +7,13 @@ from typing import List
 import pytest
 from haystack.document_stores.errors import DocumentStoreError
 from haystack_integrations.document_stores.mongodb_atlas import MongoDBAtlasDocumentStore
-from haystack.dataclasses.document import Document
 
 
 @pytest.mark.skipif(
     "MONGO_CONNECTION_STRING" not in os.environ,
     reason="No MongoDB Atlas connection string provided",
 )
+@pytest.mark.integration
 class TestEmbeddingRetrieval:
     def test_embedding_retrieval_cosine_similarity(self):
         document_store = MongoDBAtlasDocumentStore(
@@ -75,6 +75,24 @@ class TestEmbeddingRetrieval:
             document_store._embedding_retrieval(query_embedding=query_embedding)
 
     def test_embedding_retrieval_with_filters(self):
+        """
+        Note: we can combine embedding retrieval with filters
+        becuse the `cosine_index` vector_search_index was created with the `content` field as the filter field.
+        {
+        "fields": [
+            {
+            "type": "vector",
+            "path": "embedding",
+            "numDimensions": 768,
+            "similarity": "cosine"
+            },
+            {
+            "type": "filter",
+            "path": "content"
+            }
+        ]
+        }
+        """
         document_store = MongoDBAtlasDocumentStore(
             database_name="haystack_integration_test",
             collection_name="test_embeddings_collection",

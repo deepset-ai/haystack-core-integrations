@@ -11,7 +11,6 @@ from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumen
 from haystack.document_stores.types import DuplicatePolicy
 from haystack.utils import Secret, deserialize_secrets_inplace
 from haystack_integrations.document_stores.mongodb_atlas.filters import _normalize_filters
-
 from pymongo import InsertOne, MongoClient, ReplaceOne, UpdateOne  # type: ignore
 from pymongo.driver_info import DriverInfo  # type: ignore
 from pymongo.errors import BulkWriteError  # type: ignore
@@ -146,7 +145,6 @@ class MongoDBAtlasDocumentStore:
         :returns: A list of Documents that match the given filters.
         """
         filters = _normalize_filters(filters) if filters else None
-        print(filters)
         documents = list(self.collection.find(filters))
         for doc in documents:
             doc.pop("_id", None)  # MongoDB's internal id doesn't belong into a Haystack document, so we remove it.
@@ -252,6 +250,11 @@ class MongoDBAtlasDocumentStore:
             documents = list(self.collection.aggregate(pipeline))
         except Exception as e:
             msg = f"Retrieval of documents from MongoDB Atlas failed: {e}"
+            if filters:
+                msg += (
+                    "\nMake sure that the fields used in the filters are included "
+                    "in the `vector_search_index` configuration"
+                )
             raise DocumentStoreError(msg) from e
 
         documents = [self._mongo_doc_to_haystack_doc(doc) for doc in documents]

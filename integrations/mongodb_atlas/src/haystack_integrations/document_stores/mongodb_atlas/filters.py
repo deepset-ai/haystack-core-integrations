@@ -1,24 +1,24 @@
 # SPDX-FileCopyrightText: 2024-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
+from datetime import datetime
 from typing import Any, Dict
 
 from haystack.errors import FilterError
-from pandas import DataFrame
-from datetime import datetime
 from haystack.utils.filters import convert
-
+from pandas import DataFrame
 
 UNSUPPORTED_TYPES_FOR_COMPARISON = (list, DataFrame)
+
 
 def _normalize_filters(filters: Dict[str, Any]) -> Dict[str, Any]:
     """
     Converts Haystack filters to MongoDB filters.
-    """   
+    """
     if not isinstance(filters, dict):
         msg = "Filters must be a dictionary"
         raise FilterError(msg)
-    
+
     if "operator" not in filters and "conditions" not in filters:
         filters = convert(filters)
 
@@ -39,7 +39,7 @@ def _parse_logical_condition(condition: Dict[str, Any]) -> Dict[str, Any]:
     if operator not in ["AND", "OR", "NOT"]:
         msg = f"Unknown logical operator '{operator}'. Valid operators are: 'AND', 'OR', 'NOT'"
         raise FilterError(msg)
-    
+
     # logical conditions can be nested, so we need to parse them recursively
     conditions = []
     for c in condition["conditions"]:
@@ -56,6 +56,7 @@ def _parse_logical_condition(condition: Dict[str, Any]) -> Dict[str, Any]:
         # MongoDB doesn't support our NOT operator (logical NAND) directly.
         # we combine $nor and $and to achieve the same effect.
         return {"$nor": [{"$and": conditions}]}
+
 
 def _parse_comparison_condition(condition: Dict[str, Any]) -> Dict[str, Any]:
     field: str = condition["field"]
@@ -77,14 +78,14 @@ def _parse_comparison_condition(condition: Dict[str, Any]) -> Dict[str, Any]:
 def _equal(field: str, value: Any) -> Dict[str, Any]:
     return {field: {"$eq": value}}
 
+
 def _not_equal(field: str, value: Any) -> Dict[str, Any]:
     return {field: {"$ne": value}}
 
+
 def _greater_than(field: str, value: Any) -> Dict[str, Any]:
     if isinstance(value, UNSUPPORTED_TYPES_FOR_COMPARISON):
-        msg = (
-            f"Unsupported type for '>' comparison: {type(value)}. "
-        )
+        msg = f"Unsupported type for '>' comparison: {type(value)}. "
         raise FilterError(msg)
     elif isinstance(value, str):
         try:
@@ -94,16 +95,14 @@ def _greater_than(field: str, value: Any) -> Dict[str, Any]:
                 "Can't compare strings using operators '>', '>=', '<', '<='. "
                 "Strings are only comparable if they are ISO formatted dates."
             )
-            raise FilterError(msg) from exc    
+            raise FilterError(msg) from exc
 
     return {field: {"$gt": value}}
 
 
 def _greater_than_equal(field: str, value: Any) -> Dict[str, Any]:
     if isinstance(value, UNSUPPORTED_TYPES_FOR_COMPARISON):
-        msg = (
-            f"Unsupported type for '>=' comparison: {type(value)}. "
-        )
+        msg = f"Unsupported type for '>=' comparison: {type(value)}. "
         raise FilterError(msg)
     elif isinstance(value, str):
         try:
@@ -124,9 +123,7 @@ def _greater_than_equal(field: str, value: Any) -> Dict[str, Any]:
 
 def _less_than(field: str, value: Any) -> Dict[str, Any]:
     if isinstance(value, UNSUPPORTED_TYPES_FOR_COMPARISON):
-        msg = (
-            f"Unsupported type for '<' comparison: {type(value)}. "
-        )
+        msg = f"Unsupported type for '<' comparison: {type(value)}. "
         raise FilterError(msg)
     elif isinstance(value, str):
         try:
@@ -143,9 +140,7 @@ def _less_than(field: str, value: Any) -> Dict[str, Any]:
 
 def _less_than_equal(field: str, value: Any) -> Dict[str, Any]:
     if isinstance(value, UNSUPPORTED_TYPES_FOR_COMPARISON):
-        msg = (
-            f"Unsupported type for 'less than equal' comparison: {type(value)}. "
-        )
+        msg = f"Unsupported type for 'less than equal' comparison: {type(value)}. "
         raise FilterError(msg)
     elif isinstance(value, str):
         try:
@@ -190,4 +185,3 @@ COMPARISON_OPERATORS = {
     "in": _in,
     "not in": _not_in,
 }
-
