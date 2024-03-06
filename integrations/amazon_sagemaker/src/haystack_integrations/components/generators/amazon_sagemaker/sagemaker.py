@@ -31,19 +31,17 @@ class SagemakerGenerator:
     [SageMaker JumpStart foundation models documentation](https://docs.aws.amazon.com/sagemaker/latest/dg/jumpstart-foundation-models-use.html).
 
     Usage example:
-
-    Make sure your AWS credentials are set up correctly. You can use environment variables or a shared credentials file.
-    Then you can use the generator as follows:
     ```python
+    # Make sure your AWS credentials are set up correctly. You can use environment variables or a shared credentials
+    # file. Then you can use the generator as follows:
     from haystack_integrations.components.generators.amazon_sagemaker import SagemakerGenerator
+
     generator = SagemakerGenerator(model="jumpstart-dft-hf-llm-falcon-7b-bf16")
     response = generator.run("What's Natural Language Processing? Be brief.")
     print(response)
-    ```
-    ```
-    >> {'replies': ['Natural Language Processing (NLP) is a branch of artificial intelligence that focuses on
-    >> the interaction between computers and human language. It involves enabling computers to understand, interpret,
-    >> and respond to natural human language in a way that is both meaningful and useful.'], 'meta': [{}]}
+    >>> {'replies': ['Natural Language Processing (NLP) is a branch of artificial intelligence that focuses on
+    >>> the interaction between computers and human language. It involves enabling computers to understand, interpret,
+    >>> and respond to natural human language in a way that is both meaningful and useful.'], 'meta': [{}]}
     ```
     """
 
@@ -73,7 +71,6 @@ class SagemakerGenerator:
         :param model: The name for SageMaker Model Endpoint.
         :param aws_custom_attributes: Custom attributes to be passed to SageMaker, for example `{"accept_eula": True}`
             in case of Llama-2 models.
-
         :param generation_kwargs: Additional keyword arguments for text generation. For a list of supported parameters
             see your model's documentation page, for example here for HuggingFace models:
             https://huggingface.co/blog/sagemaker-huggingface-llm#4-run-inference-and-chat-with-our-model
@@ -121,15 +118,15 @@ class SagemakerGenerator:
     def _get_telemetry_data(self) -> Dict[str, Any]:
         """
         Returns data that is sent to Posthog for usage analytics.
-        :returns: a dictionary with following keys:
-            - model: The name of the model.
-
+        :returns: A dictionary with the following keys:
+            - `model`: The name of the model.
         """
         return {"model": self.model}
 
     def to_dict(self) -> Dict[str, Any]:
         """
         Serializes the component to a dictionary.
+
         :returns:
             Dictionary with serialized data.
         """
@@ -149,10 +146,11 @@ class SagemakerGenerator:
     def from_dict(cls, data) -> "SagemakerGenerator":
         """
         Deserializes the component from a dictionary.
+
         :param data:
             Dictionary to deserialize from.
         :returns:
-              Deserialized component.
+            Deserialized component.
         """
         deserialize_secrets_inplace(
             data["init_parameters"],
@@ -170,6 +168,7 @@ class SagemakerGenerator:
     ):
         """
         Creates an AWS Session with the given parameters.
+
         Checks if the provided AWS credentials are valid and can be used to connect to AWS.
 
         :param aws_access_key_id: AWS access key ID.
@@ -200,8 +199,10 @@ class SagemakerGenerator:
 
         :param prompt: The string prompt to use for text generation.
         :param generation_kwargs: Additional keyword arguments for text generation. These parameters will
-        potentially override the parameters passed in the `__init__` method.
-
+            potentially override the parameters passed in the `__init__` method.
+        :raises ValueError: If the model response type is not a list of dictionaries or a single dictionary.
+        :raises SagemakerNotReadyError: If the SageMaker model is not ready to accept requests.
+        :raises SagemakerInferenceError: If the SageMaker Inference returns an error.
         :returns: A dictionary with the following keys:
             - `replies`: A list of strings containing the generated responses
             - `meta`: A list of dictionaries containing the metadata for each response.
@@ -249,5 +250,5 @@ class SagemakerGenerator:
                 msg = f"Sagemaker model not ready: {res.text}"
                 raise SagemakerNotReadyError(msg) from err
 
-            msg = f"SageMaker Inference returned an error. Status code: {res.status_code} Response body: {res.text}"
-            raise SagemakerInferenceError(msg, status_code=res.status_code) from err
+            msg = f"SageMaker Inference returned an error. Status code: {res.status_code}. Response body: {res.text}"
+            raise SagemakerInferenceError(msg) from err
