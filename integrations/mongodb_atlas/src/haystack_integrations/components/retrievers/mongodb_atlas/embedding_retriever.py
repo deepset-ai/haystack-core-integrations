@@ -20,7 +20,6 @@ class MongoDBAtlasEmbeddingRetriever:
     Usage example:
     ```python
     import numpy as np
-    from haystack import Document
     from haystack_integrations.document_stores.mongodb_atlas import MongoDBAtlasDocumentStore
     from haystack_integrations.components.retrievers.mongodb_atlas import MongoDBAtlasEmbeddingRetriever
 
@@ -103,7 +102,7 @@ class MongoDBAtlasEmbeddingRetriever:
         :param filters: Filters applied to the retrieved Documents. Overrides the value specified at initialization.
         :param top_k: Maximum number of Documents to return. Overrides the value specified at initialization.
         :returns: A dictionary with the following keys:
-            - `documents`: List of Documents most similar to the given query_embedding
+            - `documents`: List of Documents most similar to the given `query_embedding`
         """
         filters = filters or self.filters
         top_k = top_k or self.top_k

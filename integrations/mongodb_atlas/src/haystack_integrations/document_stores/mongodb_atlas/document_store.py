@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 class MongoDBAtlasDocumentStore:
     """
-    MongoDBAtlasDocumentStore is a DocumentStore implementation that uses MongoDB Atlas - a fully managed cloud database
+    MongoDBAtlasDocumentStore is a DocumentStore implementation that uses [MongoDB Atlas](https://www.mongodb.com/atlas/database).
     service that is easy to deploy, operate, and scale.
 
     To connect to MongoDB Atlas, you need to provide a connection string in the format:
@@ -154,7 +154,7 @@ class MongoDBAtlasDocumentStore:
 
         :param documents: A list of Documents to write to the document store.
         :param policy: The duplicate policy to use when writing documents.
-        :raises DuplicateDocumentError: If a document with the same id already exists in the document store
+        :raises DuplicateDocumentError: If a document with the same ID already exists in the document store
              and the policy is set to DuplicatePolicy.FAIL (or not specified).
         :returns: The number of documents written to the document store.
         """
