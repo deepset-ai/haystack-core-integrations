@@ -33,15 +33,30 @@ jobs:
       matrix:
         os: [ubuntu-latest]
         python-version: ["3.9","3.10","3.11"]
-    services:
-      ollama:
-        image: ollama/ollama:latest
-        options: --name ollama
-        ports:
-          - 11434:11434
         
     steps:   
       - uses: actions/checkout@v4
+
+      - name: Install Ollama and pull the required models
+        run: |
+          curl -fsSL https://ollama.com/install.sh | sh
+          ollama serve &
+          
+          # Check if the service is up and running with a timeout of 60 seconds
+          timeout=60
+          while [ $timeout -gt 0 ] && ! curl -sSf http://localhost:11434/ > /dev/null; do
+            echo "Waiting for Ollama service to start..."
+            sleep 5
+            ((timeout-=5))
+          done
+
+          if [ $timeout -eq 0 ]; then
+            echo "Timed out waiting for Ollama service to start."
+            exit 1
+          fi
+          
+          ollama pull ${{ env.LLM_FOR_TESTS }}
+          ollama pull ${{ env.EMBEDDER_FOR_TESTS }}
 
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v5
@@ -54,12 +69,6 @@ jobs:
       - name: Lint
         if: matrix.python-version == '3.9'
         run: hatch run lint:all
-
-      - name: Pull the LLM in the Ollama service
-        run: docker exec ollama ollama pull ${{ env.LLM_FOR_TESTS }}    
-
-      - name: Pull the Embedding Model in the Ollama service
-        run: docker exec ollama ollama pull ${{ env.EMBEDDER_FOR_TESTS }}
 
       - name: Generate docs
         if: matrix.python-version == '3.9' && runner.os == 'Linux'
