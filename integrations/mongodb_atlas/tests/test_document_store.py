@@ -12,8 +12,8 @@ from haystack.testing.document_store import DocumentStoreBaseTests
 from haystack.utils import Secret
 from haystack_integrations.document_stores.mongodb_atlas import MongoDBAtlasDocumentStore
 from pandas import DataFrame
-from pymongo import MongoClient  # type: ignore
-from pymongo.driver_info import DriverInfo  # type: ignore
+from pymongo import MongoClient
+from pymongo.driver_info import DriverInfo
 
 
 @pytest.mark.skipif(

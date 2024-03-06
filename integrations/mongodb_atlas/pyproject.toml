@@ -175,8 +175,7 @@ exclude_lines = [
 module = [
   "haystack.*",
   "haystack_integrations.*",
-  "mongodb_atlas.*",
-  "psycopg.*",
+  "pymongo.*",
   "pytest.*"
 ]
 ignore_missing_imports = true

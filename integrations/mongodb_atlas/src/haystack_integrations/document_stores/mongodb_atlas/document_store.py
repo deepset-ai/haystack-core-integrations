@@ -11,9 +11,9 @@ from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumen
 from haystack.document_stores.types import DuplicatePolicy
 from haystack.utils import Secret, deserialize_secrets_inplace
 from haystack_integrations.document_stores.mongodb_atlas.filters import _normalize_filters
-from pymongo import InsertOne, MongoClient, ReplaceOne, UpdateOne  # type: ignore
-from pymongo.driver_info import DriverInfo  # type: ignore
-from pymongo.errors import BulkWriteError  # type: ignore
+from pymongo import InsertOne, MongoClient, ReplaceOne, UpdateOne
+from pymongo.driver_info import DriverInfo
+from pymongo.errors import BulkWriteError
 
 logger = logging.getLogger(__name__)
 
