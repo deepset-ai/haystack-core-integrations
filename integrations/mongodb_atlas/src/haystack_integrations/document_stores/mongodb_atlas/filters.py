@@ -35,11 +35,6 @@ def _parse_logical_condition(condition: Dict[str, Any]) -> Dict[str, Any]:
         msg = f"'conditions' key missing in {condition}"
         raise FilterError(msg)
 
-    operator = condition["operator"]
-    if operator not in ["AND", "OR", "NOT"]:
-        msg = f"Unknown logical operator '{operator}'. Valid operators are: 'AND', 'OR', 'NOT'"
-        raise FilterError(msg)
-
     # logical conditions can be nested, so we need to parse them recursively
     conditions = []
     for c in condition["conditions"]:
@@ -48,6 +43,7 @@ def _parse_logical_condition(condition: Dict[str, Any]) -> Dict[str, Any]:
         else:
             conditions.append(_parse_logical_condition(c))
 
+    operator = condition["operator"]
     if operator == "AND":
         return {"$and": conditions}
     elif operator == "OR":
@@ -56,6 +52,9 @@ def _parse_logical_condition(condition: Dict[str, Any]) -> Dict[str, Any]:
         # MongoDB doesn't support our NOT operator (logical NAND) directly.
         # we combine $nor and $and to achieve the same effect.
         return {"$nor": [{"$and": conditions}]}
+
+    msg = f"Unknown logical operator '{operator}'. Valid operators are: 'AND', 'OR', 'NOT'"
+    raise FilterError(msg)
 
 
 def _parse_comparison_condition(condition: Dict[str, Any]) -> Dict[str, Any]:
