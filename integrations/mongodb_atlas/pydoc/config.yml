@@ -4,6 +4,8 @@ loaders:
     modules: [
       "haystack_integrations.document_stores.mongodb_atlas.document_store",
       "haystack_integrations.document_stores.mongodb_atlas.filters",
+      "haystack_integrations.document_stores.mongodb_atlas.errors",
+      "haystack_integrations.components.retrievers.mongodb_atlas.embedding_retriever",
     ]
     ignore_when_discovered: ["__init__"]
 processors:

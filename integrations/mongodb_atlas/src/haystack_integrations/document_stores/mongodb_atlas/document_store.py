@@ -20,11 +20,11 @@ logger = logging.getLogger(__name__)
 
 class MongoDBAtlasDocumentStore:
     """
-    MongoDBAtlasDocumentStore is a DocumentStore implementation that uses [MongoDB Atlas](https://www.mongodb.com/atlas/database).
-    service that is easy to deploy, operate, and scale.
+    MongoDBAtlasDocumentStore is a DocumentStore implementation that uses
+    [MongoDB Atlas](https://www.mongodb.com/atlas/database) service that is easy to deploy, operate, and scale.
 
     To connect to MongoDB Atlas, you need to provide a connection string in the format:
-    "mongodb+srv://{mongo_atlas_username}:{mongo_atlas_password}@{mongo_atlas_host}/?{mongo_atlas_params_string}".
+    `mongodb+srv://{mongo_atlas_username}:{mongo_atlas_password}@{mongo_atlas_host}/?{mongo_atlas_params_string}`.
 
     This connection string can be obtained on the MongoDB Atlas Dashboard by clicking on the `CONNECT` button, selecting
     Python as the driver, and copying the connection string. The connection string can be provided as an environment
@@ -39,7 +39,7 @@ class MongoDBAtlasDocumentStore:
     can support a chosen metric (i.e. cosine, dot product, or euclidean) and can be created in the Atlas web UI.
 
     For more details on MongoDB Atlas, see the official
-    MongoDB Atlas [documentation](https://www.mongodb.com/docs/atlas/getting-started/)
+    MongoDB Atlas [documentation](https://www.mongodb.com/docs/atlas/getting-started/).
 
     Usage example:
     ```python
@@ -64,7 +64,7 @@ class MongoDBAtlasDocumentStore:
         Creates a new MongoDBAtlasDocumentStore instance.
 
         :param mongo_connection_string: MongoDB Atlas connection string in the format:
-            "mongodb+srv://{mongo_atlas_username}:{mongo_atlas_password}@{mongo_atlas_host}/?{mongo_atlas_params_string}".
+            `mongodb+srv://{mongo_atlas_username}:{mongo_atlas_password}@{mongo_atlas_host}/?{mongo_atlas_params_string}`.
             This can be obtained on the MongoDB Atlas Dashboard by clicking on the `CONNECT` button.
             This value will be read automatically from the env var "MONGO_CONNECTION_STRING".
         :param database_name: Name of the database to use.
@@ -73,7 +73,7 @@ class MongoDBAtlasDocumentStore:
         :param vector_search_index: The name of the vector search index to use for vector search operations.
             Create a vector_search_index in the Atlas web UI and specify the init params of MongoDBAtlasDocumentStore. \
             For more details refer to MongoDB
-            Atlas [documentation](https://www.mongodb.com/docs/atlas/atlas-vector-search/create-index/#std-label-avs-create-index)
+            Atlas [documentation](https://www.mongodb.com/docs/atlas/atlas-vector-search/create-index/#std-label-avs-create-index).
 
         :raises ValueError: If the collection name contains invalid characters.
         """
