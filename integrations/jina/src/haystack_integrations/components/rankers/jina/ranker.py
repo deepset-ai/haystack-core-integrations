@@ -1,11 +1,11 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
-import os
 from typing import Any, Dict, List, Optional
 
 import requests
-from haystack import Document, component
+from haystack import Document, component, default_from_dict, default_to_dict
+from haystack.utils import Secret, deserialize_secrets_inplace
 
 JINA_API_URL: str = "https://api.jina.ai/v1/rerank"
 
@@ -31,11 +31,9 @@ class JinaRanker:
 
     def __init__(
             self,
-            model_name: str = "jinaai/jina-reranker-v1-base-en",
-            api_key: Optional[str] = None,
-            top_k: int = 10,
-            query_prefix: str = "",
-            document_prefix: str = "",
+            model: str = "jina-reranker-v1-base-en",
+            api_key: Secret = Secret.from_env_var("JINA_API_KEY"),  # noqa: B008,
+            top_k: Optional[int] = None,
             score_threshold: Optional[float] = None,
     ):
         """
@@ -43,15 +41,9 @@ class JinaRanker:
 
         :param api_key: The Jina API key. It can be explicitly provided or automatically read from the
             environment variable JINA_API_KEY (recommended).
-        :param model_name: The name of the Jina model to use. Check the list of available models on `https://jina.ai/embeddings/`
+        :param model: The name of the Jina model to use. Check the list of available models on `https://jina.ai/embeddings/`
         :param top_k:
-            The maximum number of Documents to return per query.
-        :param query_prefix:
-            A string to add to the beginning of the query text before ranking.
-            Can be used to prepend the text with an instruction, as required by some reranking models, such as bge.
-        :param document_prefix:
-            A string to add to the beginning of each Document text before ranking. Can be used to prepend the text with
-            an instruction, as required by some embedding models, such as bge.
+            The maximum number of Documents to return per query. If None, all documents are returned
         :param score_threshold:
             If provided only returns documents with a score above this threshold.
 
@@ -60,39 +52,56 @@ class JinaRanker:
             If `scale_score` is True and `calibration_factor` is not provided.
         """
         # if the user does not provide the API key, check if it is set in the module client
-        if api_key is None:
-            try:
-                api_key = os.environ["JINA_API_KEY"]
-            except KeyError as e:
-                msg = (
-                    "JinaRanker expects a Jina API key. "
-                    "Set the JINA_API_KEY environment variable (recommended) or pass it explicitly."
-                )
-                raise ValueError(msg) from e
-        self.model_name = model_name
-        self.query_prefix = query_prefix
-        self.document_prefix = document_prefix
+        resolved_api_key = api_key.resolve_value()
+        self.api_key = api_key
+        self.model = model
         self.top_k = top_k
         self.score_threshold = score_threshold
 
-        if self.top_k <= 0:
+        if self.top_k is not None and self.top_k <= 0:
             msg = f"top_k must be > 0, but got {top_k}"
             raise ValueError(msg)
         # if the user does not provide the API key, check if it is set in the module client
         self._session = requests.Session()
         self._session.headers.update(
             {
-                "Authorization": f"Bearer {api_key}",
+                "Authorization": f"Bearer {resolved_api_key}",
                 "Accept-Encoding": "identity",
                 "Content-type": "application/json",
             }
         )
 
+    def to_dict(self) -> Dict[str, Any]:
+        """
+        Serializes the component to a dictionary.
+        :returns:
+            Dictionary with serialized data.
+        """
+        return default_to_dict(
+            self,
+            api_key=self.api_key.to_dict(),
+            model=self.model,
+            top_k=self.top_k,
+            score_threshold=self.score_threshold,
+        )
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "JinaRanker":
+        """
+        Deserializes the component from a dictionary.
+        :param data:
+            Dictionary to deserialize from.
+        :returns:
+            Deserialized component.
+        """
+        deserialize_secrets_inplace(data["init_parameters"], keys=["api_key"])
+        return default_from_dict(cls, data)
+
     def _get_telemetry_data(self) -> Dict[str, Any]:
         """
         Data that is sent to Posthog for usage analytics.
         """
-        return {"model": self.model_name}
+        return {"model": self.model}
 
     @component.output_types(documents=List[Document])
     def run(
@@ -123,20 +132,21 @@ class JinaRanker:
         if not documents:
             return {"documents": []}
 
+        if top_k is not None and top_k <= 0:
+            msg = f"top_k must be > 0, but got {top_k}"
+            raise ValueError(msg)
+
         top_k = top_k or self.top_k
         score_threshold = score_threshold or self.score_threshold
 
-        if top_k <= 0:
-            msg = f"top_k must be > 0, but got {top_k}"
-            raise ValueError(msg)
+        data = {"query": query,
+                "documents": [doc.content or "" for doc in documents],
+                "model": self.model}
+        if top_k is not None:
+            data["top_n"] = top_k
         resp = self._session.post(  # type: ignore
             JINA_API_URL,
-            json={
-                "query": query,
-                "documents": [doc.content or "" for doc in documents],
-                "model": self.model,
-                "top_n": top_k,
-            },
+            json=data,
         ).json()
         if "results" not in resp:
             raise RuntimeError(resp["detail"])
@@ -146,14 +156,16 @@ class JinaRanker:
         ranked_docs = []
         for result in results:
             index = result["index"]
-            relevance_score = results["relevance_score"]
+            relevance_score = result["relevance_score"]
+            doc = documents[index]
             if top_k is None or len(ranked_docs) < top_k:
+                doc.score = relevance_score
                 if score_threshold is not None:
                     if relevance_score >= score_threshold:
-                        ranked_docs.append(documents[index])
+                        ranked_docs.append(doc)
                 else:
-                    ranked_docs.append(documents[index])
+                    ranked_docs.append(doc)
             else:
                 break
 
-        return {"documents": ranked_docs}
+        return {"documents": ranked_docs, "meta": {"model": resp["model"], "usage": resp["usage"]}}
