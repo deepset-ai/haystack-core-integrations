@@ -181,6 +181,9 @@ class OpenSearchDocumentStore:
             duplicate_errors_ids = []
             other_errors = []
             for e in errors:
+                if "create" not in e:
+                    other_errors.append(e)
+                    continue
                 error_type = e["create"]["error"]["type"]
                 if policy == DuplicatePolicy.FAIL and error_type == "version_conflict_engine_exception":
                     duplicate_errors_ids.append(e["create"]["_id"])
