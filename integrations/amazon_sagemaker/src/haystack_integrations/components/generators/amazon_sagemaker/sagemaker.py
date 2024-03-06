@@ -44,6 +44,7 @@ class SagemakerGenerator:
     >>> and respond to natural human language in a way that is both meaningful and useful.'], 'meta': [{}]}
     ```
     """
+
     model_generation_keys: ClassVar = ["generated_text", "generation"]
 
     def __init__(

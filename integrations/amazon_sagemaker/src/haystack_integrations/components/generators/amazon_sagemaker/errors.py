@@ -1,8 +1,8 @@
-
 class SagemakerError(Exception):
     """
     Parent class for all exceptions raised by the Sagemaker component
     """
+
 
 class AWSConfigurationError(SagemakerError):
     """Exception raised when AWS is not configured correctly"""
