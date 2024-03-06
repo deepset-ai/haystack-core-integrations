@@ -13,7 +13,28 @@ class MongoDBAtlasEmbeddingRetriever:
     """
     Retrieves documents from the MongoDBAtlasDocumentStore by embedding similarity.
 
-    Needs to be connected to the MongoDBAtlasDocumentStore.
+    The similarity is dependent on the vector_search_index used in the MongoDBAtlasDocumentStore and the chosen metric
+    during the creation of the index (i.e. cosine, dot product, or euclidean). See MongoDBAtlasDocumentStore for more
+    information.
+
+    Usage example:
+    ```python
+    import numpy as np
+    from haystack_integrations.document_stores.mongodb_atlas import MongoDBAtlasDocumentStore
+    from haystack_integrations.components.retrievers.mongodb_atlas import MongoDBAtlasEmbeddingRetriever
+
+    store = MongoDBAtlasDocumentStore(database_name="haystack_integration_test",
+                                      collection_name="test_embeddings_collection",
+                                      vector_search_index="cosine_index")
+    retriever = MongoDBAtlasEmbeddingRetriever(document_store=store)
+
+    results = retriever.run(query_embedding=np.random.random(768).tolist())
+    print(results["documents"])
+    ```
+
+    The example above retrieves the 10 most similar documents to a random query embedding from the
+    MongoDBAtlasDocumentStore. Note that dimensions of the query_embedding must match the dimensions of the embeddings
+    stored in the MongoDBAtlasDocumentStore.
     """
 
     def __init__(
@@ -29,6 +50,8 @@ class MongoDBAtlasEmbeddingRetriever:
         :param document_store: An instance of MongoDBAtlasDocumentStore.
         :param filters: Filters applied to the retrieved Documents.
         :param top_k: Maximum number of Documents to return.
+
+        :raises ValueError: If `document_store` is not an instance of `MongoDBAtlasDocumentStore`.
         """
         if not isinstance(document_store, MongoDBAtlasDocumentStore):
             msg = "document_store must be an instance of MongoDBAtlasDocumentStore"
@@ -40,7 +63,10 @@ class MongoDBAtlasEmbeddingRetriever:
 
     def to_dict(self) -> Dict[str, Any]:
         """
-        Serializes this component into a dictionary.
+        Serializes the component to a dictionary.
+
+        :returns:
+            Dictionary with serialized data.
         """
         return default_to_dict(
             self,
@@ -52,10 +78,12 @@ class MongoDBAtlasEmbeddingRetriever:
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "MongoDBAtlasEmbeddingRetriever":
         """
-        Deserializes a dictionary created with `MongoDBAtlasEmbeddingRetriever.to_dict()` into a
-        `MongoDBAtlasEmbeddingRetriever` instance.
+        Deserializes the component from a dictionary.
 
-        :param data: the dictionary returned by `MongoDBAtlasEmbeddingRetriever.to_dict()`
+        :param data:
+            Dictionary to deserialize from.
+        :returns:
+              Deserialized component.
         """
         data["init_parameters"]["document_store"] = MongoDBAtlasDocumentStore.from_dict(
             data["init_parameters"]["document_store"]
@@ -70,18 +98,19 @@ class MongoDBAtlasEmbeddingRetriever:
         top_k: Optional[int] = None,
     ) -> Dict[str, List[Document]]:
         """
-        Retrieve documents from the MongoDBAtlasDocumentStore, based on their embeddings.
+        Retrieve documents from the MongoDBAtlasDocumentStore, based on the provided embedding similarity.
 
         :param query_embedding: Embedding of the query.
         :param filters: Filters applied to the retrieved Documents. Overrides the value specified at initialization.
         :param top_k: Maximum number of Documents to return. Overrides the value specified at initialization.
-        :returns: List of Documents similar to `query_embedding`.
+        :returns: A dictionary with the following keys:
+            - `documents`: List of Documents most similar to the given `query_embedding`
         """
         filters = filters or self.filters
         top_k = top_k or self.top_k
 
-        docs = self.document_store.embedding_retrieval(
-            query_embedding_np=query_embedding,
+        docs = self.document_store._embedding_retrieval(
+            query_embedding=query_embedding,
             filters=filters,
             top_k=top_k,
         )
