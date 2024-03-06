@@ -50,6 +50,8 @@ class MongoDBAtlasEmbeddingRetriever:
         :param document_store: An instance of MongoDBAtlasDocumentStore.
         :param filters: Filters applied to the retrieved Documents.
         :param top_k: Maximum number of Documents to return.
+
+        :raises ValueError: If `document_store` is not an instance of `MongoDBAtlasDocumentStore`.
         """
         if not isinstance(document_store, MongoDBAtlasDocumentStore):
             msg = "document_store must be an instance of MongoDBAtlasDocumentStore"
@@ -107,7 +109,7 @@ class MongoDBAtlasEmbeddingRetriever:
         filters = filters or self.filters
         top_k = top_k or self.top_k
 
-        docs = self.document_store.embedding_retrieval(
+        docs = self.document_store._embedding_retrieval(
             query_embedding=query_embedding,
             filters=filters,
             top_k=top_k,

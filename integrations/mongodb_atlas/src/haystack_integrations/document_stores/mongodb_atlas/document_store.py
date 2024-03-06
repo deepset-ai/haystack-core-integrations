@@ -74,6 +74,8 @@ class MongoDBAtlasDocumentStore:
             Create a vector_search_index in the Atlas web UI and specify the init params of MongoDBAtlasDocumentStore. \
             For more details refer to MongoDB
             Atlas [documentation](https://www.mongodb.com/docs/atlas/atlas-vector-search/create-index/#std-label-avs-create-index)
+
+        :raises ValueError: If the collection name contains invalid characters.
         """
         if collection_name and not bool(re.match(r"^[a-zA-Z0-9\-_]+$", collection_name)):
             msg = f'Invalid collection name: "{collection_name}". It can only contain letters, numbers, -, or _.'
@@ -156,6 +158,7 @@ class MongoDBAtlasDocumentStore:
         :param policy: The duplicate policy to use when writing documents.
         :raises DuplicateDocumentError: If a document with the same ID already exists in the document store
              and the policy is set to DuplicatePolicy.FAIL (or not specified).
+        :raises ValueError: If the documents are not of type Document.
         :returns: The number of documents written to the document store.
         """
 
@@ -198,7 +201,7 @@ class MongoDBAtlasDocumentStore:
             return
         self.collection.delete_many(filter={"id": {"$in": document_ids}})
 
-    def embedding_retrieval(
+    def _embedding_retrieval(
         self,
         query_embedding: List[float],
         filters: Optional[Dict[str, Any]] = None,
@@ -211,6 +214,8 @@ class MongoDBAtlasDocumentStore:
         :param filters: Optional filters.
         :param top_k: How many documents to return.
         :returns: A list of Documents that are most similar to the given `query_embedding`
+        :raises ValueError: If `query_embedding` is empty.
+        :raises DocumentStoreError: If the retrieval of documents from MongoDB Atlas fails.
         """
         if not query_embedding:
             msg = "Query embedding must not be empty"
