@@ -32,8 +32,8 @@ class SagemakerGenerator:
 
     Usage example:
     ```python
-    # Make sure your AWS credentials are set up correctly. You can use environment variables or a shared credentials file.
-    # Then you can use the generator as follows:
+    # Make sure your AWS credentials are set up correctly. You can use environment variables or a shared credentials
+    # file. Then you can use the generator as follows:
     from haystack_integrations.components.generators.amazon_sagemaker import SagemakerGenerator
 
     generator = SagemakerGenerator(model="jumpstart-dft-hf-llm-falcon-7b-bf16")
