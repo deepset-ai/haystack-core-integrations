@@ -4,4 +4,5 @@
 from .document_embedder import JinaDocumentEmbedder
 from .text_embedder import JinaTextEmbedder
 
+
 __all__ = ["JinaDocumentEmbedder", "JinaTextEmbedder"]
