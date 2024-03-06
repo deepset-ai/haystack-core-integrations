@@ -1,14 +1,28 @@
 # SPDX-FileCopyrightText: 2024-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
-from dataclasses import dataclass
-from typing import List
+from dataclasses import asdict, dataclass
+from typing import Any, Dict, List, Optional
 
 
 @dataclass
 class Message:
     content: str
     role: str
+
+
+@dataclass
+class GenerationRequest:
+    messages: List[Message]
+    temperature: float = 0.2
+    top_p: float = 0.7
+    max_tokens: int = 1024
+    seed: Optional[int] = None
+    bad: Optional[List[str]] = None
+    stop: Optional[List[str]] = None
+
+    def to_dict(self) -> Dict[str, Any]:
+        return asdict(self)
 
 
 @dataclass
