@@ -146,10 +146,10 @@ class TestAnthropicClaudeAdapter:
         layer = AnthropicClaudeChatAdapter(generation_kwargs={})
         prompt = "Hello, how are you?"
         expected_body = {
-            'anthropic_version': 'bedrock-2023-05-31',
-            'max_tokens': 512,
-            'messages': [{'content': [{'text': 'Hello, how are you?', 'type': 'text'}],
-                          'role': 'user'}]}
+            "anthropic_version": "bedrock-2023-05-31",
+            "max_tokens": 512,
+            "messages": [{"content": [{"text": "Hello, how are you?", "type": "text"}],
+                          "role": "user"}]}
 
         body = layer.prepare_body([ChatMessage.from_user(prompt)])
 
@@ -158,15 +158,15 @@ class TestAnthropicClaudeAdapter:
     def test_prepare_body_with_custom_inference_params(self) -> None:
         layer = AnthropicClaudeChatAdapter(generation_kwargs={"temperature": 0.7, "top_p": 0.8, "top_k": 4})
         prompt = "Hello, how are you?"
-        expected_body = {'anthropic_version': 'bedrock-2023-05-31',
-                         'max_tokens': 512,
-                         'max_tokens_to_sample': 69,
-                         'messages': [{'content': [{'text': 'Hello, how are you?', 'type': 'text'}],
-                                       'role': 'user'}],
-                         'stop_sequences': ['CUSTOM_STOP'],
-                         'temperature': 0.7,
-                         'top_k': 5,
-                         'top_p': 0.8}
+        expected_body = {"anthropic_version": "bedrock-2023-05-31",
+                         "max_tokens": 512,
+                         "max_tokens_to_sample": 69,
+                         "messages": [{"content": [{"text": "Hello, how are you?", "type": "text"}],
+                                       "role": "user"}],
+                         "stop_sequences": ["CUSTOM_STOP"],
+                         "temperature": 0.7,
+                         "top_k": 5,
+                         "top_p": 0.8}
 
         body = layer.prepare_body(
             [ChatMessage.from_user(prompt)], top_p=0.8, top_k=5, max_tokens_to_sample=69, stop_sequences=["CUSTOM_STOP"]
