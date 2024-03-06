@@ -105,7 +105,7 @@ class AnthropicClaudeAdapter(BedrockModelAdapter):
         :param prompt: The prompt to be sent to the model.
         :param inference_kwargs: Additional keyword arguments passed to the handler.
         :returns: A dictionary with the following keys:
-            - prompt: The prompt to be sent to the model.
+            - `prompt`: The prompt to be sent to the model.
             - specified inference parameters.
         """
         default_params = {
@@ -151,7 +151,7 @@ class CohereCommandAdapter(BedrockModelAdapter):
         :param prompt: The prompt to be sent to the model.
         :param inference_kwargs: Additional keyword arguments passed to the handler.
         :returns: A dictionary with the following keys:
-            - prompt: The prompt to be sent to the model.
+            - `prompt`: The prompt to be sent to the model.
             - specified inference parameters.
         """
         default_params = {
@@ -202,7 +202,7 @@ class AI21LabsJurassic2Adapter(BedrockModelAdapter):
         :param prompt: The prompt to be sent to the model.
         :param inference_kwargs: Additional keyword arguments passed to the handler.
         :returns: A dictionary with the following keys:
-            - prompt: The prompt to be sent to the model.
+            -  `prompt`: The prompt to be sent to the model.
             - specified inference parameters.
         """
         default_params = {
@@ -241,7 +241,7 @@ class AmazonTitanAdapter(BedrockModelAdapter):
         :param prompt: The prompt to be sent to the model.
         :param inference_kwargs: Additional keyword arguments passed to the handler.
         :returns: A dictionary with the following keys
-            - inputText: The prompt to be sent to the model.
+            - `inputText`: The prompt to be sent to the model.
             - specified inference parameters.
         """
         default_params = {
@@ -287,7 +287,7 @@ class MetaLlama2ChatAdapter(BedrockModelAdapter):
         :param prompt: The prompt to be sent to the model.
         :param inference_kwargs: Additional keyword arguments passed to the handler.
         :returns: A dictionary with the following keys:
-            - prompt: The prompt to be sent to the model.
+            - `prompt`: The prompt to be sent to the model.
             - specified inference parameters.
         """
         default_params = {
