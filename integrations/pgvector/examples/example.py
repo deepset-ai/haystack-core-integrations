@@ -20,9 +20,11 @@ from haystack.components.writers import DocumentWriter
 from haystack_integrations.components.retrievers.pgvector import PgvectorEmbeddingRetriever
 from haystack_integrations.document_stores.pgvector import PgvectorDocumentStore
 
+# Set an environment variable `PG_CONN_STR` with the connection string to your PostgreSQL database.
+# e.g., "postgresql://USER:PASSWORD@HOST:PORT/DB_NAME"
+
 # Initialize PgvectorDocumentStore
 document_store = PgvectorDocumentStore(
-    connection_string="postgresql://postgres:postgres@localhost:5432/postgres",
     table_name="haystack_test",
     embedding_dimension=768,
     vector_function="cosine_similarity",

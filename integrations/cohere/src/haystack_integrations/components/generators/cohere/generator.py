@@ -2,12 +2,12 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 import logging
-import os
-import sys
 from typing import Any, Callable, Dict, List, Optional, cast
 
-from haystack import DeserializationError, component, default_from_dict, default_to_dict
+from haystack import component, default_from_dict, default_to_dict
+from haystack.components.generators.utils import deserialize_callback_handler, serialize_callback_handler
 from haystack.dataclasses import StreamingChunk
+from haystack.utils import Secret, deserialize_secrets_inplace
 
 from cohere import COHERE_API_URL, Client
 from cohere.responses import Generations
@@ -25,7 +25,8 @@ class CohereGenerator:
     Example usage:
 
     ```python
-    from haystack.generators import CohereGenerator
+    from haystack_integrations.components.generators.cohere import CohereGenerator
+
     generator = CohereGenerator(api_key="test-api-key")
     generator.run(prompt="What's the capital of France?")
     ```
@@ -33,7 +34,7 @@ class CohereGenerator:
 
     def __init__(
         self,
-        api_key: Optional[str] = None,
+        api_key: Secret = Secret.from_env_var(["COHERE_API_KEY", "CO_API_KEY"]),
         model: str = "command",
         streaming_callback: Optional[Callable] = None,
         api_base_url: Optional[str] = None,
@@ -42,12 +43,12 @@ class CohereGenerator:
         """
         Instantiates a `CohereGenerator` component.
 
-        :param api_key: The API key for the Cohere API. If not set, it will be read from the COHERE_API_KEY env var.
-        :param model: The name of the model to use. Available models are: [command, command-light, command-nightly,
-            command-nightly-light]. Defaults to "command".
-        :param streaming_callback: A callback function to be called with the streaming response. Defaults to None.
-        :param api_base_url: The base URL of the Cohere API. Defaults to "https://api.cohere.ai".
-        :param kwargs: Additional model parameters. These will be used during generation. Refer to
+        :param api_key: the API key for the Cohere API.
+        :param model: the name of the model to use. Available models are: [command, command-light, command-nightly,
+            command-nightly-light].
+        :param streaming_callback: A callback function to be called with the streaming response.
+        :param api_base_url: the base URL of the Cohere API.
+        :param kwargs: additional model parameters. These will be used during generation. Refer to
             https://docs.cohere.com/reference/generate for more details.
             Some of the parameters are:
             - 'max_tokens': The maximum number of tokens to be generated. Defaults to 1024.
@@ -75,15 +76,6 @@ class CohereGenerator:
             - 'logit_bias': Used to prevent the model from generating unwanted tokens or to incentivize it to include
                 desired tokens. The format is {token_id: bias} where bias is a float between -10 and 10.
         """
-        api_key = api_key or os.environ.get("COHERE_API_KEY")
-        # we check whether api_key is None or an empty string
-        if not api_key:
-            msg = (
-                "CohereGenerator expects an API key. "
-                "Set the COHERE_API_KEY environment variable (recommended) or pass it explicitly."
-            )
-            raise ValueError(msg)
-
         if not api_base_url:
             api_base_url = COHERE_API_URL
 
@@ -92,56 +84,51 @@ class CohereGenerator:
         self.streaming_callback = streaming_callback
         self.api_base_url = api_base_url
         self.model_parameters = kwargs
-        self.client = Client(api_key=self.api_key, api_url=self.api_base_url)
+        self.client = Client(api_key=self.api_key.resolve_value(), api_url=self.api_base_url)
 
     def to_dict(self) -> Dict[str, Any]:
         """
-        Serialize this component to a dictionary.
-        """
-        if self.streaming_callback:
-            module = self.streaming_callback.__module__
-            if module == "builtins":
-                callback_name = self.streaming_callback.__name__
-            else:
-                callback_name = f"{module}.{self.streaming_callback.__name__}"
-        else:
-            callback_name = None
+        Serializes the component to a dictionary.
 
+        :returns:
+            Dictionary with serialized data.
+        """
         return default_to_dict(
             self,
             model=self.model,
-            streaming_callback=callback_name,
+            streaming_callback=serialize_callback_handler(self.streaming_callback) if self.streaming_callback else None,
             api_base_url=self.api_base_url,
+            api_key=self.api_key.to_dict(),
             **self.model_parameters,
         )
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "CohereGenerator":
         """
-        Deserialize this component from a dictionary.
+        Deserializes the component from a dictionary.
+
+        :param data:
+            Dictionary to deserialize from.
+        :returns:
+           Deserialized component.
         """
         init_params = data.get("init_parameters", {})
-        streaming_callback = None
+        deserialize_secrets_inplace(init_params, ["api_key"])
         if "streaming_callback" in init_params and init_params["streaming_callback"] is not None:
-            parts = init_params["streaming_callback"].split(".")
-            module_name = ".".join(parts[:-1])
-            function_name = parts[-1]
-            module = sys.modules.get(module_name, None)
-            if not module:
-                msg = f"Could not locate the module of the streaming callback: {module_name}"
-                raise DeserializationError(msg)
-            streaming_callback = getattr(module, function_name, None)
-            if not streaming_callback:
-                msg = f"Could not locate the streaming callback: {function_name}"
-                raise DeserializationError(msg)
-            data["init_parameters"]["streaming_callback"] = streaming_callback
+            data["init_parameters"]["streaming_callback"] = deserialize_callback_handler(
+                init_params["streaming_callback"]
+            )
         return default_from_dict(cls, data)
 
     @component.output_types(replies=List[str], meta=List[Dict[str, Any]])
     def run(self, prompt: str):
         """
         Queries the LLM with the prompts to produce replies.
-        :param prompt: The prompt to be sent to the generative model.
+
+        :param prompt: the prompt to be sent to the generative model.
+        :returns: A dictionary with the following keys:
+            - `replies`: the list of replies generated by the model.
+            - `meta`: metadata about the request.
         """
         response = self.client.generate(
             model=self.model, prompt=prompt, stream=self.streaming_callback is not None, **self.model_parameters
@@ -166,7 +153,7 @@ class CohereGenerator:
         """
         Converts the response from the Cohere API to a StreamingChunk.
         :param chunk: The chunk returned by the OpenAI API.
-        :return: The StreamingChunk.
+        :returns: The StreamingChunk.
         """
         streaming_chunk = StreamingChunk(content=chunk.text, meta={"index": chunk.index})
         return streaming_chunk

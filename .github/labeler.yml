@@ -29,6 +29,11 @@ integration:elasticsearch:
       - any-glob-to-any-file: "integrations/elasticsearch/**/*"
       - any-glob-to-any-file: ".github/workflows/elasticsearch.yml"
 
+integration:fastembed:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/fastembed/**/*"
+      - any-glob-to-any-file: ".github/workflows/fastembed.yml"
+
 integration:google-ai:
   - changed-files:
       - any-glob-to-any-file: "integrations/google_ai/**/*"
@@ -59,6 +64,21 @@ integration:llama_cpp:
       - any-glob-to-any-file: "integrations/llama_cpp/**/*"
       - any-glob-to-any-file: ".github/workflows/llama_cpp.yml"
 
+integration:mistral:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/mistral/**/*"
+      - any-glob-to-any-file: ".github/workflows/mistral.yml"
+
+integration:mongodb-atlas:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/mongodb_atlas/**/*"
+      - any-glob-to-any-file: ".github/workflows/mongodb_atlas.yml"
+
+integration:nvidia:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/nvidia/**/*"
+      - any-glob-to-any-file: ".github/workflows/nvidia.yml"
+
 integration:ollama:
   - changed-files:
       - any-glob-to-any-file: "integrations/ollama/**/*"
@@ -69,10 +89,15 @@ integration:opensearch:
       - any-glob-to-any-file: "integrations/opensearch/**/*"
       - any-glob-to-any-file: ".github/workflows/opensearch.yml"
 
+integration:optimum:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/optimum/**/*"
+      - any-glob-to-any-file: ".github/workflows/optimum.yml"
+
 integration:pgvector:
   - changed-files:
       - any-glob-to-any-file: "integrations/pgvector/**/*"
-      - any-glob-to-any-file: ".github/workflows/pgvector.yml"      
+      - any-glob-to-any-file: ".github/workflows/pgvector.yml"
 
 integration:pinecone:
   - changed-files:
@@ -83,6 +108,11 @@ integration:qdrant:
   - changed-files:
       - any-glob-to-any-file: "integrations/qdrant/**/*"
       - any-glob-to-any-file: ".github/workflows/qdrant.yml"
+
+integration:ragas:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/ragas/**/*"
+      - any-glob-to-any-file: ".github/workflows/ragas.yml"
 
 integration:unstructured-fileconverter:
   - changed-files:
@@ -98,6 +128,11 @@ integration:weaviate:
   - changed-files:
       - any-glob-to-any-file: "integrations/weaviate/**/*"
       - any-glob-to-any-file: ".github/workflows/weaviate.yml"
+
+integration:deepeval:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/deepeval/**/*"
+      - any-glob-to-any-file: ".github/workflows/deepeval.yml"
 
 # Topics
 topic:CI:

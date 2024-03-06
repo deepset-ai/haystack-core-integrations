@@ -138,6 +138,8 @@ ignore = [
   "S105", "S106", "S107",
   # Ignore complexity
   "C901", "PLR0911", "PLR0912", "PLR0913", "PLR0915",
+  # ignore function-call-in-default-argument
+  "B008",
 ]
 unfixable = [
   # Don't touch unused imports
@@ -156,22 +158,21 @@ ban-relative-imports = "parents"
 # examples can contain "print" commands
 "examples/**/*" = ["T201"]
 
+
 [tool.coverage.run]
-source_pkgs = ["src", "tests"]
+source = ["haystack_integrations"]
 branch = true
-parallel = true
-
-
-[tool.coverage.paths]
-weaviate_haystack = ["src/haystack_integrations", "*/pgvector-haystack/src"]
-tests = ["tests", "*/pgvector-haystack/tests"]
+parallel = false
 
 [tool.coverage.report]
+omit = ["*/tests/*", "*/__init__.py"]
+show_missing=true
 exclude_lines = [
   "no cov",
   "if __name__ == .__main__.:",
   "if TYPE_CHECKING:",
 ]
+
 
 [[tool.mypy.overrides]]
 module = [

@@ -10,18 +10,31 @@ from haystack_integrations.document_stores.astra import AstraDocumentStore
 
 
 @component
-class AstraRetriever:
+class AstraEmbeddingRetriever:
     """
     A component for retrieving documents from an AstraDocumentStore.
+
+    Usage example:
+    ```python
+    from haystack_integrations.document_stores.astra import AstraDocumentStore
+    from haystack_integrations.components.retrievers.astra import AstraEmbeddingRetriever
+
+    document_store = AstraDocumentStore(
+        api_endpoint=api_endpoint,
+        token=token,
+        collection_name=collection_name,
+        duplicates_policy=DuplicatePolicy.SKIP,
+        embedding_dim=384,
+    )
+
+    retriever = AstraEmbeddingRetriever(document_store=document_store)
+    ```
     """
 
     def __init__(self, document_store: AstraDocumentStore, filters: Optional[Dict[str, Any]] = None, top_k: int = 10):
         """
-        Create an AstraRetriever component. Usually you pass some basic configuration
-        parameters to the constructor.
-
-        :param filters: A dictionary with filters to narrow down the search space (default is None).
-        :param top_k: The maximum number of documents to retrieve (default is 10).
+        :param filters: a dictionary with filters to narrow down the search space.
+        :param top_k: the maximum number of documents to retrieve.
         """
         self.filters = filters
         self.top_k = top_k
@@ -33,13 +46,13 @@ class AstraRetriever:
 
     @component.output_types(documents=List[Document])
     def run(self, query_embedding: List[float], filters: Optional[Dict[str, Any]] = None, top_k: Optional[int] = None):
-        """Run the retriever on the given list of queries.
+        """Retrieve documents from the AstraDocumentStore.
 
-        Args:
-            query_embedding (List[str]): An input list of queries
-            filters (Optional[Dict[str, Any]], optional): A dictionary with filters to narrow down the search space.
-                Defaults to None.
-            top_k (Optional[int], optional): The maximum number of documents to retrieve. Defaults to None.
+        :param query_embedding: floats representing the query embedding
+        :param filters: filters to narrow down the search space.
+        :param top_k: the maximum number of documents to retrieve.
+        :returns: a dictionary with the following keys:
+            - `documents`: A list of documents retrieved from the AstraDocumentStore.
         """
 
         if not top_k:
@@ -51,6 +64,12 @@ class AstraRetriever:
         return {"documents": self.document_store.search(query_embedding, top_k, filters=filters)}
 
     def to_dict(self) -> Dict[str, Any]:
+        """
+        Serializes the component to a dictionary.
+
+        :returns:
+            Dictionary with serialized data.
+        """
         return default_to_dict(
             self,
             filters=self.filters,
@@ -59,7 +78,15 @@ class AstraRetriever:
         )
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "AstraRetriever":
+    def from_dict(cls, data: Dict[str, Any]) -> "AstraEmbeddingRetriever":
+        """
+        Deserializes the component from a dictionary.
+
+        :param data:
+            Dictionary to deserialize from.
+        :returns:
+            Deserialized component.
+        """
         document_store = AstraDocumentStore.from_dict(data["init_parameters"]["document_store"])
         data["init_parameters"]["document_store"] = document_store
         return default_from_dict(cls, data)

@@ -1,3 +1,3 @@
-from .dense_retriever import PineconeDenseRetriever
+from .embedding_retriever import PineconeEmbeddingRetriever
 
-__all__ = ["PineconeDenseRetriever"]
+__all__ = ["PineconeEmbeddingRetriever"]

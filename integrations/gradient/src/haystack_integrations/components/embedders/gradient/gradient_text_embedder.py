@@ -1,24 +1,30 @@
 from typing import Any, Dict, List, Optional
 
 from gradientai import Gradient
-from haystack import component, default_to_dict
+from haystack import component, default_from_dict, default_to_dict
+from haystack.utils import Secret, deserialize_secrets_inplace
 
 
 @component
 class GradientTextEmbedder:
     """
-    A component for embedding strings using models hosted on Gradient AI (https://gradient.ai).
+    A component for embedding strings using models hosted on [Gradient AI](https://gradient.ai).
 
+    Usage example:
     ```python
-    embedder = GradientTextEmbedder(
-        access_token=gradient_access_token,
-        workspace_id=gradient_workspace_id,
-        model="bge_large")
+    from haystack_integrations.components.embedders.gradient import GradientTextEmbedder
+    from haystack.components.retrievers.in_memory import InMemoryEmbeddingRetriever
+    from haystack.document_stores.in_memory import InMemoryDocumentStore
+    from haystack import Pipeline
+
+    embedder =
     p = Pipeline()
-    p.add_component(instance=embedder, name="text_embedder")
-    p.add_component(instance=InMemoryEmbeddingRetriever(document_store=InMemoryDocumentStore()), name="retriever")
+    p.add_component("text_embedder", GradientTextEmbedder(model="bge-large"))
+    p.add_component("retriever", InMemoryEmbeddingRetriever(document_store=InMemoryDocumentStore()))
     p.connect("text_embedder", "retriever")
-    p.run("embed me!!!")
+    p.run(data={"text_embedder": {"text":"You can embed me put I'll return no matching documents"}})
+    >>> No Documents found with embeddings. Returning empty list. To generate embeddings, use a DocumentEmbedder.
+    >>> {'retriever': {'documents': []}}
     ```
     """
 
@@ -26,24 +32,26 @@ class GradientTextEmbedder:
         self,
         *,
         model: str = "bge-large",
-        access_token: Optional[str] = None,
-        workspace_id: Optional[str] = None,
+        access_token: Secret = Secret.from_env_var("GRADIENT_ACCESS_TOKEN"),  # noqa: B008
+        workspace_id: Secret = Secret.from_env_var("GRADIENT_WORKSPACE_ID"),  # noqa: B008
         host: Optional[str] = None,
     ) -> None:
         """
         Create a GradientTextEmbedder component.
 
         :param model: The name of the model to use.
-        :param access_token: The Gradient access token. If not provided it's read from the environment
-                             variable GRADIENT_ACCESS_TOKEN.
-        :param workspace_id: The Gradient workspace ID. If not provided it's read from the environment
-                             variable GRADIENT_WORKSPACE_ID.
-        :param host: The Gradient host. By default it uses https://api.gradient.ai/.
+        :param access_token: The Gradient access token.
+        :param workspace_id: The Gradient workspace ID.
+        :param host: The Gradient host. By default, it uses [Gradient AI](https://api.gradient.ai/).
         """
         self._host = host
         self._model_name = model
+        self._access_token = access_token
+        self._workspace_id = workspace_id
 
-        self._gradient = Gradient(access_token=access_token, host=host, workspace_id=workspace_id)
+        self._gradient = Gradient(
+            host=host, access_token=access_token.resolve_value(), workspace_id=workspace_id.resolve_value()
+        )
 
     def _get_telemetry_data(self) -> Dict[str, Any]:
         """
@@ -53,13 +61,34 @@ class GradientTextEmbedder:
 
     def to_dict(self) -> dict:
         """
-        Serialize the component to a Python dictionary.
+        Serialize this component to a dictionary.
+
+        :returns:
+            The serialized component as a dictionary.
         """
-        return default_to_dict(self, workspace_id=self._gradient.workspace_id, model=self._model_name)
+        return default_to_dict(
+            self,
+            model=self._model_name,
+            host=self._host,
+            access_token=self._access_token.to_dict(),
+            workspace_id=self._workspace_id.to_dict(),
+        )
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "GradientTextEmbedder":
+        """
+        Deserialize this component from a dictionary.
+
+        :param data: The dictionary representation of this component.
+        :returns:
+            The deserialized component instance.
+        """
+        deserialize_secrets_inplace(data["init_parameters"], keys=["access_token", "workspace_id"])
+        return default_from_dict(cls, data)
 
     def warm_up(self) -> None:
         """
-        Load the embedding model.
+        Initializes the component.
         """
         if not hasattr(self, "_embedding_model"):
             self._embedding_model = self._gradient.get_embeddings_model(slug=self._model_name)

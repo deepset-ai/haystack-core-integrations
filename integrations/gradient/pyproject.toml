@@ -52,6 +52,7 @@ git_describe_command = 'git describe --tags --match="integrations/gradient-v[0-9
 dependencies = [
   "coverage[toml]>=6.5",
   "pytest",
+  "haystack-pydoc-tools",
 ]
 [tool.hatch.envs.default.scripts]
 test = "pytest {args:tests}"
@@ -64,7 +65,9 @@ cov = [
   "test-cov",
   "cov-report",
 ]
-
+docs = [
+  "pydoc-markdown pydoc/config.yml"
+]
 [[tool.hatch.envs.all.matrix]]
 python = ["3.8", "3.9", "3.10", "3.11"]
 
@@ -148,11 +151,11 @@ known-first-party = ["haystack_integrations"]
 ban-relative-imports = "parents"
 
 [tool.ruff.per-file-ignores]
-# Tests can use magic values, assertions, and relative imports
-"tests/**/*" = ["PLR2004", "S101", "TID252"]
+# Tests can use magic values, assertions, relative imports, and unused fixtures
+"tests/**/*" = ["PLR2004", "S101", "TID252", "ARG002"]
 
 [tool.coverage.run]
-source_pkgs = ["src", "tests"]
+source = ["haystack_integrations"]
 branch = true
 parallel = true
 
@@ -161,6 +164,8 @@ gradient_haystack = ["src"]
 tests = ["tests", "*/gradient-haystack/tests"]
 
 [tool.coverage.report]
+omit = ["*/tests/*", "*/__init__.py"]
+show_missing=true
 exclude_lines = [
   "no cov",
   "if __name__ == .__main__.:",

@@ -3,10 +3,8 @@ loaders:
     search_path: [../src]
     modules:
       [
-        "haystack_integrations.components.retrievers.pinecone.dense_retriever",
-        "haystack_integrations.document_stores.pinecone.document_store",
-        "haystack_integrations.document_stores.pinecone.errors",
-        "haystack_integrations.document_stores.pinecone.filters",
+        "haystack_integrations.components.retrievers.pinecone.embedding_retriever",
+        "haystack_integrations.document_stores.pinecone.document_store"
       ]
     ignore_when_discovered: ["__init__"]
 processors:
@@ -20,10 +18,10 @@ processors:
 renderer:
   type: haystack_pydoc_tools.renderers.ReadmePreviewRenderer
   excerpt: Pinecone integration for Haystack
-  category_slug: haystack-integrations
+  category_slug: integrations-api
   title: Pinecone
   slug: integrations-pinecone
-  order: 150
+  order: 200
   markdown:
     descriptive_class_title: false
     descriptive_module_title: true

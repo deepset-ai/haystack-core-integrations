@@ -1,11 +1,11 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
-import os
 from typing import Any, Dict, List, Optional, Tuple
 
 import requests
-from haystack import Document, component, default_to_dict
+from haystack import Document, component, default_from_dict, default_to_dict
+from haystack.utils import Secret, deserialize_secrets_inplace
 from tqdm import tqdm
 
 JINA_API_URL: str = "https://api.jina.ai/v1/embeddings"
@@ -20,11 +20,13 @@ class JinaDocumentEmbedder:
     Usage example:
     ```python
     from haystack import Document
-    from jina_haystack import JinaDocumentEmbedder
+    from haystack_integrations.components.embedders.jina import JinaDocumentEmbedder
 
-    doc = Document(content="I love pizza!")
+    # Make sure that the environment variable JINA_API_KEY is set
 
     document_embedder = JinaDocumentEmbedder()
+
+    doc = Document(content="I love pizza!")
 
     result = document_embedder.run([doc])
     print(result['documents'][0].embedding)
@@ -35,7 +37,7 @@ class JinaDocumentEmbedder:
 
     def __init__(
         self,
-        api_key: Optional[str] = None,
+        api_key: Secret = Secret.from_env_var("JINA_API_KEY"),  # noqa: B008
         model: str = "jina-embeddings-v2-base-en",
         prefix: str = "",
         suffix: str = "",
@@ -46,9 +48,10 @@ class JinaDocumentEmbedder:
     ):
         """
         Create a JinaDocumentEmbedder component.
-        :param api_key: The Jina API key. It can be explicitly provided or automatically read from the
-            environment variable JINA_API_KEY (recommended).
-        :param model: The name of the Jina model to use. Check the list of available models on `https://jina.ai/embeddings/`
+
+        :param api_key: The Jina API key.
+        :param model: The name of the Jina model to use.
+            Check the list of available models on [Jina documentation](https://jina.ai/embeddings/).
         :param prefix: A string to add to the beginning of each text.
         :param suffix: A string to add to the end of each text.
         :param batch_size: Number of Documents to encode at once.
@@ -57,16 +60,9 @@ class JinaDocumentEmbedder:
         :param meta_fields_to_embed: List of meta fields that should be embedded along with the Document text.
         :param embedding_separator: Separator used to concatenate the meta fields to the Document text.
         """
+        resolved_api_key = api_key.resolve_value()
 
-        api_key = api_key or os.environ.get("JINA_API_KEY")
-        # we check whether api_key is None or an empty string
-        if not api_key:
-            msg = (
-                "JinaDocumentEmbedder expects an API key. "
-                "Set the JINA_API_KEY environment variable (recommended) or pass it explicitly."
-            )
-            raise ValueError(msg)
-
+        self.api_key = api_key
         self.model_name = model
         self.prefix = prefix
         self.suffix = suffix
@@ -77,7 +73,7 @@ class JinaDocumentEmbedder:
         self._session = requests.Session()
         self._session.headers.update(
             {
-                "Authorization": f"Bearer {api_key}",
+                "Authorization": f"Bearer {resolved_api_key}",
                 "Accept-Encoding": "identity",
                 "Content-type": "application/json",
             }
@@ -91,11 +87,13 @@ class JinaDocumentEmbedder:
 
     def to_dict(self) -> Dict[str, Any]:
         """
-        This method overrides the default serializer in order to avoid leaking the `api_key` value passed
-        to the constructor.
+        Serializes the component to a dictionary.
+        :returns:
+            Dictionary with serialized data.
         """
         return default_to_dict(
             self,
+            api_key=self.api_key.to_dict(),
             model=self.model_name,
             prefix=self.prefix,
             suffix=self.suffix,
@@ -104,6 +102,18 @@ class JinaDocumentEmbedder:
             meta_fields_to_embed=self.meta_fields_to_embed,
             embedding_separator=self.embedding_separator,
         )
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "JinaDocumentEmbedder":
+        """
+        Deserializes the component from a dictionary.
+        :param data:
+            Dictionary to deserialize from.
+        :returns:
+            Deserialized component.
+        """
+        deserialize_secrets_inplace(data["init_parameters"], keys=["api_key"])
+        return default_from_dict(cls, data)
 
     def _prepare_texts_to_embed(self, documents: List[Document]) -> List[str]:
         """
@@ -153,10 +163,13 @@ class JinaDocumentEmbedder:
     @component.output_types(documents=List[Document], meta=Dict[str, Any])
     def run(self, documents: List[Document]):
         """
-        Embed a list of Documents.
-        The embedding of each Document is stored in the `embedding` field of the Document.
+        Compute the embeddings for a list of Documents.
 
         :param documents: A list of Documents to embed.
+        :returns: A dictionary with following keys:
+            - `documents`: List of Documents, each with an `embedding` field containing the computed embedding.
+            - `meta`: A dictionary with metadata including the model name and usage statistics.
+        :raises TypeError: If the input is not a list of Documents.
         """
         if not isinstance(documents, list) or documents and not isinstance(documents[0], Document):
             msg = (

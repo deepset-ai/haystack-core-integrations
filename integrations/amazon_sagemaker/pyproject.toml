@@ -52,6 +52,7 @@ git_describe_command = 'git describe --tags --match="integrations/amazon_sagemak
 dependencies = [
   "coverage[toml]>=6.5",
   "pytest",
+  "haystack-pydoc-tools",
 ]
 [tool.hatch.envs.default.scripts]
 test = "pytest {args:tests}"
@@ -63,6 +64,10 @@ cov-report = [
 cov = [
   "test-cov",
   "cov-report",
+]
+
+docs = [
+  "pydoc-markdown pydoc/config.yml"
 ]
 
 [[tool.hatch.envs.all.matrix]]
@@ -154,24 +159,38 @@ ban-relative-imports = "parents"
 "tests/**/*" = ["PLR2004", "S101", "TID252"]
 
 [tool.coverage.run]
+source = ["haystack_integrations"]
 branch = true
 parallel = true
 
-[tool.coverage.paths]
-amazon_sagemaker_haystack = ["src"]
-tests = ["tests"]
-
 [tool.coverage.report]
+omit = ["*/tests/*", "*/__init__.py"]
+show_missing=true
 exclude_lines = [
   "no cov",
   "if __name__ == .__main__.:",
   "if TYPE_CHECKING:",
 ]
+
 [[tool.mypy.overrides]]
 module = [
+  "botocore.*",
+  "boto3.*",
   "haystack.*",
   "haystack_integrations.*",
   "pytest.*",
   "numpy.*",
 ]
 ignore_missing_imports = true
+
+
+
+[tool.pytest.ini_options]
+addopts = "--strict-markers"
+markers = [
+  "unit: unit tests",
+  "integration: integration tests",
+  "embedders: embedders tests",
+  "generators: generators tests",
+]
+log_cli = true

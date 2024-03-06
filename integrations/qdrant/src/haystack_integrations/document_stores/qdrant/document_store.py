@@ -10,6 +10,7 @@ from haystack import default_from_dict, default_to_dict
 from haystack.dataclasses import Document
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
+from haystack.utils import Secret, deserialize_secrets_inplace
 from haystack.utils.filters import convert
 from qdrant_client import grpc
 from qdrant_client.http import models as rest
@@ -55,7 +56,7 @@ class QdrantDocumentStore:
         grpc_port: int = 6334,
         prefer_grpc: bool = False,  # noqa: FBT001, FBT002
         https: Optional[bool] = None,
-        api_key: Optional[str] = None,
+        api_key: Optional[Secret] = None,
         prefix: Optional[str] = None,
         timeout: Optional[float] = None,
         host: Optional[str] = None,
@@ -94,7 +95,7 @@ class QdrantDocumentStore:
             grpc_port=grpc_port,
             prefer_grpc=prefer_grpc,
             https=https,
-            api_key=api_key,
+            api_key=api_key.resolve_value() if api_key else None,
             prefix=prefix,
             timeout=timeout,
             host=host,
@@ -115,6 +116,7 @@ class QdrantDocumentStore:
         self.host = host
         self.path = path
         self.metadata = metadata
+        self.api_key = api_key
 
         # Store the Qdrant collection specific attributes
         self.shard_number = shard_number
@@ -232,6 +234,7 @@ class QdrantDocumentStore:
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "QdrantDocumentStore":
+        deserialize_secrets_inplace(data["init_parameters"], keys=["api_key"])
         return default_from_dict(cls, data)
 
     def to_dict(self) -> Dict[str, Any]:
@@ -239,6 +242,7 @@ class QdrantDocumentStore:
         # All the __init__ params must be set as attributes
         # Set as init_parms without default values
         init_params = {k: getattr(self, k) for k in params}
+        init_params["api_key"] = self.api_key.to_dict() if self.api_key else None
         return default_to_dict(
             self,
             **init_params,
@@ -416,7 +420,7 @@ class QdrantDocumentStore:
                                     overwrite: Update any existing documents with the same ID when adding documents.
                                     fail: an error is raised if the document ID of the document being added already
                                     exists.
-        :return: A list of Haystack Document objects.
+        :returns: A list of Haystack Document objects.
         """
 
         index = index or self.index
@@ -439,7 +443,7 @@ class QdrantDocumentStore:
 
         :param documents: A list of Haystack Document objects.
         :param index: name of the index
-        :return: A list of Haystack Document objects.
+        :returns: A list of Haystack Document objects.
         """
         _hash_ids: Set = set()
         _documents: List[Document] = []

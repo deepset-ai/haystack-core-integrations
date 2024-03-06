@@ -9,8 +9,26 @@ from requests import Response
 @component
 class OllamaChatGenerator:
     """
-    Chat Generator based on Ollama. Ollama is a library for easily running LLMs locally.
-    This component provides an interface to generate text using a LLM running in Ollama.
+    Supports models running on Ollama, such as llama2 and mixtral.  Find the full list of supported models
+    [here](https://ollama.ai/library).
+
+    Usage example:
+    ```python
+    from haystack_integrations.components.generators.ollama import OllamaChatGenerator
+    from haystack.dataclasses import ChatMessage
+
+    generator = OllamaChatGenerator(model="zephyr",
+                                url = "http://localhost:11434/api/chat",
+                                generation_kwargs={
+                                "num_predict": 100,
+                                "temperature": 0.9,
+                                })
+
+    messages = [ChatMessage.from_system("\nYou are a helpful, respectful and honest assistant"),
+    ChatMessage.from_user("What's Natural Language Processing?")]
+
+    print(generator.run(messages=messages))
+    ```
     """
 
     def __init__(
@@ -22,16 +40,18 @@ class OllamaChatGenerator:
         timeout: int = 120,
     ):
         """
-        :param model: The name of the model to use. The model should be available in the running Ollama instance.
-            Default is "orca-mini".
-        :param url: The URL of the chat endpoint of a running Ollama instance.
-            Default is "http://localhost:11434/api/chat".
-        :param generation_kwargs: Optional arguments to pass to the Ollama generation endpoint, such as temperature,
+        :param model:
+            The name of the model to use. The model should be available in the running Ollama instance.
+        :param url:
+            The URL of the chat endpoint of a running Ollama instance.
+        :param generation_kwargs:
+            Optional arguments to pass to the Ollama generation endpoint, such as temperature,
             top_p, and others. See the available arguments in
             [Ollama docs](https://github.com/jmorganca/ollama/blob/main/docs/modelfile.md#valid-parameters-and-values).
-        :param template: The full prompt template (overrides what is defined in the Ollama Modelfile).
-        :param timeout: The number of seconds before throwing a timeout error from the Ollama API.
-            Default is 120 seconds.
+        :param template:
+            The full prompt template (overrides what is defined in the Ollama Modelfile).
+        :param timeout:
+            The number of seconds before throwing a timeout error from the Ollama API.
         """
 
         self.timeout = timeout
@@ -46,9 +66,6 @@ class OllamaChatGenerator:
     def _create_json_payload(self, messages: List[ChatMessage], generation_kwargs=None) -> Dict[str, Any]:
         """
         Returns A dictionary of JSON arguments for a POST request to an Ollama service
-        :param messages: A history/list of chat messages
-        :param generation_kwargs:
-        :return: A dictionary of arguments for a POST request to an Ollama service
         """
         generation_kwargs = generation_kwargs or {}
         return {
@@ -62,8 +79,6 @@ class OllamaChatGenerator:
     def _build_message_from_ollama_response(self, ollama_response: Response) -> ChatMessage:
         """
         Converts the non-streaming response from the Ollama API to a ChatMessage.
-        :param ollama_response: The completion returned by the Ollama API.
-        :return: The ChatMessage.
         """
         json_content = ollama_response.json()
         message = ChatMessage.from_assistant(content=json_content["message"]["content"])
@@ -77,12 +92,16 @@ class OllamaChatGenerator:
         generation_kwargs: Optional[Dict[str, Any]] = None,
     ):
         """
-        Run an Ollama Model on a given chat history.
-        :param messages: A list of ChatMessage instances representing the input messages.
-        :param generation_kwargs: Optional arguments to pass to the Ollama generation endpoint, such as temperature,
+        Runs an Ollama Model on a given chat history.
+
+        :param messages:
+            A list of ChatMessage instances representing the input messages.
+        :param generation_kwargs:
+            Optional arguments to pass to the Ollama generation endpoint, such as temperature,
             top_p, etc. See the
             [Ollama docs](https://github.com/jmorganca/ollama/blob/main/docs/modelfile.md#valid-parameters-and-values).
-        :return: A dictionary of the replies containing their metadata
+        :returns: A dictionary with the following keys:
+            - `replies`: The responses from the model
         """
         generation_kwargs = {**self.generation_kwargs, **(generation_kwargs or {})}
 

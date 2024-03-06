@@ -8,12 +8,13 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Any, Dict, List, Literal, Optional, Union
 
-from haystack import Document, component, default_to_dict
+from haystack import Document, component, default_from_dict, default_to_dict
 from haystack.components.converters.utils import normalize_metadata
+from haystack.utils import Secret, deserialize_secrets_inplace
 from tqdm import tqdm
 
-from unstructured.documents.elements import Element  # type: ignore[import]
-from unstructured.partition.api import partition_via_api  # type: ignore[import]
+from unstructured.documents.elements import Element
+from unstructured.partition.api import partition_via_api
 
 logger = logging.getLogger(__name__)
 
@@ -23,13 +24,29 @@ UNSTRUCTURED_HOSTED_API_URL = "https://api.unstructured.io/general/v0/general"
 @component
 class UnstructuredFileConverter:
     """
-    Convert files to Haystack Documents using the Unstructured API (hosted or running locally).
+    A component for converting files to Haystack Documents using the Unstructured API (hosted or running locally).
+
+    For the supported file types and the specific API parameters, see
+    [Unstructured docs](https://unstructured-io.github.io/unstructured/api.html).
+
+    Usage example:
+    ```python
+    from haystack_integrations.components.converters.unstructured import UnstructuredFileConverter
+
+    # make sure to either set the environment variable UNSTRUCTURED_API_KEY
+    # or run the Unstructured API locally:
+    # docker run -p 8000:8000 -d --rm --name unstructured-api quay.io/unstructured-io/unstructured-api:latest
+    # --port 8000 --host 0.0.0.0
+
+    converter = UnstructuredFileConverter()
+    documents = converter.run(paths = ["a/file/path.pdf", "a/directory/path"])["documents"]
+    ```
     """
 
     def __init__(
         self,
         api_url: str = UNSTRUCTURED_HOSTED_API_URL,
-        api_key: Optional[str] = None,
+        api_key: Optional[Secret] = Secret.from_env_var("UNSTRUCTURED_API_KEY", strict=False),  # noqa: B008
         document_creation_mode: Literal[
             "one-doc-per-file", "one-doc-per-page", "one-doc-per-element"
         ] = "one-doc-per-file",
@@ -38,25 +55,25 @@ class UnstructuredFileConverter:
         progress_bar: bool = True,  # noqa: FBT001, FBT002
     ):
         """
-        :param api_url: URL of the Unstructured API. Defaults to the hosted version.
-            If you run the API locally, specify the URL of your local API (e.g. http://localhost:8000/general/v0/general).
-            See https://unstructured-io.github.io/unstructured/api.html#using-the-api-locally for more information.
-        :param api_key: API key for the Unstructured API (https://unstructured.io/#get-api-key).
+        :param api_url: URL of the Unstructured API. Defaults to the URL of the hosted version.
+            If you run the API locally, specify the URL of your local API (e.g. `"http://localhost:8000/general/v0/general"`).
+        :param api_key: API key for the Unstructured API.
+            It can be explicitly passed or read the environment variable `UNSTRUCTURED_API_KEY` (recommended).
             If you run the API locally, it is not needed.
-            If you use the hosted version, it defaults to the environment variable UNSTRUCTURED_API_KEY.
         :param document_creation_mode: How to create Haystack Documents from the elements returned by Unstructured.
-            - "one-doc-per-file": One Haystack Document per file. All elements are concatenated into one text field.
-            - "one-doc-per-page": One Haystack Document per page.
-               All elements on a page are concatenated into one text field.
-            - "one-doc-per-element": One Haystack Document per element.
-              Each element is converted to a Haystack Document.
+        `"one-doc-per-file"`: One Haystack Document per file. All elements are concatenated into one text field.
+        `"one-doc-per-page"`: One Haystack Document per page.
+        All elements on a page are concatenated into one text field.
+        `"one-doc-per-element"`: One Haystack Document per element. Each element is converted to a Haystack Document.
         :param separator: Separator between elements when concatenating them into one text field.
-        :param unstructured_kwargs: Additional keyword arguments that are passed to the Unstructured API.
-            See https://unstructured-io.github.io/unstructured/api.html.
-        :param progress_bar: Show a progress bar for the conversion. Defaults to True.
+        :param unstructured_kwargs: Additional parameters that are passed to the Unstructured API.
+            For the available parameters, see
+            [Unstructured API docs](https://unstructured-io.github.io/unstructured/apis/api_parameters.html).
+        :param progress_bar: Whether to show a progress bar during the conversion.
         """
 
         self.api_url = api_url
+        self.api_key = api_key
         self.document_creation_mode = document_creation_mode
         self.unstructured_kwargs = unstructured_kwargs or {}
         self.separator = separator
@@ -64,31 +81,44 @@ class UnstructuredFileConverter:
 
         is_hosted_api = api_url == UNSTRUCTURED_HOSTED_API_URL
 
-        api_key = api_key or os.environ.get("UNSTRUCTURED_API_KEY")
         # we check whether api_key is None or an empty string
-        if is_hosted_api and not api_key:
+        api_key_value = api_key.resolve_value() if api_key else None
+        if is_hosted_api and not api_key_value:
             msg = (
                 "To use the hosted version of Unstructured, you need to set the environment variable "
-                "UNSTRUCTURED_API_KEY (recommended) or explictly pass the parameter api_key."
+                "UNSTRUCTURED_API_KEY (recommended) or explicitly pass the parameter api_key."
             )
             raise ValueError(msg)
 
-        self.api_key = api_key
-
     def to_dict(self) -> Dict[str, Any]:
         """
-        Serialize this component to a dictionary.
+        Serializes the component to a dictionary.
+
+        :returns:
+            Dictionary with serialized data.
         """
 
-        # do not serialize api_key
         return default_to_dict(
             self,
             api_url=self.api_url,
+            api_key=self.api_key.to_dict() if self.api_key else None,
             document_creation_mode=self.document_creation_mode,
             separator=self.separator,
             unstructured_kwargs=self.unstructured_kwargs,
             progress_bar=self.progress_bar,
         )
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "UnstructuredFileConverter":
+        """
+        Deserializes the component from a dictionary.
+        :param data:
+            Dictionary to deserialize from.
+        :returns:
+            Deserialized component.
+        """
+        deserialize_secrets_inplace(data["init_parameters"], keys=["api_key"])
+        return default_from_dict(cls, data)
 
     @component.output_types(documents=List[Document])
     def run(
@@ -97,17 +127,21 @@ class UnstructuredFileConverter:
         meta: Optional[Union[Dict[str, Any], List[Dict[str, Any]]]] = None,
     ):
         """
-        Convert files to Haystack Documents using the Unstructured API (hosted or running locally).
+        Convert files to Haystack Documents using the Unstructured API.
 
         :param paths: List of paths to convert. Paths can be files or directories.
             If a path is a directory, all files in the directory are converted. Subdirectories are ignored.
         :param meta: Optional metadata to attach to the Documents.
-          This value can be either a list of dictionaries or a single dictionary.
-          If it's a single dictionary, its content is added to the metadata of all produced Documents.
-          If it's a list, the length of the list must match the number of paths, because the two lists will be zipped.
-          Please note that if the paths contain directories, meta can only be a single dictionary
-          (same metadata for all files).
-          Defaults to `None`.
+            This value can be either a list of dictionaries or a single dictionary.
+            If it's a single dictionary, its content is added to the metadata of all produced Documents.
+            If it's a list, the length of the list must match the number of paths, because the two lists will be zipped.
+            Please note that if the paths contain directories, `meta` can only be a single dictionary
+            (same metadata for all files).
+
+        :returns: A dictionary with the following key:
+            - `documents`: List of Haystack Documents.
+
+        :raises ValueError: If `meta` is a list and `paths` contains directories.
         """
         paths_obj = [Path(path) for path in paths]
         filepaths = [path for path in paths_obj if path.is_file()]
@@ -140,8 +174,8 @@ class UnstructuredFileConverter:
             documents.extend(docs_for_file)
         return {"documents": documents}
 
+    @staticmethod
     def _create_documents(
-        self,
         filepath: Path,
         elements: List[Element],
         document_creation_mode: Literal["one-doc-per-file", "one-doc-per-page", "one-doc-per-element"],
@@ -175,9 +209,10 @@ class UnstructuredFileConverter:
             docs = [Document(content=texts_per_page[page], meta=meta_per_page[page]) for page in texts_per_page.keys()]
 
         elif document_creation_mode == "one-doc-per-element":
-            for el in elements:
+            for index, el in enumerate(elements):
                 metadata = copy.deepcopy(meta)
                 metadata["file_path"] = str(filepath)
+                metadata["element_index"] = index
                 if hasattr(el, "metadata"):
                     metadata.update(el.metadata.to_dict())
                 if hasattr(el, "category"):
@@ -193,7 +228,10 @@ class UnstructuredFileConverter:
         elements = []
         try:
             elements = partition_via_api(
-                filename=str(filepath), api_url=self.api_url, api_key=self.api_key, **self.unstructured_kwargs
+                filename=str(filepath),
+                api_url=self.api_url,
+                api_key=self.api_key.resolve_value() if self.api_key else None,
+                **self.unstructured_kwargs,
             )
         except Exception as e:
             logger.warning(f"Unstructured could not process file {filepath}. Error: {e}")

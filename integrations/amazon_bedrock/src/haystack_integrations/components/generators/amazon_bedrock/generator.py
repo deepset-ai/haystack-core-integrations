@@ -3,9 +3,15 @@ import logging
 import re
 from typing import Any, ClassVar, Dict, List, Optional, Type, Union
 
-import boto3
-from botocore.exceptions import BotoCoreError, ClientError
+from botocore.exceptions import ClientError
 from haystack import component, default_from_dict, default_to_dict
+from haystack.utils.auth import Secret, deserialize_secrets_inplace
+
+from haystack_integrations.common.amazon_bedrock.errors import (
+    AmazonBedrockConfigurationError,
+    AmazonBedrockInferenceError,
+)
+from haystack_integrations.common.amazon_bedrock.utils import get_aws_session
 
 from .adapters import (
     AI21LabsJurassic2Adapter,
@@ -15,11 +21,6 @@ from .adapters import (
     CohereCommandAdapter,
     MetaLlama2ChatAdapter,
 )
-from .errors import (
-    AmazonBedrockConfigurationError,
-    AmazonBedrockInferenceError,
-    AWSConfigurationError,
-)
 from .handlers import (
     DefaultPromptHandler,
     DefaultTokenStreamingHandler,
@@ -28,33 +29,23 @@ from .handlers import (
 
 logger = logging.getLogger(__name__)
 
-AWS_CONFIGURATION_KEYS = [
-    "aws_access_key_id",
-    "aws_secret_access_key",
-    "aws_session_token",
-    "aws_region_name",
-    "aws_profile_name",
-]
-
 
 @component
 class AmazonBedrockGenerator:
     """
-    Generator based on a Hugging Face model.
-    This component provides an interface to generate text using a Hugging Face model that runs locally.
+    `AmazonBedrockGenerator` enables text generation via Amazon Bedrock hosted LLMs.
+
+    For example, to use the Anthropic Claude model, simply initialize the `AmazonBedrockGenerator` with the
+    'anthropic.claude-v2' model name. Provide AWS credentials either via local AWS profile or directly via
+    `aws_access_key_id`, `aws_secret_access_key`, `aws_session_token`, and `aws_region_name` parameters.
 
     Usage example:
     ```python
-    from amazon_bedrock_haystack.generators.amazon_bedrock import AmazonBedrockGenerator
+    from haystack_integrations.components.generators.amazon_bedrock import AmazonBedrockGenerator
 
     generator = AmazonBedrockGenerator(
-        model="anthropic.claude-v2",
-        max_length=99,
-        aws_access_key_id="...",
-        aws_secret_access_key="...",
-        aws_session_token="...",
-        aws_profile_name="...",
-        aws_region_name="..."
+            model="anthropic.claude-v2",
+            max_length=99
     )
 
     print(generator.run("Who is the best American actor?"))
@@ -72,27 +63,50 @@ class AmazonBedrockGenerator:
     def __init__(
         self,
         model: str,
-        aws_access_key_id: Optional[str] = None,
-        aws_secret_access_key: Optional[str] = None,
-        aws_session_token: Optional[str] = None,
-        aws_region_name: Optional[str] = None,
-        aws_profile_name: Optional[str] = None,
+        aws_access_key_id: Optional[Secret] = Secret.from_env_var("AWS_ACCESS_KEY_ID", strict=False),  # noqa: B008
+        aws_secret_access_key: Optional[Secret] = Secret.from_env_var(  # noqa: B008
+            "AWS_SECRET_ACCESS_KEY", strict=False
+        ),
+        aws_session_token: Optional[Secret] = Secret.from_env_var("AWS_SESSION_TOKEN", strict=False),  # noqa: B008
+        aws_region_name: Optional[Secret] = Secret.from_env_var("AWS_DEFAULT_REGION", strict=False),  # noqa: B008
+        aws_profile_name: Optional[Secret] = Secret.from_env_var("AWS_PROFILE", strict=False),  # noqa: B008
         max_length: Optional[int] = 100,
         **kwargs,
     ):
+        """
+        Create a new `AmazonBedrockGenerator` instance.
+
+        :param model: The name of the model to use.
+        :param aws_access_key_id: The AWS access key ID.
+        :param aws_secret_access_key: The AWS secret access key.
+        :param aws_session_token: The AWS session token.
+        :param aws_region_name: The AWS region name.
+        :param aws_profile_name: The AWS profile name.
+        :param max_length: The maximum length of the generated text.
+        :param kwargs: Additional keyword arguments to be passed to the model.
+
+        """
         if not model:
             msg = "'model' cannot be None or empty string"
             raise ValueError(msg)
         self.model = model
         self.max_length = max_length
+        self.aws_access_key_id = aws_access_key_id
+        self.aws_secret_access_key = aws_secret_access_key
+        self.aws_session_token = aws_session_token
+        self.aws_region_name = aws_region_name
+        self.aws_profile_name = aws_profile_name
+
+        def resolve_secret(secret: Optional[Secret]) -> Optional[str]:
+            return secret.resolve_value() if secret else None
 
         try:
-            session = self.get_aws_session(
-                aws_access_key_id=aws_access_key_id,
-                aws_secret_access_key=aws_secret_access_key,
-                aws_session_token=aws_session_token,
-                aws_region_name=aws_region_name,
-                aws_profile_name=aws_profile_name,
+            session = get_aws_session(
+                aws_access_key_id=resolve_secret(aws_access_key_id),
+                aws_secret_access_key=resolve_secret(aws_secret_access_key),
+                aws_session_token=resolve_secret(aws_session_token),
+                aws_region_name=resolve_secret(aws_region_name),
+                aws_profile_name=resolve_secret(aws_profile_name),
             )
             self.client = session.client("bedrock-runtime")
         except Exception as exception:
@@ -103,8 +117,7 @@ class AmazonBedrockGenerator:
             raise AmazonBedrockConfigurationError(msg) from exception
 
         model_input_kwargs = kwargs
-        # We pop the model_max_length as it is not sent to the model
-        # but used to truncate the prompt if needed
+        # We pop the model_max_length as it is not sent to the model but used to truncate the prompt if needed
         model_max_length = kwargs.get("model_max_length", 4096)
 
         # Truncate prompt if prompt tokens > model_max_length-max_length
@@ -124,6 +137,13 @@ class AmazonBedrockGenerator:
         self.model_adapter = model_adapter_cls(model_kwargs=model_input_kwargs, max_length=self.max_length)
 
     def _ensure_token_limit(self, prompt: Union[str, List[Dict[str, str]]]) -> Union[str, List[Dict[str, str]]]:
+        """
+        Ensures that the prompt and answer token lengths together are within the model_max_length specified during
+        the initialization of the component.
+
+        :param prompt: The prompt to be sent to the model.
+        :returns: The resized prompt.
+        """
         # the prompt for this model will be of the type str
         if isinstance(prompt, List):
             msg = (
@@ -145,49 +165,14 @@ class AmazonBedrockGenerator:
             )
         return str(resize_info["resized_prompt"])
 
-    @classmethod
-    def supports(cls, model, **kwargs):
-        model_supported = cls.get_model_adapter(model) is not None
-        if not model_supported or not cls.aws_configured(**kwargs):
-            return False
-
-        try:
-            session = cls.get_aws_session(**kwargs)
-            bedrock = session.client("bedrock")
-            foundation_models_response = bedrock.list_foundation_models(byOutputModality="TEXT")
-            available_model_ids = [entry["modelId"] for entry in foundation_models_response.get("modelSummaries", [])]
-            model_ids_supporting_streaming = [
-                entry["modelId"]
-                for entry in foundation_models_response.get("modelSummaries", [])
-                if entry.get("responseStreamingSupported", False)
-            ]
-        except AWSConfigurationError as exception:
-            raise AmazonBedrockConfigurationError(message=exception.message) from exception
-        except Exception as exception:
-            msg = (
-                "Could not connect to Amazon Bedrock. Make sure the AWS environment is configured correctly. "
-                "See https://boto3.amazonaws.com/v1/documentation/api/latest/guide/quickstart.html#configuration"
-            )
-            raise AmazonBedrockConfigurationError(msg) from exception
-
-        model_available = model in available_model_ids
-        if not model_available:
-            msg = (
-                f"The model {model} is not available in Amazon Bedrock. "
-                f"Make sure the model you want to use is available in the configured AWS region and "
-                f"you have access."
-            )
-            raise AmazonBedrockConfigurationError(msg)
-
-        stream: bool = kwargs.get("stream", False)
-        model_supports_streaming = model in model_ids_supporting_streaming
-        if stream and not model_supports_streaming:
-            msg = f"The model {model} doesn't support streaming. Remove the `stream` parameter."
-            raise AmazonBedrockConfigurationError(msg)
-
-        return model_supported
-
     def invoke(self, *args, **kwargs):
+        """
+        Invokes the model with the given prompt.
+
+        :param args: Additional positional arguments passed to the generator.
+        :param kwargs: Additional keyword arguments passed to the generator.
+        :returns: A list of generated responses (strings).
+        """
         kwargs = kwargs.copy()
         prompt: str = kwargs.pop("prompt", None)
         stream: bool = kwargs.get("stream", self.model_adapter.model_kwargs.get("stream", False))
@@ -233,71 +218,45 @@ class AmazonBedrockGenerator:
 
         return responses
 
-    @component.output_types(replies=List[str], metadata=List[Dict[str, Any]])
+    @component.output_types(replies=List[str])
     def run(self, prompt: str, generation_kwargs: Optional[Dict[str, Any]] = None):
+        """
+        Generates a list of string response to the given prompt.
+
+        :param prompt: The prompt to generate a response for.
+        :param generation_kwargs: Additional keyword arguments passed to the generator.
+        :returns: A dictionary with the following keys:
+            - `replies`: A list of generated responses (strings).
+        """
         return {"replies": self.invoke(prompt=prompt, **(generation_kwargs or {}))}
 
     @classmethod
     def get_model_adapter(cls, model: str) -> Optional[Type[BedrockModelAdapter]]:
+        """
+        Gets the model adapter for the given model.
+
+        :param model: The model name.
+        :returns: The model adapter class, or None if no adapter is found.
+        """
         for pattern, adapter in cls.SUPPORTED_MODEL_PATTERNS.items():
             if re.fullmatch(pattern, model):
                 return adapter
         return None
 
-    @classmethod
-    def aws_configured(cls, **kwargs) -> bool:
-        """
-        Checks whether AWS configuration is provided.
-        :param kwargs: The kwargs passed down to the generator.
-        :return: True if AWS configuration is provided, False otherwise.
-        """
-        aws_config_provided = any(key in kwargs for key in AWS_CONFIGURATION_KEYS)
-        return aws_config_provided
-
-    @classmethod
-    def get_aws_session(
-        cls,
-        aws_access_key_id: Optional[str] = None,
-        aws_secret_access_key: Optional[str] = None,
-        aws_session_token: Optional[str] = None,
-        aws_region_name: Optional[str] = None,
-        aws_profile_name: Optional[str] = None,
-        **kwargs,
-    ):
-        """
-        Creates an AWS Session with the given parameters.
-        Checks if the provided AWS credentials are valid and can be used to connect to AWS.
-
-        :param aws_access_key_id: AWS access key ID.
-        :param aws_secret_access_key: AWS secret access key.
-        :param aws_session_token: AWS session token.
-        :param aws_region_name: AWS region name.
-        :param aws_profile_name: AWS profile name.
-        :param kwargs: The kwargs passed down to the service client. Supported kwargs depend on the model chosen.
-            See https://docs.aws.amazon.com/bedrock/latest/userguide/model-parameters.html.
-        :raises AWSConfigurationError: If the provided AWS credentials are invalid.
-        :return: The created AWS session.
-        """
-        try:
-            return boto3.Session(
-                aws_access_key_id=aws_access_key_id,
-                aws_secret_access_key=aws_secret_access_key,
-                aws_session_token=aws_session_token,
-                region_name=aws_region_name,
-                profile_name=aws_profile_name,
-            )
-        except BotoCoreError as e:
-            provided_aws_config = {k: v for k, v in kwargs.items() if k in AWS_CONFIGURATION_KEYS}
-            msg = f"Failed to initialize the session with provided AWS credentials {provided_aws_config}"
-            raise AWSConfigurationError(msg) from e
-
     def to_dict(self) -> Dict[str, Any]:
         """
-        Serialize this component to a dictionary.
-        :return: The serialized component as a dictionary.
+        Serializes the component to a dictionary.
+
+        :returns:
+            Dictionary with serialized data.
         """
         return default_to_dict(
             self,
+            aws_access_key_id=self.aws_access_key_id.to_dict() if self.aws_access_key_id else None,
+            aws_secret_access_key=self.aws_secret_access_key.to_dict() if self.aws_secret_access_key else None,
+            aws_session_token=self.aws_session_token.to_dict() if self.aws_session_token else None,
+            aws_region_name=self.aws_region_name.to_dict() if self.aws_region_name else None,
+            aws_profile_name=self.aws_profile_name.to_dict() if self.aws_profile_name else None,
             model=self.model,
             max_length=self.max_length,
         )
@@ -305,8 +264,15 @@ class AmazonBedrockGenerator:
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "AmazonBedrockGenerator":
         """
-        Deserialize this component from a dictionary.
-        :param data: The dictionary representation of this component.
-        :return: The deserialized component instance.
+        Deserializes the component from a dictionary.
+
+        :param data:
+            Dictionary to deserialize from.
+        :returns:
+              Deserialized component.
         """
+        deserialize_secrets_inplace(
+            data["init_parameters"],
+            ["aws_access_key_id", "aws_secret_access_key", "aws_session_token", "aws_region_name", "aws_profile_name"],
+        )
         return default_from_dict(cls, data)

@@ -39,11 +39,9 @@ class OpenSearchDocumentStore:
         """
         Creates a new OpenSearchDocumentStore instance.
 
-        For more information on connection parameters, see the official OpenSearch documentation:
-        https://opensearch.org/docs/latest/clients/python-low-level/#connecting-to-opensearch
+        For more information on connection parameters, see the [official OpenSearch documentation](https://opensearch.org/docs/latest/clients/python-low-level/#connecting-to-opensearch)
 
-        For the full list of supported kwargs, see the official OpenSearch reference:
-        https://opensearch-project.github.io/opensearch-py/api-ref/clients/opensearch_client.html
+        For the full list of supported kwargs, see the [official OpenSearch reference](https://opensearch-project.github.io/opensearch-py/api-ref/clients/opensearch_client.html)
 
         :param hosts: List of hosts running the OpenSearch client. Defaults to None
         :param index: Name of index in OpenSearch, if it doesn't exist it will be created. Defaults to "default"
@@ -94,6 +92,12 @@ class OpenSearchDocumentStore:
         # This is not the best solution to serialise this class but is the fastest to implement.
         # Not all kwargs types can be serialised to text so this can fail. We must serialise each
         # type explicitly to handle this properly.
+        """
+        Serializes the component to a dictionary.
+
+        :returns:
+            Dictionary with serialized data.
+        """
         return default_to_dict(
             self,
             hosts=self._hosts,
@@ -103,6 +107,15 @@ class OpenSearchDocumentStore:
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "OpenSearchDocumentStore":
+        """
+        Deserializes the component from a dictionary.
+
+        :param data:
+            Dictionary to deserialize from.
+
+        :returns:
+            Deserialized component.
+        """
         return default_from_dict(cls, data)
 
     def count_documents(self) -> int:
@@ -233,7 +246,7 @@ class OpenSearchDocumentStore:
         Even though this method is called `bm25_retrieval` it searches for `query`
         using the search algorithm `_client` was configured with.
 
-        This method is not mean to be part of the public interface of
+        This method is not meant to be part of the public interface of
         `OpenSearchDocumentStore` nor called directly.
         `OpenSearchBM25Retriever` uses this method directly and is the public interface for it.
 
@@ -241,14 +254,13 @@ class OpenSearchDocumentStore:
 
         :param query: String to search in saved Documents' text.
         :param filters: Optional filters to narrow down the search space.
-        :param fuzziness: Fuzziness parameter passed to OpenSearch, defaults to "AUTO".
-                          see the official documentation for valid values:
-                          https://www.elastic.co/guide/en/OpenSearch/reference/current/common-options.html#fuzziness
+        :param fuzziness: Fuzziness parameter passed to OpenSearch, defaults to "AUTO". see the official documentation
+                          for valid [fuzziness values](https://www.elastic.co/guide/en/OpenSearch/reference/current/common-options.html#fuzziness)
         :param top_k: Maximum number of Documents to return, defaults to 10
         :param scale_score: If `True` scales the Document`s scores between 0 and 1, defaults to False
         :param all_terms_must_match: If `True` all terms in `query` must be present in the Document, defaults to False
         :raises ValueError: If `query` is an empty string
-        :return: List of Document that match `query`
+        :returns: List of Document that match `query`
         """
 
         if not query:
@@ -296,7 +308,7 @@ class OpenSearchDocumentStore:
         Retrieves documents that are most similar to the query embedding using a vector similarity metric.
         It uses the OpenSearch's Approximate k-Nearest Neighbors search algorithm.
 
-        This method is not mean to be part of the public interface of
+        This method is not meant to be part of the public interface of
         `OpenSearchDocumentStore` nor called directly.
         `OpenSearchEmbeddingRetriever` uses this method directly and is the public interface for it.
 
@@ -304,12 +316,8 @@ class OpenSearchDocumentStore:
         :param filters: Filters applied to the retrieved Documents. Defaults to None.
             Filters are applied during the approximate kNN search to ensure that top_k matching documents are returned.
         :param top_k: Maximum number of Documents to return, defaults to 10
-        :param num_candidates: Number of approximate nearest neighbor candidates on each shard. Defaults to top_k * 10.
-            Increasing this value will improve search accuracy at the cost of slower search speeds.
-            You can read more about it in the OpenSearch documentation:
-            https://www.elastic.co/guide/en/OpenSearch/reference/current/knn-search.html#tune-approximate-knn-for-speed-accuracy
         :raises ValueError: If `query_embedding` is an empty list
-        :return: List of Document that are most similar to `query_embedding`
+        :returns: List of Document that are most similar to `query_embedding`
         """
 
         if not query_embedding:

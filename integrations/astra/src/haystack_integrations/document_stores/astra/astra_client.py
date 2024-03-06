@@ -1,11 +1,15 @@
 import json
 import logging
 from typing import Dict, List, Optional, Union
+from warnings import warn
 
-import requests
+from astrapy.api import APIRequestError
+from astrapy.db import AstraDB
 from pydantic.dataclasses import dataclass
 
 logger = logging.getLogger(__name__)
+
+NON_INDEXED_FIELDS = ["metadata._node_content", "content"]
 
 
 @dataclass
@@ -32,79 +36,92 @@ class AstraClient:
 
     def __init__(
         self,
-        astra_id: str,
-        astra_region: str,
-        astra_application_token: str,
-        keyspace_name: str,
+        api_endpoint: str,
+        token: str,
         collection_name: str,
-        embedding_dim: int,
+        embedding_dimension: int,
         similarity_function: str,
+        namespace: Optional[str] = None,
     ):
-        self.astra_id = astra_id
-        self.astra_application_token = astra_application_token
-        self.astra_region = astra_region
-        self.keyspace_name = keyspace_name
+        """
+        The connection to Astra DB is established and managed through the JSON API.
+        The required credentials (api endpoint and application token) can be generated
+        through the UI by clicking and the connect tab, and then selecting JSON API and
+        Generate Configuration.
+
+        :param api_endpoint: the Astra DB API endpoint.
+        :param token: the Astra DB application token.
+        :param collection_name: the current collection in the keyspace in the current Astra DB.
+        :param embedding_dimension: dimension of embedding vector.
+        :param similarity_function: the similarity function to use for the index.
+        :param namespace: the namespace to use for the collection.
+        """
+        self.api_endpoint = api_endpoint
+        self.token = token
         self.collection_name = collection_name
-        self.embedding_dim = embedding_dim
+        self.embedding_dimension = embedding_dimension
         self.similarity_function = similarity_function
+        self.namespace = namespace
 
-        self.request_url = f"https://{self.astra_id}-{self.astra_region}.apps.astra.datastax.com/api/json/v1/{self.keyspace_name}/{self.collection_name}"
-        self.request_header = {
-            "x-cassandra-token": self.astra_application_token,
-            "Content-Type": "application/json",
-        }
-        self.create_url = (
-            f"https://{self.astra_id}-{self.astra_region}.apps.astra.datastax.com/api/json/v1/{self.keyspace_name}"
-        )
+        # Build the Astra DB object
+        self._astra_db = AstraDB(api_endpoint=api_endpoint, token=token, namespace=namespace)
 
-        index_exists = self.find_index()
-        if not index_exists:
-            self.create_index()
-
-    def find_index(self):
-        find_query = {"findCollections": {"options": {"explain": True}}}
-        response = requests.request("POST", self.create_url, headers=self.request_header, data=json.dumps(find_query))
-        response.raise_for_status()
-        response_dict = json.loads(response.text)
-
-        if "status" in response_dict:
-            collection_name_matches = list(
-                filter(lambda d: d["name"] == self.collection_name, response_dict["status"]["collections"])
+        try:
+            # Create and connect to the newly created collection
+            self._astra_db_collection = self._astra_db.create_collection(
+                collection_name=collection_name,
+                dimension=embedding_dimension,
+                options={"indexing": {"deny": NON_INDEXED_FIELDS}},
             )
+        except APIRequestError:
+            # possibly the collection is preexisting and has legacy
+            # indexing settings: verify
+            get_coll_response = self._astra_db.get_collections(options={"explain": True})
 
-            if len(collection_name_matches) == 0:
-                logger.warning(
-                    f"Astra collection {self.collection_name} not found under {self.keyspace_name}. Will be created."
-                )
-                return False
+            collections = (get_coll_response["status"] or {}).get("collections") or []
 
-            collection_embedding_dim = collection_name_matches[0]["options"]["vector"]["dimension"]
-            if collection_embedding_dim != self.embedding_dim:
-                msg = (
-                    f"Collection vector dimension is not valid, expected {self.embedding_dim}, "
-                    f"found {collection_embedding_dim}"
-                )
-                raise Exception(msg)
+            preexisting = [collection for collection in collections if collection["name"] == collection_name]
 
-        else:
-            msg = f"status not in response: {response.text}"
-            raise Exception(msg)
-
-        return True
-
-    def create_index(self):
-        create_query = {
-            "createCollection": {
-                "name": self.collection_name,
-                "options": {"vector": {"dimension": self.embedding_dim, "metric": self.similarity_function}},
-            }
-        }
-        response = requests.request("POST", self.create_url, headers=self.request_header, data=json.dumps(create_query))
-        response.raise_for_status()
-        response_dict = json.loads(response.text)
-        if "errors" in response_dict:
-            raise Exception(response_dict["errors"])
-        logger.info(f"Collection {self.collection_name} created: {response.text}")
+            if preexisting:
+                pre_collection = preexisting[0]
+                # if it has no "indexing", it is a legacy collection;
+                # otherwise it's unexpected warn and proceed at user's risk
+                pre_col_options = pre_collection.get("options") or {}
+                if "indexing" not in pre_col_options:
+                    warn(
+                        (
+                            f"Collection '{collection_name}' is detected as legacy"
+                            " and has indexing turned on for all fields. This"
+                            " implies stricter limitations on the amount of text"
+                            " each entry can store. Consider reindexing anew on a"
+                            " fresh collection to be able to store longer texts."
+                        ),
+                        UserWarning,
+                        stacklevel=2,
+                    )
+                    self._astra_db_collection = self._astra_db.collection(
+                        collection_name=collection_name,
+                    )
+                else:
+                    options_json = json.dumps(pre_col_options["indexing"])
+                    warn(
+                        (
+                            f"Collection '{collection_name}' has unexpected 'indexing'"
+                            f" settings (options.indexing = {options_json})."
+                            " This can result in odd behaviour when running "
+                            " metadata filtering and/or unwarranted limitations"
+                            " on storing long texts. Consider reindexing anew on a"
+                            " fresh collection."
+                        ),
+                        UserWarning,
+                        stacklevel=2,
+                    )
+                    self._astra_db_collection = self._astra_db.collection(
+                        collection_name=collection_name,
+                    )
+            else:
+                # other exception
+                raise
 
     def query(
         self,
@@ -115,23 +132,17 @@ class AstraClient:
         include_values: Optional[bool] = None,
     ) -> QueryResponse:
         """
-        The Query operation searches a namespace, using a query vector.
-        It retrieves the ids of the most similar items in a namespace, along with their similarity scores.
+        Search the Astra index using a query vector.
 
-        Args:
-            vector (List[float]): The query vector. This should be the same length as the dimension of the index
-                                  being queried. Each `query()` request can contain only one of the parameters
-                                  `queries`, `id` or `vector`... [optional]
-            top_k (int): The number of results to return for each query. Must be an integer greater than 1.
-            query_filter (Dict[str, Union[str, float, int, bool, List, dict]):
-                    The filter to apply. You can use vector metadata to limit your search. [optional]
-            include_metadata (bool): Indicates whether metadata is included in the response as well as the ids.
-                                     If omitted the server will use the default value of False  [optional]
-            include_values (bool): Indicates whether values/vector is included in the response as well as the ids.
-                                     If omitted the server will use the default value of False  [optional]
-
-        Returns: object which contains the list of the closest vectors as ScoredVector objects,
-                 and namespace name.
+        :param vector: the query vector. This should be the same length as the dimension of the index being queried.
+            Each `query()` request can contain only one of the parameters `queries`, `id` or `vector`.
+        :param query_filter: the filter to apply. You can use vector metadata to limit your search.
+        :param top_k: the number of results to return for each query. Must be an integer greater than 1.
+        :param include_metadata: indicates whether metadata is included in the response as well as the ids.
+            If omitted the server will use the default value of `False`.
+        :param include_values: indicates whether values/vector is included in the response as well as the ids.
+            If omitted the server will use the default value of `False`.
+        :returns: object which contains the list of the closest vectors as ScoredVector objects, and namespace name.
         """
         # get vector data and scores
         if vector is None:
@@ -147,13 +158,16 @@ class AstraClient:
 
     def _query_without_vector(self, top_k, filters=None):
         query = {"filter": filters, "options": {"limit": top_k}}
+
         return self.find_documents(query)
 
     @staticmethod
     def _format_query_response(responses, include_metadata, include_values):
         final_res = []
+
         if responses is None:
             return QueryResponse(matches=[])
+
         for response in responses:
             _id = response.pop("_id")
             score = response.pop("$similarity", None)
@@ -162,33 +176,45 @@ class AstraClient:
             metadata = response if include_metadata else {}  # Add all remaining fields to the metadata
             rsp = Response(_id, text, values, metadata, score)
             final_res.append(rsp)
+
         return QueryResponse(final_res)
 
     def _query(self, vector, top_k, filters=None):
         query = {"sort": {"$vector": vector}, "options": {"limit": top_k, "includeSimilarity": True}}
+
         if filters is not None:
             query["filter"] = filters
+
         result = self.find_documents(query)
+
         return result
 
     def find_documents(self, find_query):
-        query = json.dumps({"find": find_query})
-        response = requests.request(
-            "POST",
-            self.request_url,
-            headers=self.request_header,
-            data=query,
+        """
+        Find documents in the Astra index.
+
+        :param find_query: a dictionary with the query options
+        :returns: the documents found in the index
+        """
+        response_dict = self._astra_db_collection.find(
+            filter=find_query.get("filter"),
+            sort=find_query.get("sort"),
+            options=find_query.get("options"),
         )
-        response.raise_for_status()
-        response_dict = json.loads(response.text)
-        if "errors" in response_dict:
-            raise Exception(response_dict["errors"])
+
         if "data" in response_dict and "documents" in response_dict["data"]:
             return response_dict["data"]["documents"]
         else:
             logger.warning(f"No documents found: {response_dict}")
 
     def get_documents(self, ids: List[str], batch_size: int = 20) -> QueryResponse:
+        """
+        Get documents from the Astra index by their ids.
+
+        :param ids: a list of document ids
+        :param batch_size: the batch size to use when querying the index
+        :returns: the documents found in the index
+        """
         document_batch = []
 
         def batch_generator(chunks, batch_size):
@@ -198,20 +224,22 @@ class AstraClient:
                 yield batch
 
         for id_batch in batch_generator(ids, batch_size):
-            document_batch.extend(self.find_documents({"filter": {"_id": {"$in": id_batch}}}))
+            docs = self.find_documents({"filter": {"_id": {"$in": id_batch}}})
+            if docs:
+                document_batch.extend(docs)
+
         formatted_docs = self._format_query_response(document_batch, include_metadata=True, include_values=True)
+
         return formatted_docs
 
     def insert(self, documents: List[Dict]):
-        query = json.dumps({"insertMany": {"options": {"ordered": False}, "documents": documents}})
-        response = requests.request(
-            "POST",
-            self.request_url,
-            headers=self.request_header,
-            data=query,
-        )
-        response.raise_for_status()
-        response_dict = json.loads(response.text)
+        """
+        Insert documents into the Astra index.
+
+        :param documents: a list of documents to insert
+        :returns: the IDs of the inserted documents
+        """
+        response_dict = self._astra_db_collection.insert_many(documents=documents)
 
         inserted_ids = (
             response_dict["status"]["insertedIds"]
@@ -220,34 +248,34 @@ class AstraClient:
         )
         if "errors" in response_dict:
             logger.error(response_dict["errors"])
+
         return inserted_ids
 
     def update_document(self, document: Dict, id_key: str):
+        """
+        Update a document in the Astra index.
+
+        :param document: the document to update
+        :param id_key: the key to use as the document id
+        :returns: whether the document was updated successfully
+        """
         document_id = document.pop(id_key)
-        query = json.dumps(
-            {
-                "findOneAndUpdate": {
-                    "filter": {id_key: document_id},
-                    "update": {"$set": document},
-                    "options": {"returnDocument": "after"},
-                }
-            }
+
+        response_dict = self._astra_db_collection.find_one_and_update(
+            filter={id_key: document_id},
+            update={"$set": document},
+            options={"returnDocument": "after"},
         )
-        response = requests.request(
-            "POST",
-            self.request_url,
-            headers=self.request_header,
-            data=query,
-        )
-        response.raise_for_status()
-        response_dict = json.loads(response.text)
+
         document[id_key] = document_id
 
         if "status" in response_dict and "errors" not in response_dict:
             if "matchedCount" in response_dict["status"] and "modifiedCount" in response_dict["status"]:
                 if response_dict["status"]["matchedCount"] == 1 and response_dict["status"]["modifiedCount"] == 1:
                     return True
-        logger.warning(f"Documents {document_id} not updated in Astra {response.text}")
+
+        logger.warning(f"Documents {document_id} not updated in Astra DB.")
+
         return False
 
     def delete(
@@ -256,6 +284,13 @@ class AstraClient:
         delete_all: Optional[bool] = None,
         filters: Optional[Dict[str, Union[str, float, int, bool, List, dict]]] = None,
     ) -> int:
+        """Delete documents from the Astra index.
+
+        :param ids: the ids of the documents to delete
+        :param delete_all: if `True`, delete all documents from the index
+        :param filters: additional filters to apply when deleting documents
+        :returns: the number of documents deleted
+        """
         if delete_all:
             query = {"deleteMany": {}}  # type: dict
         if ids is not None:
@@ -263,36 +298,27 @@ class AstraClient:
         if filters is not None:
             query = {"deleteMany": {"filter": filters}}
 
+        filter_dict = {}
+        if "filter" in query["deleteMany"]:
+            filter_dict = query["deleteMany"]["filter"]
+
         deletion_counter = 0
         moredata = True
         while moredata:
-            response = requests.request(
-                "POST",
-                self.request_url,
-                headers=self.request_header,
-                data=json.dumps(query),
-            )
-            response.raise_for_status()
-            response_dict = response.json()
-            if "errors" in response_dict:
-                raise Exception(response_dict["errors"])
+            response_dict = self._astra_db_collection.delete_many(filter=filter_dict)
+
             if "moreData" not in response_dict.get("status", {}):
                 moredata = False
+
             deletion_counter += int(response_dict["status"].get("deletedCount", 0))
 
         return deletion_counter
 
     def count_documents(self) -> int:
         """
-        Returns how many documents are present in the document store.
+        Count the number of documents in the Astra index.
+        :returns: the number of documents in the index
         """
-        response = requests.request(
-            "POST",
-            self.request_url,
-            headers=self.request_header,
-            data=json.dumps({"countDocuments": {}}),
-        )
-        response.raise_for_status()
-        if "errors" in response.json():
-            raise Exception(response.json()["errors"])
-        return response.json()["status"]["count"]
+        documents_count = self._astra_db_collection.count_documents()
+
+        return documents_count["status"]["count"]

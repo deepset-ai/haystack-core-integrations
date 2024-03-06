@@ -18,10 +18,10 @@ processors:
 renderer:
   type: haystack_pydoc_tools.renderers.ReadmePreviewRenderer
   excerpt: Astra integration for Haystack
-  category_slug: haystack-integrations
+  category_slug: integrations-api
   title: Astra
   slug: integrations-astra
-  order: 20
+  order: 30
   markdown:
     descriptive_class_title: false
     descriptive_module_title: true

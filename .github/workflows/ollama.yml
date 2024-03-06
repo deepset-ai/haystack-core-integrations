@@ -10,6 +10,10 @@ on:
       - "integrations/ollama/**"
       - ".github/workflows/ollama.yml"
 
+defaults:
+  run:
+    working-directory: integrations/ollama
+
 concurrency:
   group: ollama-${{ github.head_ref }}
   cancel-in-progress: true
@@ -18,6 +22,7 @@ env:
   PYTHONUNBUFFERED: "1"
   FORCE_COLOR: "1"
   LLM_FOR_TESTS: "orca-mini"
+  EMBEDDER_FOR_TESTS: "nomic-embed-text"
 
 jobs:
   run:
@@ -47,18 +52,18 @@ jobs:
         run: pip install --upgrade hatch
 
       - name: Lint
-        working-directory: integrations/ollama
         if: matrix.python-version == '3.9'
         run: hatch run lint:all
 
       - name: Pull the LLM in the Ollama service
-        run: docker exec ollama ollama pull ${{ env.LLM_FOR_TESTS }}        
+        run: docker exec ollama ollama pull ${{ env.LLM_FOR_TESTS }}    
+
+      - name: Pull the Embedding Model in the Ollama service
+        run: docker exec ollama ollama pull ${{ env.EMBEDDER_FOR_TESTS }}
 
       - name: Generate docs
-        working-directory: integrations/ollama
         if: matrix.python-version == '3.9' && runner.os == 'Linux'
         run: hatch run docs
 
       - name: Run tests
-        working-directory: integrations/ollama
         run: hatch run cov

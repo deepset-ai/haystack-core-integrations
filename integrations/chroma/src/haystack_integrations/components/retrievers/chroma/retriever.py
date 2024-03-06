@@ -8,18 +8,44 @@ from haystack_integrations.document_stores.chroma import ChromaDocumentStore
 
 
 @component
-class ChromaQueryRetriever:
+class ChromaQueryTextRetriever:
     """
-    A component for retrieving documents from an ChromaDocumentStore using the `query` API.
+    A component for retrieving documents from a [Chroma database](https://docs.trychroma.com/) using the `query` API.
+
+    Example usage:
+    ```python
+    from haystack import Pipeline
+    from haystack.components.converters import TextFileToDocument
+    from haystack.components.writers import DocumentWriter
+
+    from haystack_integrations.document_stores.chroma import ChromaDocumentStore
+    from haystack_integrations.components.retrievers.chroma import ChromaQueryTextRetriever
+
+    file_paths = ...
+
+    # Chroma is used in-memory so we use the same instances in the two pipelines below
+    document_store = ChromaDocumentStore()
+
+    indexing = Pipeline()
+    indexing.add_component("converter", TextFileToDocument())
+    indexing.add_component("writer", DocumentWriter(document_store))
+    indexing.connect("converter", "writer")
+    indexing.run({"converter": {"sources": file_paths}})
+
+    querying = Pipeline()
+    querying.add_component("retriever", ChromaQueryTextRetriever(document_store))
+    results = querying.run({"retriever": {"query": "Variable declarations", "top_k": 3}})
+
+    for d in results["retriever"]["documents"]:
+        print(d.meta, d.score)
+    ```
     """
 
     def __init__(self, document_store: ChromaDocumentStore, filters: Optional[Dict[str, Any]] = None, top_k: int = 10):
         """
-        Create an ExampleRetriever component. Usually you pass some basic configuration
-        parameters to the constructor.
-
-        :param filters: A dictionary with filters to narrow down the search space (default is None).
-        :param top_k: The maximum number of documents to retrieve (default is 10).
+        :param document_store: an instance of `ChromaDocumentStore`.
+        :param filters: filters to narrow down the search space.
+        :param top_k: the maximum number of documents to retrieve.
         """
         self.filters = filters
         self.top_k = top_k
@@ -36,7 +62,10 @@ class ChromaQueryRetriever:
         Run the retriever on the given input data.
 
         :param query: The input data for the retriever. In this case, a plain-text query.
-        :return: The retrieved documents.
+        :param top_k: The maximum number of documents to retrieve.
+            If not specified, the default value from the constructor is used.
+        :returns: A dictionary with the following keys:
+            - `documents`: List of documents returned by the search engine.
 
         :raises ValueError: If the specified document store is not found or is not a MemoryDocumentStore instance.
         """
@@ -44,24 +73,41 @@ class ChromaQueryRetriever:
 
         return {"documents": self.document_store.search([query], top_k)[0]}
 
-    def to_dict(self) -> Dict[str, Any]:
-        """
-        Override the default serializer in order to manage the Chroma client string representation
-        """
-        d = default_to_dict(self, filters=self.filters, top_k=self.top_k)
-        d["init_parameters"]["document_store"] = self.document_store.to_dict()
-
-        return d
-
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "ChromaQueryRetriever":
+    def from_dict(cls, data: Dict[str, Any]) -> "ChromaQueryTextRetriever":
+        """
+        Deserializes the component from a dictionary.
+
+        :param data:
+            Dictionary to deserialize from.
+        :returns:
+            Deserialized component.
+        """
         document_store = ChromaDocumentStore.from_dict(data["init_parameters"]["document_store"])
         data["init_parameters"]["document_store"] = document_store
         return default_from_dict(cls, data)
 
+    def to_dict(self) -> Dict[str, Any]:
+        """
+        Serializes the component to a dictionary.
+
+        :returns:
+            Dictionary with serialized data.
+        """
+        return default_to_dict(
+            self,
+            filters=self.filters,
+            top_k=self.top_k,
+            document_store=self.document_store.to_dict(),
+        )
+
 
 @component
-class ChromaEmbeddingRetriever(ChromaQueryRetriever):
+class ChromaEmbeddingRetriever(ChromaQueryTextRetriever):
+    """
+    A component for retrieving documents from a [Chroma database](https://docs.trychroma.com/) using embeddings.
+    """
+
     @component.output_types(documents=List[Document])
     def run(
         self,
@@ -72,10 +118,9 @@ class ChromaEmbeddingRetriever(ChromaQueryRetriever):
         """
         Run the retriever on the given input data.
 
-        :param queries: The input data for the retriever. In this case, a list of queries.
-        :return: The retrieved documents.
-
-        :raises ValueError: If the specified document store is not found or is not a MemoryDocumentStore instance.
+        :param query_embedding: the query embeddings.
+        :returns: a dictionary with the following keys:
+            - `documents`: List of documents returned by the search engine.
         """
         top_k = top_k or self.top_k
 

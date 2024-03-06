@@ -2,10 +2,10 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 import asyncio
-import os
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
-from haystack import component, default_to_dict
+from haystack import component, default_from_dict, default_to_dict
+from haystack.utils import Secret, deserialize_secrets_inplace
 from haystack_integrations.components.embedders.cohere.utils import get_async_response, get_response
 
 from cohere import COHERE_API_URL, AsyncClient, Client
@@ -16,9 +16,9 @@ class CohereTextEmbedder:
     """
     A component for embedding strings using Cohere models.
 
-    Usage Example:
+    Usage example:
     ```python
-    from cohere_haystack.embedders.text_embedder import CohereTextEmbedder
+    from haystack_integrations.components.embedders.cohere import CohereDocumentEmbedder
 
     text_to_embed = "I love pizza!"
 
@@ -33,7 +33,7 @@ class CohereTextEmbedder:
 
     def __init__(
         self,
-        api_key: Optional[str] = None,
+        api_key: Secret = Secret.from_env_var(["COHERE_API_KEY", "CO_API_KEY"]),
         model: str = "embed-english-v2.0",
         input_type: str = "search_query",
         api_base_url: str = COHERE_API_URL,
@@ -43,38 +43,26 @@ class CohereTextEmbedder:
         timeout: int = 120,
     ):
         """
-        Create a CohereTextEmbedder component.
-
-        :param api_key: The Cohere API key. It can be explicitly provided or automatically read from the environment
-            variable COHERE_API_KEY (recommended).
-        :param model: The name of the model to use, defaults to `"embed-english-v2.0"`. Supported Models are:
+        :param api_key: the Cohere API key.
+        :param model: the name of the model to use. Supported Models are:
             `"embed-english-v3.0"`, `"embed-english-light-v3.0"`, `"embed-multilingual-v3.0"`,
             `"embed-multilingual-light-v3.0"`, `"embed-english-v2.0"`, `"embed-english-light-v2.0"`,
             `"embed-multilingual-v2.0"`. This list of all supported models can be found in the
             [model documentation](https://docs.cohere.com/docs/models#representation).
-        :param input_type: Specifies the type of input you're giving to the model. Supported values are
-        "search_document", "search_query", "classification" and "clustering". Defaults to "search_document". Not
-        required for older versions of the embedding models (meaning anything lower than v3), but is required for more
-        recent versions (meaning anything bigger than v2).
-        :param api_base_url: The Cohere API Base url, defaults to `https://api.cohere.ai/v1/embed`.
-        :param truncate: Truncate embeddings that are too long from start or end, ("NONE"|"START"|"END"), defaults to
-            `"END"`. Passing START will discard the start of the input. END will discard the end of the input. In both
+        :param input_type: specifies the type of input you're giving to the model. Supported values are
+        "search_document", "search_query", "classification" and "clustering". Not
+            required for older versions of the embedding models (meaning anything lower than v3), but is required for
+            more recent versions (meaning anything bigger than v2).
+        :param api_base_url: the Cohere API Base url.
+        :param truncate: truncate embeddings that are too long from start or end, ("NONE"|"START"|"END").
+            Passing "START" will discard the start of the input. "END" will discard the end of the input. In both
             cases, input is discarded until the remaining input is exactly the maximum input token length for the model.
-            If NONE is selected, when the input exceeds the maximum input token length an error will be returned.
-        :param use_async_client: Flag to select the AsyncClient, defaults to `False`. It is recommended to use
+            If "NONE" is selected, when the input exceeds the maximum input token length an error will be returned.
+        :param use_async_client: flag to select the AsyncClient. It is recommended to use
             AsyncClient for applications with many concurrent calls.
-        :param max_retries: Maximum number of retries for requests, defaults to `3`.
-        :param timeout: Request timeout in seconds, defaults to `120`.
+        :param max_retries: maximum number of retries for requests.
+        :param timeout: request timeout in seconds.
         """
-
-        api_key = api_key or os.environ.get("COHERE_API_KEY")
-        # we check whether api_key is None or an empty string
-        if not api_key:
-            msg = (
-                "CohereTextEmbedder expects an API key. "
-                "Set the COHERE_API_KEY environment variable (recommended) or pass it explicitly."
-            )
-            raise ValueError(msg)
 
         self.api_key = api_key
         self.model = model
@@ -87,10 +75,14 @@ class CohereTextEmbedder:
 
     def to_dict(self) -> Dict[str, Any]:
         """
-        Serialize this component to a dictionary omitting the api_key field.
+        Serializes the component to a dictionary.
+
+        :returns:
+            Dictionary with serialized data.
         """
         return default_to_dict(
             self,
+            api_key=self.api_key.to_dict(),
             model=self.model,
             input_type=self.input_type,
             api_base_url=self.api_base_url,
@@ -100,9 +92,30 @@ class CohereTextEmbedder:
             timeout=self.timeout,
         )
 
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "CohereTextEmbedder":
+        """
+        Deserializes the component from a dictionary.
+
+        :param data:
+            Dictionary to deserialize from.
+        :returns:
+               Deserialized component.
+        """
+        init_params = data.get("init_parameters", {})
+        deserialize_secrets_inplace(init_params, ["api_key"])
+        return default_from_dict(cls, data)
+
     @component.output_types(embedding=List[float], meta=Dict[str, Any])
     def run(self, text: str):
-        """Embed a string."""
+        """Embed text.
+
+        :param text: the text to embed.
+        :returns: A dictionary with the following keys:
+            - `embedding`: the embedding of the text.
+            - `meta`: metadata about the request.
+        :raises TypeError: If the input is not a string.
+        """
         if not isinstance(text, str):
             msg = (
                 "CohereTextEmbedder expects a string as input."
@@ -112,16 +125,25 @@ class CohereTextEmbedder:
 
         # Establish connection to API
 
+        api_key = self.api_key.resolve_value()
+        assert api_key is not None
+
         if self.use_async_client:
             cohere_client = AsyncClient(
-                self.api_key, api_url=self.api_base_url, max_retries=self.max_retries, timeout=self.timeout
+                api_key,
+                api_url=self.api_base_url,
+                max_retries=self.max_retries,
+                timeout=self.timeout,
             )
             embedding, metadata = asyncio.run(
                 get_async_response(cohere_client, [text], self.model, self.input_type, self.truncate)
             )
         else:
             cohere_client = Client(
-                self.api_key, api_url=self.api_base_url, max_retries=self.max_retries, timeout=self.timeout
+                api_key,
+                api_url=self.api_base_url,
+                max_retries=self.max_retries,
+                timeout=self.timeout,
             )
             embedding, metadata = get_response(cohere_client, [text], self.model, self.input_type, self.truncate)
 

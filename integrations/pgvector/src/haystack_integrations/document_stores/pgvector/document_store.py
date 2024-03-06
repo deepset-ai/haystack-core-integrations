@@ -4,10 +4,11 @@
 import logging
 from typing import Any, Dict, List, Literal, Optional
 
-from haystack import default_to_dict
+from haystack import default_from_dict, default_to_dict
 from haystack.dataclasses.document import ByteStream, Document
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
+from haystack.utils.auth import Secret, deserialize_secrets_inplace
 from haystack.utils.filters import convert
 from psycopg import Error, IntegrityError, connect
 from psycopg.abc import Query
@@ -66,10 +67,14 @@ HNSW_INDEX_NAME = "haystack_hnsw_index"
 
 
 class PgvectorDocumentStore:
+    """
+    A Document Store using PostgreSQL with the [pgvector extension](https://github.com/pgvector/pgvector) installed.
+    """
+
     def __init__(
         self,
         *,
-        connection_string: str,
+        connection_string: Secret = Secret.from_env_var("PG_CONN_STR"),
         table_name: str = "haystack_documents",
         embedding_dimension: int = 768,
         vector_function: Literal["cosine_similarity", "inner_product", "l2_distance"] = "cosine_similarity",
@@ -84,37 +89,34 @@ class PgvectorDocumentStore:
         It is meant to be connected to a PostgreSQL database with the pgvector extension installed.
         A specific table to store Haystack documents will be created if it doesn't exist yet.
 
-        :param connection_string: The connection string to use to connect to the PostgreSQL database.
-            e.g. "postgresql://USER:PASSWORD@HOST:PORT/DB_NAME"
-        :param table_name: The name of the table to use to store Haystack documents. Defaults to "haystack_documents".
-        :param embedding_dimension: The dimension of the embedding. Defaults to 768.
+        :param connection_string: The connection string to use to connect to the PostgreSQL database, defined as an
+            environment variable, e.g.: `PG_CONN_STR="postgresql://USER:PASSWORD@HOST:PORT/DB_NAME"`
+        :param table_name: The name of the table to use to store Haystack documents.
+        :param embedding_dimension: The dimension of the embedding.
         :param vector_function: The similarity function to use when searching for similar embeddings.
-            Defaults to "cosine_similarity". "cosine_similarity" and "inner_product" are similarity functions and
+            `"cosine_similarity"` and `"inner_product"` are similarity functions and
             higher scores indicate greater similarity between the documents.
-            "l2_distance" returns the straight-line distance between vectors,
+            `"l2_distance"` returns the straight-line distance between vectors,
             and the most similar documents are the ones with the smallest score.
-
-            Important: when using the "hnsw" search strategy, an index will be created that depends on the
+            **Important**: when using the `"hnsw"` search strategy, an index will be created that depends on the
             `vector_function` passed here. Make sure subsequent queries will keep using the same
             vector similarity function in order to take advantage of the index.
-        :type vector_function: Literal["cosine_similarity", "inner_product", "l2_distance"]
-        :param recreate_table: Whether to recreate the table if it already exists. Defaults to False.
+        :param recreate_table: Whether to recreate the table if it already exists.
         :param search_strategy: The search strategy to use when searching for similar embeddings.
-            Defaults to "exact_nearest_neighbor". "hnsw" is an approximate nearest neighbor search strategy,
+            `"exact_nearest_neighbor"` provides perfect recall but can be slow for large numbers of documents.
+            `"hnsw"` is an approximate nearest neighbor search strategy,
             which trades off some accuracy for speed; it is recommended for large numbers of documents.
-
-            Important: when using the "hnsw" search strategy, an index will be created that depends on the
+            **Important**: when using the `"hnsw"` search strategy, an index will be created that depends on the
             `vector_function` passed here. Make sure subsequent queries will keep using the same
             vector similarity function in order to take advantage of the index.
-        :type search_strategy: Literal["exact_nearest_neighbor", "hnsw"]
         :param hnsw_recreate_index_if_exists: Whether to recreate the HNSW index if it already exists.
-            Defaults to False. Only used if search_strategy is set to "hnsw".
+            Only used if search_strategy is set to `"hnsw"`.
         :param hnsw_index_creation_kwargs: Additional keyword arguments to pass to the HNSW index creation.
-            Only used if search_strategy is set to "hnsw". You can find the list of valid arguments in the
-            pgvector documentation: https://github.com/pgvector/pgvector?tab=readme-ov-file#hnsw
-        :param hnsw_ef_search: The ef_search parameter to use at query time. Only used if search_strategy is set to
-            "hnsw". You can find more information about this parameter in the pgvector documentation:
-            https://github.com/pgvector/pgvector?tab=readme-ov-file#hnsw
+            Only used if search_strategy is set to `"hnsw"`. You can find the list of valid arguments in the
+            [pgvector documentation](https://github.com/pgvector/pgvector?tab=readme-ov-file#hnsw)
+        :param hnsw_ef_search: The `ef_search` parameter to use at query time. Only used if search_strategy is set to
+            `"hnsw"`. You can find more information about this parameter in the
+            [pgvector documentation](https://github.com/pgvector/pgvector?tab=readme-ov-file#hnsw)
         """
 
         self.connection_string = connection_string
@@ -130,7 +132,7 @@ class PgvectorDocumentStore:
         self.hnsw_index_creation_kwargs = hnsw_index_creation_kwargs or {}
         self.hnsw_ef_search = hnsw_ef_search
 
-        connection = connect(connection_string)
+        connection = connect(self.connection_string.resolve_value())
         connection.autocommit = True
         self._connection = connection
 
@@ -149,9 +151,15 @@ class PgvectorDocumentStore:
             self._handle_hnsw()
 
     def to_dict(self) -> Dict[str, Any]:
+        """
+        Serializes the component to a dictionary.
+
+        :returns:
+            Dictionary with serialized data.
+        """
         return default_to_dict(
             self,
-            connection_string=self.connection_string,
+            connection_string=self.connection_string.to_dict(),
             table_name=self.table_name,
             embedding_dimension=self.embedding_dimension,
             vector_function=self.vector_function,
@@ -161,6 +169,19 @@ class PgvectorDocumentStore:
             hnsw_index_creation_kwargs=self.hnsw_index_creation_kwargs,
             hnsw_ef_search=self.hnsw_ef_search,
         )
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "PgvectorDocumentStore":
+        """
+        Deserializes the component from a dictionary.
+
+        :param data:
+            Dictionary to deserialize from.
+        :returns:
+            Deserialized component.
+        """
+        deserialize_secrets_inplace(data["init_parameters"], ["connection_string"])
+        return default_from_dict(cls, data)
 
     def _execute_sql(
         self, sql_query: Query, params: Optional[tuple] = None, error_msg: str = "", cursor: Optional[Cursor] = None
@@ -203,6 +224,7 @@ class PgvectorDocumentStore:
     def delete_table(self):
         """
         Deletes the table used to store Haystack documents.
+        The name of the table (`table_name`) is defined when initializing the `PgvectorDocumentStore`.
         """
 
         delete_sql = SQL("DROP TABLE IF EXISTS {table_name}").format(table_name=Identifier(self.table_name))
@@ -212,7 +234,7 @@ class PgvectorDocumentStore:
     def _handle_hnsw(self):
         """
         Internal method to handle the HNSW index creation.
-        It also sets the hnsw.ef_search parameter for queries if it is specified.
+        It also sets the `hnsw.ef_search` parameter for queries if it is specified.
         """
 
         if self.hnsw_ef_search:
@@ -221,7 +243,7 @@ class PgvectorDocumentStore:
             )
             self._execute_sql(sql_set_hnsw_ef_search, error_msg="Could not set hnsw.ef_search")
 
-        index_esists = bool(
+        index_exists = bool(
             self._execute_sql(
                 "SELECT 1 FROM pg_indexes WHERE tablename = %s AND indexname = %s",
                 (self.table_name, HNSW_INDEX_NAME),
@@ -229,7 +251,7 @@ class PgvectorDocumentStore:
             ).fetchone()
         )
 
-        if index_esists and not self.hnsw_recreate_index_if_exists:
+        if index_exists and not self.hnsw_recreate_index_if_exists:
             logger.warning(
                 "HNSW index already exists and won't be recreated. "
                 "If you want to recreate it, pass 'hnsw_recreate_index_if_exists=True' to the "
@@ -289,7 +311,8 @@ class PgvectorDocumentStore:
         refer to the [documentation](https://docs.haystack.deepset.ai/v2.0/docs/metadata-filtering)
 
         :param filters: The filters to apply to the document list.
-        :return: A list of Documents that match the given filters.
+        :raises TypeError: If `filters` is not a dictionary.
+        :returns: A list of Documents that match the given filters.
         """
         if filters:
             if not isinstance(filters, dict):
@@ -318,13 +341,13 @@ class PgvectorDocumentStore:
 
     def write_documents(self, documents: List[Document], policy: DuplicatePolicy = DuplicatePolicy.NONE) -> int:
         """
-        Writes documents into to PgvectorDocumentStore.
+        Writes documents to the document store.
 
         :param documents: A list of Documents to write to the document store.
         :param policy: The duplicate policy to use when writing documents.
         :raises DuplicateDocumentError: If a document with the same id already exists in the document store
-             and the policy is set to DuplicatePolicy.FAIL (or not specified).
-        :return: The number of documents written to the document store.
+             and the policy is set to `DuplicatePolicy.FAIL` (or not specified).
+        :returns: The number of documents written to the document store.
         """
 
         if len(documents) > 0:
@@ -373,7 +396,8 @@ class PgvectorDocumentStore:
 
         return written_docs
 
-    def _from_haystack_to_pg_documents(self, documents: List[Document]) -> List[Dict[str, Any]]:
+    @staticmethod
+    def _from_haystack_to_pg_documents(documents: List[Document]) -> List[Dict[str, Any]]:
         """
         Internal method to convert a list of Haystack Documents to a list of dictionaries that can be used to insert
         documents into the PgvectorDocumentStore.
@@ -395,7 +419,8 @@ class PgvectorDocumentStore:
 
         return db_documents
 
-    def _from_pg_to_haystack_documents(self, documents: List[Dict[str, Any]]) -> List[Document]:
+    @staticmethod
+    def _from_pg_to_haystack_documents(documents: List[Dict[str, Any]]) -> List[Document]:
         """
         Internal method to convert a list of dictionaries from pgvector to a list of Haystack Documents.
         """
@@ -424,7 +449,7 @@ class PgvectorDocumentStore:
 
     def delete_documents(self, document_ids: List[str]) -> None:
         """
-        Deletes all documents with a matching document_ids from the document store.
+        Deletes documents that match the provided `document_ids` from the document store.
 
         :param document_ids: the document ids to delete
         """
@@ -454,8 +479,7 @@ class PgvectorDocumentStore:
         This method is not meant to be part of the public interface of
         `PgvectorDocumentStore` and it should not be called directly.
         `PgvectorEmbeddingRetriever` uses this method directly and is the public interface for it.
-        :raises ValueError
-        :return: List of Documents that are most similar to `query_embedding`
+        :returns: List of Documents that are most similar to `query_embedding`
         """
 
         if not query_embedding:

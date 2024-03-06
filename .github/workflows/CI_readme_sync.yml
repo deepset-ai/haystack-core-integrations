@@ -1,0 +1,63 @@
+name: Core / Sync docs with Readme
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout this repo
+        uses: actions/checkout@v4
+        with:
+          # This will tell tj-actions/changed-files to compare the current pushed commit with the latest in main
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -U haystack-pydoc-tools hatch
+
+      # We look into the changeset in order to understand
+      # which integrations were modified by the last commit.
+      - name: Get changed files
+        id: changed-files
+        uses: tj-actions/changed-files@v42
+        with:
+          files: integrations/**
+          # Output unique changed directories instead of filenames
+          dir_names: true
+          # We only care about the name of the integration, i.e. integrations/FOO
+          dir_names_max_depth: 2
+
+      - name: Generate docs
+        if: steps.changed-files.outputs.all_changed_files != ''
+        env:
+          # This is necessary to fetch the documentation categories
+          # from Readme.io as we need them to associate the slug
+          # in config files with their id.
+          README_API_KEY: ${{ secrets.README_API_KEY }}
+          ALL_CHANGED_DIRS: ${{ steps.changed-files.outputs.all_changed_files }}
+        run: |
+          for d in $ALL_CHANGED_DIRS; do
+            cd $d
+            hatch run docs
+            hatch env prune # clean up the environment after docs generation
+            cd -
+          done
+          mkdir tmp
+          find . -name "_readme_*.md" -exec cp "{}" tmp \;
+          ls tmp
+
+      - name: Sync API docs
+        if: steps.changed-files.outputs.all_changed_files != ''
+        uses: readmeio/rdme@v8
+        with:
+          rdme: docs ./tmp --key=${{ secrets.README_API_KEY }} --version=2.0

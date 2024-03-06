@@ -20,10 +20,10 @@ processors:
 renderer:
   type: haystack_pydoc_tools.renderers.ReadmePreviewRenderer
   excerpt: Qdrant integration for Haystack
-  category_slug: haystack-integrations
+  category_slug: integrations-api
   title: Qdrant
   slug: integrations-qdrant
-  order: 160
+  order: 210
   markdown:
     descriptive_class_title: false
     descriptive_module_title: true

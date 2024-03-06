@@ -16,10 +16,10 @@ processors:
 renderer:
   type: haystack_pydoc_tools.renderers.ReadmePreviewRenderer
   excerpt: Llama.cpp integration for Haystack
-  category_slug: haystack-integrations
+  category_slug: integrations-api
   title: Llama.cpp
   slug: integrations-llama-cpp
-  order: 110
+  order: 140
   markdown:
     descriptive_class_title: false
     descriptive_module_title: true
