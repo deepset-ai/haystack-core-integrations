@@ -251,10 +251,10 @@ class MongoDBAtlasDocumentStore:
             msg = f"Retrieval of documents from MongoDB Atlas failed: {e}"
             raise DocumentStoreError(msg) from e
 
-        documents = [self.mongo_doc_to_haystack_doc(doc) for doc in documents]
+        documents = [self._mongo_doc_to_haystack_doc(doc) for doc in documents]
         return documents
 
-    def mongo_doc_to_haystack_doc(self, mongo_doc: Dict[str, Any]) -> Document:
+    def _mongo_doc_to_haystack_doc(self, mongo_doc: Dict[str, Any]) -> Document:
         """
         Converts the dictionary coming out of MongoDB into a Haystack document
 
