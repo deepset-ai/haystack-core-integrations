@@ -24,7 +24,7 @@ class MongoDBAtlasDocumentStore:
     [MongoDB Atlas](https://www.mongodb.com/atlas/database) service that is easy to deploy, operate, and scale.
 
     To connect to MongoDB Atlas, you need to provide a connection string in the format:
-    `mongodb+srv://{mongo_atlas_username}:{mongo_atlas_password}@{mongo_atlas_host}/?{mongo_atlas_params_string}`.
+    `"mongodb+srv://{mongo_atlas_username}:{mongo_atlas_password}@{mongo_atlas_host}/?{mongo_atlas_params_string}"`.
 
     This connection string can be obtained on the MongoDB Atlas Dashboard by clicking on the `CONNECT` button, selecting
     Python as the driver, and copying the connection string. The connection string can be provided as an environment
@@ -64,7 +64,7 @@ class MongoDBAtlasDocumentStore:
         Creates a new MongoDBAtlasDocumentStore instance.
 
         :param mongo_connection_string: MongoDB Atlas connection string in the format:
-            `mongodb+srv://{mongo_atlas_username}:{mongo_atlas_password}@{mongo_atlas_host}/?{mongo_atlas_params_string}`.
+            `"mongodb+srv://{mongo_atlas_username}:{mongo_atlas_password}@{mongo_atlas_host}/?{mongo_atlas_params_string}"`.
             This can be obtained on the MongoDB Atlas Dashboard by clicking on the `CONNECT` button.
             This value will be read automatically from the env var "MONGO_CONNECTION_STRING".
         :param database_name: Name of the database to use.
