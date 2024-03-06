@@ -15,6 +15,8 @@ class DefaultPromptHandler:
         :param tokenizer: The tokenizer to be used to tokenize the prompt.
         :param model_max_length: The maximum length of the prompt and answer tokens combined.
         :param max_length: The maximum length of the answer tokens.
+        :raises ValueError: If the tokenizer is not a string or a `PreTrainedTokenizer` or `PreTrainedTokenizerFast`
+            instance.
         """
         if isinstance(tokenizer, str):
             self.tokenizer = AutoTokenizer.from_pretrained(tokenizer)

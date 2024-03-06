@@ -103,6 +103,10 @@ class AnthropicClaudeAdapter(BedrockModelAdapter):
         Prepares the body for the Claude model
 
         :param prompt: The prompt to be sent to the model.
+        :param inference_kwargs: Additional keyword arguments passed to the handler.
+        :returns: A dictionary with the following keys:
+            - `prompt`: The prompt to be sent to the model.
+            - specified inference parameters.
         """
         default_params = {
             "max_tokens_to_sample": self.max_length,
@@ -146,7 +150,9 @@ class CohereCommandAdapter(BedrockModelAdapter):
 
         :param prompt: The prompt to be sent to the model.
         :param inference_kwargs: Additional keyword arguments passed to the handler.
-        :returns: A dictionary containing the body for the request.
+        :returns: A dictionary with the following keys:
+            - `prompt`: The prompt to be sent to the model.
+            - specified inference parameters.
         """
         default_params = {
             "max_tokens": self.max_length,
@@ -191,6 +197,14 @@ class AI21LabsJurassic2Adapter(BedrockModelAdapter):
     """
 
     def prepare_body(self, prompt: str, **inference_kwargs) -> Dict[str, Any]:
+        """Prepares the body for the Jurassic 2 model.
+
+        :param prompt: The prompt to be sent to the model.
+        :param inference_kwargs: Additional keyword arguments passed to the handler.
+        :returns: A dictionary with the following keys:
+            -  `prompt`: The prompt to be sent to the model.
+            - specified inference parameters.
+        """
         default_params = {
             "maxTokens": self.max_length,
             "stopSequences": None,
@@ -226,7 +240,9 @@ class AmazonTitanAdapter(BedrockModelAdapter):
 
         :param prompt: The prompt to be sent to the model.
         :param inference_kwargs: Additional keyword arguments passed to the handler.
-        :returns: A dictionary containing the body for the request.
+        :returns: A dictionary with the following keys
+            - `inputText`: The prompt to be sent to the model.
+            - specified inference parameters.
         """
         default_params = {
             "maxTokenCount": self.max_length,
@@ -270,7 +286,9 @@ class MetaLlama2ChatAdapter(BedrockModelAdapter):
 
         :param prompt: The prompt to be sent to the model.
         :param inference_kwargs: Additional keyword arguments passed to the handler.
-        :returns: A dictionary containing the body for the request.
+        :returns: A dictionary with the following keys:
+            - `prompt`: The prompt to be sent to the model.
+            - specified inference parameters.
         """
         default_params = {
             "max_gen_len": self.max_length,
