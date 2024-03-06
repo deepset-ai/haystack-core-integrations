@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from typing import Dict, Optional
 
 import requests
+from haystack.utils import Secret
 
 FUNCTIONS_ENDPOINT = "https://api.nvcf.nvidia.com/v2/nvcf/functions"
 INVOKE_ENDPOINT = "https://api.nvcf.nvidia.com/v2/nvcf/pexec/functions"
@@ -19,13 +20,17 @@ class AvailableNvidiaCloudFunctions:
 
 
 class NvidiaCloudFunctionsClient:
-    def __init__(self, *, api_key: str, headers: Dict[str, str], timeout: int = 60):
-        self.api_key = api_key
+    def __init__(self, *, api_key: Secret, headers: Dict[str, str], timeout: int = 60):
+        self.api_key = api_key.resolve_value()
+        if self.api_key is None:
+            msg = "Nvidia Cloud Functions API key is not set."
+            raise ValueError(msg)
+
         self.fetch_url_format = STATUS_ENDPOINT
         self.headers = copy.deepcopy(headers)
         self.headers.update(
             {
-                "Authorization": f"Bearer {api_key}",
+                "Authorization": f"Bearer {self.api_key}",
             }
         )
         self.timeout = timeout

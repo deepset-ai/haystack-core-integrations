@@ -53,15 +53,12 @@ class NvidiaTextEmbedder:
         if isinstance(model, str):
             model = NvidiaEmbeddingModel.from_str(model)
 
-        resolved_api_key = api_key.resolve_value()
-        assert resolved_api_key is not None
-
         self.api_key = api_key
         self.model = model
         self.prefix = prefix
         self.suffix = suffix
         self.client = NvidiaCloudFunctionsClient(
-            api_key=resolved_api_key,
+            api_key=api_key,
             headers={
                 "Content-Type": "application/json",
                 "Accept": "application/json",
@@ -128,7 +125,7 @@ class NvidiaTextEmbedder:
         if not self._initialized:
             msg = "The embedding model has not been loaded. Please call warm_up() before running."
             raise RuntimeError(msg)
-        if not isinstance(text, str):
+        elif not isinstance(text, str):
             msg = (
                 "NvidiaTextEmbedder expects a string as an input."
                 "In case you want to embed a list of Documents, please use the NvidiaDocumentEmbedder."
