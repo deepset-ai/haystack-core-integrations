@@ -7,6 +7,8 @@ from typing import Any, Dict, List, Optional
 
 import requests
 
+from ._schema import GenerationResponse
+
 REQUESTS_TIMEOUT = 30
 
 INVOKE_ENDPOINT = "https://api.nvcf.nvidia.com/v2/nvcf/pexec/functions"
@@ -23,9 +25,9 @@ class ModelProvider(ABC):
 class NvidiaProvider(ModelProvider):
     session: requests.Session
     model_id: str
-    temperature: float
-    top_p: float
-    max_tokens: int
+    temperature: float = 0.2
+    top_p: float = 0.7
+    max_tokens: int = 1024
     seed: Optional[int] = None
     bad: Optional[List[str]] = None
     stop: Optional[List[str]] = None
@@ -56,17 +58,18 @@ class NvidiaProvider(ModelProvider):
 
         replies = []
         meta = []
-        data = res.json()
-        for choice in data["choices"]:
-            replies.append(choice["message"]["content"])
+        data = GenerationResponse.from_dict(res.json())
+        usage = data.usage
+        for choice in data.choices:
+            replies.append(choice.message.content)
             meta.append(
                 {
-                    "role": choice["message"]["role"],
-                    "finish_reason": choice["finish_reason"],
+                    "role": choice.message.role,
+                    "finish_reason": choice.finish_reason,
                     # The usage field is not part of each choice, so we use reuse it each time
-                    "completion_tokens": data["usage"]["completion_tokens"],
-                    "prompt_tokens": data["usage"]["prompt_tokens"],
-                    "total_tokens": data["usage"]["total_tokens"],
+                    "completion_tokens": usage.completion_tokens,
+                    "prompt_tokens": usage.prompt_tokens,
+                    "total_tokens": usage.total_tokens,
                 }
             )
         return {"replies": replies, "meta": meta}
