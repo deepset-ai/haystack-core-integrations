@@ -1,20 +1,26 @@
-# SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
+# SPDX-FileCopyrightText: 2024-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
 from typing import Any, Dict
 
 from haystack.errors import FilterError
 from pandas import DataFrame
+from datetime import datetime
+from haystack.utils.filters import convert
 
+
+UNSUPPORTED_TYPES_FOR_COMPARISON = (list, DataFrame)
 
 def _normalize_filters(filters: Dict[str, Any]) -> Dict[str, Any]:
     """
-    Converts Haystack filters in Pinecone compatible filters.
-    Reference: https://docs.pinecone.io/docs/metadata-filtering
-    """
+    Converts Haystack filters to MongoDB filters.
+    """   
     if not isinstance(filters, dict):
         msg = "Filters must be a dictionary"
         raise FilterError(msg)
+    
+    if "operator" not in filters and "conditions" not in filters:
+        filters = convert(filters)
 
     if "field" in filters:
         return _parse_comparison_condition(filters)
@@ -30,21 +36,28 @@ def _parse_logical_condition(condition: Dict[str, Any]) -> Dict[str, Any]:
         raise FilterError(msg)
 
     operator = condition["operator"]
-    conditions = [_parse_comparison_condition(c) for c in condition["conditions"]]
+    if operator not in ["AND", "OR", "NOT"]:
+        msg = f"Unknown logical operator '{operator}'. Valid operators are: 'AND', 'OR', 'NOT'"
+        raise FilterError(msg)
+    
+    # logical conditions can be nested, so we need to parse them recursively
+    conditions = []
+    for c in condition["conditions"]:
+        if "field" in c:
+            conditions.append(_parse_comparison_condition(c))
+        else:
+            conditions.append(_parse_logical_condition(c))
 
-    if operator in LOGICAL_OPERATORS:
-        return {LOGICAL_OPERATORS[operator]: conditions}
-
-    msg = f"Unknown logical operator '{operator}'"
-    raise FilterError(msg)
-
+    if operator == "AND":
+        return {"$and": conditions}
+    elif operator == "OR":
+        return {"$or": conditions}
+    elif operator == "NOT":
+        # MongoDB doesn't support our NOT operator (logical NAND) directly.
+        # we combine $nor and $and to achieve the same effect.
+        return {"$nor": [{"$and": conditions}]}
 
 def _parse_comparison_condition(condition: Dict[str, Any]) -> Dict[str, Any]:
-    if "field" not in condition:
-        # 'field' key is only found in comparison dictionaries.
-        # We assume this is a logic dictionary since it's not present.
-        return _parse_logical_condition(condition)
-
     field: str = condition["field"]
     if "operator" not in condition:
         msg = f"'operator' key missing in {condition}"
@@ -53,14 +66,8 @@ def _parse_comparison_condition(condition: Dict[str, Any]) -> Dict[str, Any]:
         msg = f"'value' key missing in {condition}"
         raise FilterError(msg)
     operator: str = condition["operator"]
-    if field.startswith("meta."):
-        # Remove the "meta." prefix if present.
-        # Documents are flattened when using the PineconeDocumentStore
-        # so we don't need to specify the "meta." prefix.
-        # Instead of raising an error we handle it gracefully.
-        field = field[5:]
-
     value: Any = condition["value"]
+
     if isinstance(value, DataFrame):
         value = value.to_json()
 
@@ -68,73 +75,91 @@ def _parse_comparison_condition(condition: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def _equal(field: str, value: Any) -> Dict[str, Any]:
-    supported_types = (str, int, float, bool, type(None))
-    if not isinstance(value, supported_types):
-        msg = (
-            f"Unsupported type for 'equal' comparison: {type(value)}. "
-            f"Types supported by Pinecone are: {supported_types}"
-        )
-        raise FilterError(msg)
-
     return {field: {"$eq": value}}
 
-
 def _not_equal(field: str, value: Any) -> Dict[str, Any]:
-    supported_types = (str, int, float, bool, type(None))
-    if not isinstance(value, supported_types):
-        msg = (
-            f"Unsupported type for 'not equal' comparison: {type(value)}. "
-            f"Types supported by Pinecone are: {supported_types}"
-        )
-        raise FilterError(msg)
-
     return {field: {"$ne": value}}
 
-
 def _greater_than(field: str, value: Any) -> Dict[str, Any]:
-    supported_types = (int, float, type(None))
-    if not isinstance(value, supported_types):
+    if isinstance(value, UNSUPPORTED_TYPES_FOR_COMPARISON):
         msg = (
-            f"Unsupported type for 'greater than' comparison: {type(value)}. "
-            f"Types supported by Pinecone are: {supported_types}"
+            f"Unsupported type for '>' comparison: {type(value)}. "
         )
         raise FilterError(msg)
+    elif isinstance(value, str):
+        try:
+            datetime.fromisoformat(value)
+        except (ValueError, TypeError) as exc:
+            msg = (
+                "Can't compare strings using operators '>', '>=', '<', '<='. "
+                "Strings are only comparable if they are ISO formatted dates."
+            )
+            raise FilterError(msg) from exc    
 
     return {field: {"$gt": value}}
 
 
 def _greater_than_equal(field: str, value: Any) -> Dict[str, Any]:
-    supported_types = (int, float)
-    if not isinstance(value, supported_types):
+    if isinstance(value, UNSUPPORTED_TYPES_FOR_COMPARISON):
         msg = (
-            f"Unsupported type for 'greater than equal' comparison: {type(value)}. "
-            f"Types supported by Pinecone are: {supported_types}"
+            f"Unsupported type for '>=' comparison: {type(value)}. "
         )
         raise FilterError(msg)
+    elif isinstance(value, str):
+        try:
+            datetime.fromisoformat(value)
+        except (ValueError, TypeError) as exc:
+            msg = (
+                "Can't compare strings using operators '>', '>=', '<', '<='. "
+                "Strings are only comparable if they are ISO formatted dates."
+            )
+            raise FilterError(msg) from exc
+    elif value is None:
+        # we want {field: {"$gte": null}} to return an empty result
+        # $gte with null values in MongoDB returns a non-empty result, while $gt aligns with our expectations
+        return {field: {"$gt": value}}
 
     return {field: {"$gte": value}}
 
 
 def _less_than(field: str, value: Any) -> Dict[str, Any]:
-    supported_types = (int, float)
-    if not isinstance(value, supported_types):
+    if isinstance(value, UNSUPPORTED_TYPES_FOR_COMPARISON):
         msg = (
-            f"Unsupported type for 'less than' comparison: {type(value)}. "
-            f"Types supported by Pinecone are: {supported_types}"
+            f"Unsupported type for '<' comparison: {type(value)}. "
         )
         raise FilterError(msg)
+    elif isinstance(value, str):
+        try:
+            datetime.fromisoformat(value)
+        except (ValueError, TypeError) as exc:
+            msg = (
+                "Can't compare strings using operators '>', '>=', '<', '<='. "
+                "Strings are only comparable if they are ISO formatted dates."
+            )
+            raise FilterError(msg) from exc
 
     return {field: {"$lt": value}}
 
 
 def _less_than_equal(field: str, value: Any) -> Dict[str, Any]:
-    supported_types = (int, float)
-    if not isinstance(value, supported_types):
+    if isinstance(value, UNSUPPORTED_TYPES_FOR_COMPARISON):
         msg = (
             f"Unsupported type for 'less than equal' comparison: {type(value)}. "
-            f"Types supported by Pinecone are: {supported_types}"
         )
         raise FilterError(msg)
+    elif isinstance(value, str):
+        try:
+            datetime.fromisoformat(value)
+        except (ValueError, TypeError) as exc:
+            msg = (
+                "Can't compare strings using operators '>', '>=', '<', '<='. "
+                "Strings are only comparable if they are ISO formatted dates."
+            )
+            raise FilterError(msg) from exc
+    elif value is None:
+        # we want {field: {"$lte": null}} to return an empty result
+        # $lte with null values in MongoDB returns a non-empty result, while $lt aligns with our expectations
+        return {field: {"$lt": value}}
 
     return {field: {"$lte": value}}
 
@@ -144,15 +169,6 @@ def _not_in(field: str, value: Any) -> Dict[str, Any]:
         msg = f"{field}'s value must be a list when using 'not in' comparator in Pinecone"
         raise FilterError(msg)
 
-    supported_types = (int, float, str)
-    for v in value:
-        if not isinstance(v, supported_types):
-            msg = (
-                f"Unsupported type for 'not in' comparison: {type(v)}. "
-                f"Types supported by Pinecone are: {supported_types}"
-            )
-            raise FilterError(msg)
-
     return {field: {"$nin": value}}
 
 
@@ -160,15 +176,6 @@ def _in(field: str, value: Any) -> Dict[str, Any]:
     if not isinstance(value, list):
         msg = f"{field}'s value must be a list when using 'in' comparator in Pinecone"
         raise FilterError(msg)
-
-    supported_types = (int, float, str)
-    for v in value:
-        if not isinstance(v, supported_types):
-            msg = (
-                f"Unsupported type for 'in' comparison: {type(v)}. "
-                f"Types supported by Pinecone are: {supported_types}"
-            )
-            raise FilterError(msg)
 
     return {field: {"$in": value}}
 
@@ -183,6 +190,4 @@ COMPARISON_OPERATORS = {
     "in": _in,
     "not in": _not_in,
 }
-
-LOGICAL_OPERATORS = {"AND": "$and", "OR": "$or"}
 

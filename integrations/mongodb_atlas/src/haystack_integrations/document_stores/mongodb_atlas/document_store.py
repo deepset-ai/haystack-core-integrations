@@ -11,7 +11,6 @@ from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumen
 from haystack.document_stores.types import DuplicatePolicy
 from haystack.utils import Secret, deserialize_secrets_inplace
 from haystack_integrations.document_stores.mongodb_atlas.filters import _normalize_filters
-from haystack.utils.filters import convert
 
 from pymongo import InsertOne, MongoClient, ReplaceOne, UpdateOne  # type: ignore
 from pymongo.driver_info import DriverInfo  # type: ignore
@@ -102,9 +101,8 @@ class MongoDBAtlasDocumentStore:
         :param filters: The filters to apply. It returns only the documents that match the filters.
         :return: A list of Documents that match the given filters.
         """
-        if filters and "operator" not in filters and "conditions" not in filters:
-            filters = convert(filters)
         filters = _normalize_filters(filters) if filters else None
+        print(filters)
         documents = list(self.collection.find(filters))
         for doc in documents:
             doc.pop("_id", None)  # MongoDB's internal id doesn't belong into a Haystack document, so we remove it.
@@ -129,7 +127,7 @@ class MongoDBAtlasDocumentStore:
         if policy == DuplicatePolicy.NONE:
             policy = DuplicatePolicy.FAIL
 
-        mongo_documents = [doc.to_dict() for doc in documents]
+        mongo_documents = [doc.to_dict(flatten=False) for doc in documents]
         operations: List[Union[UpdateOne, InsertOne, ReplaceOne]]
         written_docs = len(documents)
 
@@ -177,7 +175,8 @@ class MongoDBAtlasDocumentStore:
             msg = "Query embedding must not be empty"
             raise ValueError(msg)
 
-        filters = haystack_filters_to_mongo(filters)
+        filters = _normalize_filters(filters) if filters else None
+
         pipeline = [
             {
                 "$vectorSearch": {
@@ -186,7 +185,7 @@ class MongoDBAtlasDocumentStore:
                     "queryVector": query_embedding,
                     "numCandidates": 100,
                     "limit": top_k,
-                    # "filter": filters,
+                    "filter": filters,
                 }
             },
             {
@@ -207,10 +206,10 @@ class MongoDBAtlasDocumentStore:
             msg = f"Retrieval of documents from MongoDB Atlas failed: {e}"
             raise DocumentStoreError(msg) from e
 
-        documents = [self.mongo_doc_to_haystack_doc(doc) for doc in documents]
+        documents = [self._mongo_doc_to_haystack_doc(doc) for doc in documents]
         return documents
 
-    def mongo_doc_to_haystack_doc(self, mongo_doc: Dict[str, Any]) -> Document:
+    def _mongo_doc_to_haystack_doc(self, mongo_doc: Dict[str, Any]) -> Document:
         """
         Converts the dictionary coming out of MongoDB into a Haystack document
 

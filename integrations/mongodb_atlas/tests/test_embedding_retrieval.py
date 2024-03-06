@@ -7,6 +7,7 @@ from typing import List
 import pytest
 from haystack.document_stores.errors import DocumentStoreError
 from haystack_integrations.document_stores.mongodb_atlas import MongoDBAtlasDocumentStore
+from haystack.dataclasses.document import Document
 
 
 @pytest.mark.skipif(
@@ -72,3 +73,17 @@ class TestEmbeddingRetrieval:
         query_embedding = [0.1] * 4
         with pytest.raises(DocumentStoreError):
             document_store.embedding_retrieval(query_embedding=query_embedding)
+
+    def test_embedding_retrieval_with_filters(self):
+        document_store = MongoDBAtlasDocumentStore(
+            database_name="haystack_integration_test",
+            collection_name="fake",
+            vector_search_index="cosine_index",
+        )
+        print(document_store.filter_documents())
+        query_embedding = [0.1] * 768
+        # document_store.write_documents([Document(content="Document B", embedding=query_embedding, meta={"category": "test"})])
+        filters = {"field": "content", "operator": "!=", "value": "Document A"}
+        results = document_store.embedding_retrieval(query_embedding=query_embedding, top_k=100, filters=filters)
+        assert len(results) == 1
+        assert results[0].content == "Document B"

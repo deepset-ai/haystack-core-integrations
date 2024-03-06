@@ -45,4 +45,36 @@ def document_store():
     reason="No MongoDB Atlas connection string provided",
 )
 class TestFilters(FilterDocumentsTest):
-    pass
+    def test_complex_filter(self, document_store, filterable_docs):
+        document_store.write_documents(filterable_docs)
+        filters = {
+            "operator": "OR",
+            "conditions": [
+                {
+                    "operator": "AND",
+                    "conditions": [
+                        {"field": "meta.number", "operator": "==", "value": 100},
+                        {"field": "meta.chapter", "operator": "==", "value": "intro"},
+                    ],
+                },
+                {
+                    "operator": "AND",
+                    "conditions": [
+                        {"field": "meta.page", "operator": "==", "value": "90"},
+                        {"field": "meta.chapter", "operator": "==", "value": "conclusion"},
+                    ],
+                },
+            ],
+        }
+
+        result = document_store.filter_documents(filters=filters)
+
+        self.assert_documents_are_equal(
+            result,
+            [
+                d
+                for d in filterable_docs
+                if (d.meta.get("number") == 100 and d.meta.get("chapter") == "intro")
+                or (d.meta.get("page") == "90" and d.meta.get("chapter") == "conclusion")
+            ],
+        )
