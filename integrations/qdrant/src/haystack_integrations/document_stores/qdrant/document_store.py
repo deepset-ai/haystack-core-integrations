@@ -63,6 +63,7 @@ class QdrantDocumentStore:
         path: Optional[str] = None,
         index: str = "Document",
         embedding_dim: int = 768,
+        on_disk: bool = False,  # noqa: FBT001, FBT002
         content_field: str = "content",
         name_field: str = "name",
         embedding_field: str = "embedding",
@@ -134,9 +135,10 @@ class QdrantDocumentStore:
         self.payload_field_to_index = payload_field_to_index
 
         # Make sure the collection is properly set up
-        self._set_up_collection(index, embedding_dim, recreate_index, similarity, payload_field_to_index)
+        self._set_up_collection(index, embedding_dim, on_disk, recreate_index, similarity, payload_field_to_index)
 
         self.embedding_dim = embedding_dim
+        self.on_disk = on_disk
         self.content_field = content_field
         self.name_field = name_field
         self.embedding_field = embedding_field
@@ -353,6 +355,7 @@ class QdrantDocumentStore:
         self,
         collection_name: str,
         embedding_dim: int,
+        on_disk: bool, # noqa: FBT001
         recreate_collection: bool,  # noqa: FBT001
         similarity: str,
         payload_field_to_index: Optional[List[dict]] = None,
@@ -362,7 +365,7 @@ class QdrantDocumentStore:
         if recreate_collection:
             # There is no need to verify the current configuration of that
             # collection. It might be just recreated again.
-            self._recreate_collection(collection_name, distance, embedding_dim)
+            self._recreate_collection(collection_name, distance, embedding_dim, on_disk)
             # Create Payload index if payload_field_to_index is provided
             self._create_payload_index(collection_name, payload_field_to_index)
             return
@@ -378,7 +381,7 @@ class QdrantDocumentStore:
             # Qdrant local raises ValueError if the collection is not found, but
             # with the remote server UnexpectedResponse / RpcError is raised.
             # Until that's unified, we need to catch both.
-            self._recreate_collection(collection_name, distance, embedding_dim)
+            self._recreate_collection(collection_name, distance, embedding_dim, on_disk)
             # Create Payload index if payload_field_to_index is provided
             self._create_payload_index(collection_name, payload_field_to_index)
             return
@@ -404,11 +407,12 @@ class QdrantDocumentStore:
             )
             raise ValueError(msg)
 
-    def _recreate_collection(self, collection_name: str, distance, embedding_dim: int):
+    def _recreate_collection(self, collection_name: str, distance, embedding_dim: int, on_disk: bool):
         self.client.recreate_collection(
             collection_name=collection_name,
             vectors_config=rest.VectorParams(
                 size=embedding_dim,
+                on_disk=on_disk,
                 distance=distance,
             ),
             shard_number=self.shard_number,
