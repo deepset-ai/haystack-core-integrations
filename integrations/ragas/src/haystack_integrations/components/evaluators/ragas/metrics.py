@@ -134,9 +134,8 @@ class MetricDescriptor:
     backend: Type[Metric]
     input_parameters: Dict[str, Type]
     input_converter: Callable[[Any], Iterable[Dict[str, str]]]
-    output_converter: Callable[[Result, RagasMetric, Dict[str, Any]], List[MetricResult]]
-    required_init_parameters: Optional[List[str]] = None
-    optional_init_parameters: Optional[List[str]] = None
+    output_converter: Callable[[Result, RagasMetric, Optional[Dict[str, Any]]], List[MetricResult]]
+    init_parameters: Optional[List[str]] = None
 
     @classmethod
     def new(
@@ -144,10 +143,11 @@ class MetricDescriptor:
         metric: RagasMetric,
         backend: Type[Metric],
         input_converter: Callable[[Any], Iterable[Dict[str, str]]],
-        output_converter: Optional[Callable[[Result, RagasMetric, Dict[str, Any]], List[MetricResult]]] = None,
+        output_converter: Optional[
+            Callable[[Result, RagasMetric, Optional[Dict[str, Any]]], List[MetricResult]]
+        ] = None,
         *,
-        required_init_parameters: Optional[List[str]] = None,
-        optional_init_parameters: Optional[List[str]] = None,
+        init_parameters: Optional[List[str]] = None,
     ) -> "MetricDescriptor":
         input_converter_signature = inspect.signature(input_converter)
         input_parameters = {}
@@ -164,40 +164,8 @@ class MetricDescriptor:
             input_parameters=input_parameters,
             input_converter=input_converter,
             output_converter=output_converter if output_converter is not None else OutputConverters.default,
-            required_init_parameters=required_init_parameters,
-            optional_init_parameters=optional_init_parameters,
+            init_parameters=init_parameters,
         )
-
-
-class MetricParamsValidator:
-    """
-    Validates metric parameters.
-
-    Depending on the metric type, different metric parameters are allowed.
-    The validator functions are responsible for validating the parameters and raising an error if they are invalid.
-    """
-
-    @staticmethod
-    def validate_metric_parameters(
-        metric: RagasMetric, required: Optional[List[str]], optional: Optional[List[str]], received: Dict[str, Any]
-    ) -> None:
-        required = required or []
-        optional = optional or []
-        missing_required_params = [p for p in required if p not in received]
-        unexpected_params = [p for p in received if p not in required + optional]
-
-        if missing_required_params:
-            msg = (
-                f"Invalid init parameters for Ragas metric '{metric}'. "
-                f"Missing required metric parameters {missing_required_params} but got '{received}'"
-            )
-            raise ValueError(msg)
-        if unexpected_params:
-            msg = (
-                f"Invalid init parameters for Ragas metric '{metric}'. "
-                f"Received unexpected parameters {unexpected_params} but allows '{required + optional}'"
-            )
-            raise ValueError(msg)
 
 
 class InputConverters:
@@ -308,12 +276,15 @@ class OutputConverters:
             raise ValueError(msg) from e
 
     @staticmethod
-    def default(output: Result, metric: RagasMetric, _: Dict) -> List[MetricResult]:
+    def default(output: Result, metric: RagasMetric, _: Optional[Dict]) -> List[MetricResult]:
         metric_name = metric.value
         return OutputConverters._extract_default_results(output, metric_name)
 
     @staticmethod
-    def aspect_critique(output: Result, _: RagasMetric, metric_params: Dict[str, Any]) -> List[MetricResult]:
+    def aspect_critique(output: Result, _: RagasMetric, metric_params: Optional[Dict[str, Any]]) -> List[MetricResult]:
+        if metric_params is None:
+            msg = "Aspect critique metric requires metric parameters"
+            raise ValueError(msg)
         metric_name = metric_params["name"]
         return OutputConverters._extract_default_results(output, metric_name)
 
@@ -323,56 +294,50 @@ METRIC_DESCRIPTORS = {
         RagasMetric.ANSWER_CORRECTNESS,
         AnswerCorrectness,
         InputConverters.question_response_ground_truth,  # type: ignore
-        optional_init_parameters=["name", "weights", "answer_similarity"],
+        init_parameters=["weights"],
     ),
     RagasMetric.FAITHFULNESS: MetricDescriptor.new(
         RagasMetric.FAITHFULNESS,
         Faithfulness,
         InputConverters.question_context_response,  # type: ignore
-        optional_init_parameters=["name"],
     ),
     RagasMetric.ANSWER_SIMILARITY: MetricDescriptor.new(
         RagasMetric.ANSWER_SIMILARITY,
         AnswerSimilarity,
         InputConverters.response_ground_truth,  # type: ignore
-        optional_init_parameters=["name", "model_name", "threshold"],
+        init_parameters=["threshold"],
     ),
     RagasMetric.CONTEXT_PRECISION: MetricDescriptor.new(
         RagasMetric.CONTEXT_PRECISION,
         ContextPrecision,
         InputConverters.question_context_ground_truth,  # type: ignore
-        optional_init_parameters=["name"],
     ),
     RagasMetric.CONTEXT_UTILIZATION: MetricDescriptor.new(
         RagasMetric.CONTEXT_UTILIZATION,
         ContextUtilization,
         InputConverters.question_context_response,  # type: ignore
-        optional_init_parameters=["name"],
     ),
     RagasMetric.CONTEXT_RECALL: MetricDescriptor.new(
         RagasMetric.CONTEXT_RECALL,
         ContextRecall,
         InputConverters.question_context_ground_truth,  # type: ignore
-        optional_init_parameters=["name"],
     ),
     RagasMetric.ASPECT_CRITIQUE: MetricDescriptor.new(
         RagasMetric.ASPECT_CRITIQUE,
         AspectCritique,
         InputConverters.question_context_response,  # type: ignore
         OutputConverters.aspect_critique,
-        required_init_parameters=["name", "definition"],
-        optional_init_parameters=["strictness", "llm"],
+        init_parameters=["name", "definition", "strictness"],
     ),
     RagasMetric.CONTEXT_RELEVANCY: MetricDescriptor.new(
         RagasMetric.CONTEXT_RELEVANCY,
         ContextRelevancy,
         InputConverters.question_context,  # type: ignore
-        optional_init_parameters=["name"],
     ),
     RagasMetric.ANSWER_RELEVANCY: MetricDescriptor.new(
         RagasMetric.ANSWER_RELEVANCY,
         AnswerRelevancy,
         InputConverters.question_context_response,  # type: ignore
-        optional_init_parameters=["name", "strictness", "embeddings"],
+        init_parameters=["strictness"],
     ),
 }
