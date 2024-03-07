@@ -74,19 +74,19 @@ def test_evaluator_metric_init_params():
         'name': 'harmfulness',
     }
 
-    with pytest.raises(ValueError, match="Expects a name"):
+    with pytest.raises(ValueError, match="expected input parameter 'name'"):
         RagasEvaluator(RagasMetric.ASPECT_CRITIQUE, metric_params=None)
 
-    with pytest.raises(ValueError, match="Expects a name"):
+    with pytest.raises(ValueError, match="expected input parameter 'name'"):
         RagasEvaluator(RagasMetric.ASPECT_CRITIQUE, metric_params={})
 
-    with pytest.raises(ValueError, match="Expects a name"):
+    with pytest.raises(ValueError, match="expected input parameter 'name'"):
         RagasEvaluator(
             RagasMetric.ASPECT_CRITIQUE,
             metric_params={"definition": "custom definition"},
         )
 
-    with pytest.raises(ValueError, match="Expects definition"):
+    with pytest.raises(ValueError, match="expected input parameter 'definition'"):
         RagasEvaluator(
             RagasMetric.ASPECT_CRITIQUE,
             metric_params={"name": "custom name"},

@@ -80,7 +80,7 @@ class RagasEvaluator:
 
     def _init_metric(self):
         MetricParamsValidator.validate_metric_parameters(
-            self.metric, self.descriptor.init_parameters, self.metric_params
+            self.metric, self.descriptor.required_init_parameters, self.descriptor.optional_init_parameters, self.metric_params
         )
         self._backend_metric = self.descriptor.backend(**self.metric_params)
 
