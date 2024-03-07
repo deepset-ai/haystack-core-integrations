@@ -20,6 +20,7 @@ class NvidiaGenerator:
     Usage example:
     ```python
     from haystack_integrations.components.generators.nvidia import NvidiaGenerator
+    from haystack_integrations.components.generators.nvidia.models import NvidiaGeneratorModel
 
     generator = NvidiaGenerator(
         model=NvidiaGeneratorModel.NV_LLAMA2_RLHF_70B,
