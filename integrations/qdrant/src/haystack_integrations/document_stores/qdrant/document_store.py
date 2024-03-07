@@ -135,7 +135,7 @@ class QdrantDocumentStore:
         self.payload_field_to_index = payload_field_to_index
 
         # Make sure the collection is properly set up
-        self._set_up_collection(index, embedding_dim, on_disk, recreate_index, similarity, payload_field_to_index)
+        self._set_up_collection(index, embedding_dim, recreate_index, similarity, on_disk, payload_field_to_index)
 
         self.embedding_dim = embedding_dim
         self.on_disk = on_disk
@@ -355,9 +355,9 @@ class QdrantDocumentStore:
         self,
         collection_name: str,
         embedding_dim: int,
-        on_disk: bool, # noqa: FBT001
         recreate_collection: bool,  # noqa: FBT001
         similarity: str,
+        on_disk: bool = False,  # noqa: FBT001
         payload_field_to_index: Optional[List[dict]] = None,
     ):
         distance = self._get_distance(similarity)
