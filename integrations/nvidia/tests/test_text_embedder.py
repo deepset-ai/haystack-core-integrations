@@ -18,6 +18,9 @@ class MockClient:
             )
         }
 
+    def get_model_nvcf_id(self, model):
+        return "fake-id"
+
 
 class TestNvidiaTextEmbedder:
     def test_init_default(self, monkeypatch):

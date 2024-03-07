@@ -4,7 +4,7 @@ from haystack import component, default_from_dict, default_to_dict
 from haystack.utils import Secret, deserialize_secrets_inplace
 from haystack_integrations.utils.nvidia import NvidiaCloudFunctionsClient
 
-from ._schema import EmbeddingsRequest, EmbeddingsResponse, get_model_nvcf_id
+from ._schema import EmbeddingsRequest, EmbeddingsResponse
 from .models import NvidiaEmbeddingModel
 
 
