@@ -21,7 +21,30 @@ SUPPORTED_MODELS: List[NvidiaGeneratorModel] = [
 @component
 class NvidiaGenerator:
     """
-    TODO
+    A component for generating text using generative models provided by
+    [NVIDIA AI Foundation Endpoints](https://www.nvidia.com/en-us/ai-data-science/foundation-models/).
+
+    Usage example:
+    ```python
+    from haystack_integrations.components.generators.nvidia import NvidiaGenerator
+
+    generator = NvidiaGenerator(
+        model=NvidiaGeneratorModel.NV_LLAMA2_RLHF_70B,
+        model_arguments={
+            "temperature": 0.2,
+            "top_p": 0.7,
+            "max_tokens": 1024,
+            "seed": None,
+            "bad": None,
+            "stop": None,
+        },
+    )
+    generator.warm_up()
+
+    result = generator.run(prompt="What is the answer?")
+    print(result["replies"])
+    print(result["meta"])
+    ```
     """
 
     def __init__(
