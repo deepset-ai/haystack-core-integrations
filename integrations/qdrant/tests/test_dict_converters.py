@@ -43,7 +43,7 @@ def test_to_dict():
             "metadata": {},
             "write_batch_size": 100,
             "scroll_size": 10000,
-            "payload_field_to_index": None,
+            "payload_fields_to_index": None,
         },
     }
 
@@ -75,7 +75,7 @@ def test_from_dict():
                 "metadata": {},
                 "write_batch_size": 1000,
                 "scroll_size": 10000,
-                "payload_field_to_index": None,
+                "payload_fields_to_index": None,
             },
         }
     )
@@ -106,6 +106,6 @@ def test_from_dict():
             document_store.write_batch_size == 1000,
             document_store.scroll_size == 10000,
             document_store.api_key == Secret.from_env_var("ENV_VAR", strict=False),
-            document_store.payload_field_to_index is None,
+            document_store.payload_fields_to_index is None,
         ]
     )

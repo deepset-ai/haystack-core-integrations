@@ -63,7 +63,7 @@ class TestQdrantRetriever(FilterableDocsFixtureMixin):
                         "metadata": {},
                         "write_batch_size": 100,
                         "scroll_size": 10000,
-                        "payload_field_to_index": None,
+                        "payload_fields_to_index": None,
                     },
                 },
                 "filters": None,
