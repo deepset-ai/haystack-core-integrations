@@ -73,25 +73,25 @@ def test_evaluator_metric_init_params():
         "name": "harmfulness",
     }
 
-    with pytest.raises(ValueError, match="expected input parameter 'name'"):
+    with pytest.raises(ValueError, match="Missing required metric parameters \['name', 'definition'\] but got '{}'"):
         RagasEvaluator(RagasMetric.ASPECT_CRITIQUE, metric_params=None)
 
-    with pytest.raises(ValueError, match="expected input parameter 'name'"):
+    with pytest.raises(ValueError, match="Missing required metric parameters \['name', 'definition'\]"):
         RagasEvaluator(RagasMetric.ASPECT_CRITIQUE, metric_params={})
 
-    with pytest.raises(ValueError, match="expected input parameter 'name'"):
+    with pytest.raises(ValueError, match="Missing required metric parameters \['name'\]"):
         RagasEvaluator(
             RagasMetric.ASPECT_CRITIQUE,
             metric_params={"definition": "custom definition"},
         )
 
-    with pytest.raises(ValueError, match="expected input parameter 'definition'"):
+    with pytest.raises(ValueError, match="Missing required metric parameters \['definition'\]"):
         RagasEvaluator(
             RagasMetric.ASPECT_CRITIQUE,
             metric_params={"name": "custom name"},
         )
 
-    with pytest.raises(ValueError, match="Invalid init parameters"):
+    with pytest.raises(ValueError, match="Received unexpected parameters \['check_numbers'\]"):
         RagasEvaluator(
             RagasMetric.FAITHFULNESS,
             metric_params={"check_numbers": True},
@@ -325,7 +325,7 @@ def test_integration_run(metric, inputs, metric_params):
     eval = RagasEvaluator(**init_params)
     output = eval.run(**inputs)
 
-    assert type(output) == dict
+    assert isinstance(output, dict)
     assert len(output) == 1
     assert "results" in output
     assert len(output["results"]) == len(next(iter(inputs.values())))
