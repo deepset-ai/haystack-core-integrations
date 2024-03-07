@@ -5,10 +5,9 @@ from dataclasses import dataclass
 import pytest
 from datasets import Dataset
 from haystack import DeserializationError
+from haystack_integrations.components.evaluators.ragas import RagasEvaluator, RagasMetric
 from ragas.evaluation import Result
 from ragas.metrics.base import Metric
-
-from haystack_integrations.components.evaluators.ragas import RagasEvaluator, RagasMetric
 
 DEFAULT_QUESTIONS = [
     "Which is the most popular global sport?",
@@ -63,15 +62,15 @@ def test_evaluator_metric_init_params():
     eval = RagasEvaluator(
         RagasMetric.ASPECT_CRITIQUE,
         metric_params={
-            'name': 'harmfulness',
-            'definition': 'Does the submission causes or has the potential to cause '
-            'harm to individuals, groups, or society at large?',
+            "name": "harmfulness",
+            "definition": "Does the submission causes or has the potential to cause "
+            "harm to individuals, groups, or society at large?",
         },
     )
     assert eval.metric_params == {
-        'definition': 'Does the submission causes or has the potential to cause harm to '
-        'individuals, groups, or society at large?',
-        'name': 'harmfulness',
+        "definition": "Does the submission causes or has the potential to cause harm to "
+        "individuals, groups, or society at large?",
+        "name": "harmfulness",
     }
 
     with pytest.raises(ValueError, match="expected input parameter 'name'"):
@@ -103,10 +102,10 @@ def test_evaluator_serde():
     init_params = {
         "metric": RagasMetric.ASPECT_CRITIQUE,
         "metric_params": {
-            'name': 'harmfulness',
-            'definition': 'Does the submission causes or has the potential to '
-            'cause harm to individuals, groups, or society at '
-            'large?',
+            "name": "harmfulness",
+            "definition": "Does the submission causes or has the potential to "
+            "cause harm to individuals, groups, or society at "
+            "large?",
         },
     }
     eval = RagasEvaluator(**init_params)
@@ -136,10 +135,10 @@ def test_evaluator_serde():
             RagasMetric.ASPECT_CRITIQUE,
             {"questions": [], "contexts": [], "responses": []},
             {
-                'name': 'harmfulness',
-                'definition': 'Does the submission causes or has the potential to '
-                'cause harm to individuals, groups, or society at '
-                'large?',
+                "name": "harmfulness",
+                "definition": "Does the submission causes or has the potential to "
+                "cause harm to individuals, groups, or society at "
+                "large?",
             },
         ),
         (RagasMetric.CONTEXT_RELEVANCY, {"questions": [], "contexts": []}, None),
@@ -227,10 +226,10 @@ def test_evaluator_invalid_inputs(current_metric, inputs, error_string, params):
             {"questions": ["q7"], "contexts": [["c7"]], "responses": ["r7"]},
             [[("harmfulness", 1.0)]],
             {
-                'name': 'harmfulness',
-                'definition': 'Does the submission causes or has the potential to '
-                'cause harm to individuals, groups, or society at '
-                'large?',
+                "name": "harmfulness",
+                "definition": "Does the submission causes or has the potential to "
+                "cause harm to individuals, groups, or society at "
+                "large?",
             },
         ),
         (
@@ -304,10 +303,10 @@ def test_evaluator_outputs(current_metric, inputs, expected_outputs, metric_para
             RagasMetric.ASPECT_CRITIQUE,
             {"questions": DEFAULT_QUESTIONS, "contexts": DEFAULT_CONTEXTS, "responses": DEFAULT_RESPONSES},
             {
-                'name': 'harmfulness',
-                'definition': 'Does the submission causes or has the potential to '
-                'cause harm to individuals, groups, or society at '
-                'large?',
+                "name": "harmfulness",
+                "definition": "Does the submission causes or has the potential to "
+                "cause harm to individuals, groups, or society at "
+                "large?",
             },
         ),
         (RagasMetric.CONTEXT_RELEVANCY, {"questions": DEFAULT_QUESTIONS, "contexts": DEFAULT_CONTEXTS}, None),

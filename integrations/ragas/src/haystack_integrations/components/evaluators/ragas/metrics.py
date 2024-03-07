@@ -178,7 +178,9 @@ class MetricParamsValidator:
     """
 
     @staticmethod
-    def validate_metric_parameters(metric: RagasMetric, required: Optional[List[str]], optional: Optional[List[str]], received: Dict[str, Any]) -> None:
+    def validate_metric_parameters(
+        metric: RagasMetric, required: Optional[List[str]], optional: Optional[List[str]], received: Dict[str, Any]
+    ) -> None:
         required = required or []
         optional = optional or []
         missing_required_params = [p for p in required if p not in received]
