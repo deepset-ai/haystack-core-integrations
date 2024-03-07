@@ -357,7 +357,7 @@ class QdrantDocumentStore:
         embedding_dim: int,
         recreate_collection: bool,  # noqa: FBT001
         similarity: str,
-        on_disk: bool = False,  # noqa: FBT001
+        on_disk: bool = False,  # noqa: FBT001, FBT002
         payload_field_to_index: Optional[List[dict]] = None,
     ):
         distance = self._get_distance(similarity)
@@ -407,7 +407,7 @@ class QdrantDocumentStore:
             )
             raise ValueError(msg)
 
-    def _recreate_collection(self, collection_name: str, distance, embedding_dim: int, on_disk: bool):
+    def _recreate_collection(self, collection_name: str, distance, embedding_dim: int, on_disk: bool): # noqa: FBT001
         self.client.recreate_collection(
             collection_name=collection_name,
             vectors_config=rest.VectorParams(
