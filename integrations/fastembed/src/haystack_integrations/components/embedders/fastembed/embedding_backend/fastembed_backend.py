@@ -1,5 +1,7 @@
 from typing import ClassVar, Dict, List, Optional
 
+from tqdm import tqdm
+
 from fastembed import TextEmbedding
 
 
@@ -39,7 +41,12 @@ class _FastembedEmbeddingBackend:
     ):
         self.model = TextEmbedding(model_name=model_name, cache_dir=cache_dir, threads=threads)
 
-    def embed(self, data: List[List[str]], **kwargs) -> List[List[float]]:
+    def embed(self, data: List[str], progress_bar=True, **kwargs) -> List[List[float]]:
         # the embed method returns a Iterable[np.ndarray], so we convert it to a list of lists
-        embeddings = [np_array.tolist() for np_array in self.model.embed(data, **kwargs)]
+        embeddings = []
+        embeddings_iterable = self.model.embed(data, **kwargs)
+        for np_array in tqdm(
+            embeddings_iterable, disable=not progress_bar, desc="Calculating embeddings", total=len(data)
+        ):
+            embeddings.append(np_array.tolist())
         return embeddings
