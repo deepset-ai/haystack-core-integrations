@@ -142,11 +142,13 @@ class TestNvidiaGenerator:
                 {
                     "finish_reason": "stop",
                     "role": "assistant",
-                    "total_tokens": 21,
-                    "prompt_tokens": 19,
-                    "completion_tokens": 2,
                 },
             ],
+            "usage": {
+                "total_tokens": 21,
+                "prompt_tokens": 19,
+                "completion_tokens": 2,
+            },
         }
 
     @pytest.mark.skipif(
@@ -171,3 +173,4 @@ class TestNvidiaGenerator:
 
         assert result["replies"]
         assert result["meta"]
+        assert result["usage"]
