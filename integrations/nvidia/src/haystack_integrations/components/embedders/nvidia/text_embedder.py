@@ -4,7 +4,7 @@ from haystack import component, default_from_dict, default_to_dict
 from haystack.utils import Secret, deserialize_secrets_inplace
 from haystack_integrations.utils.nvidia import NvidiaCloudFunctionsClient
 
-from ._schema import EmbeddingsRequest, EmbeddingsResponse, get_model_nvcf_id
+from ._schema import EmbeddingsRequest, EmbeddingsResponse
 from .models import NvidiaEmbeddingModel
 
 
@@ -74,7 +74,7 @@ class NvidiaTextEmbedder:
         if self._initialized:
             return
 
-        self.nvcf_id = get_model_nvcf_id(self.model, self.client)
+        self.nvcf_id = self.client.get_model_nvcf_id(str(self.model))
         self._initialized = True
 
     def to_dict(self) -> Dict[str, Any]:

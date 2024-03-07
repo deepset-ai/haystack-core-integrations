@@ -1,29 +1,8 @@
 from dataclasses import asdict, dataclass
 from typing import Any, Dict, List, Literal, Union
 
-from haystack_integrations.utils.nvidia import NvidiaCloudFunctionsClient
-
-from .models import NvidiaEmbeddingModel
-
 MAX_INPUT_STRING_LENGTH = 2048
 MAX_INPUTS = 50
-
-
-def get_model_nvcf_id(model: NvidiaEmbeddingModel, client: NvidiaCloudFunctionsClient) -> str:
-    """
-    Returns the Nvidia Cloud Functions UUID for the given model.
-    """
-
-    available_functions = client.available_functions()
-    func = available_functions.get(str(model))
-    if func is None:
-        msg = f"Model '{model}' was not found on the Nvidia Cloud Functions backend"
-        raise ValueError(msg)
-    elif func.status != "ACTIVE":
-        msg = f"Model '{model}' is not currently active/usable on the Nvidia Cloud Functions backend"
-        raise ValueError(msg)
-
-    return func.id
 
 
 @dataclass
