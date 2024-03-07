@@ -229,11 +229,9 @@ class TestMetaLlama2ChatAdapter:
 
         assert response_message == [ChatMessage.from_assistant(expected_response)]
 
-    @pytest.mark.parametrize("model_name", [
-        "anthropic.claude-3-sonnet-20240229-v1:0",
-        "anthropic.claude-v2:1",
-        "meta.llama2-13b-chat-v1"
-    ])
+    @pytest.mark.parametrize(
+        "model_name", ["anthropic.claude-3-sonnet-20240229-v1:0", "anthropic.claude-v2:1", "meta.llama2-13b-chat-v1"]
+    )
     @pytest.mark.integration
     def test_default_inference_params(self, model_name):
         messages = [
