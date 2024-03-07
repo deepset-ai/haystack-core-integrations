@@ -2,7 +2,7 @@ from typing import Optional, Type
 
 import pytest
 from haystack.components.generators.utils import print_streaming_chunk
-from haystack.dataclasses import ChatMessage
+from haystack.dataclasses import ChatMessage, ChatRole
 
 from haystack_integrations.components.generators.amazon_bedrock import AmazonBedrockChatGenerator
 from haystack_integrations.components.generators.amazon_bedrock.chat.adapters import (
@@ -228,3 +228,25 @@ class TestMetaLlama2ChatAdapter:
             assert isinstance(message, ChatMessage)
 
         assert response_message == [ChatMessage.from_assistant(expected_response)]
+
+    @pytest.mark.parametrize("model_name", [
+        "anthropic.claude-3-sonnet-20240229-v1:0",
+        "anthropic.claude-v2:1",
+        "meta.llama2-13b-chat-v1"
+    ])
+    @pytest.mark.integration
+    def test_default_inference_params(self, model_name):
+        messages = [
+            ChatMessage.from_system("\\nYou are a helpful assistant, be super brief in your responses."),
+            ChatMessage.from_user("What's the capital of France?"),
+        ]
+
+        client = AmazonBedrockChatGenerator(model=model_name)
+        response = client.run(messages)
+        assert response["replies"]
+        assert isinstance(response["replies"], list)
+        assert len(response["replies"]) > 0
+        assert isinstance(response["replies"][0], ChatMessage)
+        assert response["replies"][0].content
+        assert ChatMessage.is_from(response["replies"][0], ChatRole.ASSISTANT)
+        assert "paris" in response["replies"][0].content.lower()
