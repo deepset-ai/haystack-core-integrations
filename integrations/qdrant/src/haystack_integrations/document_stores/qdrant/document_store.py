@@ -407,7 +407,7 @@ class QdrantDocumentStore:
             )
             raise ValueError(msg)
 
-    def _recreate_collection(self, collection_name: str, distance, embedding_dim: int, on_disk: bool): # noqa: FBT001
+    def _recreate_collection(self, collection_name: str, distance, embedding_dim: int, on_disk: bool):  # noqa: FBT001
         self.client.recreate_collection(
             collection_name=collection_name,
             vectors_config=rest.VectorParams(
