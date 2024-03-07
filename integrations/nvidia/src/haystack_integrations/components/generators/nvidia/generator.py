@@ -51,7 +51,8 @@ class NvidiaGenerator:
 
         :param model:
             Name of the model to use for text generation.
-            See the [Nvidia catalog](https://catalog.ngc.nvidia.com/ai-foundation-models) to know the  supported models.
+            See the [Nvidia catalog](https://catalog.ngc.nvidia.com/ai-foundation-models) 
+            for more information on the supported models.
         :param api_key:
             Nvidia API key to use for authentication.
         :param model_arguments:
