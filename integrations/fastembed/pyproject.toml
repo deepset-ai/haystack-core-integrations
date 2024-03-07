@@ -158,16 +158,13 @@ ban-relative-imports = "parents"
 "examples/**/*" = ["T201"]
 
 [tool.coverage.run]
-source_pkgs = ["src", "tests"]
+source = ["haystack_integrations"]
 branch = true
-parallel = true
-
-
-[tool.coverage.paths]
-fastembed_haystack = ["src/haystack_integrations", "*/fastembed-haystack/src"]
-tests = ["tests", "*/fastembed-haystack/tests"]
+parallel = false
 
 [tool.coverage.report]
+omit = ["*/tests/*", "*/__init__.py"]
+show_missing=true
 exclude_lines = [
   "no cov",
   "if __name__ == .__main__.:",
