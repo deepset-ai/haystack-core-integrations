@@ -229,7 +229,8 @@ class AnthropicClaudeChatAdapter(BedrockModelChatAdapter):
         if response_body.get("type") == "message":
             for content in response_body["content"]:
                 if content.get("type") == "text":
-                    messages.append(ChatMessage.from_assistant(content["text"]))
+                    meta = {k: v for k, v in response_body.items() if k not in ["type", "content", "role"]}
+                    messages.append(ChatMessage.from_assistant(content["text"], meta=meta))
         return messages
 
     def _extract_token_from_stream(self, chunk: Dict[str, Any]) -> str:
