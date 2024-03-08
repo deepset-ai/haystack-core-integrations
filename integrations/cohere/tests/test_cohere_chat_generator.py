@@ -348,7 +348,6 @@ class TestCohereChatGenerator:
 
         assert message.meta["finish_reason"] == "COMPLETE"
 
-        # assert callback.counter > 1
         assert "Paris" in callback.responses
 
         assert message.meta["documents"] is not None
