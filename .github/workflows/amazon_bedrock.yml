@@ -18,6 +18,10 @@ concurrency:
   group: amazon-bedrock-${{ github.head_ref }}
   cancel-in-progress: true
 
+permissions:
+  id-token: write
+  contents: read
+
 env:
   PYTHONUNBUFFERED: "1"
   FORCE_COLOR: "1"
