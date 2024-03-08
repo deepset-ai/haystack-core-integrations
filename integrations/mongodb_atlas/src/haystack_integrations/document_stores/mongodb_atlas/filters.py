@@ -82,78 +82,44 @@ def _not_equal(field: str, value: Any) -> Dict[str, Any]:
     return {field: {"$ne": value}}
 
 
-def _greater_than(field: str, value: Any) -> Dict[str, Any]:
+def _validate_type_for_comparison(value: Any) -> None:
+    msg = f"Cant compare {type(value)} using operators '>', '>=', '<', '<='."
     if isinstance(value, UNSUPPORTED_TYPES_FOR_COMPARISON):
-        msg = f"Unsupported type for '>' comparison: {type(value)}. "
         raise FilterError(msg)
     elif isinstance(value, str):
         try:
             datetime.fromisoformat(value)
         except (ValueError, TypeError) as exc:
-            msg = (
-                "Can't compare strings using operators '>', '>=', '<', '<='. "
-                "Strings are only comparable if they are ISO formatted dates."
-            )
+            msg += "\nStrings are only comparable if they are ISO formatted dates."
             raise FilterError(msg) from exc
 
+
+def _greater_than(field: str, value: Any) -> Dict[str, Any]:
+    _validate_type_for_comparison(value)
     return {field: {"$gt": value}}
 
 
 def _greater_than_equal(field: str, value: Any) -> Dict[str, Any]:
-    if isinstance(value, UNSUPPORTED_TYPES_FOR_COMPARISON):
-        msg = f"Unsupported type for '>=' comparison: {type(value)}. "
-        raise FilterError(msg)
-    elif isinstance(value, str):
-        try:
-            datetime.fromisoformat(value)
-        except (ValueError, TypeError) as exc:
-            msg = (
-                "Can't compare strings using operators '>', '>=', '<', '<='. "
-                "Strings are only comparable if they are ISO formatted dates."
-            )
-            raise FilterError(msg) from exc
-    elif value is None:
+    if value is None:
         # we want {field: {"$gte": null}} to return an empty result
         # $gte with null values in MongoDB returns a non-empty result, while $gt aligns with our expectations
         return {field: {"$gt": value}}
 
+    _validate_type_for_comparison(value)
     return {field: {"$gte": value}}
 
 
 def _less_than(field: str, value: Any) -> Dict[str, Any]:
-    if isinstance(value, UNSUPPORTED_TYPES_FOR_COMPARISON):
-        msg = f"Unsupported type for '<' comparison: {type(value)}. "
-        raise FilterError(msg)
-    elif isinstance(value, str):
-        try:
-            datetime.fromisoformat(value)
-        except (ValueError, TypeError) as exc:
-            msg = (
-                "Can't compare strings using operators '>', '>=', '<', '<='. "
-                "Strings are only comparable if they are ISO formatted dates."
-            )
-            raise FilterError(msg) from exc
-
+    _validate_type_for_comparison(value)
     return {field: {"$lt": value}}
 
 
 def _less_than_equal(field: str, value: Any) -> Dict[str, Any]:
-    if isinstance(value, UNSUPPORTED_TYPES_FOR_COMPARISON):
-        msg = f"Unsupported type for 'less than equal' comparison: {type(value)}. "
-        raise FilterError(msg)
-    elif isinstance(value, str):
-        try:
-            datetime.fromisoformat(value)
-        except (ValueError, TypeError) as exc:
-            msg = (
-                "Can't compare strings using operators '>', '>=', '<', '<='. "
-                "Strings are only comparable if they are ISO formatted dates."
-            )
-            raise FilterError(msg) from exc
-    elif value is None:
+    if value is None:
         # we want {field: {"$lte": null}} to return an empty result
         # $lte with null values in MongoDB returns a non-empty result, while $lt aligns with our expectations
         return {field: {"$lt": value}}
+    _validate_type_for_comparison(value)
 
     return {field: {"$lte": value}}
 
