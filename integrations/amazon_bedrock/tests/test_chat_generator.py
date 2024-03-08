@@ -248,6 +248,7 @@ class TestMetaLlama2ChatAdapter:
         assert response["replies"][0].content
         assert ChatMessage.is_from(response["replies"][0], ChatRole.ASSISTANT)
         assert "paris" in response["replies"][0].content.lower()
+        assert len(response["replies"][0].meta) > 0
 
     @pytest.mark.parametrize(
         "model_name", ["anthropic.claude-3-sonnet-20240229-v1:0", "anthropic.claude-v2:1", "meta.llama2-13b-chat-v1"]
