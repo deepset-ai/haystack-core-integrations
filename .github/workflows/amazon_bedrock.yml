@@ -21,6 +21,7 @@ concurrency:
 env:
   PYTHONUNBUFFERED: "1"
   FORCE_COLOR: "1"
+  AWS_REGION: eu-central-1
 
 jobs:
   run:
@@ -55,6 +56,12 @@ jobs:
       - name: Generate docs
         if: matrix.python-version == '3.9' && runner.os == 'Linux'
         run: hatch run docs
+
+      - name: AWS authentication
+        uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502
+        with:
+          aws-region: ${{ env.AWS_REGION }}
+          role-to-assume: ${{ secrets.AWS_CI_ROLE_ARN }}
 
       - name: Run tests
         run: hatch run cov
