@@ -2,7 +2,7 @@ from typing import Optional, Type
 
 import pytest
 from haystack.components.generators.utils import print_streaming_chunk
-from haystack.dataclasses import ChatMessage, ChatRole
+from haystack.dataclasses import ChatMessage, ChatRole, StreamingChunk
 
 from haystack_integrations.components.generators.amazon_bedrock import AmazonBedrockChatGenerator
 from haystack_integrations.components.generators.amazon_bedrock.chat.adapters import (
@@ -177,6 +177,15 @@ class TestAnthropicClaudeAdapter:
         assert body == expected_body
 
 
+@pytest.fixture
+def chat_messages():
+    messages = [
+        ChatMessage.from_system("\\nYou are a helpful assistant, be super brief in your responses."),
+        ChatMessage.from_user("What's the capital of France?"),
+    ]
+    return messages
+
+
 class TestMetaLlama2ChatAdapter:
     @pytest.mark.integration
     def test_prepare_body_with_default_params(self) -> None:
@@ -232,40 +241,49 @@ class TestMetaLlama2ChatAdapter:
 
     @pytest.mark.parametrize("model_name", MODELS_TO_TEST)
     @pytest.mark.integration
-    def test_default_inference_params(self, model_name):
-        messages = [
-            ChatMessage.from_system("\\nYou are a helpful assistant, be super brief in your responses."),
-            ChatMessage.from_user("What's the capital of France?"),
-        ]
+    def test_default_inference_params(self, model_name, chat_messages):
 
         client = AmazonBedrockChatGenerator(model=model_name)
-        response = client.run(messages)
-        assert response["replies"]
-        assert isinstance(response["replies"], list)
-        assert len(response["replies"]) > 0
-        assert isinstance(response["replies"][0], ChatMessage)
-        assert response["replies"][0].content
-        assert ChatMessage.is_from(response["replies"][0], ChatRole.ASSISTANT)
-        assert "paris" in response["replies"][0].content.lower()
+        response = client.run(chat_messages)
 
-        # validate meta
-        assert len(response["replies"][0].meta) > 0
+        assert "replies" in response, "Response does not contain 'replies' key"
+        replies = response["replies"]
+        assert isinstance(replies, list), "Replies is not a list"
+        assert len(replies) > 0, "No replies received"
+
+        first_reply = replies[0]
+        assert isinstance(first_reply, ChatMessage), "First reply is not a ChatMessage instance"
+        assert first_reply.content, "First reply has no content"
+        assert ChatMessage.is_from(first_reply, ChatRole.ASSISTANT), "First reply is not from the assistant"
+        assert "paris" in first_reply.content.lower(), "First reply does not contain 'paris'"
+        assert first_reply.meta, "First reply has no metadata"
 
     @pytest.mark.parametrize("model_name", MODELS_TO_TEST)
     @pytest.mark.integration
-    def test_default_inference_with_streaming(self, model_name):
+    def test_default_inference_with_streaming(self, model_name, chat_messages):
+        streaming_callback_called = False
+        paris_found_in_response = False
 
-        callback_called = False
+        def streaming_callback(chunk: StreamingChunk):
+            nonlocal streaming_callback_called, paris_found_in_response
+            streaming_callback_called = True
+            assert isinstance(chunk, StreamingChunk)
+            assert chunk.content is not None
+            if not paris_found_in_response:
+                paris_found_in_response = "paris" in chunk.content.lower()
 
-        def streaming_callback_verifier(chunk):
-            nonlocal callback_called
-            callback_called = True
+        client = AmazonBedrockChatGenerator(model=model_name, streaming_callback=streaming_callback)
+        response = client.run(chat_messages)
 
-        messages = [
-            ChatMessage.from_system("\\nYou are a helpful assistant, be super brief in your responses."),
-            ChatMessage.from_user("What's the capital of France?"),
-        ]
+        assert streaming_callback_called, "Streaming callback was not called"
+        assert paris_found_in_response, "The streaming callback response did not contain 'paris'"
+        replies = response["replies"]
+        assert isinstance(replies, list), "Replies is not a list"
+        assert len(replies) > 0, "No replies received"
 
-        client = AmazonBedrockChatGenerator(model=model_name, streaming_callback=streaming_callback_verifier)
-        client.run(messages)
-        assert callback_called
+        first_reply = replies[0]
+        assert isinstance(first_reply, ChatMessage), "First reply is not a ChatMessage instance"
+        assert first_reply.content, "First reply has no content"
+        assert ChatMessage.is_from(first_reply, ChatRole.ASSISTANT), "First reply is not from the assistant"
+        assert "paris" in first_reply.content.lower(), "First reply does not contain 'paris'"
+        assert first_reply.meta, "First reply has no metadata"

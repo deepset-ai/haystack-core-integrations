@@ -46,18 +46,21 @@ class BedrockModelChatAdapter(ABC):
         """
         return self._extract_messages_from_response(response_body)
 
-    def get_stream_responses(self, stream: EventStream, stream_handler: Callable[[StreamingChunk], None]) -> List[str]:
+    def get_stream_responses(
+        self, stream: EventStream, stream_handler: Callable[[StreamingChunk], None]
+    ) -> List[ChatMessage]:
         tokens: List[str] = []
+        last_decoded_chunk: Dict[str, Any] = {}
         for event in stream:
             chunk = event.get("chunk")
             if chunk:
-                decoded_chunk = json.loads(chunk["bytes"].decode("utf-8"))
-                token = self._extract_token_from_stream(decoded_chunk)
+                last_decoded_chunk = json.loads(chunk["bytes"].decode("utf-8"))
+                token = self._extract_token_from_stream(last_decoded_chunk)
                 stream_chunk = StreamingChunk(content=token)  # don't extract meta, we care about tokens only
                 stream_handler(stream_chunk)  # callback the stream handler with StreamingChunk
                 tokens.append(token)
         responses = ["".join(tokens).lstrip()]
-        return responses
+        return [ChatMessage.from_assistant(response, meta=last_decoded_chunk) for response in responses]
 
     @staticmethod
     def _update_params(target_dict: Dict[str, Any], updates_dict: Dict[str, Any]) -> None:
