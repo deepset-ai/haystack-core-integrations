@@ -12,6 +12,11 @@ logger = logging.getLogger(__name__)
 NON_INDEXED_FIELDS = ["metadata._node_content", "content"]
 
 
+# For version tracking
+from haystack import __name__ as integration_name
+from haystack.version import __version__ as integration_version
+
+
 @dataclass
 class Response:
     document_id: str
@@ -64,7 +69,13 @@ class AstraClient:
         self.namespace = namespace
 
         # Build the Astra DB object
-        self._astra_db = AstraDB(api_endpoint=api_endpoint, token=token, namespace=namespace)
+        self._astra_db = AstraDB(
+            api_endpoint=api_endpoint,
+            token=token,
+            namespace=namespace,
+            caller_name=integration_name,
+            caller_version=integration_version,
+        )
 
         try:
             # Create and connect to the newly created collection
