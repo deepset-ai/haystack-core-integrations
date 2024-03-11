@@ -127,11 +127,6 @@ ban-relative-imports = "parents"
 # Tests can use magic values, assertions, and relative imports
 "tests/**/*" = ["PLR2004", "S101", "TID252"]
 
-[tool.coverage.run]
-source_pkgs = ["src", "tests"]
-branch = true
-parallel = true
-
 
 [tool.coverage.run]
 source = ["haystack_integrations"]
