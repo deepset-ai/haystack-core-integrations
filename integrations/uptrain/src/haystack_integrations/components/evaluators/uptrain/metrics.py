@@ -57,7 +57,7 @@ class UpTrainMetric(Enum):
     GUIDELINE_ADHERENCE = "guideline_adherence"
 
     #: Response matching.\
-    #: Inputs - `responses: List[str], ground_truths: List[str]`\
+    #: Inputs - `questions: List[str], responses: List[str], ground_truths: List[str]`\
     #: Parameters - `method: str`
     RESPONSE_MATCHING = "response_matching"
 
@@ -236,12 +236,13 @@ class InputConverters:
 
     @staticmethod
     def response_ground_truth(
+        questions: List[str],
         responses: List[str],
         ground_truths: List[str],
     ) -> Iterable[Dict[str, str]]:
-        InputConverters._validate_input_elements(ground_truths=ground_truths, responses=responses)
-        for r, gt in zip(responses, ground_truths):  # type: ignore
-            yield {"response": r, "ground_truth": gt}
+        InputConverters._validate_input_elements(questions=questions, ground_truths=ground_truths, responses=responses)
+        for q, r, gt in zip(questions, responses, ground_truths):  # type: ignore
+            yield {"question": q, "response": r, "ground_truth": gt}
 
 
 class OutputConverters:
