@@ -162,7 +162,6 @@ class TestAnthropicClaudeAdapter:
         expected_body = {
             "anthropic_version": "bedrock-2023-05-31",
             "max_tokens": 512,
-            "max_tokens_to_sample": 69,
             "messages": [{"content": [{"text": "Hello, how are you?", "type": "text"}], "role": "user"}],
             "stop_sequences": ["CUSTOM_STOP"],
             "temperature": 0.7,
@@ -207,13 +206,13 @@ class TestMetaLlama2ChatAdapter:
             generation_kwargs={"temperature": 0.7, "top_p": 0.8, "top_k": 5, "stop_sequences": ["CUSTOM_STOP"]}
         )
         prompt = "Hello, how are you?"
+
+        # expected body is different because stop_sequences and top_k are not supported by MetaLlama2
         expected_body = {
             "prompt": "<s>[INST] Hello, how are you? [/INST]",
             "max_gen_len": 69,
-            "stop_sequences": ["CUSTOM_STOP"],
             "temperature": 0.7,
             "top_p": 0.8,
-            "top_k": 5,
         }
 
         body = layer.prepare_body(

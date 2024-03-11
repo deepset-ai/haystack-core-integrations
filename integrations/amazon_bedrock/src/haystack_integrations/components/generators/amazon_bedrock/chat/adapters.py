@@ -1,7 +1,7 @@
 import json
 import logging
 from abc import ABC, abstractmethod
-from typing import Any, Callable, Dict, List
+from typing import Any, Callable, ClassVar, Dict, List
 
 from botocore.eventstream import EventStream
 from haystack.dataclasses import ChatMessage, ChatRole, StreamingChunk
@@ -63,14 +63,18 @@ class BedrockModelChatAdapter(ABC):
         return [ChatMessage.from_assistant(response, meta=last_decoded_chunk) for response in responses]
 
     @staticmethod
-    def _update_params(target_dict: Dict[str, Any], updates_dict: Dict[str, Any]) -> None:
+    def _update_params(target_dict: Dict[str, Any], updates_dict: Dict[str, Any], allowed_params: List[str]) -> None:
         """
         Updates target_dict with values from updates_dict. Merges lists instead of overriding them.
 
         :param target_dict: The dictionary to update.
         :param updates_dict: The dictionary with updates.
+        :param allowed_params: The list of allowed params to use.
         """
         for key, value in updates_dict.items():
+            if key not in allowed_params:
+                logger.warning(f"Parameter '{key}' is not allowed and will be ignored.")
+                continue
             if key in target_dict and isinstance(target_dict[key], list) and isinstance(value, list):
                 # Merge lists and remove duplicates
                 target_dict[key] = sorted(set(target_dict[key] + value))
@@ -78,21 +82,24 @@ class BedrockModelChatAdapter(ABC):
                 # Override the value in target_dict
                 target_dict[key] = value
 
-    def _get_params(self, inference_kwargs: Dict[str, Any], default_params: Dict[str, Any]) -> Dict[str, Any]:
+    def _get_params(
+        self, inference_kwargs: Dict[str, Any], default_params: Dict[str, Any], allowed_params: List[str]
+    ) -> Dict[str, Any]:
         """
         Merges params from inference_kwargs with the default params and self.generation_kwargs.
         Uses a helper function to merge lists or override values as necessary.
 
         :param inference_kwargs: The inference kwargs to merge.
         :param default_params: The default params to start with.
+        :param allowed_params: The list of allowed params to use.
         :returns: The merged params.
         """
         # Start with a copy of default_params
         kwargs = default_params.copy()
 
         # Update the default params with self.generation_kwargs and finally inference_kwargs
-        self._update_params(kwargs, self.generation_kwargs)
-        self._update_params(kwargs, inference_kwargs)
+        self._update_params(kwargs, self.generation_kwargs, allowed_params)
+        self._update_params(kwargs, inference_kwargs, allowed_params)
 
         return kwargs
 
@@ -148,8 +155,16 @@ class AnthropicClaudeChatAdapter(BedrockModelChatAdapter):
     Model adapter for the Anthropic Claude chat model.
     """
 
-    ANTHROPIC_USER_TOKEN = "\n\nHuman:"
-    ANTHROPIC_ASSISTANT_TOKEN = "\n\nAssistant:"
+    # https://docs.aws.amazon.com/bedrock/latest/userguide/model-parameters-anthropic-claude-messages.html
+    ALLOWED_PARAMS: ClassVar[List[str]] = [
+        "anthropic_version",
+        "max_tokens",
+        "stop_sequences",
+        "temperature",
+        "top_p",
+        "top_k",
+        "system",
+    ]
 
     def __init__(self, generation_kwargs: Dict[str, Any]):
         """
@@ -185,14 +200,14 @@ class AnthropicClaudeChatAdapter(BedrockModelChatAdapter):
         """
         default_params = {
             "anthropic_version": self.generation_kwargs.get("anthropic_version") or "bedrock-2023-05-31",
-            "max_tokens": self.generation_kwargs.get("max_tokens") or 512,
+            "max_tokens": self.generation_kwargs.get("max_tokens") or 512,  # max_tokens is required
         }
 
         # combine stop words with default stop sequences, remove stop_words as Anthropic does not support it
         stop_sequences = inference_kwargs.get("stop_sequences", []) + inference_kwargs.pop("stop_words", [])
         if stop_sequences:
             inference_kwargs["stop_sequences"] = stop_sequences
-        params = self._get_params(inference_kwargs, default_params)
+        params = self._get_params(inference_kwargs, default_params, self.ALLOWED_PARAMS)
         body = {**self.prepare_chat_messages(messages=messages), **params}
         return body
 
@@ -261,6 +276,9 @@ class MetaLlama2ChatAdapter(BedrockModelChatAdapter):
     Model adapter for the Meta Llama 2 models.
     """
 
+    # https://docs.aws.amazon.com/bedrock/latest/userguide/model-parameters-meta.html
+    ALLOWED_PARAMS: ClassVar[List[str]] = ["max_gen_len", "temperature", "top_p"]
+
     chat_template = (
         "{% if messages[0]['role'] == 'system' %}"
         "{% set loop_messages = messages[1:] %}"
@@ -320,11 +338,8 @@ class MetaLlama2ChatAdapter(BedrockModelChatAdapter):
         """
         default_params = {"max_gen_len": self.generation_kwargs.get("max_gen_len") or 512}
 
-        # combine stop words with default stop sequences, remove stop_words as MetaLlama2 does not support it
-        stop_sequences = inference_kwargs.get("stop_sequences", []) + inference_kwargs.pop("stop_words", [])
-        if stop_sequences:
-            inference_kwargs["stop_sequences"] = stop_sequences
-        params = self._get_params(inference_kwargs, default_params)
+        # no support for stop words in Meta Llama 2
+        params = self._get_params(inference_kwargs, default_params, self.ALLOWED_PARAMS)
         body = {"prompt": self.prepare_chat_messages(messages=messages), **params}
         return body
 
