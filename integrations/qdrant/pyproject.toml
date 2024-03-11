@@ -133,15 +133,21 @@ branch = true
 parallel = true
 
 
-[tool.coverage.paths]
-qdrant_haystack = [
-  "src/qdrant_haystack",
-  "*/qdrant-haystack/src/qdrant_haystack",
-]
-tests = ["tests", "*/qdrant-haystack/tests"]
+[tool.coverage.run]
+source = ["haystack_integrations"]
+branch = true
+parallel = false
+
 
 [tool.coverage.report]
-exclude_lines = ["no cov", "if __name__ == .__main__.:", "if TYPE_CHECKING:"]
+omit = ["*/tests/*", "*/__init__.py"]
+show_missing=true
+exclude_lines = [
+  "no cov",
+  "if __name__ == .__main__.:",
+  "if TYPE_CHECKING:",
+]
+
 
 [[tool.mypy.overrides]]
 module = [
