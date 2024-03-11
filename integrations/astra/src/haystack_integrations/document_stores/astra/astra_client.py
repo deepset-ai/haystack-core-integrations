@@ -5,12 +5,11 @@ from warnings import warn
 
 from astrapy.api import APIRequestError
 from astrapy.db import AstraDB
-from pydantic.dataclasses import dataclass
 
 # For version tracking
 from haystack import __name__ as integration_name
 from haystack.version import __version__ as integration_version
-
+from pydantic.dataclasses import dataclass
 
 logger = logging.getLogger(__name__)
 
