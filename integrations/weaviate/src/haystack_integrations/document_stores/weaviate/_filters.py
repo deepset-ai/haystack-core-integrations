@@ -5,10 +5,10 @@ from haystack.errors import FilterError
 from pandas import DataFrame
 
 import weaviate
-from weaviate.collections.classes.filters import Filter
+from weaviate.collections.classes.filters import Filter, FilterReturn
 
 
-def convert_filters(filters: Dict[str, Any]) -> Dict[str, Any]:
+def convert_filters(filters: Dict[str, Any]) -> FilterReturn:
     """
     Convert filters from Haystack format to Weaviate format.
     """
@@ -60,7 +60,7 @@ LOGICAL_OPERATORS = {
 }
 
 
-def _parse_logical_condition(condition: Dict[str, Any]) -> Dict[str, Any]:
+def _parse_logical_condition(condition: Dict[str, Any]) -> FilterReturn:
     if "operator" not in condition:
         msg = f"'operator' key missing in {condition}"
         raise FilterError(msg)
@@ -94,13 +94,13 @@ def _handle_date(value: Any) -> str:
     return value
 
 
-def _equal(field: str, value: Any) -> Dict[str, Any]:
+def _equal(field: str, value: Any) -> FilterReturn:
     if value is None:
         return weaviate.classes.query.Filter.by_property(field).is_none(True)
     return weaviate.classes.query.Filter.by_property(field).equal(_handle_date(value))
 
 
-def _not_equal(field: str, value: Any) -> Dict[str, Any]:
+def _not_equal(field: str, value: Any) -> FilterReturn:
     if value is None:
         return weaviate.classes.query.Filter.by_property(field).is_none(False)
 
@@ -109,7 +109,7 @@ def _not_equal(field: str, value: Any) -> Dict[str, Any]:
     ) | weaviate.classes.query.Filter.by_property(field).is_none(True)
 
 
-def _greater_than(field: str, value: Any) -> Dict[str, Any]:
+def _greater_than(field: str, value: Any) -> FilterReturn:
     if value is None:
         # When the value is None and '>' is used we create a filter that would return a Document
         # if it has a field set and not set at the same time.
@@ -131,7 +131,7 @@ def _greater_than(field: str, value: Any) -> Dict[str, Any]:
     return weaviate.classes.query.Filter.by_property(field).greater_than(_handle_date(value))
 
 
-def _greater_than_equal(field: str, value: Any) -> Dict[str, Any]:
+def _greater_than_equal(field: str, value: Any) -> FilterReturn:
     if value is None:
         # When the value is None and '>=' is used we create a filter that would return a Document
         # if it has a field set and not set at the same time.
@@ -153,7 +153,7 @@ def _greater_than_equal(field: str, value: Any) -> Dict[str, Any]:
     return weaviate.classes.query.Filter.by_property(field).greater_or_equal(_handle_date(value))
 
 
-def _less_than(field: str, value: Any) -> Dict[str, Any]:
+def _less_than(field: str, value: Any) -> FilterReturn:
     if value is None:
         # When the value is None and '<' is used we create a filter that would return a Document
         # if it has a field set and not set at the same time.
@@ -175,7 +175,7 @@ def _less_than(field: str, value: Any) -> Dict[str, Any]:
     return weaviate.classes.query.Filter.by_property(field).less_than(_handle_date(value))
 
 
-def _less_than_equal(field: str, value: Any) -> Dict[str, Any]:
+def _less_than_equal(field: str, value: Any) -> FilterReturn:
     if value is None:
         # When the value is None and '<=' is used we create a filter that would return a Document
         # if it has a field set and not set at the same time.
@@ -197,7 +197,7 @@ def _less_than_equal(field: str, value: Any) -> Dict[str, Any]:
     return weaviate.classes.query.Filter.by_property(field).less_or_equal(_handle_date(value))
 
 
-def _in(field: str, value: Any) -> Dict[str, Any]:
+def _in(field: str, value: Any) -> FilterReturn:
     if not isinstance(value, list):
         msg = f"{field}'s value must be a list when using 'in' or 'not in' comparators"
         raise FilterError(msg)
@@ -205,7 +205,7 @@ def _in(field: str, value: Any) -> Dict[str, Any]:
     return weaviate.classes.query.Filter.by_property(field).contains_any(value)
 
 
-def _not_in(field: str, value: Any) -> Dict[str, Any]:
+def _not_in(field: str, value: Any) -> FilterReturn:
     if not isinstance(value, list):
         msg = f"{field}'s value must be a list when using 'in' or 'not in' comparators"
         raise FilterError(msg)
@@ -225,7 +225,7 @@ COMPARISON_OPERATORS = {
 }
 
 
-def _parse_comparison_condition(condition: Dict[str, Any]) -> Dict[str, Any]:
+def _parse_comparison_condition(condition: Dict[str, Any]) -> FilterReturn:
     field: str = condition["field"]
 
     if field.startswith("meta."):
@@ -250,7 +250,7 @@ def _parse_comparison_condition(condition: Dict[str, Any]) -> Dict[str, Any]:
     return COMPARISON_OPERATORS[operator](field, value)
 
 
-def _match_no_document(field: str) -> Dict[str, Any]:
+def _match_no_document(field: str) -> FilterReturn:
     """
     Returns a filters that will match no Document, this is used to keep the behavior consistent
     between different Document Stores.
