@@ -7,6 +7,7 @@ import pytest
 from dateutil import parser
 from haystack.dataclasses.byte_stream import ByteStream
 from haystack.dataclasses.document import Document
+from haystack.document_stores.errors import DocumentStoreError
 from haystack.testing.document_store import (
     TEST_EMBEDDING_1,
     TEST_EMBEDDING_2,
@@ -626,3 +627,22 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
     def test_embedding_retrieval_with_distance_and_certainty(self, document_store):
         with pytest.raises(ValueError):
             document_store._embedding_retrieval(query_embedding=[], distance=0.1, certainty=0.1)
+
+    def test_filter_documents_below_default_limit(self, document_store):
+        docs = []
+        for index in range(9999):
+            docs.append(Document(content="This is some content", meta={"index": index}))
+        document_store.write_documents(docs)
+        result = document_store.filter_documents(
+            {"field": "content", "operator": "==", "value": "This is some content"}
+        )
+
+        assert len(result) == 9999
+
+    def test_filter_documents_over_default_limit(self, document_store):
+        docs = []
+        for index in range(10000):
+            docs.append(Document(content="This is some content", meta={"index": index}))
+        document_store.write_documents(docs)
+        with pytest.raises(DocumentStoreError):
+            document_store.filter_documents({"field": "content", "operator": "==", "value": "This is some content"})
