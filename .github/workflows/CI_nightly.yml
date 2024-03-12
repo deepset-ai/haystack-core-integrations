@@ -39,7 +39,7 @@ jobs:
         run: |
           for d in integrations/* ; do
             cd $d
-            hatch hatch run cov
+            hatch run cov
             hatch env prune # clean up the environment after docs generation
             cd -
           done        
