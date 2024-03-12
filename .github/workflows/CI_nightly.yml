@@ -9,6 +9,15 @@ on:
     branches:
       - nightly
 
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  PYTHONUNBUFFERED: "1"
+  FORCE_COLOR: "1"
+  AWS_REGION: us-east-1      
+
 jobs:
   run:
     name: Python ${{ matrix.python-version }} on ${{ startsWith(matrix.os, 'macos-') && 'macOS' || startsWith(matrix.os, 'windows-') && 'Windows' || 'Linux' }}
@@ -34,6 +43,12 @@ jobs:
 
       - name: Install Hatch
         run: pip install --upgrade hatch
+
+      - name: AWS authentication
+        uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502
+        with:
+          aws-region: ${{ env.AWS_REGION }}
+          role-to-assume: ${{ secrets.AWS_CI_ROLE_ARN }}        
 
       - name: Run tests
         run: |
