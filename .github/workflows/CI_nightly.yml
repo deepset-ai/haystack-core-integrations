@@ -52,11 +52,23 @@ jobs:
 
       - name: Run tests
         run: |
-          for d in integrations/* ; do
-            if [ "$(basename $d)" != "amazon_sagemaker" ]; then
-              cd $d
-              hatch run cov
-              hatch env prune # clean up the environment after docs generation
-              cd -
-            fi
-          done        
+          if [ "${{ runner.os }}" = "Windows" ]; then
+            Get-ChildItem -Directory "integrations" | ForEach-Object {
+              if ($_.Name -ne "prova") {
+                Set-Location $_.FullName
+                hatch run cov
+                hatch env prune # clean up the environment after docs generation
+                Set-Location ..
+              }
+            }
+          else
+            for d in integrations/* ; do
+              if [ "$(basename $d)" != "prova" ]; then
+                cd $d
+                hatch run cov
+                hatch env prune # clean up the environment after docs generation
+                cd -
+              fi
+            done
+          fi
+                 
