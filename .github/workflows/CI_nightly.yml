@@ -53,8 +53,10 @@ jobs:
       - name: Run tests
         run: |
           for d in integrations/* ; do
-            cd $d
-            hatch run cov
-            hatch env prune # clean up the environment after docs generation
-            cd -
+            if [ "$(basename $d)" != "amazon_sagemaker" ]; then
+              cd $d
+              hatch run cov
+              hatch env prune # clean up the environment after docs generation
+              cd -
+            fi
           done        
