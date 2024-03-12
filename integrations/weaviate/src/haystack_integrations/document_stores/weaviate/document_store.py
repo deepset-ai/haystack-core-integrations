@@ -170,7 +170,6 @@ class WeaviateDocumentStore:
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "WeaviateDocumentStore":
-
         if (auth_client_secret := data["init_parameters"].get("auth_client_secret")) is not None:
             data["init_parameters"]["auth_client_secret"] = AuthCredentials.from_dict(auth_client_secret)
         if (embedded_options := data["init_parameters"].get("embedded_options")) is not None:
@@ -188,7 +187,7 @@ class WeaviateDocumentStore:
 
     def _to_data_object(self, document: Document) -> Dict[str, Any]:
         """
-        Convert a Document to a Weviate data object ready to be saved.
+        Convert a Document to a Weaviate data object ready to be saved.
         """
         data = document.to_dict()
         # Weaviate forces a UUID as an id.
@@ -206,13 +205,18 @@ class WeaviateDocumentStore:
 
         return data
 
-    def _to_document(self, data: DataObject) -> Document:
+    def _to_document(self, data: DataObject[Dict[str, Any], None]) -> Document:
         """
         Convert a data object read from Weaviate into a Document.
         """
         document_data = data.properties
         document_data["id"] = document_data.pop("_original_id")
-        document_data["embedding"] = data.vector["default"] if data.vector else None
+        if isinstance(data.vector, List):
+            document_data["embedding"] = data.vector
+        elif isinstance(data.vector, Dict):
+            document_data["embedding"] = data.vector.get("default")
+        else:
+            document_data["embedding"] = None
 
         if (blob_data := document_data.get("blob_data")) is not None:
             document_data["blob"] = {
@@ -368,14 +372,12 @@ class WeaviateDocumentStore:
         return self._write(documents, policy)
 
     def delete_documents(self, document_ids: List[str]) -> None:
-
         weaviate_ids = [generate_uuid5(doc_id) for doc_id in document_ids]
         self._collection.data.delete_many(where=weaviate.classes.query.Filter.by_id().contains_any(weaviate_ids))
 
     def _bm25_retrieval(
         self, query: str, filters: Optional[Dict[str, Any]] = None, top_k: Optional[int] = None
     ) -> List[Document]:
-
         result = self._collection.query.bm25(
             query=query,
             filters=convert_filters(filters) if filters else None,
