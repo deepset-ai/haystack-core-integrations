@@ -15,6 +15,34 @@ from haystack.testing.document_store import DocumentStoreBaseTests
 from haystack_integrations.document_stores.elasticsearch import ElasticsearchDocumentStore
 
 
+@patch("haystack_integrations.document_stores.elasticsearch.document_store.Elasticsearch")
+def test_to_dict(_mock_elasticsearch_client):
+    document_store = ElasticsearchDocumentStore(hosts="some hosts")
+    res = document_store.to_dict()
+    assert res == {
+        "type": "haystack_integrations.document_stores.elasticsearch.document_store.ElasticsearchDocumentStore",
+        "init_parameters": {
+            "hosts": "some hosts",
+            "index": "default",
+            "embedding_similarity_function": "cosine",
+        },
+    }
+
+@patch("haystack_integrations.document_stores.elasticsearch.document_store.Elasticsearch")
+def test_from_dict(_mock_elasticsearch_client):
+    data = {
+        "type": "haystack_integrations.document_stores.elasticsearch.document_store.ElasticsearchDocumentStore",
+        "init_parameters": {
+            "hosts": "some hosts",
+            "index": "default",
+            "embedding_similarity_function": "cosine",
+        },
+    }
+    document_store = ElasticsearchDocumentStore.from_dict(data)
+    assert document_store._hosts == "some hosts"
+    assert document_store._index == "default"
+    assert document_store._embedding_similarity_function == "cosine"
+
 @pytest.mark.integration
 class TestDocumentStore(DocumentStoreBaseTests):
     """
@@ -66,34 +94,6 @@ class TestDocumentStore(DocumentStoreBaseTests):
             doc.score = None
 
         super().assert_documents_are_equal(received, expected)
-
-    @patch("haystack_integrations.document_stores.elasticsearch.document_store.Elasticsearch")
-    def test_to_dict(self, _mock_elasticsearch_client):
-        document_store = ElasticsearchDocumentStore(hosts="some hosts")
-        res = document_store.to_dict()
-        assert res == {
-            "type": "haystack_integrations.document_stores.elasticsearch.document_store.ElasticsearchDocumentStore",
-            "init_parameters": {
-                "hosts": "some hosts",
-                "index": "default",
-                "embedding_similarity_function": "cosine",
-            },
-        }
-
-    @patch("haystack_integrations.document_stores.elasticsearch.document_store.Elasticsearch")
-    def test_from_dict(self, _mock_elasticsearch_client):
-        data = {
-            "type": "haystack_integrations.document_stores.elasticsearch.document_store.ElasticsearchDocumentStore",
-            "init_parameters": {
-                "hosts": "some hosts",
-                "index": "default",
-                "embedding_similarity_function": "cosine",
-            },
-        }
-        document_store = ElasticsearchDocumentStore.from_dict(data)
-        assert document_store._hosts == "some hosts"
-        assert document_store._index == "default"
-        assert document_store._embedding_similarity_function == "cosine"
 
     def test_user_agent_header(self, document_store: ElasticsearchDocumentStore):
         assert document_store._client._headers["user-agent"].startswith("haystack-py-ds/")

@@ -14,6 +14,32 @@ from haystack_integrations.document_stores.opensearch import OpenSearchDocumentS
 from opensearchpy.exceptions import RequestError
 
 
+@patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
+def test_to_dict(_mock_opensearch_client):
+    document_store = OpenSearchDocumentStore(hosts="some hosts")
+    res = document_store.to_dict()
+    assert res == {
+        "type": "haystack_integrations.document_stores.opensearch.document_store.OpenSearchDocumentStore",
+        "init_parameters": {
+            "hosts": "some hosts",
+            "index": "default",
+        },
+    }
+
+@patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
+def test_from_dict(_mock_opensearch_client):
+    data = {
+        "type": "haystack_integrations.document_stores.opensearch.document_store.OpenSearchDocumentStore",
+        "init_parameters": {
+            "hosts": "some hosts",
+            "index": "default",
+        },
+    }
+    document_store = OpenSearchDocumentStore.from_dict(data)
+    assert document_store._hosts == "some hosts"
+    assert document_store._index == "default"
+
+@pytest.mark.integration
 class TestDocumentStore(DocumentStoreBaseTests):
     """
     Common test cases will be provided by `DocumentStoreBaseTests` but
@@ -86,31 +112,6 @@ class TestDocumentStore(DocumentStoreBaseTests):
             doc.score = None
 
         super().assert_documents_are_equal(received, expected)
-
-    @patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
-    def test_to_dict(self, _mock_opensearch_client):
-        document_store = OpenSearchDocumentStore(hosts="some hosts")
-        res = document_store.to_dict()
-        assert res == {
-            "type": "haystack_integrations.document_stores.opensearch.document_store.OpenSearchDocumentStore",
-            "init_parameters": {
-                "hosts": "some hosts",
-                "index": "default",
-            },
-        }
-
-    @patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
-    def test_from_dict(self, _mock_opensearch_client):
-        data = {
-            "type": "haystack_integrations.document_stores.opensearch.document_store.OpenSearchDocumentStore",
-            "init_parameters": {
-                "hosts": "some hosts",
-                "index": "default",
-            },
-        }
-        document_store = OpenSearchDocumentStore.from_dict(data)
-        assert document_store._hosts == "some hosts"
-        assert document_store._index == "default"
 
     def test_write_documents(self, document_store: OpenSearchDocumentStore):
         docs = [Document(id="1")]
