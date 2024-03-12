@@ -6,14 +6,13 @@ from warnings import warn
 from astrapy.api import APIRequestError
 from astrapy.db import AstraDB
 
-# For version tracking
-from haystack import __name__ as integration_name
 from haystack.version import __version__ as integration_version
 from pydantic.dataclasses import dataclass
 
 logger = logging.getLogger(__name__)
 
 NON_INDEXED_FIELDS = ["metadata._node_content", "content"]
+CALLER_NAME = 'haystack'
 
 
 @dataclass
@@ -72,7 +71,7 @@ class AstraClient:
             api_endpoint=api_endpoint,
             token=token,
             namespace=namespace,
-            caller_name=integration_name,
+            caller_name=CALLER_NAME,
             caller_version=integration_version,
         )
 
