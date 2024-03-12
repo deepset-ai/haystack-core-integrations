@@ -1,5 +1,5 @@
-from abc import ABC, abstractmethod
-from typing import Any, List, Optional, Union
+from datetime import datetime
+from typing import List, Optional, Union
 
 from haystack.utils.filters import COMPARISON_OPERATORS, LOGICAL_OPERATORS, FilterError
 from qdrant_client.http import models
@@ -10,15 +10,7 @@ COMPARISON_OPERATORS = COMPARISON_OPERATORS.keys()
 LOGICAL_OPERATORS = LOGICAL_OPERATORS.keys()
 
 
-class BaseFilterConverter(ABC):
-    """Converts Haystack filters to a format accepted by an external tool."""
-
-    @abstractmethod
-    def convert(self, filter_term: Optional[Union[List[dict], dict]]) -> Optional[Any]:
-        raise NotImplementedError
-
-
-class QdrantFilterConverter(BaseFilterConverter):
+class QdrantFilterConverter:
     """Converts Haystack filters to the format used by Qdrant."""
 
     def __init__(self):
@@ -141,34 +133,47 @@ class QdrantFilterConverter(BaseFilterConverter):
             must_not=[
                 (
                     models.FieldCondition(key=key, match=models.MatchText(text=item))
-                    if isinstance(item, str) and " " not in item
+                    if isinstance(item, str) and " " in item
                     else models.FieldCondition(key=key, match=models.MatchValue(value=item))
                 )
                 for item in value
             ]
         )
 
-    def _build_lt_condition(self, key: str, value: float) -> models.Condition:
+    def _build_lt_condition(self, key: str, value: Union[str, float, int]) -> models.Condition:
+        if isinstance(value, str) and is_datetime_string(value):
+            return models.FieldCondition(key=key, range=models.DatetimeRange(lt=value))
+
         if not isinstance(value, (int, float)):
-            msg = f"Value {value} is not an int or float"
+            msg = f"Value {value} is not an int or float or datetime string"
             raise FilterError(msg)
         return models.FieldCondition(key=key, range=models.Range(lt=value))
 
-    def _build_lte_condition(self, key: str, value: float) -> models.Condition:
+    def _build_lte_condition(self, key: str, value: Union[str, float, int]) -> models.Condition:
+        if isinstance(value, str) and is_datetime_string(value):
+            return models.FieldCondition(key=key, range=models.DatetimeRange(lte=value))
+
         if not isinstance(value, (int, float)):
-            msg = f"Value {value} is not an int or float"
+            msg = f"Value {value} is not an int or float or datetime string"
             raise FilterError(msg)
         return models.FieldCondition(key=key, range=models.Range(lte=value))
 
-    def _build_gt_condition(self, key: str, value: float) -> models.Condition:
+    def _build_gt_condition(self, key: str, value: Union[str, float, int]) -> models.Condition:
+        if isinstance(value, str) and is_datetime_string(value):
+            return models.FieldCondition(key=key, range=models.DatetimeRange(gt=value))
+
         if not isinstance(value, (int, float)):
-            msg = f"Value {value} is not an int or float"
+            msg = f"Value {value} is not an int or float or datetime string"
             raise FilterError(msg)
+
         return models.FieldCondition(key=key, range=models.Range(gt=value))
 
-    def _build_gte_condition(self, key: str, value: float) -> models.Condition:
+    def _build_gte_condition(self, key: str, value: Union[str, float, int]) -> models.Condition:
+        if isinstance(value, str) and is_datetime_string(value):
+            return models.FieldCondition(key=key, range=models.DatetimeRange(gte=value))
+
         if not isinstance(value, (int, float)):
-            msg = f"Value {value} is not an int or float"
+            msg = f"Value {value} is not an int or float or datetime string"
             raise FilterError(msg)
         return models.FieldCondition(key=key, range=models.Range(gte=value))
 
@@ -215,3 +220,11 @@ class QdrantFilterConverter(BaseFilterConverter):
                 return models.Filter(**{part_name: subfilter.must})
 
         return payload_filter
+
+
+def is_datetime_string(value: str) -> bool:
+    try:
+        datetime.fromisoformat(value)
+        return True
+    except ValueError:
+        return False
