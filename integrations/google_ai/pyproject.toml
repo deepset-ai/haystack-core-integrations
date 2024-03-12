@@ -154,11 +154,8 @@ ban-relative-imports = "parents"
 [tool.coverage.run]
 source = ["haystack_integrations"]
 branch = true
-parallel = true
+parallel = false
 
-[tool.coverage.paths]
-google_ai_haystack = ["src"]
-tests = ["tests"]
 
 [tool.coverage.report]
 omit = ["*/tests/*", "*/__init__.py"]
@@ -168,6 +165,7 @@ exclude_lines = [
   "if __name__ == .__main__.:",
   "if TYPE_CHECKING:",
 ]
+
 [[tool.mypy.overrides]]
 module = [
   "google.*",

@@ -131,11 +131,11 @@ class FastembedDocumentEmbedder:
             meta_values_to_embed = [
                 str(doc.meta[key]) for key in self.meta_fields_to_embed if key in doc.meta and doc.meta[key] is not None
             ]
-            text_to_embed = [
-                self.prefix + self.embedding_separator.join([*meta_values_to_embed, doc.content or ""]) + self.suffix,
-            ]
+            text_to_embed = (
+                self.prefix + self.embedding_separator.join([*meta_values_to_embed, doc.content or ""]) + self.suffix
+            )
 
-            texts_to_embed.append(text_to_embed[0])
+            texts_to_embed.append(text_to_embed)
         return texts_to_embed
 
     @component.output_types(documents=List[Document])
@@ -157,13 +157,11 @@ class FastembedDocumentEmbedder:
             msg = "The embedding model has not been loaded. Please call warm_up() before running."
             raise RuntimeError(msg)
 
-        # TODO: once non textual Documents are properly supported, we should also prepare them for embedding here
-
         texts_to_embed = self._prepare_texts_to_embed(documents=documents)
         embeddings = self.embedding_backend.embed(
             texts_to_embed,
             batch_size=self.batch_size,
-            show_progress_bar=self.progress_bar,
+            progress_bar=self.progress_bar,
             parallel=self.parallel,
         )
 

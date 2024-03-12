@@ -157,11 +157,8 @@ ban-relative-imports = "parents"
 [tool.coverage.run]
 source = ["haystack_integrations"]
 branch = true
-parallel = true
+parallel = false
 
-[tool.coverage.paths]
-gradient_haystack = ["src"]
-tests = ["tests", "*/gradient-haystack/tests"]
 
 [tool.coverage.report]
 omit = ["*/tests/*", "*/__init__.py"]
@@ -171,6 +168,7 @@ exclude_lines = [
   "if __name__ == .__main__.:",
   "if TYPE_CHECKING:",
 ]
+
 
 [[tool.mypy.overrides]]
 module = [

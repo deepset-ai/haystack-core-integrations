@@ -2,7 +2,7 @@ from typing import Optional, Type
 
 import pytest
 from haystack.components.generators.utils import print_streaming_chunk
-from haystack.dataclasses import ChatMessage
+from haystack.dataclasses import ChatMessage, ChatRole, StreamingChunk
 
 from haystack_integrations.components.generators.amazon_bedrock import AmazonBedrockChatGenerator
 from haystack_integrations.components.generators.amazon_bedrock.chat.adapters import (
@@ -11,7 +11,8 @@ from haystack_integrations.components.generators.amazon_bedrock.chat.adapters im
     MetaLlama2ChatAdapter,
 )
 
-clazz = "haystack_integrations.components.generators.amazon_bedrock.chat.chat_generator.AmazonBedrockChatGenerator"
+KLASS = "haystack_integrations.components.generators.amazon_bedrock.chat.chat_generator.AmazonBedrockChatGenerator"
+MODELS_TO_TEST = ["anthropic.claude-3-sonnet-20240229-v1:0", "anthropic.claude-v2:1", "meta.llama2-13b-chat-v1"]
 
 
 def test_to_dict(mock_boto3_session):
@@ -24,7 +25,7 @@ def test_to_dict(mock_boto3_session):
         streaming_callback=print_streaming_chunk,
     )
     expected_dict = {
-        "type": clazz,
+        "type": KLASS,
         "init_parameters": {
             "aws_access_key_id": {"type": "env_var", "env_vars": ["AWS_ACCESS_KEY_ID"], "strict": False},
             "aws_secret_access_key": {"type": "env_var", "env_vars": ["AWS_SECRET_ACCESS_KEY"], "strict": False},
@@ -47,7 +48,7 @@ def test_from_dict(mock_boto3_session):
     """
     generator = AmazonBedrockChatGenerator.from_dict(
         {
-            "type": clazz,
+            "type": KLASS,
             "init_parameters": {
                 "aws_access_key_id": {"type": "env_var", "env_vars": ["AWS_ACCESS_KEY_ID"], "strict": False},
                 "aws_secret_access_key": {"type": "env_var", "env_vars": ["AWS_SECRET_ACCESS_KEY"], "strict": False},
@@ -146,9 +147,9 @@ class TestAnthropicClaudeAdapter:
         layer = AnthropicClaudeChatAdapter(generation_kwargs={})
         prompt = "Hello, how are you?"
         expected_body = {
-            "prompt": "\n\nHuman: Hello, how are you?\n\nAssistant: ",
-            "max_tokens_to_sample": 512,
-            "stop_sequences": ["\n\nHuman:"],
+            "anthropic_version": "bedrock-2023-05-31",
+            "max_tokens": 512,
+            "messages": [{"content": [{"text": "Hello, how are you?", "type": "text"}], "role": "user"}],
         }
 
         body = layer.prepare_body([ChatMessage.from_user(prompt)])
@@ -159,12 +160,13 @@ class TestAnthropicClaudeAdapter:
         layer = AnthropicClaudeChatAdapter(generation_kwargs={"temperature": 0.7, "top_p": 0.8, "top_k": 4})
         prompt = "Hello, how are you?"
         expected_body = {
-            "prompt": "\n\nHuman: Hello, how are you?\n\nAssistant: ",
-            "max_tokens_to_sample": 69,
-            "stop_sequences": ["\n\nHuman:", "CUSTOM_STOP"],
+            "anthropic_version": "bedrock-2023-05-31",
+            "max_tokens": 512,
+            "messages": [{"content": [{"text": "Hello, how are you?", "type": "text"}], "role": "user"}],
+            "stop_sequences": ["CUSTOM_STOP"],
             "temperature": 0.7,
-            "top_p": 0.8,
             "top_k": 5,
+            "top_p": 0.8,
         }
 
         body = layer.prepare_body(
@@ -173,17 +175,14 @@ class TestAnthropicClaudeAdapter:
 
         assert body == expected_body
 
-    @pytest.mark.integration
-    def test_get_responses(self) -> None:
-        adapter = AnthropicClaudeChatAdapter(generation_kwargs={})
-        response_body = {"completion": "This is a single response."}
-        expected_response = "This is a single response."
-        response_message = adapter.get_responses(response_body)
-        # assert that the type of each item in the list is a ChatMessage
-        for message in response_message:
-            assert isinstance(message, ChatMessage)
 
-        assert response_message == [ChatMessage.from_assistant(expected_response)]
+@pytest.fixture
+def chat_messages():
+    messages = [
+        ChatMessage.from_system("\\nYou are a helpful assistant, be super brief in your responses."),
+        ChatMessage.from_user("What's the capital of France?"),
+    ]
+    return messages
 
 
 class TestMetaLlama2ChatAdapter:
@@ -207,13 +206,13 @@ class TestMetaLlama2ChatAdapter:
             generation_kwargs={"temperature": 0.7, "top_p": 0.8, "top_k": 5, "stop_sequences": ["CUSTOM_STOP"]}
         )
         prompt = "Hello, how are you?"
+
+        # expected body is different because stop_sequences and top_k are not supported by MetaLlama2
         expected_body = {
             "prompt": "<s>[INST] Hello, how are you? [/INST]",
             "max_gen_len": 69,
-            "stop_sequences": ["CUSTOM_STOP"],
             "temperature": 0.7,
             "top_p": 0.8,
-            "top_k": 5,
         }
 
         body = layer.prepare_body(
@@ -238,3 +237,52 @@ class TestMetaLlama2ChatAdapter:
             assert isinstance(message, ChatMessage)
 
         assert response_message == [ChatMessage.from_assistant(expected_response)]
+
+    @pytest.mark.parametrize("model_name", MODELS_TO_TEST)
+    @pytest.mark.integration
+    def test_default_inference_params(self, model_name, chat_messages):
+
+        client = AmazonBedrockChatGenerator(model=model_name)
+        response = client.run(chat_messages)
+
+        assert "replies" in response, "Response does not contain 'replies' key"
+        replies = response["replies"]
+        assert isinstance(replies, list), "Replies is not a list"
+        assert len(replies) > 0, "No replies received"
+
+        first_reply = replies[0]
+        assert isinstance(first_reply, ChatMessage), "First reply is not a ChatMessage instance"
+        assert first_reply.content, "First reply has no content"
+        assert ChatMessage.is_from(first_reply, ChatRole.ASSISTANT), "First reply is not from the assistant"
+        assert "paris" in first_reply.content.lower(), "First reply does not contain 'paris'"
+        assert first_reply.meta, "First reply has no metadata"
+
+    @pytest.mark.parametrize("model_name", MODELS_TO_TEST)
+    @pytest.mark.integration
+    def test_default_inference_with_streaming(self, model_name, chat_messages):
+        streaming_callback_called = False
+        paris_found_in_response = False
+
+        def streaming_callback(chunk: StreamingChunk):
+            nonlocal streaming_callback_called, paris_found_in_response
+            streaming_callback_called = True
+            assert isinstance(chunk, StreamingChunk)
+            assert chunk.content is not None
+            if not paris_found_in_response:
+                paris_found_in_response = "paris" in chunk.content.lower()
+
+        client = AmazonBedrockChatGenerator(model=model_name, streaming_callback=streaming_callback)
+        response = client.run(chat_messages)
+
+        assert streaming_callback_called, "Streaming callback was not called"
+        assert paris_found_in_response, "The streaming callback response did not contain 'paris'"
+        replies = response["replies"]
+        assert isinstance(replies, list), "Replies is not a list"
+        assert len(replies) > 0, "No replies received"
+
+        first_reply = replies[0]
+        assert isinstance(first_reply, ChatMessage), "First reply is not a ChatMessage instance"
+        assert first_reply.content, "First reply has no content"
+        assert ChatMessage.is_from(first_reply, ChatRole.ASSISTANT), "First reply is not from the assistant"
+        assert "paris" in first_reply.content.lower(), "First reply does not contain 'paris'"
+        assert first_reply.meta, "First reply has no metadata"

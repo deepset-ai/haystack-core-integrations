@@ -11,7 +11,6 @@ from ragas.metrics.base import Metric  # type: ignore
 from .metrics import (
     METRIC_DESCRIPTORS,
     InputConverters,
-    MetricParamsValidator,
     OutputConverters,
     RagasMetric,
 )
@@ -66,7 +65,7 @@ class RagasEvaluator:
             on required parameters.
         """
         self.metric = metric if isinstance(metric, RagasMetric) else RagasMetric.from_str(metric)
-        self.metric_params = metric_params or {}
+        self.metric_params = metric_params
         self.descriptor = METRIC_DESCRIPTORS[self.metric]
 
         self._init_backend()
@@ -79,10 +78,24 @@ class RagasEvaluator:
         self._backend_callable = RagasEvaluator._invoke_evaluate
 
     def _init_metric(self):
-        MetricParamsValidator.validate_metric_parameters(
-            self.metric, self.descriptor.init_parameters, self.metric_params
-        )
-        self._backend_metric = self.descriptor.backend(**self.metric_params)
+        if self.descriptor.init_parameters is not None:
+            if self.metric_params is None:
+                msg = f"Ragas metric '{self.metric}' expected init parameters but got none"
+                raise ValueError(msg)
+            elif not all(k in self.descriptor.init_parameters for k in self.metric_params.keys()):
+                msg = (
+                    f"Invalid init parameters for Ragas metric '{self.metric}'. "
+                    f"Expected: {self.descriptor.init_parameters}"
+                )
+                raise ValueError(msg)
+        elif self.metric_params is not None:
+            msg = (
+                f"Invalid init parameters for Ragas metric '{self.metric}'. "
+                f"None expected but {self.metric_params} given"
+            )
+            raise ValueError(msg)
+        metric_params = self.metric_params or {}
+        self._backend_metric = self.descriptor.backend(**metric_params)
 
     @staticmethod
     def _invoke_evaluate(dataset: Dataset, metric: Metric) -> Result:
