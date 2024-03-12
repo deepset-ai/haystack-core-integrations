@@ -286,7 +286,6 @@ class WeaviateDocumentStore:
         """
 
         with self._client.batch.dynamic() as batch:
-
             for doc in documents:
                 if not isinstance(doc, Document):
                     msg = f"Expected a Document, got '{type(doc)}' instead."
@@ -298,12 +297,20 @@ class WeaviateDocumentStore:
                     uuid=generate_uuid5(doc.id),
                     vector=doc.embedding,
                 )
-        failed_objects = self._client.batch.failed_objects
-        if failed_objects:
+        if failed_objects := self._client.batch.failed_objects:
+            # We fallback to use the UUID if the _original_id is not present, this is just to be
+            mapped_objects = {}
+            for obj in failed_objects:
+                properties = obj.object_.properties or {}
+                # We get the object uuid just in case the _original_id is not present.
+                # That's extremely unlikely to happen but let's stay on the safe side.
+                id_ = properties.get("_original_id", obj.object_.uuid)
+                mapped_objects[id_] = obj.message
+
             msg = "\n".join(
                 [
-                    f"Failed to write object with id '{obj.object_._original_id}'. Error: '{obj.message}'"
-                    for obj in failed_objects
+                    f"Failed to write object with id '{id_}'. Error: '{message}'"
+                    for id_, message in mapped_objects.items()
                 ]
             )
             raise DocumentStoreError(msg)
