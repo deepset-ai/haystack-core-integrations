@@ -84,7 +84,7 @@ class AnthropicChatGenerator:
 
     def __init__(
         self,
-        api_key: Secret = Secret.from_env_var("ANTHROPIC_API_KEY"),
+        api_key: Secret = Secret.from_env_var("ANTHROPIC_API_KEY"),  # noqa: B008
         model: str = "claude-3-sonnet-20240229",
         streaming_callback: Optional[Callable[[StreamingChunk], None]] = None,
         generation_kwargs: Optional[Dict[str, Any]] = None,
