@@ -45,6 +45,16 @@ DOCUMENT_COLLECTION_PROPERTIES = [
     {"name": "score", "dataType": ["number"]},
 ]
 
+# This is the default limit used when querying documents with WeaviateDocumentStore.
+#
+# We picked this as QUERY_MAXIMUM_RESULTS defaults to 10000, trying to get that many
+# documents at once will fail, even if the query is paginated.
+# This value will ensure we get the most documents possible without hitting that limit, it would
+# still fail if the user lowers the QUERY_MAXIMUM_RESULTS environment variable for their Weaviate instance.
+#
+# See WeaviateDocumentStore._query_with_filters() for more information.
+DEFAULT_QUERY_LIMIT = 9999
+
 
 class WeaviateDocumentStore:
     """
@@ -220,8 +230,8 @@ class WeaviateDocumentStore:
 
         return Document.from_dict(document_data)
 
-    def _query_paginated(self, properties: List[str]):
-
+    def _query(self) -> List[Dict[str, Any]]:
+        properties = [p.name for p in self._collection.config.get().properties]
         try:
             result = self._collection.iterator(include_vector=True, return_properties=properties)
         except weaviate.exceptions.WeaviateQueryError as e:
@@ -229,34 +239,44 @@ class WeaviateDocumentStore:
             raise DocumentStoreError(msg) from e
         return result
 
-    def _query_with_filters(self, filters: weaviate.collections.classes.filters.Filter) -> List[Dict[str, Any]]:
+    def _query_with_filters(self, filters: Dict[str, Any]) -> List[Dict[str, Any]]:
+        properties = [p.name for p in self._collection.config.get().properties]
+        # When querying with filters we need to paginate using limit and offset as using
+        # a cursor with after is not possible. See the official docs:
+        # https://weaviate.io/developers/weaviate/api/graphql/additional-operators#cursor-with-after
+        #
+        # Nonetheless there's also another issue, paginating with limit and offset is not efficient
+        # and it's still restricted by the QUERY_MAXIMUM_RESULTS environment variable.
+        # If the sum of limit and offest is greater than QUERY_MAXIMUM_RESULTS an error is raised.
+        # See the official docs for more:
+        # https://weaviate.io/developers/weaviate/api/graphql/additional-operators#performance-considerations
+        offset = 0
+        partial_result = None
+        result = []
+        # Keep querying until we get all documents matching the filters
+        while partial_result is None or len(partial_result.objects) == DEFAULT_QUERY_LIMIT:
+            try:
+                partial_result = self._collection.query.fetch_objects(
+                    filters=convert_filters(filters),
+                    include_vector=True,
+                    limit=DEFAULT_QUERY_LIMIT,
+                    offset=offset,
+                    return_properties=properties,
+                )
+            except weaviate.exceptions.WeaviateQueryError as e:
+                msg = f"Failed to query documents in Weaviate. Error: {e.message}"
+                raise DocumentStoreError(msg) from e
+            result.extend(partial_result.objects)
+            offset += DEFAULT_QUERY_LIMIT
+        return result
 
-        try:
-            # this is the default value for max number of objects to retrieve in Weaviate
-            # see QUERY_MAXIMUM_RESULTS
-            # see https://weaviate.io/developers/weaviate/config-refs/env-vars#overview
-            # and https://weaviate.io/developers/weaviate/api/graphql/additional-operators#pagination-with-offset
-            limit = 10_000
-            result = self._collection.query.fetch_objects(
-                filters=convert_filters(filters), include_vector=True, limit=limit
-            )
-        except weaviate.exceptions.WeaviateQueryError as e:
-            msg = f"Failed to query documents in Weaviate. Error: {e.message}"
-            raise DocumentStoreError(msg) from e
-
-        return result.objects
-
-    def filter_documents(self, filters: Optional[weaviate.collections.classes.filters.Filter] = None) -> List[Document]:
-        properties = self._collection.config.get().properties
-        properties = [prop.name for prop in properties]
-
+    def filter_documents(self, filters: Optional[Dict[str, Any]] = None) -> List[Document]:
+        result = []
         if filters:
             result = self._query_with_filters(filters)
-            return [self._to_document(doc) for doc in result]
-
-        result = self._query_paginated(properties)
-        result = [self._to_document(doc) for doc in result]
-        return result
+        else:
+            result = self._query()
+        return [self._to_document(doc) for doc in result]
 
     def _batch_write(self, documents: List[Document]) -> int:
         """
