@@ -1,0 +1,45 @@
+name: nightly
+
+on:
+  workflow_dispatch: # Activate this workflow manually
+  schedule:
+    - cron: "0 0 * * *"
+  # TODO: rm the following event
+  push:
+    branches:
+      - nightly
+
+jobs:
+  run:
+    name: Python ${{ matrix.python-version }} on ${{ startsWith(matrix.os, 'macos-') && 'macOS' || startsWith(matrix.os, 'windows-') && 'Windows' || 'Linux' }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        python-version: ['3.8', '3.9', '3.10']
+
+    steps:
+      - name: Support longpaths
+        if: matrix.os == 'windows-latest'
+        working-directory: .
+        run: git config --system core.longpaths true
+
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install Hatch
+        run: pip install --upgrade hatch
+
+      - name: Run tests
+        run: |
+          for d in integrations/* ; do
+            cd $d
+            hatch hatch run cov
+            hatch env prune # clean up the environment after docs generation
+            cd -
+          done        
