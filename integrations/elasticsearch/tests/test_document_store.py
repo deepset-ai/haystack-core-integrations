@@ -28,6 +28,7 @@ def test_to_dict(_mock_elasticsearch_client):
         },
     }
 
+
 @patch("haystack_integrations.document_stores.elasticsearch.document_store.Elasticsearch")
 def test_from_dict(_mock_elasticsearch_client):
     data = {
@@ -42,6 +43,7 @@ def test_from_dict(_mock_elasticsearch_client):
     assert document_store._hosts == "some hosts"
     assert document_store._index == "default"
     assert document_store._embedding_similarity_function == "cosine"
+
 
 @pytest.mark.integration
 class TestDocumentStore(DocumentStoreBaseTests):

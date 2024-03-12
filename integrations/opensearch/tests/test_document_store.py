@@ -26,6 +26,7 @@ def test_to_dict(_mock_opensearch_client):
         },
     }
 
+
 @patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
 def test_from_dict(_mock_opensearch_client):
     data = {
@@ -38,6 +39,7 @@ def test_from_dict(_mock_opensearch_client):
     document_store = OpenSearchDocumentStore.from_dict(data)
     assert document_store._hosts == "some hosts"
     assert document_store._index == "default"
+
 
 @pytest.mark.integration
 class TestDocumentStore(DocumentStoreBaseTests):
