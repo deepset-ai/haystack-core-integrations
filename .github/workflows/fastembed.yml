@@ -48,6 +48,6 @@ jobs:
         # we want to send a failure event to Datadog and notify the team
         # only if the job fails during scheduled nightly runs
         if: failure() #github.event_name == 'schedule' &&
-        uses: ./.github/workflows/CI_send_failure_event.yml
+        uses: ./.github/actions/send_failure
         with:
           api-key: ${{ secrets.DATADOG_API_KEY }}          
