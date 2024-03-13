@@ -39,12 +39,8 @@ class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsT
         assert retrieved_docs == docs
 
 
-<<<<<<< HEAD
-def test_init(patches_for_unit_tests, monkeypatch):  # noqa: ARG001  patches are not explicitly called but necessary
-=======
 @pytest.mark.usefixtures("patches_for_unit_tests")
 def test_init(monkeypatch):
->>>>>>> main
     monkeypatch.setenv("PG_CONN_STR", "some_connection_string")
 
     document_store = PgvectorDocumentStore(
