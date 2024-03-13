@@ -3,5 +3,6 @@
 # SPDX-License-Identifier: Apache-2.0
 from .fastembed_document_embedder import FastembedDocumentEmbedder
 from .fastembed_text_embedder import FastembedTextEmbedder
+from .fastembed_document_SPLADE_embedder import FastembedDocumentSPLADEEmbedder
 
-__all__ = ["FastembedDocumentEmbedder", "FastembedTextEmbedder"]
+__all__ = ["FastembedDocumentEmbedder", "FastembedTextEmbedder", "FastembedDocumentSPLADEEmbedder"]
