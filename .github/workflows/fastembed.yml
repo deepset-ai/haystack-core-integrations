@@ -53,5 +53,5 @@ jobs:
 
       - name: Nightly - run unit tests with Haystack main branch
         run: |
-          hatch run "pip install git+https://github.com/deepset-ai/haystack.git"
+          hatch run pip install git+https://github.com/deepset-ai/haystack.git
           hatch run test -m "not integration"                         
