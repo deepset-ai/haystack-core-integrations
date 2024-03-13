@@ -53,10 +53,12 @@ jobs:
           api-key: ${{ secrets.CORE_DATADOG_API_KEY }}
 
       - name: Nightly - run unit tests with Haystack main branch
+        if: always()
         id: nightly-haystack-main
-        run: |
-          hatch run pip install git+https://github.com/deepset-ai/haystack.git
-          hatch run test -m "not integration"
+        run: exit 1
+        # |
+        #   hatch run pip install git+https://github.com/deepset-ai/haystack.git
+        #   hatch run test -m "not integration"
 
       - name: Send event to Datadog for nightly failures with Haystack main branch
         if: failure()  && steps.nightly-haystack-main.conclusion == 'failure'
