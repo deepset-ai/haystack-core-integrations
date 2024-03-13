@@ -94,7 +94,7 @@ class FastembedTextSPLADEEmbedder:
                 model_name=self.model_name, cache_dir=self.cache_dir, threads=self.threads
             )
 
-    @component.output_types(embedding=List[Dict[str, Union[List[int], List[float]]]])
+    @component.output_types(embedding=Dict[str, Union[List[int], List[float]]])
     def run(self, text: str):
         """
         Embeds text using the Fastembed model.
