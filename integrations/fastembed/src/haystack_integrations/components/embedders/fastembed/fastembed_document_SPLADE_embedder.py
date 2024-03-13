@@ -171,5 +171,4 @@ class FastembedDocumentSPLADEEmbedder:
 
         for doc, emb in zip(documents, embeddings):
             doc.meta["_sparse_vector"] = emb
-            print(doc)
         return {"documents": documents}

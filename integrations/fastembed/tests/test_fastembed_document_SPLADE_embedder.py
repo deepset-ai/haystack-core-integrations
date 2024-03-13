@@ -196,14 +196,24 @@ class TestFastembedDocumentSPLADEEmbedderDoc:
         embedder.warm_up()
         mocked_factory.get_embedding_backend.assert_called_once()
 
+    def _generate_mocked_sparse_embedding(self, n):
+        list_of_sparse_vectors = []
+        for _ in range(n):
+            random_indice_length = np.random.randint(0, 20)
+            data = {
+                "indices": [i for i in range(random_indice_length)],
+                "values": [np.random.random_sample() for _ in range(random_indice_length)]
+            }
+            list_of_sparse_vectors.append(data)
+        return list_of_sparse_vectors
+
     def test_embed(self):
         """
         Test for checking output dimensions and embedding dimensions.
         """
         embedder = FastembedDocumentSPLADEEmbedder(model="prithvida/SPLADE_PP_en_v1")
         embedder.embedding_backend = MagicMock()
-        # TODO adapt for sparse
-        embedder.embedding_backend.embed = lambda x, **kwargs: np.random.rand(len(x), 3).tolist()  # noqa: ARG005
+        embedder.embedding_backend.embed = lambda x, **kwargs: self._generate_mocked_sparse_embedding(len(x))  # noqa: ARG005
 
         documents = [Document(content=f"Sample-document text {i}") for i in range(5)]
 
@@ -214,8 +224,11 @@ class TestFastembedDocumentSPLADEEmbedderDoc:
         for doc in result["documents"]:
             assert isinstance(doc, Document)
             # TODO adapt for sparse
-            assert isinstance(doc.meta["_sparse_vector"], list)
-            assert isinstance(doc.meta["_sparse_vector"][0], float)
+            assert isinstance(doc.meta["_sparse_vector"], dict)
+            assert isinstance(doc.meta["_sparse_vector"]["indices"], list)
+            assert isinstance(doc.meta["_sparse_vector"]["indices"][0], int)
+            assert isinstance(doc.meta["_sparse_vector"]["values"], list)
+            assert isinstance(doc.meta["_sparse_vector"]["values"][0], float)
 
     def test_embed_incorrect_input_format(self):
         """
