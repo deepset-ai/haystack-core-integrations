@@ -342,17 +342,29 @@ class QdrantDocumentStore:
                 ),
             ],
         )
+        results_dense = [self.qdrant_to_haystack.point_to_document(point) for point in points[0]]
+        results_sparse = [self.qdrant_to_haystack.point_to_document(point) for point in points[1]]
 
-        results = [self.qdrant_to_haystack.point_to_document(point) for point in points]
-        # TODO: Check Scaling method
         if scale_score:
-            for document in results:
+            for document in results_dense:
                 score = document.score
                 if self.similarity == "cosine":
                     score = (score + 1) / 2
                 else:
                     score = float(1 / (1 + np.exp(-score / 100)))
                 document.score = score
+        # TODO: Check Scaling method for sparse
+        if scale_score:
+            for document in results_sparse:
+                score = document.score
+                if self.similarity == "cosine":
+                    score = (score + 1) / 2
+                else:
+                    score = float(1 / (1 + np.exp(-score / 100)))
+                document.score = score
+
+        results = results_dense + results_sparse
+        
         return results
     
     def query_by_sparse(
