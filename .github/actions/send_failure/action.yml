@@ -14,7 +14,7 @@ runs:
         api-key: ${{ inputs.api-key }}
         api-url: https://api.datadoghq.eu
         events: |
-          - title: ${{ inputs.title }}
+          - title: "${{ inputs.title }}"
             text: "Job ${{ github.job }} in branch ${{ github.ref_name }}"
             alert_type: "error"
             source_type_name: "Github"
