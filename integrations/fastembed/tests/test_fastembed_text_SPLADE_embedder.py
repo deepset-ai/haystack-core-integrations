@@ -176,22 +176,37 @@ class TestFastembedTextSPLADEEmbedder:
         embedder.warm_up()
         mocked_factory.get_embedding_backend.assert_called_once()
 
+    def _generate_mocked_sparse_embedding(self, n):
+        list_of_sparse_vectors = []
+        for _ in range(n):
+            random_indice_length = np.random.randint(0, 20)
+            data = {
+                "indices": [i for i in range(random_indice_length)],
+                "values": [np.random.random_sample() for _ in range(random_indice_length)]
+            }
+            list_of_sparse_vectors.append(data)
+
+        return list_of_sparse_vectors
+
     def test_embed(self):
         """
         Test for checking output dimensions and embedding dimensions.
         """
         embedder = FastembedTextSPLADEEmbedder(model="BAAI/bge-base-en-v1.5")
         embedder.embedding_backend = MagicMock()
-        # TODO adapt to sparse
-        embedder.embedding_backend.embed = lambda x, **kwargs: np.random.rand(len(x), 16).tolist()  # noqa: ARG005
+        embedder.embedding_backend.embed = lambda x, **kwargs: self._generate_mocked_sparse_embedding(
+            len(x))  # noqa: ARG005
 
         text = "Good text to embed"
 
         result = embedder.run(text=text)
         embedding = result["embedding"]
         # TODO adapt to sparse
-        assert isinstance(embedding, list)
-        assert all(isinstance(emb, float) for emb in embedding)
+        assert isinstance(embedding, dict)
+        assert isinstance(embedding["indices"], list)
+        assert isinstance(embedding["indices"][0], int)
+        assert isinstance(embedding["values"], list)
+        assert isinstance(embedding["values"][0], float)
 
     def test_run_wrong_incorrect_format(self):
         """

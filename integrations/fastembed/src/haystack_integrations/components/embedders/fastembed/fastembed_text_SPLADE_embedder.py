@@ -116,13 +116,10 @@ class FastembedTextSPLADEEmbedder:
             raise RuntimeError(msg)
 
         text_to_embed = [self.prefix + text + self.suffix]
-        embedding = list(
-            self.embedding_backend.embed(
+        embedding = self.embedding_backend.embed(
                 text_to_embed,
                 batch_size=self.batch_size,
                 show_progress_bar=self.progress_bar,
                 parallel=self.parallel,
             )[0]
-        )
-        print(embedding)
         return {"embedding": embedding}
