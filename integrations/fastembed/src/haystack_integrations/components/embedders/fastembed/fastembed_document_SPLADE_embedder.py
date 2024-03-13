@@ -9,7 +9,7 @@ from .embedding_backend.fastembed_backend import _FastembedSparseEmbeddingBacken
 class FastembedDocumentSPLADEEmbedder:
     """
     FastembedDocumentSPLADEEmbedder computes Document embeddings using Fastembed SPLADE models.
-    # TODO: check where to store the sparse embedding in the Document object
+
     The embedding of each Document is stored in the `meta["_sparse_vector"]` field of the Document.
 
     Usage example:
@@ -47,7 +47,6 @@ class FastembedDocumentSPLADEEmbedder:
 
     result = doc_embedder.run(document_list)
     print(f"Document Text: {result['documents'][0].content}")
-    # TODO: WHERE DO WE STORE THE EMBEDDINGS ?
     print(f"Document Embedding: {result['documents'][0].meta["_sparse_vector"]}")
     print(f"Embedding Dimension: {len(result['documents'][0].meta["_sparse_vector"])}")
     ```
@@ -147,7 +146,7 @@ class FastembedDocumentSPLADEEmbedder:
 
         :param documents: List of Documents to embed.
         :returns: A dictionary with the following keys:
-            - `documents`: List of Documents with each Document's `embedding` field set to the computed embeddings.
+            - `documents`: List of Documents with each Document's `meta.["_sparse_vector"]` field set to the computed embeddings.
         """
         if not isinstance(documents, list) or documents and not isinstance(documents[0], Document):
             msg = (

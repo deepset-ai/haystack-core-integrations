@@ -179,7 +179,7 @@ class TestFastembedTextSPLADEEmbedder:
     def _generate_mocked_sparse_embedding(self, n):
         list_of_sparse_vectors = []
         for _ in range(n):
-            random_indice_length = np.random.randint(0, 20)
+            random_indice_length = np.random.randint(3, 15)
             data = {
                 "indices": [i for i in range(random_indice_length)],
                 "values": [np.random.random_sample() for _ in range(random_indice_length)]
@@ -230,7 +230,8 @@ class TestFastembedTextSPLADEEmbedder:
 
         result = embedder.run(text=text)
         embedding = result["embedding"]
-        # TODO adapt to sparse
-        assert isinstance(embedding, list)
-        assert len(embedding) == 384
-        assert all(isinstance(emb, float) for emb in embedding)
+        assert isinstance(embedding, dict)
+        assert isinstance(embedding["indices"], list)
+        assert isinstance(embedding["values"], list)
+        assert isinstance(embedding["indices"][0], int)
+        assert isinstance(embedding["values"][0], float)
