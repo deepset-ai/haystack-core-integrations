@@ -19,9 +19,10 @@ class HaystackToQdrant:
         points = []
         for document in documents:
             payload = document.to_dict(flatten=False)
-            # TODO: vector should be built not only from embedding_field but also from the field containing sparse embeddings
-            # TODO: Because with sparse vectors, the vector is now a dict
-            vector = payload.pop(embedding_field) or {}
+            dense_vector = payload.pop(embedding_field) or {}
+            # TODO: Adapt to Haystack Modification of the Document Dataclass
+            sparse_vector = payload["meta"].pop("_sparse_vector") or {}
+            vector = {"text-dense": dense_vector, "text-sparse": sparse_vector}
             _id = self.convert_id(payload.get("id"))
 
             point = rest.PointStruct(
@@ -53,11 +54,14 @@ class QdrantToHaystack:
 
     def point_to_document(self, point: QdrantPoint) -> Document:
         payload = {**point.payload}
-        # TODO: rework the converters part because now it's a mess with the new sparse embedding feature
-        # TODO: With dense+sparse embedding, vector is now a dict ?
-        # TODO: Unnamed dense vector are accessed with "" key ?
-        payload["embedding"] = point.vector[""] if hasattr(point, "vector") else None
+        if hasattr(point, "vector") and "text-dense" in point.vector:
+            payload["embedding"] = point.vector["text-dense"]
+        else:
+            payload["embedding"] = None
         payload["score"] = point.score if hasattr(point, "score") else None
-        # TODO: Because haystack document don't have sparse embedding field (only dense) in their dataclass, put it in meta ?
-        payload["meta"]["sparse-embedding"] = point.vector["text-sparse"] if hasattr(point, "vector") else None
+        # TODO: Adapt to Haystack Modification of the Document Dataclass
+        if hasattr(point, "vector") and "text-dense" in point.vector:
+            payload["meta"]["_sparse_vector"] = point.vector["text-sparse"]
+        else:
+            payload["meta"]["_sparse_vector"] = None
         return Document.from_dict(payload)
