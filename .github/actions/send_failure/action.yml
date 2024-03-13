@@ -3,6 +3,9 @@ inputs:
   api-key:
     description: "Datadog API key"
     required: true
+  title:
+    description: "Custom title for the event"
+    required: true    
 runs:
   using: "composite"
   steps:
@@ -11,7 +14,7 @@ runs:
         api-key: ${{ inputs.api-key }}
         api-url: https://api.datadoghq.eu
         events: |
-          - title: "core-integrations nightly failure: ${{ github.workflow }}"
+          - title: ${{ inputs.title }}
             text: "Job ${{ github.job }} in branch ${{ github.ref_name }}"
             alert_type: "error"
             source_type_name: "Github"
