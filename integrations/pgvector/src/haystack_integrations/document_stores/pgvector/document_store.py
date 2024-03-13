@@ -53,6 +53,32 @@ blob_mime_type = EXCLUDED.blob_mime_type,
 meta = EXCLUDED.meta
 """
 
+HYBRID_SEARCH_STATEMENT = """
+WITH semantic_search AS (
+    SELECT *, RANK () OVER (ORDER BY embedding %(method)s %(embedding)s) AS rank
+    FROM {table_name}
+    ORDER BY embedding %(method)s %(embedding)s
+    LIMIT 20
+),
+keyword_search AS (
+    SELECT *, RANK () OVER (ORDER BY ts_rank_cd(to_tsvector('english', content), query) DESC)
+    FROM {table_name}, plainto_tsquery('english', %(query)s) query
+    WHERE to_tsvector('english', content) @@ query
+    ORDER BY ts_rank_cd(to_tsvector('english', content), query) DESC
+    LIMIT 20
+)
+SELECT
+    COALESCE(semantic_search.id, keyword_search.id) AS id,
+    COALESCE(semantic_search.content, keyword_search.content) AS content,
+    COALESCE(semantic_search.meta, keyword_search.meta) AS meta,
+    COALESCE(1.0 / (%(k)s + semantic_search.rank), 0.0) +
+    COALESCE(1.0 / (%(k)s + keyword_search.rank), 0.0) AS score
+FROM semantic_search
+FULL OUTER JOIN keyword_search ON semantic_search.id = keyword_search.id
+ORDER BY score DESC
+LIMIT %(top_k)s
+"""
+
 VALID_VECTOR_FUNCTIONS = ["cosine_similarity", "inner_product", "l2_distance"]
 
 VECTOR_FUNCTION_TO_POSTGRESQL_OPS = {
@@ -80,6 +106,7 @@ class PgvectorDocumentStore:
         vector_function: Literal["cosine_similarity", "inner_product", "l2_distance"] = "cosine_similarity",
         recreate_table: bool = False,
         search_strategy: Literal["exact_nearest_neighbor", "hnsw"] = "exact_nearest_neighbor",
+        hybrid_search: bool = False,
         hnsw_recreate_index_if_exists: bool = False,
         hnsw_index_creation_kwargs: Optional[Dict[str, int]] = None,
         hnsw_ef_search: Optional[int] = None,
@@ -128,6 +155,7 @@ class PgvectorDocumentStore:
         self.vector_function = vector_function
         self.recreate_table = recreate_table
         self.search_strategy = search_strategy
+        self.hybrid_search = hybrid_search
         self.hnsw_recreate_index_if_exists = hnsw_recreate_index_if_exists
         self.hnsw_index_creation_kwargs = hnsw_index_creation_kwargs or {}
         self.hnsw_ef_search = hnsw_ef_search
@@ -505,10 +533,13 @@ class PgvectorDocumentStore:
         # cosine_similarity and inner_product are modified from the result of the operator
         if vector_function == "cosine_similarity":
             score_definition = f"1 - (embedding <=> {query_embedding_for_postgres}) AS score"
+            method = '1 - <=>'
         elif vector_function == "inner_product":
             score_definition = f"(embedding <#> {query_embedding_for_postgres}) * -1 AS score"
+            method = '<#>'
         elif vector_function == "l2_distance":
             score_definition = f"embedding <-> {query_embedding_for_postgres} AS score"
+            method = '<->'
 
         sql_select = SQL("SELECT *, {score} FROM {table_name}").format(
             table_name=Identifier(self.table_name),
@@ -529,7 +560,15 @@ class PgvectorDocumentStore:
             sort_order=SQL(sort_order),
         )
 
-        sql_query = sql_select + sql_where_clause + sql_sort
+        if not self.hybrid_search:
+            sql_query = sql_select + sql_where_clause + sql_sort
+        else:
+            sql_query = SQL(HYBRID_SEARCH_STATEMENT).format(table_name=Identifier(self.table_name),
+                                                            top_k=top_k,
+                                                            method=score_definition,
+                                                            k=60,
+                                                            #query=user_query,
+                                                            embedding=query_embedding)
 
         result = self._execute_sql(
             sql_query,
