@@ -2,5 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 from .chat.chat_generator import AnthropicChatGenerator
+from .generator import AnthropicGenerator
 
-__all__ = ["AnthropicChatGenerator"]
+__all__ = ["AnthropicGenerator", "AnthropicChatGenerator"]
