@@ -47,7 +47,7 @@ jobs:
       - name: Calculate alert data
         id: calculator
         shell: bash
-        if: (success() || failure()) && github.ref_name == 'notify-nightly-failures'
+        if: (success() || failure())
         run: |
           if [ "${{ job.status }}" = "success" ]; then
             echo "alert_type=success" >> "$GITHUB_OUTPUT";
@@ -56,7 +56,7 @@ jobs:
           fi
 
       - name: Send event to Datadog
-        if: (success() || failure()) && github.ref_name == 'notify-nightly-failures'
+        if: (success() || failure())
         uses: masci/datadog@v1
         with:
           api-key: ${{ secrets.CORE_DATADOG_API_KEY }}
