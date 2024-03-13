@@ -298,6 +298,50 @@ class QdrantDocumentStore:
             documents.append(self.qdrant_to_haystack.point_to_document(record))
         return documents
 
+    def query_by_sparse(
+        self,
+        query_sparse_embedding: Dict[str, List[Union[int, float]]],
+        filters: Optional[Dict[str, Any]] = None,
+        top_k: int = 10,
+        scale_score: bool = True,  # noqa: FBT001, FBT002
+        return_embedding: bool = False,  # noqa: FBT001, FBT002
+    ) -> List[Document]:
+        qdrant_filters = self.qdrant_filter_converter.convert(filters)
+
+        # TODO: we make the assumption that the sparse query is a dict with indices
+        # TODO: and values keys and list of int/float as value. Is it ok ?
+        # TODO: See FastEmbed https://github.com/qdrant/fastembed/blob/4cb8be2fb15c4f5ee2caa2629233121cfe389783/fastembed/sparse/sparse_embedding_base.py#L10
+        query_indices = query_sparse_embedding["indices"]
+        query_values = query_sparse_embedding["values"]
+        if len(query_indices) != len(query_values):
+            error_message = "The indices and values of the sparse embedding query must have the same length."
+            raise ValueError(error_message)
+
+        points = self.client.search(
+            collection_name=self.index,
+            query_vector=rest.NamedSparseVector(
+                name="text-sparse",
+                vector=rest.SparseVector(
+                    indices=query_indices,
+                    values=query_values,
+                ),
+            ),
+            query_filter=qdrant_filters,
+            limit=top_k,
+            with_vectors=return_embedding,
+        )
+
+        results = [self.qdrant_to_haystack.point_to_document(point) for point in points]
+        if scale_score:
+            for document in results:
+                score = document.score
+                if self.similarity == "cosine":
+                    score = (score + 1) / 2
+                else:
+                    score = float(1 / (1 + np.exp(-score / 100)))
+                document.score = score
+        return results
+
     def query_by_embedding(
         self,
         query_embedding: List[float],
@@ -415,6 +459,14 @@ class QdrantDocumentStore:
                 on_disk=on_disk,
                 distance=distance,
             ),
+            # TODO: we use named sparse vector, maybe we should named for dense also ?
+            sparse_vectors_config={
+                "text-sparse": rest.SparseVectorParams(
+                    index=rest.SparseIndexParams(
+                        on_disk=on_disk,
+                    )
+                )
+            },
             shard_number=self.shard_number,
             replication_factor=self.replication_factor,
             write_consistency_factor=self.write_consistency_factor,
