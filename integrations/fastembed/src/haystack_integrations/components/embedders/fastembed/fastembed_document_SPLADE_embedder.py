@@ -159,8 +159,6 @@ class FastembedDocumentSPLADEEmbedder:
             msg = "The embedding model has not been loaded. Please call warm_up() before running."
             raise RuntimeError(msg)
 
-        # TODO: once non textual Documents are properly supported, we should also prepare them for embedding here
-
         texts_to_embed = self._prepare_texts_to_embed(documents=documents)
         embeddings = self.embedding_backend.embed(
             texts_to_embed,

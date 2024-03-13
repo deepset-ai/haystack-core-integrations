@@ -223,7 +223,6 @@ class TestFastembedDocumentSPLADEEmbedderDoc:
         assert len(result["documents"]) == len(documents)
         for doc in result["documents"]:
             assert isinstance(doc, Document)
-            # TODO adapt for sparse
             assert isinstance(doc.meta["_sparse_vector"], dict)
             assert isinstance(doc.meta["_sparse_vector"]["indices"], list)
             assert isinstance(doc.meta["_sparse_vector"]["indices"][0], int)
@@ -292,7 +291,6 @@ class TestFastembedDocumentSPLADEEmbedderDoc:
         result = embedder.run(documents=[doc])
         # TODO adapt for sparse
         embedding = result["documents"][0].embedding
-        # TODO adapt for sparse
         assert isinstance(embedding, list)
         assert len(embedding) == 384
         assert all(isinstance(emb, float) for emb in embedding)

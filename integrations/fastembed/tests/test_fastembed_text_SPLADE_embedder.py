@@ -201,7 +201,6 @@ class TestFastembedTextSPLADEEmbedder:
 
         result = embedder.run(text=text)
         embedding = result["embedding"]
-        # TODO adapt to sparse
         assert isinstance(embedding, dict)
         assert isinstance(embedding["indices"], list)
         assert isinstance(embedding["indices"][0], int)
