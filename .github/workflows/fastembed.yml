@@ -50,4 +50,4 @@ jobs:
         if: failure() #github.event_name == 'schedule' &&
         uses: ./.github/actions/send_failure
         with:
-          api-key: ${{ secrets.DATADOG_API_KEY }}          
+          api-key: ${{ secrets.CORE_DATADOG_API_KEY }}          
