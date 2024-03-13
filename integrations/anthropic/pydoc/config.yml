@@ -2,6 +2,7 @@ loaders:
   - type: haystack_pydoc_tools.loaders.CustomPythonLoader
     search_path: [../src]
     modules: [
+      "haystack_integrations.components.generators.anthropic.generator",
       "haystack_integrations.components.generators.anthropic.chat.chat_generator",
     ]
     ignore_when_discovered: ["__init__"]
