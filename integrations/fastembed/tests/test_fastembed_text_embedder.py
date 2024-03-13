@@ -179,7 +179,7 @@ class TestFastembedTextEmbedder:
         result = embedder.run(text=text)
         embedding = result["embedding"]
 
-        assert isinstance(embedding, str)
+        assert isinstance(embedding, list)
         assert all(isinstance(emb, float) for emb in embedding)
 
     def test_run_wrong_incorrect_format(self):
