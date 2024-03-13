@@ -151,7 +151,7 @@ class FastembedDocumentSPLADEEmbedder:
         """
         if not isinstance(documents, list) or documents and not isinstance(documents[0], Document):
             msg = (
-                "FastembedDocumentEmbedder expects a list of Documents as input. "
+                "FastembedDocumentSPLADEEmbedder expects a list of Documents as input. "
                 "In case you want to embed a list of strings, please use the FastembedTextEmbedder."
             )
             raise TypeError(msg)
