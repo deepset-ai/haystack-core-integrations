@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 import numpy as np
 from haystack import component, default_to_dict
 
@@ -94,7 +94,7 @@ class FastembedTextSPLADEEmbedder:
                 model_name=self.model_name, cache_dir=self.cache_dir, threads=self.threads
             )
 
-    @component.output_types(embedding=List[Dict[str, np.ndarray]])
+    @component.output_types(embedding=List[Dict[str, Union[List[int], List[float]]]])
     def run(self, text: str):
         """
         Embeds text using the Fastembed model.

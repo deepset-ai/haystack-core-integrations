@@ -1,4 +1,4 @@
-from typing import ClassVar, Dict, List, Optional
+from typing import ClassVar, Dict, List, Optional, Union
 
 import numpy as np
 
@@ -81,7 +81,7 @@ class _FastembedSparseEmbeddingBackend:
     ):
         self.model = SparseTextEmbedding(model_name=model_name, cache_dir=cache_dir, threads=threads)
 
-    def embed(self, data: List[List[str]], **kwargs) -> List[Dict[str, np.ndarray]]:
+    def embed(self, data: List[List[str]], **kwargs) -> List[Dict[str, Union[List[int], List[float]]]]:
         # The embed method returns a Iterable[SparseEmbedding], so we convert it to a list of dictionaries.
         # Each dict contains an `indices` key containing a list of int and an `values` key containing a list of floats.
         sparse_embeddings = [sparse_embedding.as_object() for sparse_embedding in self.model.embed(data, **kwargs)]
