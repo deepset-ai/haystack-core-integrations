@@ -43,3 +43,10 @@ jobs:
 
       - name: Run tests
         run: hatch run cov
+
+      - name: Send event to Datadog for nightly failures
+        if: failure() #github.event_name == 'schedule' && 
+        uses: ./.github/actions/send_failure
+        with:
+          title: "core-integrations nightly failure: ${{ github.workflow }}"
+          api-key: ${{ secrets.CORE_DATADOG_API_KEY }}          
