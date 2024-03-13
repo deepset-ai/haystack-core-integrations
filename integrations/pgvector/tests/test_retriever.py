@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 from unittest.mock import Mock
 
+import pytest
 from haystack.dataclasses import Document
 from haystack.utils.auth import EnvVarSecret
 from haystack_integrations.components.retrievers.pgvector import PgvectorEmbeddingRetriever
@@ -55,9 +56,8 @@ class TestRetriever:
             },
         }
 
-    def test_from_dict(
-        self, patches_for_unit_tests, monkeypatch  # noqa:ARG002  patches are not explicitly called but necessary
-    ):
+    @pytest.mark.usefixtures("patches_for_unit_tests")
+    def test_from_dict(self, monkeypatch):
         monkeypatch.setenv("PG_CONN_STR", "some-connection-string")
         t = "haystack_integrations.components.retrievers.pgvector.embedding_retriever.PgvectorEmbeddingRetriever"
         data = {
