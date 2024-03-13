@@ -38,6 +38,7 @@ from weaviate.embedded import (
 )
 
 
+@pytest.mark.integration
 class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsTest, FilterDocumentsTest):
     @pytest.fixture
     def document_store(self, request) -> WeaviateDocumentStore:
