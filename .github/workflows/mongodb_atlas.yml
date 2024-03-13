@@ -54,12 +54,25 @@ jobs:
         run: hatch run docs
 
       - name: Run tests
-        working-directory: integrations/mongodb_atlas
+        id: tests
         run: hatch run cov
 
-      - name: Send event to Datadog for nightly failures
-        if: github.event_name == 'schedule' && failure()
+      - name: Nightly - run unit tests with Haystack main branch
+        if: github.event_name == 'schedule'
+        id: nightly-haystack-main
+        run: |
+          hatch run pip install git+https://github.com/deepset-ai/haystack.git
+          hatch run test -m "not integration"
+      
+      - name: Send event to Datadog for failures
+        if: failure() && github.event_name == 'schedule' (steps.tests.conclusion == 'failure' || steps.nightly-haystack-main.conclusion == 'failure')
         uses: ./.github/actions/send_failure
         with:
-          title: "core-integrations nightly failure: ${{ github.workflow }}"
+          title: |
+            ${{ if steps.nightly-tests.conclusion == 'failure' }}
+            core-integrations nightly failure with Haystack main branch
+            ${{ else }}
+            core-integrations nightly failure
+            ${{ endif }}
+            : ${{ github.workflow }}
           api-key: ${{ secrets.CORE_DATADOG_API_KEY }}
