@@ -43,3 +43,16 @@ jobs:
 
       - name: Run tests
         run: hatch run cov
+
+      - name: Send event to Datadog for nightly failures
+        if: github.event_name == 'schedule' && failure() 
+        uses: ./.github/actions/send_failure
+        with:
+          title: "core-integrations nightly failure: ${{ github.workflow }}"
+          api-key: ${{ secrets.CORE_DATADOG_API_KEY }}
+
+      - name: Nightly - run unit tests with Haystack main branch
+        if: github.ref_name == 'nightly-haystack-main'
+        run: |
+          hatch run "pip install git+https://github.com/deepset-ai/haystack.git"
+          hatch run test -m "not integration"                         
