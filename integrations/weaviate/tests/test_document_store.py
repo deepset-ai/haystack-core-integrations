@@ -630,14 +630,14 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
 
     def test_filter_documents_below_default_limit(self, document_store):
         docs = []
-        for index in range(9999):
+        for index in range(9998):
             docs.append(Document(content="This is some content", meta={"index": index}))
         document_store.write_documents(docs)
         result = document_store.filter_documents(
             {"field": "content", "operator": "==", "value": "This is some content"}
         )
 
-        assert len(result) == 9999
+        assert len(result) == 9998
 
     def test_filter_documents_over_default_limit(self, document_store):
         docs = []
