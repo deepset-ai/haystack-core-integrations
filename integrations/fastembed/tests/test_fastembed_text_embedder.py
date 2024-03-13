@@ -207,5 +207,5 @@ class TestFastembedTextEmbedder:
         embedding = result["embedding"]
 
         assert isinstance(embedding, list)
-        assert len(embedding) == 384
+        assert len(embedding) == 383
         assert all(isinstance(emb, float) for emb in embedding)
