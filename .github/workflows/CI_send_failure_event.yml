@@ -1,0 +1,25 @@
+name: "Send failure event to Datadog"
+inputs:
+  api-key:
+    description: "Datadog API key"
+    required: true
+runs:
+  using: "composite"
+  steps:
+    - uses: masci/datadog@v1
+      with:
+        api-key: ${{ inputs.api-key }}
+        api-url: https://api.datadoghq.eu
+        events: |
+          - title: "core-integrations nightly failure: ${{ github.workflow }}"
+            text: "Job ${{ github.job }} in branch ${{ github.ref_name }}"
+            alert_type: "error"
+            source_type_name: "Github"
+            host: ${{ github.repository_owner }}
+            tags:
+              - "project:${{ github.repository }}"
+              - "job:${{ github.job }}"
+              - "run_id:${{ github.run_id }}"
+              - "workflow:${{ github.workflow }}"
+              - "branch:${{ github.ref_name }}"
+              - "url:https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
