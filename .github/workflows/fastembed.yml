@@ -45,7 +45,7 @@ jobs:
         run: hatch run cov
 
       - name: Send failure event to Datadog
-        if: failure()
+        if: matrix.python-version == '3.9' && runner.os == 'Linux' && failure()
         uses: masci/datadog@v1
         with:
           api-key: ${{ secrets.CORE_DATADOG_API_KEY }}
