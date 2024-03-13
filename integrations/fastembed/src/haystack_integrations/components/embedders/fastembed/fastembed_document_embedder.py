@@ -68,11 +68,11 @@ class FastembedDocumentEmbedder:
         Create an FastembedDocumentEmbedder component.
 
         :param model: Local path or name of the model in Hugging Face's model hub,
-            such as ``'BAAI/bge-small-en-v1.5'``.
-        :param cache_dir (str, optional): The path to the cache directory.
+            such as `BAAI/bge-small-en-v1.5`.
+        :param cache_dir: The path to the cache directory.
                 Can be set using the `FASTEMBED_CACHE_PATH` env variable.
                 Defaults to `fastembed_cache` in the system's temp directory.
-        :param threads (int, optional): The number of threads single onnxruntime session can use. Defaults to None.
+        :param threads: The number of threads single onnxruntime session can use. Defaults to None.
         :param prefix: A string to add to the beginning of each text.
         :param suffix: A string to add to the end of each text.
         :param batch_size: Number of strings to encode at once.
@@ -131,11 +131,11 @@ class FastembedDocumentEmbedder:
             meta_values_to_embed = [
                 str(doc.meta[key]) for key in self.meta_fields_to_embed if key in doc.meta and doc.meta[key] is not None
             ]
-            text_to_embed = [
-                self.prefix + self.embedding_separator.join([*meta_values_to_embed, doc.content or ""]) + self.suffix,
-            ]
+            text_to_embed = (
+                self.prefix + self.embedding_separator.join([*meta_values_to_embed, doc.content or ""]) + self.suffix
+            )
 
-            texts_to_embed.append(text_to_embed[0])
+            texts_to_embed.append(text_to_embed)
         return texts_to_embed
 
     @component.output_types(documents=List[Document])
@@ -144,7 +144,7 @@ class FastembedDocumentEmbedder:
         Embeds a list of Documents.
 
         :param documents: List of Documents to embed.
-        :return: A dictionary with the following keys:
+        :returns: A dictionary with the following keys:
             - `documents`: List of Documents with each Document's `embedding` field set to the computed embeddings.
         """
         if not isinstance(documents, list) or documents and not isinstance(documents[0], Document):
@@ -157,13 +157,11 @@ class FastembedDocumentEmbedder:
             msg = "The embedding model has not been loaded. Please call warm_up() before running."
             raise RuntimeError(msg)
 
-        # TODO: once non textual Documents are properly supported, we should also prepare them for embedding here
-
         texts_to_embed = self._prepare_texts_to_embed(documents=documents)
         embeddings = self.embedding_backend.embed(
             texts_to_embed,
             batch_size=self.batch_size,
-            show_progress_bar=self.progress_bar,
+            progress_bar=self.progress_bar,
             parallel=self.parallel,
         )
 

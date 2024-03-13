@@ -52,7 +52,7 @@ class AstraEmbeddingRetriever:
         :param filters: filters to narrow down the search space.
         :param top_k: the maximum number of documents to retrieve.
         :returns: a dictionary with the following keys:
-            - documents: A list of documents retrieved from the AstraDocumentStore.
+            - `documents`: A list of documents retrieved from the AstraDocumentStore.
         """
 
         if not top_k:

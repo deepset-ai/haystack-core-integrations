@@ -148,16 +148,20 @@ ban-relative-imports = "parents"
 "tests/**" = ["T201"]
 
 [tool.coverage.run]
-source_pkgs = ["optimum", "tests"]
+source = ["haystack_integrations"]
 branch = true
-parallel = true
+parallel = false
 
-[tool.coverage.paths]
-optimum = ["src/haystack_integrations"]
-tests = ["tests"]
 
 [tool.coverage.report]
-exclude_lines = ["no cov", "if __name__ == .__main__.:", "if TYPE_CHECKING:"]
+omit = ["*/tests/*", "*/__init__.py"]
+show_missing=true
+exclude_lines = [
+  "no cov",
+  "if __name__ == .__main__.:",
+  "if TYPE_CHECKING:",
+]
+
 
 [[tool.mypy.overrides]]
 module = [

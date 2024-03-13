@@ -139,7 +139,7 @@ class UnstructuredFileConverter:
             (same metadata for all files).
 
         :returns: A dictionary with the following key:
-            - "documents": List of Haystack Documents.
+            - `documents`: List of Haystack Documents.
 
         :raises ValueError: If `meta` is a list and `paths` contains directories.
         """

@@ -157,20 +157,17 @@ ban-relative-imports = "parents"
 
 
 [tool.coverage.run]
-source_pkgs = ["src", "tests"]
+source = ["haystack_integrations"]
 branch = true
-parallel = true
-
-
-[tool.coverage.paths]
-ollama_haystack = ["src/haystack_integrations", "*/ollama-haystack/src"]
-tests = ["tests", "*/ollama-haystack/tests"]
+parallel = false
 
 [tool.coverage.report]
+omit = ["*/tests/*", "*/__init__.py"]
+show_missing=true
 exclude_lines = [
-    "no cov",
-    "if __name__ == .__main__.:",
-    "if TYPE_CHECKING:",
+  "no cov",
+  "if __name__ == .__main__.:",
+  "if TYPE_CHECKING:",
 ]
 
 [tool.pytest.ini_options]

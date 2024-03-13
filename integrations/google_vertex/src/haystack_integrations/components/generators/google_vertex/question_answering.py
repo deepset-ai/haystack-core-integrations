@@ -89,7 +89,7 @@ class VertexAIImageQA:
         :param image: The image to ask the question about.
         :param question: The question to ask.
         :returns: A dictionary with the following keys:
-            - answers: A list of answers to the question.
+            - `answers`: A list of answers to the question.
         """
         answers = self._model.ask_question(image=Image(image.data), question=question, **self._kwargs)
         return {"answers": answers}

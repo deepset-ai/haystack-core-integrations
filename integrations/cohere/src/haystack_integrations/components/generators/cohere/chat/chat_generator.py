@@ -149,7 +149,7 @@ class CohereChatGenerator:
             For more details on the parameters supported by the Cohere API, refer to the
             Cohere [documentation](https://docs.cohere.com/reference/chat).
         :returns: A dictionary with the following keys:
-            - "replies": a list of `ChatMessage` instances representing the generated responses.
+            - `replies`: a list of `ChatMessage` instances representing the generated responses.
         """
         # update generation kwargs by merging with the generation kwargs passed to the run method
         generation_kwargs = {**self.generation_kwargs, **(generation_kwargs or {})}
@@ -186,7 +186,7 @@ class CohereChatGenerator:
         Converts the response from the Cohere API to a StreamingChunk.
         :param chunk: The chunk returned by the OpenAI API.
         :param choice: The choice returned by the OpenAI API.
-        :return: The StreamingChunk.
+        :returns: The StreamingChunk.
         """
         chat_message = StreamingChunk(content=chunk.text, meta={"index": chunk.index, "event_type": chunk.event_type})
         return chat_message
@@ -195,7 +195,7 @@ class CohereChatGenerator:
         """
         Converts the non-streaming response from the Cohere API to a ChatMessage.
         :param cohere_response: The completion returned by the Cohere API.
-        :return: The ChatMessage.
+        :returns: The ChatMessage.
         """
         content = cohere_response.text
         message = ChatMessage.from_assistant(content=content)

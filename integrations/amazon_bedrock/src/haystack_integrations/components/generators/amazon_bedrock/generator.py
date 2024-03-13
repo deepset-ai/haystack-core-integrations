@@ -84,7 +84,9 @@ class AmazonBedrockGenerator:
         :param aws_profile_name: The AWS profile name.
         :param max_length: The maximum length of the generated text.
         :param kwargs: Additional keyword arguments to be passed to the model.
-
+        :raises ValueError: If the model name is empty or None.
+        :raises AmazonBedrockConfigurationError: If the AWS environment is not configured correctly or the model is
+            not supported.
         """
         if not model:
             msg = "'model' cannot be None or empty string"
@@ -142,7 +144,7 @@ class AmazonBedrockGenerator:
         the initialization of the component.
 
         :param prompt: The prompt to be sent to the model.
-        :return: The resized prompt.
+        :returns: The resized prompt.
         """
         # the prompt for this model will be of the type str
         if isinstance(prompt, List):
@@ -171,7 +173,7 @@ class AmazonBedrockGenerator:
 
         :param args: Additional positional arguments passed to the generator.
         :param kwargs: Additional keyword arguments passed to the generator.
-        :return: A list of generated responses (strings).
+        :returns: A list of generated responses (strings).
         """
         kwargs = kwargs.copy()
         prompt: str = kwargs.pop("prompt", None)
@@ -225,8 +227,10 @@ class AmazonBedrockGenerator:
 
         :param prompt: The prompt to generate a response for.
         :param generation_kwargs: Additional keyword arguments passed to the generator.
-        :return: A dictionary with the following keys:
-            - `replies`: A list of generated responses (strings).
+        :returns: A dictionary with the following keys:
+            - `replies`: A list of generated responses.
+        :raises ValueError: If the prompt is empty or None.
+        :raises AmazonBedrockInferenceError: If the model cannot be invoked.
         """
         return {"replies": self.invoke(prompt=prompt, **(generation_kwargs or {}))}
 
@@ -236,7 +240,7 @@ class AmazonBedrockGenerator:
         Gets the model adapter for the given model.
 
         :param model: The model name.
-        :return: The model adapter class, or None if no adapter is found.
+        :returns: The model adapter class, or None if no adapter is found.
         """
         for pattern, adapter in cls.SUPPORTED_MODEL_PATTERNS.items():
             if re.fullmatch(pattern, model):
@@ -269,7 +273,7 @@ class AmazonBedrockGenerator:
         :param data:
             Dictionary to deserialize from.
         :returns:
-              Deserialized component.
+            Deserialized component.
         """
         deserialize_secrets_inplace(
             data["init_parameters"],

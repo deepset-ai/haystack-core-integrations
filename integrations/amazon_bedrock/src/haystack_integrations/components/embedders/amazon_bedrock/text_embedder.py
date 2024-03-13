@@ -66,7 +66,6 @@ class AmazonBedrockTextEmbedder:
 
         :param model: The embedding model to use. The model has to be specified in the format outlined in the Amazon
             Bedrock [documentation](https://docs.aws.amazon.com/bedrock/latest/userguide/model-ids.html).
-        :type model: Literal["amazon.titan-embed-text-v1", "cohere.embed-english-v3", "cohere.embed-multilingual-v3"]
         :param aws_access_key_id: AWS access key ID.
         :param aws_secret_access_key: AWS secret access key.
         :param aws_session_token: AWS session token.
@@ -74,6 +73,8 @@ class AmazonBedrockTextEmbedder:
         :param aws_profile_name: AWS profile name.
         :param kwargs: Additional parameters to pass for model inference. For example, `input_type` and `truncate` for
             Cohere models.
+        :raises ValueError: If the model is not supported.
+        :raises AmazonBedrockConfigurationError: If the AWS environment is not configured correctly.
         """
         if not model or model not in SUPPORTED_EMBEDDING_MODELS:
             msg = "Please provide a valid model from the list of supported models: " + ", ".join(
@@ -110,6 +111,14 @@ class AmazonBedrockTextEmbedder:
 
     @component.output_types(embedding=List[float])
     def run(self, text: str):
+        """Embeds the input text using the Amazon Bedrock model.
+
+        :param text: The input text to embed.
+        :returns: A dictionary with the following keys:
+            - `embedding`: The embedding of the input text.
+        :raises TypeError: If the input text is not a string.
+        :raises AmazonBedrockInferenceError: If the model inference fails.
+        """
         if not isinstance(text, str):
             msg = (
                 "AmazonBedrockTextEmbedder expects a string as an input."
@@ -153,8 +162,10 @@ class AmazonBedrockTextEmbedder:
 
     def to_dict(self) -> Dict[str, Any]:
         """
-        Serialize this component to a dictionary.
-        :return: The serialized component as a dictionary.
+        Serializes the component to a dictionary.
+
+        :returns:
+            Dictionary with serialized data.
         """
         return default_to_dict(
             self,
@@ -170,9 +181,12 @@ class AmazonBedrockTextEmbedder:
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "AmazonBedrockTextEmbedder":
         """
-        Deserialize this component from a dictionary.
-        :param data: The dictionary representation of this component.
-        :return: The deserialized component instance.
+        Deserializes the component from a dictionary.
+
+        :param data:
+            Dictionary to deserialize from.
+        :returns:
+            Deserialized component.
         """
         deserialize_secrets_inplace(
             data["init_parameters"],

@@ -21,6 +21,7 @@ def test_to_dict():
             "path": None,
             "index": "test",
             "embedding_dim": 768,
+            "on_disk": False,
             "content_field": "content",
             "name_field": "name",
             "embedding_field": "embedding",
@@ -42,6 +43,7 @@ def test_to_dict():
             "metadata": {},
             "write_batch_size": 100,
             "scroll_size": 10000,
+            "payload_fields_to_index": None,
         },
     }
 
@@ -57,6 +59,7 @@ def test_from_dict():
                 "location": ":memory:",
                 "index": "test",
                 "embedding_dim": 768,
+                "on_disk": False,
                 "content_field": "content",
                 "name_field": "name",
                 "embedding_field": "embedding",
@@ -72,6 +75,7 @@ def test_from_dict():
                 "metadata": {},
                 "write_batch_size": 1000,
                 "scroll_size": 10000,
+                "payload_fields_to_index": None,
             },
         }
     )
@@ -82,6 +86,7 @@ def test_from_dict():
             document_store.content_field == "content",
             document_store.name_field == "name",
             document_store.embedding_field == "embedding",
+            document_store.on_disk is False,
             document_store.similarity == "cosine",
             document_store.return_embedding is False,
             document_store.progress_bar,
@@ -101,5 +106,6 @@ def test_from_dict():
             document_store.write_batch_size == 1000,
             document_store.scroll_size == 10000,
             document_store.api_key == Secret.from_env_var("ENV_VAR", strict=False),
+            document_store.payload_fields_to_index is None,
         ]
     )

@@ -5,10 +5,9 @@ from dataclasses import dataclass
 import pytest
 from datasets import Dataset
 from haystack import DeserializationError
+from haystack_integrations.components.evaluators.ragas import RagasEvaluator, RagasMetric
 from ragas.evaluation import Result
 from ragas.metrics.base import Metric
-
-from haystack_integrations.components.evaluators.ragas import RagasEvaluator, RagasMetric
 
 DEFAULT_QUESTIONS = [
     "Which is the most popular global sport?",
@@ -59,43 +58,58 @@ class MockBackend:
         return output_map[self.metric]
 
 
-def test_evaluator_metric_init_params():
+@pytest.mark.parametrize(
+    "metric, init_params",
+    [
+        (RagasMetric.ANSWER_CORRECTNESS, {"weights": [0.5, 0.5]}),
+        (RagasMetric.FAITHFULNESS, None),
+        (RagasMetric.ANSWER_SIMILARITY, {"threshold": 0.5}),
+        (RagasMetric.CONTEXT_PRECISION, None),
+        (RagasMetric.CONTEXT_UTILIZATION, None),
+        (RagasMetric.CONTEXT_RECALL, None),
+        (
+            RagasMetric.ASPECT_CRITIQUE,
+            {
+                "name": "harmfulness",
+                "definition": "Does the submission causes or has the potential to "
+                "cause harm to individuals, groups, or society at "
+                "large?",
+            },
+        ),
+        (RagasMetric.CONTEXT_RELEVANCY, None),
+        (RagasMetric.ANSWER_RELEVANCY, {"strictness": 2}),
+    ],
+)
+def test_evaluator_valid_metric_init_params(metric, init_params):
     eval = RagasEvaluator(
-        RagasMetric.ASPECT_CRITIQUE,
-        metric_params={
-            'name': 'harmfulness',
-            'definition': 'Does the submission causes or has the potential to cause '
-            'harm to individuals, groups, or society at large?',
-        },
+        metric,
+        metric_params=init_params,
     )
-    assert eval.metric_params == {
-        'definition': 'Does the submission causes or has the potential to cause harm to '
-        'individuals, groups, or society at large?',
-        'name': 'harmfulness',
-    }
+    assert eval.metric_params == init_params
 
-    with pytest.raises(ValueError, match="Expects a name"):
-        RagasEvaluator(RagasMetric.ASPECT_CRITIQUE, metric_params=None)
-
-    with pytest.raises(ValueError, match="Expects a name"):
-        RagasEvaluator(RagasMetric.ASPECT_CRITIQUE, metric_params={})
-
-    with pytest.raises(ValueError, match="Expects a name"):
+    msg = f"Invalid init parameters for Ragas metric '{metric}'. "
+    with pytest.raises(ValueError, match=msg):
         RagasEvaluator(
-            RagasMetric.ASPECT_CRITIQUE,
-            metric_params={"definition": "custom definition"},
+            metric,
+            metric_params={"invalid_param": "invalid_value"},
         )
 
-    with pytest.raises(ValueError, match="Expects definition"):
-        RagasEvaluator(
-            RagasMetric.ASPECT_CRITIQUE,
-            metric_params={"name": "custom name"},
-        )
 
-    with pytest.raises(ValueError, match="Invalid init parameters"):
+@pytest.mark.parametrize(
+    "metric",
+    [
+        RagasMetric.ANSWER_CORRECTNESS,
+        RagasMetric.ANSWER_SIMILARITY,
+        RagasMetric.ASPECT_CRITIQUE,
+        RagasMetric.ANSWER_RELEVANCY,
+    ],
+)
+def test_evaluator_fails_with_no_metric_init_params(metric):
+    msg = f"Ragas metric '{metric}' expected init parameters but got none"
+    with pytest.raises(ValueError, match=msg):
         RagasEvaluator(
-            RagasMetric.FAITHFULNESS,
-            metric_params={"check_numbers": True},
+            metric,
+            metric_params=None,
         )
 
 
@@ -103,10 +117,10 @@ def test_evaluator_serde():
     init_params = {
         "metric": RagasMetric.ASPECT_CRITIQUE,
         "metric_params": {
-            'name': 'harmfulness',
-            'definition': 'Does the submission causes or has the potential to '
-            'cause harm to individuals, groups, or society at '
-            'large?',
+            "name": "harmfulness",
+            "definition": "Does the submission causes or has the potential to "
+            "cause harm to individuals, groups, or society at "
+            "large?",
         },
     }
     eval = RagasEvaluator(**init_params)
@@ -126,9 +140,13 @@ def test_evaluator_serde():
 @pytest.mark.parametrize(
     "current_metric, inputs, params",
     [
-        (RagasMetric.ANSWER_CORRECTNESS, {"questions": [], "responses": [], "ground_truths": []}, None),
+        (
+            RagasMetric.ANSWER_CORRECTNESS,
+            {"questions": [], "responses": [], "ground_truths": []},
+            {"weights": [0.5, 0.5]},
+        ),
         (RagasMetric.FAITHFULNESS, {"questions": [], "contexts": [], "responses": []}, None),
-        (RagasMetric.ANSWER_SIMILARITY, {"responses": [], "ground_truths": []}, None),
+        (RagasMetric.ANSWER_SIMILARITY, {"responses": [], "ground_truths": []}, {"threshold": 0.5}),
         (RagasMetric.CONTEXT_PRECISION, {"questions": [], "contexts": [], "ground_truths": []}, None),
         (RagasMetric.CONTEXT_UTILIZATION, {"questions": [], "contexts": [], "responses": []}, None),
         (RagasMetric.CONTEXT_RECALL, {"questions": [], "contexts": [], "ground_truths": []}, None),
@@ -136,14 +154,14 @@ def test_evaluator_serde():
             RagasMetric.ASPECT_CRITIQUE,
             {"questions": [], "contexts": [], "responses": []},
             {
-                'name': 'harmfulness',
-                'definition': 'Does the submission causes or has the potential to '
-                'cause harm to individuals, groups, or society at '
-                'large?',
+                "name": "harmfulness",
+                "definition": "Does the submission causes or has the potential to "
+                "cause harm to individuals, groups, or society at "
+                "large?",
             },
         ),
         (RagasMetric.CONTEXT_RELEVANCY, {"questions": [], "contexts": []}, None),
-        (RagasMetric.ANSWER_RELEVANCY, {"questions": [], "contexts": [], "responses": []}, None),
+        (RagasMetric.ANSWER_RELEVANCY, {"questions": [], "contexts": [], "responses": []}, {"strictness": 2}),
     ],
 )
 def test_evaluator_valid_inputs(current_metric, inputs, params):
@@ -170,9 +188,9 @@ def test_evaluator_valid_inputs(current_metric, inputs, params):
             RagasMetric.ANSWER_RELEVANCY,
             {"questions": [""], "responses": [], "contexts": []},
             "Mismatching counts ",
-            None,
+            {"strictness": 2},
         ),
-        (RagasMetric.ANSWER_RELEVANCY, {"responses": []}, "expected input parameter ", None),
+        (RagasMetric.ANSWER_RELEVANCY, {"responses": []}, "expected input parameter ", {"strictness": 2}),
     ],
 )
 def test_evaluator_invalid_inputs(current_metric, inputs, error_string, params):
@@ -195,7 +213,7 @@ def test_evaluator_invalid_inputs(current_metric, inputs, error_string, params):
             RagasMetric.ANSWER_CORRECTNESS,
             {"questions": ["q1"], "responses": ["r1"], "ground_truths": ["gt1"]},
             [[(None, 0.5)]],
-            None,
+            {"weights": [0.5, 0.5]},
         ),
         (
             RagasMetric.FAITHFULNESS,
@@ -203,7 +221,12 @@ def test_evaluator_invalid_inputs(current_metric, inputs, error_string, params):
             [[(None, 1.0)]],
             None,
         ),
-        (RagasMetric.ANSWER_SIMILARITY, {"responses": ["r3"], "ground_truths": ["gt3"]}, [[(None, 1.0)]], None),
+        (
+            RagasMetric.ANSWER_SIMILARITY,
+            {"responses": ["r3"], "ground_truths": ["gt3"]},
+            [[(None, 1.0)]],
+            {"threshold": 0.5},
+        ),
         (
             RagasMetric.CONTEXT_PRECISION,
             {"questions": ["q4"], "contexts": [["c4"]], "ground_truths": ["gt44"]},
@@ -227,10 +250,10 @@ def test_evaluator_invalid_inputs(current_metric, inputs, error_string, params):
             {"questions": ["q7"], "contexts": [["c7"]], "responses": ["r7"]},
             [[("harmfulness", 1.0)]],
             {
-                'name': 'harmfulness',
-                'definition': 'Does the submission causes or has the potential to '
-                'cause harm to individuals, groups, or society at '
-                'large?',
+                "name": "harmfulness",
+                "definition": "Does the submission causes or has the potential to "
+                "cause harm to individuals, groups, or society at "
+                "large?",
             },
         ),
         (
@@ -243,7 +266,7 @@ def test_evaluator_invalid_inputs(current_metric, inputs, error_string, params):
             RagasMetric.ANSWER_RELEVANCY,
             {"questions": ["q9"], "contexts": [["c9"]], "responses": ["r9"]},
             [[(None, 0.4)]],
-            None,
+            {"strictness": 2},
         ),
     ],
 )
@@ -277,14 +300,18 @@ def test_evaluator_outputs(current_metric, inputs, expected_outputs, metric_para
         (
             RagasMetric.ANSWER_CORRECTNESS,
             {"questions": DEFAULT_QUESTIONS, "responses": DEFAULT_RESPONSES, "ground_truths": DEFAULT_GROUND_TRUTHS},
-            None,
+            {"weights": [0.5, 0.5]},
         ),
         (
             RagasMetric.FAITHFULNESS,
             {"questions": DEFAULT_QUESTIONS, "contexts": DEFAULT_CONTEXTS, "responses": DEFAULT_RESPONSES},
             None,
         ),
-        (RagasMetric.ANSWER_SIMILARITY, {"responses": DEFAULT_QUESTIONS, "ground_truths": DEFAULT_GROUND_TRUTHS}, None),
+        (
+            RagasMetric.ANSWER_SIMILARITY,
+            {"responses": DEFAULT_QUESTIONS, "ground_truths": DEFAULT_GROUND_TRUTHS},
+            {"threshold": 0.5},
+        ),
         (
             RagasMetric.CONTEXT_PRECISION,
             {"questions": DEFAULT_QUESTIONS, "contexts": DEFAULT_CONTEXTS, "ground_truths": DEFAULT_GROUND_TRUTHS},
@@ -304,17 +331,17 @@ def test_evaluator_outputs(current_metric, inputs, expected_outputs, metric_para
             RagasMetric.ASPECT_CRITIQUE,
             {"questions": DEFAULT_QUESTIONS, "contexts": DEFAULT_CONTEXTS, "responses": DEFAULT_RESPONSES},
             {
-                'name': 'harmfulness',
-                'definition': 'Does the submission causes or has the potential to '
-                'cause harm to individuals, groups, or society at '
-                'large?',
+                "name": "harmfulness",
+                "definition": "Does the submission causes or has the potential to "
+                "cause harm to individuals, groups, or society at "
+                "large?",
             },
         ),
         (RagasMetric.CONTEXT_RELEVANCY, {"questions": DEFAULT_QUESTIONS, "contexts": DEFAULT_CONTEXTS}, None),
         (
             RagasMetric.ANSWER_RELEVANCY,
             {"questions": DEFAULT_QUESTIONS, "contexts": DEFAULT_CONTEXTS, "responses": DEFAULT_RESPONSES},
-            None,
+            {"strictness": 2},
         ),
     ],
 )
@@ -326,7 +353,7 @@ def test_integration_run(metric, inputs, metric_params):
     eval = RagasEvaluator(**init_params)
     output = eval.run(**inputs)
 
-    assert type(output) == dict
+    assert isinstance(output, dict)
     assert len(output) == 1
     assert "results" in output
     assert len(output["results"]) == len(next(iter(inputs.values())))
