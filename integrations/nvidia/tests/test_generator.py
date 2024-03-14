@@ -44,8 +44,9 @@ class TestNvidiaGenerator:
 
     def test_init_fail_wo_api_key(self, monkeypatch):
         monkeypatch.delenv("NVIDIA_API_KEY", raising=False)
+        generator = NvidiaGenerator("playground_nemotron_steerlm_8b")
         with pytest.raises(ValueError):
-            NvidiaGenerator("playground_nemotron_steerlm_8b")
+            generator.warm_up()
 
     def test_to_dict(self, monkeypatch):
         monkeypatch.setenv("NVIDIA_API_KEY", "fake-api-key")
@@ -194,14 +195,11 @@ class TestNvidiaGenerator:
         generator = NvidiaGenerator(
             model="gpt-3.5-turbo",
             api_url="https://api.openai.com/v1",
-            api_key=Secret.from_env_var(["OPENAI_API"]),
+            api_key=Secret.from_env_var(["OPENAI_API_KEY"]),
             model_arguments={
                 "temperature": 0.2,
                 "top_p": 0.7,
                 "max_tokens": 1024,
-                "seed": None,
-                "bad": None,
-                "stop": None,
             },
         )
         generator.warm_up()
