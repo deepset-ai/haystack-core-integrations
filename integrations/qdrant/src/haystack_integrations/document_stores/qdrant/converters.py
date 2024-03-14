@@ -19,10 +19,15 @@ class HaystackToQdrant:
         points = []
         for document in documents:
             payload = document.to_dict(flatten=False)
-            dense_vector = payload.pop(embedding_field) or {}
+            vector = {}
+            if embedding_field in payload and payload[embedding_field] is not None:
+                dense_vector = payload.pop(embedding_field) or []
+                vector["text-dense"] = dense_vector
             # TODO: Adapt to Haystack Modification of the Document Dataclass
-            sparse_vector = payload["meta"].pop("_sparse_vector") or {}
-            vector = {"text-dense": dense_vector, "text-sparse": sparse_vector}
+            if "_sparse_vector" in payload["meta"]:
+                sparse_vector = payload["meta"].pop("_sparse_vector", {"indices": [], "values": []})
+                sparse_vector_instance = rest.SparseVector(**sparse_vector)
+                vector["text-sparse"] = sparse_vector_instance
             _id = self.convert_id(payload.get("id"))
 
             point = rest.PointStruct(
@@ -61,7 +66,11 @@ class QdrantToHaystack:
         payload["score"] = point.score if hasattr(point, "score") else None
         # TODO: Adapt to Haystack Modification of the Document Dataclass
         if hasattr(point, "vector") and "text-dense" in point.vector:
-            payload["meta"]["_sparse_vector"] = point.vector["text-sparse"]
+            parse_vector_dict = {
+                "indices": point.vector["text-sparse"].indices,
+                "values": point.vector["text-sparse"].values
+            }
+            payload["meta"]["_sparse_vector"] = parse_vector_dict
         else:
             payload["meta"]["_sparse_vector"] = None
         return Document.from_dict(payload)

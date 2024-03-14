@@ -499,9 +499,8 @@ class QdrantDocumentStore:
             # Create Payload index if payload_fields_to_index is provided
             self._create_payload_index(collection_name, payload_fields_to_index)
             return
-
-        current_distance = collection_info.config.params.vectors.distance
-        current_vector_size = collection_info.config.params.vectors.size
+        current_distance = collection_info.config.params.vectors["text-dense"].distance
+        current_vector_size = collection_info.config.params.vectors["text-dense"].size
 
         if current_distance != distance:
             msg = (
