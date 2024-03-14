@@ -22,6 +22,7 @@ env:
   PYTHONUNBUFFERED: "1"
   FORCE_COLOR: "1"
   NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
+  OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
 
 jobs:
   run:

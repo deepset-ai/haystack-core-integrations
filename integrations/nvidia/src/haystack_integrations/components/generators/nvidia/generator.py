@@ -81,7 +81,12 @@ class NvidiaGenerator:
                 raise ValueError(msg)
             self._backend = NvcfBackend(self._model, api_key=self._api_key, model_kwargs=self._model_arguments)
         else:
-            self._backend = NimBackend(self._model, api_url=self._api_url, model_kwargs=self._model_arguments)
+            self._backend = NimBackend(
+                self._model,
+                api_url=self._api_url,
+                model_kwargs=self._model_arguments,
+                api_key=self._api_key,
+            )
 
     def to_dict(self) -> Dict[str, Any]:
         """
