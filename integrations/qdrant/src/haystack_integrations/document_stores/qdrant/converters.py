@@ -59,13 +59,13 @@ class QdrantToHaystack:
 
     def point_to_document(self, point: QdrantPoint) -> Document:
         payload = {**point.payload}
-        if hasattr(point, "vector") and "text-dense" in point.vector:
+        if hasattr(point, "vector") and point.vector is not None and "text-dense" in point.vector:
             payload["embedding"] = point.vector["text-dense"]
         else:
             payload["embedding"] = None
         payload["score"] = point.score if hasattr(point, "score") else None
         # TODO: Adapt to Haystack Modification of the Document Dataclass
-        if hasattr(point, "vector") and "text-dense" in point.vector:
+        if hasattr(point, "vector") and point.vector is not None and "text-sparse" in point.vector:
             parse_vector_dict = {
                 "indices": point.vector["text-sparse"].indices,
                 "values": point.vector["text-sparse"].values
