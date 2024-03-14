@@ -43,13 +43,13 @@ doc = Document(content="fastembed is supported by and maintained by Qdrant.", me
 result = embedder.run(documents=[doc])
 ```
 
-You can use `FastembedTextSPLADEEmbedder` and `FastembedDocumentSPLADEEmbedder` by importing as:
+You can use `FastembedSparseTextEmbedder` and `FastembedSparseDocumentEmbedder` by importing as:
 
 ```python
-from haystack_integrations.components.embedders.fastembed import FastembedTextSPLADEEmbedder
+from haystack_integrations.components.embedders.fastembed import FastembedSparseTextEmbedder
 
 text = "fastembed is supported by and maintained by Qdrant."
-text_embedder = FastembedTextSPLADEEmbedder(
+text_embedder = FastembedSparseTextEmbedder(
     model="prithvida/SPLADE_PP_en_v1"
 )
 text_embedder.warm_up()
@@ -57,10 +57,10 @@ embedding = text_embedder.run(text)["embedding"]
 ```
 
 ```python
-from haystack_integrations.components.embedders.fastembed import FastembedDocumentSPLADEEmbedder
+from haystack_integrations.components.embedders.fastembed import FastembedSparseDocumentEmbedder
 from haystack.dataclasses import Document
 
-embedder = FastembedDocumentSPLADEEmbedder(
+embedder = FastembedSparseDocumentEmbedder(
     model="prithvida/SPLADE_PP_en_v1",
 )
 embedder.warm_up()

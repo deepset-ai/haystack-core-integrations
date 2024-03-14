@@ -6,9 +6,9 @@ from .embedding_backend.fastembed_backend import _FastembedSparseEmbeddingBacken
 
 
 @component
-class FastembedDocumentSPLADEEmbedder:
+class FastembedSparseDocumentEmbedder:
     """
-    FastembedDocumentSPLADEEmbedder computes Document embeddings using Fastembed SPLADE models.
+    FastembedSparseDocumentEmbedder computes Document embeddings using Fastembed sparse models.
 
     The embedding of each Document is stored in the `meta["_sparse_vector"]` field of the Document.
 
@@ -17,10 +17,10 @@ class FastembedDocumentSPLADEEmbedder:
     # To use this component, install the "fastembed-haystack" package.
     # pip install fastembed-haystack
 
-    from haystack_integrations.components.embedders.fastembed import FastembedDocumentSPLADEEmbedder
+    from haystack_integrations.components.embedders.fastembed import FastembedSparseDocumentEmbedder
     from haystack.dataclasses import Document
 
-    doc_embedder = FastembedDocumentSPLADEEmbedder(
+    doc_embedder = FastembedSparseDocumentEmbedder(
         model="prithvida/SPLADE_PP_en_v1",
         batch_size=256,
     )
@@ -150,7 +150,7 @@ class FastembedDocumentSPLADEEmbedder:
         """
         if not isinstance(documents, list) or documents and not isinstance(documents[0], Document):
             msg = (
-                "FastembedDocumentSPLADEEmbedder expects a list of Documents as input. "
+                "FastembedSparseDocumentEmbedder expects a list of Documents as input. "
                 "In case you want to embed a list of strings, please use the FastembedTextEmbedder."
             )
             raise TypeError(msg)

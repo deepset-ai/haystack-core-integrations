@@ -3,17 +3,17 @@ from unittest.mock import MagicMock, patch
 import numpy as np
 import pytest
 from haystack import default_from_dict
-from haystack_integrations.components.embedders.fastembed.fastembed_text_SPLADE_embedder import (
-    FastembedTextSPLADEEmbedder,
+from haystack_integrations.components.embedders.fastembed.fastembed_sparse_text_embedder import (
+    FastembedSparseTextEmbedder,
 )
 
 
-class TestFastembedTextSPLADEEmbedder:
+class TestFastembedSparseTextEmbedder:
     def test_init_default(self):
         """
-        Test default initialization parameters for FastembedTextSPLADEEmbedder.
+        Test default initialization parameters for FastembedSparseTextEmbedder.
         """
-        embedder = FastembedTextSPLADEEmbedder(model="prithvida/SPLADE_PP_en_v1")
+        embedder = FastembedSparseTextEmbedder(model="prithvida/SPLADE_PP_en_v1")
         assert embedder.model_name == "prithvida/SPLADE_PP_en_v1"
         assert embedder.cache_dir is None
         assert embedder.threads is None
@@ -25,9 +25,9 @@ class TestFastembedTextSPLADEEmbedder:
 
     def test_init_with_parameters(self):
         """
-        Test custom initialization parameters for FastembedTextSPLADEEmbedder.
+        Test custom initialization parameters for FastembedSparseTextEmbedder.
         """
-        embedder = FastembedTextSPLADEEmbedder(
+        embedder = FastembedSparseTextEmbedder(
             model="prithvida/SPLADE_PP_en_v1",
             cache_dir="fake_dir",
             threads=2,
@@ -48,12 +48,12 @@ class TestFastembedTextSPLADEEmbedder:
 
     def test_to_dict(self):
         """
-        Test serialization of FastembedTextSPLADEEmbedder to a dictionary, using default initialization parameters.
+        Test serialization of FastembedSparseTextEmbedder to a dictionary, using default initialization parameters.
         """
-        embedder = FastembedTextSPLADEEmbedder(model="prithvida/SPLADE_PP_en_v1")
+        embedder = FastembedSparseTextEmbedder(model="prithvida/SPLADE_PP_en_v1")
         embedder_dict = embedder.to_dict()
         assert embedder_dict == {
-            "type": "haystack_integrations.components.embedders.fastembed.fastembed_text_SPLADE_embedder.FastembedTextSPLADEEmbedder",  # noqa
+            "type": "haystack_integrations.components.embedders.fastembed.fastembed_sparse_text_embedder.FastembedSparseTextEmbedder",  # noqa
             "init_parameters": {
                 "model": "prithvida/SPLADE_PP_en_v1",
                 "cache_dir": None,
@@ -68,9 +68,9 @@ class TestFastembedTextSPLADEEmbedder:
 
     def test_to_dict_with_custom_init_parameters(self):
         """
-        Test serialization of FastembedTextSPLADEEmbedder to a dictionary, using custom initialization parameters.
+        Test serialization of FastembedSparseTextEmbedder to a dictionary, using custom initialization parameters.
         """
-        embedder = FastembedTextSPLADEEmbedder(
+        embedder = FastembedSparseTextEmbedder(
             model="prithvida/SPLADE_PP_en_v1",
             cache_dir="fake_dir",
             threads=2,
@@ -82,7 +82,7 @@ class TestFastembedTextSPLADEEmbedder:
         )
         embedder_dict = embedder.to_dict()
         assert embedder_dict == {
-            "type": "haystack_integrations.components.embedders.fastembed.fastembed_text_SPLADE_embedder.FastembedTextSPLADEEmbedder",  # noqa
+            "type": "haystack_integrations.components.embedders.fastembed.fastembed_sparse_text_embedder.FastembedSparseTextEmbedder",  # noqa
             "init_parameters": {
                 "model": "prithvida/SPLADE_PP_en_v1",
                 "cache_dir": "fake_dir",
@@ -97,10 +97,10 @@ class TestFastembedTextSPLADEEmbedder:
 
     def test_from_dict(self):
         """
-        Test deserialization of FastembedTextSPLADEEmbedder from a dictionary, using default initialization parameters.
+        Test deserialization of FastembedSparseTextEmbedder from a dictionary, using default initialization parameters.
         """
         embedder_dict = {
-            "type": "haystack_integrations.components.embedders.fastembed.fastembed_text_SPLADE_embedder.FastembedTextSPLADEEmbedder",  # noqa
+            "type": "haystack_integrations.components.embedders.fastembed.fastembed_sparse_text_embedder.FastembedSparseTextEmbedder",  # noqa
             "init_parameters": {
                 "model": "prithvida/SPLADE_PP_en_v1",
                 "cache_dir": None,
@@ -112,7 +112,7 @@ class TestFastembedTextSPLADEEmbedder:
                 "parallel": None,
             },
         }
-        embedder = default_from_dict(FastembedTextSPLADEEmbedder, embedder_dict)
+        embedder = default_from_dict(FastembedSparseTextEmbedder, embedder_dict)
         assert embedder.model_name == "prithvida/SPLADE_PP_en_v1"
         assert embedder.cache_dir is None
         assert embedder.threads is None
@@ -124,10 +124,10 @@ class TestFastembedTextSPLADEEmbedder:
 
     def test_from_dict_with_custom_init_parameters(self):
         """
-        Test deserialization of FastembedTextSPLADEEmbedder from a dictionary, using custom initialization parameters.
+        Test deserialization of FastembedSparseTextEmbedder from a dictionary, using custom initialization parameters.
         """
         embedder_dict = {
-            "type": "haystack_integrations.components.embedders.fastembed.fastembed_text_SPLADE_embedder.FastembedTextSPLADEEmbedder",  # noqa
+            "type": "haystack_integrations.components.embedders.fastembed.fastembed_sparse_text_embedder.FastembedSparseTextEmbedder",  # noqa
             "init_parameters": {
                 "model": "prithvida/SPLADE_PP_en_v1",
                 "cache_dir": "fake_dir",
@@ -139,7 +139,7 @@ class TestFastembedTextSPLADEEmbedder:
                 "parallel": 1,
             },
         }
-        embedder = default_from_dict(FastembedTextSPLADEEmbedder, embedder_dict)
+        embedder = default_from_dict(FastembedSparseTextEmbedder, embedder_dict)
         assert embedder.model_name == "prithvida/SPLADE_PP_en_v1"
         assert embedder.cache_dir == "fake_dir"
         assert embedder.threads == 2
@@ -150,13 +150,13 @@ class TestFastembedTextSPLADEEmbedder:
         assert embedder.parallel == 1
 
     @patch(
-        "haystack_integrations.components.embedders.fastembed.fastembed_text_SPLADE_embedder._FastembedSparseEmbeddingBackendFactory"
+        "haystack_integrations.components.embedders.fastembed.fastembed_sparse_text_embedder._FastembedSparseEmbeddingBackendFactory"
     )
     def test_warmup(self, mocked_factory):
         """
         Test for checking embedder instances after warm-up.
         """
-        embedder = FastembedTextSPLADEEmbedder(model="prithvida/SPLADE_PP_en_v1")
+        embedder = FastembedSparseTextEmbedder(model="prithvida/SPLADE_PP_en_v1")
         mocked_factory.get_embedding_backend.assert_not_called()
         embedder.warm_up()
         mocked_factory.get_embedding_backend.assert_called_once_with(
@@ -164,13 +164,13 @@ class TestFastembedTextSPLADEEmbedder:
         )
 
     @patch(
-        "haystack_integrations.components.embedders.fastembed.fastembed_text_SPLADE_embedder._FastembedSparseEmbeddingBackendFactory"
+        "haystack_integrations.components.embedders.fastembed.fastembed_sparse_text_embedder._FastembedSparseEmbeddingBackendFactory"
     )
     def test_warmup_does_not_reload(self, mocked_factory):
         """
         Test for checking backend instances after multiple warm-ups.
         """
-        embedder = FastembedTextSPLADEEmbedder(model="prithvida/SPLADE_PP_en_v1")
+        embedder = FastembedSparseTextEmbedder(model="prithvida/SPLADE_PP_en_v1")
         mocked_factory.get_embedding_backend.assert_not_called()
         embedder.warm_up()
         embedder.warm_up()
@@ -192,7 +192,7 @@ class TestFastembedTextSPLADEEmbedder:
         """
         Test for checking output dimensions and embedding dimensions.
         """
-        embedder = FastembedTextSPLADEEmbedder(model="BAAI/bge-base-en-v1.5")
+        embedder = FastembedSparseTextEmbedder(model="BAAI/bge-base-en-v1.5")
         embedder.embedding_backend = MagicMock()
         embedder.embedding_backend.embed = lambda x, **kwargs: self._generate_mocked_sparse_embedding(
             len(x))  # noqa: ARG005
@@ -211,17 +211,17 @@ class TestFastembedTextSPLADEEmbedder:
         """
         Test for checking incorrect input format when creating embedding.
         """
-        embedder = FastembedTextSPLADEEmbedder(model="BAAI/bge-base-en-v1.5")
+        embedder = FastembedSparseTextEmbedder(model="BAAI/bge-base-en-v1.5")
         embedder.embedding_backend = MagicMock()
 
         list_integers_input = [1, 2, 3]
 
-        with pytest.raises(TypeError, match="FastembedTextSPLADEEmbedder expects a string as input"):
+        with pytest.raises(TypeError, match="FastembedSparseTextEmbedder expects a string as input"):
             embedder.run(text=list_integers_input)
 
     @pytest.mark.integration
     def test_run(self):
-        embedder = FastembedTextSPLADEEmbedder(
+        embedder = FastembedSparseTextEmbedder(
             model="prithvida/SPLADE_PP_en_v1",
         )
         embedder.warm_up()

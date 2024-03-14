@@ -6,20 +6,20 @@ from .embedding_backend.fastembed_backend import _FastembedSparseEmbeddingBacken
 
 
 @component
-class FastembedTextSPLADEEmbedder:
+class FastembedSparseTextEmbedder:
     """
-    FastembedTextSPLADEEmbedder computes string embedding using fastembed SPLADE models.
+    FastembedSparseTextEmbedder computes string embedding using fastembed sparse models.
 
     Usage example:
     ```python
     # To use this component, install the "fastembed-haystack" package.
     # pip install fastembed-haystack
 
-    from haystack_integrations.components.embedders.fastembed import FastembedTextSPLADEEmbedder
+    from haystack_integrations.components.embedders.fastembed import FastembedSparseTextEmbedder
 
     text = "It clearly says online this will work on a Mac OS system. The disk comes and it does not, only Windows. Do Not order this if you have a Mac!!"
 
-    text_embedder = FastembedTextSPLADEEmbedder(
+    text_embedder = FastembedSparseTextEmbedder(
         model="prithvida/SPLADE_PP_en_v1"
     )
     text_embedder.warm_up()
@@ -40,7 +40,7 @@ class FastembedTextSPLADEEmbedder:
         parallel: Optional[int] = None,
     ):
         """
-        Create a FastembedTextSPLADEEmbedder component.
+        Create a FastembedSparseTextEmbedder component.
 
         :param model: Local path or name of the model in Fastembed's model hub, such as `prithvida/SPLADE_PP_en_v1`
         :param cache_dir: The path to the cache directory.
@@ -107,7 +107,7 @@ class FastembedTextSPLADEEmbedder:
         """
         if not isinstance(text, str):
             msg = (
-                "FastembedTextSPLADEEmbedder expects a string as input. "
+                "FastembedSparseTextEmbedder expects a string as input. "
                 "In case you want to embed a list of Documents, please use the FastembedDocumentEmbedder."
             )
             raise TypeError(msg)
