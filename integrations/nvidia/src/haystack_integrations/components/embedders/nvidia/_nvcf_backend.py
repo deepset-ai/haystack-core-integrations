@@ -7,7 +7,6 @@ from haystack_integrations.utils.nvidia import NvidiaCloudFunctionsClient
 from .backend import EmbedderBackend
 
 MAX_INPUT_STRING_LENGTH = 2048
-MAX_INPUTS = 50
 
 
 class NvcfBackend(EmbedderBackend):
@@ -15,17 +14,12 @@ class NvcfBackend(EmbedderBackend):
         self,
         model: str,
         api_key: Secret,
-        batch_size: int,
         model_kwargs: Optional[Dict[str, Any]] = None,
     ):
         if not model.startswith("playground_"):
             model = f"playground_{model}"
 
         super().__init__(model=model, model_kwargs=model_kwargs)
-
-        if batch_size > MAX_INPUTS:
-            msg = f"NVIDIA Cloud Functions currently support a maximum batch size of {MAX_INPUTS}."
-            raise ValueError(msg)
 
         self.api_key = api_key
         self.client = NvidiaCloudFunctionsClient(
@@ -56,11 +50,7 @@ class EmbeddingsRequest:
     encoding_format: Literal["float", "base64"] = "float"
 
     def __post_init__(self):
-        if isinstance(self.input, list):
-            if len(self.input) > MAX_INPUTS:
-                msg = f"The number of inputs should not exceed {MAX_INPUTS}"
-                raise ValueError(msg)
-        else:
+        if not isinstance(self.input, list):
             self.input = [self.input]
 
         if len(self.input) == 0:
