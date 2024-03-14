@@ -146,7 +146,8 @@ class FastembedSparseDocumentEmbedder:
 
         :param documents: List of Documents to embed.
         :returns: A dictionary with the following keys:
-            - `documents`: List of Documents with each Document's `meta.["_sparse_vector"]` field set to the computed embeddings.
+            - `documents`: List of Documents with each Document's `meta.["_sparse_vector"]` field set
+            to the computed embeddings.
         """
         if not isinstance(documents, list) or documents and not isinstance(documents[0], Document):
             msg = (

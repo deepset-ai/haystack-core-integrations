@@ -181,8 +181,8 @@ class TestFastembedSparseTextEmbedder:
         for _ in range(n):
             random_indice_length = np.random.randint(3, 15)
             data = {
-                "indices": [i for i in range(random_indice_length)],
-                "values": [np.random.random_sample() for _ in range(random_indice_length)]
+                "indices": list(range(random_indice_length)),
+                "values": [np.random.random_sample() for _ in range(random_indice_length)],
             }
             list_of_sparse_vectors.append(data)
 
@@ -194,8 +194,9 @@ class TestFastembedSparseTextEmbedder:
         """
         embedder = FastembedSparseTextEmbedder(model="BAAI/bge-base-en-v1.5")
         embedder.embedding_backend = MagicMock()
-        embedder.embedding_backend.embed = lambda x, **kwargs: self._generate_mocked_sparse_embedding(
-            len(x))  # noqa: ARG005
+        embedder.embedding_backend.embed = lambda x, **kwargs: self._generate_mocked_sparse_embedding(  # noqa: ARG005
+            len(x)
+        )
 
         text = "Good text to embed"
 

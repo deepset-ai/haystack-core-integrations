@@ -1,5 +1,5 @@
 from typing import Any, Dict, List, Optional, Union
-import numpy as np
+
 from haystack import component, default_to_dict
 
 from .embedding_backend.fastembed_backend import _FastembedSparseEmbeddingBackendFactory
@@ -117,9 +117,9 @@ class FastembedSparseTextEmbedder:
 
         text_to_embed = [self.prefix + text + self.suffix]
         embedding = self.embedding_backend.embed(
-                text_to_embed,
-                batch_size=self.batch_size,
-                show_progress_bar=self.progress_bar,
-                parallel=self.parallel,
-            )[0]
+            text_to_embed,
+            batch_size=self.batch_size,
+            show_progress_bar=self.progress_bar,
+            parallel=self.parallel,
+        )[0]
         return {"embedding": embedding}

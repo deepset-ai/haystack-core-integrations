@@ -109,7 +109,8 @@ class TestFastembedSparseDocumentEmbedderDoc:
 
     def test_from_dict(self):
         """
-        Test deserialization of FastembedSparseDocumentEmbedder from a dictionary, using default initialization parameters.
+        Test deserialization of FastembedSparseDocumentEmbedder from a dictionary,
+        using default initialization parameters.
         """
         embedder_dict = {
             "type": "haystack_integrations.components.embedders.fastembed.fastembed_sparse_document_embedder.FastembedSparseDocumentEmbedder",  #  noqa
@@ -140,7 +141,8 @@ class TestFastembedSparseDocumentEmbedderDoc:
 
     def test_from_dict_with_custom_init_parameters(self):
         """
-        Test deserialization of FastembedSparseDocumentEmbedder from a dictionary, using custom initialization parameters.
+        Test deserialization of FastembedSparseDocumentEmbedder from a dictionary,
+        using custom initialization parameters.
         """
         embedder_dict = {
             "type": "haystack_integrations.components.embedders.fastembed.fastembed_sparse_document_embedder.FastembedSparseDocumentEmbedder",  #  noqa
@@ -201,8 +203,8 @@ class TestFastembedSparseDocumentEmbedderDoc:
         for _ in range(n):
             random_indice_length = np.random.randint(3, 15)
             data = {
-                "indices": [i for i in range(random_indice_length)],
-                "values": [np.random.random_sample() for _ in range(random_indice_length)]
+                "indices": list(range(random_indice_length)),
+                "values": [np.random.random_sample() for _ in range(random_indice_length)],
             }
             list_of_sparse_vectors.append(data)
         return list_of_sparse_vectors
@@ -213,7 +215,9 @@ class TestFastembedSparseDocumentEmbedderDoc:
         """
         embedder = FastembedSparseDocumentEmbedder(model="prithvida/SPLADE_PP_en_v1")
         embedder.embedding_backend = MagicMock()
-        embedder.embedding_backend.embed = lambda x, **kwargs: self._generate_mocked_sparse_embedding(len(x))  # noqa: ARG005
+        embedder.embedding_backend.embed = lambda x, **kwargs: self._generate_mocked_sparse_embedding(  # noqa: ARG005
+            len(x)
+        )
 
         documents = [Document(content=f"Sample-document text {i}") for i in range(5)]
 

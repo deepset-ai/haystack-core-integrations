@@ -1,9 +1,8 @@
 from typing import ClassVar, Dict, List, Optional, Union
 
-import numpy as np
-
 from fastembed import TextEmbedding
 from fastembed.sparse.sparse_text_embedding import SparseTextEmbedding
+
 
 class _FastembedEmbeddingBackendFactory:
     """
@@ -46,6 +45,7 @@ class _FastembedEmbeddingBackend:
         embeddings = [np_array.tolist() for np_array in self.model.embed(data, **kwargs)]
         return embeddings
 
+
 class _FastembedSparseEmbeddingBackendFactory:
     """
     Factory class to create instances of fastembed sparse embedding backends.
@@ -64,9 +64,12 @@ class _FastembedSparseEmbeddingBackendFactory:
         if embedding_backend_id in _FastembedSparseEmbeddingBackendFactory._instances:
             return _FastembedSparseEmbeddingBackendFactory._instances[embedding_backend_id]
 
-        embedding_backend = _FastembedSparseEmbeddingBackend(model_name=model_name, cache_dir=cache_dir, threads=threads)
+        embedding_backend = _FastembedSparseEmbeddingBackend(
+            model_name=model_name, cache_dir=cache_dir, threads=threads
+        )
         _FastembedSparseEmbeddingBackendFactory._instances[embedding_backend_id] = embedding_backend
         return embedding_backend
+
 
 class _FastembedSparseEmbeddingBackend:
     """
@@ -86,7 +89,7 @@ class _FastembedSparseEmbeddingBackend:
         # Each dict contains an `indices` key containing a list of int and an `values` key containing a list of floats.
         sparse_embeddings = [sparse_embedding.as_object() for sparse_embedding in self.model.embed(data, **kwargs)]
         for embedding in sparse_embeddings:
-            embedding['indices'] = embedding['indices'].tolist()
-            embedding['values'] = embedding['values'].tolist()
+            embedding["indices"] = embedding["indices"].tolist()
+            embedding["values"] = embedding["values"].tolist()
 
         return sparse_embeddings
