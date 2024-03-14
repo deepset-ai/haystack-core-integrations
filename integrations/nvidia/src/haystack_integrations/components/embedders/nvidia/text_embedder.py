@@ -3,9 +3,9 @@ from typing import Any, Dict, List, Optional, Tuple
 from haystack import component, default_from_dict, default_to_dict
 from haystack.utils import Secret, deserialize_secrets_inplace
 
-from .backend import EmbedderBackend
-from ._nvcf_backend import NvcfBackend
 from ._nim_backend import NimBackend
+from ._nvcf_backend import NvcfBackend
+from .backend import EmbedderBackend
 
 
 @component
@@ -75,9 +75,9 @@ class NvidiaTextEmbedder:
                 msg = "API key is required for NVIDIA AI Foundation Endpoints."
                 raise ValueError(msg)
 
-            self.backend = NvcfBackend(self.model, api_key=self.api_key, batch_size=1, model_kwargs={"model": "query"})
+            self.backend = NvcfBackend(self.model, api_key=self.api_key, model_kwargs={"model": "query"})
         else:
-            self.backend = NimBackend(self.model, api_url=self.api_url, batch_size=1)
+            self.backend = NimBackend(self.model, api_url=self.api_url, api_key=self.api_key)
 
         self._initialized = True
 
