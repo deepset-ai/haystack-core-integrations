@@ -307,7 +307,7 @@ class QdrantHybridRetriever:
             document_store=self._document_store,
             filters=self._filters,
             top_k_dense=self._top_k_dense,
-            top_k_sparse=self._top_k_sparse
+            top_k_sparse=self._top_k_sparse,
             scale_score=self._scale_score,
             return_embedding=self._return_embedding,
         )
@@ -335,7 +335,8 @@ class QdrantHybridRetriever:
         query_sparse_embedding: Dict[str, Union[List[int], List[float]]],
         query_embedding: List[float],
         filters: Optional[Dict[str, Any]] = None,
-        top_k: Optional[int] = None,
+        top_k_dense: Optional[int] = None,
+        top_k_sparse: Optional[int] = None,
         scale_score: Optional[bool] = None,
         return_embedding: Optional[bool] = None,
     ):
@@ -353,7 +354,7 @@ class QdrantHybridRetriever:
         """
         docs = self._document_store.query_hybrid(
             query_sparse_embedding=query_sparse_embedding,
-            query_embedding=query_embedding
+            query_embedding=query_embedding,
             filters=filters or self._filters,
             top_k_dense=top_k_dense or self._top_k_dense,
             top_k_sparse=top_k_sparse or self._top_k_sparse,

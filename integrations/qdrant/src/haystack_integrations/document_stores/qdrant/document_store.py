@@ -322,9 +322,9 @@ class QdrantDocumentStore:
                 rest.SearchRequest(
                     vector=rest.NamedVector(
                         name="text-dense",
-                        vector=query_dense_vector,
+                        vector=query_embedding,
                     ),
-                    query_filter=qdrant_filters
+                    query_filter=qdrant_filters,
                     limit=top_k_dense,
                     with_vectors=return_embedding
                 ),
@@ -336,7 +336,7 @@ class QdrantDocumentStore:
                             values=query_values,
                         ),
                     ),
-                    query_filter=qdrant_filters
+                    query_filter=qdrant_filters,
                     limit=top_k_sparse,
                     with_vectors=return_embedding
                 ),
@@ -423,7 +423,7 @@ class QdrantDocumentStore:
             collection_name=self.index,
             query_vector=rest.NamedVector(
                 name="text-dense",
-                vector=query_dense_vector,
+                vector=query_embedding,
             ),
             query_filter=qdrant_filters,
             limit=top_k,
@@ -530,7 +530,7 @@ class QdrantDocumentStore:
                     on_disk=on_disk,
                     distance=distance,
                 ),
-            }
+            },
             sparse_vectors_config={
                 "text-sparse": rest.SparseVectorParams(
                     index=rest.SparseIndexParams(
