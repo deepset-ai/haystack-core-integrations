@@ -43,4 +43,4 @@ class NimBackend(EmbedderBackend):
         # Sort the embeddings by index, we don't know whether they're out of order or not
         embeddings = [e["embedding"] for e in sorted(data["data"], key=lambda e: e["index"])]
 
-        return embeddings, data["usage"]
+        return embeddings, {"usage": data["usage"]}
