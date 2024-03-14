@@ -315,7 +315,7 @@ class QdrantDocumentStore:
         if len(query_indices) != len(query_values):
             error_message = "The indices and values of the sparse embedding query must have the same length."
             raise ValueError(error_message)
-        
+
         points = self.client.search_batch(
             collection_name=self.index,
             requests=[
@@ -326,7 +326,7 @@ class QdrantDocumentStore:
                     ),
                     query_filter=qdrant_filters,
                     limit=top_k_dense,
-                    with_vectors=return_embedding
+                    with_vectors=return_embedding,
                 ),
                 rest.SearchRequest(
                     vector=rest.NamedSparseVector(
@@ -338,7 +338,7 @@ class QdrantDocumentStore:
                     ),
                     query_filter=qdrant_filters,
                     limit=top_k_sparse,
-                    with_vectors=return_embedding
+                    with_vectors=return_embedding,
                 ),
             ],
         )
@@ -364,9 +364,9 @@ class QdrantDocumentStore:
                 document.score = score
 
         results = results_dense + results_sparse
-        
+
         return results
-    
+
     def query_by_sparse(
         self,
         query_sparse_embedding: Dict[str, Union[List[int], List[float]]],

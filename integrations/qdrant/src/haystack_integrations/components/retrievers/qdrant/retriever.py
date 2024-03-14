@@ -239,6 +239,7 @@ class QdrantSparseRetriever:
 
         return {"documents": docs}
 
+
 @component
 class QdrantHybridRetriever:
     """
@@ -258,7 +259,8 @@ class QdrantHybridRetriever:
     retriever = QdrantHybridRetriever(document_store=document_store)
 
     # using a fake sparse vector to keep the example simple
-    retriever.run(query_embedding=[0.1]*768, query_sparse_embedding={"indices":[0, 1, 2, 3], "values":[0.1, 0.8, 0.05, 0.33]})
+    retriever.run(query_embedding=[0.1]*768,
+    query_sparse_embedding={"indices":[0, 1, 2, 3], "values":[0.1, 0.8, 0.05, 0.33]})
     ```
     """
 
@@ -290,7 +292,7 @@ class QdrantHybridRetriever:
 
         self._document_store = document_store
         self._filters = filters
-        self._top_k_dense = top_k_sparse
+        self._top_k_dense = top_k_dense
         self._top_k_sparse = top_k_sparse
         self._scale_score = scale_score
         self._return_embedding = return_embedding

@@ -42,11 +42,17 @@ def test_point_to_document_reverts_proper_structure_from_record(
                 "test_field": 1,
             },
         },
-        vector={"text-dense":[1.0, 0.0, 0.0, 0.0], "text-sparse": {"indices": [7, 1024, 367], "values": [0.1, 0.98, 0.33]}},
+        vector={
+            "text-dense": [1.0, 0.0, 0.0, 0.0],
+            "text-sparse": {"indices": [7, 1024, 367], "values": [0.1, 0.98, 0.33]},
+        },
     )
     document = qdrant_to_haystack.point_to_document(point)
     assert "my-id" == document.id
     assert "Lorem ipsum" == document.content
     assert "text" == document.content_type
-    assert {"test_field": 1, "_sparse_vector": {"indices": [7, 1024, 367], "values": [0.1, 0.98, 0.33]}} == document.meta
+    assert {
+        "test_field": 1,
+        "_sparse_vector": {"indices": [7, 1024, 367], "values": [0.1, 0.98, 0.33]},
+    } == document.meta
     assert 0.0 == np.sum(np.array([1.0, 0.0, 0.0, 0.0]) - document.embedding)

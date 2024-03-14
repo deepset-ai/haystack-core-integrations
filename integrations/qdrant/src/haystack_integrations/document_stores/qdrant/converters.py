@@ -68,7 +68,7 @@ class QdrantToHaystack:
         if hasattr(point, "vector") and point.vector is not None and "text-sparse" in point.vector:
             parse_vector_dict = {
                 "indices": point.vector["text-sparse"].indices,
-                "values": point.vector["text-sparse"].values
+                "values": point.vector["text-sparse"].values,
             }
             payload["meta"]["_sparse_vector"] = parse_vector_dict
         else:
