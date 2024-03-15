@@ -9,6 +9,7 @@
 
 - [Installation](#installation)
 - [Contributing](#contributing)
+- [Examples](#examples)
 - [License](#license)
 
 ## Installation
@@ -34,6 +35,9 @@ To run the linters `ruff` and `mypy`:
 ```
 hatch run lint:all
 ```
+
+## Examples
+You can find an example of how to do a simple RAG with Claude using online documentation in the `example/` folder of this repo.
 
 ## License
 

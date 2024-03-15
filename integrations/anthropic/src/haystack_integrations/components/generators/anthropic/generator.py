@@ -22,13 +22,9 @@ class AnthropicGenerator:
     """
     Enables text generation using Anthropic large language models (LLMs). It supports the Claude family of models.
 
-    Key Features and Compatibility:
-    - Primary Compatibility: Designed to work seamlessly with the Claude family of models.
-    - Streaming Support: Supports streaming responses from the Anthropic API.
-    - Customizability: Supports all parameters supported by the Anthropic API.
-
-    Input and Output Format:
-    - String Format: This component uses strings for both input and output.
+    Although Anthropic natively supports a much richer messaging API, we have intentionally simplified it in this
+    component so that the main input/output interface is string-based.
+    For more complete support, consider using the AnthropicChatGenerator.
 
     ```python
     from haystack_integrations.components.generators.anthropic import AnthropicGenerator
@@ -48,7 +44,6 @@ class AnthropicGenerator:
         "system",
         "max_tokens",
         "metadata",
-        # "stream", explicitly passed to the interface
         "stop_sequences",
         "temperature",
         "top_p",

@@ -182,6 +182,5 @@ addopts = "--strict-markers"
 markers = [
   "unit: unit tests",
   "integration: integration tests",
-  "generators: generators tests",
 ]
 log_cli = true

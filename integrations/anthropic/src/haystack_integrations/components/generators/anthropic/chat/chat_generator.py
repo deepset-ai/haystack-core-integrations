@@ -32,7 +32,7 @@ class AnthropicChatGenerator:
     via the `generation_kwargs` parameter in `__init__` or the `generation_kwargs` parameter in the `run` method.
 
     For more details on the parameters supported by the Anthropic API, refer to the
-    Anthropic [documentation](https://docs.anthropic.com/claude/reference/messages_post).
+    Anthropic Message API [documentation](https://docs.anthropic.com/claude/reference/messages_post).
 
     ```python
     from haystack_integrations.components.generators.anthropic import AnthropicChatGenerator
@@ -51,23 +51,11 @@ class AnthropicChatGenerator:
     >> 'usage': {'input_tokens': 15, 'output_tokens': 64}})]}
     ```
 
-    Key Features and Compatibility:
+    For more details on supported models and their capabilities, refer to the Anthropic
+    [documentation](https://docs.anthropic.com/claude/docs/intro-to-claude).
 
-    `Primary Compatibility`: designed to work seamlessly with the Anthropic messaging API (Claude v2.1) and the Claude
-    3 family of models, including claude-3-opus, claude-3-sonnet, and claude-3-haiku.
-
-    `Multilingual Support`: Claude 3 models offer improved fluency in non-English languages such as Spanish and
-    Japanese.
-
-    `Vision and Image Processing`: although all Claude 3 models can process and analyze visual input we do not yet have
-    the support for this feature in the current version of the component.
-
-    `Steerability and Ease of Use`: Claude 3 models are easier to steer and better at following directions, providing
-    more control over model behavior and more predictable, higher-quality outputs.
-
-    `Streaming Support`: supports streaming responses from the Anthropic messaging API.
-
-    `Customizability`: supports all parameters supported by the Anthropic messaging API.
+    Note: We don't yet support vision [capabilities](https://docs.anthropic.com/claude/docs/vision) in the current
+    implementation.
     """
 
     # The parameters that can be passed to the Anthropic API https://docs.anthropic.com/claude/reference/messages_post
@@ -75,7 +63,6 @@ class AnthropicChatGenerator:
         "system",
         "max_tokens",
         "metadata",
-        # "stream", explicitly passed to the interface
         "stop_sequences",
         "temperature",
         "top_p",
