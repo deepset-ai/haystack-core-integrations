@@ -15,7 +15,7 @@ defaults:
     working-directory: integrations/google_ai
 
 concurrency:
-  group: google-vertex-${{ github.head_ref }}
+  group: google-ai-${{ github.head_ref }}
   cancel-in-progress: true
 
 env:
