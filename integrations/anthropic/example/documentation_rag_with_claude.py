@@ -12,7 +12,7 @@ from haystack_integrations.components.generators.anthropic import AnthropicChatG
 
 messages = [
     ChatMessage.from_system("You are a prompt expert who answers questions based on the given documents."),
-    ChatMessage.from_user("Here are some the documents: {{documents}} \\n Answer: {{query}}"),
+    ChatMessage.from_user("Here are the documents: {{documents}} \\n Answer: {{query}}"),
 ]
 
 rag_pipeline = Pipeline()
