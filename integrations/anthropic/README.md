@@ -1,7 +1,7 @@
 # anthropic-haystack
 
-[![PyPI - Version](https://img.shields.io/pypi/v/amazon-bedrock-haystack.svg)](https://pypi.org/project/amazon-bedrock-haystack)
-[![PyPI - Python Version](https://img.shields.io/pypi/pyversions/amazon-bedrock-haystack.svg)](https://pypi.org/project/amazon-bedrock-haystack)
+[![PyPI - Version](https://img.shields.io/pypi/v/anthropic-haystack.svg)](https://pypi.org/project/anthropic-haystack)
+[![PyPI - Python Version](https://img.shields.io/pypi/pyversions/anthropic-haystack.svg)](https://pypi.org/project/anthropic-haystack)
 
 -----
 
