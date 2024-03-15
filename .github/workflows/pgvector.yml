@@ -72,12 +72,11 @@ jobs:
           hatch run test -m "not integration"
       
       - name: Send event to Datadog for nightly failures
-        if: |
-          failure() && github.event_name == 'schedule' && 
-          (steps.nightly-haystack-main.conclusion == 'failure' || steps.tests.conclusion == 'failure')
+        if: failure() && github.event_name == 'schedule'
         uses: ./.github/actions/send_failure
         with:
           title: |
-            core-integrations failure: ${{ (steps.tests.conclusion == 'failure') && 'test' || 'nightly-haystack-main' }}
+            core-integrations failure: 
+            ${{ (steps.tests.conclusion == 'nightly-haystack-main') && 'nightly-haystack-main' || 'tests' }}
              - ${{ github.workflow }}
           api-key: ${{ secrets.CORE_DATADOG_API_KEY }}
