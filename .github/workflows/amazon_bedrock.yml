@@ -77,14 +77,15 @@ jobs:
         run: |
           hatch run pip install git+https://github.com/deepset-ai/haystack.git
           hatch run test -m "not integration"
-      
+     
       - name: Send event to Datadog for nightly failures
         if: |
           failure() && github.event_name == 'schedule' && 
           (steps.nightly-haystack-main.conclusion == 'failure' || steps.tests.conclusion == 'failure')
-        env: 
-          FAILED_STEP: ${{ if(steps.tests.conclusion == 'failure') }} tests ${{ else }} nightly-haystack-main
         uses: ./.github/actions/send_failure
         with:
-          title: "core-integrations failure: ${{ env.FAILED_STEP }} - ${{ github.workflow }}"
+          title: |
+            core-integrations failure: 
+            ${{ if(steps.tests.conclusion == 'failure') }} tests ${{ else }} nightly-haystack-main
+             - ${{ github.workflow }}
           api-key: ${{ secrets.CORE_DATADOG_API_KEY }}
