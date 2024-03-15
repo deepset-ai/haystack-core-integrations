@@ -105,7 +105,7 @@ def test_run(mock_document_store):
     retriever = WeaviateEmbeddingRetriever(document_store=mock_document_store)
     query_embedding = [0.1, 0.1, 0.1, 0.1]
     filters = {"field": "content", "operator": "==", "value": "Some text"}
-    retriever.run(query_embedding=query_embedding, filters=filters, top_k=5, distance=0.1, certainty=0.1)
+    retriever.run(query_embedding=query_embedding, filters=filters, top_k=5, distance=0.1)
     mock_document_store._embedding_retrieval.assert_called_once_with(
-        query_embedding=query_embedding, filters=filters, top_k=5, distance=0.1, certainty=0.1
+        query_embedding=query_embedding, filters=filters, top_k=5, distance=0.1, certainty=None
     )
