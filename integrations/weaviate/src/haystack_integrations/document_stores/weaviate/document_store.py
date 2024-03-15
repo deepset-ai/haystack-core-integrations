@@ -76,9 +76,11 @@ class WeaviateDocumentStore:
         """
         Create a new instance of WeaviateDocumentStore and connects to the Weaviate instance.
 
-        :param url: The URL to the weaviate instance, defaults to None.
-        :param collection_settings: The collection settings to use, defaults to None.
-            If None it will use a collection named `default` with the following properties:
+        :param url:
+            The URL to the weaviate instance.
+        :param collection_settings:
+            The collection settings to use. If `None`, it will use a collection named `default` with the following
+            properties:
             - _original_id: text
             - content: text
             - dataframe: text
@@ -93,22 +95,27 @@ class WeaviateDocumentStore:
             production use.
             See the official `Weaviate documentation<https://weaviate.io/developers/weaviate/manage-data/collections>`_
             for more information on collections and their properties.
-        :param auth_client_secret: Authentication credentials, defaults to None.
-            Can be one of the following types depending on the authentication mode:
+        :param auth_client_secret:
+            Authentication credentials. Can be one of the following types depending on the authentication mode:
             - `AuthBearerToken` to use existing access and (optionally, but recommended) refresh tokens
             - `AuthClientPassword` to use username and password for oidc Resource Owner Password flow
             - `AuthClientCredentials` to use a client secret for oidc client credential flow
             - `AuthApiKey` to use an API key
-        :param additional_headers: Additional headers to include in the requests, defaults to None.
-            Can be used to set OpenAI/HuggingFace keys. OpenAI/HuggingFace key looks like this:
+        :param additional_headers:
+            Additional headers to include in the requests. Can be used to set OpenAI/HuggingFace keys.
+            OpenAI/HuggingFace key looks like this:
             ```
             {"X-OpenAI-Api-Key": "<THE-KEY>"}, {"X-HuggingFace-Api-Key": "<THE-KEY>"}
             ```
-        :param embedded_options: If set create an embedded Weaviate cluster inside the client, defaults to None.
-            For a full list of options see `weaviate.embedded.EmbeddedOptions`.
-        :param additional_config: Additional and advanced configuration options for weaviate, defaults to None.
-        :param grpc_port: The port to use for the gRPC connection, defaults to 50051.
-        :param grpc_secure: Whether to use a secure channel for the underlying gRPC API.
+        :param embedded_options:
+            If set, create an embedded Weaviate cluster inside the client. For a full list of options see
+            `weaviate.embedded.EmbeddedOptions`.
+        :param additional_config:
+            Additional and advanced configuration options for weaviate.
+        :param grpc_port:
+            The port to use for the gRPC connection.
+        :param grpc_secure:
+            Whether to use a secure channel for the underlying gRPC API.
         """
         # proxies, timeout_config, trust_env are part of additional_config now
         # startup_period has been removed
@@ -153,6 +160,12 @@ class WeaviateDocumentStore:
         self._collection = self._client.collections.get(collection_settings["class"])
 
     def to_dict(self) -> Dict[str, Any]:
+        """
+        Serializes the component to a dictionary.
+
+        :returns:
+            Dictionary with serialized data.
+        """
         embedded_options = asdict(self._embedded_options) if self._embedded_options else None
         additional_config = (
             json.loads(self._additional_config.model_dump_json(by_alias=True)) if self._additional_config else None
@@ -170,6 +183,14 @@ class WeaviateDocumentStore:
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "WeaviateDocumentStore":
+        """
+        Deserializes the component from a dictionary.
+
+        :param data:
+            Dictionary to deserialize from.
+        :returns:
+            Deserialized component.
+        """
         if (auth_client_secret := data["init_parameters"].get("auth_client_secret")) is not None:
             data["init_parameters"]["auth_client_secret"] = AuthCredentials.from_dict(auth_client_secret)
         if (embedded_options := data["init_parameters"].get("embedded_options")) is not None:
@@ -187,7 +208,7 @@ class WeaviateDocumentStore:
 
     def _to_data_object(self, document: Document) -> Dict[str, Any]:
         """
-        Convert a Document to a Weaviate data object ready to be saved.
+        Converts a Document to a Weaviate data object ready to be saved.
         """
         data = document.to_dict()
         # Weaviate forces a UUID as an id.
@@ -207,7 +228,7 @@ class WeaviateDocumentStore:
 
     def _to_document(self, data: DataObject[Dict[str, Any], None]) -> Document:
         """
-        Convert a data object read from Weaviate into a Document.
+        Converts a data object read from Weaviate into a Document.
         """
         document_data = data.properties
         document_data["id"] = document_data.pop("_original_id")
