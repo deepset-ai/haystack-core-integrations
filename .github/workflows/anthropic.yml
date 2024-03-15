@@ -70,7 +70,6 @@ jobs:
         uses: ./.github/actions/send_failure
         with:
           title: |
-            "core-integrations failure: 
-            ${{ if(steps.tests.conclusion == 'failure') }} tests ${{ else }} nightly-haystack-main
-            - ${{ github.workflow }}"
+            core-integrations failure: ${{ (steps.tests.conclusion == 'failure') && 'test' || 'nightly-haystack-main' }}
+             - ${{ github.workflow }}
           api-key: ${{ secrets.CORE_DATADOG_API_KEY }}
