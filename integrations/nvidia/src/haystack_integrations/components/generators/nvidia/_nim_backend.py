@@ -18,6 +18,7 @@ class NimBackend(GeneratorBackend):
     ):
         headers = {
             "Content-Type": "application/json",
+            "accept": "application/json",
         }
         if api_key:
             headers["Authorization"] = f"Bearer {api_key.resolve_value()}"
