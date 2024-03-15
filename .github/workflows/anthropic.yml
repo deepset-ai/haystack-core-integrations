@@ -70,7 +70,6 @@ jobs:
         uses: ./.github/actions/send_failure
         with:
           title: |
-          title: |
             "core-integrations failure: 
             ${{ if(steps.tests.conclusion == 'failure') }} tests ${{ else }} nightly-haystack-main
             - ${{ github.workflow }}"
