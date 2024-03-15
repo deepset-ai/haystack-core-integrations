@@ -86,6 +86,6 @@ jobs:
         with:
           title: |
             core-integrations failure: 
-            ${{ if(steps.tests.conclusion == 'failure') }} tests ${{ else }} nightly-haystack-main
+            ${{ (steps.tests.conclusion == 'failure') && 'test' || 'nightly-haystack-main' }}
              - ${{ github.workflow }}
           api-key: ${{ secrets.CORE_DATADOG_API_KEY }}
