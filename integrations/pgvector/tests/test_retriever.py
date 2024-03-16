@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 from unittest.mock import Mock
 
+import pytest
 from haystack.dataclasses import Document
 from haystack.utils.auth import EnvVarSecret
 from haystack_integrations.components.retrievers.pgvector import PgvectorEmbeddingRetriever
@@ -10,25 +11,25 @@ from haystack_integrations.document_stores.pgvector import PgvectorDocumentStore
 
 
 class TestRetriever:
-    def test_init_default(self, document_store: PgvectorDocumentStore):
-        retriever = PgvectorEmbeddingRetriever(document_store=document_store)
-        assert retriever.document_store == document_store
+    def test_init_default(self, mock_store):
+        retriever = PgvectorEmbeddingRetriever(document_store=mock_store)
+        assert retriever.document_store == mock_store
         assert retriever.filters == {}
         assert retriever.top_k == 10
-        assert retriever.vector_function == document_store.vector_function
+        assert retriever.vector_function == mock_store.vector_function
 
-    def test_init(self, document_store: PgvectorDocumentStore):
+    def test_init(self, mock_store):
         retriever = PgvectorEmbeddingRetriever(
-            document_store=document_store, filters={"field": "value"}, top_k=5, vector_function="l2_distance"
+            document_store=mock_store, filters={"field": "value"}, top_k=5, vector_function="l2_distance"
         )
-        assert retriever.document_store == document_store
+        assert retriever.document_store == mock_store
         assert retriever.filters == {"field": "value"}
         assert retriever.top_k == 5
         assert retriever.vector_function == "l2_distance"
 
-    def test_to_dict(self, document_store: PgvectorDocumentStore):
+    def test_to_dict(self, mock_store):
         retriever = PgvectorEmbeddingRetriever(
-            document_store=document_store, filters={"field": "value"}, top_k=5, vector_function="l2_distance"
+            document_store=mock_store, filters={"field": "value"}, top_k=5, vector_function="l2_distance"
         )
         res = retriever.to_dict()
         t = "haystack_integrations.components.retrievers.pgvector.embedding_retriever.PgvectorEmbeddingRetriever"
@@ -39,7 +40,7 @@ class TestRetriever:
                     "type": "haystack_integrations.document_stores.pgvector.document_store.PgvectorDocumentStore",
                     "init_parameters": {
                         "connection_string": {"env_vars": ["PG_CONN_STR"], "strict": True, "type": "env_var"},
-                        "table_name": "haystack_test_to_dict",
+                        "table_name": "haystack",
                         "embedding_dimension": 768,
                         "vector_function": "cosine_similarity",
                         "recreate_table": True,
@@ -55,7 +56,9 @@ class TestRetriever:
             },
         }
 
-    def test_from_dict(self):
+    @pytest.mark.usefixtures("patches_for_unit_tests")
+    def test_from_dict(self, monkeypatch):
+        monkeypatch.setenv("PG_CONN_STR", "some-connection-string")
         t = "haystack_integrations.components.retrievers.pgvector.embedding_retriever.PgvectorEmbeddingRetriever"
         data = {
             "type": t,

@@ -4,8 +4,11 @@ from dateutil import parser
 from haystack.errors import FilterError
 from pandas import DataFrame
 
+import weaviate
+from weaviate.collections.classes.filters import Filter, FilterReturn
 
-def convert_filters(filters: Dict[str, Any]) -> Dict[str, Any]:
+
+def convert_filters(filters: Dict[str, Any]) -> FilterReturn:
     """
     Convert filters from Haystack format to Weaviate format.
     """
@@ -14,7 +17,7 @@ def convert_filters(filters: Dict[str, Any]) -> Dict[str, Any]:
         raise FilterError(msg)
 
     if "field" in filters:
-        return {"operator": "And", "operands": [_parse_comparison_condition(filters)]}
+        return Filter.all_of([_parse_comparison_condition(filters)])
     return _parse_logical_condition(filters)
 
 
@@ -29,7 +32,7 @@ OPERATOR_INVERSE = {
     "not in": "in",
     "AND": "OR",
     "OR": "AND",
-    "NOT": "AND",
+    "NOT": "OR",
 }
 
 
@@ -51,7 +54,13 @@ def _invert_condition(filters: Dict[str, Any]) -> Dict[str, Any]:
     return inverted_condition
 
 
-def _parse_logical_condition(condition: Dict[str, Any]) -> Dict[str, Any]:
+LOGICAL_OPERATORS = {
+    "AND": Filter.all_of,
+    "OR": Filter.any_of,
+}
+
+
+def _parse_logical_condition(condition: Dict[str, Any]) -> FilterReturn:
     if "operator" not in condition:
         msg = f"'operator' key missing in {condition}"
         raise FilterError(msg)
@@ -67,35 +76,13 @@ def _parse_logical_condition(condition: Dict[str, Any]) -> Dict[str, Any]:
                 operands.append(_parse_logical_condition(c))
             else:
                 operands.append(_parse_comparison_condition(c))
-        return {"operator": operator.lower().capitalize(), "operands": operands}
+        return LOGICAL_OPERATORS[operator](operands)
     elif operator == "NOT":
         inverted_conditions = _invert_condition(condition)
         return _parse_logical_condition(inverted_conditions)
     else:
         msg = f"Unknown logical operator '{operator}'"
         raise FilterError(msg)
-
-
-def _infer_value_type(value: Any) -> str:
-    if value is None:
-        return "valueNull"
-
-    if isinstance(value, bool):
-        return "valueBoolean"
-    if isinstance(value, int):
-        return "valueInt"
-    if isinstance(value, float):
-        return "valueNumber"
-
-    if isinstance(value, str):
-        try:
-            parser.isoparse(value)
-            return "valueDate"
-        except ValueError:
-            return "valueText"
-
-    msg = f"Unknown value type {type(value)}"
-    raise FilterError(msg)
 
 
 def _handle_date(value: Any) -> str:
@@ -107,25 +94,22 @@ def _handle_date(value: Any) -> str:
     return value
 
 
-def _equal(field: str, value: Any) -> Dict[str, Any]:
+def _equal(field: str, value: Any) -> FilterReturn:
     if value is None:
-        return {"path": field, "operator": "IsNull", "valueBoolean": True}
-    return {"path": field, "operator": "Equal", _infer_value_type(value): _handle_date(value)}
+        return weaviate.classes.query.Filter.by_property(field).is_none(True)
+    return weaviate.classes.query.Filter.by_property(field).equal(_handle_date(value))
 
 
-def _not_equal(field: str, value: Any) -> Dict[str, Any]:
+def _not_equal(field: str, value: Any) -> FilterReturn:
     if value is None:
-        return {"path": field, "operator": "IsNull", "valueBoolean": False}
-    return {
-        "operator": "Or",
-        "operands": [
-            {"path": field, "operator": "NotEqual", _infer_value_type(value): _handle_date(value)},
-            {"path": field, "operator": "IsNull", "valueBoolean": True},
-        ],
-    }
+        return weaviate.classes.query.Filter.by_property(field).is_none(False)
+
+    return weaviate.classes.query.Filter.by_property(field).not_equal(
+        _handle_date(value)
+    ) | weaviate.classes.query.Filter.by_property(field).is_none(True)
 
 
-def _greater_than(field: str, value: Any) -> Dict[str, Any]:
+def _greater_than(field: str, value: Any) -> FilterReturn:
     if value is None:
         # When the value is None and '>' is used we create a filter that would return a Document
         # if it has a field set and not set at the same time.
@@ -144,10 +128,10 @@ def _greater_than(field: str, value: Any) -> Dict[str, Any]:
     if type(value) in [list, DataFrame]:
         msg = f"Filter value can't be of type {type(value)} using operators '>', '>=', '<', '<='"
         raise FilterError(msg)
-    return {"path": field, "operator": "GreaterThan", _infer_value_type(value): _handle_date(value)}
+    return weaviate.classes.query.Filter.by_property(field).greater_than(_handle_date(value))
 
 
-def _greater_than_equal(field: str, value: Any) -> Dict[str, Any]:
+def _greater_than_equal(field: str, value: Any) -> FilterReturn:
     if value is None:
         # When the value is None and '>=' is used we create a filter that would return a Document
         # if it has a field set and not set at the same time.
@@ -166,10 +150,10 @@ def _greater_than_equal(field: str, value: Any) -> Dict[str, Any]:
     if type(value) in [list, DataFrame]:
         msg = f"Filter value can't be of type {type(value)} using operators '>', '>=', '<', '<='"
         raise FilterError(msg)
-    return {"path": field, "operator": "GreaterThanEqual", _infer_value_type(value): _handle_date(value)}
+    return weaviate.classes.query.Filter.by_property(field).greater_or_equal(_handle_date(value))
 
 
-def _less_than(field: str, value: Any) -> Dict[str, Any]:
+def _less_than(field: str, value: Any) -> FilterReturn:
     if value is None:
         # When the value is None and '<' is used we create a filter that would return a Document
         # if it has a field set and not set at the same time.
@@ -188,10 +172,10 @@ def _less_than(field: str, value: Any) -> Dict[str, Any]:
     if type(value) in [list, DataFrame]:
         msg = f"Filter value can't be of type {type(value)} using operators '>', '>=', '<', '<='"
         raise FilterError(msg)
-    return {"path": field, "operator": "LessThan", _infer_value_type(value): _handle_date(value)}
+    return weaviate.classes.query.Filter.by_property(field).less_than(_handle_date(value))
 
 
-def _less_than_equal(field: str, value: Any) -> Dict[str, Any]:
+def _less_than_equal(field: str, value: Any) -> FilterReturn:
     if value is None:
         # When the value is None and '<=' is used we create a filter that would return a Document
         # if it has a field set and not set at the same time.
@@ -210,22 +194,23 @@ def _less_than_equal(field: str, value: Any) -> Dict[str, Any]:
     if type(value) in [list, DataFrame]:
         msg = f"Filter value can't be of type {type(value)} using operators '>', '>=', '<', '<='"
         raise FilterError(msg)
-    return {"path": field, "operator": "LessThanEqual", _infer_value_type(value): _handle_date(value)}
+    return weaviate.classes.query.Filter.by_property(field).less_or_equal(_handle_date(value))
 
 
-def _in(field: str, value: Any) -> Dict[str, Any]:
+def _in(field: str, value: Any) -> FilterReturn:
     if not isinstance(value, list):
         msg = f"{field}'s value must be a list when using 'in' or 'not in' comparators"
         raise FilterError(msg)
 
-    return {"operator": "And", "operands": [_equal(field, v) for v in value]}
+    return weaviate.classes.query.Filter.by_property(field).contains_any(value)
 
 
-def _not_in(field: str, value: Any) -> Dict[str, Any]:
+def _not_in(field: str, value: Any) -> FilterReturn:
     if not isinstance(value, list):
         msg = f"{field}'s value must be a list when using 'in' or 'not in' comparators"
         raise FilterError(msg)
-    return {"operator": "And", "operands": [_not_equal(field, v) for v in value]}
+    operands = [weaviate.classes.query.Filter.by_property(field).not_equal(v) for v in value]
+    return Filter.all_of(operands)
 
 
 COMPARISON_OPERATORS = {
@@ -240,7 +225,7 @@ COMPARISON_OPERATORS = {
 }
 
 
-def _parse_comparison_condition(condition: Dict[str, Any]) -> Dict[str, Any]:
+def _parse_comparison_condition(condition: Dict[str, Any]) -> FilterReturn:
     field: str = condition["field"]
 
     if field.startswith("meta."):
@@ -265,15 +250,11 @@ def _parse_comparison_condition(condition: Dict[str, Any]) -> Dict[str, Any]:
     return COMPARISON_OPERATORS[operator](field, value)
 
 
-def _match_no_document(field: str) -> Dict[str, Any]:
+def _match_no_document(field: str) -> FilterReturn:
     """
     Returns a filters that will match no Document, this is used to keep the behavior consistent
     between different Document Stores.
     """
-    return {
-        "operator": "And",
-        "operands": [
-            {"path": field, "operator": "IsNull", "valueBoolean": False},
-            {"path": field, "operator": "IsNull", "valueBoolean": True},
-        ],
-    }
+
+    operands = [weaviate.classes.query.Filter.by_property(field).is_none(val) for val in [False, True]]
+    return Filter.all_of(operands)

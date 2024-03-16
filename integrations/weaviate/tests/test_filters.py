@@ -19,7 +19,7 @@ def test_invert_conditions():
 
     inverted = _invert_condition(filters)
     assert inverted == {
-        "operator": "AND",
+        "operator": "OR",
         "conditions": [
             {"field": "meta.number", "operator": "!=", "value": 100},
             {"field": "meta.name", "operator": "!=", "value": "name_0"},
