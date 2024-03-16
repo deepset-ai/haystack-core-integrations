@@ -211,7 +211,7 @@ def test_evaluator_serde(os_environ_get):
             {"questions": [], "responses": []},
             {"guideline": "Do nothing", "guideline_name": "somename", "response_schema": None},
         ),
-        (UpTrainMetric.RESPONSE_MATCHING, {"ground_truths": [], "responses": []}, {"method": "llm"}),
+        (UpTrainMetric.RESPONSE_MATCHING, {"questions": [], "ground_truths": [], "responses": []}, {"method": "llm"}),
     ],
 )
 def test_evaluator_valid_inputs(metric, inputs, params):
@@ -304,7 +304,7 @@ def test_evaluator_invalid_inputs(metric, inputs, error_string, params):
         ),
         (
             UpTrainMetric.RESPONSE_MATCHING,
-            {"ground_truths": ["g11"], "responses": ["r11"]},
+            {"questions": ["q11"], "ground_truths": ["g11"], "responses": ["r11"]},
             [
                 [
                     ("response_match_precision", 1.0, None),
@@ -375,6 +375,7 @@ def test_evaluator_outputs(metric, inputs, expected_outputs, metric_params):
         (
             UpTrainMetric.RESPONSE_MATCHING,
             {
+                "questions": DEFAULT_QUESTIONS,
                 "ground_truths": [
                     "Consumerism is the most popular sport in the world",
                     "Python language was created by some dude.",

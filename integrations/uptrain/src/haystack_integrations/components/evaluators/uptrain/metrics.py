@@ -57,7 +57,7 @@ class UpTrainMetric(Enum):
     GUIDELINE_ADHERENCE = "guideline_adherence"
 
     #: Response matching.\
-    #: Inputs - `responses: List[str], ground_truths: List[str]`\
+    #: Inputs - `questions: List[str], responses: List[str], ground_truths: List[str]`\
     #: Parameters - `method: str`
     RESPONSE_MATCHING = "response_matching"
 
@@ -235,13 +235,14 @@ class InputConverters:
             yield {"response": r}
 
     @staticmethod
-    def response_ground_truth(
+    def question_response_ground_truth(
+        questions: List[str],
         responses: List[str],
         ground_truths: List[str],
     ) -> Iterable[Dict[str, str]]:
-        InputConverters._validate_input_elements(ground_truths=ground_truths, responses=responses)
-        for r, gt in zip(responses, ground_truths):  # type: ignore
-            yield {"response": r, "ground_truth": gt}
+        InputConverters._validate_input_elements(questions=questions, ground_truths=ground_truths, responses=responses)
+        for q, r, gt in zip(questions, responses, ground_truths):  # type: ignore
+            yield {"question": q, "response": r, "ground_truth": gt}
 
 
 class OutputConverters:
@@ -267,12 +268,13 @@ class OutputConverters:
                 (
                     float,
                     str,
+                    int,
                 ),
             )
             for x in outputs
             for y in x.values()
         ):
-            msg = "UpTrain evaluator expects values in the output dicts to be either `str` or `float`"
+            msg = "UpTrain evaluator expects values in the output dicts to be either `str`, `float` or `int`"
 
         if msg is not None:
             raise ValueError(msg)
@@ -380,7 +382,7 @@ METRIC_DESCRIPTORS = {
     UpTrainMetric.RESPONSE_MATCHING: MetricDescriptor.new(
         UpTrainMetric.RESPONSE_MATCHING,
         ResponseMatching,
-        InputConverters.response_ground_truth,  # type: ignore
+        InputConverters.question_response_ground_truth,  # type: ignore
         OutputConverters.response_matching,
         init_parameters={"method": Optional[str]},  # type: ignore
     ),
