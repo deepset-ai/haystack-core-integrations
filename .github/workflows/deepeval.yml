@@ -21,6 +21,7 @@ concurrency:
 env:
   PYTHONUNBUFFERED: "1"
   FORCE_COLOR: "1"
+  OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
 
 jobs:
   run:
