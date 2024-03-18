@@ -327,7 +327,6 @@ class TestNvidiaDocumentEmbedder:
             assert isinstance(doc.embedding, list)
             assert isinstance(doc.embedding[0], float)
 
-
     @pytest.mark.skipif(
         not os.environ.get("NVIDIA_NIM_EMBEDDER_MODEL", None) or not os.environ.get("NVIDIA_NIM_ENDPOINT_URL", None),
         reason="Export an env var called NVIDIA_NIM_EMBEDDER_MODEL containing the hosted model name and "
