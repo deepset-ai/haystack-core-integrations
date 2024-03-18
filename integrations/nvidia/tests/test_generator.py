@@ -148,13 +148,13 @@ class TestNvidiaGenerator:
                 {
                     "finish_reason": "stop",
                     "role": "assistant",
+                    "usage": {
+                        "total_tokens": 21,
+                        "prompt_tokens": 19,
+                        "completion_tokens": 2,
+                    },
                 },
             ],
-            "usage": {
-                "total_tokens": 21,
-                "prompt_tokens": 19,
-                "completion_tokens": 2,
-            },
         }
 
     @pytest.mark.skipif(
@@ -179,23 +179,20 @@ class TestNvidiaGenerator:
 
         assert result["replies"]
         assert result["meta"]
-        assert result["usage"]
 
     @pytest.mark.skipif(
-        not os.environ.get("OPENAI_API_KEY", None),
-        reason="Export an env var called OPENAI_API_KEY containing the Nvidia API key to run this test.",
+        not os.environ.get("NVIDIA_NIM_GENERATOR_MODEL", None) or not os.environ.get("NVIDIA_NIM_ENDPOINT_URL", None),
+        reason="Export an env var called NVIDIA_NIM_GENERATOR_MODEL containing the hosted model name and "
+        "NVIDIA_NIM_ENDPOINT_URL containing the local URL to call.",
     )
     @pytest.mark.integration
     def test_run_integration_with_nim_backend(self):
-        """
-        This test requires an OpenAI API key to run.
-        We use OpenAI in this case as the NinBackend must communicate with an OpenAI compatible
-        API endpoint and this is the easiest way to test it.
-        """
+        model = os.environ["NVIDIA_NIM_GENERATOR_MODEL"]
+        url = os.environ["NVIDIA_NIM_ENDPOINT_URL"]
         generator = NvidiaGenerator(
-            model="gpt-3.5-turbo",
-            api_url="https://api.openai.com/v1",
-            api_key=Secret.from_env_var(["OPENAI_API_KEY"]),
+            model=model,
+            api_url=url,
+            api_key=None,
             model_arguments={
                 "temperature": 0.2,
                 "top_p": 0.7,
@@ -207,4 +204,3 @@ class TestNvidiaGenerator:
 
         assert result["replies"]
         assert result["meta"]
-        assert result["usage"]

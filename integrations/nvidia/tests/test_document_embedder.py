@@ -326,3 +326,33 @@ class TestNvidiaDocumentEmbedder:
         for doc in docs_with_embeddings:
             assert isinstance(doc.embedding, list)
             assert isinstance(doc.embedding[0], float)
+
+
+    @pytest.mark.skipif(
+        not os.environ.get("NVIDIA_NIM_EMBEDDER_MODEL", None) or not os.environ.get("NVIDIA_NIM_ENDPOINT_URL", None),
+        reason="Export an env var called NVIDIA_NIM_EMBEDDER_MODEL containing the hosted model name and "
+        "NVIDIA_NIM_ENDPOINT_URL containing the local URL to call.",
+    )
+    @pytest.mark.integration
+    def test_run_integration_with_nim_backend(self):
+        model = os.environ["NVIDIA_NIM_EMBEDDER_MODEL"]
+        url = os.environ["NVIDIA_NIM_ENDPOINT_URL"]
+        embedder = NvidiaDocumentEmbedder(
+            model=model,
+            api_url=url,
+            api_key=None,
+        )
+        embedder.warm_up()
+        docs = [
+            Document(content="I love cheese", meta={"topic": "Cuisine"}),
+            Document(content="A transformer is a deep learning architecture", meta={"topic": "ML"}),
+        ]
+
+        result = embedder.run(docs)
+        docs_with_embeddings = result["documents"]
+
+        assert isinstance(docs_with_embeddings, list)
+        assert len(docs_with_embeddings) == len(docs)
+        for doc in docs_with_embeddings:
+            assert isinstance(doc.embedding, list)
+            assert isinstance(doc.embedding[0], float)

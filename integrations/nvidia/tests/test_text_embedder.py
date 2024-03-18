@@ -129,15 +129,18 @@ class TestNvidiaTextEmbedder:
         assert "usage" in meta
 
     @pytest.mark.skipif(
-        not os.environ.get("OPENAI_API_KEY", None),
-        reason="Export an env var called OPENAI_API_KEY containing the Nvidia API key to run this test.",
+        not os.environ.get("NVIDIA_NIM_EMBEDDER_MODEL", None) or not os.environ.get("NVIDIA_NIM_ENDPOINT_URL", None),
+        reason="Export an env var called NVIDIA_NIM_EMBEDDER_MODEL containing the hosted model name and "
+        "NVIDIA_NIM_ENDPOINT_URL containing the local URL to call.",
     )
     @pytest.mark.integration
     def test_run_integration_with_nim_backend(self):
+        model = os.environ["NVIDIA_NIM_EMBEDDER_MODEL"]
+        url = os.environ["NVIDIA_NIM_ENDPOINT_URL"]
         embedder = NvidiaTextEmbedder(
-            model="text-embedding-ada-002",
-            api_url="https://api.openai.com/v1",
-            api_key=Secret.from_env_var(["OPENAI_API_KEY"]),
+            model=model,
+            api_url=url,
+            api_key=None,
         )
         embedder.warm_up()
 
