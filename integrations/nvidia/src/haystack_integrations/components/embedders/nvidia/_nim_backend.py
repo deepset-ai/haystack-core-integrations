@@ -1,9 +1,10 @@
 from typing import Any, Dict, List, Optional, Tuple
 
 import requests
-from haystack.utils.auth import Secret
 
 from .backend import EmbedderBackend
+
+REQUEST_TIMEOUT = 60
 
 
 class NimBackend(EmbedderBackend):
@@ -12,14 +13,11 @@ class NimBackend(EmbedderBackend):
         model: str,
         api_url: str,
         model_kwargs: Optional[Dict[str, Any]] = None,
-        api_key: Optional[Secret] = None,
     ):
         headers = {
             "Content-Type": "application/json",
             "accept": "application/json",
         }
-        if api_key:
-            headers["Authorization"] = f"Bearer {api_key.resolve_value()}"
         self.session = requests.Session()
         self.session.headers.update(headers)
 
@@ -37,6 +35,7 @@ class NimBackend(EmbedderBackend):
                 "input": texts,
                 **self.model_kwargs,
             },
+            timeout=REQUEST_TIMEOUT,
         )
         res.raise_for_status()
 

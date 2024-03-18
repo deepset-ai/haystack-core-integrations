@@ -77,9 +77,7 @@ class NvidiaTextEmbedder:
 
             self.backend = NvcfBackend(self.model, api_key=self.api_key, model_kwargs={"model": "query"})
         else:
-            self.backend = NimBackend(
-                self.model, api_url=self.api_url, api_key=self.api_key, model_kwargs={"input_type": "query"}
-            )
+            self.backend = NimBackend(self.model, api_url=self.api_url, model_kwargs={"input_type": "query"})
 
         self._initialized = True
 

@@ -85,7 +85,6 @@ class NvidiaGenerator:
                 self._model,
                 api_url=self._api_url,
                 model_kwargs=self._model_arguments,
-                api_key=self._api_key,
             )
 
     def to_dict(self) -> Dict[str, Any]:
@@ -99,7 +98,7 @@ class NvidiaGenerator:
             self,
             model=self._model,
             api_url=self._api_url,
-            api_key=self._api_key.to_dict(),
+            api_key=self._api_key.to_dict() if self._api_key else None,
             model_arguments=self._model_arguments,
         )
 

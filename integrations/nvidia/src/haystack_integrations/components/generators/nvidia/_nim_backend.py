@@ -1,7 +1,6 @@
 from typing import Any, Dict, List, Optional, Tuple
 
 import requests
-from haystack.utils.auth import Secret
 
 from .backend import GeneratorBackend
 
@@ -14,14 +13,11 @@ class NimBackend(GeneratorBackend):
         model: str,
         api_url: str,
         model_kwargs: Optional[Dict[str, Any]] = None,
-        api_key: Optional[Secret] = None,
     ):
         headers = {
             "Content-Type": "application/json",
             "accept": "application/json",
         }
-        if api_key:
-            headers["Authorization"] = f"Bearer {api_key.resolve_value()}"
         self.session = requests.Session()
         self.session.headers.update(headers)
 
