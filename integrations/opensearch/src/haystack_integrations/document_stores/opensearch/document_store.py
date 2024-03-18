@@ -181,6 +181,8 @@ class OpenSearchDocumentStore:
             duplicate_errors_ids = []
             other_errors = []
             for e in errors:
+                # OpenSearch might not return a correctly formatted error, in that case we
+                # treat it as a generic error
                 if "create" not in e:
                     other_errors.append(e)
                     continue
