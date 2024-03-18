@@ -42,7 +42,7 @@ class NvidiaGenerator:
         self,
         model: str,
         api_url: Optional[str] = None,
-        api_key: Secret = Secret.from_env_var("NVIDIA_API_KEY"),
+        api_key: Optional[Secret] = Secret.from_env_var("NVIDIA_API_KEY"),
         model_arguments: Optional[Dict[str, Any]] = None,
     ):
         """
