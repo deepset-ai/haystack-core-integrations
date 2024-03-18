@@ -75,5 +75,7 @@ class TestFilters(FilterDocumentsTest):
     @pytest.mark.skip(reason="Pinecone does not include null values in the result of the $ne operator")
     def test_comparison_not_equal(self, document_store, filterable_docs): ...
 
-    @pytest.mark.skip(reason="Pinecone has inconsistent behavior with respect to other Document Stores with the $or operator")
-    def test_or_operator(self, document_store, filterable_docs): ...    
+    @pytest.mark.skip(
+        reason="Pinecone has inconsistent behavior with respect to other Document Stores with the $or operator"
+    )
+    def test_or_operator(self, document_store, filterable_docs): ...
