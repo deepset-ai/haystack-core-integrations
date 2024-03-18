@@ -25,7 +25,9 @@ class NimBackend(GeneratorBackend):
         self.api_url = api_url
         self.model_kwargs = model_kwargs or {}
 
-    def generate(self, prompt: str) -> Tuple[List[str], List[Dict[str, Any]], Dict[str, Any]]:
+    def generate(self, prompt: str) -> Tuple[List[str], List[Dict[str, Any]]]:
+        # We're using the chat completion endpoint as the local containers don't support
+        # the /completions endpoint. So both the non-chat and chat generator will use this.
         url = f"{self.api_url}/chat/completions"
 
         res = self.session.post(
@@ -56,13 +58,12 @@ class NimBackend(GeneratorBackend):
             choice_meta = {
                 "role": message["role"],
                 "finish_reason": choice["finish_reason"],
+                "usage": {
+                    "prompt_tokens": completions["usage"]["prompt_tokens"],
+                    "completion_tokens": completions["usage"]["completion_tokens"],
+                    "total_tokens": completions["usage"]["total_tokens"],
+                },
             }
             meta.append(choice_meta)
 
-        usage = {
-            "prompt_tokens": completions["usage"]["prompt_tokens"],
-            "completion_tokens": completions["usage"]["completion_tokens"],
-            "total_tokens": completions["usage"]["total_tokens"],
-        }
-
-        return replies, meta, usage
+        return replies, meta

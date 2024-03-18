@@ -32,7 +32,7 @@ class NvcfBackend(GeneratorBackend):
         )
         self.nvcf_id = self.client.get_model_nvcf_id(self.model_name)
 
-    def generate(self, prompt: str) -> Tuple[List[str], List[Dict[str, Any]], Dict[str, Any]]:
+    def generate(self, prompt: str) -> Tuple[List[str], List[Dict[str, Any]]]:
         messages = [Message(role="user", content=prompt)]
         request = GenerationRequest(messages=messages, **self.model_kwargs).to_dict()
         json_response = self.client.query_function(self.nvcf_id, request)
@@ -46,14 +46,14 @@ class NvcfBackend(GeneratorBackend):
                 {
                     "role": choice.message.role,
                     "finish_reason": choice.finish_reason,
+                    "usage": {
+                        "completion_tokens": response.usage.completion_tokens,
+                        "prompt_tokens": response.usage.prompt_tokens,
+                        "total_tokens": response.usage.total_tokens,
+                    },
                 }
             )
-        usage = {
-            "completion_tokens": response.usage.completion_tokens,
-            "prompt_tokens": response.usage.prompt_tokens,
-            "total_tokens": response.usage.total_tokens,
-        }
-        return replies, meta, usage
+        return replies, meta
 
 
 @dataclass

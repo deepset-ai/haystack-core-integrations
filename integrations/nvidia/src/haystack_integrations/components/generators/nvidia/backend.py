@@ -16,7 +16,7 @@ class GeneratorBackend(ABC):
         self.model_kwargs = model_kwargs or {}
 
     @abstractmethod
-    def generate(self, prompt: str) -> Tuple[List[str], List[Dict[str, Any]], Dict[str, Any]]:
+    def generate(self, prompt: str) -> Tuple[List[str], List[Dict[str, Any]]]:
         """
         Invoke the backend and prompt the model.
 
@@ -24,6 +24,6 @@ class GeneratorBackend(ABC):
             Prompt text.
         :return:
             Vector representation of the generated texts related
-            metadata and usage statistics returned by the service.
+            metadata returned by the service.
         """
         pass
