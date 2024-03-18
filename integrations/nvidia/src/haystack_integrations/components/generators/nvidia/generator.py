@@ -22,14 +22,11 @@ class NvidiaGenerator:
     from haystack_integrations.components.generators.nvidia import NvidiaGenerator, NvidiaGeneratorModel
 
     generator = NvidiaGenerator(
-        model=NvidiaGeneratorModel.NV_LLAMA2_RLHF_70B,
+        model="nv_llama2_rlhf_70b",
         model_arguments={
             "temperature": 0.2,
             "top_p": 0.7,
             "max_tokens": 1024,
-            "seed": None,
-            "bad": None,
-            "stop": None,
         },
     )
     generator.warm_up()
@@ -37,6 +34,7 @@ class NvidiaGenerator:
     result = generator.run(prompt="What is the answer?")
     print(result["replies"])
     print(result["meta"])
+    print(result["usage"])
     ```
     """
 
@@ -55,7 +53,9 @@ class NvidiaGenerator:
             See the [Nvidia catalog](https://catalog.ngc.nvidia.com/ai-foundation-models)
             for more information on the supported models.
         :param api_key:
-            Nvidia API key to use for authentication.
+            API key for the NVIDIA AI Foundation Endpoints.
+        :param api_url:
+            Custom API URL for the NVIDIA NeMo Inference Microservices.
         :param model_arguments:
             Additional arguments to pass to the model provider. Different models accept different arguments.
             Search your model in the [Nvidia catalog](https://catalog.ngc.nvidia.com/ai-foundation-models)
