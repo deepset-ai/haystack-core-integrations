@@ -6,6 +6,7 @@ from haystack_integrations.utils.nvidia import NvidiaCloudFunctionsClient
 
 from .backend import EmbedderBackend
 
+MAX_INPUT_STRING_LENGTH = 2048
 MAX_INPUTS = 50
 
 
