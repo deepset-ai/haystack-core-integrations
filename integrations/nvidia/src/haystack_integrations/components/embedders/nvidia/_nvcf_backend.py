@@ -6,7 +6,7 @@ from haystack_integrations.utils.nvidia import NvidiaCloudFunctionsClient
 
 from .backend import EmbedderBackend
 
-MAX_INPUT_STRING_LENGTH = 2048
+MAX_INPUTS = 50
 
 
 class NvcfBackend(EmbedderBackend):
@@ -50,7 +50,11 @@ class EmbeddingsRequest:
     encoding_format: Literal["float", "base64"] = "float"
 
     def __post_init__(self):
-        if not isinstance(self.input, list):
+        if isinstance(self.input, list):
+            if len(self.input) > MAX_INPUTS:
+                msg = f"The number of inputs should not exceed {MAX_INPUTS}"
+                raise ValueError(msg)
+        else:
             self.input = [self.input]
 
         if len(self.input) == 0:
