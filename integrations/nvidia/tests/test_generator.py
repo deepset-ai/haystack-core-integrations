@@ -195,8 +195,6 @@ class TestNvidiaGenerator:
             api_key=None,
             model_arguments={
                 "temperature": 0.2,
-                "top_p": 0.7,
-                "max_tokens": 1024,
             },
         )
         generator.warm_up()
