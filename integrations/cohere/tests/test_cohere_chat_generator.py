@@ -308,7 +308,7 @@ class TestCohereChatGenerator:
         message: ChatMessage = results["replies"][0]
         assert "Paris" in message.content
         assert message.meta["documents"] is not None
-        assert message.meta["citations"] is not None
+        assert "citations" in message.meta  # Citations might be None
 
     @pytest.mark.skipif(
         not os.environ.get("COHERE_API_KEY", None) and not os.environ.get("CO_API_KEY", None),

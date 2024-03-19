@@ -1,14 +1,14 @@
 # SPDX-FileCopyrightText: 2024-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional
 
 from haystack import component, default_from_dict, default_to_dict
 from haystack.utils.auth import Secret, deserialize_secrets_inplace
-from haystack_integrations.utils.nvidia import NvidiaCloudFunctionsClient
 
-from ._schema import GenerationRequest, GenerationResponse, Message
-from .models import NvidiaGeneratorModel
+from ._nim_backend import NimBackend
+from ._nvcf_backend import NvcfBackend
+from .backend import GeneratorBackend
 
 
 @component
@@ -22,14 +22,11 @@ class NvidiaGenerator:
     from haystack_integrations.components.generators.nvidia import NvidiaGenerator, NvidiaGeneratorModel
 
     generator = NvidiaGenerator(
-        model=NvidiaGeneratorModel.NV_LLAMA2_RLHF_70B,
+        model="nv_llama2_rlhf_70b",
         model_arguments={
             "temperature": 0.2,
             "top_p": 0.7,
             "max_tokens": 1024,
-            "seed": None,
-            "bad": None,
-            "stop": None,
         },
     )
     generator.warm_up()
@@ -37,13 +34,15 @@ class NvidiaGenerator:
     result = generator.run(prompt="What is the answer?")
     print(result["replies"])
     print(result["meta"])
+    print(result["usage"])
     ```
     """
 
     def __init__(
         self,
-        model: Union[str, NvidiaGeneratorModel],
-        api_key: Secret = Secret.from_env_var("NVIDIA_API_KEY"),
+        model: str,
+        api_url: Optional[str] = None,
+        api_key: Optional[Secret] = Secret.from_env_var("NVIDIA_API_KEY"),
         model_arguments: Optional[Dict[str, Any]] = None,
     ):
         """
@@ -54,38 +53,39 @@ class NvidiaGenerator:
             See the [Nvidia catalog](https://catalog.ngc.nvidia.com/ai-foundation-models)
             for more information on the supported models.
         :param api_key:
-            Nvidia API key to use for authentication.
+            API key for the NVIDIA AI Foundation Endpoints.
+        :param api_url:
+            Custom API URL for the NVIDIA NeMo Inference Microservices.
         :param model_arguments:
             Additional arguments to pass to the model provider. Different models accept different arguments.
             Search your model in the [Nvidia catalog](https://catalog.ngc.nvidia.com/ai-foundation-models)
             to know the supported arguments.
-
-        :raises ValueError: If `model` is not supported.
         """
-        if isinstance(model, str):
-            model = NvidiaGeneratorModel.from_str(model)
-
         self._model = model
+        self._api_url = api_url
         self._api_key = api_key
         self._model_arguments = model_arguments or {}
-        # This is initialized in warm_up
-        self._model_id = None
 
-        self._client = NvidiaCloudFunctionsClient(
-            api_key=api_key,
-            headers={
-                "Content-Type": "application/json",
-                "Accept": "application/json",
-            },
-        )
+        self._backend: Optional[GeneratorBackend] = None
 
     def warm_up(self):
         """
         Initializes the component.
         """
-        if self._model_id is not None:
+        if self._backend is not None:
             return
-        self._model_id = self._client.get_model_nvcf_id(str(self._model))
+
+        if self._api_url is None:
+            if self._api_key is None:
+                msg = "API key is required for NVIDIA AI Foundation Endpoints."
+                raise ValueError(msg)
+            self._backend = NvcfBackend(self._model, api_key=self._api_key, model_kwargs=self._model_arguments)
+        else:
+            self._backend = NimBackend(
+                self._model,
+                api_url=self._api_url,
+                model_kwargs=self._model_arguments,
+            )
 
     def to_dict(self) -> Dict[str, Any]:
         """
@@ -95,7 +95,11 @@ class NvidiaGenerator:
             Dictionary with serialized data.
         """
         return default_to_dict(
-            self, model=str(self._model), api_key=self._api_key.to_dict(), model_arguments=self._model_arguments
+            self,
+            model=self._model,
+            api_url=self._api_url,
+            api_key=self._api_key.to_dict() if self._api_key else None,
+            model_arguments=self._model_arguments,
         )
 
     @classmethod
@@ -112,7 +116,7 @@ class NvidiaGenerator:
         deserialize_secrets_inplace(init_params, ["api_key"])
         return default_from_dict(cls, data)
 
-    @component.output_types(replies=List[str], meta=List[Dict[str, Any]], usage=Dict[str, int])
+    @component.output_types(replies=List[str], meta=List[Dict[str, Any]])
     def run(self, prompt: str):
         """
         Queries the model with the provided prompt.
@@ -123,32 +127,12 @@ class NvidiaGenerator:
             A dictionary with the following keys:
             - `replies` - Replies generated by the model.
             - `meta` - Metadata for each reply.
-            - `usage` - Usage statistics for the model.
         """
-        if self._model_id is None:
+        if self._backend is None:
             msg = "The generation model has not been loaded. Call warm_up() before running."
             raise RuntimeError(msg)
 
-        messages = [Message(role="user", content=prompt)]
-        request = GenerationRequest(messages=messages, **self._model_arguments).to_dict()
-        json_response = self._client.query_function(self._model_id, request)
+        assert self._backend is not None
+        replies, meta = self._backend.generate(prompt=prompt)
 
-        replies = []
-        meta = []
-        data = GenerationResponse.from_dict(json_response)
-        for choice in data.choices:
-            replies.append(choice.message.content)
-            meta.append(
-                {
-                    "role": choice.message.role,
-                    "finish_reason": choice.finish_reason,
-                }
-            )
-
-        usage = {
-            "completion_tokens": data.usage.completion_tokens,
-            "prompt_tokens": data.usage.prompt_tokens,
-            "total_tokens": data.usage.total_tokens,
-        }
-
-        return {"replies": replies, "meta": meta, "usage": usage}
+        return {"replies": replies, "meta": meta}

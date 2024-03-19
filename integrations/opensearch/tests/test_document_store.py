@@ -324,3 +324,12 @@ class TestDocumentStore(DocumentStoreBaseTests):
 
         with pytest.raises(DocumentStoreError):
             document_store_embedding_dim_4.write_documents(docs)
+
+    @patch("haystack_integrations.document_stores.opensearch.document_store.bulk")
+    def test_write_documents_with_badly_formatted_bulk_errors(self, mock_bulk, document_store):
+        error = {"some_key": "some_value"}
+        mock_bulk.return_value = ([], [error])
+
+        with pytest.raises(DocumentStoreError) as e:
+            document_store.write_documents([Document(content="Hello world")])
+            e.match(f"{error}")
