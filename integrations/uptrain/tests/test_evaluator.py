@@ -146,22 +146,22 @@ def test_evaluator_metric_init_params():
     eval = UpTrainEvaluator(
         UpTrainMetric.CRITIQUE_TONE,
         metric_params={"llm_persona": "village idiot"},
-        api_key=Secret.from_token("Aaa"),
+        api_key=Secret.from_env_var("OPENAI_API_KEY"),
     )
     assert eval._backend_metric.llm_persona == "village idiot"
 
     with pytest.raises(ValueError, match="Invalid init parameters"):
         UpTrainEvaluator(
-            UpTrainMetric.CRITIQUE_TONE, metric_params={"role": "village idiot"}, api_key=Secret.from_token("Aaa")
+            UpTrainMetric.CRITIQUE_TONE, metric_params={"role": "village idiot"}, api_key=Secret.from_env_var("OPENAI_API_KEY")
         )
 
     with pytest.raises(ValueError, match="unexpected init parameters"):
         UpTrainEvaluator(
-            UpTrainMetric.FACTUAL_ACCURACY, metric_params={"check_numbers": True}, api_key=Secret.from_token("Aaa")
+            UpTrainMetric.FACTUAL_ACCURACY, metric_params={"check_numbers": True}, api_key=Secret.from_env_var("OPENAI_API_KEY")
         )
 
     with pytest.raises(ValueError, match="expected init parameters"):
-        UpTrainEvaluator(UpTrainMetric.RESPONSE_MATCHING, api_key=Secret.from_token("Aaa"))
+        UpTrainEvaluator(UpTrainMetric.RESPONSE_MATCHING, api_key=Secret.from_env_var("OPENAI_API_KEY"))
 
 
 @patch("os.environ.get")
@@ -218,7 +218,7 @@ def test_evaluator_valid_inputs(metric, inputs, params):
     init_params = {
         "metric": metric,
         "metric_params": params,
-        "api_key": Secret.from_token("Aaa"),
+        "api_key": Secret.from_env_var("OPENAI_API_KEY"),
         "api_params": None,
     }
     eval = UpTrainEvaluator(**init_params)
@@ -245,7 +245,7 @@ def test_evaluator_invalid_inputs(metric, inputs, error_string, params):
         init_params = {
             "metric": metric,
             "metric_params": params,
-            "api_key": Secret.from_token("Aaa"),
+            "api_key": Secret.from_env_var("OPENAI_API_KEY"),
             "api_params": None,
         }
         eval = UpTrainEvaluator(**init_params)
@@ -320,7 +320,7 @@ def test_evaluator_outputs(metric, inputs, expected_outputs, metric_params):
     init_params = {
         "metric": metric,
         "metric_params": metric_params,
-        "api_key": Secret.from_token("Aaa"),
+        "api_key": Secret.from_env_var("OPENAI_API_KEY"),
         "api_params": None,
     }
     eval = UpTrainEvaluator(**init_params)
