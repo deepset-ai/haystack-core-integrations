@@ -49,7 +49,6 @@ class JinaRanker:
 
         :raises ValueError:
             If `top_k` is not > 0.
-            If `scale_score` is True and `calibration_factor` is not provided.
         """
         # if the user does not provide the API key, check if it is set in the module client
         resolved_api_key = api_key.resolve_value()
@@ -139,12 +138,14 @@ class JinaRanker:
         top_k = top_k or self.top_k
         score_threshold = score_threshold or self.score_threshold
 
-        data = {"query": query, "documents": [doc.content or "" for doc in documents], "model": self.model}
+        data = {
+            "query": query,
+            "documents": [doc.content or "" for doc in documents],
+            "model": self.model,
+            "top_n": top_k,
+        }
 
-        if top_k is not None:
-            data["top_n"] = top_k  # type: ignore
-
-        resp = self._session.post(  # type: ignore
+        resp = self._session.post(
             JINA_API_URL,
             json=data,
         ).json()
@@ -152,7 +153,7 @@ class JinaRanker:
         if "results" not in resp:
             raise RuntimeError(resp["detail"])
 
-        results = resp["results"]  # type: ignore
+        results = resp["results"]
 
         ranked_docs: List[Document] = []
         for result in results:
