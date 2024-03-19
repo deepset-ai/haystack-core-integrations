@@ -14,11 +14,11 @@ class NvidiaDocumentEmbedder:
     """
     A component for embedding documents using embedding models provided by
     [NVIDIA AI Foundation Endpoints](https://www.nvidia.com/en-us/ai-data-science/foundation-models/)
-    and NVIDIA NeMo Inference Microservices.
+    and NVIDIA Inference Microservices.
 
     Usage example:
     ```python
-    from haystack_integrations.components.embedders.nvidia import NvidiaDocumentEmbedder, NvidiaEmbeddingModel
+    from haystack_integrations.components.embedders.nvidia import NvidiaDocumentEmbedder
 
     doc = Document(content="I love pizza!")
 
@@ -50,7 +50,7 @@ class NvidiaDocumentEmbedder:
         :param api_key:
             API key for the NVIDIA AI Foundation Endpoints.
         :param api_url:
-            Custom API URL for the NVIDIA NeMo Inference Microservices.
+            Custom API URL for the NVIDIA Inference Microservices.
         :param prefix:
             A string to add to the beginning of each text.
         :param suffix:
