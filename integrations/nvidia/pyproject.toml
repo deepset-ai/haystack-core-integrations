@@ -47,7 +47,7 @@ test = "pytest {args:tests}"
 test-cov = "coverage run -m pytest {args:tests}"
 cov-report = ["- coverage combine", "coverage report"]
 cov = ["test-cov", "cov-report"]
-docs = ["echo 'skip doc gen'"]
+docs = ["pydoc-markdown pydoc/config.yml"]
 
 [[tool.hatch.envs.all.matrix]]
 python = ["3.8", "3.9", "3.10", "3.11"]
@@ -136,12 +136,8 @@ parallel = false
 
 [tool.coverage.report]
 omit = ["*/tests/*", "*/__init__.py"]
-show_missing=true
-exclude_lines = [
-  "no cov",
-  "if __name__ == .__main__.:",
-  "if TYPE_CHECKING:",
-]
+show_missing = true
+exclude_lines = ["no cov", "if __name__ == .__main__.:", "if TYPE_CHECKING:"]
 
 
 [[tool.mypy.overrides]]
