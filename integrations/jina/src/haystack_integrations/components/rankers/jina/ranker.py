@@ -19,7 +19,7 @@ class JinaRanker:
     ```python
     from haystack import Document
     from haystack_integrations.components.rankers.jina import JinaRanker
-    
+
     ranker = JinaRanker()
     docs = [Document(content="Paris"), Document(content="Berlin")]
     query = "City in Germany"
