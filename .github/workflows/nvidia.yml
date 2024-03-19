@@ -57,13 +57,17 @@ jobs:
         id: tests
         run: hatch run cov
 
+      - name: Generate docs
+        if: matrix.python-version == '3.9' && runner.os == 'Linux'
+        run: hatch run docs
+
       - name: Nightly - run unit tests with Haystack main branch
         if: github.event_name == 'schedule'
         id: nightly-haystack-main
         run: |
           hatch run pip install git+https://github.com/deepset-ai/haystack.git
           hatch run test -m "not integration"
-      
+
       - name: Send event to Datadog for nightly failures
         if: failure() && github.event_name == 'schedule'
         uses: ./.github/actions/send_failure
