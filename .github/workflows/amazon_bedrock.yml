@@ -18,9 +18,14 @@ concurrency:
   group: amazon-bedrock-${{ github.head_ref }}
   cancel-in-progress: true
 
+permissions:
+  id-token: write
+  contents: read
+
 env:
   PYTHONUNBUFFERED: "1"
   FORCE_COLOR: "1"
+  AWS_REGION: us-east-1
 
 jobs:
   run:
@@ -56,5 +61,29 @@ jobs:
         if: matrix.python-version == '3.9' && runner.os == 'Linux'
         run: hatch run docs
 
+      - name: AWS authentication
+        uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502
+        with:
+          aws-region: ${{ env.AWS_REGION }}
+          role-to-assume: ${{ secrets.AWS_CI_ROLE_ARN }}
+
       - name: Run tests
+        id: tests
         run: hatch run cov
+    
+      - name: Nightly - run unit tests with Haystack main branch
+        if: github.event_name == 'schedule'
+        id: nightly-haystack-main
+        run: |
+          hatch run pip install git+https://github.com/deepset-ai/haystack.git
+          hatch run test -m "not integration"
+     
+      - name: Send event to Datadog for nightly failures
+        if: failure() && github.event_name == 'schedule'
+        uses: ./.github/actions/send_failure
+        with:
+          title: |
+            core-integrations failure: 
+            ${{ (steps.tests.conclusion == 'nightly-haystack-main') && 'nightly-haystack-main' || 'tests' }}
+             - ${{ github.workflow }}
+          api-key: ${{ secrets.CORE_DATADOG_API_KEY }}

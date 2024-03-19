@@ -35,7 +35,6 @@ class FastembedTextEmbedder:
         threads: Optional[int] = None,
         prefix: str = "",
         suffix: str = "",
-        batch_size: int = 256,
         progress_bar: bool = True,
         parallel: Optional[int] = None,
     ):
@@ -47,7 +46,6 @@ class FastembedTextEmbedder:
                 Can be set using the `FASTEMBED_CACHE_PATH` env variable.
                 Defaults to `fastembed_cache` in the system's temp directory.
         :param threads: The number of threads single onnxruntime session can use. Defaults to None.
-        :param batch_size: Number of strings to encode at once.
         :param prefix: A string to add to the beginning of each text.
         :param suffix: A string to add to the end of each text.
         :param progress_bar: If true, displays progress bar during embedding.
@@ -62,7 +60,6 @@ class FastembedTextEmbedder:
         self.threads = threads
         self.prefix = prefix
         self.suffix = suffix
-        self.batch_size = batch_size
         self.progress_bar = progress_bar
         self.parallel = parallel
 
@@ -80,7 +77,6 @@ class FastembedTextEmbedder:
             threads=self.threads,
             prefix=self.prefix,
             suffix=self.suffix,
-            batch_size=self.batch_size,
             progress_bar=self.progress_bar,
             parallel=self.parallel,
         )
@@ -119,8 +115,7 @@ class FastembedTextEmbedder:
         embedding = list(
             self.embedding_backend.embed(
                 text_to_embed,
-                batch_size=self.batch_size,
-                show_progress_bar=self.progress_bar,
+                progress_bar=self.progress_bar,
                 parallel=self.parallel,
             )[0]
         )

@@ -25,20 +25,21 @@ class AmazonBedrockChatGenerator:
     """
     `AmazonBedrockChatGenerator` enables text generation via Amazon Bedrock hosted chat LLMs.
 
-    For example, to use the Anthropic Claude model, simply initialize the `AmazonBedrockChatGenerator` with the
-    'anthropic.claude-v2' model name.
+    For example, to use the Anthropic Claude 3 Sonnet model, simply initialize the `AmazonBedrockChatGenerator` with the
+    'anthropic.claude-3-sonnet-20240229-v1:0' model name.
 
     ```python
     from haystack_integrations.components.generators.amazon_bedrock import AmazonBedrockChatGenerator
     from haystack.dataclasses import ChatMessage
     from haystack.components.generators.utils import print_streaming_chunk
 
-    messages = [ChatMessage.from_system("\\nYou are a helpful, respectful and honest assistant"),
+    messages = [ChatMessage.from_system("\\nYou are a helpful, respectful and honest assistant, answer in German only"),
                 ChatMessage.from_user("What's Natural Language Processing?")]
 
 
-    client = AmazonBedrockChatGenerator(model="anthropic.claude-v2", streaming_callback=print_streaming_chunk)
-    client.run(messages, generation_kwargs={"max_tokens_to_sample": 512})
+    client = AmazonBedrockChatGenerator(model="anthropic.claude-3-sonnet-20240229-v1:0",
+                                        streaming_callback=print_streaming_chunk)
+    client.run(messages, generation_kwargs={"max_tokens": 512})
 
     ```
 
@@ -154,7 +155,7 @@ class AmazonBedrockChatGenerator:
             msg = f"The model {self.model} requires a list of ChatMessage objects as a prompt."
             raise ValueError(msg)
 
-        body = self.model_adapter.prepare_body(messages=messages, stop_words=self.stop_words, **kwargs)
+        body = self.model_adapter.prepare_body(messages=messages, **{"stop_words": self.stop_words, **kwargs})
         try:
             if self.streaming_callback:
                 response = self.client.invoke_model_with_response_stream(

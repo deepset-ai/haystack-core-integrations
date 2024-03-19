@@ -63,6 +63,7 @@ class QdrantDocumentStore:
         path: Optional[str] = None,
         index: str = "Document",
         embedding_dim: int = 768,
+        on_disk: bool = False,  # noqa: FBT001, FBT002
         content_field: str = "content",
         name_field: str = "name",
         embedding_field: str = "embedding",
@@ -84,6 +85,7 @@ class QdrantDocumentStore:
         metadata: Optional[dict] = None,
         write_batch_size: int = 100,
         scroll_size: int = 10_000,
+        payload_fields_to_index: Optional[List[dict]] = None,
     ):
         super().__init__()
 
@@ -130,11 +132,13 @@ class QdrantDocumentStore:
         self.init_from = init_from
         self.wait_result_from_api = wait_result_from_api
         self.recreate_index = recreate_index
+        self.payload_fields_to_index = payload_fields_to_index
 
         # Make sure the collection is properly set up
-        self._set_up_collection(index, embedding_dim, recreate_index, similarity)
+        self._set_up_collection(index, embedding_dim, recreate_index, similarity, on_disk, payload_fields_to_index)
 
         self.embedding_dim = embedding_dim
+        self.on_disk = on_disk
         self.content_field = content_field
         self.name_field = name_field
         self.embedding_field = embedding_field
@@ -334,19 +338,36 @@ class QdrantDocumentStore:
             )
             raise QdrantStoreError(msg) from ke
 
+    def _create_payload_index(self, collection_name: str, payload_fields_to_index: Optional[List[dict]] = None):
+        """
+        Create payload index for the collection if payload_fields_to_index is provided
+        See: https://qdrant.tech/documentation/concepts/indexing/#payload-index
+        """
+        if payload_fields_to_index is not None:
+            for payload_index in payload_fields_to_index:
+                self.client.create_payload_index(
+                    collection_name=collection_name,
+                    field_name=payload_index["field_name"],
+                    field_schema=payload_index["field_schema"],
+                )
+
     def _set_up_collection(
         self,
         collection_name: str,
         embedding_dim: int,
         recreate_collection: bool,  # noqa: FBT001
         similarity: str,
+        on_disk: bool = False,  # noqa: FBT001, FBT002
+        payload_fields_to_index: Optional[List[dict]] = None,
     ):
         distance = self._get_distance(similarity)
 
         if recreate_collection:
             # There is no need to verify the current configuration of that
             # collection. It might be just recreated again.
-            self._recreate_collection(collection_name, distance, embedding_dim)
+            self._recreate_collection(collection_name, distance, embedding_dim, on_disk)
+            # Create Payload index if payload_fields_to_index is provided
+            self._create_payload_index(collection_name, payload_fields_to_index)
             return
 
         try:
@@ -360,7 +381,9 @@ class QdrantDocumentStore:
             # Qdrant local raises ValueError if the collection is not found, but
             # with the remote server UnexpectedResponse / RpcError is raised.
             # Until that's unified, we need to catch both.
-            self._recreate_collection(collection_name, distance, embedding_dim)
+            self._recreate_collection(collection_name, distance, embedding_dim, on_disk)
+            # Create Payload index if payload_fields_to_index is provided
+            self._create_payload_index(collection_name, payload_fields_to_index)
             return
 
         current_distance = collection_info.config.params.vectors.distance
@@ -384,11 +407,12 @@ class QdrantDocumentStore:
             )
             raise ValueError(msg)
 
-    def _recreate_collection(self, collection_name: str, distance, embedding_dim: int):
+    def _recreate_collection(self, collection_name: str, distance, embedding_dim: int, on_disk: bool):  # noqa: FBT001
         self.client.recreate_collection(
             collection_name=collection_name,
             vectors_config=rest.VectorParams(
                 size=embedding_dim,
+                on_disk=on_disk,
                 distance=distance,
             ),
             shard_number=self.shard_number,
