@@ -15,11 +15,12 @@ from .backend import GeneratorBackend
 class NvidiaGenerator:
     """
     A component for generating text using generative models provided by
-    [NVIDIA AI Foundation Endpoints](https://www.nvidia.com/en-us/ai-data-science/foundation-models/).
+    [NVIDIA AI Foundation Endpoints](https://www.nvidia.com/en-us/ai-data-science/foundation-models/)
+    and NVIDIA Inference Microservices.
 
     Usage example:
     ```python
-    from haystack_integrations.components.generators.nvidia import NvidiaGenerator, NvidiaGeneratorModel
+    from haystack_integrations.components.generators.nvidia import NvidiaGenerator
 
     generator = NvidiaGenerator(
         model="nv_llama2_rlhf_70b",
@@ -55,7 +56,7 @@ class NvidiaGenerator:
         :param api_key:
             API key for the NVIDIA AI Foundation Endpoints.
         :param api_url:
-            Custom API URL for the NVIDIA NeMo Inference Microservices.
+            Custom API URL for the NVIDIA Inference Microservices.
         :param model_arguments:
             Additional arguments to pass to the model provider. Different models accept different arguments.
             Search your model in the [Nvidia catalog](https://catalog.ngc.nvidia.com/ai-foundation-models)
