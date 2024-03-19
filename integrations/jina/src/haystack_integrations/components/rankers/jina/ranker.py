@@ -13,13 +13,13 @@ JINA_API_URL: str = "https://api.jina.ai/v1/rerank"
 @component
 class JinaRanker:
     """
-    Ranks Documents based on their similarity to the query using Jina AI models..
+    Ranks Documents based on their similarity to the query using Jina AI models.
 
     Usage example:
     ```python
     from haystack import Document
-    from haystack.components.rankers import JinaRanker
-
+    from haystack_integrations.components.rankers.jina import JinaRanker
+    
     ranker = JinaRanker()
     docs = [Document(content="Paris"), Document(content="Berlin")]
     query = "City in Germany"
@@ -60,7 +60,7 @@ class JinaRanker:
         if self.top_k is not None and self.top_k <= 0:
             msg = f"top_k must be > 0, but got {top_k}"
             raise ValueError(msg)
-        # if the user does not provide the API key, check if it is set in the module client
+
         self._session = requests.Session()
         self._session.headers.update(
             {
