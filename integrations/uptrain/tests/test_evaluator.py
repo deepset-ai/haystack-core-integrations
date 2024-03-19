@@ -152,12 +152,16 @@ def test_evaluator_metric_init_params():
 
     with pytest.raises(ValueError, match="Invalid init parameters"):
         UpTrainEvaluator(
-            UpTrainMetric.CRITIQUE_TONE, metric_params={"role": "village idiot"}, api_key=Secret.from_env_var("OPENAI_API_KEY")
+            UpTrainMetric.CRITIQUE_TONE,
+            metric_params={"role": "village idiot"},
+            api_key=Secret.from_env_var("OPENAI_API_KEY"),
         )
 
     with pytest.raises(ValueError, match="unexpected init parameters"):
         UpTrainEvaluator(
-            UpTrainMetric.FACTUAL_ACCURACY, metric_params={"check_numbers": True}, api_key=Secret.from_env_var("OPENAI_API_KEY")
+            UpTrainMetric.FACTUAL_ACCURACY,
+            metric_params={"check_numbers": True},
+            api_key=Secret.from_env_var("OPENAI_API_KEY"),
         )
 
     with pytest.raises(ValueError, match="expected init parameters"):
