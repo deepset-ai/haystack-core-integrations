@@ -4,7 +4,7 @@ from typing import Any, Dict, List, Optional, Union
 from haystack import DeserializationError, component, default_from_dict, default_to_dict
 from haystack.utils import Secret, deserialize_secrets_inplace
 
-from uptrain import APIClient, EvalLLM, Evals  # type: ignore
+from uptrain import APIClient, EvalLLM, Evals, Settings  # type: ignore
 from uptrain.framework.evals import ParametricEval
 
 from .metrics import (
@@ -58,6 +58,7 @@ class UpTrainEvaluator:
         api: str = "openai",
         api_key: Secret = Secret.from_env_var("OPENAI_API_KEY"),
         api_params: Optional[Dict[str, Any]] = None,
+        client_params: Optional[Dict[str, Any]] = None,
     ):
         """
         Construct a new UpTrain evaluator.
@@ -70,19 +71,22 @@ class UpTrainEvaluator:
             on required parameters.
         :param api:
             The API to use for evaluation. Supported APIs:
-            `openai`, `uptrain`.
+            `openai`, `uptrain`, `azure`.
         :param api_key:
             The API key to use.
         :param api_params:
-            Additional parameters to pass to the API client.
+            Additional parameters to pass to the API client for evaluation.
             Required parameters for the UpTrain API: `project_name`.
+        :param client_params:
+            Additional parameters to pass to the initialization of the API client.
         """
         self.metric = metric if isinstance(metric, UpTrainMetric) else UpTrainMetric.from_str(metric)
         self.metric_params = metric_params
         self.descriptor = METRIC_DESCRIPTORS[self.metric]
         self.api = api
         self.api_key = api_key
-        self.api_params = api_params
+        self.api_params = api_params or {}
+        self.client_params = client_params or {}
 
         self._init_backend()
         expected_inputs = self.descriptor.input_parameters
@@ -144,7 +148,11 @@ class UpTrainEvaluator:
             except (TypeError, OverflowError):
                 return False
 
-        if not check_serializable(self.api_params) or not check_serializable(self.metric_params):
+        if (
+            not check_serializable(self.api_params)
+            or not check_serializable(self.metric_params)
+            or not check_serializable(self.client_params)
+        ):
             msg = "UpTrain evaluator cannot serialize the API/metric parameters"
             raise DeserializationError(msg)
 
@@ -154,6 +162,7 @@ class UpTrainEvaluator:
             metric_params=self.metric_params,
             api=self.api,
             api_key=self.api_key.to_dict(),
+            client_params=self.client_params,
             api_params=self.api_params,
         )
 
@@ -193,7 +202,7 @@ class UpTrainEvaluator:
                 raise ValueError(msg)
             backend_metric = self.descriptor.backend(**self.metric_params)
 
-        supported_apis = ("openai", "uptrain")
+        supported_apis = ("openai", "azure", "uptrain")
         if self.api not in supported_apis:
             msg = f"Unsupported API '{self.api}' for UpTrain evaluator. Supported APIs: {supported_apis}"
             raise ValueError(msg)
@@ -201,10 +210,38 @@ class UpTrainEvaluator:
         api_key = self.api_key.resolve_value()
         assert api_key is not None
         if self.api == "openai":
-            backend_client = EvalLLM(openai_api_key=api_key)
-            if self.api_params is not None:
-                msg = "OpenAI API does not support additional parameters"
+            if "model" in self.client_params:
+                settings = Settings(model=self.client_params, openai_api_key=api_key)
+            else:
+                settings = Settings(openai_api_key=api_key)
+            if self.client_params and not list(self.client_params.keys()) == ["model"]:
+                msg = "OpenAI API does not support client parameters other than 'model'"
                 raise ValueError(msg)
+            if self.api_params:
+                msg = "OpenAI API does not support additional api parameters"
+                raise ValueError(msg)
+            backend_client = EvalLLM(settings)
+        elif self.api == "azure":
+            if (
+                self.client_params is None
+                or "model" not in self.client_params
+                or "azure_api_version" not in self.client_params
+                or "azure_api_base" not in self.client_params
+            ):
+                msg = "Azure API requires a 'model', a 'azure_api_version', and a 'azure_api_base' API parameters"
+                raise ValueError(msg)
+            if not self.client_params["model"].startswith("azure/"):
+                msg = (
+                    "Azure API model should start with 'azure/' for UpTrain"
+                    "to recognize you are using models hosted on Azure"
+                )
+                raise ValueError(msg)
+            settings = Settings(
+                azure_api_key=api_key,
+                azure_api_version=self.client_params["azure_api_version"],
+                azure_api_base=self.client_params["azure_api_base"],
+            )
+            backend_client = EvalLLM(settings)
         elif self.api == "uptrain":
             if self.api_params is None or "project_name" not in self.api_params:
                 msg = "UpTrain API requires a 'project_name' API parameter"

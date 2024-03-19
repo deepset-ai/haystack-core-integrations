@@ -115,6 +115,7 @@ def test_evaluator_api(monkeypatch):
         UpTrainMetric.RESPONSE_COMPLETENESS,
         api="uptrain",
         api_key=Secret.from_env_var("UPTRAIN_API_KEY"),
+        client_params={"model": "gpt-3.5-turbo-1106"},
         api_params={"project_name": "test"},
     )
     assert eval.api == "uptrain"
@@ -127,18 +128,20 @@ def test_evaluator_api(monkeypatch):
     with pytest.raises(ValueError, match="None of the following authentication environment variables are set"):
         UpTrainEvaluator(UpTrainMetric.CONTEXT_RELEVANCE, api="uptrain", api_key=Secret.from_env_var("asd39920qqq"))
 
-    with pytest.raises(ValueError, match="does not support additional parameters"):
+    with pytest.raises(ValueError, match="does not support additional api parameters"):
         UpTrainEvaluator(
             UpTrainMetric.CONTEXT_RELEVANCE,
-            api_params={"project_name": "test"},
+            client_params=None,
             api="openai",
+            api_params={"project_name": "test"},
         )
 
     with pytest.raises(ValueError, match="requires .* API parameter"):
         UpTrainEvaluator(
             UpTrainMetric.CONTEXT_RELEVANCE,
-            api_params=None,
+            client_params=None,
             api="uptrain",
+            api_params=None,
         )
 
 
@@ -173,6 +176,7 @@ def test_evaluator_serde(os_environ_get):
         "metric_params": {"method": "rouge"},
         "api": "uptrain",
         "api_key": Secret.from_env_var("ENV_VAR", strict=False),
+        "client_params": None,
         "api_params": {"project_name": "test"},
     }
     eval = UpTrainEvaluator(**init_params)
@@ -183,6 +187,7 @@ def test_evaluator_serde(os_environ_get):
     assert eval.api == new_eval.api
     assert eval.api_key == new_eval.api_key
     assert eval.metric_params == new_eval.metric_params
+    assert eval.client_params == new_eval.client_params
     assert eval.api_params == new_eval.api_params
     assert type(new_eval._backend_client) == type(eval._backend_client)
     assert type(new_eval._backend_metric) == type(eval._backend_metric)
@@ -220,6 +225,7 @@ def test_evaluator_valid_inputs(metric, inputs, params):
         "metric_params": params,
         "api_key": Secret.from_token("Aaa"),
         "api_params": None,
+        "client_params": None,
     }
     eval = UpTrainEvaluator(**init_params)
     eval._backend_client = MockBackend([metric])
@@ -247,6 +253,7 @@ def test_evaluator_invalid_inputs(metric, inputs, error_string, params):
             "metric_params": params,
             "api_key": Secret.from_token("Aaa"),
             "api_params": None,
+            "client_params": None,
         }
         eval = UpTrainEvaluator(**init_params)
         eval._backend_client = MockBackend([metric])
@@ -321,6 +328,7 @@ def test_evaluator_outputs(metric, inputs, expected_outputs, metric_params):
         "metric": metric,
         "metric_params": metric_params,
         "api_key": Secret.from_token("Aaa"),
+        "client_params": None,
         "api_params": None,
     }
     eval = UpTrainEvaluator(**init_params)
