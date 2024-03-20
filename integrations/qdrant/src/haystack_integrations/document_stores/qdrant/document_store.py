@@ -298,74 +298,72 @@ class QdrantDocumentStore:
             documents.append(self.qdrant_to_haystack.point_to_document(record))
         return documents
 
-    # def query_hybrid(
-    #     self,
-    #     query_sparse_embedding: Dict[str, Union[List[int], List[float]]],
-    #     query_embedding: List[float],
-    #     filters: Optional[Dict[str, Any]] = None,
-    #     top_k_dense: int = 10,
-    #     top_k_sparse: int = 10,
-    #     scale_score: bool = True,
-    #     return_embedding: bool = False,
-    # ) -> List[Document]:
-    #     qdrant_filters = self.qdrant_filter_converter.convert(filters)
-    #
-    #     query_indices = query_sparse_embedding["indices"]
-    #     query_values = query_sparse_embedding["values"]
-    #     if len(query_indices) != len(query_values):
-    #         error_message = "The indices and values of the sparse embedding query must have the same length."
-    #         raise ValueError(error_message)
-    #
-    #     points = self.client.search_batch(
-    #         collection_name=self.index,
-    #         requests=[
-    #             rest.SearchRequest(
-    #                 vector=rest.NamedVector(
-    #                     name="text-dense",
-    #                     vector=query_embedding,
-    #                 ),
-    #                 filter=qdrant_filters,
-    #                 limit=top_k_dense,
-    #                 # with_vectors=return_embedding, # TODO not supported ?
-    #             ),
-    #             rest.SearchRequest(
-    #                 vector=rest.NamedSparseVector(
-    #                     name="text-sparse",
-    #                     vector=rest.SparseVector(
-    #                         indices=query_indices,
-    #                         values=query_values,
-    #                     ),
-    #                 ),
-    #                 filter=qdrant_filters,
-    #                 limit=top_k_sparse,
-    #                 # with_vectors=return_embedding, # TODO not supported ?
-    #             ),
-    #         ],
-    #     )
-    #     results_dense = [self.qdrant_to_haystack.point_to_document(point) for point in points[0]]
-    #     results_sparse = [self.qdrant_to_haystack.point_to_document(point) for point in points[1]]
-    #
-    #     if scale_score:
-    #         for document in results_dense:
-    #             score = document.score
-    #             if self.similarity == "cosine":
-    #                 score = (score + 1) / 2
-    #             else:
-    #                 score = float(1 / (1 + np.exp(-score / 100)))
-    #             document.score = score
-    #     # TODO: Check Scaling method for sparse
-    #     if scale_score:
-    #         for document in results_sparse:
-    #             score = document.score
-    #             if self.similarity == "cosine":
-    #                 score = (score + 1) / 2
-    #             else:
-    #                 score = float(1 / (1 + np.exp(-score / 100)))
-    #             document.score = score
-    #
-    #     results = results_dense + results_sparse
-    #
-    #     return results
+    def query_hybrid(
+        self,
+        query_sparse_embedding: Dict[str, Union[List[int], List[float]]],
+        query_embedding: List[float],
+        filters: Optional[Dict[str, Any]] = None,
+        top_k_dense: int = 10,
+        top_k_sparse: int = 10,
+        scale_score: bool = True,
+        return_embedding: bool = False,
+    ) -> List[Document]:
+        qdrant_filters = self.qdrant_filter_converter.convert(filters)
+
+        query_indices = query_sparse_embedding["indices"]
+        query_values = query_sparse_embedding["values"]
+        if len(query_indices) != len(query_values):
+            error_message = "The indices and values of the sparse embedding query must have the same length."
+            raise ValueError(error_message)
+
+        points = self.client.search_batch(
+            collection_name=self.index,
+            requests=[
+                rest.SearchRequest(
+                    vector=rest.NamedVector(
+                        name="text-dense",
+                        vector=query_embedding,
+                    ),
+                    filter=qdrant_filters,
+                    limit=top_k_dense,
+                    with_payload=True,
+                    with_vector=return_embedding,
+                ),
+                rest.SearchRequest(
+                    vector=rest.NamedSparseVector(
+                        name="text-sparse",
+                        vector=rest.SparseVector(
+                            indices=query_indices,
+                            values=query_values,
+                        ),
+                    ),
+                    filter=qdrant_filters,
+                    limit=top_k_sparse,
+                    with_payload=True,
+                    with_vector=return_embedding,
+                ),
+            ],
+        )
+        results_dense = [self.qdrant_to_haystack.point_to_document(point) for point in points[0]]
+        results_sparse = [self.qdrant_to_haystack.point_to_document(point) for point in points[1]]
+
+        if scale_score:
+            for document in results_dense:
+                score = document.score
+                if self.similarity == "cosine":
+                    score = (score + 1) / 2
+                else:
+                    score = float(1 / (1 + np.exp(-score / 100)))
+                document.score = score
+        if scale_score:
+            for document in results_sparse:
+                score = document.score
+                score = float(1 / (1 + np.exp(-score / 100)))
+                document.score = score
+
+        results = results_dense + results_sparse
+
+        return results
 
     def query_by_sparse(
         self,
@@ -398,14 +396,10 @@ class QdrantDocumentStore:
         )
 
         results = [self.qdrant_to_haystack.point_to_document(point) for point in points]
-        # TODO: Check Scaling method
         if scale_score:
             for document in results:
                 score = document.score
-                if self.similarity == "cosine":
-                    score = (score + 1) / 2
-                else:
-                    score = float(1 / (1 + np.exp(-score / 100)))
+                score = float(1 / (1 + np.exp(-score / 100)))
                 document.score = score
         return results
 
