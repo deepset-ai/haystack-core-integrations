@@ -237,6 +237,7 @@ class UpTrainEvaluator:
                 )
                 raise ValueError(msg)
             settings = Settings(
+                model=model,
                 azure_api_key=api_key,
                 azure_api_version=self.client_params["azure_api_version"],
                 azure_api_base=self.client_params["azure_api_base"],
