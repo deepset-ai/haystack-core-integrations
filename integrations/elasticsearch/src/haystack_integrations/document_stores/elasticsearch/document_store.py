@@ -216,16 +216,30 @@ class ElasticsearchDocumentStore:
             policy = DuplicatePolicy.FAIL
 
         action = "index" if policy == DuplicatePolicy.OVERWRITE else "create"
-        documents_written, errors = helpers.bulk(
-            client=self._client,
-            actions=(
+
+        elasticsearch_actions = []
+        for doc in documents:
+            doc_dict = doc.to_dict()
+            if "sparse_embedding" in doc_dict:
+                sparse_embedding = doc_dict.pop("sparse_embedding", None)
+                if sparse_embedding:
+                    logger.warning(
+                        "Document %s has the `sparse_embedding` field set,"
+                        "but storing sparse embeddings in Elasticsearch is not currently supported."
+                        "The `sparse_embedding` field will be ignored.",
+                        doc.id,
+                    )
+            elasticsearch_actions.append(
                 {
                     "_op_type": action,
                     "_id": doc.id,
-                    "_source": doc.to_dict(),
+                    "_source": doc_dict,
                 }
-                for doc in documents
-            ),
+            )
+
+        documents_written, errors = helpers.bulk(
+            client=self._client,
+            actions=elasticsearch_actions,
             refresh="wait_for",
             index=self._index,
             raise_on_error=False,

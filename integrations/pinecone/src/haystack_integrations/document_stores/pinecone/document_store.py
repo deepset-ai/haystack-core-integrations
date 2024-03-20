@@ -292,6 +292,13 @@ class PineconeDocumentStore:
                     "objects in Pinecone is not supported. "
                     "The content of the `blob` field will be ignored."
                 )
+            if hasattr(document, "sparse_embedding") and document.sparse_embedding is not None:
+                logger.warning(
+                    "Document %s has the `sparse_embedding` field set,"
+                    "but storing sparse embeddings in Pinecone is not currently supported."
+                    "The `sparse_embedding` field will be ignored.",
+                    document.id,
+                )
 
             documents_for_pinecone.append(doc_for_pinecone)
         return documents_for_pinecone
