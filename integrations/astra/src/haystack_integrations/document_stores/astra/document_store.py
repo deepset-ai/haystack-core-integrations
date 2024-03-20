@@ -195,6 +195,15 @@ class AstraDocumentStore:
                 document_dict["dataframe"] = document_dict.pop("dataframe").to_json()
             if embedding := document_dict.pop("embedding", []):
                 document_dict["$vector"] = embedding
+            if "sparse_embedding" in document_dict:
+                sparse_embedding = document_dict.pop("sparse_embedding", None)
+                if sparse_embedding:
+                    logger.warning(
+                        "Document %s has the `sparse_embedding` field set,"
+                        "but storing sparse embeddings in Astra is not currently supported."
+                        "The `sparse_embedding` field will be ignored.",
+                        document_dict["_id"],
+                    )
 
             return document_dict
 

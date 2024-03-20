@@ -4,6 +4,7 @@
 import base64
 import datetime
 import json
+import logging
 from dataclasses import asdict
 from typing import Any, Dict, List, Optional, Tuple, Union
 
@@ -20,6 +21,8 @@ from weaviate.util import generate_uuid5
 
 from ._filters import convert_filters
 from .auth import AuthCredentials
+
+logger = logging.getLogger(__name__)
 
 Number = Union[int, float]
 TimeoutType = Union[Tuple[Number, Number], Number]
@@ -223,6 +226,16 @@ class WeaviateDocumentStore:
             data["blob_mime_type"] = blob.pop("mime_type")
         # The embedding vector is stored separately from the rest of the data
         del data["embedding"]
+
+        if "sparse_embedding" in data:
+            sparse_embedding = data.pop("sparse_embedding", None)
+            if sparse_embedding:
+                logger.warning(
+                    "Document %s has the `sparse_embedding` field set,"
+                    "but storing sparse embeddings in Weaviate is not currently supported."
+                    "The `sparse_embedding` field will be ignored.",
+                    data["_original_id"],
+                )
 
         return data
 
