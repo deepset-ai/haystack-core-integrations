@@ -11,10 +11,6 @@ on:
         required: true
         type: string
         default: integrations/<INTEGRATION_FOLDER_NAME>-v1.0.0
-  pull_request:
-    branches:
-      - push-docs-on-release
-      - main
 
 jobs:
   sync:
@@ -37,12 +33,8 @@ jobs:
         id: pathfinder
         shell: python
         run: |
-          tmp_path = "${{ github.ref_name }}"
-          if "integrations" not in tmp_path:
-            print("using default path")
-            tmp_path = "integrations/fastembed-v0.0.6"
           import os
-          project_path = tmp_path.rsplit("-", maxsplit=1)[0]
+          project_path = "${{ github.ref_name }}".rsplit("-", maxsplit=1)[0]
           with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
             print(f'project_path={project_path}', file=f)          
 
