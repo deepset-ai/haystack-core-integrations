@@ -5,7 +5,7 @@ loaders:
       [
         "haystack_integrations.components.embedders.nvidia.document_embedder",
         "haystack_integrations.components.embedders.nvidia.text_embedder",
-        "haystack_integrations.components.embedders.nvidia.models",
+        "haystack_integrations.components.generators.nvidia.generator",
       ]
     ignore_when_discovered: ["__init__"]
 processors:
