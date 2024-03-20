@@ -1,7 +1,7 @@
 from typing import List
 
 import numpy as np
-from haystack.dataclasses import Document
+from haystack.dataclasses import Document, SparseEmbedding
 from haystack.testing.document_store import (
     FilterableDocsFixtureMixin,
     _random_embeddings,
@@ -46,6 +46,7 @@ class TestQdrantRetriever(FilterableDocsFixtureMixin):
                         "content_field": "content",
                         "name_field": "name",
                         "embedding_field": "embedding",
+                        "sparse_embedding_field": "sparse_embedding",
                         "similarity": "cosine",
                         "return_embedding": False,
                         "progress_bar": True,
@@ -151,6 +152,7 @@ class TestQdrantSparseRetriever(FilterableDocsFixtureMixin):
                         "content_field": "content",
                         "name_field": "name",
                         "embedding_field": "embedding",
+                        "sparse_embedding_field": "sparse_embedding",
                         "similarity": "cosine",
                         "return_embedding": False,
                         "progress_bar": True,
@@ -217,7 +219,7 @@ class TestQdrantSparseRetriever(FilterableDocsFixtureMixin):
 
         # Add fake sparse embedding to documents
         for doc in filterable_docs:
-            doc.meta["_sparse_vector"] = self._generate_mocked_sparse_embedding(1)[0]
+            doc.sparse_embedding = SparseEmbedding.from_dict(self._generate_mocked_sparse_embedding(1)[0])
 
         document_store.write_documents(filterable_docs)
 
@@ -274,6 +276,7 @@ class TestQdrantHybridRetriever(FilterableDocsFixtureMixin):
                         "content_field": "content",
                         "name_field": "name",
                         "embedding_field": "embedding",
+                        "sparse_embedding_field": "sparse_embedding",
                         "similarity": "cosine",
                         "return_embedding": False,
                         "progress_bar": True,
@@ -343,7 +346,7 @@ class TestQdrantHybridRetriever(FilterableDocsFixtureMixin):
 
         # Add fake sparse embedding to documents
         for doc in filterable_docs:
-            doc.meta["_sparse_vector"] = self._generate_mocked_sparse_embedding(1)[0]
+            doc.sparse_embedding = SparseEmbedding.from_dict(self._generate_mocked_sparse_embedding(1)[0])
 
         document_store.write_documents(filterable_docs)
 

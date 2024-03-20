@@ -6,6 +6,7 @@ from qdrant_client.http import models as rest
 CONTENT_FIELD = "content"
 NAME_FIELD = "name"
 EMBEDDING_FIELD = "vector"
+SPARSE_EMBEDDING_FIELD = "sparse-vector"
 
 
 @pytest.fixture
@@ -19,6 +20,7 @@ def qdrant_to_haystack() -> QdrantToHaystack:
         content_field=CONTENT_FIELD,
         name_field=NAME_FIELD,
         embedding_field=EMBEDDING_FIELD,
+        sparse_embedding_field=SPARSE_EMBEDDING_FIELD
     )
 
 
@@ -51,8 +53,6 @@ def test_point_to_document_reverts_proper_structure_from_record(
     assert "my-id" == document.id
     assert "Lorem ipsum" == document.content
     assert "text" == document.content_type
-    assert {
-        "test_field": 1,
-        "_sparse_vector": {"indices": [7, 1024, 367], "values": [0.1, 0.98, 0.33]},
-    } == document.meta
+    assert {"indices": [7, 1024, 367], "values": [0.1, 0.98, 0.33]} == document.sparse_embedding.to_dict()
+    assert {"test_field": 1} == document.meta
     assert 0.0 == np.sum(np.array([1.0, 0.0, 0.0, 0.0]) - document.embedding)

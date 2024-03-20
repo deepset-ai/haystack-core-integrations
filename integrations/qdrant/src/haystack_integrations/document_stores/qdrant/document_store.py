@@ -67,6 +67,7 @@ class QdrantDocumentStore:
         content_field: str = "content",
         name_field: str = "name",
         embedding_field: str = "embedding",
+        sparse_embedding_field: str = "sparse_embedding",
         similarity: str = "cosine",
         return_embedding: bool = False,  # noqa: FBT001, FBT002
         progress_bar: bool = True,  # noqa: FBT001, FBT002
@@ -142,6 +143,7 @@ class QdrantDocumentStore:
         self.content_field = content_field
         self.name_field = name_field
         self.embedding_field = embedding_field
+        self.sparse_embedding_field = sparse_embedding_field
         self.similarity = similarity
         self.index = index
         self.return_embedding = return_embedding
@@ -153,6 +155,7 @@ class QdrantDocumentStore:
             content_field,
             name_field,
             embedding_field,
+            sparse_embedding_field
         )
         self.write_batch_size = write_batch_size
         self.scroll_size = scroll_size
@@ -212,6 +215,7 @@ class QdrantDocumentStore:
                 batch = self.haystack_to_qdrant_converter.documents_to_batch(
                     document_batch,
                     embedding_field=self.embedding_field,
+                    sparse_embedding_field=self.sparse_embedding_field
                 )
 
                 self.client.upsert(
