@@ -6,7 +6,11 @@ from haystack.testing.document_store import (
     FilterableDocsFixtureMixin,
     _random_embeddings,
 )
-from haystack_integrations.components.retrievers.qdrant import QdrantEmbeddingRetriever, QdrantSparseRetriever, QdrantHybridRetriever
+from haystack_integrations.components.retrievers.qdrant import (
+    QdrantEmbeddingRetriever,
+    QdrantHybridRetriever,
+    QdrantSparseRetriever,
+)
 from haystack_integrations.document_stores.qdrant import QdrantDocumentStore
 
 
@@ -352,15 +356,19 @@ class TestQdrantHybridRetriever(FilterableDocsFixtureMixin):
 
         retriever = QdrantHybridRetriever(document_store=document_store)
 
-        results: List[Document] = retriever.run(query_sparse_embedding=self._generate_mocked_sparse_embedding(1)[0],
-                                                query_embedding=_random_embeddings(768))
+        results: List[Document] = retriever.run(
+            query_sparse_embedding=self._generate_mocked_sparse_embedding(1)[0], query_embedding=_random_embeddings(768)
+        )
 
         assert len(results["documents"]) == 20  # type: ignore
 
-        results = retriever.run(query_sparse_embedding=self._generate_mocked_sparse_embedding(1)[0],
-                                query_embedding=_random_embeddings(768),
-                                top_k_dense=5, top_k_sparse=5,
-                                return_embedding=False)
+        results = retriever.run(
+            query_sparse_embedding=self._generate_mocked_sparse_embedding(1)[0],
+            query_embedding=_random_embeddings(768),
+            top_k_dense=5,
+            top_k_sparse=5,
+            return_embedding=False,
+        )
 
         assert len(results["documents"]) == 10  # type: ignore
 

@@ -151,12 +151,7 @@ class QdrantDocumentStore:
         self.duplicate_documents = duplicate_documents
         self.qdrant_filter_converter = QdrantFilterConverter()
         self.haystack_to_qdrant_converter = HaystackToQdrant()
-        self.qdrant_to_haystack = QdrantToHaystack(
-            content_field,
-            name_field,
-            embedding_field,
-            sparse_embedding_field
-        )
+        self.qdrant_to_haystack = QdrantToHaystack(content_field, name_field, embedding_field, sparse_embedding_field)
         self.write_batch_size = write_batch_size
         self.scroll_size = scroll_size
 
@@ -215,7 +210,7 @@ class QdrantDocumentStore:
                 batch = self.haystack_to_qdrant_converter.documents_to_batch(
                     document_batch,
                     embedding_field=self.embedding_field,
-                    sparse_embedding_field=self.sparse_embedding_field
+                    sparse_embedding_field=self.sparse_embedding_field,
                 )
 
                 self.client.upsert(
@@ -309,8 +304,8 @@ class QdrantDocumentStore:
         filters: Optional[Dict[str, Any]] = None,
         top_k_dense: int = 10,
         top_k_sparse: int = 10,
-        scale_score: bool = True,
-        return_embedding: bool = False,
+        scale_score: bool = True,  # noqa: FBT001, FBT002
+        return_embedding: bool = False,  # noqa: FBT001, FBT002
     ) -> List[Document]:
         qdrant_filters = self.qdrant_filter_converter.convert(filters)
 

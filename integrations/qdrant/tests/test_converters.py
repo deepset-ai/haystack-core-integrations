@@ -20,7 +20,7 @@ def qdrant_to_haystack() -> QdrantToHaystack:
         content_field=CONTENT_FIELD,
         name_field=NAME_FIELD,
         embedding_field=EMBEDDING_FIELD,
-        sparse_embedding_field=SPARSE_EMBEDDING_FIELD
+        sparse_embedding_field=SPARSE_EMBEDDING_FIELD,
     )
 
 

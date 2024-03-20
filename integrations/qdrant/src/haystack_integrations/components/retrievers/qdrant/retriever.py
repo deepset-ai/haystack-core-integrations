@@ -270,8 +270,8 @@ class QdrantHybridRetriever:
         filters: Optional[Dict[str, Any]] = None,
         top_k_dense: int = 10,
         top_k_sparse: int = 10,
-        scale_score: bool = True,
-        return_embedding: bool = False,
+        scale_score: bool = True,  # noqa: FBT001, FBT002
+        return_embedding: bool = False,  # noqa: FBT001, FBT002
     ):
         """
         Create a QdrantSparseRetriever component.

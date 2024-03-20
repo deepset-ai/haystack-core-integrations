@@ -1,7 +1,7 @@
 import uuid
 from typing import List, Union
 
-from haystack.dataclasses import Document, SparseEmbedding
+from haystack.dataclasses import Document
 from qdrant_client.http import models as rest
 
 
