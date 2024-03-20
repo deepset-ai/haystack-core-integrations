@@ -227,11 +227,11 @@ class TestFastembedSparseDocumentEmbedderDoc:
         assert len(result["documents"]) == len(documents)
         for doc in result["documents"]:
             assert isinstance(doc, Document)
-            assert isinstance(doc.meta["_sparse_vector"], dict)
-            assert isinstance(doc.meta["_sparse_vector"]["indices"], list)
-            assert isinstance(doc.meta["_sparse_vector"]["indices"][0], int)
-            assert isinstance(doc.meta["_sparse_vector"]["values"], list)
-            assert isinstance(doc.meta["_sparse_vector"]["values"][0], float)
+            assert isinstance(doc.sparse_embedding, dict)
+            assert isinstance(doc.sparse_embedding["indices"], list)
+            assert isinstance(doc.sparse_embedding["indices"][0], int)
+            assert isinstance(doc.sparse_embedding["values"], list)
+            assert isinstance(doc.sparse_embedding["values"][0], float)
 
     def test_embed_incorrect_input_format(self):
         """
@@ -293,7 +293,7 @@ class TestFastembedSparseDocumentEmbedderDoc:
         doc = Document(content="Parton energy loss in QCD matter")
 
         result = embedder.run(documents=[doc])
-        embedding = result["documents"][0].meta["_sparse_vector"]
+        embedding = result["documents"][0].sparse_embedding
         assert isinstance(embedding, dict)
         assert isinstance(embedding["indices"], list)
         assert isinstance(embedding["values"], list)

@@ -66,7 +66,6 @@ embedder = FastembedSparseDocumentEmbedder(
 embedder.warm_up()
 doc = Document(content="fastembed is supported by and maintained by Qdrant.", meta={"long_answer": "no",})
 result = embedder.run(documents=[doc])
-# Sparse embeddings are placed in the meta field of the document under the `_sparse_vector` key.
 ```
 
 ## License

@@ -10,8 +10,6 @@ class FastembedSparseDocumentEmbedder:
     """
     FastembedSparseDocumentEmbedder computes Document embeddings using Fastembed sparse models.
 
-    The embedding of each Document is stored in the `meta["_sparse_vector"]` field of the Document.
-
     Usage example:
     ```python
     # To use this component, install the "fastembed-haystack" package.
@@ -47,8 +45,8 @@ class FastembedSparseDocumentEmbedder:
 
     result = doc_embedder.run(document_list)
     print(f"Document Text: {result['documents'][0].content}")
-    print(f"Document Embedding: {result['documents'][0].meta["_sparse_vector"]}")
-    print(f"Embedding Dimension: {len(result['documents'][0].meta["_sparse_vector"])}")
+    print(f"Document Embedding: {result['documents'][0].sparse_embedding}")
+    print(f"Embedding Dimension: {len(result['documents'][0].sparse_embedding)}")
     ```
     """  # noqa: E501
 
@@ -146,7 +144,7 @@ class FastembedSparseDocumentEmbedder:
 
         :param documents: List of Documents to embed.
         :returns: A dictionary with the following keys:
-            - `documents`: List of Documents with each Document's `meta.["_sparse_vector"]` field set
+            - `documents`: List of Documents
             to the computed embeddings.
         """
         if not isinstance(documents, list) or documents and not isinstance(documents[0], Document):
@@ -168,5 +166,5 @@ class FastembedSparseDocumentEmbedder:
         )
 
         for doc, emb in zip(documents, embeddings):
-            doc.meta["_sparse_vector"] = emb
+            doc.sparse_embedding = emb
         return {"documents": documents}
