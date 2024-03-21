@@ -58,7 +58,9 @@ jobs:
 
       - name: Run tests
         id: tests
-        run: hatch run cov
+        run: |
+          hatch run pip install git+https://github.com/deepset-ai/haystack.git #TODO: rm before merging
+          hatch run cov
 
       - name: Nightly - run unit tests with Haystack main branch
         if: github.event_name == 'schedule'
