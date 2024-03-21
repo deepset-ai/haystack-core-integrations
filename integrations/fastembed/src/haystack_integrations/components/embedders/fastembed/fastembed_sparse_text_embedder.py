@@ -33,8 +33,6 @@ class FastembedSparseTextEmbedder:
         model: str = "prithvida/Splade_PP_en_v1",
         cache_dir: Optional[str] = None,
         threads: Optional[int] = None,
-        prefix: str = "",
-        suffix: str = "",
         batch_size: int = 256,
         progress_bar: bool = True,
         parallel: Optional[int] = None,
@@ -48,8 +46,6 @@ class FastembedSparseTextEmbedder:
                 Defaults to `fastembed_cache` in the system's temp directory.
         :param threads: The number of threads single onnxruntime session can use. Defaults to None.
         :param batch_size: Number of strings to encode at once.
-        :param prefix: A string to add to the beginning of each text.
-        :param suffix: A string to add to the end of each text.
         :param progress_bar: If true, displays progress bar during embedding.
         :param parallel:
                 If > 1, data-parallel encoding will be used, recommended for offline encoding of large datasets.
@@ -60,8 +56,6 @@ class FastembedSparseTextEmbedder:
         self.model_name = model
         self.cache_dir = cache_dir
         self.threads = threads
-        self.prefix = prefix
-        self.suffix = suffix
         self.batch_size = batch_size
         self.progress_bar = progress_bar
         self.parallel = parallel
@@ -78,8 +72,6 @@ class FastembedSparseTextEmbedder:
             model=self.model_name,
             cache_dir=self.cache_dir,
             threads=self.threads,
-            prefix=self.prefix,
-            suffix=self.suffix,
             batch_size=self.batch_size,
             progress_bar=self.progress_bar,
             parallel=self.parallel,
@@ -115,9 +107,8 @@ class FastembedSparseTextEmbedder:
             msg = "The embedding model has not been loaded. Please call warm_up() before running."
             raise RuntimeError(msg)
 
-        text_to_embed = [self.prefix + text + self.suffix]
         embedding = self.embedding_backend.embed(
-            text_to_embed,
+            [text],
             batch_size=self.batch_size,
             show_progress_bar=self.progress_bar,
             parallel=self.parallel,

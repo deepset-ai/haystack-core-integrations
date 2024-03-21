@@ -17,8 +17,6 @@ class TestFastembedSparseTextEmbedder:
         assert embedder.model_name == "prithvida/Splade_PP_en_v1"
         assert embedder.cache_dir is None
         assert embedder.threads is None
-        assert embedder.prefix == ""
-        assert embedder.suffix == ""
         assert embedder.batch_size == 256
         assert embedder.progress_bar is True
         assert embedder.parallel is None
@@ -31,8 +29,6 @@ class TestFastembedSparseTextEmbedder:
             model="prithvida/Splade_PP_en_v1",
             cache_dir="fake_dir",
             threads=2,
-            prefix="prefix",
-            suffix="suffix",
             batch_size=64,
             progress_bar=False,
             parallel=1,
@@ -40,8 +36,6 @@ class TestFastembedSparseTextEmbedder:
         assert embedder.model_name == "prithvida/Splade_PP_en_v1"
         assert embedder.cache_dir == "fake_dir"
         assert embedder.threads == 2
-        assert embedder.prefix == "prefix"
-        assert embedder.suffix == "suffix"
         assert embedder.batch_size == 64
         assert embedder.progress_bar is False
         assert embedder.parallel == 1
@@ -58,8 +52,6 @@ class TestFastembedSparseTextEmbedder:
                 "model": "prithvida/Splade_PP_en_v1",
                 "cache_dir": None,
                 "threads": None,
-                "prefix": "",
-                "suffix": "",
                 "batch_size": 256,
                 "progress_bar": True,
                 "parallel": None,
@@ -74,8 +66,6 @@ class TestFastembedSparseTextEmbedder:
             model="prithvida/Splade_PP_en_v1",
             cache_dir="fake_dir",
             threads=2,
-            prefix="prefix",
-            suffix="suffix",
             batch_size=64,
             progress_bar=False,
             parallel=1,
@@ -87,8 +77,6 @@ class TestFastembedSparseTextEmbedder:
                 "model": "prithvida/Splade_PP_en_v1",
                 "cache_dir": "fake_dir",
                 "threads": 2,
-                "prefix": "prefix",
-                "suffix": "suffix",
                 "batch_size": 64,
                 "progress_bar": False,
                 "parallel": 1,
@@ -105,8 +93,6 @@ class TestFastembedSparseTextEmbedder:
                 "model": "prithvida/Splade_PP_en_v1",
                 "cache_dir": None,
                 "threads": None,
-                "prefix": "",
-                "suffix": "",
                 "batch_size": 256,
                 "progress_bar": True,
                 "parallel": None,
@@ -116,8 +102,6 @@ class TestFastembedSparseTextEmbedder:
         assert embedder.model_name == "prithvida/Splade_PP_en_v1"
         assert embedder.cache_dir is None
         assert embedder.threads is None
-        assert embedder.prefix == ""
-        assert embedder.suffix == ""
         assert embedder.batch_size == 256
         assert embedder.progress_bar is True
         assert embedder.parallel is None
@@ -132,8 +116,6 @@ class TestFastembedSparseTextEmbedder:
                 "model": "prithvida/Splade_PP_en_v1",
                 "cache_dir": "fake_dir",
                 "threads": 2,
-                "prefix": "prefix",
-                "suffix": "suffix",
                 "batch_size": 64,
                 "progress_bar": False,
                 "parallel": 1,
@@ -143,8 +125,6 @@ class TestFastembedSparseTextEmbedder:
         assert embedder.model_name == "prithvida/Splade_PP_en_v1"
         assert embedder.cache_dir == "fake_dir"
         assert embedder.threads == 2
-        assert embedder.prefix == "prefix"
-        assert embedder.suffix == "suffix"
         assert embedder.batch_size == 64
         assert embedder.progress_bar is False
         assert embedder.parallel == 1
