@@ -13,8 +13,8 @@ class TestFastembedSparseTextEmbedder:
         """
         Test default initialization parameters for FastembedSparseTextEmbedder.
         """
-        embedder = FastembedSparseTextEmbedder(model="prithvida/SPLADE_PP_en_v1")
-        assert embedder.model_name == "prithvida/SPLADE_PP_en_v1"
+        embedder = FastembedSparseTextEmbedder(model="prithvida/Splade_PP_en_v1")
+        assert embedder.model_name == "prithvida/Splade_PP_en_v1"
         assert embedder.cache_dir is None
         assert embedder.threads is None
         assert embedder.prefix == ""
@@ -28,7 +28,7 @@ class TestFastembedSparseTextEmbedder:
         Test custom initialization parameters for FastembedSparseTextEmbedder.
         """
         embedder = FastembedSparseTextEmbedder(
-            model="prithvida/SPLADE_PP_en_v1",
+            model="prithvida/Splade_PP_en_v1",
             cache_dir="fake_dir",
             threads=2,
             prefix="prefix",
@@ -37,7 +37,7 @@ class TestFastembedSparseTextEmbedder:
             progress_bar=False,
             parallel=1,
         )
-        assert embedder.model_name == "prithvida/SPLADE_PP_en_v1"
+        assert embedder.model_name == "prithvida/Splade_PP_en_v1"
         assert embedder.cache_dir == "fake_dir"
         assert embedder.threads == 2
         assert embedder.prefix == "prefix"
@@ -50,12 +50,12 @@ class TestFastembedSparseTextEmbedder:
         """
         Test serialization of FastembedSparseTextEmbedder to a dictionary, using default initialization parameters.
         """
-        embedder = FastembedSparseTextEmbedder(model="prithvida/SPLADE_PP_en_v1")
+        embedder = FastembedSparseTextEmbedder(model="prithvida/Splade_PP_en_v1")
         embedder_dict = embedder.to_dict()
         assert embedder_dict == {
             "type": "haystack_integrations.components.embedders.fastembed.fastembed_sparse_text_embedder.FastembedSparseTextEmbedder",  # noqa
             "init_parameters": {
-                "model": "prithvida/SPLADE_PP_en_v1",
+                "model": "prithvida/Splade_PP_en_v1",
                 "cache_dir": None,
                 "threads": None,
                 "prefix": "",
@@ -71,7 +71,7 @@ class TestFastembedSparseTextEmbedder:
         Test serialization of FastembedSparseTextEmbedder to a dictionary, using custom initialization parameters.
         """
         embedder = FastembedSparseTextEmbedder(
-            model="prithvida/SPLADE_PP_en_v1",
+            model="prithvida/Splade_PP_en_v1",
             cache_dir="fake_dir",
             threads=2,
             prefix="prefix",
@@ -84,7 +84,7 @@ class TestFastembedSparseTextEmbedder:
         assert embedder_dict == {
             "type": "haystack_integrations.components.embedders.fastembed.fastembed_sparse_text_embedder.FastembedSparseTextEmbedder",  # noqa
             "init_parameters": {
-                "model": "prithvida/SPLADE_PP_en_v1",
+                "model": "prithvida/Splade_PP_en_v1",
                 "cache_dir": "fake_dir",
                 "threads": 2,
                 "prefix": "prefix",
@@ -102,7 +102,7 @@ class TestFastembedSparseTextEmbedder:
         embedder_dict = {
             "type": "haystack_integrations.components.embedders.fastembed.fastembed_sparse_text_embedder.FastembedSparseTextEmbedder",  # noqa
             "init_parameters": {
-                "model": "prithvida/SPLADE_PP_en_v1",
+                "model": "prithvida/Splade_PP_en_v1",
                 "cache_dir": None,
                 "threads": None,
                 "prefix": "",
@@ -113,7 +113,7 @@ class TestFastembedSparseTextEmbedder:
             },
         }
         embedder = default_from_dict(FastembedSparseTextEmbedder, embedder_dict)
-        assert embedder.model_name == "prithvida/SPLADE_PP_en_v1"
+        assert embedder.model_name == "prithvida/Splade_PP_en_v1"
         assert embedder.cache_dir is None
         assert embedder.threads is None
         assert embedder.prefix == ""
@@ -129,7 +129,7 @@ class TestFastembedSparseTextEmbedder:
         embedder_dict = {
             "type": "haystack_integrations.components.embedders.fastembed.fastembed_sparse_text_embedder.FastembedSparseTextEmbedder",  # noqa
             "init_parameters": {
-                "model": "prithvida/SPLADE_PP_en_v1",
+                "model": "prithvida/Splade_PP_en_v1",
                 "cache_dir": "fake_dir",
                 "threads": 2,
                 "prefix": "prefix",
@@ -140,7 +140,7 @@ class TestFastembedSparseTextEmbedder:
             },
         }
         embedder = default_from_dict(FastembedSparseTextEmbedder, embedder_dict)
-        assert embedder.model_name == "prithvida/SPLADE_PP_en_v1"
+        assert embedder.model_name == "prithvida/Splade_PP_en_v1"
         assert embedder.cache_dir == "fake_dir"
         assert embedder.threads == 2
         assert embedder.prefix == "prefix"
@@ -156,11 +156,11 @@ class TestFastembedSparseTextEmbedder:
         """
         Test for checking embedder instances after warm-up.
         """
-        embedder = FastembedSparseTextEmbedder(model="prithvida/SPLADE_PP_en_v1")
+        embedder = FastembedSparseTextEmbedder(model="prithvida/Splade_PP_en_v1")
         mocked_factory.get_embedding_backend.assert_not_called()
         embedder.warm_up()
         mocked_factory.get_embedding_backend.assert_called_once_with(
-            model_name="prithvida/SPLADE_PP_en_v1", cache_dir=None, threads=None
+            model_name="prithvida/Splade_PP_en_v1", cache_dir=None, threads=None
         )
 
     @patch(
@@ -170,7 +170,7 @@ class TestFastembedSparseTextEmbedder:
         """
         Test for checking backend instances after multiple warm-ups.
         """
-        embedder = FastembedSparseTextEmbedder(model="prithvida/SPLADE_PP_en_v1")
+        embedder = FastembedSparseTextEmbedder(model="prithvida/Splade_PP_en_v1")
         mocked_factory.get_embedding_backend.assert_not_called()
         embedder.warm_up()
         embedder.warm_up()
@@ -223,7 +223,7 @@ class TestFastembedSparseTextEmbedder:
     @pytest.mark.integration
     def test_run(self):
         embedder = FastembedSparseTextEmbedder(
-            model="prithvida/SPLADE_PP_en_v1",
+            model="prithvida/Splade_PP_en_v1",
         )
         embedder.warm_up()
 

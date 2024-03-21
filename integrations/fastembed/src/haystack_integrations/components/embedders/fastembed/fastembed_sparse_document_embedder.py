@@ -19,7 +19,7 @@ class FastembedSparseDocumentEmbedder:
     from haystack.dataclasses import Document
 
     doc_embedder = FastembedSparseDocumentEmbedder(
-        model="prithvida/SPLADE_PP_en_v1",
+        model="prithvida/Splade_PP_en_v1",
         batch_size=256,
     )
 
@@ -52,7 +52,7 @@ class FastembedSparseDocumentEmbedder:
 
     def __init__(
         self,
-        model: str = "prithvida/SPLADE_PP_en_v1",
+        model: str = "prithvida/Splade_PP_en_v1",
         cache_dir: Optional[str] = None,
         threads: Optional[int] = None,
         prefix: str = "",
@@ -67,7 +67,7 @@ class FastembedSparseDocumentEmbedder:
         Create an FastembedDocumentEmbedder component.
 
         :param model: Local path or name of the model in Hugging Face's model hub,
-            such as `prithvida/SPLADE_PP_en_v1`.
+            such as `prithvida/Splade_PP_en_v1`.
         :param cache_dir: The path to the cache directory.
                 Can be set using the `FASTEMBED_CACHE_PATH` env variable.
                 Defaults to `fastembed_cache` in the system's temp directory.
