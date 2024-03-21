@@ -42,4 +42,6 @@ jobs:
         run: hatch run docs          
 
       - name: Run tests
-        run: hatch run cov
+        run: |
+          hatch run pip install git+https://github.com/deepset-ai/haystack.git #TODO: rm before merging
+          hatch run cov
