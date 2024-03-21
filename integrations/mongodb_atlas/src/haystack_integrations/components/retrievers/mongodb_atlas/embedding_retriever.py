@@ -48,7 +48,9 @@ class MongoDBAtlasEmbeddingRetriever:
         Create the MongoDBAtlasDocumentStore component.
 
         :param document_store: An instance of MongoDBAtlasDocumentStore.
-        :param filters: Filters applied to the retrieved Documents.
+        :param filters: Filters applied to the retrieved Documents. Make sure that the fields used in the filters are
+            included in the configuration of the `vector_search_index`. The configuration must be done manually
+            in the Web UI of MongoDB Atlas.
         :param top_k: Maximum number of Documents to return.
 
         :raises ValueError: If `document_store` is not an instance of `MongoDBAtlasDocumentStore`.

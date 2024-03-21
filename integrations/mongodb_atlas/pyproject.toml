@@ -94,12 +94,12 @@ all = [
 ]
 
 [tool.black]
-target-version = ["py37"]
+target-version = ["py38"]
 line-length = 120
 skip-string-normalization = true
 
 [tool.ruff]
-target-version = "py37"
+target-version = "py38"
 line-length = 120
 select = [
   "A",
@@ -156,27 +156,26 @@ ban-relative-imports = "parents"
 "examples/**/*" = ["T201"]
 
 [tool.coverage.run]
-source_pkgs = ["src", "tests"]
+source = ["haystack_integrations"]
 branch = true
-parallel = true
+parallel = false
 
-
-[tool.coverage.paths]
-tests = ["tests", "*/mongodb-atlas-haystack/tests"]
 
 [tool.coverage.report]
+omit = ["*/tests/*", "*/__init__.py"]
+show_missing=true
 exclude_lines = [
   "no cov",
   "if __name__ == .__main__.:",
   "if TYPE_CHECKING:",
 ]
 
+
 [[tool.mypy.overrides]]
 module = [
   "haystack.*",
   "haystack_integrations.*",
-  "mongodb_atlas.*",
-  "psycopg.*",
+  "pymongo.*",
   "pytest.*"
 ]
 ignore_missing_imports = true

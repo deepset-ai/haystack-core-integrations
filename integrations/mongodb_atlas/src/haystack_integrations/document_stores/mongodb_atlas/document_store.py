@@ -10,10 +10,10 @@ from haystack.dataclasses.document import Document
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
 from haystack.utils import Secret, deserialize_secrets_inplace
-from haystack_integrations.document_stores.mongodb_atlas.filters import haystack_filters_to_mongo
-from pymongo import InsertOne, MongoClient, ReplaceOne, UpdateOne  # type: ignore
-from pymongo.driver_info import DriverInfo  # type: ignore
-from pymongo.errors import BulkWriteError  # type: ignore
+from haystack_integrations.document_stores.mongodb_atlas.filters import _normalize_filters
+from pymongo import InsertOne, MongoClient, ReplaceOne, UpdateOne
+from pymongo.driver_info import DriverInfo
+from pymongo.errors import BulkWriteError
 
 logger = logging.getLogger(__name__)
 
@@ -144,8 +144,8 @@ class MongoDBAtlasDocumentStore:
         :param filters: The filters to apply. It returns only the documents that match the filters.
         :returns: A list of Documents that match the given filters.
         """
-        mongo_filters = haystack_filters_to_mongo(filters)
-        documents = list(self.collection.find(mongo_filters))
+        filters = _normalize_filters(filters) if filters else None
+        documents = list(self.collection.find(filters))
         for doc in documents:
             doc.pop("_id", None)  # MongoDB's internal id doesn't belong into a Haystack document, so we remove it.
         return [Document.from_dict(doc) for doc in documents]
@@ -170,7 +170,19 @@ class MongoDBAtlasDocumentStore:
         if policy == DuplicatePolicy.NONE:
             policy = DuplicatePolicy.FAIL
 
-        mongo_documents = [doc.to_dict() for doc in documents]
+        mongo_documents = []
+        for doc in documents:
+            doc_dict = doc.to_dict(flatten=False)
+            if "sparse_embedding" in doc_dict:
+                sparse_embedding = doc_dict.pop("sparse_embedding", None)
+                if sparse_embedding:
+                    logger.warning(
+                        "Document %s has the `sparse_embedding` field set,"
+                        "but storing sparse embeddings in MongoDB Atlas is not currently supported."
+                        "The `sparse_embedding` field will be ignored.",
+                        doc.id,
+                    )
+            mongo_documents.append(doc_dict)
         operations: List[Union[UpdateOne, InsertOne, ReplaceOne]]
         written_docs = len(documents)
 
@@ -221,7 +233,8 @@ class MongoDBAtlasDocumentStore:
             msg = "Query embedding must not be empty"
             raise ValueError(msg)
 
-        filters = haystack_filters_to_mongo(filters)
+        filters = _normalize_filters(filters) if filters else None
+
         pipeline = [
             {
                 "$vectorSearch": {
@@ -230,7 +243,7 @@ class MongoDBAtlasDocumentStore:
                     "queryVector": query_embedding,
                     "numCandidates": 100,
                     "limit": top_k,
-                    # "filter": filters,
+                    "filter": filters,
                 }
             },
             {
@@ -249,6 +262,11 @@ class MongoDBAtlasDocumentStore:
             documents = list(self.collection.aggregate(pipeline))
         except Exception as e:
             msg = f"Retrieval of documents from MongoDB Atlas failed: {e}"
+            if filters:
+                msg += (
+                    "\nMake sure that the fields used in the filters are included "
+                    "in the `vector_search_index` configuration"
+                )
             raise DocumentStoreError(msg) from e
 
         documents = [self._mongo_doc_to_haystack_doc(doc) for doc in documents]

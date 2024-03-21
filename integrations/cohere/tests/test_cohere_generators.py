@@ -13,7 +13,8 @@ pytestmark = pytest.mark.generators
 
 
 class TestCohereGenerator:
-    def test_init_default(self):
+    def test_init_default(self, monkeypatch):
+        monkeypatch.setenv("COHERE_API_KEY", "foo")
         component = CohereGenerator()
         assert component.api_key == Secret.from_env_var(["COHERE_API_KEY", "CO_API_KEY"])
         assert component.model == "command"

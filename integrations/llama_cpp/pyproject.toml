@@ -101,12 +101,12 @@ allow-direct-references = true
 known-first-party = ["src"]
 
 [tool.black]
-target-version = ["py37"]
+target-version = ["py38"]
 line-length = 120
 skip-string-normalization = true
 
 [tool.ruff]
-target-version = "py37"
+target-version = "py38"
 line-length = 120
 select = [
     "A",
@@ -158,21 +158,20 @@ ban-relative-imports = "parents"
 "tests/**" = ["T201"]
 
 [tool.coverage.run]
-source_pkgs = ["llama_cpp_haystack", "tests"]
+source = ["haystack_integrations"]
 branch = true
-parallel = true
+parallel = false
 
-
-[tool.coverage.paths]
-llama_cpp_haystack = ["src/haystack_integrations", "*/llama-cpp-haystack/src"]
-tests = ["tests", "*/llama-cpp-haystack/tests"]
 
 [tool.coverage.report]
+omit = ["*/tests/*", "*/__init__.py"]
+show_missing=true
 exclude_lines = [
-    "no cov",
-    "if __name__ == .__main__.:",
-    "if TYPE_CHECKING:",
+  "no cov",
+  "if __name__ == .__main__.:",
+  "if TYPE_CHECKING:",
 ]
+
 
 [tool.pytest.ini_options]
 markers = [

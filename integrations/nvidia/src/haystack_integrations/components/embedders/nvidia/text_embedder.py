@@ -1,29 +1,30 @@
-from typing import Any, Dict, List, Union
+from typing import Any, Dict, List, Optional
 
 from haystack import component, default_from_dict, default_to_dict
 from haystack.utils import Secret, deserialize_secrets_inplace
-from haystack_integrations.utils.nvidia import NvidiaCloudFunctionsClient
 
-from ._schema import EmbeddingsRequest, EmbeddingsResponse, get_model_nvcf_id
-from .models import NvidiaEmbeddingModel
+from ._nim_backend import NimBackend
+from ._nvcf_backend import NvcfBackend
+from .backend import EmbedderBackend
 
 
 @component
 class NvidiaTextEmbedder:
     """
     A component for embedding strings using embedding models provided by
-    [NVIDIA AI Foundation Endpoints](https://www.nvidia.com/en-us/ai-data-science/foundation-models/).
+    [NVIDIA AI Foundation Endpoints](https://www.nvidia.com/en-us/ai-data-science/foundation-models/)
+    and NVIDIA Inference Microservices.
 
     For models that differentiate between query and document inputs,
     this component embeds the input string as a query.
 
     Usage example:
     ```python
-    from haystack_integrations.components.embedders.nvidia import NvidiaTextEmbedder, NvidiaEmbeddingModel
+    from haystack_integrations.components.embedders.nvidia import NvidiaTextEmbedder
 
     text_to_embed = "I love pizza!"
 
-    text_embedder = NvidiaTextEmbedder(model=NvidiaEmbeddingModel.NVOLVE_40K)
+    text_embedder = NvidiaTextEmbedder(model="nvolveqa_40k")
     text_embedder.warm_up()
 
     print(text_embedder.run(text_to_embed))
@@ -32,8 +33,9 @@ class NvidiaTextEmbedder:
 
     def __init__(
         self,
-        model: Union[str, NvidiaEmbeddingModel],
-        api_key: Secret = Secret.from_env_var("NVIDIA_API_KEY"),
+        model: str,
+        api_key: Optional[Secret] = Secret.from_env_var("NVIDIA_API_KEY"),
+        api_url: Optional[str] = None,
         prefix: str = "",
         suffix: str = "",
     ):
@@ -44,27 +46,21 @@ class NvidiaTextEmbedder:
             Embedding model to use.
         :param api_key:
             API key for the NVIDIA AI Foundation Endpoints.
+        :param api_url:
+            Custom API URL for the NVIDIA Inference Microservices.
         :param prefix:
             A string to add to the beginning of each text.
         :param suffix:
             A string to add to the end of each text.
         """
 
-        if isinstance(model, str):
-            model = NvidiaEmbeddingModel.from_str(model)
-
         self.api_key = api_key
         self.model = model
+        self.api_url = api_url
         self.prefix = prefix
         self.suffix = suffix
-        self.client = NvidiaCloudFunctionsClient(
-            api_key=api_key,
-            headers={
-                "Content-Type": "application/json",
-                "Accept": "application/json",
-            },
-        )
-        self.nvcf_id = None
+
+        self.backend: Optional[EmbedderBackend] = None
         self._initialized = False
 
     def warm_up(self):
@@ -74,7 +70,15 @@ class NvidiaTextEmbedder:
         if self._initialized:
             return
 
-        self.nvcf_id = get_model_nvcf_id(self.model, self.client)
+        if self.api_url is None:
+            if self.api_key is None:
+                msg = "API key is required for NVIDIA AI Foundation Endpoints."
+                raise ValueError(msg)
+
+            self.backend = NvcfBackend(self.model, api_key=self.api_key, model_kwargs={"model": "query"})
+        else:
+            self.backend = NimBackend(self.model, api_url=self.api_url, model_kwargs={"input_type": "query"})
+
         self._initialized = True
 
     def to_dict(self) -> Dict[str, Any]:
@@ -86,8 +90,9 @@ class NvidiaTextEmbedder:
         """
         return default_to_dict(
             self,
-            api_key=self.api_key.to_dict(),
-            model=str(self.model),
+            api_key=self.api_key.to_dict() if self.api_key else None,
+            model=self.model,
+            api_url=self.api_url,
             prefix=self.prefix,
             suffix=self.suffix,
         )
@@ -102,7 +107,6 @@ class NvidiaTextEmbedder:
         :returns:
             The deserialized component.
         """
-        data["init_parameters"]["model"] = NvidiaEmbeddingModel.from_str(data["init_parameters"]["model"])
         deserialize_secrets_inplace(data["init_parameters"], keys=["api_key"])
         return default_from_dict(cls, data)
 
@@ -132,10 +136,8 @@ class NvidiaTextEmbedder:
             )
             raise TypeError(msg)
 
-        assert self.nvcf_id is not None
+        assert self.backend is not None
         text_to_embed = self.prefix + text + self.suffix
-        request = EmbeddingsRequest(input=text_to_embed, model="query").to_dict()
-        json_response = self.client.query_function(self.nvcf_id, request)
-        response = EmbeddingsResponse.from_dict(json_response)
+        sorted_embeddings, meta = self.backend.embed([text_to_embed])
 
-        return {"embedding": response.data[0].embedding, "meta": {"usage": response.usage.to_dict()}}
+        return {"embedding": sorted_embeddings[0], "meta": meta}

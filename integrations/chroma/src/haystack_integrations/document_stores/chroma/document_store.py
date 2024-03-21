@@ -189,6 +189,14 @@ class ChromaDocumentStore:
             if doc.embedding is not None:
                 data["embeddings"] = [doc.embedding]
 
+            if hasattr(doc, "sparse_embedding") and doc.sparse_embedding is not None:
+                logger.warning(
+                    "Document %s has the `sparse_embedding` field set,"
+                    "but storing sparse embeddings in Chroma is not currently supported."
+                    "The `sparse_embedding` field will be ignored.",
+                    doc.id,
+                )
+
             self._collection.add(**data)
 
         return len(documents)

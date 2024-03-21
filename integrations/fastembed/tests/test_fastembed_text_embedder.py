@@ -19,7 +19,6 @@ class TestFastembedTextEmbedder:
         assert embedder.threads is None
         assert embedder.prefix == ""
         assert embedder.suffix == ""
-        assert embedder.batch_size == 256
         assert embedder.progress_bar is True
         assert embedder.parallel is None
 
@@ -33,7 +32,6 @@ class TestFastembedTextEmbedder:
             threads=2,
             prefix="prefix",
             suffix="suffix",
-            batch_size=64,
             progress_bar=False,
             parallel=1,
         )
@@ -42,7 +40,6 @@ class TestFastembedTextEmbedder:
         assert embedder.threads == 2
         assert embedder.prefix == "prefix"
         assert embedder.suffix == "suffix"
-        assert embedder.batch_size == 64
         assert embedder.progress_bar is False
         assert embedder.parallel == 1
 
@@ -60,7 +57,6 @@ class TestFastembedTextEmbedder:
                 "threads": None,
                 "prefix": "",
                 "suffix": "",
-                "batch_size": 256,
                 "progress_bar": True,
                 "parallel": None,
             },
@@ -76,7 +72,6 @@ class TestFastembedTextEmbedder:
             threads=2,
             prefix="prefix",
             suffix="suffix",
-            batch_size=64,
             progress_bar=False,
             parallel=1,
         )
@@ -89,7 +84,6 @@ class TestFastembedTextEmbedder:
                 "threads": 2,
                 "prefix": "prefix",
                 "suffix": "suffix",
-                "batch_size": 64,
                 "progress_bar": False,
                 "parallel": 1,
             },
@@ -107,7 +101,6 @@ class TestFastembedTextEmbedder:
                 "threads": None,
                 "prefix": "",
                 "suffix": "",
-                "batch_size": 256,
                 "progress_bar": True,
                 "parallel": None,
             },
@@ -118,7 +111,6 @@ class TestFastembedTextEmbedder:
         assert embedder.threads is None
         assert embedder.prefix == ""
         assert embedder.suffix == ""
-        assert embedder.batch_size == 256
         assert embedder.progress_bar is True
         assert embedder.parallel is None
 
@@ -134,7 +126,6 @@ class TestFastembedTextEmbedder:
                 "threads": 2,
                 "prefix": "prefix",
                 "suffix": "suffix",
-                "batch_size": 64,
                 "progress_bar": False,
                 "parallel": 1,
             },
@@ -145,7 +136,6 @@ class TestFastembedTextEmbedder:
         assert embedder.threads == 2
         assert embedder.prefix == "prefix"
         assert embedder.suffix == "suffix"
-        assert embedder.batch_size == 64
         assert embedder.progress_bar is False
         assert embedder.parallel == 1
 

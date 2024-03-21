@@ -270,6 +270,7 @@ def test_evaluator_outputs(metric, inputs, expected_outputs, metric_params, monk
 # OpenAI API. It is parameterized by the metric, the inputs to the evalutor
 # and the metric parameters.
 @pytest.mark.skipif("OPENAI_API_KEY" not in os.environ, reason="OPENAI_API_KEY not set")
+@pytest.mark.integration
 @pytest.mark.parametrize(
     "metric, inputs, metric_params",
     [
