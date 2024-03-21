@@ -91,12 +91,20 @@ class _FastembedSparseEmbeddingBackend:
     ):
         self.model = SparseTextEmbedding(model_name=model_name, cache_dir=cache_dir, threads=threads)
 
-    def embed(self, data: List[List[str]], **kwargs) -> List[Dict[str, Union[List[int], List[float]]]]:
+    def embed(
+        self, data: List[List[str]], progress_bar=True, **kwargs
+    ) -> List[Dict[str, Union[List[int], List[float]]]]:
         # The embed method returns a Iterable[SparseEmbedding], so we convert it to a list of dictionaries.
         # Each dict contains an `indices` key containing a list of int and an `values` key containing a list of floats.
-        sparse_embeddings = [sparse_embedding.as_object() for sparse_embedding in self.model.embed(data, **kwargs)]
-        for embedding in sparse_embeddings:
-            embedding["indices"] = embedding["indices"].tolist()
-            embedding["values"] = embedding["values"].tolist()
+
+        sparse_embeddings = []
+        sparse_embeddings_iterable = self.model.embed(data, **kwargs)
+        for sparse_embedding in tqdm(
+            sparse_embeddings_iterable, disable=not progress_bar, desc="Calculating sparse embeddings", total=len(data)
+        ):
+            sparse_embedding_obj = sparse_embedding.as_object()
+            sparse_embedding_obj["indices"] = sparse_embedding_obj["indices"].tolist()
+            sparse_embedding_obj["values"] = sparse_embedding_obj["values"].tolist()
+            sparse_embeddings.append(sparse_embedding_obj)
 
         return sparse_embeddings
