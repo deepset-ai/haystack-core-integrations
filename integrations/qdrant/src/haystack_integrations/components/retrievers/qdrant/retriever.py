@@ -140,7 +140,6 @@ class QdrantSparseRetriever:
     )
     retriever = QdrantSparseRetriever(document_store=document_store)
 
-    # using a fake sparse vector to keep the example simple
     retriever.run(query_sparse_embedding={"indices":[0, 1, 2, 3], "values":[0.1, 0.8, 0.05, 0.33]})
     ```
     """
