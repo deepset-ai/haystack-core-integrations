@@ -1,8 +1,47 @@
 from dataclasses import asdict, dataclass
-from typing import Any, Dict, List, Literal, Union
+from typing import Any, Dict, List, Literal, Optional, Tuple, Union
+
+from haystack.utils.auth import Secret
+from haystack_integrations.utils.nvidia import NvidiaCloudFunctionsClient
+
+from .backend import EmbedderBackend
 
 MAX_INPUT_STRING_LENGTH = 2048
 MAX_INPUTS = 50
+
+
+class NvcfBackend(EmbedderBackend):
+    def __init__(
+        self,
+        model: str,
+        api_key: Secret,
+        model_kwargs: Optional[Dict[str, Any]] = None,
+    ):
+        if not model.startswith("playground_"):
+            model = f"playground_{model}"
+
+        super().__init__(model=model, model_kwargs=model_kwargs)
+
+        self.api_key = api_key
+        self.client = NvidiaCloudFunctionsClient(
+            api_key=api_key,
+            headers={
+                "Content-Type": "application/json",
+                "Accept": "application/json",
+            },
+        )
+        self.nvcf_id = self.client.get_model_nvcf_id(self.model_name)
+
+    def embed(self, texts: List[str]) -> Tuple[List[List[float]], Dict[str, Any]]:
+        request = EmbeddingsRequest(input=texts, **self.model_kwargs).to_dict()
+        json_response = self.client.query_function(self.nvcf_id, request)
+        response = EmbeddingsResponse.from_dict(json_response)
+
+        # Sort resulting embeddings by index
+        assert all(isinstance(r.embedding, list) for r in response.data)
+        sorted_embeddings: List[List[float]] = [r.embedding for r in sorted(response.data, key=lambda e: e.index)]  # type: ignore
+        metadata = {"usage": response.usage.to_dict()}
+        return sorted_embeddings, metadata
 
 
 @dataclass

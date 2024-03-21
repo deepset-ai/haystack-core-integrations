@@ -10,6 +10,7 @@ from haystack_integrations.document_stores.pgvector import PgvectorDocumentStore
 from numpy.random import rand
 
 
+@pytest.mark.integration
 class TestEmbeddingRetrieval:
     @pytest.fixture
     def document_store_w_hnsw_index(self, request):

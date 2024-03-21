@@ -1,27 +1,28 @@
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple
 
 from haystack import Document, component, default_from_dict, default_to_dict
 from haystack.utils import Secret, deserialize_secrets_inplace
-from haystack_integrations.utils.nvidia import NvidiaCloudFunctionsClient
 from tqdm import tqdm
 
-from ._schema import MAX_INPUTS, EmbeddingsRequest, EmbeddingsResponse, Usage
-from .models import NvidiaEmbeddingModel
+from ._nim_backend import NimBackend
+from ._nvcf_backend import NvcfBackend
+from .backend import EmbedderBackend
 
 
 @component
 class NvidiaDocumentEmbedder:
     """
     A component for embedding documents using embedding models provided by
-    [NVIDIA AI Foundation Endpoints](https://www.nvidia.com/en-us/ai-data-science/foundation-models/).
+    [NVIDIA AI Foundation Endpoints](https://www.nvidia.com/en-us/ai-data-science/foundation-models/)
+    and NVIDIA Inference Microservices.
 
     Usage example:
     ```python
-    from haystack_integrations.components.embedders.nvidia import NvidiaDocumentEmbedder, NvidiaEmbeddingModel
+    from haystack_integrations.components.embedders.nvidia import NvidiaDocumentEmbedder
 
     doc = Document(content="I love pizza!")
 
-    text_embedder = NvidiaDocumentEmbedder(model=NvidiaEmbeddingModel.NVOLVE_40K)
+    text_embedder = NvidiaDocumentEmbedder(model="nvolveqa_40k")
     text_embedder.warm_up()
 
     result = document_embedder.run([doc])
@@ -31,8 +32,9 @@ class NvidiaDocumentEmbedder:
 
     def __init__(
         self,
-        model: Union[str, NvidiaEmbeddingModel],
-        api_key: Secret = Secret.from_env_var("NVIDIA_API_KEY"),
+        model: str,
+        api_key: Optional[Secret] = Secret.from_env_var("NVIDIA_API_KEY"),
+        api_url: Optional[str] = None,
         prefix: str = "",
         suffix: str = "",
         batch_size: int = 32,
@@ -47,6 +49,8 @@ class NvidiaDocumentEmbedder:
             Embedding model to use.
         :param api_key:
             API key for the NVIDIA AI Foundation Endpoints.
+        :param api_url:
+            Custom API URL for the NVIDIA Inference Microservices.
         :param prefix:
             A string to add to the beginning of each text.
         :param suffix:
@@ -62,16 +66,9 @@ class NvidiaDocumentEmbedder:
             Separator used to concatenate the meta fields to the Document text.
         """
 
-        if isinstance(model, str):
-            model = NvidiaEmbeddingModel.from_str(model)
-
-        # Upper-limit for the endpoint.
-        if batch_size > MAX_INPUTS:
-            msg = f"NVIDIA Cloud Functions currently support a maximum batch size of {MAX_INPUTS}."
-            raise ValueError(msg)
-
         self.api_key = api_key
         self.model = model
+        self.api_url = api_url
         self.prefix = prefix
         self.suffix = suffix
         self.batch_size = batch_size
@@ -79,14 +76,7 @@ class NvidiaDocumentEmbedder:
         self.meta_fields_to_embed = meta_fields_to_embed or []
         self.embedding_separator = embedding_separator
 
-        self.client = NvidiaCloudFunctionsClient(
-            api_key=api_key,
-            headers={
-                "Content-Type": "application/json",
-                "Accept": "application/json",
-            },
-        )
-        self.nvcf_id = None
+        self.backend: Optional[EmbedderBackend] = None
         self._initialized = False
 
     def warm_up(self):
@@ -96,7 +86,15 @@ class NvidiaDocumentEmbedder:
         if self._initialized:
             return
 
-        self.nvcf_id = self.client.get_model_nvcf_id(str(self.model))
+        if self.api_url is None:
+            if self.api_key is None:
+                msg = "API key is required for NVIDIA AI Foundation Endpoints."
+                raise ValueError(msg)
+
+            self.backend = NvcfBackend(self.model, api_key=self.api_key, model_kwargs={"model": "passage"})
+        else:
+            self.backend = NimBackend(self.model, api_url=self.api_url, model_kwargs={"input_type": "passage"})
+
         self._initialized = True
 
     def to_dict(self) -> Dict[str, Any]:
@@ -108,8 +106,9 @@ class NvidiaDocumentEmbedder:
         """
         return default_to_dict(
             self,
-            api_key=self.api_key.to_dict(),
-            model=str(self.model),
+            api_key=self.api_key.to_dict() if self.api_key else None,
+            model=self.model,
+            api_url=self.api_url,
             prefix=self.prefix,
             suffix=self.suffix,
             batch_size=self.batch_size,
@@ -128,7 +127,6 @@ class NvidiaDocumentEmbedder:
         :returns:
             The deserialized component.
         """
-        data["init_parameters"]["model"] = NvidiaEmbeddingModel.from_str(data["init_parameters"]["model"])
         deserialize_secrets_inplace(data["init_parameters"], keys=["api_key"])
         return default_from_dict(cls, data)
 
@@ -147,27 +145,23 @@ class NvidiaDocumentEmbedder:
 
     def _embed_batch(self, texts_to_embed: List[str], batch_size: int) -> Tuple[List[List[float]], Dict[str, Any]]:
         all_embeddings: List[List[float]] = []
-        usage = Usage(prompt_tokens=0, total_tokens=0)
-        assert self.nvcf_id is not None
+        usage_prompt_tokens = 0
+        usage_total_tokens = 0
+
+        assert self.backend is not None
 
         for i in tqdm(
             range(0, len(texts_to_embed), batch_size), disable=not self.progress_bar, desc="Calculating embeddings"
         ):
             batch = texts_to_embed[i : i + batch_size]
 
-            request = EmbeddingsRequest(input=batch, model="passage").to_dict()
-            json_response = self.client.query_function(self.nvcf_id, request)
-            response = EmbeddingsResponse.from_dict(json_response)
-
-            # Sort resulting embeddings by index
-            assert all(isinstance(r.embedding, list) for r in response.data)
-            sorted_embeddings: List[List[float]] = [r.embedding for r in sorted(response.data, key=lambda e: e.index)]  # type: ignore
+            sorted_embeddings, meta = self.backend.embed(batch)
             all_embeddings.extend(sorted_embeddings)
 
-            usage.prompt_tokens += response.usage.prompt_tokens
-            usage.total_tokens += response.usage.total_tokens
+            usage_prompt_tokens += meta.get("usage", {}).get("prompt_tokens", 0)
+            usage_total_tokens += meta.get("usage", {}).get("total_tokens", 0)
 
-        return all_embeddings, {"usage": usage.to_dict()}
+        return all_embeddings, {"usage": {"prompt_tokens": usage_prompt_tokens, "total_tokens": usage_total_tokens}}
 
     @component.output_types(documents=List[Document], meta=Dict[str, Any])
     def run(self, documents: List[Document]):

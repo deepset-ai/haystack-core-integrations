@@ -69,3 +69,13 @@ class TestFilters(FilterDocumentsTest):
 
     @pytest.mark.skip(reason="Pinecone does not support the 'not' operator")
     def test_not_operator(self, document_store, filterable_docs): ...
+
+    # the following skipped tests should be reworked when Pinecone introduces a better handling of null values
+    # see https://github.com/deepset-ai/haystack-core-integrations/issues/590
+    @pytest.mark.skip(reason="Pinecone does not include null values in the result of the $ne operator")
+    def test_comparison_not_equal(self, document_store, filterable_docs): ...
+
+    @pytest.mark.skip(
+        reason="Pinecone has inconsistent behavior with respect to other Document Stores with the $or operator"
+    )
+    def test_or_operator(self, document_store, filterable_docs): ...

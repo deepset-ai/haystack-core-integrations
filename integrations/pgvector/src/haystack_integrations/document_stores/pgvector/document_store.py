@@ -415,6 +415,16 @@ class PgvectorDocumentStore:
             db_document["dataframe"] = Jsonb(db_document["dataframe"]) if db_document["dataframe"] else None
             db_document["meta"] = Jsonb(db_document["meta"])
 
+            if "sparse_embedding" in db_document:
+                sparse_embedding = db_document.pop("sparse_embedding", None)
+                if sparse_embedding:
+                    logger.warning(
+                        "Document %s has the `sparse_embedding` field set,"
+                        "but storing sparse embeddings in Pgvector is not currently supported."
+                        "The `sparse_embedding` field will be ignored.",
+                        db_document["id"],
+                    )
+
             db_documents.append(db_document)
 
         return db_documents

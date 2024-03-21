@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
-from unittest.mock import Mock
+from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 from haystack.dataclasses import Document
@@ -10,34 +10,48 @@ from haystack_integrations.components.retrievers.mongodb_atlas import MongoDBAtl
 from haystack_integrations.document_stores.mongodb_atlas import MongoDBAtlasDocumentStore
 
 
-@pytest.fixture
-def document_store():
-    store = MongoDBAtlasDocumentStore(
-        database_name="haystack_integration_test",
-        collection_name="test_embeddings_collection",
-        vector_search_index="cosine_index",
-    )
-    return store
-
-
 class TestRetriever:
-    def test_init_default(self, document_store: MongoDBAtlasDocumentStore):
-        retriever = MongoDBAtlasEmbeddingRetriever(document_store=document_store)
-        assert retriever.document_store == document_store
+
+    @pytest.fixture
+    def mock_client(self):
+        with patch(
+            "haystack_integrations.document_stores.mongodb_atlas.document_store.MongoClient"
+        ) as mock_mongo_client:
+            mock_connection = MagicMock()
+            mock_database = MagicMock()
+            mock_collection_names = MagicMock(return_value=["test_embeddings_collection"])
+            mock_database.list_collection_names = mock_collection_names
+            mock_connection.__getitem__.return_value = mock_database
+            mock_mongo_client.return_value = mock_connection
+            yield mock_mongo_client
+
+    def test_init_default(self):
+        mock_store = Mock(spec=MongoDBAtlasDocumentStore)
+        retriever = MongoDBAtlasEmbeddingRetriever(document_store=mock_store)
+        assert retriever.document_store == mock_store
         assert retriever.filters == {}
         assert retriever.top_k == 10
 
-    def test_init(self, document_store: MongoDBAtlasDocumentStore):
+    def test_init(self):
+        mock_store = Mock(spec=MongoDBAtlasDocumentStore)
         retriever = MongoDBAtlasEmbeddingRetriever(
-            document_store=document_store,
+            document_store=mock_store,
             filters={"field": "value"},
             top_k=5,
         )
-        assert retriever.document_store == document_store
+        assert retriever.document_store == mock_store
         assert retriever.filters == {"field": "value"}
         assert retriever.top_k == 5
 
-    def test_to_dict(self, document_store: MongoDBAtlasDocumentStore):
+    def test_to_dict(self, mock_client, monkeypatch):  # noqa: ARG002  mock_client appears unused but is required
+        monkeypatch.setenv("MONGO_CONNECTION_STRING", "test_conn_str")
+
+        document_store = MongoDBAtlasDocumentStore(
+            database_name="haystack_integration_test",
+            collection_name="test_embeddings_collection",
+            vector_search_index="cosine_index",
+        )
+
         retriever = MongoDBAtlasEmbeddingRetriever(document_store=document_store, filters={"field": "value"}, top_k=5)
         res = retriever.to_dict()
         assert res == {
@@ -61,7 +75,9 @@ class TestRetriever:
             },
         }
 
-    def test_from_dict(self):
+    def test_from_dict(self, mock_client, monkeypatch):  # noqa: ARG002  mock_client appears unused but is required
+        monkeypatch.setenv("MONGO_CONNECTION_STRING", "test_conn_str")
+
         data = {
             "type": "haystack_integrations.components.retrievers.mongodb_atlas.embedding_retriever.MongoDBAtlasEmbeddingRetriever",  # noqa: E501
             "init_parameters": {
