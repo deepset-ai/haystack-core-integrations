@@ -1,4 +1,4 @@
-from typing import ClassVar, Dict, List, Optional, Union
+from typing import ClassVar, Dict, List, Optional
 
 from haystack.dataclasses.sparse_embedding import SparseEmbedding
 from tqdm import tqdm
@@ -92,9 +92,7 @@ class _FastembedSparseEmbeddingBackend:
     ):
         self.model = SparseTextEmbedding(model_name=model_name, cache_dir=cache_dir, threads=threads)
 
-    def embed(
-        self, data: List[List[str]], progress_bar=True, **kwargs
-    ) -> List[Dict[str, Union[List[int], List[float]]]]:
+    def embed(self, data: List[List[str]], progress_bar=True, **kwargs) -> List[SparseEmbedding]:
         # The embed method returns a Iterable[SparseEmbedding], so we convert to Haystack SparseEmbedding type.
         # Each SparseEmbedding contains an `indices` key containing a list of int and
         # an `values` key containing a list of floats.

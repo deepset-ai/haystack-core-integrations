@@ -1,6 +1,7 @@
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, Optional
 
 from haystack import component, default_to_dict
+from haystack.dataclasses.sparse_embedding import SparseEmbedding
 
 from .embedding_backend.fastembed_backend import _FastembedSparseEmbeddingBackendFactory
 
@@ -86,7 +87,7 @@ class FastembedSparseTextEmbedder:
                 model_name=self.model_name, cache_dir=self.cache_dir, threads=self.threads
             )
 
-    @component.output_types(sparse_embedding=Dict[str, Union[List[int], List[float]]])
+    @component.output_types(sparse_embedding=SparseEmbedding)
     def run(self, text: str):
         """
         Embeds text using the Fastembed model.
