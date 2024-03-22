@@ -49,6 +49,7 @@ class TestQdrantRetriever(FilterableDocsFixtureMixin):
                         "content_field": "content",
                         "name_field": "name",
                         "embedding_field": "embedding",
+                        "use_sparse_embeddings": False,
                         "sparse_embedding_field": "sparse_embedding",
                         "similarity": "cosine",
                         "return_embedding": False,
@@ -121,7 +122,7 @@ class TestQdrantRetriever(FilterableDocsFixtureMixin):
 
 class TestQdrantSparseRetriever(FilterableDocsFixtureMixin):
     def test_init_default(self):
-        document_store = QdrantDocumentStore(location=":memory:", index="test")
+        document_store = QdrantDocumentStore(location=":memory:", index="test", use_sparse_embeddings=True)
         retriever = QdrantSparseRetriever(document_store=document_store)
         assert retriever._document_store == document_store
         assert retriever._filters is None
@@ -129,7 +130,7 @@ class TestQdrantSparseRetriever(FilterableDocsFixtureMixin):
         assert retriever._return_embedding is False
 
     def test_to_dict(self):
-        document_store = QdrantDocumentStore(location=":memory:", index="test")
+        document_store = QdrantDocumentStore(location=":memory:", index="test", use_sparse_embeddings=True)
         retriever = QdrantSparseRetriever(document_store=document_store)
         res = retriever.to_dict()
         assert res == {
@@ -155,6 +156,7 @@ class TestQdrantSparseRetriever(FilterableDocsFixtureMixin):
                         "content_field": "content",
                         "name_field": "name",
                         "embedding_field": "embedding",
+                        "use_sparse_embeddings": True,
                         "sparse_embedding_field": "sparse_embedding",
                         "similarity": "cosine",
                         "return_embedding": False,
@@ -218,18 +220,15 @@ class TestQdrantSparseRetriever(FilterableDocsFixtureMixin):
         return list_of_sparse_vectors
 
     def test_run(self, filterable_docs: List[Document]):
-        document_store = QdrantDocumentStore(location=":memory:", index="Boi")
+        document_store = QdrantDocumentStore(location=":memory:", index="Boi", use_sparse_embeddings=True)
 
         # Add fake sparse embedding to documents
         for doc in filterable_docs:
             doc.sparse_embedding = SparseEmbedding.from_dict(self._generate_mocked_sparse_embedding(1)[0])
-
         document_store.write_documents(filterable_docs)
-
         retriever = QdrantSparseRetriever(document_store=document_store)
         sparse_embedding = SparseEmbedding(indices=[0, 1, 2, 3], values=[0.1, 0.8, 0.05, 0.33])
         results: List[Document] = retriever.run(query_sparse_embedding=sparse_embedding)
-
         assert len(results["documents"]) == 10  # type: ignore
 
         results = retriever.run(query_sparse_embedding=sparse_embedding, top_k=5, return_embedding=False)
