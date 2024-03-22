@@ -30,7 +30,11 @@ class HaystackToQdrant:
             if embedding_field in payload and payload[embedding_field] is not None:
                 dense_vector = payload.pop(embedding_field) or []
                 vector[DENSE_VECTORS_NAME] = dense_vector
-            if sparse_embedding_field in payload and payload[sparse_embedding_field] is not None and payload[sparse_embedding_field] != "":
+            if (
+                sparse_embedding_field in payload
+                and payload[sparse_embedding_field] is not None
+                and payload[sparse_embedding_field] != ""
+            ):
                 sparse_vector = payload.pop(sparse_embedding_field, {"indices": [], "values": []})
                 sparse_vector_instance = rest.SparseVector(**sparse_vector)
                 vector[SPARSE_VECTORS_NAME] = sparse_vector_instance
