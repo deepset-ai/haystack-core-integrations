@@ -227,14 +227,12 @@ class TestQdrantSparseRetriever(FilterableDocsFixtureMixin):
         document_store.write_documents(filterable_docs)
 
         retriever = QdrantSparseRetriever(document_store=document_store)
-
-        results: List[Document] = retriever.run(query_sparse_embedding=self._generate_mocked_sparse_embedding(1)[0])
+        sparse_embedding = SparseEmbedding(indices=[0, 1, 2, 3], values=[0.1, 0.8, 0.05, 0.33])
+        results: List[Document] = retriever.run(query_sparse_embedding=sparse_embedding)
 
         assert len(results["documents"]) == 10  # type: ignore
 
-        results = retriever.run(
-            query_sparse_embedding=self._generate_mocked_sparse_embedding(1)[0], top_k=5, return_embedding=False
-        )
+        results = retriever.run(query_sparse_embedding=sparse_embedding, top_k=5, return_embedding=False)
 
         assert len(results["documents"]) == 5  # type: ignore
 

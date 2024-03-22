@@ -310,9 +310,8 @@ class QdrantDocumentStore:
         return_embedding: bool = False,  # noqa: FBT001, FBT002
     ) -> List[Document]:
         qdrant_filters = self.qdrant_filter_converter.convert(filters)
-
-        query_indices = query_sparse_embedding["indices"]
-        query_values = query_sparse_embedding["values"]
+        query_indices = query_sparse_embedding.indices
+        query_values = query_sparse_embedding.values
 
         points = self.client.search(
             collection_name=self.index,

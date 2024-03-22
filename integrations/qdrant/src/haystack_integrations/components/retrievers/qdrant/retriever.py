@@ -132,6 +132,7 @@ class QdrantSparseRetriever:
     ```python
     from haystack_integrations.components.retrievers.qdrant import QdrantSparseRetriever
     from haystack_integrations.document_stores.qdrant import QdrantDocumentStore
+    from haystack.dataclasses.sparse_embedding import SparseEmbedding
 
     document_store = QdrantDocumentStore(
         ":memory:",
@@ -140,8 +141,8 @@ class QdrantSparseRetriever:
         wait_result_from_api=True,
     )
     retriever = QdrantSparseRetriever(document_store=document_store)
-
-    retriever.run(query_sparse_embedding={"indices":[0, 1, 2, 3], "values":[0.1, 0.8, 0.05, 0.33]})
+    sparse_embedding = SparseEmbedding(indices=[0, 1, 2, 3], values=[0.1, 0.8, 0.05, 0.33])
+    retriever.run(query_sparse_embedding=sparse_embedding)
     ```
     """
 
