@@ -7,6 +7,9 @@ from qdrant_client.http import models as rest
 
 logger = logging.getLogger(__name__)
 
+DENSE_VECTORS_NAME = "text-dense"
+SPARSE_VECTORS_NAME = "text-sparse"
+
 
 class HaystackToQdrant:
     """A converter from Haystack to Qdrant types."""
@@ -26,25 +29,14 @@ class HaystackToQdrant:
             vector = {}
             if embedding_field in payload and payload[embedding_field] is not None:
                 dense_vector = payload.pop(embedding_field) or []
-                vector["text-dense"] = dense_vector
+                vector[DENSE_VECTORS_NAME] = dense_vector
             # TODO: does this work with this https://github.com/deepset-ai/haystack/pull/7382#discussion_r1530515595 ?
             # TODO: maybe check if not empty string also on top of None ?
             if sparse_embedding_field in payload and payload[sparse_embedding_field] is not None:
                 sparse_vector = payload.pop(sparse_embedding_field, {"indices": [], "values": []})
                 sparse_vector_instance = rest.SparseVector(**sparse_vector)
-                vector["text-sparse"] = sparse_vector_instance
+                vector[SPARSE_VECTORS_NAME] = sparse_vector_instance
             _id = self.convert_id(payload.get("id"))
-
-            # TODO: remove as soon as we introduce the support for sparse embeddings in Qdrant
-            if "sparse_embedding" in payload:
-                sparse_embedding = payload.pop("sparse_embedding", None)
-                if sparse_embedding:
-                    logger.warning(
-                        "Document %s has the `sparse_embedding` field set,"
-                        "but storing sparse embeddings in Qdrant is not currently supported."
-                        "The `sparse_embedding` field will be ignored.",
-                        payload["id"],
-                    )
 
             point = rest.PointStruct(
                 payload=payload,
@@ -76,15 +68,15 @@ class QdrantToHaystack:
 
     def point_to_document(self, point: QdrantPoint) -> Document:
         payload = {**point.payload}
-        if hasattr(point, "vector") and point.vector is not None and "text-dense" in point.vector:
-            payload["embedding"] = point.vector["text-dense"]
+        if hasattr(point, "vector") and point.vector is not None and DENSE_VECTORS_NAME in point.vector:
+            payload["embedding"] = point.vector[DENSE_VECTORS_NAME]
         else:
             payload["embedding"] = None
         payload["score"] = point.score if hasattr(point, "score") else None
-        if hasattr(point, "vector") and point.vector is not None and "text-sparse" in point.vector:
+        if hasattr(point, "vector") and point.vector is not None and SPARSE_VECTORS_NAME in point.vector:
             parse_vector_dict = {
-                "indices": point.vector["text-sparse"].indices,
-                "values": point.vector["text-sparse"].values,
+                "indices": point.vector[SPARSE_VECTORS_NAME].indices,
+                "values": point.vector[SPARSE_VECTORS_NAME].values,
             }
             payload["sparse_embedding"] = parse_vector_dict
         else:

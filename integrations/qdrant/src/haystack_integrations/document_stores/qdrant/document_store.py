@@ -22,6 +22,9 @@ from .filters import QdrantFilterConverter
 
 logger = logging.getLogger(__name__)
 
+DENSE_VECTORS_NAME = "text-dense"
+SPARSE_VECTORS_NAME = "text-sparse"
+
 
 class QdrantStoreError(DocumentStoreError):
     pass
@@ -297,73 +300,6 @@ class QdrantDocumentStore:
             documents.append(self.qdrant_to_haystack.point_to_document(record))
         return documents
 
-    def query_hybrid(
-        self,
-        query_sparse_embedding: Dict[str, Union[List[int], List[float]]],
-        query_embedding: List[float],
-        filters: Optional[Dict[str, Any]] = None,
-        top_k_dense: int = 10,
-        top_k_sparse: int = 10,
-        scale_score: bool = True,  # noqa: FBT001, FBT002
-        return_embedding: bool = False,  # noqa: FBT001, FBT002
-    ) -> List[Document]:
-        qdrant_filters = self.qdrant_filter_converter.convert(filters)
-
-        query_indices = query_sparse_embedding["indices"]
-        query_values = query_sparse_embedding["values"]
-        if len(query_indices) != len(query_values):
-            error_message = "The indices and values of the sparse embedding query must have the same length."
-            raise ValueError(error_message)
-
-        points = self.client.search_batch(
-            collection_name=self.index,
-            requests=[
-                rest.SearchRequest(
-                    vector=rest.NamedVector(
-                        name="text-dense",
-                        vector=query_embedding,
-                    ),
-                    filter=qdrant_filters,
-                    limit=top_k_dense,
-                    with_payload=True,
-                    with_vector=return_embedding,
-                ),
-                rest.SearchRequest(
-                    vector=rest.NamedSparseVector(
-                        name="text-sparse",
-                        vector=rest.SparseVector(
-                            indices=query_indices,
-                            values=query_values,
-                        ),
-                    ),
-                    filter=qdrant_filters,
-                    limit=top_k_sparse,
-                    with_payload=True,
-                    with_vector=return_embedding,
-                ),
-            ],
-        )
-        results_dense = [self.qdrant_to_haystack.point_to_document(point) for point in points[0]]
-        results_sparse = [self.qdrant_to_haystack.point_to_document(point) for point in points[1]]
-
-        if scale_score:
-            for document in results_dense:
-                score = document.score
-                if self.similarity == "cosine":
-                    score = (score + 1) / 2
-                else:
-                    score = float(1 / (1 + np.exp(-score / 100)))
-                document.score = score
-        if scale_score:
-            for document in results_sparse:
-                score = document.score
-                score = float(1 / (1 + np.exp(-score / 100)))
-                document.score = score
-
-        results = results_dense + results_sparse
-
-        return results
-
     def query_by_sparse(
         self,
         query_sparse_embedding: Dict[str, Union[List[int], List[float]]],
@@ -383,7 +319,7 @@ class QdrantDocumentStore:
         points = self.client.search(
             collection_name=self.index,
             query_vector=rest.NamedSparseVector(
-                name="text-sparse",
+                name=SPARSE_VECTORS_NAME,
                 vector=rest.SparseVector(
                     indices=query_indices,
                     values=query_values,
@@ -415,7 +351,7 @@ class QdrantDocumentStore:
         points = self.client.search(
             collection_name=self.index,
             query_vector=rest.NamedVector(
-                name="text-dense",
+                name=DENSE_VECTORS_NAME,
                 vector=query_embedding,
             ),
             query_filter=qdrant_filters,
@@ -492,8 +428,8 @@ class QdrantDocumentStore:
             # Create Payload index if payload_fields_to_index is provided
             self._create_payload_index(collection_name, payload_fields_to_index)
             return
-        current_distance = collection_info.config.params.vectors["text-dense"].distance
-        current_vector_size = collection_info.config.params.vectors["text-dense"].size
+        current_distance = collection_info.config.params.vectors[DENSE_VECTORS_NAME].distance
+        current_vector_size = collection_info.config.params.vectors[DENSE_VECTORS_NAME].size
 
         if current_distance != distance:
             msg = (
@@ -517,14 +453,14 @@ class QdrantDocumentStore:
         self.client.recreate_collection(
             collection_name=collection_name,
             vectors_config={
-                "text-dense": rest.VectorParams(
+                DENSE_VECTORS_NAME: rest.VectorParams(
                     size=embedding_dim,
                     on_disk=on_disk,
                     distance=distance,
                 ),
             },
             sparse_vectors_config={
-                "text-sparse": rest.SparseVectorParams(
+                SPARSE_VECTORS_NAME: rest.SparseVectorParams(
                     index=rest.SparseIndexParams(
                         on_disk=on_disk,
                     )
