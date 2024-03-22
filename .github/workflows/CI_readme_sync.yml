@@ -6,11 +6,14 @@ on:
       - "**-v[0-9].[0-9]+.[0-9]+"
   workflow_dispatch: # Activate this workflow manually
     inputs:
-      ref:
+      tag:
         description: "Tag with this format: integrations/<INTEGRATION_FOLDER_NAME>-v1.0.0"
         required: true
         type: string
         default: integrations/<INTEGRATION_FOLDER_NAME>-v1.0.0
+
+env:
+  TAG: ${{ github.inputs.tag || github.ref_name }}
 
 jobs:
   sync:
@@ -34,7 +37,7 @@ jobs:
         shell: python
         run: |
           import os
-          project_path = "${{ github.ref_name }}".rsplit("-", maxsplit=1)[0]
+          project_path = os.environ["TAG"].rsplit("-", maxsplit=1)[0]
           with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
             print(f'project_path={project_path}', file=f)          
 
