@@ -114,4 +114,4 @@ class FastembedSparseTextEmbedder:
             show_progress_bar=self.progress_bar,
             parallel=self.parallel,
         )[0]
-        return {"embedding": embedding}
+        return {"sparse_embedding": embedding}
