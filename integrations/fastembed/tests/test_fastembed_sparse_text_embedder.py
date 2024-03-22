@@ -182,7 +182,7 @@ class TestFastembedSparseTextEmbedder:
         text = "Good text to embed"
 
         result = embedder.run(text=text)
-        embedding = result["embedding"]
+        embedding = result["sparse_embedding"]
         assert isinstance(embedding, dict)
         assert isinstance(embedding["indices"], list)
         assert isinstance(embedding["indices"][0], int)
@@ -211,7 +211,7 @@ class TestFastembedSparseTextEmbedder:
         text = "Parton energy loss in QCD matter"
 
         result = embedder.run(text=text)
-        embedding = result["embedding"]
+        embedding = result["sparse_embedding"]
         embedding_dict = embedding.to_dict()
         assert isinstance(embedding, SparseEmbedding)
         assert isinstance(embedding_dict["indices"], list)
