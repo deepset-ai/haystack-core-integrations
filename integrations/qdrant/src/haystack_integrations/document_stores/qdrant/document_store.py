@@ -71,7 +71,7 @@ class QdrantDocumentStore:
         content_field: str = "content",
         name_field: str = "name",
         embedding_field: str = "embedding",
-        use_sparse_embeddings: bool = False,  # noqa: FBT001, FBT002
+        use_sparse_embeddings: bool = True,  # noqa: FBT001, FBT002
         sparse_embedding_field: str = "sparse_embedding",
         similarity: str = "cosine",
         return_embedding: bool = False,  # noqa: FBT001, FBT002
@@ -139,6 +139,7 @@ class QdrantDocumentStore:
         self.wait_result_from_api = wait_result_from_api
         self.recreate_index = recreate_index
         self.payload_fields_to_index = payload_fields_to_index
+        self.use_sparse_embeddings = use_sparse_embeddings
 
         # Make sure the collection is properly set up
         self._set_up_collection(
@@ -150,7 +151,6 @@ class QdrantDocumentStore:
         self.content_field = content_field
         self.name_field = name_field
         self.embedding_field = embedding_field
-        self.use_sparse_embeddings = use_sparse_embeddings
         self.sparse_embedding_field = sparse_embedding_field
         self.similarity = similarity
         self.index = index
@@ -457,7 +457,7 @@ class QdrantDocumentStore:
         if self.use_sparse_embeddings and not isinstance(collection_info.config.params.vectors, dict):
             msg = (
                 f"Collection '{collection_name}' already exists in Qdrant, "
-                f"but it has been originaly created without sparse embedding vectors."
+                f"but it has been originally created without sparse embedding vectors."
                 f"If you want to use that collection, either set `use_sparse_embeddings=False` "
                 f"or run a migration script "
                 f"to use Named Dense Vectors (`text-sparse`) and Named Sparse Vectors (`text-dense`)."
