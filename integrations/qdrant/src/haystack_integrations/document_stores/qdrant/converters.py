@@ -30,10 +30,9 @@ class HaystackToQdrant:
             vector[DENSE_VECTORS_NAME] = payload.pop(embedding_field, None) or []
             # TODO: does this work with this https://github.com/deepset-ai/haystack/pull/7382#discussion_r1530515595 ?
             # TODO: maybe check if not empty string also on top of None ?
-            if sparse_embedding_field in payload and payload[sparse_embedding_field] is not None:
-                sparse_vector = payload.pop(sparse_embedding_field, {"indices": [], "values": []})
-                sparse_vector_instance = rest.SparseVector(**sparse_vector)
-                vector[SPARSE_VECTORS_NAME] = sparse_vector_instance
+            sparse_vector = payload.pop(sparse_embedding_field, {"indices": [], "values": []})
+            sparse_vector_instance = rest.SparseVector(**sparse_vector)
+            vector[SPARSE_VECTORS_NAME] = sparse_vector_instance
             _id = self.convert_id(payload.get("id"))
 
             point = rest.PointStruct(
