@@ -1,8 +1,7 @@
 from typing import ClassVar, Dict, List, Optional, Union
 
-from tqdm import tqdm
-
 from haystack.dataclasses.sparse_embedding import SparseEmbedding
+from tqdm import tqdm
 
 from fastembed import TextEmbedding
 from fastembed.sparse.sparse_text_embedding import SparseTextEmbedding
@@ -106,9 +105,7 @@ class _FastembedSparseEmbeddingBackend:
             sparse_embeddings_iterable, disable=not progress_bar, desc="Calculating sparse embeddings", total=len(data)
         ):
             sparse_embeddings.append(
-                SparseEmbedding(
-                    indices=sparse_embedding.indices.tolist(), values=sparse_embedding.values.tolist()
-                )
+                SparseEmbedding(indices=sparse_embedding.indices.tolist(), values=sparse_embedding.values.tolist())
             )
 
         return sparse_embeddings
