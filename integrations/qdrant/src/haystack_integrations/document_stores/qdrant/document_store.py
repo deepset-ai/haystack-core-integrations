@@ -8,6 +8,7 @@ import qdrant_client
 from grpc import RpcError
 from haystack import default_from_dict, default_to_dict
 from haystack.dataclasses import Document
+from haystack.dataclasses.sparse_embedding import SparseEmbedding
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
 from haystack.utils import Secret, deserialize_secrets_inplace
@@ -302,7 +303,7 @@ class QdrantDocumentStore:
 
     def query_by_sparse(
         self,
-        query_sparse_embedding: Dict[str, Union[List[int], List[float]]],
+        query_sparse_embedding: SparseEmbedding,
         filters: Optional[Dict[str, Any]] = None,
         top_k: int = 10,
         scale_score: bool = True,  # noqa: FBT001, FBT002
@@ -312,9 +313,6 @@ class QdrantDocumentStore:
 
         query_indices = query_sparse_embedding["indices"]
         query_values = query_sparse_embedding["values"]
-        if len(query_indices) != len(query_values):
-            error_message = "The indices and values of the sparse embedding query must have the same length."
-            raise ValueError(error_message)
 
         points = self.client.search(
             collection_name=self.index,

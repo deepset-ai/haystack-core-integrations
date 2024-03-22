@@ -1,6 +1,7 @@
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional
 
 from haystack import Document, component, default_from_dict, default_to_dict
+from haystack.dataclasses.sparse_embedding import SparseEmbedding
 from haystack_integrations.document_stores.qdrant import QdrantDocumentStore
 
 
@@ -210,7 +211,7 @@ class QdrantSparseRetriever:
     @component.output_types(documents=List[Document])
     def run(
         self,
-        query_sparse_embedding: Dict[str, Union[List[int], List[float]]],
+        query_sparse_embedding: SparseEmbedding,
         filters: Optional[Dict[str, Any]] = None,
         top_k: Optional[int] = None,
         scale_score: Optional[bool] = None,

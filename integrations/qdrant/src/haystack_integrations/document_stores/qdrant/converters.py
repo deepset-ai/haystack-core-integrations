@@ -27,12 +27,13 @@ class HaystackToQdrant:
         for document in documents:
             payload = document.to_dict(flatten=False)
             vector = {}
-            vector[DENSE_VECTORS_NAME] = payload.pop(embedding_field, None) or []
-            # TODO: does this work with this https://github.com/deepset-ai/haystack/pull/7382#discussion_r1530515595 ?
-            # TODO: maybe check if not empty string also on top of None ?
-            sparse_vector = payload.pop(sparse_embedding_field, {"indices": [], "values": []})
-            sparse_vector_instance = rest.SparseVector(**sparse_vector)
-            vector[SPARSE_VECTORS_NAME] = sparse_vector_instance
+            if embedding_field in payload and payload[embedding_field] is not None:
+                dense_vector = payload.pop(embedding_field) or []
+                vector[DENSE_VECTORS_NAME] = dense_vector
+            if sparse_embedding_field in payload and payload[sparse_embedding_field] is not None and payload[sparse_embedding_field] != "":
+                sparse_vector = payload.pop(sparse_embedding_field, {"indices": [], "values": []})
+                sparse_vector_instance = rest.SparseVector(**sparse_vector)
+                vector[SPARSE_VECTORS_NAME] = sparse_vector_instance
             _id = self.convert_id(payload.get("id"))
 
             point = rest.PointStruct(
