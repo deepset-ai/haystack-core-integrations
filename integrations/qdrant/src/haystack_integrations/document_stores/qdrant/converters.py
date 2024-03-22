@@ -82,6 +82,5 @@ class QdrantToHaystack:
             }
             payload["sparse_embedding"] = parse_vector_dict
         else:
-            # TODO: does this work with this https://github.com/deepset-ai/haystack/pull/7382#discussion_r1530515595 ?
             payload["sparse_embedding"] = None
         return Document.from_dict(payload)
