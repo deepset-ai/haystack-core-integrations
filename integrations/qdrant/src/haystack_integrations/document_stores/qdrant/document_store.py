@@ -447,12 +447,6 @@ class QdrantDocumentStore:
             # Create Payload index if payload_fields_to_index is provided
             self._create_payload_index(collection_name, payload_fields_to_index)
             return
-        if self.use_sparse_embeddings:
-            current_distance = collection_info.config.params.vectors[DENSE_VECTORS_NAME].distance
-            current_vector_size = collection_info.config.params.vectors[DENSE_VECTORS_NAME].size
-        if not self.use_sparse_embeddings:
-            current_distance = collection_info.config.params.vectors.distance
-            current_vector_size = collection_info.config.params.vectors.size
 
         if self.use_sparse_embeddings and not isinstance(collection_info.config.params.vectors, dict):
             msg = (
@@ -470,6 +464,13 @@ class QdrantDocumentStore:
                 f"If you want to use that collection, please set `use_sparse_embeddings=True`"
             )
             raise ValueError(msg)
+
+        if self.use_sparse_embeddings:
+            current_distance = collection_info.config.params.vectors[DENSE_VECTORS_NAME].distance
+            current_vector_size = collection_info.config.params.vectors[DENSE_VECTORS_NAME].size
+        if not self.use_sparse_embeddings:
+            current_distance = collection_info.config.params.vectors.distance
+            current_vector_size = collection_info.config.params.vectors.size
 
         if current_distance != distance:
             msg = (
