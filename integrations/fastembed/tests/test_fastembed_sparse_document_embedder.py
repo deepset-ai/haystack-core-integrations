@@ -18,7 +18,7 @@ class TestFastembedSparseDocumentEmbedderDoc:
         assert embedder.model_name == "prithvida/Splade_PP_en_v1"
         assert embedder.cache_dir is None
         assert embedder.threads is None
-        assert embedder.batch_size == 256
+        assert embedder.batch_size == 32
         assert embedder.progress_bar is True
         assert embedder.parallel is None
         assert embedder.meta_fields_to_embed == []
@@ -59,7 +59,7 @@ class TestFastembedSparseDocumentEmbedderDoc:
                 "model": "prithvida/Splade_PP_en_v1",
                 "cache_dir": None,
                 "threads": None,
-                "batch_size": 256,
+                "batch_size": 32,
                 "progress_bar": True,
                 "parallel": None,
                 "embedding_separator": "\n",
@@ -107,7 +107,7 @@ class TestFastembedSparseDocumentEmbedderDoc:
                 "model": "prithvida/Splade_PP_en_v1",
                 "cache_dir": None,
                 "threads": None,
-                "batch_size": 256,
+                "batch_size": 32,
                 "progress_bar": True,
                 "parallel": None,
                 "meta_fields_to_embed": [],
@@ -118,7 +118,7 @@ class TestFastembedSparseDocumentEmbedderDoc:
         assert embedder.model_name == "prithvida/Splade_PP_en_v1"
         assert embedder.cache_dir is None
         assert embedder.threads is None
-        assert embedder.batch_size == 256
+        assert embedder.batch_size == 32
         assert embedder.progress_bar is True
         assert embedder.parallel is None
         assert embedder.meta_fields_to_embed == []
@@ -259,7 +259,7 @@ class TestFastembedSparseDocumentEmbedderDoc:
                 "meta_value 3\ndocument-number 3",
                 "meta_value 4\ndocument-number 4",
             ],
-            batch_size=256,
+            batch_size=32,
             show_progress_bar=True,
             parallel=None,
         )

@@ -20,7 +20,7 @@ class FastembedSparseDocumentEmbedder:
 
     doc_embedder = FastembedSparseDocumentEmbedder(
         model="prithvida/Splade_PP_en_v1",
-        batch_size=256,
+        batch_size=32,
     )
 
     doc_embedder.warm_up()
@@ -55,7 +55,7 @@ class FastembedSparseDocumentEmbedder:
         model: str = "prithvida/Splade_PP_en_v1",
         cache_dir: Optional[str] = None,
         threads: Optional[int] = None,
-        batch_size: int = 256,
+        batch_size: int = 32,
         progress_bar: bool = True,
         parallel: Optional[int] = None,
         meta_fields_to_embed: Optional[List[str]] = None,

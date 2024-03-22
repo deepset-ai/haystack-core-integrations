@@ -34,7 +34,7 @@ class FastembedSparseTextEmbedder:
         model: str = "prithvida/Splade_PP_en_v1",
         cache_dir: Optional[str] = None,
         threads: Optional[int] = None,
-        batch_size: int = 256,
+        batch_size: int = 32,
         progress_bar: bool = True,
         parallel: Optional[int] = None,
     ):

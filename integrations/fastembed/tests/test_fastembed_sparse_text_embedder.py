@@ -18,7 +18,7 @@ class TestFastembedSparseTextEmbedder:
         assert embedder.model_name == "prithvida/Splade_PP_en_v1"
         assert embedder.cache_dir is None
         assert embedder.threads is None
-        assert embedder.batch_size == 256
+        assert embedder.batch_size == 32
         assert embedder.progress_bar is True
         assert embedder.parallel is None
 
@@ -53,7 +53,7 @@ class TestFastembedSparseTextEmbedder:
                 "model": "prithvida/Splade_PP_en_v1",
                 "cache_dir": None,
                 "threads": None,
-                "batch_size": 256,
+                "batch_size": 32,
                 "progress_bar": True,
                 "parallel": None,
             },
@@ -94,7 +94,7 @@ class TestFastembedSparseTextEmbedder:
                 "model": "prithvida/Splade_PP_en_v1",
                 "cache_dir": None,
                 "threads": None,
-                "batch_size": 256,
+                "batch_size": 32,
                 "progress_bar": True,
                 "parallel": None,
             },
@@ -103,7 +103,7 @@ class TestFastembedSparseTextEmbedder:
         assert embedder.model_name == "prithvida/Splade_PP_en_v1"
         assert embedder.cache_dir is None
         assert embedder.threads is None
-        assert embedder.batch_size == 256
+        assert embedder.batch_size == 32
         assert embedder.progress_bar is True
         assert embedder.parallel is None
 
