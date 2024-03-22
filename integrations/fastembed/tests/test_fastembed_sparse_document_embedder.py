@@ -3,6 +3,7 @@ from unittest.mock import MagicMock, patch
 import numpy as np
 import pytest
 from haystack import Document, default_from_dict
+from haystack.dataclasses.sparse_embedding import SparseEmbedding
 from haystack_integrations.components.embedders.fastembed.fastembed_sparse_document_embedder import (
     FastembedSparseDocumentEmbedder,
 )
@@ -274,8 +275,9 @@ class TestFastembedSparseDocumentEmbedderDoc:
 
         result = embedder.run(documents=[doc])
         embedding = result["documents"][0].sparse_embedding
-        assert isinstance(embedding, dict)
-        assert isinstance(embedding["indices"], list)
-        assert isinstance(embedding["values"], list)
-        assert isinstance(embedding["indices"][0], int)
-        assert isinstance(embedding["values"][0], float)
+        embedding_dict = embedding.to_dict()
+        assert isinstance(embedding, SparseEmbedding)
+        assert isinstance(embedding_dict["indices"], list)
+        assert isinstance(embedding_dict["values"], list)
+        assert isinstance(embedding_dict["indices"][0], int)
+        assert isinstance(embedding_dict["values"][0], float)

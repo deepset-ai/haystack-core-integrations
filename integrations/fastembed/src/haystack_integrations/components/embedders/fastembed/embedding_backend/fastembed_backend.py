@@ -2,6 +2,8 @@ from typing import ClassVar, Dict, List, Optional, Union
 
 from tqdm import tqdm
 
+from haystack.dataclasses.sparse_embedding import SparseEmbedding
+
 from fastembed import TextEmbedding
 from fastembed.sparse.sparse_text_embedding import SparseTextEmbedding
 
@@ -94,17 +96,19 @@ class _FastembedSparseEmbeddingBackend:
     def embed(
         self, data: List[List[str]], progress_bar=True, **kwargs
     ) -> List[Dict[str, Union[List[int], List[float]]]]:
-        # The embed method returns a Iterable[SparseEmbedding], so we convert it to a list of dictionaries.
-        # Each dict contains an `indices` key containing a list of int and an `values` key containing a list of floats.
+        # The embed method returns a Iterable[SparseEmbedding], so we convert to Haystack SparseEmbedding type.
+        # Each SparseEmbedding contains an `indices` key containing a list of int and
+        # an `values` key containing a list of floats.
 
         sparse_embeddings = []
         sparse_embeddings_iterable = self.model.embed(data, **kwargs)
         for sparse_embedding in tqdm(
             sparse_embeddings_iterable, disable=not progress_bar, desc="Calculating sparse embeddings", total=len(data)
         ):
-            sparse_embedding_obj = sparse_embedding.as_object()
-            sparse_embedding_obj["indices"] = sparse_embedding_obj["indices"].tolist()
-            sparse_embedding_obj["values"] = sparse_embedding_obj["values"].tolist()
-            sparse_embeddings.append(sparse_embedding_obj)
+            sparse_embeddings.append(
+                SparseEmbedding(
+                    indices=sparse_embedding.indices.tolist(), values=sparse_embedding.values.tolist()
+                )
+            )
 
         return sparse_embeddings
