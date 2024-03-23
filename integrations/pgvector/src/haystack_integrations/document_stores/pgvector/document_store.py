@@ -508,6 +508,55 @@ class PgvectorDocumentStore:
 
         self._execute_sql(delete_sql, error_msg="Could not delete documents from PgvectorDocumentStore")
 
+    
+    def _keyword_retrieval(
+        self,
+        user_query: str,
+        top_k: int = 10,
+        filters: Optional[Dict[str, Any]] = None,
+    ) -> List[Document]:
+        """
+        Retrieves documents that are most similar to the query using a full-text search.
+
+        This method is not meant to be part of the public interface of
+        `PgvectorDocumentStore` and it should not be called directly.
+        `PgvectorKeywordRetriever` uses this method directly and is the public interface for it.
+        :returns: List of Documents that are most similar to `user_query`
+        """
+
+        if not user_query:
+            msg = "user_query must be a non-empty string"
+            raise ValueError(msg)
+
+        sql_select = SQL("SELECT * FROM {table_name}").format(table_name=Identifier(self.table_name))
+
+        sql_where_clause = SQL("")
+        params = ()
+
+        # if filters:
+        #     sql_where_clause = SQL(" WHERE to_tsvector('english', content) @@ plainto_tsquery('english', %(query)s)")
+        #     params = {"query": user_query}
+        #     sql_where_clause, params = _convert_filters_to_where_clause_and_params(filters)
+        
+        sql_sort = SQL(" ORDER BY score {sort_order} LIMIT {top_k}").format(
+            top_k=SQLLiteral(top_k),
+            sort_order=SQL("DESC"),
+        )
+
+        sql_query = sql_select + sql_where_clause + sql_sort
+
+        result = self._execute_sql(
+            sql_query,
+            params,
+            error_msg="Could not retrieve documents from PgvectorDocumentStore.",
+            cursor=self._dict_cursor,
+        )
+
+        records = result.fetchall()
+        docs = self._from_pg_to_haystack_documents(records)
+        return docs
+
+    
     def _embedding_retrieval(
         self,
         query_embedding: List[float],
