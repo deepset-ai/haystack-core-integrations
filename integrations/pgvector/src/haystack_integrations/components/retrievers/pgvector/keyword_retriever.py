@@ -129,3 +129,4 @@ class PgvectorKeywordRetriever:
             top_k=top_k,
         )
         return {"documents": docs}
+    
