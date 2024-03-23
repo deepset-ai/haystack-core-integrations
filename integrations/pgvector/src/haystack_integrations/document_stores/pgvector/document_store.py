@@ -110,6 +110,7 @@ class PgvectorDocumentStore:
         hnsw_recreate_index_if_exists: bool = False,
         hnsw_index_creation_kwargs: Optional[Dict[str, int]] = None,
         hnsw_ef_search: Optional[int] = None,
+        language: Optional[str] = 'english',
     ):
         """
         Creates a new PgvectorDocumentStore instance.
@@ -144,6 +145,7 @@ class PgvectorDocumentStore:
         :param hnsw_ef_search: The `ef_search` parameter to use at query time. Only used if search_strategy is set to
             `"hnsw"`. You can find more information about this parameter in the
             [pgvector documentation](https://github.com/pgvector/pgvector?tab=readme-ov-file#hnsw)
+        :param language: The language to use for the full-text/hybrid search.
         """
 
         self.connection_string = connection_string
@@ -258,6 +260,19 @@ class PgvectorDocumentStore:
         delete_sql = SQL("DROP TABLE IF EXISTS {table_name}").format(table_name=Identifier(self.table_name))
 
         self._execute_sql(delete_sql, error_msg=f"Could not delete table {self.table_name} in PgvectorDocumentStore")
+
+    
+    def _create_keyword_index(self):
+        """
+        Internal method to create the keyword index.
+        """
+
+        sql_create_index = SQL("CREATE INDEX ON {table_name} USING GIN (to_tsvector({language}, content))").format(
+            table_name=Identifier(self.table_name), language=SQLLiteral(self.language)
+        )
+
+        self._execute_sql(sql_create_index, error_msg="Could not create keyword index on table {self.table_name}")
+
 
     def _handle_hnsw(self):
         """
