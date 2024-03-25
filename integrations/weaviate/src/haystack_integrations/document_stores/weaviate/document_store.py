@@ -6,7 +6,7 @@ import datetime
 import json
 import logging
 from dataclasses import asdict
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional
 
 from haystack.core.serialization import default_from_dict, default_to_dict
 from haystack.dataclasses.document import Document
@@ -23,9 +23,6 @@ from ._filters import convert_filters
 from .auth import AuthCredentials
 
 logger = logging.getLogger(__name__)
-
-Number = Union[int, float]
-TimeoutType = Union[Tuple[Number, Number], Number]
 
 
 # This is the default collection properties for Weaviate.
@@ -62,6 +59,28 @@ DEFAULT_QUERY_LIMIT = 9999
 class WeaviateDocumentStore:
     """
     WeaviateDocumentStore is a Document Store for Weaviate.
+    It can be used with Weaviate Cloud Services or self-hosted instances.
+
+    Usage example with Weaviate Cloud Services:
+    ```python
+    import os
+    from haystack_integrations.document_stores.weaviate.auth import AuthApiKey
+    from haystack_integrations.document_stores.weaviate.document_store import WeaviateDocumentStore
+
+    os.environ["WEAVIATE_API_KEY"] = "MY_API_KEY
+
+    document_store = WeaviateDocumentStore(
+        url="rAnD0mD1g1t5.something.weaviate.cloud",
+        auth_client_secret=AuthApiKey(),
+    )
+    ```
+
+    Usage example with self-hosted Weaviate:
+    ```python
+    from haystack_integrations.document_stores.weaviate.document_store import WeaviateDocumentStore
+
+    document_store = WeaviateDocumentStore(url="http://localhost:8080")
+    ```
     """
 
     def __init__(
@@ -190,9 +209,9 @@ class WeaviateDocumentStore:
         Deserializes the component from a dictionary.
 
         :param data:
-            Dictionary to deserialize from.
+            The dictionary to deserialize from.
         :returns:
-            Deserialized component.
+            The deserialized component.
         """
         if (auth_client_secret := data["init_parameters"].get("auth_client_secret")) is not None:
             data["init_parameters"]["auth_client_secret"] = AuthCredentials.from_dict(auth_client_secret)
@@ -206,6 +225,9 @@ class WeaviateDocumentStore:
         )
 
     def count_documents(self) -> int:
+        """
+        Returns the number of documents present in the DocumentStore.
+        """
         total = self._collection.aggregate.over_all(total_count=True).total_count
         return total if total else 0
 
@@ -318,6 +340,15 @@ class WeaviateDocumentStore:
         return result
 
     def filter_documents(self, filters: Optional[Dict[str, Any]] = None) -> List[Document]:
+        """
+        Returns the documents that match the filters provided.
+
+        For a detailed specification of the filters, refer to the
+        DocumentStore.filter_documents() protocol documentation.
+
+        :param filters: The filters to apply to the document list.
+        :returns: A list of Documents that match the given filters.
+        """
         result = []
         if filters:
             result = self._query_with_filters(filters)
@@ -415,6 +446,11 @@ class WeaviateDocumentStore:
         return self._write(documents, policy)
 
     def delete_documents(self, document_ids: List[str]) -> None:
+        """
+        Deletes all documents with matching document_ids from the DocumentStore.
+
+        :param document_ids: The object_ids to delete.
+        """
         weaviate_ids = [generate_uuid5(doc_id) for doc_id in document_ids]
         self._collection.data.delete_many(where=weaviate.classes.query.Filter.by_id().contains_any(weaviate_ids))
 
