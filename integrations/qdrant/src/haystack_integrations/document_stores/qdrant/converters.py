@@ -86,10 +86,8 @@ class QdrantToHaystack:
             payload["embedding"] = point.vector if hasattr(point, "vector") else None
 
         else:
-            if hasattr(point, "vector") and point.vector is not None and DENSE_VECTORS_NAME in point.vector:
-                payload["embedding"] = point.vector[DENSE_VECTORS_NAME]
-            else:
-                payload["embedding"] = None
+            if hasattr(point, "vector") and point.vector is not None:
+                payload["embedding"] = point.vector.get(DENSE_VECTORS_NAME)
 
             if hasattr(point, "vector") and point.vector is not None and SPARSE_VECTORS_NAME in point.vector:
                 parse_vector_dict = {
