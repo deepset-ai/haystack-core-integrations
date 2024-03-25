@@ -489,51 +489,36 @@ class QdrantDocumentStore:
         on_disk: bool,  # noqa: FBT001
         use_sparse_embeddings: bool,  # noqa: FBT001
     ):
+        dense_vector_name = DENSE_VECTORS_NAME if use_sparse_embeddings else ""
+
+        vectors_config = {
+            dense_vector_name: rest.VectorParams(
+                size=embedding_dim,
+                on_disk=on_disk,
+                distance=distance,
+            ),
+        }
+
         if use_sparse_embeddings:
-            self.client.recreate_collection(
-                collection_name=collection_name,
-                vectors_config={
-                    DENSE_VECTORS_NAME: rest.VectorParams(
-                        size=embedding_dim,
-                        on_disk=on_disk,
-                        distance=distance,
-                    ),
-                },
-                sparse_vectors_config={
-                    SPARSE_VECTORS_NAME: rest.SparseVectorParams(
-                        index=rest.SparseIndexParams(
-                            on_disk=on_disk,
-                        )
-                    )
-                },
-                shard_number=self.shard_number,
-                replication_factor=self.replication_factor,
-                write_consistency_factor=self.write_consistency_factor,
-                on_disk_payload=self.on_disk_payload,
-                hnsw_config=self.hnsw_config,
-                optimizers_config=self.optimizers_config,
-                wal_config=self.wal_config,
-                quantization_config=self.quantization_config,
-                init_from=self.init_from,
-            )
-        if not use_sparse_embeddings:
-            self.client.recreate_collection(
-                collection_name=collection_name,
-                vectors_config=rest.VectorParams(
-                    size=embedding_dim,
+            vectors_config[SPARSE_VECTORS_NAME] = rest.SparseVectorParams(
+                index=rest.SparseIndexParams(
                     on_disk=on_disk,
-                    distance=distance,
-                ),
-                shard_number=self.shard_number,
-                replication_factor=self.replication_factor,
-                write_consistency_factor=self.write_consistency_factor,
-                on_disk_payload=self.on_disk_payload,
-                hnsw_config=self.hnsw_config,
-                optimizers_config=self.optimizers_config,
-                wal_config=self.wal_config,
-                quantization_config=self.quantization_config,
-                init_from=self.init_from,
+                )
             )
+
+        self.client.recreate_collection(
+            collection_name=collection_name,
+            vectors_config=vectors_config,
+            shard_number=self.shard_number,
+            replication_factor=self.replication_factor,
+            write_consistency_factor=self.write_consistency_factor,
+            on_disk_payload=self.on_disk_payload,
+            hnsw_config=self.hnsw_config,
+            optimizers_config=self.optimizers_config,
+            wal_config=self.wal_config,
+            quantization_config=self.quantization_config,
+            init_from=self.init_from,
+        )
 
     def _handle_duplicate_documents(
         self,
