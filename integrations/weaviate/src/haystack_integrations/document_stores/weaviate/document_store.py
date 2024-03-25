@@ -6,7 +6,7 @@ import datetime
 import json
 import logging
 from dataclasses import asdict
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional
 
 from haystack.core.serialization import default_from_dict, default_to_dict
 from haystack.dataclasses.document import Document
@@ -343,7 +343,8 @@ class WeaviateDocumentStore:
         """
         Returns the documents that match the filters provided.
 
-        For a detailed specification of the filters, refer to the DocumentStore.filter_documents() protocol documentation.
+        For a detailed specification of the filters, refer to the
+        DocumentStore.filter_documents() protocol documentation.
 
         :param filters: The filters to apply to the document list.
         :returns: A list of Documents that match the given filters.
