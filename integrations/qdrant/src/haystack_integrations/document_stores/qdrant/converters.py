@@ -85,7 +85,7 @@ class QdrantToHaystack:
         if not self.use_sparse_embeddings:
             payload["embedding"] = point.vector if hasattr(point, "vector") else None
 
-        if self.use_sparse_embeddings:
+        else:
             if hasattr(point, "vector") and point.vector is not None and DENSE_VECTORS_NAME in point.vector:
                 payload["embedding"] = point.vector[DENSE_VECTORS_NAME]
             else:
