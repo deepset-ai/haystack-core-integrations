@@ -266,6 +266,15 @@ class WeaviateDocumentStore:
             if isinstance(value, datetime.datetime):
                 document_data[key] = value.strftime("%Y-%m-%dT%H:%M:%SZ")
 
+        if weaviate_meta := getattr(data, "metadata", None):
+            # Depending on the type of retrieval we get score from different fields.
+            # score is returned when using BM25 retrieval.
+            # certainty is returned when using embedding retrieval.
+            if weaviate_meta.score is not None:
+                document_data["score"] = weaviate_meta.score
+            elif weaviate_meta.certainty is not None:
+                document_data["score"] = weaviate_meta.certainty
+
         return Document.from_dict(document_data)
 
     def _query(self) -> List[Dict[str, Any]]:
@@ -412,12 +421,15 @@ class WeaviateDocumentStore:
     def _bm25_retrieval(
         self, query: str, filters: Optional[Dict[str, Any]] = None, top_k: Optional[int] = None
     ) -> List[Document]:
+        properties = [p.name for p in self._collection.config.get().properties]
         result = self._collection.query.bm25(
             query=query,
             filters=convert_filters(filters) if filters else None,
             limit=top_k,
             include_vector=True,
             query_properties=["content"],
+            return_properties=properties,
+            return_metadata=["score"],
         )
 
         return [self._to_document(doc) for doc in result.objects]
@@ -434,6 +446,7 @@ class WeaviateDocumentStore:
             msg = "Can't use 'distance' and 'certainty' parameters together"
             raise ValueError(msg)
 
+        properties = [p.name for p in self._collection.config.get().properties]
         result = self._collection.query.near_vector(
             near_vector=query_embedding,
             distance=distance,
@@ -441,6 +454,8 @@ class WeaviateDocumentStore:
             include_vector=True,
             filters=convert_filters(filters) if filters else None,
             limit=top_k,
+            return_properties=properties,
+            return_metadata=["certainty"],
         )
 
         return [self._to_document(doc) for doc in result.objects]
