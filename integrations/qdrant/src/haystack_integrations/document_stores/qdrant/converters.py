@@ -39,7 +39,7 @@ class HaystackToQdrant:
                     sparse_vector_instance = rest.SparseVector(**sparse_vector)
                     vector[SPARSE_VECTORS_NAME] = sparse_vector_instance
 
-            if not use_sparse_embeddings:
+            else:
                 vector = payload.pop(embedding_field) or {}
             _id = self.convert_id(payload.get("id"))
 
