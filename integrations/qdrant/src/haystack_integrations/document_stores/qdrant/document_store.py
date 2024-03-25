@@ -316,7 +316,6 @@ class QdrantDocumentStore:
         scale_score: bool = True,  # noqa: FBT001, FBT002
         return_embedding: bool = False,  # noqa: FBT001, FBT002
     ) -> List[Document]:
-
         if not self.use_sparse_embeddings:
             message = (
                 "Error: tried to query by sparse vector with a Qdrant "
@@ -414,6 +413,7 @@ class QdrantDocumentStore:
         payload_fields_to_index: Optional[List[dict]] = None,
     ):
         distance = self._get_distance(similarity)
+        dense_vector_name = DENSE_VECTORS_NAME if use_sparse_embeddings else ""
 
         if recreate_collection:
             # There is no need to verify the current configuration of that
@@ -439,7 +439,7 @@ class QdrantDocumentStore:
             self._create_payload_index(collection_name, payload_fields_to_index)
             return
 
-        if self.use_sparse_embeddings and not isinstance(collection_info.config.params.vectors, dict):
+        if self.use_sparse_embeddings and DENSE_VECTORS_NAME not in collection_info.config.params.vectors.keys():
             msg = (
                 f"Collection '{collection_name}' already exists in Qdrant, "
                 f"but it has been originally created without sparse embedding vectors."
@@ -448,7 +448,7 @@ class QdrantDocumentStore:
                 f"to use Named Dense Vectors (`text-sparse`) and Named Sparse Vectors (`text-dense`)."
             )
             raise ValueError(msg)
-        if not self.use_sparse_embeddings and isinstance(collection_info.config.params.vectors, dict):
+        if not self.use_sparse_embeddings and DENSE_VECTORS_NAME in collection_info.config.params.vectors.keys():
             msg = (
                 f"Collection '{collection_name}' already exists in Qdrant, "
                 f"but it has been originaly created with sparse embedding vectors."
@@ -456,12 +456,8 @@ class QdrantDocumentStore:
             )
             raise ValueError(msg)
 
-        if self.use_sparse_embeddings:
-            current_distance = collection_info.config.params.vectors[DENSE_VECTORS_NAME].distance
-            current_vector_size = collection_info.config.params.vectors[DENSE_VECTORS_NAME].size
-        else:
-            current_distance = collection_info.config.params.vectors.distance
-            current_vector_size = collection_info.config.params.vectors.size
+        current_distance = collection_info.config.params.vectors[dense_vector_name].distance
+        current_vector_size = collection_info.config.params.vectors[dense_vector_name].size
 
         if current_distance != distance:
             msg = (
@@ -489,51 +485,39 @@ class QdrantDocumentStore:
         on_disk: bool,  # noqa: FBT001
         use_sparse_embeddings: bool,  # noqa: FBT001
     ):
+        dense_vector_name = DENSE_VECTORS_NAME if use_sparse_embeddings else ""
+
+        vectors_config = {
+            dense_vector_name: rest.VectorParams(
+                size=embedding_dim,
+                on_disk=on_disk,
+                distance=distance,
+            ),
+        }
+
         if use_sparse_embeddings:
-            self.client.recreate_collection(
-                collection_name=collection_name,
-                vectors_config={
-                    DENSE_VECTORS_NAME: rest.VectorParams(
-                        size=embedding_dim,
+            sparse_vectors_config = {
+                SPARSE_VECTORS_NAME: rest.SparseVectorParams(
+                    index=rest.SparseIndexParams(
                         on_disk=on_disk,
-                        distance=distance,
-                    ),
-                },
-                sparse_vectors_config={
-                    SPARSE_VECTORS_NAME: rest.SparseVectorParams(
-                        index=rest.SparseIndexParams(
-                            on_disk=on_disk,
-                        )
                     )
-                },
-                shard_number=self.shard_number,
-                replication_factor=self.replication_factor,
-                write_consistency_factor=self.write_consistency_factor,
-                on_disk_payload=self.on_disk_payload,
-                hnsw_config=self.hnsw_config,
-                optimizers_config=self.optimizers_config,
-                wal_config=self.wal_config,
-                quantization_config=self.quantization_config,
-                init_from=self.init_from,
-            )
-        if not use_sparse_embeddings:
-            self.client.recreate_collection(
-                collection_name=collection_name,
-                vectors_config=rest.VectorParams(
-                    size=embedding_dim,
-                    on_disk=on_disk,
-                    distance=distance,
                 ),
-                shard_number=self.shard_number,
-                replication_factor=self.replication_factor,
-                write_consistency_factor=self.write_consistency_factor,
-                on_disk_payload=self.on_disk_payload,
-                hnsw_config=self.hnsw_config,
-                optimizers_config=self.optimizers_config,
-                wal_config=self.wal_config,
-                quantization_config=self.quantization_config,
-                init_from=self.init_from,
-            )
+            }
+
+        self.client.recreate_collection(
+            collection_name=collection_name,
+            vectors_config=vectors_config,
+            sparse_vectors_config=sparse_vectors_config if use_sparse_embeddings else None,
+            shard_number=self.shard_number,
+            replication_factor=self.replication_factor,
+            write_consistency_factor=self.write_consistency_factor,
+            on_disk_payload=self.on_disk_payload,
+            hnsw_config=self.hnsw_config,
+            optimizers_config=self.optimizers_config,
+            wal_config=self.wal_config,
+            quantization_config=self.quantization_config,
+            init_from=self.init_from,
+        )
 
     def _handle_duplicate_documents(
         self,
