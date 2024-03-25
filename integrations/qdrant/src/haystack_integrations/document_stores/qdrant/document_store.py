@@ -358,25 +358,16 @@ class QdrantDocumentStore:
     ) -> List[Document]:
         qdrant_filters = self.qdrant_filter_converter.convert(filters)
 
-        if self.use_sparse_embeddings:
-            points = self.client.search(
-                collection_name=self.index,
-                query_vector=rest.NamedVector(
-                    name=DENSE_VECTORS_NAME,
-                    vector=query_embedding,
-                ),
-                query_filter=qdrant_filters,
-                limit=top_k,
-                with_vectors=return_embedding,
-            )
-        if not self.use_sparse_embeddings:
-            points = self.client.search(
-                collection_name=self.index,
-                query_vector=query_embedding,
-                query_filter=qdrant_filters,
-                limit=top_k,
-                with_vectors=return_embedding,
-            )
+        points = self.client.search(
+            collection_name=self.index,
+            query_vector=rest.NamedVector(
+                name=DENSE_VECTORS_NAME if self.use_sparse_embeddings else "",
+                vector=query_embedding,
+            ),
+            query_filter=qdrant_filters,
+            limit=top_k,
+            with_vectors=return_embedding,
+        )
         results = [self.qdrant_to_haystack.point_to_document(point) for point in points]
         if scale_score:
             for document in results:
