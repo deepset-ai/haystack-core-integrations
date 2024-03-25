@@ -468,7 +468,7 @@ class QdrantDocumentStore:
         if self.use_sparse_embeddings:
             current_distance = collection_info.config.params.vectors[DENSE_VECTORS_NAME].distance
             current_vector_size = collection_info.config.params.vectors[DENSE_VECTORS_NAME].size
-        if not self.use_sparse_embeddings:
+        else:
             current_distance = collection_info.config.params.vectors.distance
             current_vector_size = collection_info.config.params.vectors.size
 
