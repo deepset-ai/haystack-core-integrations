@@ -226,7 +226,7 @@ class WeaviateDocumentStore:
 
     def count_documents(self) -> int:
         """
-        Returns the number of how many documents are present in the DocumentStore.
+        Returns the number of documents present in the DocumentStore.
         """
         total = self._collection.aggregate.over_all(total_count=True).total_count
         return total if total else 0
