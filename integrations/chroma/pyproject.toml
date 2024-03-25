@@ -26,8 +26,7 @@ classifiers = [
 dependencies = [
   "haystack-ai",
   "chromadb<0.4.20",  #  FIXME: investigate why filtering tests broke on 0.4.20
-  "typing_extensions>=4.8.0",
-  "databind-core<4.5.0",  # FIXME: the latest 4.5.0 causes loops in pip resolver
+  "typing_extensions>=4.8.0"
 ]
 
 [project.urls]
@@ -51,6 +50,7 @@ dependencies = [
   "coverage[toml]>=6.5",
   "pytest",
   "haystack-pydoc-tools",
+  "databind-core<4.5.0",  # FIXME: the latest 4.5.0 causes loops in pip resolver
 ]
 [tool.hatch.envs.default.scripts]
 test = "pytest {args:tests}"
