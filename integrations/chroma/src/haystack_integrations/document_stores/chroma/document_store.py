@@ -8,6 +8,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import chromadb
 import numpy as np
 from chromadb.api.types import GetResult, QueryResult, validate_where, validate_where_document
+from haystack import default_from_dict, default_to_dict
 from haystack.dataclasses import Document
 from haystack.document_stores.types import DuplicatePolicy
 
@@ -19,6 +20,8 @@ logger = logging.getLogger(__name__)
 
 class ChromaDocumentStore:
     """
+    A document store using [Chroma](https://docs.trychroma.com/) as the backend.
+
     We use the `collection.get` API to implement the document store protocol,
     the `collection.search` API will be used in the retriever instead.
     """
@@ -35,14 +38,20 @@ class ChromaDocumentStore:
         and the signature can be customized to your needs. For example, parameters needed
         to set up a database client would be passed to this method.
 
-        Note: for the component to be part of a serializable pipelie, the __init__
+        Note: for the component to be part of a serializable pipeline, the __init__
         parameters must be serializable, reason why we use a registry to configure the
         embedding function passing a string.
+
+        :param collection_name: the name of the collection to use in the database.
+        :param embedding_function: the name of the embedding function to use to embed the query
+        :param persist_path: where to store the database. If None, the database will be `in-memory`.
+        :param embedding_function_params: additional parameters to pass to the embedding function.
         """
         # Store the params for marshalling
         self._collection_name = collection_name
         self._embedding_function = embedding_function
         self._embedding_function_params = embedding_function_params
+        self._persist_path = persist_path
         # Create the client instance
         if persist_path is None:
             self._chroma_client = chromadb.Client()
@@ -56,6 +65,8 @@ class ChromaDocumentStore:
     def count_documents(self) -> int:
         """
         Returns how many documents are present in the document store.
+
+        :returns: how many documents are present in the document store.
         """
         return self._collection.count()
 
@@ -128,7 +139,7 @@ class ChromaDocumentStore:
         ```
 
         :param filters: the filters to apply to the document list.
-        :return: a list of Documents that match the given filters.
+        :returns: a list of Documents that match the given filters.
         """
         if filters:
             ids, where, where_document = self._normalize_filters(filters)
@@ -145,14 +156,20 @@ class ChromaDocumentStore:
 
         return self._get_result_to_documents(result)
 
-    def write_documents(self, documents: List[Document], policy: DuplicatePolicy = DuplicatePolicy.FAIL) -> None:
+    def write_documents(self, documents: List[Document], policy: DuplicatePolicy = DuplicatePolicy.FAIL) -> int:
         """
         Writes (or overwrites) documents into the store.
 
-        :param documents: a list of documents.
-        :param policy: not supported at the moment
-        :raises DuplicateDocumentError: Exception trigger on duplicate document if `policy=DuplicatePolicy.FAIL`
-        :return: None
+        :param documents:
+            A list of documents to write into the document store.
+        :param policy:
+            Not supported at the moment.
+
+        :raises ValueError:
+            When input is not valid.
+
+        :returns:
+            The number of documents written
         """
         for doc in documents:
             if not isinstance(doc, Document):
@@ -172,20 +189,32 @@ class ChromaDocumentStore:
             if doc.embedding is not None:
                 data["embeddings"] = [doc.embedding]
 
+            if hasattr(doc, "sparse_embedding") and doc.sparse_embedding is not None:
+                logger.warning(
+                    "Document %s has the `sparse_embedding` field set,"
+                    "but storing sparse embeddings in Chroma is not currently supported."
+                    "The `sparse_embedding` field will be ignored.",
+                    doc.id,
+                )
+
             self._collection.add(**data)
+
+        return len(documents)
 
     def delete_documents(self, document_ids: List[str]) -> None:
         """
         Deletes all documents with a matching document_ids from the document store.
-        Fails with `MissingDocumentError` if no document with this id is present in the store.
 
-        :param object_ids: the object_ids to delete
+        :param document_ids: the object_ids to delete
         """
         self._collection.delete(ids=document_ids)
 
     def search(self, queries: List[str], top_k: int) -> List[List[Document]]:
-        """
-        Perform vector search on the stored documents
+        """Search the documents in the store using the provided text queries.
+
+        :param queries: the list of queries to search for.
+        :param top_k: top_k documents to return for each query.
+        :returns: matching documents for each query.
         """
         results = self._collection.query(
             query_texts=queries, n_results=top_k, include=["embeddings", "documents", "metadatas", "distances"]
@@ -196,10 +225,14 @@ class ChromaDocumentStore:
         self, query_embeddings: List[List[float]], top_k: int, filters: Optional[Dict[str, Any]] = None
     ) -> List[List[Document]]:
         """
-        Perform vector search on the stored document, pass the embeddings of the queries
-        instead of their text.
+        Perform vector search on the stored document, pass the embeddings of the queries instead of their text.
 
-        Accepts filters in haystack format.
+        :param query_embeddings: a list of embeddings to use as queries.
+        :param top_k: the maximum number of documents to retrieve.
+        :param filters: a dictionary of filters to apply to the search. Accepts filters in haystack format.
+
+        :returns: a list of lists of documents that match the given filters.
+
         """
         if filters is None:
             results = self._collection.query(
@@ -221,16 +254,33 @@ class ChromaDocumentStore:
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "ChromaDocumentStore":
-        return ChromaDocumentStore(**data)
+        """
+        Deserializes the component from a dictionary.
+
+        :param data:
+            Dictionary to deserialize from.
+        :returns:
+            Deserialized component.
+        """
+        return default_from_dict(cls, data)
 
     def to_dict(self) -> Dict[str, Any]:
-        return {
-            "collection_name": self._collection_name,
-            "embedding_function": self._embedding_function,
-            **self._embedding_function_params,
-        }
+        """
+        Serializes the component to a dictionary.
 
-    def _normalize_filters(self, filters: Dict[str, Any]) -> Tuple[List[str], Dict[str, Any], Dict[str, Any]]:
+        :returns:
+            Dictionary with serialized data.
+        """
+        return default_to_dict(
+            self,
+            collection_name=self._collection_name,
+            embedding_function=self._embedding_function,
+            persist_path=self._persist_path,
+            **self._embedding_function_params,
+        )
+
+    @staticmethod
+    def _normalize_filters(filters: Dict[str, Any]) -> Tuple[List[str], Dict[str, Any], Dict[str, Any]]:
         """
         Translate Haystack filters to Chroma filters. It returns three dictionaries, to be
         passed to `ids`, `where` and `where_document` respectively.
@@ -273,7 +323,8 @@ class ChromaDocumentStore:
         for k in keys_to_remove:
             del filters[k]
 
-        final_where = dict(filters | where)
+        final_where = dict(filters)
+        final_where.update(dict(where))
         try:
             if final_where:
                 validate_where(final_where)
@@ -284,7 +335,8 @@ class ChromaDocumentStore:
 
         return ids, final_where, where_document
 
-    def _get_result_to_documents(self, result: GetResult) -> List[Document]:
+    @staticmethod
+    def _get_result_to_documents(result: GetResult) -> List[Document]:
         """
         Helper function to convert Chroma results into Haystack Documents
         """
@@ -309,7 +361,8 @@ class ChromaDocumentStore:
 
         return retval
 
-    def _query_result_to_documents(self, result: QueryResult) -> List[List[Document]]:
+    @staticmethod
+    def _query_result_to_documents(result: QueryResult) -> List[List[Document]]:
         """
         Helper function to convert Chroma results into Haystack Documents
         """

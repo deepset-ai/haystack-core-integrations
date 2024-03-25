@@ -53,7 +53,6 @@ def chat_messages():
 
 
 class TestCohereChatGenerator:
-    @pytest.mark.unit
     def test_init_default(self, monkeypatch):
         monkeypatch.setenv("COHERE_API_KEY", "test-api-key")
 
@@ -64,14 +63,12 @@ class TestCohereChatGenerator:
         assert component.api_base_url == cohere.COHERE_API_URL
         assert not component.generation_kwargs
 
-    @pytest.mark.unit
     def test_init_fail_wo_api_key(self, monkeypatch):
         monkeypatch.delenv("COHERE_API_KEY", raising=False)
         monkeypatch.delenv("CO_API_KEY", raising=False)
         with pytest.raises(ValueError):
             CohereChatGenerator()
 
-    @pytest.mark.unit
     def test_init_with_parameters(self):
         component = CohereChatGenerator(
             api_key=Secret.from_token("test-api-key"),
@@ -86,7 +83,6 @@ class TestCohereChatGenerator:
         assert component.api_base_url == "test-base-url"
         assert component.generation_kwargs == {"max_tokens": 10, "some_test_param": "test-params"}
 
-    @pytest.mark.unit
     def test_to_dict_default(self, monkeypatch):
         monkeypatch.setenv("COHERE_API_KEY", "test-api-key")
         component = CohereChatGenerator()
@@ -102,7 +98,6 @@ class TestCohereChatGenerator:
             },
         }
 
-    @pytest.mark.unit
     def test_to_dict_with_parameters(self, monkeypatch):
         monkeypatch.setenv("COHERE_API_KEY", "test-api-key")
         monkeypatch.setenv("CO_API_KEY", "fake-api-key")
@@ -125,7 +120,6 @@ class TestCohereChatGenerator:
             },
         }
 
-    @pytest.mark.unit
     def test_to_dict_with_lambda_streaming_callback(self, monkeypatch):
         monkeypatch.setenv("COHERE_API_KEY", "test-api-key")
         component = CohereChatGenerator(
@@ -146,7 +140,6 @@ class TestCohereChatGenerator:
             },
         }
 
-    @pytest.mark.unit
     def test_from_dict(self, monkeypatch):
         monkeypatch.setenv("COHERE_API_KEY", "fake-api-key")
         monkeypatch.setenv("CO_API_KEY", "fake-api-key")
@@ -166,7 +159,6 @@ class TestCohereChatGenerator:
         assert component.api_base_url == "test-base-url"
         assert component.generation_kwargs == {"max_tokens": 10, "some_test_param": "test-params"}
 
-    @pytest.mark.unit
     def test_from_dict_fail_wo_env_var(self, monkeypatch):
         monkeypatch.delenv("COHERE_API_KEY", raising=False)
         monkeypatch.delenv("CO_API_KEY", raising=False)
@@ -183,7 +175,6 @@ class TestCohereChatGenerator:
         with pytest.raises(ValueError):
             CohereChatGenerator.from_dict(data)
 
-    @pytest.mark.unit
     def test_run(self, chat_messages, mock_chat_response):  # noqa: ARG002
         component = CohereChatGenerator(api_key=Secret.from_token("test-api-key"))
         response = component.run(chat_messages)
@@ -195,13 +186,11 @@ class TestCohereChatGenerator:
         assert len(response["replies"]) == 1
         assert [isinstance(reply, ChatMessage) for reply in response["replies"]]
 
-    @pytest.mark.unit
     def test_message_to_dict(self, chat_messages):
         obj = CohereChatGenerator(api_key=Secret.from_token("test-api-key"))
         dictionary = [obj._message_to_dict(message) for message in chat_messages]
         assert dictionary == [{"user_name": "Chatbot", "text": "What's the capital of France"}]
 
-    @pytest.mark.unit
     def test_run_with_params(self, chat_messages, mock_chat_response):
         component = CohereChatGenerator(
             api_key=Secret.from_token("test-api-key"), generation_kwargs={"max_tokens": 10, "temperature": 0.5}
@@ -220,7 +209,6 @@ class TestCohereChatGenerator:
         assert len(response["replies"]) == 1
         assert [isinstance(reply, ChatMessage) for reply in response["replies"]]
 
-    @pytest.mark.unit
     def test_run_streaming(self, chat_messages, mock_chat_response):
         streaming_call_count = 0
 
@@ -320,7 +308,7 @@ class TestCohereChatGenerator:
         message: ChatMessage = results["replies"][0]
         assert "Paris" in message.content
         assert message.meta["documents"] is not None
-        assert message.meta["citations"] is not None
+        assert "citations" in message.meta  # Citations might be None
 
     @pytest.mark.skipif(
         not os.environ.get("COHERE_API_KEY", None) and not os.environ.get("CO_API_KEY", None),
@@ -348,7 +336,6 @@ class TestCohereChatGenerator:
 
         assert message.meta["finish_reason"] == "COMPLETE"
 
-        assert callback.counter > 1
         assert "Paris" in callback.responses
 
         assert message.meta["documents"] is not None

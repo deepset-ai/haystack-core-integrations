@@ -3,6 +3,13 @@
 # Astra Store
 
 ## Installation
+
+```bash
+pip install astra-haystack
+
+```
+
+### Local Development
 install astra-haystack package locally to run integration tests:
 
 Open in gitpod:
@@ -17,7 +24,7 @@ pyenv local 3.9
 Local install for the package
 `pip install -e .`
 To execute integration tests, add needed environment variables
-`ASTRA_DB_ID=<id>`
+`ASTRA_DB_API_ENDPOINT=<id>`
 `ASTRA_DB_APPLICATION_TOKEN=<token>`
 and execute
 `python examples/example.py`
@@ -27,12 +34,10 @@ Install requirements
 
 Export environment variables
 ```
-export KEYSPACE_NAME=
+export ASTRA_DB_API_ENDPOINT=
+export ASTRA_DB_APPLICATION_TOKEN=
 export COLLECTION_NAME=
 export OPENAI_API_KEY=
-export ASTRA_DB_ID=
-export ASTRA_DB_REGION=
-export ASTRA_DB_APPLICATION_TOKEN=
 ```
 
 run the python examples
@@ -48,28 +53,23 @@ This package includes Astra Document Store and Astra Embedding Retriever classes
 
 Import the Document Store:
 ```
-from astra_store.document_store import AstraDocumentStore
-from haystack.preview.document_stores import DuplicatePolicy
+from haystack_integrations.document_stores.astra import AstraDocumentStore
+from haystack.document_stores.types.policy import DuplicatePolicy
 ```
 
 Load in environment variables:
 ```
-astra_id = os.getenv("ASTRA_DB_ID", "")
-astra_region = os.getenv("ASTRA_DB_REGION", "us-east1")
-
-astra_application_token = os.getenv("ASTRA_DB_APPLICATION_TOKEN", "")
+api_endpoint = os.getenv("ASTRA_DB_API_ENDPOINT", "")
+token = os.getenv("ASTRA_DB_APPLICATION_TOKEN", "")
 collection_name = os.getenv("COLLECTION_NAME", "haystack_vector_search")
-keyspace_name = os.getenv("KEYSPACE_NAME", "recommender_demo")
 ```
 
 Create the Document Store object:
 ```
 document_store = AstraDocumentStore(
-    astra_id=astra_id,
-    astra_region=astra_region,
-    astra_collection=collection_name,
-    astra_keyspace=keyspace_name,
-    astra_application_token=astra_application_token,
+    api_endpoint=api_endpoint,
+    token=token,
+    collection_name=collection_name,
     duplicates_policy=DuplicatePolicy.SKIP,
     embedding_dim=384,
 )
@@ -83,7 +83,7 @@ Then you can use the document store functions like count_document below:
 Create the Document Store object like above, then import and create the Pipeline:
 
 ```
-from haystack.preview import Pipeline
+from haystack import Pipeline
 pipeline = Pipeline()
 ```
 

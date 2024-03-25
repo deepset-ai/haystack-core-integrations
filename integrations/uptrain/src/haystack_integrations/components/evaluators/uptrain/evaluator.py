@@ -18,11 +18,33 @@ from .metrics import (
 @component
 class UpTrainEvaluator:
     """
-    A component that uses the UpTrain framework to evaluate inputs against a specific metric.
+    A component that uses the [UpTrain framework](https://docs.uptrain.ai/getting-started/introduction)
+    to evaluate inputs against a specific metric. Supported metrics are defined by `UpTrainMetric`.
 
-    The supported metrics are defined by :class:`UpTrainMetric`. The inputs of the component
-    metric-dependent. The output is a nested list of evaluation results where each inner list
-    contains the results for a single input.
+    Usage example:
+    ```python
+    from haystack_integrations.components.evaluators.uptrain import UpTrainEvaluator, UpTrainMetric
+    from haystack.utils import Secret
+
+    evaluator = UpTrainEvaluator(
+        metric=UpTrainMetric.FACTUAL_ACCURACY,
+        api="openai",
+        api_key=Secret.from_env_var("OPENAI_API_KEY"),
+    )
+    output = evaluator.run(
+        questions=["Which is the most popular global sport?"],
+        contexts=[
+            [
+                "Football is undoubtedly the world's most popular sport with"
+                "major events like the FIFA World Cup and sports personalities"
+                "like Ronaldo and Messi, drawing a followership of more than 4"
+                "billion people."
+            ]
+        ],
+        responses=["Football is the most popular sport with around 4 billion" "followers worldwide"],
+    )
+    print(output["results"])
+    ```
     """
 
     _backend_metric: Union[Evals, ParametricEval]
@@ -44,14 +66,16 @@ class UpTrainEvaluator:
             The metric to use for evaluation.
         :param metric_params:
             Parameters to pass to the metric's constructor.
+            Refer to the `UpTrainMetric` class for more details
+            on required parameters.
         :param api:
-            The API to use for evaluation.
-
-            Supported APIs: "openai", "uptrain".
+            The API to use for evaluation. Supported APIs:
+            `openai`, `uptrain`.
         :param api_key:
             The API key to use.
         :param api_params:
             Additional parameters to pass to the API client.
+            Required parameters for the UpTrain API: `project_name`.
         """
         self.metric = metric if isinstance(metric, UpTrainMetric) else UpTrainMetric.from_str(metric)
         self.metric_params = metric_params
@@ -67,38 +91,20 @@ class UpTrainEvaluator:
     @component.output_types(results=List[List[Dict[str, Any]]])
     def run(self, **inputs) -> Dict[str, Any]:
         """
-        Run the UpTrain evaluator.
-
-        Example:
-        ```python
-        pipeline = Pipeline()
-        evaluator = UpTrainEvaluator(
-            metric=UpTrainMetric.FACTUAL_ACCURACY,
-            api="openai",
-            api_key=Secret.from_env_var("OPENAI_API_KEY"),
-        )
-        pipeline.add_component("evaluator", evaluator)
-
-        # Each metric expects a specific set of parameters as input. Refer to the
-        # UpTrainMetric class' documentation for more details.
-        output = pipeline.run({"evaluator": {
-            "questions": ["question],
-            "contexts": [["context", "another context"]],
-            "responses": ["response"]
-        }})
-        ```
+        Run the UpTrain evaluator on the provided inputs.
 
         :param inputs:
             The inputs to evaluate. These are determined by the
-            metric being calculated. See :class:`UpTrainMetric` for more
+            metric being calculated. See `UpTrainMetric` for more
             information.
         :returns:
-            A nested list of metric results. Each input can have one or more
+            A dictionary with a single `results` entry that contains
+            a nested list of metric results. Each input can have one or more
             results, depending on the metric. Each result is a dictionary
             containing the following keys and values:
-                * `name` - The name of the metric.
-                * `score` - The score of the metric.
-                * `explanation` - An optional explanation of the score.
+            - `name` - The name of the metric.
+            - `score` - The score of the metric.
+            - `explanation` - An optional explanation of the score.
         """
         # The backend requires random access to the data, so we can't stream it.
         InputConverters.validate_input_parameters(self.metric, self.descriptor.input_parameters, inputs)
@@ -123,7 +129,12 @@ class UpTrainEvaluator:
 
     def to_dict(self) -> Dict[str, Any]:
         """
-        Serialize this component to a dictionary.
+        Serializes the component to a dictionary.
+
+        :returns:
+            Dictionary with serialized data.
+        :raises DeserializationError:
+            If the component cannot be serialized.
         """
 
         def check_serializable(obj: Any):
@@ -149,18 +160,17 @@ class UpTrainEvaluator:
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "UpTrainEvaluator":
         """
-        Deserialize a component from a dictionary.
+        Deserializes the component from a dictionary.
 
         :param data:
-            The dictionary to deserialize from.
+            Dictionary to deserialize from.
+        :returns:
+            Deserialized component.
         """
         deserialize_secrets_inplace(data["init_parameters"], ["api_key"])
         return default_from_dict(cls, data)
 
     def _init_backend(self):
-        """
-        Initialize the UpTrain backend.
-        """
         if isinstance(self.descriptor.backend, Evals):
             if self.metric_params is not None:
                 msg = (
@@ -192,7 +202,13 @@ class UpTrainEvaluator:
         assert api_key is not None
         if self.api == "openai":
             backend_client = EvalLLM(openai_api_key=api_key)
+            if self.api_params is not None:
+                msg = "OpenAI API does not support additional parameters"
+                raise ValueError(msg)
         elif self.api == "uptrain":
+            if self.api_params is None or "project_name" not in self.api_params:
+                msg = "UpTrain API requires a 'project_name' API parameter"
+                raise ValueError(msg)
             backend_client = APIClient(uptrain_api_key=api_key)
 
         self._backend_metric = backend_metric

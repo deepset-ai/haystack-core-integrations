@@ -17,34 +17,27 @@ logging.basicConfig(level=logging.INFO)
 
 # Create a RAG query pipeline
 prompt_template = """
-                Given these documents, answer the question.
+Given these documents, answer the question.
 
-                Documents:
-                {% for doc in documents %}
-                    {{ doc.content }}
-                {% endfor %}
+Documents:
+{% for doc in documents %}
+    {{ doc.content }}
+{% endfor %}
 
-                Question: {{question}}
+Question: {{question}}
 
-                Answer:
-                """
+Answer:
+"""
 
-astra_id = os.getenv("ASTRA_DB_ID", "")
-astra_region = os.getenv("ASTRA_DB_REGION", "us-east1")
-
-astra_application_token = os.getenv("ASTRA_DB_APPLICATION_TOKEN", "")
 collection_name = os.getenv("COLLECTION_NAME", "haystack_vector_search")
-keyspace_name = os.getenv("KEYSPACE_NAME", "recommender_demo")
+
+# Make sure ASTRA_DB_API_ENDPOINT and ASTRA_DB_APPLICATION_TOKEN environment variables are set before proceeding
 
 # We support many different databases. Here, we load a simple and lightweight in-memory database.
 document_store = AstraDocumentStore(
-    astra_id=astra_id,
-    astra_region=astra_region,
-    astra_collection=collection_name,
-    astra_keyspace=keyspace_name,
-    astra_application_token=astra_application_token,
+    collection_name=collection_name,
     duplicates_policy=DuplicatePolicy.SKIP,
-    embedding_dim=384,
+    embedding_dimension=384,
 )
 
 
@@ -79,7 +72,7 @@ rag_pipeline.add_component(
 )
 rag_pipeline.add_component(instance=AstraEmbeddingRetriever(document_store=document_store), name="retriever")
 rag_pipeline.add_component(instance=PromptBuilder(template=prompt_template), name="prompt_builder")
-rag_pipeline.add_component(instance=OpenAIGenerator(api_key=os.environ.get("OPENAI_API_KEY")), name="llm")
+rag_pipeline.add_component(instance=OpenAIGenerator(), name="llm")
 rag_pipeline.add_component(instance=AnswerBuilder(), name="answer_builder")
 rag_pipeline.connect("embedder", "retriever")
 rag_pipeline.connect("retriever", "prompt_builder.documents")

@@ -3,6 +3,7 @@ loaders:
     search_path: [../src]
     modules:
       [
+        "haystack_integrations.document_stores.weaviate.auth",
         "haystack_integrations.document_stores.weaviate.document_store",
         "haystack_integrations.components.retrievers.weaviate.bm25_retriever",
         "haystack_integrations.components.retrievers.weaviate.embedding_retriever",
@@ -19,12 +20,13 @@ processors:
 renderer:
   type: haystack_pydoc_tools.renderers.ReadmePreviewRenderer
   excerpt: Weaviate integration for Haystack
-  category_slug: haystack-integrations
+  category_slug: integrations-api
   title: Weaviate
   slug: integrations-weaviate
-  order: 180
+  order: 250
   markdown:
     descriptive_class_title: false
+    classdef_code_block: false
     descriptive_module_title: true
     add_method_class_prefix: true
     add_member_class_prefix: false

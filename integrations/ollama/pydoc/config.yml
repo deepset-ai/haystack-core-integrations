@@ -3,7 +3,9 @@ loaders:
     search_path: [../src]
     modules: [
       "haystack_integrations.components.generators.ollama.generator",
-      "haystack_integrations.components.generators.ollama.chat.chat_generator"
+      "haystack_integrations.components.generators.ollama.chat.chat_generator",
+      "haystack_integrations.components.embedders.ollama.document_embedder",
+      "haystack_integrations.components.embedders.ollama.text_embedder",
     ]
     ignore_when_discovered: ["__init__"]
 processors:
@@ -17,12 +19,13 @@ processors:
 renderer:
   type: haystack_pydoc_tools.renderers.ReadmePreviewRenderer
   excerpt: Ollama integration for Haystack
-  category_slug: haystack-integrations
+  category_slug: integrations-api
   title: Ollama
   slug: integrations-ollama
-  order: 120
+  order: 170
   markdown:
     descriptive_class_title: false
+    classdef_code_block: false
     descriptive_module_title: true
     add_method_class_prefix: true
     add_member_class_prefix: false

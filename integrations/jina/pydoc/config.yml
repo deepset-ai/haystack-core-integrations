@@ -5,6 +5,7 @@ loaders:
       [
         "haystack_integrations.components.embedders.jina.document_embedder",
         "haystack_integrations.components.embedders.jina.text_embedder",
+        "haystack_integrations.components.rankers.jina.ranker",
       ]
     ignore_when_discovered: ["__init__"]
 processors:
@@ -18,12 +19,13 @@ processors:
 renderer:
   type: haystack_pydoc_tools.renderers.ReadmePreviewRenderer
   excerpt: Jina integration for Haystack
-  category_slug: haystack-integrations
+  category_slug: integrations-api
   title: Jina
   slug: integrations-jina
-  order: 1
+  order: 130
   markdown:
     descriptive_class_title: false
+    classdef_code_block: false
     descriptive_module_title: true
     add_method_class_prefix: true
     add_member_class_prefix: false

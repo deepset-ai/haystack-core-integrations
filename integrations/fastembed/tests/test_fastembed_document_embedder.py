@@ -15,10 +15,13 @@ class TestFastembedDocumentEmbedder:
         """
         embedder = FastembedDocumentEmbedder(model="BAAI/bge-small-en-v1.5")
         assert embedder.model_name == "BAAI/bge-small-en-v1.5"
+        assert embedder.cache_dir is None
+        assert embedder.threads is None
         assert embedder.prefix == ""
         assert embedder.suffix == ""
         assert embedder.batch_size == 256
         assert embedder.progress_bar is True
+        assert embedder.parallel is None
         assert embedder.meta_fields_to_embed == []
         assert embedder.embedding_separator == "\n"
 
@@ -28,18 +31,24 @@ class TestFastembedDocumentEmbedder:
         """
         embedder = FastembedDocumentEmbedder(
             model="BAAI/bge-small-en-v1.5",
+            cache_dir="fake_dir",
+            threads=2,
             prefix="prefix",
             suffix="suffix",
             batch_size=64,
             progress_bar=False,
+            parallel=1,
             meta_fields_to_embed=["test_field"],
             embedding_separator=" | ",
         )
         assert embedder.model_name == "BAAI/bge-small-en-v1.5"
+        assert embedder.cache_dir == "fake_dir"
+        assert embedder.threads == 2
         assert embedder.prefix == "prefix"
         assert embedder.suffix == "suffix"
         assert embedder.batch_size == 64
         assert embedder.progress_bar is False
+        assert embedder.parallel == 1
         assert embedder.meta_fields_to_embed == ["test_field"]
         assert embedder.embedding_separator == " | "
 
@@ -53,10 +62,13 @@ class TestFastembedDocumentEmbedder:
             "type": "haystack_integrations.components.embedders.fastembed.fastembed_document_embedder.FastembedDocumentEmbedder",  #  noqa
             "init_parameters": {
                 "model": "BAAI/bge-small-en-v1.5",
+                "cache_dir": None,
+                "threads": None,
                 "prefix": "",
                 "suffix": "",
                 "batch_size": 256,
                 "progress_bar": True,
+                "parallel": None,
                 "embedding_separator": "\n",
                 "meta_fields_to_embed": [],
             },
@@ -68,10 +80,13 @@ class TestFastembedDocumentEmbedder:
         """
         embedder = FastembedDocumentEmbedder(
             model="BAAI/bge-small-en-v1.5",
+            cache_dir="fake_dir",
+            threads=2,
             prefix="prefix",
             suffix="suffix",
             batch_size=64,
             progress_bar=False,
+            parallel=1,
             meta_fields_to_embed=["test_field"],
             embedding_separator=" | ",
         )
@@ -80,10 +95,13 @@ class TestFastembedDocumentEmbedder:
             "type": "haystack_integrations.components.embedders.fastembed.fastembed_document_embedder.FastembedDocumentEmbedder",  #  noqa
             "init_parameters": {
                 "model": "BAAI/bge-small-en-v1.5",
+                "cache_dir": "fake_dir",
+                "threads": 2,
                 "prefix": "prefix",
                 "suffix": "suffix",
                 "batch_size": 64,
                 "progress_bar": False,
+                "parallel": 1,
                 "meta_fields_to_embed": ["test_field"],
                 "embedding_separator": " | ",
             },
@@ -97,20 +115,26 @@ class TestFastembedDocumentEmbedder:
             "type": "haystack_integrations.components.embedders.fastembed.fastembed_document_embedder.FastembedDocumentEmbedder",  #  noqa
             "init_parameters": {
                 "model": "BAAI/bge-small-en-v1.5",
+                "cache_dir": None,
+                "threads": None,
                 "prefix": "",
                 "suffix": "",
                 "batch_size": 256,
                 "progress_bar": True,
+                "parallel": None,
                 "meta_fields_to_embed": [],
                 "embedding_separator": "\n",
             },
         }
         embedder = default_from_dict(FastembedDocumentEmbedder, embedder_dict)
         assert embedder.model_name == "BAAI/bge-small-en-v1.5"
+        assert embedder.cache_dir is None
+        assert embedder.threads is None
         assert embedder.prefix == ""
         assert embedder.suffix == ""
         assert embedder.batch_size == 256
         assert embedder.progress_bar is True
+        assert embedder.parallel is None
         assert embedder.meta_fields_to_embed == []
         assert embedder.embedding_separator == "\n"
 
@@ -122,20 +146,26 @@ class TestFastembedDocumentEmbedder:
             "type": "haystack_integrations.components.embedders.fastembed.fastembed_document_embedder.FastembedDocumentEmbedder",  #  noqa
             "init_parameters": {
                 "model": "BAAI/bge-small-en-v1.5",
+                "cache_dir": "fake_dir",
+                "threads": 2,
                 "prefix": "prefix",
                 "suffix": "suffix",
                 "batch_size": 64,
                 "progress_bar": False,
+                "parallel": 1,
                 "meta_fields_to_embed": ["test_field"],
                 "embedding_separator": " | ",
             },
         }
         embedder = default_from_dict(FastembedDocumentEmbedder, embedder_dict)
         assert embedder.model_name == "BAAI/bge-small-en-v1.5"
+        assert embedder.cache_dir == "fake_dir"
+        assert embedder.threads == 2
         assert embedder.prefix == "prefix"
         assert embedder.suffix == "suffix"
         assert embedder.batch_size == 64
         assert embedder.progress_bar is False
+        assert embedder.parallel == 1
         assert embedder.meta_fields_to_embed == ["test_field"]
         assert embedder.embedding_separator == " | "
 
@@ -150,7 +180,7 @@ class TestFastembedDocumentEmbedder:
         mocked_factory.get_embedding_backend.assert_not_called()
         embedder.warm_up()
         mocked_factory.get_embedding_backend.assert_called_once_with(
-            model_name="BAAI/bge-small-en-v1.5",
+            model_name="BAAI/bge-small-en-v1.5", cache_dir=None, threads=None
         )
 
     @patch(
@@ -231,7 +261,8 @@ class TestFastembedDocumentEmbedder:
                 "meta_value 4\ndocument-number 4",
             ],
             batch_size=256,
-            show_progress_bar=True,
+            progress_bar=True,
+            parallel=None,
         )
 
     @pytest.mark.integration

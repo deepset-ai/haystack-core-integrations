@@ -9,6 +9,19 @@ from cohere import AsyncClient, Client, CohereError
 
 
 async def get_async_response(cohere_async_client: AsyncClient, texts: List[str], model_name, input_type, truncate):
+    """Embeds a list of texts asynchronously using the Cohere API.
+
+    :param cohere_async_client: the Cohere `AsyncClient`
+    :param texts: the texts to embed
+    :param model_name: the name of the model to use
+    :param input_type: one of "classification", "clustering", "search_document", "search_query".
+        The type of input text provided to embed.
+    :param truncate: one of "NONE", "START", "END". How the API handles text longer than the maximum token length.
+
+    :returns: A tuple of the embeddings and metadata.
+
+    :raises ValueError: If an error occurs while querying the Cohere API.
+    """
     all_embeddings: List[List[float]] = []
     metadata: Dict[str, Any] = {}
     try:
@@ -30,9 +43,22 @@ async def get_async_response(cohere_async_client: AsyncClient, texts: List[str],
 def get_response(
     cohere_client: Client, texts: List[str], model_name, input_type, truncate, batch_size=32, progress_bar=False
 ) -> Tuple[List[List[float]], Dict[str, Any]]:
+    """Embeds a list of texts using the Cohere API.
+
+    :param cohere_client: the Cohere `Client`
+    :param texts: the texts to embed
+    :param model_name: the name of the model to use
+    :param input_type: one of "classification", "clustering", "search_document", "search_query".
+        The type of input text provided to embed.
+    :param truncate: one of "NONE", "START", "END". How the API handles text longer than the maximum token length.
+    :param batch_size: the batch size to use
+    :param progress_bar: if `True`, show a progress bar
+
+    :returns: A tuple of the embeddings and metadata.
+
+    :raises ValueError: If an error occurs while querying the Cohere API.
     """
-    We support batching with the sync client.
-    """
+
     all_embeddings: List[List[float]] = []
     metadata: Dict[str, Any] = {}
 

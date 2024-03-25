@@ -1,4 +1,4 @@
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from haystack import component, default_to_dict
 
@@ -8,7 +8,7 @@ from .embedding_backend.fastembed_backend import _FastembedEmbeddingBackendFacto
 @component
 class FastembedTextEmbedder:
     """
-    A component for embedding strings using fastembed embedding models.
+    FastembedTextEmbedder computes string embedding using fastembed embedding models.
 
     Usage example:
     ```python
@@ -31,52 +31,76 @@ class FastembedTextEmbedder:
     def __init__(
         self,
         model: str = "BAAI/bge-small-en-v1.5",
+        cache_dir: Optional[str] = None,
+        threads: Optional[int] = None,
         prefix: str = "",
         suffix: str = "",
-        batch_size: int = 256,
         progress_bar: bool = True,
+        parallel: Optional[int] = None,
     ):
         """
         Create a FastembedTextEmbedder component.
 
-        :param model: Local path or name of the model in Fastembed's model hub,
-            such as ``'BAAI/bge-small-en-v1.5'``.
-        :param batch_size: Number of strings to encode at once.
+        :param model: Local path or name of the model in Fastembed's model hub, such as `BAAI/bge-small-en-v1.5`
+        :param cache_dir: The path to the cache directory.
+                Can be set using the `FASTEMBED_CACHE_PATH` env variable.
+                Defaults to `fastembed_cache` in the system's temp directory.
+        :param threads: The number of threads single onnxruntime session can use. Defaults to None.
         :param prefix: A string to add to the beginning of each text.
         :param suffix: A string to add to the end of each text.
+        :param progress_bar: If true, displays progress bar during embedding.
+        :param parallel:
+                If > 1, data-parallel encoding will be used, recommended for offline encoding of large datasets.
+                If 0, use all available cores.
+                If None, don't use data-parallel processing, use default onnxruntime threading instead.
         """
 
-        # TODO add parallel
-
         self.model_name = model
+        self.cache_dir = cache_dir
+        self.threads = threads
         self.prefix = prefix
         self.suffix = suffix
-        self.batch_size = batch_size
         self.progress_bar = progress_bar
+        self.parallel = parallel
 
     def to_dict(self) -> Dict[str, Any]:
         """
-        Serialize this component to a dictionary.
+        Serializes the component to a dictionary.
+
+        :returns:
+            Dictionary with serialized data.
         """
         return default_to_dict(
             self,
             model=self.model_name,
+            cache_dir=self.cache_dir,
+            threads=self.threads,
             prefix=self.prefix,
             suffix=self.suffix,
-            batch_size=self.batch_size,
             progress_bar=self.progress_bar,
+            parallel=self.parallel,
         )
 
     def warm_up(self):
         """
-        Load the embedding backend.
+        Initializes the component.
         """
         if not hasattr(self, "embedding_backend"):
-            self.embedding_backend = _FastembedEmbeddingBackendFactory.get_embedding_backend(model_name=self.model_name)
+            self.embedding_backend = _FastembedEmbeddingBackendFactory.get_embedding_backend(
+                model_name=self.model_name, cache_dir=self.cache_dir, threads=self.threads
+            )
 
     @component.output_types(embedding=List[float])
     def run(self, text: str):
-        """Embed a string."""
+        """
+        Embeds text using the Fastembed model.
+
+        :param text: A string to embed.
+        :returns: A dictionary with the following keys:
+            - `embedding`: A list of floats representing the embedding of the input text.
+        :raises TypeError: If the input is not a string.
+        :raises RuntimeError: If the embedding model has not been loaded.
+        """
         if not isinstance(text, str):
             msg = (
                 "FastembedTextEmbedder expects a string as input. "
@@ -91,8 +115,8 @@ class FastembedTextEmbedder:
         embedding = list(
             self.embedding_backend.embed(
                 text_to_embed,
-                batch_size=self.batch_size,
-                show_progress_bar=self.progress_bar,
+                progress_bar=self.progress_bar,
+                parallel=self.parallel,
             )[0]
         )
         return {"embedding": embedding}

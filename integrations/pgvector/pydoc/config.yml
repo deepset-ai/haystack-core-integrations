@@ -4,7 +4,6 @@ loaders:
     modules: [
       "haystack_integrations.components.retrievers.pgvector.embedding_retriever",
       "haystack_integrations.document_stores.pgvector.document_store",
-      "haystack_integrations.document_stores.pgvector.filters",
     ]
     ignore_when_discovered: ["__init__"]
 processors:
@@ -18,12 +17,13 @@ processors:
 renderer:
   type: haystack_pydoc_tools.renderers.ReadmePreviewRenderer
   excerpt: Pgvector integration for Haystack
-  category_slug: haystack-integrations
+  category_slug: integrations-api
   title: Pgvector
   slug: integrations-pgvector
-  order: 140
+  order: 190
   markdown:
     descriptive_class_title: false
+    classdef_code_block: false
     descriptive_module_title: true
     add_method_class_prefix: true
     add_member_class_prefix: false

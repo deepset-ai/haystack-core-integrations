@@ -1,9 +1,8 @@
 from typing import Optional, Type
-from unittest.mock import MagicMock, patch
 
 import pytest
 from haystack.components.generators.utils import print_streaming_chunk
-from haystack.dataclasses import ChatMessage
+from haystack.dataclasses import ChatMessage, ChatRole, StreamingChunk
 
 from haystack_integrations.components.generators.amazon_bedrock import AmazonBedrockChatGenerator
 from haystack_integrations.components.generators.amazon_bedrock.chat.adapters import (
@@ -12,67 +11,50 @@ from haystack_integrations.components.generators.amazon_bedrock.chat.adapters im
     MetaLlama2ChatAdapter,
 )
 
-clazz = "haystack_integrations.components.generators.amazon_bedrock.chat.chat_generator.AmazonBedrockChatGenerator"
+KLASS = "haystack_integrations.components.generators.amazon_bedrock.chat.chat_generator.AmazonBedrockChatGenerator"
+MODELS_TO_TEST = ["anthropic.claude-3-sonnet-20240229-v1:0", "anthropic.claude-v2:1", "meta.llama2-13b-chat-v1"]
 
 
-@pytest.fixture
-def mock_auto_tokenizer():
-    with patch("transformers.AutoTokenizer.from_pretrained", autospec=True) as mock_from_pretrained:
-        mock_tokenizer = MagicMock()
-        mock_from_pretrained.return_value = mock_tokenizer
-        yield mock_tokenizer
-
-
-# create a fixture with mocked boto3 client and session
-@pytest.fixture
-def mock_boto3_session():
-    with patch("boto3.Session") as mock_client:
-        yield mock_client
-
-
-@pytest.fixture
-def mock_prompt_handler():
-    with patch(
-        "haystack_integrations.components.generators.amazon_bedrock.handlers.DefaultPromptHandler"
-    ) as mock_prompt_handler:
-        yield mock_prompt_handler
-
-
-def test_to_dict(mock_auto_tokenizer, mock_boto3_session):
+def test_to_dict(mock_boto3_session):
     """
     Test that the to_dict method returns the correct dictionary without aws credentials
     """
     generator = AmazonBedrockChatGenerator(
         model="anthropic.claude-v2",
-        aws_access_key_id="some_fake_id",
-        aws_secret_access_key="some_fake_key",
-        aws_session_token="some_fake_token",
-        aws_profile_name="some_fake_profile",
-        aws_region_name="fake_region",
         generation_kwargs={"temperature": 0.7},
         streaming_callback=print_streaming_chunk,
     )
     expected_dict = {
-        "type": clazz,
+        "type": KLASS,
         "init_parameters": {
+            "aws_access_key_id": {"type": "env_var", "env_vars": ["AWS_ACCESS_KEY_ID"], "strict": False},
+            "aws_secret_access_key": {"type": "env_var", "env_vars": ["AWS_SECRET_ACCESS_KEY"], "strict": False},
+            "aws_session_token": {"type": "env_var", "env_vars": ["AWS_SESSION_TOKEN"], "strict": False},
+            "aws_region_name": {"type": "env_var", "env_vars": ["AWS_DEFAULT_REGION"], "strict": False},
+            "aws_profile_name": {"type": "env_var", "env_vars": ["AWS_PROFILE"], "strict": False},
             "model": "anthropic.claude-v2",
             "generation_kwargs": {"temperature": 0.7},
             "stop_words": [],
-            "streaming_callback": print_streaming_chunk,
+            "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
         },
     }
 
     assert generator.to_dict() == expected_dict
 
 
-def test_from_dict(mock_auto_tokenizer, mock_boto3_session):
+def test_from_dict(mock_boto3_session):
     """
     Test that the from_dict method returns the correct object
     """
     generator = AmazonBedrockChatGenerator.from_dict(
         {
-            "type": clazz,
+            "type": KLASS,
             "init_parameters": {
+                "aws_access_key_id": {"type": "env_var", "env_vars": ["AWS_ACCESS_KEY_ID"], "strict": False},
+                "aws_secret_access_key": {"type": "env_var", "env_vars": ["AWS_SECRET_ACCESS_KEY"], "strict": False},
+                "aws_session_token": {"type": "env_var", "env_vars": ["AWS_SESSION_TOKEN"], "strict": False},
+                "aws_region_name": {"type": "env_var", "env_vars": ["AWS_DEFAULT_REGION"], "strict": False},
+                "aws_profile_name": {"type": "env_var", "env_vars": ["AWS_PROFILE"], "strict": False},
                 "model": "anthropic.claude-v2",
                 "generation_kwargs": {"temperature": 0.7},
                 "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
@@ -84,18 +66,13 @@ def test_from_dict(mock_auto_tokenizer, mock_boto3_session):
     assert generator.streaming_callback == print_streaming_chunk
 
 
-def test_default_constructor(mock_auto_tokenizer, mock_boto3_session):
+def test_default_constructor(mock_boto3_session, set_env_variables):
     """
     Test that the default constructor sets the correct values
     """
 
     layer = AmazonBedrockChatGenerator(
         model="anthropic.claude-v2",
-        aws_access_key_id="some_fake_id",
-        aws_secret_access_key="some_fake_key",
-        aws_session_token="some_fake_token",
-        aws_profile_name="some_fake_profile",
-        aws_region_name="fake_region",
     )
 
     assert layer.model == "anthropic.claude-v2"
@@ -116,7 +93,7 @@ def test_default_constructor(mock_auto_tokenizer, mock_boto3_session):
     )
 
 
-def test_constructor_with_generation_kwargs(mock_auto_tokenizer, mock_boto3_session):
+def test_constructor_with_generation_kwargs(mock_boto3_session):
     """
     Test that model_kwargs are correctly set in the constructor
     """
@@ -135,8 +112,7 @@ def test_constructor_with_empty_model():
         AmazonBedrockChatGenerator(model="")
 
 
-@pytest.mark.unit
-def test_invoke_with_no_kwargs(mock_auto_tokenizer, mock_boto3_session):
+def test_invoke_with_no_kwargs(mock_boto3_session):
     """
     Test invoke raises an error if no messages are provided
     """
@@ -145,7 +121,6 @@ def test_invoke_with_no_kwargs(mock_auto_tokenizer, mock_boto3_session):
         layer.invoke()
 
 
-@pytest.mark.unit
 @pytest.mark.parametrize(
     "model, expected_model_adapter",
     [
@@ -168,29 +143,30 @@ def test_get_model_adapter(model: str, expected_model_adapter: Optional[Type[Bed
 
 
 class TestAnthropicClaudeAdapter:
-    def test_prepare_body_with_default_params(self, mock_auto_tokenizer) -> None:
+    def test_prepare_body_with_default_params(self) -> None:
         layer = AnthropicClaudeChatAdapter(generation_kwargs={})
         prompt = "Hello, how are you?"
         expected_body = {
-            "prompt": "\n\nHuman: Hello, how are you?\n\nAssistant: ",
-            "max_tokens_to_sample": 512,
-            "stop_sequences": ["\n\nHuman:"],
+            "anthropic_version": "bedrock-2023-05-31",
+            "max_tokens": 512,
+            "messages": [{"content": [{"text": "Hello, how are you?", "type": "text"}], "role": "user"}],
         }
 
         body = layer.prepare_body([ChatMessage.from_user(prompt)])
 
         assert body == expected_body
 
-    def test_prepare_body_with_custom_inference_params(self, mock_auto_tokenizer) -> None:
+    def test_prepare_body_with_custom_inference_params(self) -> None:
         layer = AnthropicClaudeChatAdapter(generation_kwargs={"temperature": 0.7, "top_p": 0.8, "top_k": 4})
         prompt = "Hello, how are you?"
         expected_body = {
-            "prompt": "\n\nHuman: Hello, how are you?\n\nAssistant: ",
-            "max_tokens_to_sample": 69,
-            "stop_sequences": ["\n\nHuman:", "CUSTOM_STOP"],
+            "anthropic_version": "bedrock-2023-05-31",
+            "max_tokens": 512,
+            "messages": [{"content": [{"text": "Hello, how are you?", "type": "text"}], "role": "user"}],
+            "stop_sequences": ["CUSTOM_STOP"],
             "temperature": 0.7,
-            "top_p": 0.8,
             "top_k": 5,
+            "top_p": 0.8,
         }
 
         body = layer.prepare_body(
@@ -198,6 +174,15 @@ class TestAnthropicClaudeAdapter:
         )
 
         assert body == expected_body
+
+
+@pytest.fixture
+def chat_messages():
+    messages = [
+        ChatMessage.from_system("\\nYou are a helpful assistant, be super brief in your responses."),
+        ChatMessage.from_user("What's the capital of France?"),
+    ]
+    return messages
 
 
 class TestMetaLlama2ChatAdapter:
@@ -221,13 +206,13 @@ class TestMetaLlama2ChatAdapter:
             generation_kwargs={"temperature": 0.7, "top_p": 0.8, "top_k": 5, "stop_sequences": ["CUSTOM_STOP"]}
         )
         prompt = "Hello, how are you?"
+
+        # expected body is different because stop_sequences and top_k are not supported by MetaLlama2
         expected_body = {
             "prompt": "<s>[INST] Hello, how are you? [/INST]",
             "max_gen_len": 69,
-            "stop_sequences": ["CUSTOM_STOP"],
             "temperature": 0.7,
             "top_p": 0.8,
-            "top_k": 5,
         }
 
         body = layer.prepare_body(
@@ -247,4 +232,57 @@ class TestMetaLlama2ChatAdapter:
         response_body = {"generation": "This is a single response."}
         expected_response = "This is a single response."
         response_message = adapter.get_responses(response_body)
+        # assert that the type of each item in the list is a ChatMessage
+        for message in response_message:
+            assert isinstance(message, ChatMessage)
+
         assert response_message == [ChatMessage.from_assistant(expected_response)]
+
+    @pytest.mark.parametrize("model_name", MODELS_TO_TEST)
+    @pytest.mark.integration
+    def test_default_inference_params(self, model_name, chat_messages):
+
+        client = AmazonBedrockChatGenerator(model=model_name)
+        response = client.run(chat_messages)
+
+        assert "replies" in response, "Response does not contain 'replies' key"
+        replies = response["replies"]
+        assert isinstance(replies, list), "Replies is not a list"
+        assert len(replies) > 0, "No replies received"
+
+        first_reply = replies[0]
+        assert isinstance(first_reply, ChatMessage), "First reply is not a ChatMessage instance"
+        assert first_reply.content, "First reply has no content"
+        assert ChatMessage.is_from(first_reply, ChatRole.ASSISTANT), "First reply is not from the assistant"
+        assert "paris" in first_reply.content.lower(), "First reply does not contain 'paris'"
+        assert first_reply.meta, "First reply has no metadata"
+
+    @pytest.mark.parametrize("model_name", MODELS_TO_TEST)
+    @pytest.mark.integration
+    def test_default_inference_with_streaming(self, model_name, chat_messages):
+        streaming_callback_called = False
+        paris_found_in_response = False
+
+        def streaming_callback(chunk: StreamingChunk):
+            nonlocal streaming_callback_called, paris_found_in_response
+            streaming_callback_called = True
+            assert isinstance(chunk, StreamingChunk)
+            assert chunk.content is not None
+            if not paris_found_in_response:
+                paris_found_in_response = "paris" in chunk.content.lower()
+
+        client = AmazonBedrockChatGenerator(model=model_name, streaming_callback=streaming_callback)
+        response = client.run(chat_messages)
+
+        assert streaming_callback_called, "Streaming callback was not called"
+        assert paris_found_in_response, "The streaming callback response did not contain 'paris'"
+        replies = response["replies"]
+        assert isinstance(replies, list), "Replies is not a list"
+        assert len(replies) > 0, "No replies received"
+
+        first_reply = replies[0]
+        assert isinstance(first_reply, ChatMessage), "First reply is not a ChatMessage instance"
+        assert first_reply.content, "First reply has no content"
+        assert ChatMessage.is_from(first_reply, ChatRole.ASSISTANT), "First reply is not from the assistant"
+        assert "paris" in first_reply.content.lower(), "First reply does not contain 'paris'"
+        assert first_reply.meta, "First reply has no metadata"

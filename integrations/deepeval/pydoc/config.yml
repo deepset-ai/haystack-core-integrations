@@ -20,12 +20,13 @@ processors:
 renderer:
   type: haystack_pydoc_tools.renderers.ReadmePreviewRenderer
   excerpt: DeepEval integration for Haystack
-  category_slug: haystack-integrations
+  category_slug: integrations-api
   title: DeepEval
   slug: integrations-deepeval
-  order: 45
+  order: 60
   markdown:
     descriptive_class_title: false
+    classdef_code_block: false
     descriptive_module_title: true
     add_method_class_prefix: true
     add_member_class_prefix: false

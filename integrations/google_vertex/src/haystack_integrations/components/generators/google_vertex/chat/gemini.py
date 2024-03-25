@@ -22,6 +22,30 @@ logger = logging.getLogger(__name__)
 
 @component
 class VertexAIGeminiChatGenerator:
+    """
+    `VertexAIGeminiChatGenerator` enables chat completion using Google Gemini models.
+
+    `VertexAIGeminiChatGenerator` supports both `gemini-pro` and `gemini-pro-vision` models.
+    Prompting with images requires `gemini-pro-vision`. Function calling, instead, requires `gemini-pro`.
+
+    Authenticates using Google Cloud Application Default Credentials (ADCs).
+    For more information see the official [Google documentation](https://cloud.google.com/docs/authentication/provide-credentials-adc).
+
+    Usage example:
+    ```python
+    from haystack.dataclasses import ChatMessage
+    from haystack_integrations.components.generators.google_vertex import VertexAIGeminiChatGenerator
+
+    gemini_chat = VertexAIGeminiChatGenerator(project_id=project_id)
+
+    messages = [ChatMessage.from_user("Tell me the name of a movie")]
+    res = gemini_chat.run(messages)
+
+    print(res["replies"][0].content)
+    >>> The Shawshank Redemption
+    ```
+    """
+
     def __init__(
         self,
         *,
@@ -33,18 +57,25 @@ class VertexAIGeminiChatGenerator:
         tools: Optional[List[Tool]] = None,
     ):
         """
-        Multi modal generator using Gemini model via Google Vertex AI.
+        `VertexAIGeminiChatGenerator` enables chat completion using Google Gemini models.
 
         Authenticates using Google Cloud Application Default Credentials (ADCs).
-        For more information see the official Google documentation:
-        https://cloud.google.com/docs/authentication/provide-credentials-adc
+        For more information see the official [Google documentation](https://cloud.google.com/docs/authentication/provide-credentials-adc).
 
         :param project_id: ID of the GCP project to use.
         :param model: Name of the model to use, defaults to "gemini-pro-vision".
         :param location: The default location to use when making API calls, if not set uses us-central-1.
             Defaults to None.
-        :param kwargs: Additional keyword arguments to pass to the model.
-            For a list of supported arguments see the `GenerativeModel.generate_content()` documentation.
+        :param generation_config: Configuration for the generation process.
+            See the [GenerationConfig documentation](https://cloud.google.com/python/docs/reference/aiplatform/latest/vertexai.preview.generative_models.GenerationConfig
+            for a list of supported arguments.
+        :param safety_settings: Safety settings to use when generating content. See the documentation
+            for [HarmBlockThreshold](https://cloud.google.com/python/docs/reference/aiplatform/latest/vertexai.preview.generative_models.HarmBlockThreshold)
+            and [HarmCategory](https://cloud.google.com/python/docs/reference/aiplatform/latest/vertexai.preview.generative_models.HarmCategory)
+            for more details.
+        :param tools: List of tools to use when generating content. See the documentation for
+            [Tool](https://cloud.google.com/python/docs/reference/aiplatform/latest/vertexai.preview.generative_models.Tool)
+            the list of supported arguments.
         """
 
         # Login to GCP. This will fail if user has not set up their gcloud SDK
@@ -84,6 +115,12 @@ class VertexAIGeminiChatGenerator:
         }
 
     def to_dict(self) -> Dict[str, Any]:
+        """
+        Serializes the component to a dictionary.
+
+        :returns:
+            Dictionary with serialized data.
+        """
         data = default_to_dict(
             self,
             model=self._model_name,
@@ -101,6 +138,14 @@ class VertexAIGeminiChatGenerator:
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "VertexAIGeminiChatGenerator":
+        """
+        Deserializes the component from a dictionary.
+
+        :param data:
+            Dictionary to deserialize from.
+        :returns:
+            Deserialized component.
+        """
         if (tools := data["init_parameters"].get("tools")) is not None:
             data["init_parameters"]["tools"] = [Tool.from_dict(t) for t in tools]
         if (generation_config := data["init_parameters"].get("generation_config")) is not None:
@@ -151,6 +196,12 @@ class VertexAIGeminiChatGenerator:
 
     @component.output_types(replies=List[ChatMessage])
     def run(self, messages: List[ChatMessage]):
+        """Prompts Google Vertex AI Gemini model to generate a response to a list of messages.
+
+        :param messages: The last message is the prompt, the rest are the history.
+        :returns: A dictionary with the following keys:
+            - `replies`: A list of ChatMessage objects representing the model's replies.
+        """
         history = [self._message_to_content(m) for m in messages[:-1]]
         session = self._model.start_chat(history=history)
 

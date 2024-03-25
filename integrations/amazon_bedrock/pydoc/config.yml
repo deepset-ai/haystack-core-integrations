@@ -4,8 +4,11 @@ loaders:
     modules: [
       "haystack_integrations.components.generators.amazon_bedrock.generator",
       "haystack_integrations.components.generators.amazon_bedrock.adapters",
-      "haystack_integrations.components.generators.amazon_bedrock.errors",
+      "haystack_integrations.common.amazon_bedrock.errors",
       "haystack_integrations.components.generators.amazon_bedrock.handlers",
+      "haystack_integrations.components.generators.amazon_bedrock.chat.chat_generator",
+      "haystack_integrations.components.embedders.amazon_bedrock.text_embedder",
+      "haystack_integrations.components.embedders.amazon_bedrock.document_embedder",
     ]
     ignore_when_discovered: ["__init__"]
 processors:
@@ -19,12 +22,13 @@ processors:
 renderer:
   type: haystack_pydoc_tools.renderers.ReadmePreviewRenderer
   excerpt: Amazon Bedrock integration for Haystack
-  category_slug: haystack-integrations
+  category_slug: integrations-api
   title: Amazon Bedrock
   slug: integrations-amazon-bedrock
-  order: 10
+  order: 9
   markdown:
     descriptive_class_title: false
+    classdef_code_block: false
     descriptive_module_title: true
     add_method_class_prefix: true
     add_member_class_prefix: false

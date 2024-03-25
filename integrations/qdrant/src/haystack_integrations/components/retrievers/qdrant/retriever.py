@@ -8,6 +8,23 @@ from haystack_integrations.document_stores.qdrant import QdrantDocumentStore
 class QdrantEmbeddingRetriever:
     """
     A component for retrieving documents from an QdrantDocumentStore.
+
+    Usage example:
+    ```python
+    from haystack_integrations.components.retrievers.qdrant import QdrantEmbeddingRetriever
+    from haystack_integrations.document_stores.qdrant import QdrantDocumentStore
+
+    document_store = QdrantDocumentStore(
+        ":memory:",
+        recreate_index=True,
+        return_embedding=True,
+        wait_result_from_api=True,
+    )
+    retriever = QdrantEmbeddingRetriever(document_store=document_store)
+
+    # using a fake vector to keep the example simple
+    retriever.run(query_embedding=[0.1]*768)
+    ```
     """
 
     def __init__(
@@ -35,7 +52,6 @@ class QdrantEmbeddingRetriever:
             raise ValueError(msg)
 
         self._document_store = document_store
-
         self._filters = filters
         self._top_k = top_k
         self._scale_score = scale_score
@@ -43,7 +59,10 @@ class QdrantEmbeddingRetriever:
 
     def to_dict(self) -> Dict[str, Any]:
         """
-        Serialize this component to a dictionary.
+        Serializes the component to a dictionary.
+
+        :returns:
+            Dictionary with serialized data.
         """
         d = default_to_dict(
             self,
@@ -60,7 +79,12 @@ class QdrantEmbeddingRetriever:
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "QdrantEmbeddingRetriever":
         """
-        Deserialize this component from a dictionary.
+        Deserializes the component from a dictionary.
+
+        :param data:
+            Dictionary to deserialize from.
+        :returns:
+            Deserialized component.
         """
         document_store = QdrantDocumentStore.from_dict(data["init_parameters"]["document_store"])
         data["init_parameters"]["document_store"] = document_store
@@ -83,7 +107,8 @@ class QdrantEmbeddingRetriever:
         :param top_k: The maximum number of documents to return.
         :param scale_score: Whether to scale the scores of the retrieved documents or not.
         :param return_embedding: Whether to return the embedding of the retrieved Documents.
-        :return: The retrieved documents.
+        :returns:
+            The retrieved documents.
 
         """
         docs = self._document_store.query_by_embedding(

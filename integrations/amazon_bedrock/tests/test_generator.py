@@ -2,7 +2,6 @@ from typing import Optional, Type
 from unittest.mock import MagicMock, call, patch
 
 import pytest
-from botocore.exceptions import BotoCoreError
 
 from haystack_integrations.components.generators.amazon_bedrock import AmazonBedrockGenerator
 from haystack_integrations.components.generators.amazon_bedrock.adapters import (
@@ -13,50 +12,25 @@ from haystack_integrations.components.generators.amazon_bedrock.adapters import 
     CohereCommandAdapter,
     MetaLlama2ChatAdapter,
 )
-from haystack_integrations.components.generators.amazon_bedrock.errors import AmazonBedrockConfigurationError
 
 
-@pytest.fixture
-def mock_auto_tokenizer():
-    with patch("transformers.AutoTokenizer.from_pretrained", autospec=True) as mock_from_pretrained:
-        mock_tokenizer = MagicMock()
-        mock_from_pretrained.return_value = mock_tokenizer
-        yield mock_tokenizer
-
-
-# create a fixture with mocked boto3 client and session
-@pytest.fixture
-def mock_boto3_session():
-    with patch("boto3.Session") as mock_client:
-        yield mock_client
-
-
-@pytest.fixture
-def mock_prompt_handler():
-    with patch(
-        "haystack_integrations.components.generators.amazon_bedrock.handlers.DefaultPromptHandler"
-    ) as mock_prompt_handler:
-        yield mock_prompt_handler
-
-
-@pytest.mark.unit
-def test_to_dict(mock_auto_tokenizer, mock_boto3_session):
+def test_to_dict(mock_boto3_session):
     """
     Test that the to_dict method returns the correct dictionary without aws credentials
     """
     generator = AmazonBedrockGenerator(
         model="anthropic.claude-v2",
         max_length=99,
-        aws_access_key_id="some_fake_id",
-        aws_secret_access_key="some_fake_key",
-        aws_session_token="some_fake_token",
-        aws_profile_name="some_fake_profile",
-        aws_region_name="fake_region",
     )
 
     expected_dict = {
         "type": "haystack_integrations.components.generators.amazon_bedrock.generator.AmazonBedrockGenerator",
         "init_parameters": {
+            "aws_access_key_id": {"type": "env_var", "env_vars": ["AWS_ACCESS_KEY_ID"], "strict": False},
+            "aws_secret_access_key": {"type": "env_var", "env_vars": ["AWS_SECRET_ACCESS_KEY"], "strict": False},
+            "aws_session_token": {"type": "env_var", "env_vars": ["AWS_SESSION_TOKEN"], "strict": False},
+            "aws_region_name": {"type": "env_var", "env_vars": ["AWS_DEFAULT_REGION"], "strict": False},
+            "aws_profile_name": {"type": "env_var", "env_vars": ["AWS_PROFILE"], "strict": False},
             "model": "anthropic.claude-v2",
             "max_length": 99,
         },
@@ -65,8 +39,7 @@ def test_to_dict(mock_auto_tokenizer, mock_boto3_session):
     assert generator.to_dict() == expected_dict
 
 
-@pytest.mark.unit
-def test_from_dict(mock_auto_tokenizer, mock_boto3_session):
+def test_from_dict(mock_boto3_session):
     """
     Test that the from_dict method returns the correct object
     """
@@ -74,6 +47,11 @@ def test_from_dict(mock_auto_tokenizer, mock_boto3_session):
         {
             "type": "haystack_integrations.components.generators.amazon_bedrock.generator.AmazonBedrockGenerator",
             "init_parameters": {
+                "aws_access_key_id": {"type": "env_var", "env_vars": ["AWS_ACCESS_KEY_ID"], "strict": False},
+                "aws_secret_access_key": {"type": "env_var", "env_vars": ["AWS_SECRET_ACCESS_KEY"], "strict": False},
+                "aws_session_token": {"type": "env_var", "env_vars": ["AWS_SESSION_TOKEN"], "strict": False},
+                "aws_region_name": {"type": "env_var", "env_vars": ["AWS_DEFAULT_REGION"], "strict": False},
+                "aws_profile_name": {"type": "env_var", "env_vars": ["AWS_PROFILE"], "strict": False},
                 "model": "anthropic.claude-v2",
                 "max_length": 99,
             },
@@ -84,8 +62,7 @@ def test_from_dict(mock_auto_tokenizer, mock_boto3_session):
     assert generator.model == "anthropic.claude-v2"
 
 
-@pytest.mark.unit
-def test_default_constructor(mock_auto_tokenizer, mock_boto3_session):
+def test_default_constructor(mock_boto3_session, set_env_variables):
     """
     Test that the default constructor sets the correct values
     """
@@ -93,11 +70,6 @@ def test_default_constructor(mock_auto_tokenizer, mock_boto3_session):
     layer = AmazonBedrockGenerator(
         model="anthropic.claude-v2",
         max_length=99,
-        aws_access_key_id="some_fake_id",
-        aws_secret_access_key="some_fake_key",
-        aws_session_token="some_fake_token",
-        aws_profile_name="some_fake_profile",
-        aws_region_name="fake_region",
     )
 
     assert layer.max_length == 99
@@ -119,8 +91,7 @@ def test_default_constructor(mock_auto_tokenizer, mock_boto3_session):
     )
 
 
-@pytest.mark.unit
-def test_constructor_prompt_handler_initialized(mock_auto_tokenizer, mock_boto3_session):
+def test_constructor_prompt_handler_initialized(mock_boto3_session, mock_prompt_handler):
     """
     Test that the constructor sets the prompt_handler correctly, with the correct model_max_length for llama-2
     """
@@ -129,8 +100,7 @@ def test_constructor_prompt_handler_initialized(mock_auto_tokenizer, mock_boto3_
     assert layer.prompt_handler.model_max_length == 4096
 
 
-@pytest.mark.unit
-def test_constructor_with_model_kwargs(mock_auto_tokenizer, mock_boto3_session):
+def test_constructor_with_model_kwargs(mock_boto3_session):
     """
     Test that model_kwargs are correctly set in the constructor
     """
@@ -141,7 +111,6 @@ def test_constructor_with_model_kwargs(mock_auto_tokenizer, mock_boto3_session):
     assert layer.model_adapter.model_kwargs["temperature"] == 0.7
 
 
-@pytest.mark.unit
 def test_constructor_with_empty_model():
     """
     Test that the constructor raises an error when the model is empty
@@ -150,8 +119,7 @@ def test_constructor_with_empty_model():
         AmazonBedrockGenerator(model="")
 
 
-@pytest.mark.unit
-def test_invoke_with_no_kwargs(mock_auto_tokenizer, mock_boto3_session):
+def test_invoke_with_no_kwargs(mock_boto3_session):
     """
     Test invoke raises an error if no prompt is provided
     """
@@ -160,7 +128,6 @@ def test_invoke_with_no_kwargs(mock_auto_tokenizer, mock_boto3_session):
         layer.invoke()
 
 
-@pytest.mark.unit
 def test_short_prompt_is_not_truncated(mock_boto3_session):
     """
     Test that a short prompt is not truncated
@@ -191,7 +158,6 @@ def test_short_prompt_is_not_truncated(mock_boto3_session):
     assert prompt_after_resize == mock_prompt_text
 
 
-@pytest.mark.unit
 def test_long_prompt_is_truncated(mock_boto3_session):
     """
     Test that a long prompt is truncated
@@ -226,129 +192,6 @@ def test_long_prompt_is_truncated(mock_boto3_session):
     assert prompt_after_resize == truncated_prompt_text
 
 
-@pytest.mark.unit
-def test_supports_for_valid_aws_configuration():
-    mock_session = MagicMock()
-    mock_session.client("bedrock").list_foundation_models.return_value = {
-        "modelSummaries": [{"modelId": "anthropic.claude-v2"}]
-    }
-
-    # Patch the class method to return the mock session
-    with patch(
-        "haystack_integrations.components.generators.amazon_bedrock.AmazonBedrockGenerator.get_aws_session",
-        return_value=mock_session,
-    ):
-        supported = AmazonBedrockGenerator.supports(
-            model="anthropic.claude-v2",
-            aws_profile_name="some_real_profile",
-        )
-    args, kwargs = mock_session.client("bedrock").list_foundation_models.call_args
-    assert kwargs["byOutputModality"] == "TEXT"
-
-    assert supported
-
-
-@pytest.mark.unit
-def test_supports_raises_on_invalid_aws_profile_name():
-    with patch("boto3.Session") as mock_boto3_session:
-        mock_boto3_session.side_effect = BotoCoreError()
-        with pytest.raises(AmazonBedrockConfigurationError, match="Failed to initialize the session"):
-            AmazonBedrockGenerator.supports(
-                model="anthropic.claude-v2",
-                aws_profile_name="some_fake_profile",
-            )
-
-
-@pytest.mark.unit
-def test_supports_for_invalid_bedrock_config():
-    mock_session = MagicMock()
-    mock_session.client.side_effect = BotoCoreError()
-
-    # Patch the class method to return the mock session
-    with patch(
-        "haystack_integrations.components.generators.amazon_bedrock.AmazonBedrockGenerator.get_aws_session",
-        return_value=mock_session,
-    ), pytest.raises(AmazonBedrockConfigurationError, match="Could not connect to Amazon Bedrock."):
-        AmazonBedrockGenerator.supports(
-            model="anthropic.claude-v2",
-            aws_profile_name="some_real_profile",
-        )
-
-
-@pytest.mark.unit
-def test_supports_for_invalid_bedrock_config_error_on_list_models():
-    mock_session = MagicMock()
-    mock_session.client("bedrock").list_foundation_models.side_effect = BotoCoreError()
-
-    # Patch the class method to return the mock session
-    with patch(
-        "haystack_integrations.components.generators.amazon_bedrock.AmazonBedrockGenerator.get_aws_session",
-        return_value=mock_session,
-    ), pytest.raises(AmazonBedrockConfigurationError, match="Could not connect to Amazon Bedrock."):
-        AmazonBedrockGenerator.supports(
-            model="anthropic.claude-v2",
-            aws_profile_name="some_real_profile",
-        )
-
-
-@pytest.mark.unit
-def test_supports_for_no_aws_params():
-    supported = AmazonBedrockGenerator.supports(model="anthropic.claude-v2")
-
-    assert supported is False
-
-
-@pytest.mark.unit
-def test_supports_for_unknown_model():
-    supported = AmazonBedrockGenerator.supports(model="unknown_model", aws_profile_name="some_real_profile")
-
-    assert supported is False
-
-
-@pytest.mark.unit
-def test_supports_with_stream_true_for_model_that_supports_streaming():
-    mock_session = MagicMock()
-    mock_session.client("bedrock").list_foundation_models.return_value = {
-        "modelSummaries": [{"modelId": "anthropic.claude-v2", "responseStreamingSupported": True}]
-    }
-
-    # Patch the class method to return the mock session
-    with patch(
-        "haystack_integrations.components.generators.amazon_bedrock.AmazonBedrockGenerator.get_aws_session",
-        return_value=mock_session,
-    ):
-        supported = AmazonBedrockGenerator.supports(
-            model="anthropic.claude-v2",
-            aws_profile_name="some_real_profile",
-            stream=True,
-        )
-
-        assert supported
-
-
-@pytest.mark.unit
-def test_supports_with_stream_true_for_model_that_does_not_support_streaming():
-    mock_session = MagicMock()
-    mock_session.client("bedrock").list_foundation_models.return_value = {
-        "modelSummaries": [{"modelId": "ai21.j2-mid-v1", "responseStreamingSupported": False}]
-    }
-
-    # Patch the class method to return the mock session
-    with patch(
-        "haystack_integrations.components.generators.amazon_bedrock.AmazonBedrockGenerator.get_aws_session",
-        return_value=mock_session,
-    ), pytest.raises(
-        AmazonBedrockConfigurationError,
-        match="The model ai21.j2-mid-v1 doesn't support streaming.",
-    ):
-        AmazonBedrockGenerator.supports(
-            model="ai21.j2-mid-v1",
-            aws_profile_name="some_real_profile",
-            stream=True,
-        )
-
-
-@pytest.mark.unit
 @pytest.mark.parametrize(
     "model, expected_model_adapter",
     [

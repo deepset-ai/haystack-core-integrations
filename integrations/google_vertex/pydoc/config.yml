@@ -22,12 +22,13 @@ processors:
 renderer:
   type: haystack_pydoc_tools.renderers.ReadmePreviewRenderer
   excerpt: Google Vertex integration for Haystack
-  category_slug: haystack-integrations
+  category_slug: integrations-api
   title: Google Vertex
   slug: integrations-google-vertex
-  order: 70
+  order: 100
   markdown:
     descriptive_class_title: false
+    classdef_code_block: false
     descriptive_module_title: true
     add_method_class_prefix: true
     add_member_class_prefix: false

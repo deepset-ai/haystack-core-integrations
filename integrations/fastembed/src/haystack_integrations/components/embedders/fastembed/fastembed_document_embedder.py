@@ -8,7 +8,7 @@ from .embedding_backend.fastembed_backend import _FastembedEmbeddingBackendFacto
 @component
 class FastembedDocumentEmbedder:
     """
-    A component for computing Document embeddings using Fastembed embedding models.
+    FastembedDocumentEmbedder computes Document embeddings using Fastembed embedding models.
     The embedding of each Document is stored in the `embedding` field of the Document.
 
     Usage example:
@@ -48,15 +48,19 @@ class FastembedDocumentEmbedder:
     print(f"Document Text: {result['documents'][0].content}")
     print(f"Document Embedding: {result['documents'][0].embedding}")
     print(f"Embedding Dimension: {len(result['documents'][0].embedding)}")
+    ```
     """  # noqa: E501
 
     def __init__(
         self,
         model: str = "BAAI/bge-small-en-v1.5",
+        cache_dir: Optional[str] = None,
+        threads: Optional[int] = None,
         prefix: str = "",
         suffix: str = "",
         batch_size: int = 256,
         progress_bar: bool = True,
+        parallel: Optional[int] = None,
         meta_fields_to_embed: Optional[List[str]] = None,
         embedding_separator: str = "\n",
     ):
@@ -64,44 +68,62 @@ class FastembedDocumentEmbedder:
         Create an FastembedDocumentEmbedder component.
 
         :param model: Local path or name of the model in Hugging Face's model hub,
-            such as ``'BAAI/bge-small-en-v1.5'``.
+            such as `BAAI/bge-small-en-v1.5`.
+        :param cache_dir: The path to the cache directory.
+                Can be set using the `FASTEMBED_CACHE_PATH` env variable.
+                Defaults to `fastembed_cache` in the system's temp directory.
+        :param threads: The number of threads single onnxruntime session can use. Defaults to None.
         :param prefix: A string to add to the beginning of each text.
         :param suffix: A string to add to the end of each text.
         :param batch_size: Number of strings to encode at once.
         :param progress_bar: If true, displays progress bar during embedding.
+        :param parallel:
+                If > 1, data-parallel encoding will be used, recommended for offline encoding of large datasets.
+                If 0, use all available cores.
+                If None, don't use data-parallel processing, use default onnxruntime threading instead.
         :param meta_fields_to_embed: List of meta fields that should be embedded along with the Document content.
         :param embedding_separator: Separator used to concatenate the meta fields to the Document content.
         """
 
         self.model_name = model
+        self.cache_dir = cache_dir
+        self.threads = threads
         self.prefix = prefix
         self.suffix = suffix
         self.batch_size = batch_size
         self.progress_bar = progress_bar
+        self.parallel = parallel
         self.meta_fields_to_embed = meta_fields_to_embed or []
         self.embedding_separator = embedding_separator
 
     def to_dict(self) -> Dict[str, Any]:
         """
-        Serialize this component to a dictionary.
+        Serializes the component to a dictionary.
+        :returns:
+            Dictionary with serialized data.
         """
         return default_to_dict(
             self,
             model=self.model_name,
+            cache_dir=self.cache_dir,
+            threads=self.threads,
             prefix=self.prefix,
             suffix=self.suffix,
             batch_size=self.batch_size,
             progress_bar=self.progress_bar,
+            parallel=self.parallel,
             meta_fields_to_embed=self.meta_fields_to_embed,
             embedding_separator=self.embedding_separator,
         )
 
     def warm_up(self):
         """
-        Load the embedding backend.
+        Initializes the component.
         """
         if not hasattr(self, "embedding_backend"):
-            self.embedding_backend = _FastembedEmbeddingBackendFactory.get_embedding_backend(model_name=self.model_name)
+            self.embedding_backend = _FastembedEmbeddingBackendFactory.get_embedding_backend(
+                model_name=self.model_name, cache_dir=self.cache_dir, threads=self.threads
+            )
 
     def _prepare_texts_to_embed(self, documents: List[Document]) -> List[str]:
         texts_to_embed = []
@@ -109,18 +131,21 @@ class FastembedDocumentEmbedder:
             meta_values_to_embed = [
                 str(doc.meta[key]) for key in self.meta_fields_to_embed if key in doc.meta and doc.meta[key] is not None
             ]
-            text_to_embed = [
-                self.prefix + self.embedding_separator.join([*meta_values_to_embed, doc.content or ""]) + self.suffix,
-            ]
+            text_to_embed = (
+                self.prefix + self.embedding_separator.join([*meta_values_to_embed, doc.content or ""]) + self.suffix
+            )
 
-            texts_to_embed.append(text_to_embed[0])
+            texts_to_embed.append(text_to_embed)
         return texts_to_embed
 
     @component.output_types(documents=List[Document])
     def run(self, documents: List[Document]):
         """
-        Embed a list of Documents.
-        The embedding of each Document is stored in the `embedding` field of the Document.
+        Embeds a list of Documents.
+
+        :param documents: List of Documents to embed.
+        :returns: A dictionary with the following keys:
+            - `documents`: List of Documents with each Document's `embedding` field set to the computed embeddings.
         """
         if not isinstance(documents, list) or documents and not isinstance(documents[0], Document):
             msg = (
@@ -132,13 +157,12 @@ class FastembedDocumentEmbedder:
             msg = "The embedding model has not been loaded. Please call warm_up() before running."
             raise RuntimeError(msg)
 
-        # TODO: once non textual Documents are properly supported, we should also prepare them for embedding here
-
         texts_to_embed = self._prepare_texts_to_embed(documents=documents)
         embeddings = self.embedding_backend.embed(
             texts_to_embed,
             batch_size=self.batch_size,
-            show_progress_bar=self.progress_bar,
+            progress_bar=self.progress_bar,
+            parallel=self.parallel,
         )
 
         for doc, emb in zip(documents, embeddings):

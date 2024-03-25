@@ -8,6 +8,9 @@ from .handlers import TokenStreamingHandler
 class BedrockModelAdapter(ABC):
     """
     Base class for Amazon Bedrock model adapters.
+
+    Each subclass of this class is designed to address the unique specificities of a particular LLM it adapts,
+    focusing on preparing the requests and extracting the responses from the Amazon Bedrock hosted LLMs.
     """
 
     def __init__(self, model_kwargs: Dict[str, Any], max_length: Optional[int]) -> None:
@@ -16,15 +19,34 @@ class BedrockModelAdapter(ABC):
 
     @abstractmethod
     def prepare_body(self, prompt: str, **inference_kwargs) -> Dict[str, Any]:
-        """Prepares the body for the Amazon Bedrock request."""
+        """
+        Prepares the body for the Amazon Bedrock request.
+        Each subclass should implement this method to prepare the request body for the specific model.
+
+        :param prompt: The prompt to be sent to the model.
+        :param inference_kwargs: Additional keyword arguments passed to the handler.
+        :returns: A dictionary containing the body for the request.
+        """
 
     def get_responses(self, response_body: Dict[str, Any]) -> List[str]:
-        """Extracts the responses from the Amazon Bedrock response."""
+        """
+        Extracts the responses from the Amazon Bedrock response.
+
+        :param response_body: The response body from the Amazon Bedrock request.
+        :returns: A list of responses.
+        """
         completions = self._extract_completions_from_response(response_body)
         responses = [completion.lstrip() for completion in completions]
         return responses
 
     def get_stream_responses(self, stream, stream_handler: TokenStreamingHandler) -> List[str]:
+        """
+        Extracts the responses from the Amazon Bedrock streaming response.
+
+        :param stream: The streaming response from the Amazon Bedrock request.
+        :param stream_handler: The handler for the streaming response.
+        :returns: A list of string responses.
+        """
         tokens: List[str] = []
         for event in stream:
             chunk = event.get("chunk")
@@ -40,6 +62,9 @@ class BedrockModelAdapter(ABC):
         Merges the default params with the inference kwargs and model kwargs.
 
         Includes param if it's in kwargs or its default is not None (i.e. it is actually defined).
+        :param inference_kwargs: The inference kwargs.
+        :param default_params: The default params.
+        :returns: A dictionary containing the merged params.
         """
         kwargs = self.model_kwargs.copy()
         kwargs.update(inference_kwargs)
@@ -51,19 +76,38 @@ class BedrockModelAdapter(ABC):
 
     @abstractmethod
     def _extract_completions_from_response(self, response_body: Dict[str, Any]) -> List[str]:
-        """Extracts the responses from the Amazon Bedrock response."""
+        """
+        Extracts the responses from the Amazon Bedrock response.
+
+        :param response_body: The response body from the Amazon Bedrock request.
+        :returns: A list of string responses.
+        """
 
     @abstractmethod
     def _extract_token_from_stream(self, chunk: Dict[str, Any]) -> str:
-        """Extracts the token from a streaming chunk."""
+        """
+        Extracts the token from a streaming chunk.
+
+        :param chunk: The streaming chunk.
+        :returns: A string token.
+        """
 
 
 class AnthropicClaudeAdapter(BedrockModelAdapter):
     """
-    Model adapter for the Anthropic's Claude model.
+    Adapter for the Anthropic Claude models.
     """
 
     def prepare_body(self, prompt: str, **inference_kwargs) -> Dict[str, Any]:
+        """
+        Prepares the body for the Claude model
+
+        :param prompt: The prompt to be sent to the model.
+        :param inference_kwargs: Additional keyword arguments passed to the handler.
+        :returns: A dictionary with the following keys:
+            - `prompt`: The prompt to be sent to the model.
+            - specified inference parameters.
+        """
         default_params = {
             "max_tokens_to_sample": self.max_length,
             "stop_sequences": ["\n\nHuman:"],
@@ -77,18 +121,39 @@ class AnthropicClaudeAdapter(BedrockModelAdapter):
         return body
 
     def _extract_completions_from_response(self, response_body: Dict[str, Any]) -> List[str]:
+        """
+        Extracts the responses from the Amazon Bedrock response.
+
+        :param response_body: The response body from the Amazon Bedrock request.
+        :returns: A list of string responses.
+        """
         return [response_body["completion"]]
 
     def _extract_token_from_stream(self, chunk: Dict[str, Any]) -> str:
+        """
+        Extracts the token from a streaming chunk.
+
+        :param chunk: The streaming chunk.
+        :returns: A string token.
+        """
         return chunk.get("completion", "")
 
 
 class CohereCommandAdapter(BedrockModelAdapter):
     """
-    Model adapter for the Cohere's Command model.
+    Adapter for the Cohere Command model.
     """
 
     def prepare_body(self, prompt: str, **inference_kwargs) -> Dict[str, Any]:
+        """
+        Prepares the body for the Command model
+
+        :param prompt: The prompt to be sent to the model.
+        :param inference_kwargs: Additional keyword arguments passed to the handler.
+        :returns: A dictionary with the following keys:
+            - `prompt`: The prompt to be sent to the model.
+            - specified inference parameters.
+        """
         default_params = {
             "max_tokens": self.max_length,
             "stop_sequences": None,
@@ -107,10 +172,22 @@ class CohereCommandAdapter(BedrockModelAdapter):
         return body
 
     def _extract_completions_from_response(self, response_body: Dict[str, Any]) -> List[str]:
+        """
+        Extracts the responses from the Cohere Command model response.
+
+        :param response_body: The response body from the Amazon Bedrock request.
+        :returns: A list of string responses.
+        """
         responses = [generation["text"] for generation in response_body["generations"]]
         return responses
 
     def _extract_token_from_stream(self, chunk: Dict[str, Any]) -> str:
+        """
+        Extracts the token from a streaming chunk.
+
+        :param chunk: The streaming chunk.
+        :returns: A string token.
+        """
         return chunk.get("text", "")
 
 
@@ -120,6 +197,14 @@ class AI21LabsJurassic2Adapter(BedrockModelAdapter):
     """
 
     def prepare_body(self, prompt: str, **inference_kwargs) -> Dict[str, Any]:
+        """Prepares the body for the Jurassic 2 model.
+
+        :param prompt: The prompt to be sent to the model.
+        :param inference_kwargs: Additional keyword arguments passed to the handler.
+        :returns: A dictionary with the following keys:
+            -  `prompt`: The prompt to be sent to the model.
+            - specified inference parameters.
+        """
         default_params = {
             "maxTokens": self.max_length,
             "stopSequences": None,
@@ -146,10 +231,19 @@ class AI21LabsJurassic2Adapter(BedrockModelAdapter):
 
 class AmazonTitanAdapter(BedrockModelAdapter):
     """
-    Model adapter for Amazon's Titan models.
+    Adapter for Amazon's Titan models.
     """
 
     def prepare_body(self, prompt: str, **inference_kwargs) -> Dict[str, Any]:
+        """
+        Prepares the body for the Titan model
+
+        :param prompt: The prompt to be sent to the model.
+        :param inference_kwargs: Additional keyword arguments passed to the handler.
+        :returns: A dictionary with the following keys
+            - `inputText`: The prompt to be sent to the model.
+            - specified inference parameters.
+        """
         default_params = {
             "maxTokenCount": self.max_length,
             "stopSequences": None,
@@ -162,19 +256,40 @@ class AmazonTitanAdapter(BedrockModelAdapter):
         return body
 
     def _extract_completions_from_response(self, response_body: Dict[str, Any]) -> List[str]:
+        """
+        Extracts the responses from the Titan model response.
+
+        :param response_body: The response body for Titan model response.
+        :returns: A list of string responses.
+        """
         responses = [result["outputText"] for result in response_body["results"]]
         return responses
 
     def _extract_token_from_stream(self, chunk: Dict[str, Any]) -> str:
+        """
+        Extracts the token from a streaming chunk.
+
+        :param chunk: The streaming chunk.
+        :returns: A string token.
+        """
         return chunk.get("outputText", "")
 
 
 class MetaLlama2ChatAdapter(BedrockModelAdapter):
     """
-    Model adapter for Meta's Llama 2 Chat models.
+    Adapter for Meta's Llama2 models.
     """
 
     def prepare_body(self, prompt: str, **inference_kwargs) -> Dict[str, Any]:
+        """
+        Prepares the body for the Llama2 model
+
+        :param prompt: The prompt to be sent to the model.
+        :param inference_kwargs: Additional keyword arguments passed to the handler.
+        :returns: A dictionary with the following keys:
+            - `prompt`: The prompt to be sent to the model.
+            - specified inference parameters.
+        """
         default_params = {
             "max_gen_len": self.max_length,
             "temperature": None,
@@ -186,7 +301,19 @@ class MetaLlama2ChatAdapter(BedrockModelAdapter):
         return body
 
     def _extract_completions_from_response(self, response_body: Dict[str, Any]) -> List[str]:
+        """
+        Extracts the responses from the Llama2 model response.
+
+        :param response_body: The response body from the Llama2 model request.
+        :returns: A list of string responses.
+        """
         return [response_body["generation"]]
 
     def _extract_token_from_stream(self, chunk: Dict[str, Any]) -> str:
+        """
+        Extracts the token from a streaming chunk.
+
+        :param chunk: The streaming chunk.
+        :returns: A string token.
+        """
         return chunk.get("generation", "")

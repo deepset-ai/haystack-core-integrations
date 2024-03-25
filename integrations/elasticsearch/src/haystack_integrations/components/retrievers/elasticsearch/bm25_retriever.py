@@ -11,8 +11,9 @@ from haystack_integrations.document_stores.elasticsearch.document_store import E
 @component
 class ElasticsearchBM25Retriever:
     """
-    ElasticsearchBM25Retriever is a keyword-based retriever that uses BM25 to find the most
-    similar documents to a user's query.
+    ElasticsearchBM25Retriever retrieves documents from the ElasticsearchDocumentStore using BM25 algorithm to find the
+    most similar documents to a user's query.
+
     This retriever is only compatible with ElasticsearchDocumentStore.
 
     Usage example:
@@ -35,7 +36,7 @@ class ElasticsearchBM25Retriever:
 
     result = retriever.run(query="Who lives in Berlin?")
     for doc in result["documents"]:
-        print(doc.text)
+        print(doc.content)
     ```
     """
 
@@ -53,12 +54,13 @@ class ElasticsearchBM25Retriever:
 
         :param document_store: An instance of ElasticsearchDocumentStore.
         :param filters: Filters applied to the retrieved Documents, for more info
-                        see `ElasticsearchDocumentStore.filter_documents`, defaults to None
-        :param fuzziness: Fuzziness parameter passed to Elasticsearch, defaults to "AUTO".
-                          see the official documentation for valid values:
-                          https://www.elastic.co/guide/en/elasticsearch/reference/current/common-options.html#fuzziness
-        :param top_k: Maximum number of Documents to return, defaults to 10
-        :param scale_score: If `True` scales the Document`s scores between 0 and 1, defaults to False
+                        see `ElasticsearchDocumentStore.filter_documents`.
+        :param fuzziness: Fuzziness parameter passed to Elasticsearch. See the official
+            [documentation](https://www.elastic.co/guide/en/elasticsearch/reference/current/common-options.html#fuzziness)
+            for more details.
+        :param top_k: Maximum number of Documents to return.
+        :param scale_score: If `True` scales the Document`s scores between 0 and 1.
+        :raises ValueError: If `document_store` is not an instance of `ElasticsearchDocumentStore`.
         """
 
         if not isinstance(document_store, ElasticsearchDocumentStore):
@@ -72,6 +74,12 @@ class ElasticsearchBM25Retriever:
         self._scale_score = scale_score
 
     def to_dict(self) -> Dict[str, Any]:
+        """
+        Serializes the component to a dictionary.
+
+        :returns:
+            Dictionary with serialized data.
+        """
         return default_to_dict(
             self,
             filters=self._filters,
@@ -83,23 +91,33 @@ class ElasticsearchBM25Retriever:
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "ElasticsearchBM25Retriever":
+        """
+        Deserializes the component from a dictionary.
+
+        :param data:
+            Dictionary to deserialize from.
+        :returns:
+            Deserialized component.
+        """
         data["init_parameters"]["document_store"] = ElasticsearchDocumentStore.from_dict(
             data["init_parameters"]["document_store"]
         )
         return default_from_dict(cls, data)
 
     @component.output_types(documents=List[Document])
-    def run(self, query: str, top_k: Optional[int] = None):
+    def run(self, query: str, filters: Optional[Dict[str, Any]] = None, top_k: Optional[int] = None):
         """
         Retrieve documents using the BM25 keyword-based algorithm.
 
-        :param query: String to search in Documents' text.
-        :param top_k: Maximum number of Documents to return.
-        :return: List of Documents that match the query.
+        :param query: String to search in `Document`s' text.
+        :param filters: Filters applied to the retrieved `Document`s.
+        :param top_k: Maximum number of `Document` to return.
+        :returns: A dictionary with the following keys:
+            - `documents`: List of `Document`s that match the query.
         """
         docs = self._document_store._bm25_retrieval(
             query=query,
-            filters=self._filters,
+            filters=filters or self._filters,
             fuzziness=self._fuzziness,
             top_k=top_k or self._top_k,
             scale_score=self._scale_score,

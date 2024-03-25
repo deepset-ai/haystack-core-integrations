@@ -9,6 +9,7 @@ from haystack.core.component import component
 from haystack.core.serialization import default_from_dict, default_to_dict
 from haystack.dataclasses.byte_stream import ByteStream
 from haystack.dataclasses.chat_message import ChatMessage, ChatRole
+from haystack.utils import Secret, deserialize_secrets_inplace
 
 logger = logging.getLogger(__name__)
 
@@ -16,15 +17,17 @@ logger = logging.getLogger(__name__)
 @component
 class GoogleAIGeminiChatGenerator:
     """
-    GoogleAIGeminiGenerator is a multi modal generator supporting Gemini via Google Makersuite.
+    `GoogleAIGeminiChatGenerator` is a multimodal generator supporting Gemini via Google AI Studio.
+    It uses the `ChatMessage` dataclass to interact with the model.
 
-    Sample usage:
+    Usage example:
     ```python
+    from haystack.utils import Secret
     from haystack.dataclasses.chat_message import ChatMessage
     from haystack_integrations.components.generators.google_ai import GoogleAIGeminiChatGenerator
 
 
-    gemini_chat = GoogleAIGeminiChatGenerator(model="gemini-pro", api_key="<MY_API_KEY>")
+    gemini_chat = GoogleAIGeminiChatGenerator(model="gemini-pro", api_key=Secret.from_token("<MY_API_KEY>"))
 
     messages = [ChatMessage.from_user("What is the most interesting thing you know?")]
     res = gemini_chat.run(messages=messages)
@@ -38,8 +41,9 @@ class GoogleAIGeminiChatGenerator:
     ```
 
 
-    This is a more advanced usage that also uses function calls:
+    Usage example with function calling:
     ```python
+    from haystack.utils import Secret
     from haystack.dataclasses.chat_message import ChatMessage
     from google.ai.generativelanguage import FunctionDeclaration, Tool
 
@@ -50,7 +54,7 @@ class GoogleAIGeminiChatGenerator:
         # Call a weather API and return some text
         ...
 
-    # Define the function interface so that Gemini can call it
+    # Define the function interface
     get_current_weather_func = FunctionDeclaration(
         name="get_current_weather",
         description="Get the current weather in a given location",
@@ -73,7 +77,8 @@ class GoogleAIGeminiChatGenerator:
 
     messages = [ChatMessage.from_user("What is the most interesting thing you know?")]
 
-    gemini_chat = GoogleAIGeminiChatGenerator(model="gemini-pro", api_key="<MY_API_KEY>", tools=[tool])
+    gemini_chat = GoogleAIGeminiChatGenerator(model="gemini-pro", api_key=Secret.from_token("<MY_API_KEY>"),
+                                              tools=[tool])
 
     messages = [ChatMessage.from_user(content = "What is the temperature in celsius in Berlin?")]
     res = gemini_chat.run(messages=messages)
@@ -84,26 +89,19 @@ class GoogleAIGeminiChatGenerator:
     for reply in res["replies"]:
         print(reply.content)
     ```
-
-    Input:
-    - **messages** A list of ChatMessage objects.
-
-    Output:
-    - **replies** A list of ChatMessage objects containing the one or more replies from the model.
     """
 
     def __init__(
         self,
         *,
-        api_key: Optional[str] = None,
+        api_key: Secret = Secret.from_env_var("GOOGLE_API_KEY"),  # noqa: B008
         model: str = "gemini-pro-vision",
         generation_config: Optional[Union[GenerationConfig, Dict[str, Any]]] = None,
         safety_settings: Optional[Dict[HarmCategory, HarmBlockThreshold]] = None,
         tools: Optional[List[Tool]] = None,
     ):
         """
-        Initialize a GoogleAIGeminiChatGenerator instance.
-        If `api_key` is `None` it will use the `GOOGLE_API_KEY` env variable for authentication.
+        Initializes a `GoogleAIGeminiChatGenerator` instance.
 
         To get an API key, visit: https://makersuite.google.com
 
@@ -112,26 +110,21 @@ class GoogleAIGeminiChatGenerator:
         * `gemini-pro-vision`
         * `gemini-ultra`
 
-        :param api_key: Google Makersuite API key, defaults to None
-        :param model: Name of the model to use, defaults to "gemini-pro-vision"
-        :param generation_config: The generation config to use, defaults to None.
-            Can either be a GenerationConfig object or a dictionary of parameters.
-            Accepted parameters are:
-                - temperature
-                - top_p
-                - top_k
-                - candidate_count
-                - max_output_tokens
-                - stop_sequences
-        :param safety_settings: The safety settings to use, defaults to None.
-            A dictionary of HarmCategory to HarmBlockThreshold.
-        :param tools: The tools to use, defaults to None.
-            A list of Tool objects that can be used to modify the generation process.
+        :param api_key: Google AI Studio API key.
+        :param model: Name of the model to use.
+        :param generation_config: The generation config to use.
+            Can either be a `GenerationConfig` object or a dictionary of parameters.
+            For the available parameters, see
+            [the `GenerationConfig` API reference](https://ai.google.dev/api/python/google/generativeai/GenerationConfig).
+        :param safety_settings: The safety settings to use.
+            A dictionary with `HarmCategory` as keys and `HarmBlockThreshold` as values.
+            For more information, see [the API reference](https://ai.google.dev/api)
+        :param tools: A list of Tool objects that can be used for [Function calling](https://ai.google.dev/docs/function_calling).
         """
 
-        # Authenticate, if api_key is None it will use the GOOGLE_API_KEY env variable
-        genai.configure(api_key=api_key)
+        genai.configure(api_key=api_key.resolve_value())
 
+        self._api_key = api_key
         self._model_name = model
         self._generation_config = generation_config
         self._safety_settings = safety_settings
@@ -151,8 +144,15 @@ class GoogleAIGeminiChatGenerator:
         }
 
     def to_dict(self) -> Dict[str, Any]:
+        """
+        Serializes the component to a dictionary.
+
+        :returns:
+            Dictionary with serialized data.
+        """
         data = default_to_dict(
             self,
+            api_key=self._api_key.to_dict(),
             model=self._model_name,
             generation_config=self._generation_config,
             safety_settings=self._safety_settings,
@@ -168,6 +168,16 @@ class GoogleAIGeminiChatGenerator:
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "GoogleAIGeminiChatGenerator":
+        """
+        Deserializes the component from a dictionary.
+
+        :param data:
+            Dictionary to deserialize from.
+        :returns:
+            Deserialized component.
+        """
+        deserialize_secrets_inplace(data["init_parameters"], keys=["api_key"])
+
         if (tools := data["init_parameters"].get("tools")) is not None:
             data["init_parameters"]["tools"] = [Tool.deserialize(t) for t in tools]
         if (generation_config := data["init_parameters"].get("generation_config")) is not None:
@@ -240,6 +250,15 @@ class GoogleAIGeminiChatGenerator:
 
     @component.output_types(replies=List[ChatMessage])
     def run(self, messages: List[ChatMessage]):
+        """
+        Generates text based on the provided messages.
+
+        :param messages:
+            A list of `ChatMessage` instances, representing the input messages.
+        :returns:
+            A dictionary containing the following key:
+            - `replies`:  A list containing the generated responses as `ChatMessage` instances.
+        """
         history = [self._message_to_content(m) for m in messages[:-1]]
         session = self._model.start_chat(history=history)
 

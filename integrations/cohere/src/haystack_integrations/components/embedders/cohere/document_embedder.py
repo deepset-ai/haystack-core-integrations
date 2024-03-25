@@ -15,9 +15,10 @@ from cohere import COHERE_API_URL, AsyncClient, Client
 class CohereDocumentEmbedder:
     """
     A component for computing Document embeddings using Cohere models.
+
     The embedding of each Document is stored in the `embedding` field of the Document.
 
-    Usage Example:
+    Usage example:
     ```python
     from haystack import Document
     from cohere_haystack.embedders.document_embedder import CohereDocumentEmbedder
@@ -49,32 +50,30 @@ class CohereDocumentEmbedder:
         embedding_separator: str = "\n",
     ):
         """
-        Create a CohereDocumentEmbedder component.
-
-        :param api_key: The Cohere API key.
-        :param model: The name of the model to use, defaults to `"embed-english-v2.0"`. Supported Models are:
+        :param api_key: the Cohere API key.
+        :param model: the name of the model to use. Supported Models are:
             `"embed-english-v3.0"`, `"embed-english-light-v3.0"`, `"embed-multilingual-v3.0"`,
             `"embed-multilingual-light-v3.0"`, `"embed-english-v2.0"`, `"embed-english-light-v2.0"`,
             `"embed-multilingual-v2.0"`. This list of all supported models can be found in the
             [model documentation](https://docs.cohere.com/docs/models#representation).
-        :param input_type: Specifies the type of input you're giving to the model. Supported values are
-        "search_document", "search_query", "classification" and "clustering". Defaults to "search_document". Not
-        required for older versions of the embedding models (meaning anything lower than v3), but is required for more
-        recent versions (meaning anything bigger than v2).
-        :param api_base_url: The Cohere API Base url, defaults to `https://api.cohere.ai/v1/embed`.
-        :param truncate: Truncate embeddings that are too long from start or end, ("NONE"|"START"|"END"), defaults to
-            `"END"`. Passing START will discard the start of the input. END will discard the end of the input. In both
+        :param input_type: specifies the type of input you're giving to the model. Supported values are
+            "search_document", "search_query", "classification" and "clustering". Not
+            required for older versions of the embedding models (meaning anything lower than v3), but is required for
+            more recent versions (meaning anything bigger than v2).
+        :param api_base_url: the Cohere API Base url.
+        :param truncate: truncate embeddings that are too long from start or end, ("NONE"|"START"|"END").
+            Passing "START" will discard the start of the input. "END" will discard the end of the input. In both
             cases, input is discarded until the remaining input is exactly the maximum input token length for the model.
-            If NONE is selected, when the input exceeds the maximum input token length an error will be returned.
-        :param use_async_client: Flag to select the AsyncClient, defaults to `False`. It is recommended to use
+            If "NONE" is selected, when the input exceeds the maximum input token length an error will be returned.
+        :param use_async_client: flag to select the AsyncClient. It is recommended to use
             AsyncClient for applications with many concurrent calls.
-        :param max_retries: maximal number of retries for requests, defaults to `3`.
-        :param timeout: request timeout in seconds, defaults to `120`.
-        :param batch_size: Number of Documents to encode at once.
-        :param progress_bar: Whether to show a progress bar or not. Can be helpful to disable in production deployments
+        :param max_retries: maximal number of retries for requests.
+        :param timeout: request timeout in seconds.
+        :param batch_size: number of Documents to encode at once.
+        :param progress_bar: whether to show a progress bar or not. Can be helpful to disable in production deployments
                              to keep the logs clean.
-        :param meta_fields_to_embed: List of meta fields that should be embedded along with the Document text.
-        :param embedding_separator: Separator used to concatenate the meta fields to the Document text.
+        :param meta_fields_to_embed: list of meta fields that should be embedded along with the Document text.
+        :param embedding_separator: separator used to concatenate the meta fields to the Document text.
         """
 
         self.api_key = api_key
@@ -92,7 +91,10 @@ class CohereDocumentEmbedder:
 
     def to_dict(self) -> Dict[str, Any]:
         """
-        Serialize this component to a dictionary omitting the api_key field.
+        Serializes the component to a dictionary.
+
+        :returns:
+            Dictionary with serialized data.
         """
         return default_to_dict(
             self,
@@ -113,9 +115,12 @@ class CohereDocumentEmbedder:
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "CohereDocumentEmbedder":
         """
-        Deserialize this component from a dictionary.
-        :param data: The dictionary representation of this component.
-        :return: The deserialized component instance.
+        Deserializes the component from a dictionary.
+
+        :param data:
+            Dictionary to deserialize from.
+        :returns:
+                Deserialized component.
         """
         init_params = data.get("init_parameters", {})
         deserialize_secrets_inplace(init_params, ["api_key"])
@@ -137,13 +142,14 @@ class CohereDocumentEmbedder:
 
     @component.output_types(documents=List[Document], meta=Dict[str, Any])
     def run(self, documents: List[Document]):
-        """
-        Embed a list of Documents.
-        The embedding of each Document is stored in the `embedding` field of the Document.
+        """Embed a list of `Documents`.
 
-        :param documents: A list of Documents to embed.
+        :param documents: documents to embed.
+        :returns:  A dictionary with the following keys:
+            - `documents`: documents with the `embedding` field set.
+            - `meta`: metadata about the embedding process.
+        :raises TypeError: if the input is not a list of `Documents`.
         """
-
         if not isinstance(documents, list) or documents and not isinstance(documents[0], Document):
             msg = (
                 "CohereDocumentEmbedder expects a list of Documents as input."

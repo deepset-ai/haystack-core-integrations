@@ -4,7 +4,7 @@
 from typing import Any, Dict, List, Optional
 
 from haystack import Document, component, default_from_dict, default_to_dict
-from haystack.utils import Secret, deserialize_secrets_inplace
+from haystack.utils import ComponentDevice, Secret, deserialize_secrets_inplace
 
 from .embedding_backend.instructor_backend import _InstructorEmbeddingBackendFactory
 
@@ -20,17 +20,16 @@ class InstructorDocumentEmbedder:
     # To use this component, install the "instructor-embedders-haystack" package.
     # pip install instructor-embedders-haystack
 
-    from instructor_embedders_haystack.instructor_document_embedder import InstructorDocumentEmbedder
+    from haystack_integrations.components.embedders.instructor_embedders import InstructorDocumentEmbedder
     from haystack.dataclasses import Document
-
+    from haystack.utils import ComponentDevice
 
     doc_embedding_instruction = "Represent the Medical Document for retrieval:"
-
     doc_embedder = InstructorDocumentEmbedder(
         model="hkunlp/instructor-base",
         instruction=doc_embedding_instruction,
         batch_size=32,
-        device="cpu",
+        device=ComponentDevice.from_str("cpu"),
     )
 
     doc_embedder.warm_up()
@@ -57,12 +56,13 @@ class InstructorDocumentEmbedder:
     print(f"Document Text: {result['documents'][0].content}")
     print(f"Document Embedding: {result['documents'][0].embedding}")
     print(f"Embedding Dimension: {len(result['documents'][0].embedding)}")
+    ```
     """  # noqa: E501
 
     def __init__(
         self,
         model: str = "hkunlp/instructor-base",
-        device: Optional[str] = None,
+        device: Optional[ComponentDevice] = None,
         token: Optional[Secret] = Secret.from_env_var("HF_API_TOKEN", strict=False),  # noqa: B008
         instruction: str = "Represent the document",
         batch_size: int = 32,
@@ -76,9 +76,9 @@ class InstructorDocumentEmbedder:
 
         :param model: Local path or name of the model in Hugging Face's model hub,
             such as ``'hkunlp/instructor-base'``.
-        :param device: Device (like 'cuda' / 'cpu') that should be used for computation.
-            If None, checks if a GPU can be used.
-        :param use_auth_token: An API token used to download private models from Hugging Face.
+        :param device: The device on which the model is loaded. If `None`, the default device is automatically
+            selected.
+        :param token: An API token used to download private models from Hugging Face.
             If this parameter is set to `True`, then the token generated when running
             `transformers-cli login` (stored in ~/.huggingface) will be used.
         :param instruction: The instruction string to be used while computing domain-specific embeddings.
@@ -88,7 +88,7 @@ class InstructorDocumentEmbedder:
             - "text_type" is required, and it specifies the encoding unit, e.g., sentence, document, paragraph, etc.
             - "task_objective" is optional, and it specifies the objective of embedding, e.g., retrieve a document,
              classify the sentence, etc.
-            Check some examples of instructions here: https://github.com/xlang-ai/instructor-embedding#use-cases.
+            Check some examples of instructions [here](https://github.com/xlang-ai/instructor-embedding#use-cases).
         :param batch_size: Number of strings to encode at once.
         :param progress_bar: If true, displays progress bar during embedding.
         :param normalize_embeddings: If set to true, returned vectors will have the length of 1.
@@ -97,8 +97,7 @@ class InstructorDocumentEmbedder:
         """
 
         self.model = model
-        # TODO: remove device parameter and use Haystack's device management once migrated
-        self.device = device or "cpu"
+        self.device = ComponentDevice.resolve_device(device)
         self.token = token
         self.instruction = instruction
         self.batch_size = batch_size
@@ -109,12 +108,15 @@ class InstructorDocumentEmbedder:
 
     def to_dict(self) -> Dict[str, Any]:
         """
-        Serialize this component to a dictionary.
+        Serializes the component to a dictionary.
+
+        :returns:
+            Dictionary with serialized data.
         """
         return default_to_dict(
             self,
             model=self.model,
-            device=self.device,
+            device=self.device.to_dict(),
             token=self.token.to_dict() if self.token else None,
             instruction=self.instruction,
             batch_size=self.batch_size,
@@ -127,25 +129,34 @@ class InstructorDocumentEmbedder:
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "InstructorDocumentEmbedder":
         """
-        Deserialize this component from a dictionary.
+        Deserializes the component from a dictionary.
+
+        :param data:
+            Dictionary to deserialize from.
+        :returns:
+            Deserialized component.
         """
+        serialized_device = data["init_parameters"]["device"]
+        data["init_parameters"]["device"] = ComponentDevice.from_dict(serialized_device)
+
         deserialize_secrets_inplace(data["init_parameters"], keys=["token"])
         return default_from_dict(cls, data)
 
     def warm_up(self):
         """
-        Load the embedding backend.
+        Initializes the component.
         """
         if not hasattr(self, "embedding_backend"):
             self.embedding_backend = _InstructorEmbeddingBackendFactory.get_embedding_backend(
-                model=self.model, device=self.device, token=self.token
+                model=self.model, device=self.device.to_torch_str(), token=self.token
             )
 
     @component.output_types(documents=List[Document])
     def run(self, documents: List[Document]):
         """
-        Embed a list of Documents.
-        The embedding of each Document is stored in the `embedding` field of the Document.
+        Embed a list of Documents. The embedding of each Document is stored in the `embedding` field of the Document.
+
+        param documents: A list of Documents to embed.
         """
         if not isinstance(documents, list) or documents and not isinstance(documents[0], Document):
             msg = (
@@ -157,8 +168,7 @@ class InstructorDocumentEmbedder:
             msg = "The embedding model has not been loaded. Please call warm_up() before running."
             raise RuntimeError(msg)
 
-        # TODO: once non textual Documents are properly supported, we should also prepare them for embedding here
-
+        # TODO: once non-textual Documents are properly supported, we should also prepare them for embedding here
         texts_to_embed = []
         for doc in documents:
             meta_values_to_embed = [
