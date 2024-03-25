@@ -494,7 +494,6 @@ class QdrantDocumentStore:
         on_disk: bool,  # noqa: FBT001
         use_sparse_embeddings: bool,  # noqa: FBT001
     ):
-
         if use_sparse_embeddings:
             vectors_config = {
                 DENSE_VECTORS_NAME: rest.VectorParams(
@@ -512,10 +511,7 @@ class QdrantDocumentStore:
                 ),
             }
         else:
-            vectors_config = rest.VectorParams(
-                    size=embedding_dim,
-                    on_disk=on_disk,
-                    distance=distance)
+            vectors_config = rest.VectorParams(size=embedding_dim, on_disk=on_disk, distance=distance)
 
         self.client.recreate_collection(
             collection_name=collection_name,
