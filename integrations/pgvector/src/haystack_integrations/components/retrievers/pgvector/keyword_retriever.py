@@ -1,12 +1,12 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
-from typing import Any, Dict, List, Literal, Optional
+from typing import Any, Dict, List, Optional
 
 from haystack import component, default_from_dict, default_to_dict
 from haystack.dataclasses import Document
 from haystack_integrations.document_stores.pgvector import PgvectorDocumentStore
-from haystack_integrations.document_stores.pgvector.document_store import VALID_VECTOR_FUNCTIONS
+
 
 @component
 class PgvectorKeywordRetriever:
@@ -119,7 +119,6 @@ class PgvectorKeywordRetriever:
 
         :returns: List of Documents similar to `user_query`.
         """
-        user_query = user_query
         filters = filters or self.filters
         top_k = top_k or self.top_k
 
@@ -129,4 +128,4 @@ class PgvectorKeywordRetriever:
             top_k=top_k,
         )
         return {"documents": docs}
-    
+

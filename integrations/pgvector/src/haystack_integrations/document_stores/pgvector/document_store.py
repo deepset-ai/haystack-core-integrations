@@ -110,7 +110,7 @@ class PgvectorDocumentStore:
         hnsw_recreate_index_if_exists: bool = False,
         hnsw_index_creation_kwargs: Optional[Dict[str, int]] = None,
         hnsw_ef_search: Optional[int] = None,
-        language: Optional[str] = 'english',
+        language: Optional[str] = "english",
     ):
         """
         Creates a new PgvectorDocumentStore instance.
@@ -161,6 +161,7 @@ class PgvectorDocumentStore:
         self.hnsw_recreate_index_if_exists = hnsw_recreate_index_if_exists
         self.hnsw_index_creation_kwargs = hnsw_index_creation_kwargs or {}
         self.hnsw_ef_search = hnsw_ef_search
+        self.language = language
 
         connection = connect(self.connection_string.resolve_value())
         connection.autocommit = True
@@ -261,13 +262,13 @@ class PgvectorDocumentStore:
 
         self._execute_sql(delete_sql, error_msg=f"Could not delete table {self.table_name} in PgvectorDocumentStore")
 
-    
+
     def _create_keyword_index(self):
         """
         Internal method to create the keyword index.
         """
 
-        sql_create_index = SQL("CREATE INDEX ON {table_name} USING GIN (to_tsvector({language}, content))").format(
+        sql_create_index = SQL("CREATE INDEX ON {table_name} USING GIN (to_tsvector({self.language}, content))").format(
             table_name=Identifier(self.table_name), language=SQLLiteral(self.language)
         )
 
@@ -508,12 +509,13 @@ class PgvectorDocumentStore:
 
         self._execute_sql(delete_sql, error_msg="Could not delete documents from PgvectorDocumentStore")
 
-    
+
     def _keyword_retrieval(
         self,
         user_query: str,
         top_k: int = 10,
         filters: Optional[Dict[str, Any]] = None,
+        language: Optional[str] = "english",
     ) -> List[Document]:
         """
         Retrieves documents that are most similar to the query using a full-text search.
@@ -533,11 +535,11 @@ class PgvectorDocumentStore:
         sql_where_clause = SQL("")
         params = ()
 
-        # if filters:
-        #     sql_where_clause = SQL(" WHERE to_tsvector('english', content) @@ plainto_tsquery('english', %(query)s)")
-        #     params = {"query": user_query}
-        #     sql_where_clause, params = _convert_filters_to_where_clause_and_params(filters)
-        
+        if filters:
+            sql_where_clause = SQL(" WHERE to_tsvector('english', content) @@ plainto_tsquery(%(language)s, %(query)s)")
+            params = {"query": user_query, "language": language}
+            sql_where_clause, params = _convert_filters_to_where_clause_and_params(filters)
+
         sql_sort = SQL(" ORDER BY score {sort_order} LIMIT {top_k}").format(
             top_k=SQLLiteral(top_k),
             sort_order=SQL("DESC"),
@@ -556,7 +558,7 @@ class PgvectorDocumentStore:
         docs = self._from_pg_to_haystack_documents(records)
         return docs
 
-    
+
     def _embedding_retrieval(
         self,
         query_embedding: List[float],
@@ -597,13 +599,13 @@ class PgvectorDocumentStore:
         # cosine_similarity and inner_product are modified from the result of the operator
         if vector_function == "cosine_similarity":
             score_definition = f"1 - (embedding <=> {query_embedding_for_postgres}) AS score"
-            method = '1 - <=>'
+            method = "1 - <=>"
         elif vector_function == "inner_product":
             score_definition = f"(embedding <#> {query_embedding_for_postgres}) * -1 AS score"
-            method = '<#>'
+            method = "<#>"
         elif vector_function == "l2_distance":
             score_definition = f"embedding <-> {query_embedding_for_postgres} AS score"
-            method = '<->'
+            method = "<->"
 
         sql_select = SQL("SELECT *, {score} FROM {table_name}").format(
             table_name=Identifier(self.table_name),
@@ -629,7 +631,7 @@ class PgvectorDocumentStore:
         else:
             sql_query = SQL(HYBRID_SEARCH_STATEMENT).format(table_name=Identifier(self.table_name),
                                                             top_k=top_k,
-                                                            method=score_definition,
+                                                            method=method,
                                                             k=60,
                                                             #query=user_query,
                                                             embedding=query_embedding)
