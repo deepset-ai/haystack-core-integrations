@@ -262,7 +262,6 @@ class PgvectorDocumentStore:
 
         self._execute_sql(delete_sql, error_msg=f"Could not delete table {self.table_name} in PgvectorDocumentStore")
 
-
     def _create_keyword_index(self):
         """
         Internal method to create the keyword index.
@@ -273,7 +272,6 @@ class PgvectorDocumentStore:
         )
 
         self._execute_sql(sql_create_index, error_msg="Could not create keyword index on table {self.table_name}")
-
 
     def _handle_hnsw(self):
         """
@@ -509,7 +507,6 @@ class PgvectorDocumentStore:
 
         self._execute_sql(delete_sql, error_msg="Could not delete documents from PgvectorDocumentStore")
 
-
     def _keyword_retrieval(
         self,
         user_query: str,
@@ -557,7 +554,6 @@ class PgvectorDocumentStore:
         records = result.fetchall()
         docs = self._from_pg_to_haystack_documents(records)
         return docs
-
 
     def _embedding_retrieval(
         self,
@@ -629,12 +625,14 @@ class PgvectorDocumentStore:
         if not self.hybrid_search:
             sql_query = sql_select + sql_where_clause + sql_sort
         else:
-            sql_query = SQL(HYBRID_SEARCH_STATEMENT).format(table_name=Identifier(self.table_name),
-                                                            top_k=top_k,
-                                                            method=method,
-                                                            k=60,
-                                                            #query=user_query,
-                                                            embedding=query_embedding)
+            sql_query = SQL(HYBRID_SEARCH_STATEMENT).format(
+                table_name=Identifier(self.table_name),
+                top_k=top_k,
+                method=method,
+                k=60,
+                # query=user_query,
+                embedding=query_embedding,
+            )
 
         result = self._execute_sql(
             sql_query,

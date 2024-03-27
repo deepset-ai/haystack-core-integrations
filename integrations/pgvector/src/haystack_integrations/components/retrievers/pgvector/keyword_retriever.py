@@ -53,11 +53,11 @@ class PgvectorKeywordRetriever:
     """
 
     def __init__(
-    self,
-    *,
-    document_store: PgvectorDocumentStore,
-    filters: Optional[Dict[str, Any]] = None,
-    top_k: int = 10,
+        self,
+        *,
+        document_store: PgvectorDocumentStore,
+        filters: Optional[Dict[str, Any]] = None,
+        top_k: int = 10,
     ):
         """
         :param document_store: An instance of `PgvectorDocumentStore}.
@@ -128,4 +128,3 @@ class PgvectorKeywordRetriever:
             top_k=top_k,
         )
         return {"documents": docs}
-
