@@ -214,8 +214,11 @@ class AstraDocumentStore:
         i = 0
         while i < len(documents_to_write):
             doc = documents_to_write[i]
+            # check to see if this ID already exists in our new_documents array
+            exists = [d for d in new_documents if d["_id"] == doc["_id"]]
+            # check to see if this ID is already in the DB
             response = self.index.find_documents({"filter": {"_id": doc["_id"]}})
-            if response:
+            if response or exists:
                 if policy == DuplicatePolicy.FAIL:
                     msg = f"ID '{doc['_id']}' already exists."
                     raise DuplicateDocumentError(msg)
