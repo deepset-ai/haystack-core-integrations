@@ -29,7 +29,7 @@ class VertexAIImageQA:
 
     res = qa.run(image=image, question="What color is this dog")
 
-    print(res["answers"][0])
+    print(res["replies"][0])
 
     >>> white
     ```
@@ -82,14 +82,14 @@ class VertexAIImageQA:
         """
         return default_from_dict(cls, data)
 
-    @component.output_types(answers=List[str])
+    @component.output_types(replies=List[str])
     def run(self, image: ByteStream, question: str):
         """Prompts model to answer a question about an image.
 
         :param image: The image to ask the question about.
         :param question: The question to ask.
         :returns: A dictionary with the following keys:
-            - `answers`: A list of answers to the question.
+            - `replies`: A list of answers to the question.
         """
-        answers = self._model.ask_question(image=Image(image.data), question=question, **self._kwargs)
-        return {"answers": answers}
+        replies = self._model.ask_question(image=Image(image.data), question=question, **self._kwargs)
+        return {"replies": replies}
