@@ -41,7 +41,7 @@ class JinaRanker:
 
         :param api_key: The Jina API key. It can be explicitly provided or automatically read from the
             environment variable JINA_API_KEY (recommended).
-        :param model: The name of the Jina model to use. Check the list of available models on `https://jina.ai/reranker`
+        :param model: The name of the Jina model to use. Check the list of available models on `https://jina.ai/reranker/`
         :param top_k:
             The maximum number of Documents to return per query. If `None`, all documents are returned
         :param score_threshold:
