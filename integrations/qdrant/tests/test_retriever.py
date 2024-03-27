@@ -108,15 +108,13 @@ class TestQdrantRetriever(FilterableDocsFixtureMixin):
 
         retriever = QdrantEmbeddingRetriever(document_store=document_store)
 
-        results: List[Document] = retriever.run(query_embedding=_random_embeddings(768))
+        results: List[Document] = retriever.run(query_embedding=_random_embeddings(768))["documents"]
+        assert len(results) == 10
 
-        assert len(results["documents"]) == 10  # type: ignore
+        results = retriever.run(query_embedding=_random_embeddings(768), top_k=5, return_embedding=False)["documents"]
+        assert len(results) == 5
 
-        results = retriever.run(query_embedding=_random_embeddings(768), top_k=5, return_embedding=False)
-
-        assert len(results["documents"]) == 5  # type: ignore
-
-        for document in results["documents"]:  # type: ignore
+        for document in results:
             assert document.embedding is None
 
     def test_run_with_sparse_activated(self, filterable_docs: List[Document]):
@@ -126,15 +124,15 @@ class TestQdrantRetriever(FilterableDocsFixtureMixin):
 
         retriever = QdrantEmbeddingRetriever(document_store=document_store)
 
-        results: List[Document] = retriever.run(query_embedding=_random_embeddings(768))
+        results: List[Document] = retriever.run(query_embedding=_random_embeddings(768))["documents"]
 
-        assert len(results["documents"]) == 10  # type: ignore
+        assert len(results) == 10
 
-        results = retriever.run(query_embedding=_random_embeddings(768), top_k=5, return_embedding=False)
+        results = retriever.run(query_embedding=_random_embeddings(768), top_k=5, return_embedding=False)["documents"]
 
-        assert len(results["documents"]) == 5  # type: ignore
+        assert len(results) == 5
 
-        for document in results["documents"]:  # type: ignore
+        for document in results:
             assert document.embedding is None
 
 
@@ -243,15 +241,16 @@ class TestQdrantSparseRetriever(FilterableDocsFixtureMixin):
         # Add fake sparse embedding to documents
         for doc in filterable_docs:
             doc.sparse_embedding = SparseEmbedding.from_dict(self._generate_mocked_sparse_embedding(1)[0])
+
         document_store.write_documents(filterable_docs)
         retriever = QdrantSparseRetriever(document_store=document_store)
         sparse_embedding = SparseEmbedding(indices=[0, 1, 2, 3], values=[0.1, 0.8, 0.05, 0.33])
-        results: List[Document] = retriever.run(query_sparse_embedding=sparse_embedding)
-        assert len(results["documents"]) == 10  # type: ignore
 
-        results = retriever.run(query_sparse_embedding=sparse_embedding, top_k=5, return_embedding=False)
+        results: List[Document] = retriever.run(query_sparse_embedding=sparse_embedding)["documents"]
+        assert len(results) == 10
 
-        assert len(results["documents"]) == 5  # type: ignore
+        results = retriever.run(query_sparse_embedding=sparse_embedding, top_k=5, return_embedding=True)["documents"]
+        assert len(results) == 5
 
-        for document in results["documents"]:  # type: ignore
-            assert document.embedding is None
+        for document in results:
+            assert document.sparse_embedding

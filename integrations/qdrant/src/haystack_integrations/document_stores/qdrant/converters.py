@@ -84,7 +84,6 @@ class QdrantToHaystack:
         payload["score"] = point.score if hasattr(point, "score") else None
         if not self.use_sparse_embeddings:
             payload["embedding"] = point.vector if hasattr(point, "vector") else None
-
         else:
             if hasattr(point, "vector") and point.vector is not None:
                 payload["embedding"] = point.vector.get(DENSE_VECTORS_NAME)
@@ -95,6 +94,5 @@ class QdrantToHaystack:
                     "values": point.vector[SPARSE_VECTORS_NAME].values,
                 }
                 payload["sparse_embedding"] = parse_vector_dict
-            else:
-                payload["sparse_embedding"] = None
+
         return Document.from_dict(payload)

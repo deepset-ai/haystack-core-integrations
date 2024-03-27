@@ -318,10 +318,10 @@ class QdrantDocumentStore:
     ) -> List[Document]:
         if not self.use_sparse_embeddings:
             message = (
-                "Error: tried to query by sparse vector with a Qdrant "
-                "Document Store initialized with use_sparse_embeddings=False"
+                "You are trying to query using sparse embeddings, but the Document Store "
+                "was initialized with `use_sparse_embeddings=False`. "
             )
-            raise ValueError(message)
+            raise QdrantStoreError(message)
 
         qdrant_filters = self.qdrant_filter_converter.convert(filters)
         query_indices = query_sparse_embedding.indices
@@ -438,28 +438,27 @@ class QdrantDocumentStore:
             self._create_payload_index(collection_name, payload_fields_to_index)
             return
 
-        if isinstance(collection_info.config.params.vectors, dict):
-            has_named_vectors = DENSE_VECTORS_NAME in collection_info.config.params.vectors
-        else:
-            has_named_vectors = False
+        has_named_vectors = (
+            isinstance(collection_info.config.params.vectors, dict)
+            and DENSE_VECTORS_NAME in collection_info.config.params.vectors
+        )
 
         if self.use_sparse_embeddings and not has_named_vectors:
             msg = (
                 f"Collection '{collection_name}' already exists in Qdrant, "
-                f"but it has been originally created without sparse embedding vectors."
-                f"If you want to use that collection, either set `use_sparse_embeddings=False` "
-                f"or run a migration script "
-                f"to use Named Dense Vectors (`text-sparse`) and Named Sparse Vectors (`text-dense`)."
+                f"but it has been originally created without sparse embedding vectors. "
+                f"If you want to use that collection, you can set `use_sparse_embeddings=False`. "
+                f"To use sparse embeddings, you need to recreate the collection or migrate the existing one."
             )
-            raise ValueError(msg)
+            raise QdrantStoreError(msg)
 
         elif not self.use_sparse_embeddings and has_named_vectors:
             msg = (
                 f"Collection '{collection_name}' already exists in Qdrant, "
                 f"but it has been originally created with sparse embedding vectors."
-                f"If you want to use that collection, please set `use_sparse_embeddings=True`"
+                f"If you want to use that collection, please set `use_sparse_embeddings=True`."
             )
-            raise ValueError(msg)
+            raise QdrantStoreError(msg)
 
         if self.use_sparse_embeddings:
             current_distance = collection_info.config.params.vectors[DENSE_VECTORS_NAME].distance
@@ -494,14 +493,10 @@ class QdrantDocumentStore:
         on_disk: bool,  # noqa: FBT001
         use_sparse_embeddings: bool,  # noqa: FBT001
     ):
+        dense_vectors_config = rest.VectorParams(size=embedding_dim, on_disk=on_disk, distance=distance)
+
         if use_sparse_embeddings:
-            vectors_config = {
-                DENSE_VECTORS_NAME: rest.VectorParams(
-                    size=embedding_dim,
-                    on_disk=on_disk,
-                    distance=distance,
-                ),
-            }
+            vectors_config = {DENSE_VECTORS_NAME: dense_vectors_config}
 
             sparse_vectors_config = {
                 SPARSE_VECTORS_NAME: rest.SparseVectorParams(
@@ -511,7 +506,7 @@ class QdrantDocumentStore:
                 ),
             }
         else:
-            vectors_config = rest.VectorParams(size=embedding_dim, on_disk=on_disk, distance=distance)
+            vectors_config = dense_vectors_config
 
         self.client.recreate_collection(
             collection_name=collection_name,
