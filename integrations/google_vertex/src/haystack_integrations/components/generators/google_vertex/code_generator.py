@@ -24,7 +24,7 @@ class VertexAICodeGenerator:
 
         result = generator.run(prefix="def to_json(data):")
 
-        for answer in result["answers"]:
+        for answer in result["replies"]:
             print(answer)
 
         >>> ```python
@@ -92,7 +92,7 @@ class VertexAICodeGenerator:
         """
         return default_from_dict(cls, data)
 
-    @component.output_types(answers=List[str])
+    @component.output_types(replies=List[str])
     def run(self, prefix: str, suffix: Optional[str] = None):
         """
         Generate code using a Google Vertex AI model.
@@ -100,9 +100,9 @@ class VertexAICodeGenerator:
         :param prefix: Code before the current point.
         :param suffix: Code after the current point.
         :returns: A dictionary with the following keys:
-            - `answers`: A list of generated code snippets.
+            - `replies`: A list of generated code snippets.
         """
         res = self._model.predict(prefix=prefix, suffix=suffix, **self._kwargs)
         # Handle the case where the model returns multiple candidates
-        answers = [c.text for c in res.candidates] if hasattr(res, "candidates") else [res.text]
-        return {"answers": answers}
+        replies = [c.text for c in res.candidates] if hasattr(res, "candidates") else [res.text]
+        return {"replies": replies}
