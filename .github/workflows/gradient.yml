@@ -21,6 +21,8 @@ concurrency:
 env:
   PYTHONUNBUFFERED: "1"
   FORCE_COLOR: "1"
+  GRADIENT_ACCESS_TOKEN: ${{ secrets.GRADIENT_ACCESS_TOKEN }}
+  GRADIENT_WORKSPACE_ID: ${{ secrets.GRADIENT_WORKSPACE_ID }}
 
 jobs:
   run:
@@ -66,13 +68,13 @@ jobs:
       run: |
         hatch run pip install git+https://github.com/deepset-ai/haystack.git
         hatch run test -m "not integration"
-    
+
     - name: Send event to Datadog for nightly failures
       if: failure() && github.event_name == 'schedule'
       uses: ./.github/actions/send_failure
       with:
         title: |
-          core-integrations failure: 
+          core-integrations failure:
           ${{ (steps.tests.conclusion == 'nightly-haystack-main') && 'nightly-haystack-main' || 'tests' }}
             - ${{ github.workflow }}
         api-key: ${{ secrets.CORE_DATADOG_API_KEY }}

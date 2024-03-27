@@ -17,7 +17,6 @@ class GradientTextEmbedder:
     from haystack.document_stores.in_memory import InMemoryDocumentStore
     from haystack import Pipeline
 
-    embedder =
     p = Pipeline()
     p.add_component("text_embedder", GradientTextEmbedder(model="bge-large"))
     p.add_component("retriever", InMemoryEmbeddingRetriever(document_store=InMemoryDocumentStore()))
