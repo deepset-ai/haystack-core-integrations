@@ -144,38 +144,41 @@ class QdrantFilterConverter:
         if isinstance(value, str) and is_datetime_string(value):
             return models.FieldCondition(key=key, range=models.DatetimeRange(lt=value))
 
-        if not isinstance(value, (int, float)):
-            msg = f"Value {value} is not an int or float or datetime string"
-            raise FilterError(msg)
-        return models.FieldCondition(key=key, range=models.Range(lt=value))
+        if isinstance(value, (int, float)):
+            return models.FieldCondition(key=key, range=models.Range(lt=value))
+
+        msg = f"Value {value} is not an int or float or datetime string"
+        raise FilterError(msg)
 
     def _build_lte_condition(self, key: str, value: Union[str, float, int]) -> models.Condition:
         if isinstance(value, str) and is_datetime_string(value):
             return models.FieldCondition(key=key, range=models.DatetimeRange(lte=value))
 
-        if not isinstance(value, (int, float)):
-            msg = f"Value {value} is not an int or float or datetime string"
-            raise FilterError(msg)
-        return models.FieldCondition(key=key, range=models.Range(lte=value))
+        if isinstance(value, (int, float)):
+            return models.FieldCondition(key=key, range=models.Range(lte=value))
+
+        msg = f"Value {value} is not an int or float or datetime string"
+        raise FilterError(msg)
 
     def _build_gt_condition(self, key: str, value: Union[str, float, int]) -> models.Condition:
         if isinstance(value, str) and is_datetime_string(value):
             return models.FieldCondition(key=key, range=models.DatetimeRange(gt=value))
 
-        if not isinstance(value, (int, float)):
-            msg = f"Value {value} is not an int or float or datetime string"
-            raise FilterError(msg)
+        if isinstance(value, (int, float)):
+            return models.FieldCondition(key=key, range=models.Range(gt=value))
 
-        return models.FieldCondition(key=key, range=models.Range(gt=value))
+        msg = f"Value {value} is not an int or float or datetime string"
+        raise FilterError(msg)
 
     def _build_gte_condition(self, key: str, value: Union[str, float, int]) -> models.Condition:
         if isinstance(value, str) and is_datetime_string(value):
             return models.FieldCondition(key=key, range=models.DatetimeRange(gte=value))
 
-        if not isinstance(value, (int, float)):
-            msg = f"Value {value} is not an int or float or datetime string"
-            raise FilterError(msg)
-        return models.FieldCondition(key=key, range=models.Range(gte=value))
+        if isinstance(value, (int, float)):
+            return models.FieldCondition(key=key, range=models.Range(gte=value))
+
+        msg = f"Value {value} is not an int or float or datetime string"
+        raise FilterError(msg)
 
     def _build_has_id_condition(self, id_values: List[models.ExtendedPointId]) -> models.HasIdCondition:
         return models.HasIdCondition(
