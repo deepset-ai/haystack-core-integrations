@@ -527,17 +527,19 @@ class PgvectorDocumentStore:
             msg = "user_query must be a non-empty string"
             raise ValueError(msg)
 
-        sql_select = SQL("SELECT * FROM {table_name}").format(table_name=Identifier(self.table_name))
+        sql_select = SQL(
+            """SELECT *, RANK() OVER (ORDER BY
+            ts_rank_cd(to_tsvector(%(language)s, content), query) DESC) AS rank
+            FROM {table_name}, plainto_tsquery(%(language)s, %(query)s) query
+            WHERE to_tsvector(%(language)s, content) @@ query"""
+        ).format(table_name=Identifier(self.table_name), language=language)
 
         sql_where_clause = SQL("")
         params = ()
-
         if filters:
-            sql_where_clause = SQL(" WHERE to_tsvector('english', content) @@ plainto_tsquery(%(language)s, %(query)s)")
-            params = {"query": user_query, "language": language}
             sql_where_clause, params = _convert_filters_to_where_clause_and_params(filters)
 
-        sql_sort = SQL(" ORDER BY score {sort_order} LIMIT {top_k}").format(
+        sql_sort = SQL(" ORDER BY rank {sort_order} LIMIT {top_k}").format(
             top_k=SQLLiteral(top_k),
             sort_order=SQL("DESC"),
         )
