@@ -28,7 +28,7 @@ class VertexAITextGenerator:
         generator = VertexAITextGenerator(project_id=project_id)
         res = generator.run("Tell me a good interview question for a software engineer.")
 
-        print(res["answers"][0])
+        print(res["replies"][0])
 
         >>> **Question:**
         >>> You are given a list of integers and a target sum.
@@ -109,26 +109,26 @@ class VertexAITextGenerator:
             )
         return default_from_dict(cls, data)
 
-    @component.output_types(answers=List[str], safety_attributes=Dict[str, float], citations=List[Dict[str, Any]])
+    @component.output_types(replies=List[str], safety_attributes=Dict[str, float], citations=List[Dict[str, Any]])
     def run(self, prompt: str):
         """Prompts the model to generate text.
 
         :param prompt: The prompt to use for text generation.
         :returns:  A dictionary with the following keys:
-            - `answers`: A list of generated answers.
+            - `replies`: A list of generated replies.
             - `safety_attributes`: A dictionary with the [safety scores](https://cloud.google.com/vertex-ai/generative-ai/docs/learn/responsible-ai#safety_attribute_descriptions)
               of each answer.
             - `citations`: A list of citations for each answer.
         """
         res = self._model.predict(prompt=prompt, **self._kwargs)
 
-        answers = []
+        replies = []
         safety_attributes = []
         citations = []
 
         for prediction in res.raw_prediction_response.predictions:
-            answers.append(prediction["content"])
+            replies.append(prediction["content"])
             safety_attributes.append(prediction["safetyAttributes"])
             citations.append(prediction["citationMetadata"]["citations"])
 
-        return {"answers": answers, "safety_attributes": safety_attributes, "citations": citations}
+        return {"replies": replies, "safety_attributes": safety_attributes, "citations": citations}

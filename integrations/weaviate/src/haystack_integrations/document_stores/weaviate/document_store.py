@@ -6,7 +6,7 @@ import datetime
 import json
 import logging
 from dataclasses import asdict
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional
 
 from haystack.core.serialization import default_from_dict, default_to_dict
 from haystack.dataclasses.document import Document
@@ -23,9 +23,6 @@ from ._filters import convert_filters
 from .auth import AuthCredentials
 
 logger = logging.getLogger(__name__)
-
-Number = Union[int, float]
-TimeoutType = Union[Tuple[Number, Number], Number]
 
 
 # This is the default collection properties for Weaviate.
@@ -62,6 +59,28 @@ DEFAULT_QUERY_LIMIT = 9999
 class WeaviateDocumentStore:
     """
     WeaviateDocumentStore is a Document Store for Weaviate.
+    It can be used with Weaviate Cloud Services or self-hosted instances.
+
+    Usage example with Weaviate Cloud Services:
+    ```python
+    import os
+    from haystack_integrations.document_stores.weaviate.auth import AuthApiKey
+    from haystack_integrations.document_stores.weaviate.document_store import WeaviateDocumentStore
+
+    os.environ["WEAVIATE_API_KEY"] = "MY_API_KEY
+
+    document_store = WeaviateDocumentStore(
+        url="rAnD0mD1g1t5.something.weaviate.cloud",
+        auth_client_secret=AuthApiKey(),
+    )
+    ```
+
+    Usage example with self-hosted Weaviate:
+    ```python
+    from haystack_integrations.document_stores.weaviate.document_store import WeaviateDocumentStore
+
+    document_store = WeaviateDocumentStore(url="http://localhost:8080")
+    ```
     """
 
     def __init__(
@@ -190,9 +209,9 @@ class WeaviateDocumentStore:
         Deserializes the component from a dictionary.
 
         :param data:
-            Dictionary to deserialize from.
+            The dictionary to deserialize from.
         :returns:
-            Deserialized component.
+            The deserialized component.
         """
         if (auth_client_secret := data["init_parameters"].get("auth_client_secret")) is not None:
             data["init_parameters"]["auth_client_secret"] = AuthCredentials.from_dict(auth_client_secret)
@@ -206,6 +225,9 @@ class WeaviateDocumentStore:
         )
 
     def count_documents(self) -> int:
+        """
+        Returns the number of documents present in the DocumentStore.
+        """
         total = self._collection.aggregate.over_all(total_count=True).total_count
         return total if total else 0
 
@@ -266,6 +288,15 @@ class WeaviateDocumentStore:
             if isinstance(value, datetime.datetime):
                 document_data[key] = value.strftime("%Y-%m-%dT%H:%M:%SZ")
 
+        if weaviate_meta := getattr(data, "metadata", None):
+            # Depending on the type of retrieval we get score from different fields.
+            # score is returned when using BM25 retrieval.
+            # certainty is returned when using embedding retrieval.
+            if weaviate_meta.score is not None:
+                document_data["score"] = weaviate_meta.score
+            elif weaviate_meta.certainty is not None:
+                document_data["score"] = weaviate_meta.certainty
+
         return Document.from_dict(document_data)
 
     def _query(self) -> List[Dict[str, Any]]:
@@ -309,6 +340,15 @@ class WeaviateDocumentStore:
         return result
 
     def filter_documents(self, filters: Optional[Dict[str, Any]] = None) -> List[Document]:
+        """
+        Returns the documents that match the filters provided.
+
+        For a detailed specification of the filters, refer to the
+        DocumentStore.filter_documents() protocol documentation.
+
+        :param filters: The filters to apply to the document list.
+        :returns: A list of Documents that match the given filters.
+        """
         result = []
         if filters:
             result = self._query_with_filters(filters)
@@ -406,18 +446,26 @@ class WeaviateDocumentStore:
         return self._write(documents, policy)
 
     def delete_documents(self, document_ids: List[str]) -> None:
+        """
+        Deletes all documents with matching document_ids from the DocumentStore.
+
+        :param document_ids: The object_ids to delete.
+        """
         weaviate_ids = [generate_uuid5(doc_id) for doc_id in document_ids]
         self._collection.data.delete_many(where=weaviate.classes.query.Filter.by_id().contains_any(weaviate_ids))
 
     def _bm25_retrieval(
         self, query: str, filters: Optional[Dict[str, Any]] = None, top_k: Optional[int] = None
     ) -> List[Document]:
+        properties = [p.name for p in self._collection.config.get().properties]
         result = self._collection.query.bm25(
             query=query,
             filters=convert_filters(filters) if filters else None,
             limit=top_k,
             include_vector=True,
             query_properties=["content"],
+            return_properties=properties,
+            return_metadata=["score"],
         )
 
         return [self._to_document(doc) for doc in result.objects]
@@ -434,6 +482,7 @@ class WeaviateDocumentStore:
             msg = "Can't use 'distance' and 'certainty' parameters together"
             raise ValueError(msg)
 
+        properties = [p.name for p in self._collection.config.get().properties]
         result = self._collection.query.near_vector(
             near_vector=query_embedding,
             distance=distance,
@@ -441,6 +490,8 @@ class WeaviateDocumentStore:
             include_vector=True,
             filters=convert_filters(filters) if filters else None,
             limit=top_k,
+            return_properties=properties,
+            return_metadata=["certainty"],
         )
 
         return [self._to_document(doc) for doc in result.objects]
