@@ -7,6 +7,7 @@ import pytest
 from dateutil import parser
 from haystack.dataclasses.byte_stream import ByteStream
 from haystack.dataclasses.document import Document
+from haystack.document_stores.errors import DocumentStoreError
 from haystack.testing.document_store import (
     TEST_EMBEDDING_1,
     TEST_EMBEDDING_2,
@@ -24,8 +25,10 @@ from numpy import array as np_array
 from numpy import array_equal as np_array_equal
 from numpy import float32 as np_float32
 from pandas import DataFrame
-from weaviate.auth import AuthApiKey as WeaviateAuthApiKey
-from weaviate.config import Config
+from weaviate.collections.classes.data import DataObject
+
+# from weaviate.auth import AuthApiKey as WeaviateAuthApiKey
+from weaviate.config import AdditionalConfig, ConnectionConfig, Proxies, Timeout
 from weaviate.embedded import (
     DEFAULT_BINARY_PATH,
     DEFAULT_GRPC_PORT,
@@ -35,6 +38,7 @@ from weaviate.embedded import (
 )
 
 
+@pytest.mark.integration
 class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsTest, FilterDocumentsTest):
     @pytest.fixture
     def document_store(self, request) -> WeaviateDocumentStore:
@@ -53,7 +57,7 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
             collection_settings=collection_settings,
         )
         yield store
-        store._client.schema.delete_class(collection_settings["class"])
+        store._client.collections.delete(collection_settings["class"])
 
     @pytest.fixture
     def filterable_docs(self) -> List[Document]:
@@ -145,49 +149,48 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
             for key in meta_keys:
                 assert received_meta.get(key) == expected_meta.get(key)
 
-    @patch("haystack_integrations.document_stores.weaviate.document_store.weaviate.Client")
+    @patch("haystack_integrations.document_stores.weaviate.document_store.weaviate.WeaviateClient")
     def test_init(self, mock_weaviate_client_class, monkeypatch):
         mock_client = MagicMock()
-        mock_client.schema.exists.return_value = False
+        mock_client.collections.exists.return_value = False
         mock_weaviate_client_class.return_value = mock_client
         monkeypatch.setenv("WEAVIATE_API_KEY", "my_api_key")
         WeaviateDocumentStore(
-            url="http://localhost:8080",
             collection_settings={"class": "My_collection"},
             auth_client_secret=AuthApiKey(),
-            proxies={"http": "http://proxy:1234"},
             additional_headers={"X-HuggingFace-Api-Key": "MY_HUGGINGFACE_KEY"},
             embedded_options=EmbeddedOptions(
                 persistence_data_path=DEFAULT_PERSISTENCE_DATA_PATH,
                 binary_path=DEFAULT_BINARY_PATH,
-                version="1.23.0",
+                version="1.23.7",
                 hostname="127.0.0.1",
             ),
-            additional_config=Config(grpc_port_experimental=12345),
+            additional_config=AdditionalConfig(
+                proxies={"http": "http://proxy:1234"}, trust_env=False, timeout=(10, 60)
+            ),
         )
 
         # Verify client is created with correct parameters
+
         mock_weaviate_client_class.assert_called_once_with(
-            url="http://localhost:8080",
-            auth_client_secret=WeaviateAuthApiKey("my_api_key"),
-            timeout_config=(10, 60),
-            proxies={"http": "http://proxy:1234"},
-            trust_env=False,
+            auth_client_secret=AuthApiKey().resolve_value(),
+            connection_params=None,
             additional_headers={"X-HuggingFace-Api-Key": "MY_HUGGINGFACE_KEY"},
-            startup_period=5,
             embedded_options=EmbeddedOptions(
                 persistence_data_path=DEFAULT_PERSISTENCE_DATA_PATH,
                 binary_path=DEFAULT_BINARY_PATH,
-                version="1.23.0",
+                version="1.23.7",
                 hostname="127.0.0.1",
             ),
-            additional_config=Config(grpc_port_experimental=12345),
+            skip_init_checks=False,
+            additional_config=AdditionalConfig(
+                proxies={"http": "http://proxy:1234"}, trust_env=False, timeout=(10, 60)
+            ),
         )
 
         # Verify collection is created
-        mock_client.schema.get.assert_called_once()
-        mock_client.schema.exists.assert_called_once_with("My_collection")
-        mock_client.schema.create_class.assert_called_once_with(
+        mock_client.collections.exists.assert_called_once_with("My_collection")
+        mock_client.collections.create_from_dict.assert_called_once_with(
             {"class": "My_collection", "properties": DOCUMENT_COLLECTION_PROPERTIES}
         )
 
@@ -197,7 +200,6 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
         document_store = WeaviateDocumentStore(
             url="http://localhost:8080",
             auth_client_secret=AuthApiKey(),
-            proxies={"http": "http://proxy:1234"},
             additional_headers={"X-HuggingFace-Api-Key": "MY_HUGGINGFACE_KEY"},
             embedded_options=EmbeddedOptions(
                 persistence_data_path=DEFAULT_PERSISTENCE_DATA_PATH,
@@ -205,7 +207,12 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
                 version="1.23.0",
                 hostname="127.0.0.1",
             ),
-            additional_config=Config(grpc_port_experimental=12345),
+            additional_config=AdditionalConfig(
+                connection=ConnectionConfig(),
+                timeout=(30, 90),
+                trust_env=False,
+                proxies={"http": "http://proxy:1234"},
+            ),
         )
         assert document_store.to_dict() == {
             "type": "haystack_integrations.document_stores.weaviate.document_store.WeaviateDocumentStore",
@@ -229,11 +236,7 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
                         "api_key": {"env_vars": ["WEAVIATE_API_KEY"], "strict": True, "type": "env_var"}
                     },
                 },
-                "timeout_config": (10, 60),
-                "proxies": {"http": "http://proxy:1234"},
-                "trust_env": False,
                 "additional_headers": {"X-HuggingFace-Api-Key": "MY_HUGGINGFACE_KEY"},
-                "startup_period": 5,
                 "embedded_options": {
                     "persistence_data_path": DEFAULT_PERSISTENCE_DATA_PATH,
                     "binary_path": DEFAULT_BINARY_PATH,
@@ -244,11 +247,14 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
                     "grpc_port": DEFAULT_GRPC_PORT,
                 },
                 "additional_config": {
-                    "grpc_port_experimental": 12345,
-                    "connection_config": {
+                    "connection": {
                         "session_pool_connections": 20,
-                        "session_pool_maxsize": 20,
+                        "session_pool_maxsize": 100,
+                        "session_pool_max_retries": 3,
                     },
+                    "proxies": {"http": "http://proxy:1234", "https": None, "grpc": None},
+                    "timeout": [30, 90],
+                    "trust_env": False,
                 },
             },
         }
@@ -268,11 +274,7 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
                             "api_key": {"env_vars": ["WEAVIATE_API_KEY"], "strict": True, "type": "env_var"}
                         },
                     },
-                    "timeout_config": [10, 60],
-                    "proxies": {"http": "http://proxy:1234"},
-                    "trust_env": False,
                     "additional_headers": {"X-HuggingFace-Api-Key": "MY_HUGGINGFACE_KEY"},
-                    "startup_period": 5,
                     "embedded_options": {
                         "persistence_data_path": DEFAULT_PERSISTENCE_DATA_PATH,
                         "binary_path": DEFAULT_BINARY_PATH,
@@ -283,11 +285,13 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
                         "grpc_port": DEFAULT_GRPC_PORT,
                     },
                     "additional_config": {
-                        "grpc_port_experimental": 12345,
-                        "connection_config": {
+                        "connection": {
                             "session_pool_connections": 20,
                             "session_pool_maxsize": 20,
                         },
+                        "proxies": {"http": "http://proxy:1234"},
+                        "timeout": [10, 60],
+                        "trust_env": False,
                     },
                 },
             }
@@ -307,11 +311,10 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
             ],
         }
         assert document_store._auth_client_secret == AuthApiKey()
-        assert document_store._timeout_config == (10, 60)
-        assert document_store._proxies == {"http": "http://proxy:1234"}
-        assert not document_store._trust_env
+        assert document_store._additional_config.timeout == Timeout(query=10, insert=60)
+        assert document_store._additional_config.proxies == Proxies(http="http://proxy:1234", https=None, grpc=None)
+        assert not document_store._additional_config.trust_env
         assert document_store._additional_headers == {"X-HuggingFace-Api-Key": "MY_HUGGINGFACE_KEY"}
-        assert document_store._startup_period == 5
         assert document_store._embedded_options.persistence_data_path == DEFAULT_PERSISTENCE_DATA_PATH
         assert document_store._embedded_options.binary_path == DEFAULT_BINARY_PATH
         assert document_store._embedded_options.version == "1.23.0"
@@ -319,9 +322,8 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
         assert document_store._embedded_options.hostname == "127.0.0.1"
         assert document_store._embedded_options.additional_env_vars is None
         assert document_store._embedded_options.grpc_port == DEFAULT_GRPC_PORT
-        assert document_store._additional_config.grpc_port_experimental == 12345
-        assert document_store._additional_config.connection_config.session_pool_connections == 20
-        assert document_store._additional_config.connection_config.session_pool_maxsize == 20
+        assert document_store._additional_config.connection.session_pool_connections == 20
+        assert document_store._additional_config.connection.session_pool_maxsize == 20
 
     def test_to_data_object(self, document_store, test_files_path):
         doc = Document(content="test doc")
@@ -353,18 +355,18 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
 
     def test_to_document(self, document_store, test_files_path):
         image = ByteStream.from_file_path(test_files_path / "robot1.jpg", mime_type="image/jpeg")
-        data = {
-            "_additional": {
-                "vector": [1, 2, 3],
+        data = DataObject(
+            properties={
+                "_original_id": "123",
+                "content": "some content",
+                "blob_data": base64.b64encode(image.data).decode(),
+                "blob_mime_type": "image/jpeg",
+                "dataframe": None,
+                "score": None,
+                "key": "value",
             },
-            "_original_id": "123",
-            "content": "some content",
-            "blob_data": base64.b64encode(image.data).decode(),
-            "blob_mime_type": "image/jpeg",
-            "dataframe": None,
-            "score": None,
-            "meta": {"key": "value"},
-        }
+            vector={"default": [1, 2, 3]},
+        )
 
         doc = document_store._to_document(data)
         assert doc.id == "123"
@@ -508,10 +510,15 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
         result = document_store._bm25_retrieval("functional Haskell")
         assert len(result) == 5
         assert "functional" in result[0].content
+        assert result[0].score > 0.0
         assert "functional" in result[1].content
+        assert result[1].score > 0.0
         assert "functional" in result[2].content
+        assert result[2].score > 0.0
         assert "functional" in result[3].content
+        assert result[3].score > 0.0
         assert "functional" in result[4].content
+        assert result[4].score > 0.0
 
     def test_bm25_retrieval_with_filters(self, document_store):
         document_store.write_documents(
@@ -533,6 +540,7 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
         result = document_store._bm25_retrieval("functional Haskell", filters=filters)
         assert len(result) == 1
         assert "Haskell is a functional programming language" == result[0].content
+        assert result[0].score > 0.0
 
     def test_bm25_retrieval_with_topk(self, document_store):
         document_store.write_documents(
@@ -553,8 +561,11 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
         result = document_store._bm25_retrieval("functional Haskell", top_k=3)
         assert len(result) == 3
         assert "functional" in result[0].content
+        assert result[0].score > 0.0
         assert "functional" in result[1].content
+        assert result[1].score > 0.0
         assert "functional" in result[2].content
+        assert result[2].score > 0.0
 
     def test_embedding_retrieval(self, document_store):
         document_store.write_documents(
@@ -570,8 +581,11 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
         result = document_store._embedding_retrieval(query_embedding=[1.0, 1.0, 1.0, 1.0])
         assert len(result) == 3
         assert "The document" == result[0].content
+        assert result[0].score > 0.0
         assert "Another document" == result[1].content
+        assert result[1].score > 0.0
         assert "Yet another document" == result[2].content
+        assert result[2].score > 0.0
 
     def test_embedding_retrieval_with_filters(self, document_store):
         document_store.write_documents(
@@ -588,6 +602,7 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
         result = document_store._embedding_retrieval(query_embedding=[1.0, 1.0, 1.0, 1.0], filters=filters)
         assert len(result) == 1
         assert "The document I want" == result[0].content
+        assert result[0].score > 0.0
 
     def test_embedding_retrieval_with_topk(self, document_store):
         docs = [
@@ -599,7 +614,9 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
         results = document_store._embedding_retrieval(query_embedding=[1.0, 1.0, 1.0, 1.0], top_k=2)
         assert len(results) == 2
         assert results[0].content == "The document"
+        assert results[0].score > 0.0
         assert results[1].content == "Another document"
+        assert results[1].score > 0.0
 
     def test_embedding_retrieval_with_distance(self, document_store):
         docs = [
@@ -611,6 +628,7 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
         results = document_store._embedding_retrieval(query_embedding=[1.0, 1.0, 1.0, 1.0], distance=0.0)
         assert len(results) == 1
         assert results[0].content == "The document"
+        assert results[0].score > 0.0
 
     def test_embedding_retrieval_with_certainty(self, document_store):
         docs = [
@@ -622,7 +640,27 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
         results = document_store._embedding_retrieval(query_embedding=[0.8, 0.8, 0.8, 1.0], certainty=1.0)
         assert len(results) == 1
         assert results[0].content == "Another document"
+        assert results[0].score > 0.0
 
     def test_embedding_retrieval_with_distance_and_certainty(self, document_store):
         with pytest.raises(ValueError):
             document_store._embedding_retrieval(query_embedding=[], distance=0.1, certainty=0.1)
+
+    def test_filter_documents_below_default_limit(self, document_store):
+        docs = []
+        for index in range(9998):
+            docs.append(Document(content="This is some content", meta={"index": index}))
+        document_store.write_documents(docs)
+        result = document_store.filter_documents(
+            {"field": "content", "operator": "==", "value": "This is some content"}
+        )
+
+        assert len(result) == 9998
+
+    def test_filter_documents_over_default_limit(self, document_store):
+        docs = []
+        for index in range(10000):
+            docs.append(Document(content="This is some content", meta={"index": index}))
+        document_store.write_documents(docs)
+        with pytest.raises(DocumentStoreError):
+            document_store.filter_documents({"field": "content", "operator": "==", "value": "This is some content"})

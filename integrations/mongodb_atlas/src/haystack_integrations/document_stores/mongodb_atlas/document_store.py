@@ -170,7 +170,19 @@ class MongoDBAtlasDocumentStore:
         if policy == DuplicatePolicy.NONE:
             policy = DuplicatePolicy.FAIL
 
-        mongo_documents = [doc.to_dict(flatten=False) for doc in documents]
+        mongo_documents = []
+        for doc in documents:
+            doc_dict = doc.to_dict(flatten=False)
+            if "sparse_embedding" in doc_dict:
+                sparse_embedding = doc_dict.pop("sparse_embedding", None)
+                if sparse_embedding:
+                    logger.warning(
+                        "Document %s has the `sparse_embedding` field set,"
+                        "but storing sparse embeddings in MongoDB Atlas is not currently supported."
+                        "The `sparse_embedding` field will be ignored.",
+                        doc.id,
+                    )
+            mongo_documents.append(doc_dict)
         operations: List[Union[UpdateOne, InsertOne, ReplaceOne]]
         written_docs = len(documents)
 

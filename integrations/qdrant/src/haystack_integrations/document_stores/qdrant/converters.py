@@ -1,8 +1,11 @@
+import logging
 import uuid
 from typing import List, Union
 
 from haystack.dataclasses import Document
 from qdrant_client.http import models as rest
+
+logger = logging.getLogger(__name__)
 
 
 class HaystackToQdrant:
@@ -21,6 +24,17 @@ class HaystackToQdrant:
             payload = document.to_dict(flatten=False)
             vector = payload.pop(embedding_field) or {}
             _id = self.convert_id(payload.get("id"))
+
+            # TODO: remove as soon as we introduce the support for sparse embeddings in Qdrant
+            if "sparse_embedding" in payload:
+                sparse_embedding = payload.pop("sparse_embedding", None)
+                if sparse_embedding:
+                    logger.warning(
+                        "Document %s has the `sparse_embedding` field set,"
+                        "but storing sparse embeddings in Qdrant is not currently supported."
+                        "The `sparse_embedding` field will be ignored.",
+                        payload["id"],
+                    )
 
             point = rest.PointStruct(
                 payload=payload,

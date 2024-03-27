@@ -5,6 +5,7 @@ loaders:
       [
         "haystack_integrations.components.embedders.jina.document_embedder",
         "haystack_integrations.components.embedders.jina.text_embedder",
+        "haystack_integrations.components.rankers.jina.ranker",
       ]
     ignore_when_discovered: ["__init__"]
 processors:
@@ -24,6 +25,7 @@ renderer:
   order: 130
   markdown:
     descriptive_class_title: false
+    classdef_code_block: false
     descriptive_module_title: true
     add_method_class_prefix: true
     add_member_class_prefix: false
