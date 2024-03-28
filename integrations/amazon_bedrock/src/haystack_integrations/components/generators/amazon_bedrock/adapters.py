@@ -139,6 +139,55 @@ class AnthropicClaudeAdapter(BedrockModelAdapter):
         return chunk.get("completion", "")
 
 
+class MistralAdapter(BedrockModelAdapter):
+    """
+    Adapter for the Mistral models.
+    """
+
+    def prepare_body(self, prompt: str, **inference_kwargs) -> Dict[str, Any]:
+        """
+        Prepares the body for the Mistral model
+
+        :param prompt: The prompt to be sent to the model.
+        :param inference_kwargs: Additional keyword arguments passed to the handler.
+        :returns: A dictionary with the following keys:
+            - `prompt`: The prompt to be sent to the model.
+            - specified inference parameters.
+        """
+        default_params: Dict[str, Any] = {
+            "max_tokens": self.max_length,
+            "stop": [],
+            "temperature": None,
+            "top_p": None,
+            "top_k": None,
+        }
+        params = self._get_params(inference_kwargs, default_params)
+        prompt = f"<s>[INST] {prompt} [/INST]" if "INST" not in prompt else prompt
+        body = {"prompt": prompt, **params}
+        return body
+
+    def _extract_completions_from_response(self, response_body: Dict[str, Any]) -> List[str]:
+        """
+        Extracts the responses from the Amazon Bedrock response.
+
+        :param response_body: The response body from the Amazon Bedrock request.
+        :returns: A list of string responses.
+        """
+        return [output["text"] for output in response_body["outputs"]]
+
+    def _extract_token_from_stream(self, chunk: Dict[str, Any]) -> str:
+        """
+        Extracts the token from a streaming chunk.
+
+        :param chunk: The streaming chunk.
+        :returns: A string token.
+        """
+        chunk_list = chunk.get("outputs", [])
+        if chunk_list:
+            return chunk_list[0].get("text", "")
+        return ""
+
+
 class CohereCommandAdapter(BedrockModelAdapter):
     """
     Adapter for the Cohere Command model.

@@ -15,7 +15,7 @@ from haystack_integrations.common.amazon_bedrock.errors import (
 )
 from haystack_integrations.common.amazon_bedrock.utils import get_aws_session
 
-from .adapters import AnthropicClaudeChatAdapter, BedrockModelChatAdapter, MetaLlama2ChatAdapter
+from .adapters import AnthropicClaudeChatAdapter, BedrockModelChatAdapter, MetaLlama2ChatAdapter, MistralChatAdapter
 
 logger = logging.getLogger(__name__)
 
@@ -50,6 +50,7 @@ class AmazonBedrockChatGenerator:
     SUPPORTED_MODEL_PATTERNS: ClassVar[Dict[str, Type[BedrockModelChatAdapter]]] = {
         r"anthropic.claude.*": AnthropicClaudeChatAdapter,
         r"meta.llama2.*": MetaLlama2ChatAdapter,
+        r"mistral.*": MistralChatAdapter,
     }
 
     def __init__(
