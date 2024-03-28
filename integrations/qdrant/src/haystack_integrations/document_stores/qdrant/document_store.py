@@ -8,6 +8,7 @@ import qdrant_client
 from grpc import RpcError
 from haystack import default_from_dict, default_to_dict
 from haystack.dataclasses import Document
+from haystack.dataclasses.sparse_embedding import SparseEmbedding
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
 from haystack.utils import Secret, deserialize_secrets_inplace
@@ -21,6 +22,9 @@ from .converters import HaystackToQdrant, QdrantToHaystack
 from .filters import QdrantFilterConverter
 
 logger = logging.getLogger(__name__)
+
+DENSE_VECTORS_NAME = "text-dense"
+SPARSE_VECTORS_NAME = "text-sparse"
 
 
 class QdrantStoreError(DocumentStoreError):
@@ -67,6 +71,8 @@ class QdrantDocumentStore:
         content_field: str = "content",
         name_field: str = "name",
         embedding_field: str = "embedding",
+        use_sparse_embeddings: bool = True,  # noqa: FBT001, FBT002
+        sparse_embedding_field: str = "sparse_embedding",
         similarity: str = "cosine",
         return_embedding: bool = False,  # noqa: FBT001, FBT002
         progress_bar: bool = True,  # noqa: FBT001, FBT002
@@ -133,15 +139,19 @@ class QdrantDocumentStore:
         self.wait_result_from_api = wait_result_from_api
         self.recreate_index = recreate_index
         self.payload_fields_to_index = payload_fields_to_index
+        self.use_sparse_embeddings = use_sparse_embeddings
 
         # Make sure the collection is properly set up
-        self._set_up_collection(index, embedding_dim, recreate_index, similarity, on_disk, payload_fields_to_index)
+        self._set_up_collection(
+            index, embedding_dim, recreate_index, similarity, use_sparse_embeddings, on_disk, payload_fields_to_index
+        )
 
         self.embedding_dim = embedding_dim
         self.on_disk = on_disk
         self.content_field = content_field
         self.name_field = name_field
         self.embedding_field = embedding_field
+        self.sparse_embedding_field = sparse_embedding_field
         self.similarity = similarity
         self.index = index
         self.return_embedding = return_embedding
@@ -150,9 +160,7 @@ class QdrantDocumentStore:
         self.qdrant_filter_converter = QdrantFilterConverter()
         self.haystack_to_qdrant_converter = HaystackToQdrant()
         self.qdrant_to_haystack = QdrantToHaystack(
-            content_field,
-            name_field,
-            embedding_field,
+            content_field, name_field, embedding_field, use_sparse_embeddings, sparse_embedding_field
         )
         self.write_batch_size = write_batch_size
         self.scroll_size = scroll_size
@@ -194,7 +202,7 @@ class QdrantDocumentStore:
             if not isinstance(doc, Document):
                 msg = f"DocumentStore.write_documents() expects a list of Documents but got an element of {type(doc)}."
                 raise ValueError(msg)
-        self._set_up_collection(self.index, self.embedding_dim, False, self.similarity)
+        self._set_up_collection(self.index, self.embedding_dim, False, self.similarity, self.use_sparse_embeddings)
 
         if len(documents) == 0:
             logger.warning("Calling QdrantDocumentStore.write_documents() with empty list")
@@ -212,6 +220,8 @@ class QdrantDocumentStore:
                 batch = self.haystack_to_qdrant_converter.documents_to_batch(
                     document_batch,
                     embedding_field=self.embedding_field,
+                    use_sparse_embeddings=self.use_sparse_embeddings,
+                    sparse_embedding_field=self.sparse_embedding_field,
                 )
 
                 self.client.upsert(
@@ -298,6 +308,45 @@ class QdrantDocumentStore:
             documents.append(self.qdrant_to_haystack.point_to_document(record))
         return documents
 
+    def query_by_sparse(
+        self,
+        query_sparse_embedding: SparseEmbedding,
+        filters: Optional[Dict[str, Any]] = None,
+        top_k: int = 10,
+        scale_score: bool = True,  # noqa: FBT001, FBT002
+        return_embedding: bool = False,  # noqa: FBT001, FBT002
+    ) -> List[Document]:
+        if not self.use_sparse_embeddings:
+            message = (
+                "You are trying to query using sparse embeddings, but the Document Store "
+                "was initialized with `use_sparse_embeddings=False`. "
+            )
+            raise QdrantStoreError(message)
+
+        qdrant_filters = self.qdrant_filter_converter.convert(filters)
+        query_indices = query_sparse_embedding.indices
+        query_values = query_sparse_embedding.values
+        points = self.client.search(
+            collection_name=self.index,
+            query_vector=rest.NamedSparseVector(
+                name=SPARSE_VECTORS_NAME,
+                vector=rest.SparseVector(
+                    indices=query_indices,
+                    values=query_values,
+                ),
+            ),
+            query_filter=qdrant_filters,
+            limit=top_k,
+            with_vectors=return_embedding,
+        )
+        results = [self.qdrant_to_haystack.point_to_document(point) for point in points]
+        if scale_score:
+            for document in results:
+                score = document.score
+                score = float(1 / (1 + np.exp(-score / 100)))
+                document.score = score
+        return results
+
     def query_by_embedding(
         self,
         query_embedding: List[float],
@@ -310,12 +359,14 @@ class QdrantDocumentStore:
 
         points = self.client.search(
             collection_name=self.index,
-            query_vector=query_embedding,
+            query_vector=rest.NamedVector(
+                name=DENSE_VECTORS_NAME if self.use_sparse_embeddings else "",
+                vector=query_embedding,
+            ),
             query_filter=qdrant_filters,
             limit=top_k,
             with_vectors=return_embedding,
         )
-
         results = [self.qdrant_to_haystack.point_to_document(point) for point in points]
         if scale_score:
             for document in results:
@@ -357,6 +408,7 @@ class QdrantDocumentStore:
         embedding_dim: int,
         recreate_collection: bool,  # noqa: FBT001
         similarity: str,
+        use_sparse_embeddings: bool,  # noqa: FBT001
         on_disk: bool = False,  # noqa: FBT001, FBT002
         payload_fields_to_index: Optional[List[dict]] = None,
     ):
@@ -365,7 +417,7 @@ class QdrantDocumentStore:
         if recreate_collection:
             # There is no need to verify the current configuration of that
             # collection. It might be just recreated again.
-            self._recreate_collection(collection_name, distance, embedding_dim, on_disk)
+            self._recreate_collection(collection_name, distance, embedding_dim, on_disk, use_sparse_embeddings)
             # Create Payload index if payload_fields_to_index is provided
             self._create_payload_index(collection_name, payload_fields_to_index)
             return
@@ -381,13 +433,39 @@ class QdrantDocumentStore:
             # Qdrant local raises ValueError if the collection is not found, but
             # with the remote server UnexpectedResponse / RpcError is raised.
             # Until that's unified, we need to catch both.
-            self._recreate_collection(collection_name, distance, embedding_dim, on_disk)
+            self._recreate_collection(collection_name, distance, embedding_dim, on_disk, use_sparse_embeddings)
             # Create Payload index if payload_fields_to_index is provided
             self._create_payload_index(collection_name, payload_fields_to_index)
             return
 
-        current_distance = collection_info.config.params.vectors.distance
-        current_vector_size = collection_info.config.params.vectors.size
+        has_named_vectors = (
+            isinstance(collection_info.config.params.vectors, dict)
+            and DENSE_VECTORS_NAME in collection_info.config.params.vectors
+        )
+
+        if self.use_sparse_embeddings and not has_named_vectors:
+            msg = (
+                f"Collection '{collection_name}' already exists in Qdrant, "
+                f"but it has been originally created without sparse embedding vectors. "
+                f"If you want to use that collection, you can set `use_sparse_embeddings=False`. "
+                f"To use sparse embeddings, you need to recreate the collection or migrate the existing one."
+            )
+            raise QdrantStoreError(msg)
+
+        elif not self.use_sparse_embeddings and has_named_vectors:
+            msg = (
+                f"Collection '{collection_name}' already exists in Qdrant, "
+                f"but it has been originally created with sparse embedding vectors."
+                f"If you want to use that collection, please set `use_sparse_embeddings=True`."
+            )
+            raise QdrantStoreError(msg)
+
+        if self.use_sparse_embeddings:
+            current_distance = collection_info.config.params.vectors[DENSE_VECTORS_NAME].distance
+            current_vector_size = collection_info.config.params.vectors[DENSE_VECTORS_NAME].size
+        else:
+            current_distance = collection_info.config.params.vectors.distance
+            current_vector_size = collection_info.config.params.vectors.size
 
         if current_distance != distance:
             msg = (
@@ -407,14 +485,33 @@ class QdrantDocumentStore:
             )
             raise ValueError(msg)
 
-    def _recreate_collection(self, collection_name: str, distance, embedding_dim: int, on_disk: bool):  # noqa: FBT001
+    def _recreate_collection(
+        self,
+        collection_name: str,
+        distance,
+        embedding_dim: int,
+        on_disk: bool,  # noqa: FBT001
+        use_sparse_embeddings: bool,  # noqa: FBT001
+    ):
+        dense_vectors_config = rest.VectorParams(size=embedding_dim, on_disk=on_disk, distance=distance)
+
+        if use_sparse_embeddings:
+            vectors_config = {DENSE_VECTORS_NAME: dense_vectors_config}
+
+            sparse_vectors_config = {
+                SPARSE_VECTORS_NAME: rest.SparseVectorParams(
+                    index=rest.SparseIndexParams(
+                        on_disk=on_disk,
+                    )
+                ),
+            }
+        else:
+            vectors_config = dense_vectors_config
+
         self.client.recreate_collection(
             collection_name=collection_name,
-            vectors_config=rest.VectorParams(
-                size=embedding_dim,
-                on_disk=on_disk,
-                distance=distance,
-            ),
+            vectors_config=vectors_config,
+            sparse_vectors_config=sparse_vectors_config if use_sparse_embeddings else None,
             shard_number=self.shard_number,
             replication_factor=self.replication_factor,
             write_consistency_factor=self.write_consistency_factor,
