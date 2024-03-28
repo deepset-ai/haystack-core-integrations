@@ -26,6 +26,7 @@ classifiers = [
 dependencies = [
   "haystack-ai",
   "google-cloud-aiplatform>=1.38",
+  "pyarrow>3",
 ]
 
 [project.urls]
