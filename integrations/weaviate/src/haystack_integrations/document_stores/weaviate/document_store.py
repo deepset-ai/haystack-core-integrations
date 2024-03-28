@@ -139,20 +139,31 @@ class WeaviateDocumentStore:
         :param grpc_secure:
             Whether to use a secure channel for the underlying gRPC API.
         """
-        # proxies, timeout_config, trust_env are part of additional_config now
-        # startup_period has been removed
-        self._client = weaviate.WeaviateClient(
-            connection_params=(
-                weaviate.connect.base.ConnectionParams.from_url(url=url, grpc_port=grpc_port, grpc_secure=grpc_secure)
-                if url
-                else None
-            ),
-            auth_client_secret=auth_client_secret.resolve_value() if auth_client_secret else None,
-            additional_config=additional_config,
-            additional_headers=additional_headers,
-            embedded_options=embedded_options,
-            skip_init_checks=False,
-        )
+
+        # This is a quick ugly fix to make sure that users can use the DocumentStore
+        # with Weaviate Cloud Services with no issues
+        if url and url.startswith("http") and url.endswith(".weaviate.network"):
+            self._client = weaviate.connect_to_wcs(
+                url,
+                auth_credentials=auth_client_secret.resolve_value() if auth_client_secret else None,
+                headers=additional_headers,
+                additional_config=additional_config,
+            )
+        else:
+            self._client = weaviate.WeaviateClient(
+                connection_params=(
+                    weaviate.connect.base.ConnectionParams.from_url(
+                        url=url, grpc_port=grpc_port, grpc_secure=grpc_secure
+                    )
+                    if url
+                    else None
+                ),
+                auth_client_secret=auth_client_secret.resolve_value() if auth_client_secret else None,
+                additional_config=additional_config,
+                additional_headers=additional_headers,
+                embedded_options=embedded_options,
+                skip_init_checks=False,
+            )
         self._client.connect()
 
         # Test connection, it will raise an exception if it fails.
