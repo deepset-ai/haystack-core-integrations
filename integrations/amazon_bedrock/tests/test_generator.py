@@ -11,6 +11,7 @@ from haystack_integrations.components.generators.amazon_bedrock.adapters import 
     BedrockModelAdapter,
     CohereCommandAdapter,
     MetaLlama2ChatAdapter,
+    MistralAdapter,
 )
 
 
@@ -361,6 +362,139 @@ class TestAnthropicClaudeAdapter:
         stream_handler_mock.side_effect = lambda token_received, **kwargs: token_received
 
         adapter = AnthropicClaudeAdapter(model_kwargs={}, max_length=99)
+        expected_responses = [""]
+        assert adapter.get_stream_responses(stream_mock, stream_handler_mock) == expected_responses
+
+        stream_handler_mock.assert_not_called()
+
+
+class TestMistralAdapter:
+    def test_prepare_body_with_default_params(self) -> None:
+        layer = MistralAdapter(model_kwargs={}, max_length=99)
+        prompt = "Hello, how are you?"
+        expected_body = {"prompt": "<s>[INST] Hello, how are you? [/INST]", "max_tokens": 99, "stop": []}
+
+        body = layer.prepare_body(prompt)
+        assert body == expected_body
+
+    def test_prepare_body_with_custom_inference_params(self) -> None:
+        layer = MistralAdapter(model_kwargs={}, max_length=99)
+        prompt = "Hello, how are you?"
+        expected_body = {
+            "prompt": "<s>[INST] Hello, how are you? [/INST]",
+            "max_tokens": 50,
+            "stop": ["CUSTOM_STOP"],
+            "temperature": 0.7,
+            "top_p": 0.8,
+            "top_k": 5,
+        }
+
+        body = layer.prepare_body(
+            prompt,
+            temperature=0.7,
+            top_p=0.8,
+            top_k=5,
+            max_tokens=50,
+            stop=["CUSTOM_STOP"],
+            unknown_arg="unknown_value",
+        )
+
+        assert body == expected_body
+
+    def test_prepare_body_with_model_kwargs(self) -> None:
+        layer = MistralAdapter(
+            model_kwargs={
+                "temperature": 0.7,
+                "top_p": 0.8,
+                "top_k": 5,
+                "max_tokens": 50,
+                "stop": ["CUSTOM_STOP"],
+                "unknown_arg": "unknown_value",
+            },
+            max_length=99,
+        )
+        prompt = "Hello, how are you?"
+        expected_body = {
+            "prompt": "<s>[INST] Hello, how are you? [/INST]",
+            "max_tokens": 50,
+            "stop": ["CUSTOM_STOP"],
+            "temperature": 0.7,
+            "top_p": 0.8,
+            "top_k": 5,
+        }
+
+        body = layer.prepare_body(prompt)
+
+        assert body == expected_body
+
+    def test_prepare_body_with_model_kwargs_and_custom_inference_params(self) -> None:
+        layer = MistralAdapter(
+            model_kwargs={
+                "temperature": 0.6,
+                "top_p": 0.7,
+                "top_k": 4,
+                "max_tokens": 49,
+                "stop": ["CUSTOM_STOP_MODEL_KWARGS"],
+            },
+            max_length=99,
+        )
+        prompt = "Hello, how are you?"
+        expected_body = {
+            "prompt": "<s>[INST] Hello, how are you? [/INST]",
+            "max_tokens": 50,
+            "stop": ["CUSTOM_STOP_MODEL_KWARGS"],
+            "temperature": 0.7,
+            "top_p": 0.8,
+            "top_k": 5,
+        }
+
+        body = layer.prepare_body(prompt, temperature=0.7, top_p=0.8, top_k=5, max_tokens=50)
+
+        assert body == expected_body
+
+    def test_get_responses(self) -> None:
+        adapter = MistralAdapter(model_kwargs={}, max_length=99)
+        response_body = {"outputs": [{"text": "This is a single response."}]}
+        expected_responses = ["This is a single response."]
+        assert adapter.get_responses(response_body) == expected_responses
+
+    def test_get_stream_responses(self) -> None:
+        stream_mock = MagicMock()
+        stream_handler_mock = MagicMock()
+
+        stream_mock.__iter__.return_value = [
+            {"chunk": {"bytes": b'{"outputs": [{"text": " This"}]}'}},
+            {"chunk": {"bytes": b'{"outputs": [{"text": " is"}]}'}},
+            {"chunk": {"bytes": b'{"outputs": [{"text": " a"}]}'}},
+            {"chunk": {"bytes": b'{"outputs": [{"text": " single"}]}'}},
+            {"chunk": {"bytes": b'{"outputs": [{"text": " response."}]}'}},
+        ]
+
+        stream_handler_mock.side_effect = lambda token_received, **kwargs: token_received
+
+        adapter = MistralAdapter(model_kwargs={}, max_length=99)
+        expected_responses = ["This is a single response."]
+        assert adapter.get_stream_responses(stream_mock, stream_handler_mock) == expected_responses
+
+        stream_handler_mock.assert_has_calls(
+            [
+                call(" This", event_data={"outputs": [{"text": " This"}]}),
+                call(" is", event_data={"outputs": [{"text": " is"}]}),
+                call(" a", event_data={"outputs": [{"text": " a"}]}),
+                call(" single", event_data={"outputs": [{"text": " single"}]}),
+                call(" response.", event_data={"outputs": [{"text": " response."}]}),
+            ]
+        )
+
+    def test_get_stream_responses_empty(self) -> None:
+        stream_mock = MagicMock()
+        stream_handler_mock = MagicMock()
+
+        stream_mock.__iter__.return_value = []
+
+        stream_handler_mock.side_effect = lambda token_received, **kwargs: token_received
+
+        adapter = MistralAdapter(model_kwargs={}, max_length=99)
         expected_responses = [""]
         assert adapter.get_stream_responses(stream_mock, stream_handler_mock) == expected_responses
 

@@ -284,6 +284,7 @@ class MistralChatAdapter(BedrockModelChatAdapter):
         "{% set loop_messages = messages %}"
         "{% set system_message = false %}"
         "{% endif %}"
+        "{{bos_token}}"
         "{% for message in loop_messages %}"
         "{% if (message['role'] == 'user') != (loop.index0 % 2 == 0) %}"
         "{{ raise_exception('Conversation roles must alternate user/assistant/user/assistant/...') }}"
@@ -304,7 +305,6 @@ class MistralChatAdapter(BedrockModelChatAdapter):
 
     # https://docs.aws.amazon.com/bedrock/latest/userguide/model-parameters-anthropic-claude-messages.html
     ALLOWED_PARAMS: ClassVar[List[str]] = [
-        "anthropic_version",
         "max_tokens",
         "safe_prompt",
         "random_seed",
@@ -346,7 +346,10 @@ class MistralChatAdapter(BedrockModelChatAdapter):
         default_params = {
             "max_tokens": self.generation_kwargs.get("max_tokens") or 512,  # max_tokens is required
         }
-
+        # replace stop_words from inference_kwargs with stop, as this is Mistral specific
+        stop_words = inference_kwargs.pop("stop_words", [])
+        if stop_words:
+            inference_kwargs["stop"] = stop_words
         params = self._get_params(inference_kwargs, default_params, self.ALLOWED_PARAMS)
         body = {"prompt": self.prepare_chat_messages(messages=messages), **params}
         return body
