@@ -20,6 +20,7 @@ from .adapters import (
     BedrockModelAdapter,
     CohereCommandAdapter,
     MetaLlama2ChatAdapter,
+    MistralAdapter,
 )
 from .handlers import (
     DefaultPromptHandler,
@@ -58,6 +59,7 @@ class AmazonBedrockGenerator:
         r"cohere.command.*": CohereCommandAdapter,
         r"anthropic.claude.*": AnthropicClaudeAdapter,
         r"meta.llama2.*": MetaLlama2ChatAdapter,
+        r"mistral.*": MistralAdapter,
     }
 
     def __init__(
@@ -124,8 +126,7 @@ class AmazonBedrockGenerator:
 
         # Truncate prompt if prompt tokens > model_max_length-max_length
         # (max_length is the length of the generated text)
-        # It is hard to determine which tokenizer to use for the SageMaker model
-        # so we use GPT2 tokenizer which will likely provide good token count approximation
+        # we use GPT2 tokenizer which will likely provide good token count approximation
         self.prompt_handler = DefaultPromptHandler(
             tokenizer="gpt2",
             model_max_length=model_max_length,
