@@ -162,9 +162,9 @@ class MistralAdapter(BedrockModelAdapter):
             "top_k": None,
         }
         params = self._get_params(inference_kwargs, default_params)
-        prompt = f"<s>[INST] {prompt} [/INST]" if "INST" not in prompt else prompt
-        body = {"prompt": prompt, **params}
-        return body
+        # Add the instruction tag to the prompt if it's not already there
+        formatted_prompt = f"<s>[INST] {prompt} [/INST]" if "INST" not in prompt else prompt
+        return {"prompt": formatted_prompt, **params}
 
     def _extract_completions_from_response(self, response_body: Dict[str, Any]) -> List[str]:
         """
@@ -173,7 +173,7 @@ class MistralAdapter(BedrockModelAdapter):
         :param response_body: The response body from the Amazon Bedrock request.
         :returns: A list of string responses.
         """
-        return [output["text"] for output in response_body["outputs"]]
+        return [output.get("text", "") for output in response_body.get("outputs", [])]
 
     def _extract_token_from_stream(self, chunk: Dict[str, Any]) -> str:
         """

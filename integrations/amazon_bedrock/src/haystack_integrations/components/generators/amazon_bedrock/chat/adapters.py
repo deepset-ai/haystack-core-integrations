@@ -273,7 +273,7 @@ class AnthropicClaudeChatAdapter(BedrockModelChatAdapter):
 
 class MistralChatAdapter(BedrockModelChatAdapter):
     """
-    Model adapter for the Anthropic Claude chat model.
+    Model adapter for the Mistral chat model.
     """
 
     chat_template = (
@@ -302,6 +302,8 @@ class MistralChatAdapter(BedrockModelChatAdapter):
         "{% endfor %}"
     )
     # the above template was designed to match https://docs.mistral.ai/models/#chat-template
+    # and to support system messages, otherwise we could use the default mistral chat template
+    # available on HF infrastructure
 
     # https://docs.aws.amazon.com/bedrock/latest/userguide/model-parameters-anthropic-claude-messages.html
     ALLOWED_PARAMS: ClassVar[List[str]] = [
@@ -326,7 +328,7 @@ class MistralChatAdapter(BedrockModelChatAdapter):
         model_max_length = self.generation_kwargs.pop("model_max_length", 32000)
 
         # Use `mistralai/Mistral-7B-v0.1` as tokenizer, all mistral models likely use the same tokenizer
-        # a) we should get good estimates for the prompt length (empirically close to llama 2)
+        # a) we should get good estimates for the prompt length
         # b) we can use apply_chat_template with the template above to delineate ChatMessages
         tokenizer: PreTrainedTokenizer = AutoTokenizer.from_pretrained("mistralai/Mistral-7B-v0.1")
         self.prompt_handler = DefaultPromptHandler(
@@ -346,7 +348,7 @@ class MistralChatAdapter(BedrockModelChatAdapter):
         default_params = {
             "max_tokens": self.generation_kwargs.get("max_tokens") or 512,  # max_tokens is required
         }
-        # replace stop_words from inference_kwargs with stop, as this is Mistral specific
+        # replace stop_words from inference_kwargs with stop, as this is Mistral specific parameter
         stop_words = inference_kwargs.pop("stop_words", [])
         if stop_words:
             inference_kwargs["stop"] = stop_words
@@ -362,10 +364,11 @@ class MistralChatAdapter(BedrockModelChatAdapter):
         :returns: The prepared chat messages as a string.
         """
         # it would be great to use the default mistral chat template, but it doesn't support system messages
-        # the above defined chat_template is a workaround to support system messages
-        # template is https://huggingface.co/mistralai/Mixtral-8x7B-Instruct-v0.1/blob/main/tokenizer_config.json
+        # the class variable defined chat_template is a workaround to support system messages
+        # default is https://huggingface.co/mistralai/Mixtral-8x7B-Instruct-v0.1/blob/main/tokenizer_config.json
+        # but we'll use our custom chat template
         prepared_prompt: str = self.prompt_handler.tokenizer.apply_chat_template(
-            conversation=messages, tokenize=False, chat_template=self.chat_template
+            conversation=[m.to_openai_format() for m in messages], tokenize=False, chat_template=self.chat_template
         )
         return self._ensure_token_limit(prepared_prompt)
 
