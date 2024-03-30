@@ -41,6 +41,7 @@ class TestKeywordRetrieval:
         document_store.write_documents(docs)
 
         results = document_store._keyword_retrieval(user_query=query, top_k=2, filters={}, language="english")
+        assert len(document_store.write_documents(docs)) == 3
         assert len(results) == 2
         assert results[0].content == "Most similar document (cosine sim)"
         assert results[1].content == "2nd best document (cosine sim)"

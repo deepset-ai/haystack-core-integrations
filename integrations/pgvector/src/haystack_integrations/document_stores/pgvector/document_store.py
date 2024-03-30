@@ -173,6 +173,7 @@ class PgvectorDocumentStore:
 
         connection.execute("CREATE EXTENSION IF NOT EXISTS vector")
         register_vector(connection)
+        self._create_keyword_index()
 
         if recreate_table:
             self.delete_table()
