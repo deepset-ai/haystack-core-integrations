@@ -199,6 +199,7 @@ class PgvectorDocumentStore:
             hnsw_recreate_index_if_exists=self.hnsw_recreate_index_if_exists,
             hnsw_index_creation_kwargs=self.hnsw_index_creation_kwargs,
             hnsw_ef_search=self.hnsw_ef_search,
+            language=self.language,
         )
 
     @classmethod
@@ -268,7 +269,7 @@ class PgvectorDocumentStore:
         Internal method to create the keyword index.
         """
 
-        sql_create_index = SQL("CREATE INDEX ON {table_name} USING GIN (to_tsvector({self.language}, content))").format(
+        sql_create_index = SQL("CREATE INDEX ON {table_name} USING GIN (to_tsvector({language}, content))").format(
             table_name=Identifier(self.table_name), language=SQLLiteral(self.language)
         )
 
