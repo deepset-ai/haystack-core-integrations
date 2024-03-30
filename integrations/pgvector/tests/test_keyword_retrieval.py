@@ -2,15 +2,12 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import List
-
 import pytest
 from haystack.dataclasses.document import Document
 from haystack_integrations.document_stores.pgvector import PgvectorDocumentStore
-from numpy.random import rand
 
 
-class TestEmbeddingRetrieval:
+class TestKeywordRetrieval:
     @pytest.fixture
     def document_store_w_hnsw_index(self, request):
         connection_string = "postgresql://postgres:postgres@localhost:5432/postgres"
@@ -43,7 +40,7 @@ class TestEmbeddingRetrieval:
 
         document_store.write_documents(docs)
 
-        results = document_store._keyowrd_retrieval(user_query=query, top_k=2, filters={}, language="english")
+        results = document_store._keyword_retrieval(user_query=query, top_k=2, filters={}, language="english")
         assert len(results) == 2
         assert results[0].content == "Most similar document (cosine sim)"
         assert results[1].content == "2nd best document (cosine sim)"
