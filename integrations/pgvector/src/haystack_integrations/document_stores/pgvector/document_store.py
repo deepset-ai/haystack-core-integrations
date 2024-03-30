@@ -529,9 +529,9 @@ class PgvectorDocumentStore:
 
         sql_select = SQL(
             """SELECT *, RANK() OVER (ORDER BY
-            ts_rank_cd(to_tsvector(%(language)s, content), query) DESC) AS rank
-            FROM {table_name}, plainto_tsquery(%(language)s, %(query)s) query
-            WHERE to_tsvector(%(language)s, content) @@ query"""
+            ts_rank_cd(to_tsvector({language}, content), query) DESC) AS rank
+            FROM {table_name}, plainto_tsquery({language}, {query}) query
+            WHERE to_tsvector({language}, content) @@ query"""
         ).format(table_name=Identifier(self.table_name), language=language, query=user_query)
 
         sql_where_clause = SQL("")
