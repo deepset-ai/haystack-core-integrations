@@ -58,6 +58,7 @@ class PgvectorKeywordRetriever:
         document_store: PgvectorDocumentStore,
         filters: Optional[Dict[str, Any]] = None,
         top_k: int = 10,
+        language: str = "english",
     ):
         """
         :param document_store: An instance of `PgvectorDocumentStore}.
@@ -74,6 +75,7 @@ class PgvectorKeywordRetriever:
         self.document_store = document_store
         self.filters = filters or {}
         self.top_k = top_k
+        self.language = language
 
     def to_dict(self) -> Dict[str, Any]:
         """
@@ -87,6 +89,7 @@ class PgvectorKeywordRetriever:
             filters=self.filters,
             top_k=self.top_k,
             document_store=self.document_store.to_dict(),
+            language=self.language,
         )
 
     @classmethod
@@ -109,6 +112,7 @@ class PgvectorKeywordRetriever:
         user_query: str,
         filters: Optional[Dict[str, Any]] = None,
         top_k: Optional[int] = None,
+        language: Optional[str] = "english",
     ):
         """
         Retrieve documents from the `PgvectorDocumentStore`, based on their embeddings.
@@ -121,10 +125,12 @@ class PgvectorKeywordRetriever:
         """
         filters = filters or self.filters
         top_k = top_k or self.top_k
+        language = language or self.language
 
         docs = self.document_store._keyword_retrieval(
             user_query=user_query,
             filters=filters,
             top_k=top_k,
+            language=language,
         )
         return {"documents": docs}
