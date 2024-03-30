@@ -173,7 +173,6 @@ class PgvectorDocumentStore:
 
         connection.execute("CREATE EXTENSION IF NOT EXISTS vector")
         register_vector(connection)
-        self._create_keyword_index()
 
         if recreate_table:
             self.delete_table()
@@ -252,6 +251,7 @@ class PgvectorDocumentStore:
         )
 
         self._execute_sql(create_sql, error_msg="Could not create table in PgvectorDocumentStore")
+        self._create_keyword_index()
 
     def delete_table(self):
         """
