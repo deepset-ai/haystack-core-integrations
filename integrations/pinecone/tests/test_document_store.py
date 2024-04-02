@@ -108,6 +108,11 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, WriteDocumentsT
         docs = [Document(id="1")]
         assert document_store.write_documents(docs) == 1
 
+    @pytest.mark.xfail(
+        run=True, reason="Pinecone supports overwriting by default, but it takes a while for it to take effect"
+    )
+    def test_write_documents_duplicate_overwrite(self, document_store: PineconeDocumentStore): ...
+
     @pytest.mark.skip(reason="Pinecone only supports UPSERT operations")
     def test_write_documents_duplicate_fail(self, document_store: PineconeDocumentStore): ...
 
