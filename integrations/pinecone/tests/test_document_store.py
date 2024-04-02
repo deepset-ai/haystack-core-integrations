@@ -7,6 +7,7 @@ from haystack.testing.document_store import CountDocumentsTest, DeleteDocumentsT
 from haystack.utils import Secret
 
 from haystack_integrations.document_stores.pinecone import PineconeDocumentStore
+import os
 
 
 @patch("haystack_integrations.document_stores.pinecone.document_store.pinecone")
@@ -50,7 +51,7 @@ def test_init_api_key_in_environment_variable(mock_pinecone, monkeypatch):
 
 
 @patch("haystack_integrations.document_stores.pinecone.document_store.pinecone")
-def test_to_dict(mock_pinecone, monkeypatch):
+def test_to_from_dict(mock_pinecone, monkeypatch):
     mock_pinecone.Index.return_value.describe_index_stats.return_value = {"dimension": 30}
     monkeypatch.setenv("PINECONE_API_KEY", "env-api-key")
     document_store = PineconeDocumentStore(
@@ -61,7 +62,8 @@ def test_to_dict(mock_pinecone, monkeypatch):
         dimension=30,
         metric="euclidean",
     )
-    assert document_store.to_dict() == {
+
+    dict_output = {
         "type": "haystack_integrations.document_stores.pinecone.document_store.PineconeDocumentStore",
         "init_parameters": {
             "api_key": {
@@ -79,9 +81,28 @@ def test_to_dict(mock_pinecone, monkeypatch):
             "metric": "euclidean",
         },
     }
+    assert document_store.to_dict() == dict_output
+
+    document_store = PineconeDocumentStore.from_dict(dict_output)
+    assert document_store.environment == "gcp-starter"
+    assert document_store.api_key == Secret.from_env_var("PINECONE_API_KEY", strict=True)
+    assert document_store.index == "my_index"
+    assert document_store.namespace == "test"
+    assert document_store.batch_size == 50
+    assert document_store.dimension == 30
+
+
+def test_init_fails_wo_api_key(monkeypatch):
+    monkeypatch.delenv("PINECONE_API_KEY", raising=False)
+    with pytest.raises(ValueError):
+        PineconeDocumentStore(
+            environment="gcp-starter",
+            index="my_index",
+        )
 
 
 @pytest.mark.integration
+@pytest.mark.skipif("PINECONE_API_KEY" not in os.environ, reason="PINECONE_API_KEY not set")
 class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, WriteDocumentsTest):
     def test_write_documents(self, document_store: PineconeDocumentStore):
         docs = [Document(id="1")]
@@ -95,14 +116,6 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, WriteDocumentsT
 
     @pytest.mark.skip(reason="Pinecone creates a namespace only when the first document is written")
     def test_delete_documents_empty_document_store(self, document_store: PineconeDocumentStore): ...
-
-    def test_init_fails_wo_api_key(self, monkeypatch):
-        monkeypatch.delenv("PINECONE_API_KEY", raising=False)
-        with pytest.raises(ValueError):
-            PineconeDocumentStore(
-                environment="gcp-starter",
-                index="my_index",
-            )
 
     def test_embedding_retrieval(self, document_store: PineconeDocumentStore):
         query_embedding = [0.1] * 768
