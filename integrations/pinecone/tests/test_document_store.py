@@ -5,8 +5,6 @@ import pytest
 from haystack import Document
 from haystack.testing.document_store import CountDocumentsTest, DeleteDocumentsTest, WriteDocumentsTest
 from haystack.utils import Secret
-from haystack.document_stores.types import DocumentStore, DuplicatePolicy
-
 
 from haystack_integrations.document_stores.pinecone import PineconeDocumentStore
 
