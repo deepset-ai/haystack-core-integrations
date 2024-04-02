@@ -1,3 +1,4 @@
+import os
 from typing import List
 
 import pytest
@@ -5,7 +6,6 @@ from haystack.dataclasses.document import Document
 from haystack.testing.document_store import (
     FilterDocumentsTest,
 )
-import os
 
 
 @pytest.mark.integration

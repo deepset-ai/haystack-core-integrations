@@ -1,3 +1,4 @@
+import os
 from unittest.mock import patch
 
 import numpy as np
@@ -7,7 +8,6 @@ from haystack.testing.document_store import CountDocumentsTest, DeleteDocumentsT
 from haystack.utils import Secret
 
 from haystack_integrations.document_stores.pinecone import PineconeDocumentStore
-import os
 
 
 @patch("haystack_integrations.document_stores.pinecone.document_store.pinecone")
