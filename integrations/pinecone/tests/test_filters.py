@@ -1,3 +1,4 @@
+import os
 from typing import List
 
 import pytest
@@ -8,6 +9,7 @@ from haystack.testing.document_store import (
 
 
 @pytest.mark.integration
+@pytest.mark.skipif("PINECONE_API_KEY" not in os.environ, reason="PINECONE_API_KEY not set")
 class TestFilters(FilterDocumentsTest):
     def assert_documents_are_equal(self, received: List[Document], expected: List[Document]):
         for doc in received:
