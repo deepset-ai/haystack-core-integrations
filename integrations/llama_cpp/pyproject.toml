@@ -27,7 +27,7 @@ classifiers = [
 ]
 dependencies = [
   "haystack-ai",
-  "llama-cpp-python"
+  "llama-cpp-python<0.2.56"
 ]
 
 [project.urls]

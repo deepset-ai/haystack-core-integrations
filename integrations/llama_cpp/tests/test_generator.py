@@ -32,9 +32,9 @@ class TestLlamaCppGenerator:
     @pytest.fixture
     def generator(self, model_path, capsys):
         ggml_model_path = (
-            "https://huggingface.co/lmstudio-ai/gemma-2b-it-GGUF/resolve/main/gemma-2b-it-q4_k_m.gguf"
+            "https://huggingface.co/TheBloke/openchat-3.5-1210-GGUF/resolve/main/openchat-3.5-1210.Q3_K_S.gguf"
         )
-        filename = "gemma-2b-it-q4_k_m.gguf"
+        filename = "openchat-3.5-1210.Q3_K_S.gguf"
 
         # Download GGUF model from HuggingFace
         download_file(ggml_model_path, str(model_path / filename), capsys)
