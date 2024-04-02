@@ -43,6 +43,7 @@ class TestRetriever:
                         "embedding_dimension": 768,
                         "vector_function": "cosine_similarity",
                         "recreate_table": True,
+                        "language": "english",
                         "search_strategy": "exact_nearest_neighbor",
                         "hnsw_recreate_index_if_exists": False,
                         "hnsw_index_creation_kwargs": {},

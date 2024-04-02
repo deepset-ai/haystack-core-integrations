@@ -70,6 +70,7 @@ class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsT
             hnsw_recreate_index_if_exists=True,
             hnsw_index_creation_kwargs={"m": 32, "ef_construction": 128},
             hnsw_ef_search=50,
+            language="english",
         )
 
         assert document_store.to_dict() == {
@@ -79,6 +80,7 @@ class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsT
                 "table_name": "my_table",
                 "embedding_dimension": 512,
                 "vector_function": "l2_distance",
+                "language": "english",
                 "recreate_table": True,
                 "search_strategy": "hnsw",
                 "hnsw_recreate_index_if_exists": True,

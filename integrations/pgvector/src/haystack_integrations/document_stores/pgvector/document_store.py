@@ -273,7 +273,7 @@ class PgvectorDocumentStore:
             table_name=Identifier(self.table_name), language=SQLLiteral(self.language)
         )
 
-        self._execute_sql(sql_create_index, error_msg="Could not create keyword index on table {self.table_name}")
+        self._execute_sql(sql_create_index, error_msg="Could not create keyword index on table")
 
     def _handle_hnsw(self):
         """
