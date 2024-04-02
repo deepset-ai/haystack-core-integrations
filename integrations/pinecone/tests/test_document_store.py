@@ -5,6 +5,8 @@ import pytest
 from haystack import Document
 from haystack.testing.document_store import CountDocumentsTest, DeleteDocumentsTest, WriteDocumentsTest
 from haystack.utils import Secret
+from haystack.document_stores.types import DocumentStore, DuplicatePolicy
+
 
 from haystack_integrations.document_stores.pinecone import PineconeDocumentStore
 
@@ -86,6 +88,9 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, WriteDocumentsT
     def test_write_documents(self, document_store: PineconeDocumentStore):
         docs = [Document(id="1")]
         assert document_store.write_documents(docs) == 1
+
+    @pytest.mark.skip(reason="Pinecone supports overwriting by default, but it takes a while for it to take effect")
+    def test_write_documents_duplicate_overwrite(self, document_store: PineconeDocumentStore): ...
 
     @pytest.mark.skip(reason="Pinecone only supports UPSERT operations")
     def test_write_documents_duplicate_fail(self, document_store: PineconeDocumentStore): ...
