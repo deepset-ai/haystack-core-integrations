@@ -107,7 +107,18 @@ class ElasticsearchDocumentStore:
         mappings = {
             "properties": {
                 "embedding": {"type": "dense_vector", "index": True, "similarity": embedding_similarity_function}
-            }
+            },
+            "dynamic_templates": [
+                {
+                    "strings": {
+                        "path_match": "*",
+                        "match_mapping_type": "string",
+                        "mapping": {
+                            "type": "keyword",
+                        },
+                    }
+                }
+            ],
         }
 
         # Create the index if it doesn't exist
