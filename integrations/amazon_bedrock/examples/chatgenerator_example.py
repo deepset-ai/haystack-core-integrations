@@ -8,6 +8,15 @@ from haystack.dataclasses import ChatMessage
 
 from haystack_integrations.components.generators.amazon_bedrock import AmazonBedrockChatGenerator
 
+generator = AmazonBedrockChatGenerator(
+    model="anthropic.claude-3-haiku-20240307-v1:0",
+    # model-specific inference parameters
+    generation_kwargs={
+        "max_tokens": 500,
+        "temperature": 0.0,
+    },
+)
+
 system_prompt = """
 You are a helpful assistant that helps users learn more about AWS services.
 Your audience is engineers with a decent technical background.
@@ -15,16 +24,11 @@ Be very concise and specific in your answers, keeping them short.
 You may use technical terms, jargon, and abbreviations that are common among practitioners.
 """
 
-generator = AmazonBedrockChatGenerator(
-    model="anthropic.claude-3-haiku-20240307-v1:0",
-    # model-specific inference parameters
-    generation_kwargs={
-        "system": system_prompt,
-        "max_tokens": 500,
-        "temperature": 0.0,
-    },
-)
+# Even though Anthropic Claud models support only messages with `user` and `assistant` roles,
+# internal handling converts message with `system` role into `system` inference parameter for Claude
+# which allows for more portablability of code across generators
 messages = [
+    ChatMessage.from_system(system_prompt),
     ChatMessage.from_user("Which service should I use to train custom Machine Learning models?"),
 ]
 
