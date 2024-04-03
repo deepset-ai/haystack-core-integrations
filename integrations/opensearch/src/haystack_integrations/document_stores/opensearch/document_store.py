@@ -193,8 +193,6 @@ class OpenSearchDocumentStore:
                     error_type = None 
                 if policy == DuplicatePolicy.FAIL and error_type == "version_conflict_engine_exception":
                     duplicate_errors_ids.append(e["create"]["_id"])
-                if policy == DuplicatePolicy.FAIL and error_type == "version_conflict_engine_exception":
-                    duplicate_errors_ids.append(e["create"]["_id"])
                 elif policy == DuplicatePolicy.SKIP and error_type == "version_conflict_engine_exception":
                     # when the policy is skip, duplication errors are OK and we should not raise an exception
                     continue
