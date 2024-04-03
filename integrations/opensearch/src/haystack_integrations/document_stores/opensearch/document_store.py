@@ -186,7 +186,13 @@ class OpenSearchDocumentStore:
                 if "create" not in e:
                     other_errors.append(e)
                     continue
-                error_type = e["create"]["error"]["type"]
+                # get the error if exists
+                try:
+                    error_type = e["create"]["error"]["type"]
+                except KeyError:
+                    error_type = None 
+                if policy == DuplicatePolicy.FAIL and error_type == "version_conflict_engine_exception":
+                    duplicate_errors_ids.append(e["create"]["_id"])
                 if policy == DuplicatePolicy.FAIL and error_type == "version_conflict_engine_exception":
                     duplicate_errors_ids.append(e["create"]["_id"])
                 elif policy == DuplicatePolicy.SKIP and error_type == "version_conflict_engine_exception":
