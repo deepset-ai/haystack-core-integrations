@@ -106,7 +106,8 @@ class ElasticsearchDocumentStore:
         # configure mapping for the embedding field
         mappings = {
             "properties": {
-                "embedding": {"type": "dense_vector", "index": True, "similarity": embedding_similarity_function}
+                "embedding": {"type": "dense_vector", "index": True, "similarity": embedding_similarity_function},
+                "content": {"type": "text"},
             },
             "dynamic_templates": [
                 {
