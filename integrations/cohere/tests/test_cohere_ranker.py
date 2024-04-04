@@ -262,7 +262,7 @@ class TestCohereRanker:
         with pytest.raises(ValueError, match="top_k must be > 0, but got *"):
             ranker.run(query, documents, 0)
 
-    def test_run_documents_provided(self, monkeypatch, mock_ranker_response):
+    def test_run_documents_provided(self, monkeypatch, mock_ranker_response):  # noqa: ARG002
         monkeypatch.setenv("CO_API_KEY", "test-api-key")
         ranker = CohereRanker()
         query = "test"
@@ -280,7 +280,7 @@ class TestCohereRanker:
             Document(id="efgh", content="doc2", meta={"meta_field": "meta_value_2"}, score=0.95),
         ]
 
-    def test_run_topk_set_in_init(self, monkeypatch, mock_ranker_response):
+    def test_run_topk_set_in_init(self, monkeypatch, mock_ranker_response):  # noqa: ARG002
         monkeypatch.setenv("CO_API_KEY", "test-api-key")
         ranker = CohereRanker(top_k=2)
         query = "test"
@@ -299,7 +299,7 @@ class TestCohereRanker:
             Document(id="efgh", content="doc2", score=0.95),
         ]
 
-    def test_run_topk_greater_than_docs(self, monkeypatch, mock_ranker_response):
+    def test_run_topk_greater_than_docs(self, monkeypatch, mock_ranker_response):  # noqa: ARG002
         monkeypatch.setenv("CO_API_KEY", "test-api-key")
         ranker = CohereRanker()
         query = "test"
