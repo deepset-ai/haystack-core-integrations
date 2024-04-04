@@ -1,0 +1,186 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "langfuse-haystack"
+dynamic = ["version"]
+description = ''
+readme = "README.md"
+requires-python = ">=3.8"
+license = "Apache-2.0"
+keywords = []
+authors = [
+  { name = "deepset GmbH", email = "info@deepset.ai" },
+]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Programming Language :: Python",
+  "Programming Language :: Python :: 3.8",
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: Implementation :: CPython",
+  "Programming Language :: Python :: Implementation :: PyPy",
+]
+dependencies = [
+  "haystack-ai",
+  "langfuse"
+]
+
+[project.urls]
+Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/langfuse#readme"
+Issues = "https://github.com/deepset-ai/haystack-core-integrations/issues"
+Source = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/langfuse"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/haystack_integrations"]
+
+[tool.hatch.version]
+# Remove the following line and uncomment the others to enable git versioning
+path = "src/haystack_integrations/components/others/langfuse/__about__.py"
+# source = "vcs"
+# tag-pattern = 'integrations\/langfuse-v(?P<version>.*)'
+
+
+[tool.hatch.version.raw-options]
+root = "../.."
+git_describe_command = 'git describe --tags --match="integrations/langfuse-v[0-9]*"'
+
+[tool.hatch.envs.default]
+dependencies = [
+  "coverage[toml]>=6.5",
+  "pytest",
+]
+[tool.hatch.envs.default.scripts]
+test = "pytest {args:tests}"
+test-cov = "coverage run -m pytest {args:tests}"
+cov-report = [
+  "- coverage combine",
+  "coverage report",
+]
+cov = [
+  "test-cov",
+  "cov-report",
+]
+docs = ["pydoc-markdown pydoc/config.yml"]
+
+
+[[tool.hatch.envs.all.matrix]]
+python = ["3.8", "3.9", "3.10", "3.11", "3.12"]
+
+[tool.hatch.envs.lint]
+detached = true
+dependencies = ["black>=23.1.0", "mypy>=1.0.0", "ruff>=0.0.243"]
+
+[tool.hatch.envs.lint.scripts]
+typing = "mypy --install-types --non-interactive --explicit-package-bases {args:src/ tests}"
+style = ["ruff check {args:.}", "black --check --diff {args:.}"]
+fmt = ["black {args:.}", "ruff --fix {args:.}", "style"]
+all = ["style", "typing"]
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[tool.black]
+target-version = ["py38"]
+line-length = 120
+skip-string-normalization = true
+
+[tool.ruff]
+target-version = "py38"
+line-length = 120
+lint.select = [
+  "A",
+  "ARG",
+  "B",
+  "C",
+  "DTZ",
+  "E",
+  "EM",
+  "F",
+  "I",
+  "ICN",
+  "ISC",
+  "N",
+  "PLC",
+  "PLE",
+  "PLR",
+  "PLW",
+  "Q",
+  "RUF",
+  "S",
+  "T",
+  "TID",
+  "UP",
+  "W",
+  "YTT",
+]
+
+lint.ignore = [
+  # Allow non-abstract empty methods in abstract base classes
+  "B027",
+  # Ignore checks for possible passwords
+  "S105",
+  "S106",
+  "S107",
+  # Ignore complexity
+  "C901",
+  "PLR0911",
+  "PLR0912",
+  "PLR0913",
+  "PLR0915",
+  # Asserts
+  "S101",
+]
+lint.unfixable = [
+  # Don't touch unused imports
+  "F401",
+]
+extend-exclude = ["tests", "example"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["src"]
+
+[tool.ruff.lint.flake8-tidy-imports]
+ban-relative-imports = "parents"
+
+[tool.ruff.lint.per-file-ignores]
+# Tests can use magic values, assertions, and relative imports
+"tests/**/*" = ["PLR2004", "S101", "TID252"]
+# Examples can print their output
+"examples/**" = ["T201"]
+"tests/**" = ["T201"]
+
+[tool.coverage.run]
+source = ["haystack_integrations"]
+branch = true
+parallel = false
+
+
+[tool.coverage.report]
+omit = ["*/tests/*", "*/__init__.py"]
+show_missing=true
+exclude_lines = [
+  "no cov",
+  "if __name__ == .__main__.:",
+  "if TYPE_CHECKING:",
+]
+
+[[tool.mypy.overrides]]
+module = [
+  "langfuse.*",
+  "haystack.*",
+  "haystack_integrations.*",
+  "pytest.*",
+  "numpy.*",
+]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+addopts = "--strict-markers"
+markers = [
+  "integration: integration tests",
+]
+log_cli = true
