@@ -1,14 +1,15 @@
 # langfuse
 
-[![PyPI - Version](https://img.shields.io/pypi/v/langfuse.svg)](https://pypi.org/project/langfuse)
-[![PyPI - Python Version](https://img.shields.io/pypi/pyversions/langfuse.svg)](https://pypi.org/project/langfuse)
+[![PyPI - Version](https://img.shields.io/pypi/v/langfuse-haystack.svg)](https://pypi.org/project/langfuse-haystack)
+[![PyPI - Python Version](https://img.shields.io/pypi/pyversions/langfuse-haystack.svg)](https://pypi.org/project/langfuse-haystack)
 
 -----
 
 **Table of Contents**
 
-- [Installation](#installation)
-- [License](#license)
+- [langfuse](#langfuse)
+  - [Installation](#installation)
+  - [License](#license)
 
 ## Installation
 
