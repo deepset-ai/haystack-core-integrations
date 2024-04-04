@@ -14,7 +14,7 @@
 ## Installation
 
 ```console
-pip install langfuse
+pip install langfuse-haystack
 ```
 
 ## License
