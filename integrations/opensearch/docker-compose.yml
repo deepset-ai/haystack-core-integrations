@@ -7,6 +7,7 @@ services:
     restart: on-failure
     environment:
       - discovery.type=single-node
+      - plugins.security.disabled=true
       - "ES_JAVA_OPTS=-Xms1024m -Xmx1024m"
     healthcheck:
         test: curl --fail https://localhost:9200/_cat/health -ku admin:admin || exit 1
