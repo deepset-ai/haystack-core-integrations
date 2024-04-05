@@ -41,7 +41,7 @@ def get_pipeline(document_store: InMemoryDocumentStore):
     )
     basic_rag_pipeline.add_component("retriever", retriever)
     basic_rag_pipeline.add_component("prompt_builder", prompt_builder)
-    basic_rag_pipeline.add_component("llm", OpenAIGenerator(model="gpt-3.5-turbo"))
+    basic_rag_pipeline.add_component("llm", OpenAIGenerator(model="gpt-3.5-turbo", generation_kwargs={"n": 2}))
 
     # Now, connect the components to each other
     # NOTE: the tracer component doesn't need to be connected to anything in order to work
