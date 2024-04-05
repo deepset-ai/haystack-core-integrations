@@ -23,9 +23,17 @@ class LangfuseSpan(Span):
             return
 
         if key.endswith(".input"):
-            self._span.update(input=value)
+            if "messages" in value:
+                messages = [m.to_openai_format() for m in value["messages"]]
+                self._span.update(input=messages)
+            else:
+                self._span.update(input=value)
         elif key.endswith(".output"):
-            self._span.update(output=value)
+            if "replies" in value:
+                replies = [m.to_openai_format() for m in value["replies"]]
+                self._span.update(output=replies)
+            else:
+                self._span.update(output=value)
 
         self._data[key] = value
 
