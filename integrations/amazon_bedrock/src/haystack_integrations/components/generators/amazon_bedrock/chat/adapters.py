@@ -330,7 +330,7 @@ class MistralChatAdapter(BedrockModelChatAdapter):
         # Use `mistralai/Mistral-7B-v0.1` as tokenizer, all mistral models likely use the same tokenizer
         # a) we should get good estimates for the prompt length
         # b) we can use apply_chat_template with the template above to delineate ChatMessages
-        tokenizer: PreTrainedTokenizer = AutoTokenizer.from_pretrained("mistralai/Mistral-7B-v0.1")
+        tokenizer: PreTrainedTokenizer = AutoTokenizer.from_pretrained("mistralai/Mistral-7B-Instruct-v0.1")
         self.prompt_handler = DefaultPromptHandler(
             tokenizer=tokenizer,
             model_max_length=model_max_length,
