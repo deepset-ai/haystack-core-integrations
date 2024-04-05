@@ -1,3 +1,3 @@
-from .langfuse import LangfuseComponent
+from .component import LangfuseComponent
 
 __all__ = ["LangfuseComponent"]

@@ -4,8 +4,6 @@ from haystack_integrations.tracing.langfuse import LangfuseTracer
 
 from langfuse import Langfuse
 
-# from langfuse.openai import openai  # noqa
-
 
 @component
 class LangfuseComponent:
