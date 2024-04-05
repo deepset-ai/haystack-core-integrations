@@ -80,9 +80,11 @@ class PgvectorDocumentStore:
         vector_function: Literal["cosine_similarity", "inner_product", "l2_distance"] = "cosine_similarity",
         recreate_table: bool = False,
         search_strategy: Literal["exact_nearest_neighbor", "hnsw"] = "exact_nearest_neighbor",
+        hybrid_search: bool = False,
         hnsw_recreate_index_if_exists: bool = False,
         hnsw_index_creation_kwargs: Optional[Dict[str, int]] = None,
         hnsw_ef_search: Optional[int] = None,
+        language: Optional[str] = "english",
     ):
         """
         Creates a new PgvectorDocumentStore instance.
@@ -117,6 +119,7 @@ class PgvectorDocumentStore:
         :param hnsw_ef_search: The `ef_search` parameter to use at query time. Only used if search_strategy is set to
             `"hnsw"`. You can find more information about this parameter in the
             [pgvector documentation](https://github.com/pgvector/pgvector?tab=readme-ov-file#hnsw)
+        :param language: The language to use for the full-text/hybrid search.
         """
 
         self.connection_string = connection_string
@@ -128,9 +131,11 @@ class PgvectorDocumentStore:
         self.vector_function = vector_function
         self.recreate_table = recreate_table
         self.search_strategy = search_strategy
+        self.hybrid_search = hybrid_search
         self.hnsw_recreate_index_if_exists = hnsw_recreate_index_if_exists
         self.hnsw_index_creation_kwargs = hnsw_index_creation_kwargs or {}
         self.hnsw_ef_search = hnsw_ef_search
+        self.language = language
 
         connection = connect(self.connection_string.resolve_value())
         connection.autocommit = True
@@ -168,6 +173,7 @@ class PgvectorDocumentStore:
             hnsw_recreate_index_if_exists=self.hnsw_recreate_index_if_exists,
             hnsw_index_creation_kwargs=self.hnsw_index_creation_kwargs,
             hnsw_ef_search=self.hnsw_ef_search,
+            language=self.language,
         )
 
     @classmethod
@@ -220,6 +226,7 @@ class PgvectorDocumentStore:
         )
 
         self._execute_sql(create_sql, error_msg="Could not create table in PgvectorDocumentStore")
+        self._create_keyword_index()
 
     def delete_table(self):
         """
@@ -230,6 +237,17 @@ class PgvectorDocumentStore:
         delete_sql = SQL("DROP TABLE IF EXISTS {table_name}").format(table_name=Identifier(self.table_name))
 
         self._execute_sql(delete_sql, error_msg=f"Could not delete table {self.table_name} in PgvectorDocumentStore")
+
+    def _create_keyword_index(self):
+        """
+        Internal method to create the keyword index.
+        """
+
+        sql_create_index = SQL("CREATE INDEX ON {table_name} USING GIN (to_tsvector({language}, content))").format(
+            table_name=Identifier(self.table_name), language=SQLLiteral(self.language)
+        )
+
+        self._execute_sql(sql_create_index, error_msg="Could not create keyword index on table")
 
     def _handle_hnsw(self):
         """
@@ -415,16 +433,6 @@ class PgvectorDocumentStore:
             db_document["dataframe"] = Jsonb(db_document["dataframe"]) if db_document["dataframe"] else None
             db_document["meta"] = Jsonb(db_document["meta"])
 
-            if "sparse_embedding" in db_document:
-                sparse_embedding = db_document.pop("sparse_embedding", None)
-                if sparse_embedding:
-                    logger.warning(
-                        "Document %s has the `sparse_embedding` field set,"
-                        "but storing sparse embeddings in Pgvector is not currently supported."
-                        "The `sparse_embedding` field will be ignored.",
-                        db_document["id"],
-                    )
-
             db_documents.append(db_document)
 
         return db_documents
@@ -474,6 +482,56 @@ class PgvectorDocumentStore:
         )
 
         self._execute_sql(delete_sql, error_msg="Could not delete documents from PgvectorDocumentStore")
+
+    def _keyword_retrieval(
+        self,
+        user_query: str,
+        top_k: int = 10,
+        filters: Optional[Dict[str, Any]] = None,
+        language: Optional[str] = "english",
+    ) -> List[Document]:
+        """
+        Retrieves documents that are most similar to the query using a full-text search.
+
+        This method is not meant to be part of the public interface of
+        `PgvectorDocumentStore` and it should not be called directly.
+        `PgvectorKeywordRetriever` uses this method directly and is the public interface for it.
+        :returns: List of Documents that are most similar to `user_query`
+        """
+
+        if not user_query:
+            msg = "user_query must be a non-empty string"
+            raise ValueError(msg)
+
+        sql_select = SQL(
+            """SELECT *, RANK() OVER (ORDER BY
+            ts_rank_cd(to_tsvector({language}, content), query) DESC) AS rank
+            FROM {table_name}, plainto_tsquery({language}, {query}) query
+            WHERE to_tsvector({language}, content) @@ query"""
+        ).format(table_name=Identifier(self.table_name), language=language, query=user_query)
+
+        sql_where_clause = SQL("")
+        params = ()
+        if filters:
+            sql_where_clause, params = _convert_filters_to_where_clause_and_params(filters)
+
+        sql_sort = SQL(" ORDER BY rank {sort_order} LIMIT {top_k}").format(
+            top_k=SQLLiteral(top_k),
+            sort_order=SQL("DESC"),
+        )
+
+        sql_query = sql_select + sql_where_clause + sql_sort
+
+        result = self._execute_sql(
+            sql_query,
+            params,
+            error_msg="Could not retrieve documents from PgvectorDocumentStore.",
+            cursor=self._dict_cursor,
+        )
+
+        records = result.fetchall()
+        docs = self._from_pg_to_haystack_documents(records)
+        return docs
 
     def _embedding_retrieval(
         self,
