@@ -46,6 +46,7 @@ class TestRetriever:
                         "recreate_table": True,
                         "search_strategy": "exact_nearest_neighbor",
                         "hnsw_recreate_index_if_exists": False,
+                        "language": "english",
                         "hnsw_index_creation_kwargs": {},
                         "hnsw_ef_search": None,
                     },
