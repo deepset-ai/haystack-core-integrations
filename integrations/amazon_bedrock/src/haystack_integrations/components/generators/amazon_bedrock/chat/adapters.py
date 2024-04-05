@@ -368,9 +368,24 @@ class MistralChatAdapter(BedrockModelChatAdapter):
         # default is https://huggingface.co/mistralai/Mixtral-8x7B-Instruct-v0.1/blob/main/tokenizer_config.json
         # but we'll use our custom chat template
         prepared_prompt: str = self.prompt_handler.tokenizer.apply_chat_template(
-            conversation=[m.to_openai_format() for m in messages], tokenize=False, chat_template=self.chat_template
+            conversation=[self.to_openai_format(m) for m in messages], tokenize=False, chat_template=self.chat_template
         )
         return self._ensure_token_limit(prepared_prompt)
+
+    def to_openai_format(self, m: ChatMessage) -> Dict[str, Any]:
+        """
+        Convert the message to the format expected by OpenAI's Chat API.
+        See the [API reference](https://platform.openai.com/docs/api-reference/chat/create) for details.
+
+        :returns: A dictionary with the following key:
+            - `role`
+            - `content`
+            - `name` (optional)
+        """
+        msg = {"role": m.role.value, "content": m.content}
+        if m.name:
+            msg["name"] = m.name
+        return msg
 
     def check_prompt(self, prompt: str) -> Dict[str, Any]:
         """
