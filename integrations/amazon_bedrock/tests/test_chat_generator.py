@@ -14,7 +14,11 @@ from haystack_integrations.components.generators.amazon_bedrock.chat.adapters im
 
 KLASS = "haystack_integrations.components.generators.amazon_bedrock.chat.chat_generator.AmazonBedrockChatGenerator"
 MODELS_TO_TEST = ["anthropic.claude-3-sonnet-20240229-v1:0", "anthropic.claude-v2:1", "meta.llama2-13b-chat-v1"]
-MISTRAL_MODELS = ["mistral.mistral-7b-instruct-v0:2", "mistral.mixtral-8x7b-instruct-v0:1"]
+MISTRAL_MODELS = [
+    "mistral.mistral-7b-instruct-v0:2",
+    "mistral.mixtral-8x7b-instruct-v0:1",
+    "mistral.mistral-large-2402-v1:0",
+]
 
 
 def test_to_dict(mock_boto3_session):
