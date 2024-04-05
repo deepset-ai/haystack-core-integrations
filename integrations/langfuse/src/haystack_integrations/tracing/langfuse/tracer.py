@@ -46,11 +46,9 @@ class LangfuseTracer(Tracer):
     def trace(self, operation_name: str, tags: Optional[Dict[str, Any]] = None) -> Iterator[Span]:
         tags = tags or {}
         span_name = tags.get("haystack.component.name", operation_name)
-        is_generation = False
 
-        if tags.get("haystack.component.type") in ["OpenAIGenerator"]:
+        if tags.get("haystack.component.type") in ["OpenAIGenerator", "OpenAIChatGenerator"]:
             span = LangfuseSpan(self.current_span().raw_span().generation(name=span_name))
-            is_generation = True
         else:
             span = LangfuseSpan(self.current_span().raw_span().span(name=span_name))
 
@@ -59,13 +57,18 @@ class LangfuseTracer(Tracer):
 
         yield span
 
-        if is_generation:
+        if tags.get("haystack.component.type") == "OpenAIGenerator":
             meta = span._data.get("haystack.component.output", {}).get("meta")
             if meta:
                 # Haystack returns one meta dict for each message, but the 'usage' value
                 # is always the same, let's just pick the first item
                 m = meta[0]
                 span._span.update(usage=m.get("usage"), model=m.get("model"))
+        elif tags.get("haystack.component.type") == "OpenAIChatGenerator":
+            replies = span._data.get("haystack.component.output", {}).get("replies")
+            if replies:
+                meta = replies[0].meta
+                span._span.update(usage=meta.get("usage"), model=meta.get("model"))
 
         span.raw_span().end()
         self._context.pop()
