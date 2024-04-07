@@ -31,10 +31,7 @@ def mock_ranker_response():
         mock_ranker_res_obj2.index = 1
         mock_ranker_res_obj2.relevance_score = 0.95
 
-        mock_ranker_res_obj3 = Mock()
-        mock_ranker_res_obj3.index = 0
-        mock_ranker_res_obj3.relevance_score = 0.12
-        mock_response.results = [mock_ranker_res_obj1, mock_ranker_res_obj2, mock_ranker_res_obj3]
+        mock_response.results = [mock_ranker_res_obj1, mock_ranker_res_obj2]
         mock_ranker_response.return_value = mock_response
         yield mock_ranker_response
 
@@ -254,9 +251,9 @@ class TestCohereRanker:
         with pytest.raises(ValueError, match="top_k must be > 0, but got *"):
             ranker.run(query, documents, -3)
 
-    def test_run_zero_topk_in_run(self, monkeypatch):
+    def test_run_zero_topk_in_run_and_init(self, monkeypatch):
         monkeypatch.setenv("CO_API_KEY", "test-api-key")
-        ranker = CohereRanker()
+        ranker = CohereRanker(top_k=0)
         query = "test"
         documents = [Document(content="doc1"), Document(content="doc2"), Document(content="doc3")]
         with pytest.raises(ValueError, match="top_k must be > 0, but got *"):
@@ -299,26 +296,6 @@ class TestCohereRanker:
             Document(id="efgh", content="doc2", score=0.95),
         ]
 
-    def test_run_topk_greater_than_docs(self, monkeypatch, mock_ranker_response):  # noqa: ARG002
-        monkeypatch.setenv("CO_API_KEY", "test-api-key")
-        ranker = CohereRanker()
-        query = "test"
-        documents = [
-            Document(id="abcd", content="doc1"),
-            Document(id="efgh", content="doc2"),
-            Document(id="ijkl", content="doc3"),
-        ]
-
-        ranker_results = ranker.run(query, documents, 5)
-
-        assert isinstance(ranker_results, dict)
-        reranked_docs = ranker_results["documents"]
-        assert reranked_docs == [
-            Document(id="ijkl", content="doc3", score=0.98),
-            Document(id="efgh", content="doc2", score=0.95),
-            Document(id="abcd", content="doc1", score=0.12),
-        ]
-
     @pytest.mark.skipif(
         not os.environ.get("COHERE_API_KEY", None) and not os.environ.get("CO_API_KEY", None),
         reason="Export an env var called COHERE_API_KEY/CO_API_KEY containing the Cohere API key to run this test.",
@@ -340,5 +317,29 @@ class TestCohereRanker:
         assert isinstance(ranker_result, dict)
         assert isinstance(ranker_result["documents"], list)
         assert len(ranker_result["documents"]) == 2
+        assert all(isinstance(doc, Document) for doc in ranker_result["documents"])
+        assert set(result_documents_contents) == set(expected_documents_content)
+
+    @pytest.mark.skipif(
+        not os.environ.get("COHERE_API_KEY", None) and not os.environ.get("CO_API_KEY", None),
+        reason="Export an env var called COHERE_API_KEY/CO_API_KEY containing the Cohere API key to run this test.",
+    )
+    @pytest.mark.integration
+    def test_live_run_topk_greater_than_docs(self):
+        component = CohereRanker()
+        documents = [
+            Document(id="abcd", content="Paris is in France"),
+            Document(id="efgh", content="Berlin is in Germany"),
+            Document(id="ijkl", content="Lyon is in France"),
+        ]
+
+        ranker_result = component.run("Cities in France", documents, 5)
+        expected_documents = [documents[0], documents[2], documents[1]]
+        expected_documents_content = [doc.content for doc in expected_documents]
+        result_documents_contents = [doc.content for doc in ranker_result["documents"]]
+
+        assert isinstance(ranker_result, dict)
+        assert isinstance(ranker_result["documents"], list)
+        assert len(ranker_result["documents"]) == 3
         assert all(isinstance(doc, Document) for doc in ranker_result["documents"])
         assert set(result_documents_contents) == set(expected_documents_content)

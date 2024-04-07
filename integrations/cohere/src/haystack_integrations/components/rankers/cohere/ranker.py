@@ -1,14 +1,13 @@
 from typing import Any, Dict, List, Optional
 
 from haystack import Document, component, default_from_dict, default_to_dict, logging
-from haystack.lazy_imports import LazyImport
 from haystack.utils import Secret, deserialize_secrets_inplace
 
+import cohere
+
 logger = logging.getLogger(__name__)
 
-with LazyImport(message="Run 'pip install cohere'") as cohere_import:
-    import cohere
-logger = logging.getLogger(__name__)
+MAX_NUM_DOCS_FOR_COHERE_RANKER = 1000
 
 
 @component
@@ -16,7 +15,7 @@ class CohereRanker:
     """
     Ranks Documents based on their similarity to the query using [Cohere models](https://docs.cohere.com/reference/rerank-1).
 
-    Documents are indexed from most to least semantically relevant to the query. 
+    Documents are indexed from most to least semantically relevant to the query.
 
     Usage example:
     ```python
@@ -37,10 +36,10 @@ class CohereRanker:
         model: str = "rerank-english-v2.0",
         top_k: int = 10,
         api_key: Secret = Secret.from_env_var(["COHERE_API_KEY", "CO_API_KEY"]),
-        api_base_url: Optional[str] = None,
+        api_base_url: str = cohere.COHERE_API_URL,
         max_chunks_per_doc: Optional[int] = None,
         meta_fields_to_embed: Optional[List[str]] = None,
-        meta_data_separator: Optional[str] = "\n",
+        meta_data_separator: str = "\n",
     ):
         """
         Creates an instance of the 'CohereRanker'.
@@ -59,10 +58,6 @@ class CohereRanker:
         :param meta_data_separator: Separator used to concatenate the meta fields
             to the Document content.
         """
-        cohere_import.check()
-
-        if not api_base_url:
-            api_base_url = cohere.COHERE_API_URL
         self.model_name = model
         self.api_key = api_key
         self.api_base_url = api_base_url
@@ -70,7 +65,7 @@ class CohereRanker:
         self.max_chunks_per_doc = max_chunks_per_doc
         self.meta_fields_to_embed = meta_fields_to_embed or []
         self.meta_data_separator = meta_data_separator
-        self.cohere_client = cohere.Client(
+        self._cohere_client = cohere.Client(
             api_key=self.api_key.resolve_value(), api_url=self.api_base_url, client_name="haystack"
         )
 
@@ -117,10 +112,7 @@ class CohereRanker:
             meta_values_to_embed = [
                 str(doc.meta[key]) for key in self.meta_fields_to_embed if key in doc.meta and doc.meta.get(key)
             ]
-            if self.meta_data_separator is not None:
-                concatenated_input = self.meta_data_separator.join([*meta_values_to_embed, doc.content or ""])
-            else:
-                concatenated_input = "".join([*meta_values_to_embed, doc.content or ""])
+            concatenated_input = self.meta_data_separator.join([*meta_values_to_embed, doc.content or ""])
             concatenated_input_list.append(concatenated_input)
 
         return concatenated_input_list
@@ -148,16 +140,20 @@ class CohereRanker:
             raise ValueError(msg)
 
         cohere_input_docs = self._prepare_cohere_input_docs(documents)
-        max_num_docs_for_cohere_ranker = 1000
-        if len(cohere_input_docs) > max_num_docs_for_cohere_ranker:
+        if len(cohere_input_docs) > MAX_NUM_DOCS_FOR_COHERE_RANKER:
             logger.warning(
-                f"The Cohere reranking endpoint only supports 1000 documents.\
-                The number of documents has been truncated to 1000 from {len(cohere_input_docs)}."
+                f"The Cohere reranking endpoint only supports {MAX_NUM_DOCS_FOR_COHERE_RANKER} documents.\
+                The number of documents has been truncated to {MAX_NUM_DOCS_FOR_COHERE_RANKER} \
+                from {len(cohere_input_docs)}."
             )
-            cohere_input_docs = cohere_input_docs[:max_num_docs_for_cohere_ranker]
+            cohere_input_docs = cohere_input_docs[:MAX_NUM_DOCS_FOR_COHERE_RANKER]
 
-        response = self.cohere_client.rerank(
-            model=self.model_name, query=query, documents=cohere_input_docs, max_chunks_per_doc=self.max_chunks_per_doc
+        response = self._cohere_client.rerank(
+            model=self.model_name,
+            query=query,
+            documents=cohere_input_docs,
+            max_chunks_per_doc=self.max_chunks_per_doc,
+            top_n=top_k,
         )
         indices = [output.index for output in response.results]
         scores = [output.relevance_score for output in response.results]
@@ -166,4 +162,4 @@ class CohereRanker:
             doc = documents[idx]
             doc.score = score
             sorted_docs.append(documents[idx])
-        return {"documents": sorted_docs[:top_k]}
+        return {"documents": sorted_docs}
