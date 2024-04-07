@@ -14,17 +14,16 @@ logger = logging.getLogger(__name__)
 @component
 class CohereRanker:
     """
-    A component for performing reranking of documents using Cohere reranking models.
+    Ranks Documents based on their similarity to the query using [Cohere models](https://docs.cohere.com/reference/rerank-1).
 
-    Reranks retrieved documents based on semantic relevance to a query.
-    Documents are indexed from most to least semantically relevant to the query. [Cohere reranker](https://docs.cohere.com/reference/rerank-1)
+    Documents are indexed from most to least semantically relevant to the query. 
 
     Usage example:
     ```python
     from haystack import Document
     from haystack.components.rankers import CohereRanker
 
-    ranker = CohereRanker(model="rerank-english-v2.0", top_k=3)
+    ranker = CohereRanker(model="rerank-english-v2.0", top_k=2)
 
     docs = [Document(content="Paris"), Document(content="Berlin")]
     query = "What is the capital of germany?"
@@ -51,14 +50,14 @@ class CohereRanker:
         :param api_key: Cohere API key.
         :param api_base_url: the base URL of the Cohere API.
         :param max_chunks_per_doc: If your document exceeds 512 tokens, this determines the maximum number of
-            chunks a document can be split into. If None, the default of 10 is used.
+            chunks a document can be split into. If `None`, the default of 10 is used.
             For example, if your document is 6000 tokens, with the default of 10, the document will be split into 10
             chunks each of 512 tokens and the last 880 tokens will be disregarded.
-            Check this [link](https://docs.cohere.com/docs/reranking-best-practices) for more information.
+            Check [Cohere docs](https://docs.cohere.com/docs/reranking-best-practices) for more information.
         :param meta_fields_to_embed: List of meta fields that should be concatenated
-        with the document content for reranking.
-        :param meta_data_separator: Separator to be used to separate the concatenated
-        the meta fields and document content.
+            with the document content for reranking.
+        :param meta_data_separator: Separator used to concatenate the meta fields
+            to the Document content.
         """
         cohere_import.check()
 
@@ -111,7 +110,7 @@ class CohereRanker:
         Prepare the input by concatenating the document text with the metadata fields specified.
         :param documents: The list of Document objects.
 
-        :return: A list of strings to be input to the cohere model.
+        :return: A list of strings to be given as input to Cohere model.
         """
         concatenated_input_list = []
         for doc in documents:
@@ -131,17 +130,19 @@ class CohereRanker:
         """
         Use the Cohere Reranker to re-rank the list of documents based on the query.
 
-        :param query: The query string.
-        :param documents: List of Document objects to be re-ranked.
-        :param top_k: Optional. An integer to override the top_k set during initialization.
+        :param query:
+            Query string.
+        :param documents:
+            List of Documents.
+        :param top_k:
+            The maximum number of Documents you want the Ranker to return.
+        :returns:
+            A dictionary with the following keys:
+            - `documents`: List of Documents most similar to the given query in descending order of similarity.
 
-        :returns: A dictionary with the following key:
-            - `documents`: List of re-ranked Document objects.
-
-        :raises ValueError: If the top_k value is less than or equal to 0.
+        :raises ValueError: If `top_k` is not > 0.
         """
-        if top_k is None:
-            top_k = self.top_k
+        top_k = top_k or self.top_k
         if top_k <= 0:
             msg = f"top_k must be > 0, but got {top_k}"
             raise ValueError(msg)

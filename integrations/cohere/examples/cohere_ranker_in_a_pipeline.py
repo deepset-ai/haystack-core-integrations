@@ -25,5 +25,5 @@ document_ranker_pipeline.connect("retriever.documents", "ranker.documents")
 
 query = "Cities in France"
 res = document_ranker_pipeline.run(
-    data={"retriever": {"query": query, "top_k": 3}, "ranker": {"query": query, "top_k": 4}}
+    data={"retriever": {"query": query, "top_k": 3}, "ranker": {"query": query, "top_k": 3}}
 )
