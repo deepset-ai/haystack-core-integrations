@@ -276,7 +276,8 @@ class MistralChatAdapter(BedrockModelChatAdapter):
     Model adapter for the Mistral chat model.
     """
 
-    chat_template = """{% if messages[0]['role'] == 'system' %}
+    chat_template = """
+        {% if messages[0]['role'] == 'system' %}
         {% set loop_messages = messages[1:] %}
         {% set system_message = messages[0]['content'] %}
         {% else %}
@@ -298,7 +299,8 @@ class MistralChatAdapter(BedrockModelChatAdapter):
         {% elif message['role'] == 'assistant' %}
         {{ content.strip() + eos_token }}
         {% endif %}
-        {% endfor %}"""
+        {% endfor %}
+"""
     # the above template was designed to match https://docs.mistral.ai/models/#chat-template
     # and to support system messages, otherwise we could use the default mistral chat template
     # available on HF infrastructure
