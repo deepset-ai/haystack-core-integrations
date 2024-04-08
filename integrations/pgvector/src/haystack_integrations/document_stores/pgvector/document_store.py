@@ -80,11 +80,10 @@ class PgvectorDocumentStore:
         vector_function: Literal["cosine_similarity", "inner_product", "l2_distance"] = "cosine_similarity",
         recreate_table: bool = False,
         search_strategy: Literal["exact_nearest_neighbor", "hnsw"] = "exact_nearest_neighbor",
-        hybrid_search: bool = False,
         hnsw_recreate_index_if_exists: bool = False,
         hnsw_index_creation_kwargs: Optional[Dict[str, int]] = None,
         hnsw_ef_search: Optional[int] = None,
-        language: Optional[str] = "english",
+        language: str = "english",
     ):
         """
         Creates a new PgvectorDocumentStore instance.
@@ -131,7 +130,6 @@ class PgvectorDocumentStore:
         self.vector_function = vector_function
         self.recreate_table = recreate_table
         self.search_strategy = search_strategy
-        self.hybrid_search = hybrid_search
         self.hnsw_recreate_index_if_exists = hnsw_recreate_index_if_exists
         self.hnsw_index_creation_kwargs = hnsw_index_creation_kwargs or {}
         self.hnsw_ef_search = hnsw_ef_search
@@ -151,6 +149,7 @@ class PgvectorDocumentStore:
         if recreate_table:
             self.delete_table()
         self._create_table_if_not_exists()
+        self._create_keyword_index()
 
         if search_strategy == "hnsw":
             self._handle_hnsw()
@@ -226,7 +225,6 @@ class PgvectorDocumentStore:
         )
 
         self._execute_sql(create_sql, error_msg="Could not create table in PgvectorDocumentStore")
-        self._create_keyword_index()
 
     def delete_table(self):
         """
@@ -433,6 +431,16 @@ class PgvectorDocumentStore:
             db_document["dataframe"] = Jsonb(db_document["dataframe"]) if db_document["dataframe"] else None
             db_document["meta"] = Jsonb(db_document["meta"])
 
+            if "sparse_embedding" in db_document:
+                sparse_embedding = db_document.pop("sparse_embedding", None)
+                if sparse_embedding:
+                    logger.warning(
+                        "Document %s has the `sparse_embedding` field set,"
+                        "but storing sparse embeddings in Pgvector is not currently supported."
+                        "The `sparse_embedding` field will be ignored.",
+                        db_document["id"],
+                    )
+
             db_documents.append(db_document)
 
         return db_documents
@@ -488,7 +496,6 @@ class PgvectorDocumentStore:
         user_query: str,
         top_k: int = 10,
         filters: Optional[Dict[str, Any]] = None,
-        language: Optional[str] = "english",
     ) -> List[Document]:
         """
         Retrieves documents that are most similar to the query using a full-text search.
@@ -507,24 +514,11 @@ class PgvectorDocumentStore:
             """SELECT *, RANK() OVER (ORDER BY
             ts_rank_cd(to_tsvector({language}, content), query) DESC) AS rank
             FROM {table_name}, plainto_tsquery({language}, {query}) query
-            WHERE to_tsvector({language}, content) @@ query"""
-        ).format(table_name=Identifier(self.table_name), language=language, query=user_query)
-
-        sql_where_clause = SQL("")
-        params = ()
-        if filters:
-            sql_where_clause, params = _convert_filters_to_where_clause_and_params(filters)
-
-        sql_sort = SQL(" ORDER BY rank {sort_order} LIMIT {top_k}").format(
-            top_k=SQLLiteral(top_k),
-            sort_order=SQL("DESC"),
-        )
-
-        sql_query = sql_select + sql_where_clause + sql_sort
+            WHERE to_tsvector({language}, content) @@ query LIMIT {top_k}"""
+        ).format(table_name=Identifier(self.table_name), language=self.language, query=user_query)
 
         result = self._execute_sql(
-            sql_query,
-            params,
+            sql_select,
             error_msg="Could not retrieve documents from PgvectorDocumentStore.",
             cursor=self._dict_cursor,
         )
