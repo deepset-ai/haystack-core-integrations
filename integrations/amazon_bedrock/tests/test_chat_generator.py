@@ -3,6 +3,7 @@ from typing import Optional, Type
 import pytest
 from haystack.components.generators.utils import print_streaming_chunk
 from haystack.dataclasses import ChatMessage, ChatRole, StreamingChunk
+from jinja2 import TemplateError
 
 from haystack_integrations.components.generators.amazon_bedrock import AmazonBedrockChatGenerator
 from haystack_integrations.components.generators.amazon_bedrock.chat.adapters import (
@@ -208,6 +209,34 @@ class TestMistralAdapter:
         body = layer.prepare_body([ChatMessage.from_user(prompt)], top_p=0.8, top_k=5, max_tokens_to_sample=69)
 
         assert body == expected_body
+
+    def test_mistral_chat_template_correct_order(self):
+        layer = MistralChatAdapter(generation_kwargs={})
+        layer.prepare_body([ChatMessage.from_user("A"), ChatMessage.from_assistant("B"), ChatMessage.from_user("C")])
+        layer.prepare_body([ChatMessage.from_system("A"), ChatMessage.from_user("B"), ChatMessage.from_assistant("C")])
+
+    def test_mistral_chat_template_incorrect_order(self):
+        layer = MistralChatAdapter(generation_kwargs={})
+        try:
+            layer.prepare_body([ChatMessage.from_assistant("B"), ChatMessage.from_assistant("C")])
+            msg = "Expected TemplateError"
+            raise AssertionError(msg)
+        except TemplateError as e:
+            assert "Conversation roles must alternate user/assistant/" in str(e)
+
+        try:
+            layer.prepare_body([ChatMessage.from_user("A"), ChatMessage.from_user("B")])
+            msg = "Expected TemplateError"
+            raise AssertionError(msg)
+        except TemplateError as e:
+            assert "Conversation roles must alternate user/assistant/" in str(e)
+
+        try:
+            layer.prepare_body([ChatMessage.from_system("A"), ChatMessage.from_system("B")])
+            msg = "Expected TemplateError"
+            raise AssertionError(msg)
+        except TemplateError as e:
+            assert "Conversation roles must alternate user/assistant/" in str(e)
 
     @pytest.mark.parametrize("model_name", MISTRAL_MODELS)
     @pytest.mark.integration
