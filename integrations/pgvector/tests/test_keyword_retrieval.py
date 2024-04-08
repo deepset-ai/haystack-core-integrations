@@ -1,5 +1,3 @@
-from typing import List
-
 import pytest
 from haystack.dataclasses.document import Document
 from haystack_integrations.document_stores.pgvector import PgvectorDocumentStore
@@ -8,7 +6,7 @@ from haystack_integrations.document_stores.pgvector import PgvectorDocumentStore
 @pytest.mark.integration
 class TestKeywordRetrieval:
     @pytest.fixture
-    def document_store_w_hnsw_index(self, request):
+    def document_store_keyword(self, request):
         connection_string = "postgresql://postgres:postgres@localhost:5432/postgres"
         table_name = f"haystack_nn_{request.node.name}"
         embedding_dimension = 768
@@ -28,7 +26,7 @@ class TestKeywordRetrieval:
 
         store.delete_table()
 
-    @pytest.mark.parametrize("document_store", ["document_store"], indirect=True)
+    @pytest.mark.parametrize("document_store", ["document_store_keyword"], indirect=True)
     def test_keyword_retrieval(self, document_store: PgvectorDocumentStore):
         # Mock query and expected documents
         query = "The quick brown fox jumps over the lazy dog"

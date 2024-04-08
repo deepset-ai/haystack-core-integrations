@@ -149,7 +149,6 @@ class PgvectorDocumentStore:
         if recreate_table:
             self.delete_table()
         self._create_table_if_not_exists()
-        self._create_keyword_index()
 
         if search_strategy == "hnsw":
             self._handle_hnsw()
@@ -238,8 +237,15 @@ class PgvectorDocumentStore:
 
     def _create_keyword_index(self):
         """
-        Internal method to create the keyword index.
+        Internal method to create the keyword index if not exists.
         """
+        sql_check_index = SQL("SELECT * FROM pg_indexes WHERE tablename = {table_name};").format(
+            table_name=Identifier(self.table_name)
+        )
+        result = self._execute_sql(sql_check_index, error_msg="Could not create keyword index on table")
+
+        if result.fetchone():
+            return
 
         sql_create_index = SQL("CREATE INDEX ON {table_name} USING GIN (to_tsvector({language}, content))").format(
             table_name=Identifier(self.table_name), language=SQLLiteral(self.language)
@@ -495,7 +501,7 @@ class PgvectorDocumentStore:
         self,
         user_query: str,
         top_k: int = 10,
-        filters: Optional[Dict[str, Any]] = None,
+        # filters: Optional[Dict[str, Any]] = None,
     ) -> List[Document]:
         """
         Retrieves documents that are most similar to the query using a full-text search.
@@ -505,7 +511,7 @@ class PgvectorDocumentStore:
         `PgvectorKeywordRetriever` uses this method directly and is the public interface for it.
         :returns: List of Documents that are most similar to `user_query`
         """
-
+        self._create_keyword_index()
         if not user_query:
             msg = "user_query must be a non-empty string"
             raise ValueError(msg)
@@ -515,7 +521,7 @@ class PgvectorDocumentStore:
             ts_rank_cd(to_tsvector({language}, content), query) DESC) AS rank
             FROM {table_name}, plainto_tsquery({language}, {query}) query
             WHERE to_tsvector({language}, content) @@ query LIMIT {top_k}"""
-        ).format(table_name=Identifier(self.table_name), language=self.language, query=user_query)
+        ).format(table_name=Identifier(self.table_name), language=self.language, query=user_query, top_k=top_k)
 
         result = self._execute_sql(
             sql_select,
