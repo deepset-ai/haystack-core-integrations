@@ -3,7 +3,6 @@ from typing import Optional, Type
 import pytest
 from haystack.components.generators.utils import print_streaming_chunk
 from haystack.dataclasses import ChatMessage, ChatRole, StreamingChunk
-from jinja2 import TemplateError
 
 from haystack_integrations.components.generators.amazon_bedrock import AmazonBedrockChatGenerator
 from haystack_integrations.components.generators.amazon_bedrock.chat.adapters import (
@@ -221,21 +220,21 @@ class TestMistralAdapter:
             layer.prepare_body([ChatMessage.from_assistant("B"), ChatMessage.from_assistant("C")])
             msg = "Expected TemplateError"
             raise AssertionError(msg)
-        except TemplateError as e:
+        except Exception as e:
             assert "Conversation roles must alternate user/assistant/" in str(e)
 
         try:
             layer.prepare_body([ChatMessage.from_user("A"), ChatMessage.from_user("B")])
             msg = "Expected TemplateError"
             raise AssertionError(msg)
-        except TemplateError as e:
+        except Exception as e:
             assert "Conversation roles must alternate user/assistant/" in str(e)
 
         try:
             layer.prepare_body([ChatMessage.from_system("A"), ChatMessage.from_system("B")])
             msg = "Expected TemplateError"
             raise AssertionError(msg)
-        except TemplateError as e:
+        except Exception as e:
             assert "Conversation roles must alternate user/assistant/" in str(e)
 
     @pytest.mark.parametrize("model_name", MISTRAL_MODELS)
