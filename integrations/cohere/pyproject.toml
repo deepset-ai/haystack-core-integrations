@@ -163,5 +163,6 @@ markers = [
   "embedders: embedders tests",
   "generators: generators tests",
   "chat_generators: chat_generators tests",
+  "ranker: ranker tests"
 ]
 log_cli = true
