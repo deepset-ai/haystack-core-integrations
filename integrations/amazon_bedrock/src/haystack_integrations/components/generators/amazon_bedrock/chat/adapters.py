@@ -276,31 +276,8 @@ class MistralChatAdapter(BedrockModelChatAdapter):
     Model adapter for the Mistral chat model.
     """
 
-    chat_template = """
-        {% if messages[0]['role'] == 'system' %}
-        {% set loop_messages = messages[1:] %}
-        {% set system_message = messages[0]['content'] %}
-        {% else %}
-        {% set loop_messages = messages %}
-        {% set system_message = false %}
-        {% endif %}
-        {{bos_token}}
-        {% for message in loop_messages %}
-        {% if (message['role'] == 'user') != (loop.index0 % 2 == 0) %}
-        {{ raise_exception('Conversation roles must alternate user/assistant/user/assistant/...') }}
-        {% endif %}
-        {% if loop.index0 == 0 and system_message != false %}
-        {% set content = system_message + '\n' + message['content'] %}
-        {% else %}
-        {% set content = message['content'] %}
-        {% endif %}
-        {% if message['role'] == 'user' %}
-        {{ '[INST] ' + content.strip() + ' [/INST]' }}
-        {% elif message['role'] == 'assistant' %}
-        {{ content.strip() + eos_token }}
-        {% endif %}
-        {% endfor %}
-"""
+    chat_template = "{% if messages[0]['role'] == 'system' %}{% set loop_messages = messages[1:] %}{% set system_message = messages[0]['content'] %}{% else %}{% set loop_messages = messages %}{% set system_message = false %}{% endif %}{{bos_token}}{% for message in loop_messages %}{% if (message['role'] == 'user') != (loop.index0 % 2 == 0) %}{{ raise_exception('Conversation roles must alternate user/assistant/user/assistant/...') }}{% endif %}{% if loop.index0 == 0 and system_message != false %}{% set content = system_message + '\n' + message['content'] %}{% else %}{% set content = message['content'] %}{% endif %}{% if message['role'] == 'user' %}{{ '[INST] ' + content.strip() + ' [/INST]' }}{% elif message['role'] == 'assistant' %}{{ content.strip() + eos_token }}{% endif %}{% endfor %}"  # noqa: E501
+
     # the above template was designed to match https://docs.mistral.ai/models/#chat-template
     # and to support system messages, otherwise we could use the default mistral chat template
     # available on HF infrastructure
