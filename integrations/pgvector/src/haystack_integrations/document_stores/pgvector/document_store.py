@@ -522,7 +522,7 @@ class PgvectorDocumentStore:
             ts_rank_cd(to_tsvector({language}, content), query) DESC) AS rank
             FROM {table_name}, plainto_tsquery({language}, {query}) query
             WHERE to_tsvector({language}, content) @@ query LIMIT {top_k}"""
-        ).format(table_name=Identifier(self.table_name), language=self.language, query=user_query, top_k=top_k)
+        ).format(table_name=Identifier(self.table_name), language=self.language, query=SQLLiteral(user_query), top_k=top_k)
 
         result = self._execute_sql(
             sql_select,
