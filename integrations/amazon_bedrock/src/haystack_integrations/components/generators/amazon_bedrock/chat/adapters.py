@@ -303,7 +303,6 @@ class MistralChatAdapter(BedrockModelChatAdapter):
     """
     chat_template = "".join(line.strip() for line in chat_template.splitlines())
 
-
     # the above template was designed to match https://docs.mistral.ai/models/#chat-template
     # and to support system messages, otherwise we could use the default mistral chat template
     # available on HF infrastructure
