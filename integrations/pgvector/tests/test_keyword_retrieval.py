@@ -29,7 +29,7 @@ class TestKeywordRetrieval:
     @pytest.mark.parametrize("document_store", ["document_store_keyword"], indirect=True)
     def test_keyword_retrieval(self, document_store: PgvectorDocumentStore):
         # Mock query and expected documents
-        query = "The quick brown fox jumps over the lazy dog"
+        query = "fox"
         docs = [
             Document(content="The quick brown fox chased the dog", meta={"id": "1"}, embedding=[0.1] * 768),
             Document(content="The fox was brown", meta={"id": "2"}, embedding=[0.1] * 768),
