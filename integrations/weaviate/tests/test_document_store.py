@@ -510,10 +510,15 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
         result = document_store._bm25_retrieval("functional Haskell")
         assert len(result) == 5
         assert "functional" in result[0].content
+        assert result[0].score > 0.0
         assert "functional" in result[1].content
+        assert result[1].score > 0.0
         assert "functional" in result[2].content
+        assert result[2].score > 0.0
         assert "functional" in result[3].content
+        assert result[3].score > 0.0
         assert "functional" in result[4].content
+        assert result[4].score > 0.0
 
     def test_bm25_retrieval_with_filters(self, document_store):
         document_store.write_documents(
@@ -535,6 +540,7 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
         result = document_store._bm25_retrieval("functional Haskell", filters=filters)
         assert len(result) == 1
         assert "Haskell is a functional programming language" == result[0].content
+        assert result[0].score > 0.0
 
     def test_bm25_retrieval_with_topk(self, document_store):
         document_store.write_documents(
@@ -555,8 +561,11 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
         result = document_store._bm25_retrieval("functional Haskell", top_k=3)
         assert len(result) == 3
         assert "functional" in result[0].content
+        assert result[0].score > 0.0
         assert "functional" in result[1].content
+        assert result[1].score > 0.0
         assert "functional" in result[2].content
+        assert result[2].score > 0.0
 
     def test_embedding_retrieval(self, document_store):
         document_store.write_documents(
@@ -572,8 +581,11 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
         result = document_store._embedding_retrieval(query_embedding=[1.0, 1.0, 1.0, 1.0])
         assert len(result) == 3
         assert "The document" == result[0].content
+        assert result[0].score > 0.0
         assert "Another document" == result[1].content
+        assert result[1].score > 0.0
         assert "Yet another document" == result[2].content
+        assert result[2].score > 0.0
 
     def test_embedding_retrieval_with_filters(self, document_store):
         document_store.write_documents(
@@ -590,6 +602,7 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
         result = document_store._embedding_retrieval(query_embedding=[1.0, 1.0, 1.0, 1.0], filters=filters)
         assert len(result) == 1
         assert "The document I want" == result[0].content
+        assert result[0].score > 0.0
 
     def test_embedding_retrieval_with_topk(self, document_store):
         docs = [
@@ -601,7 +614,9 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
         results = document_store._embedding_retrieval(query_embedding=[1.0, 1.0, 1.0, 1.0], top_k=2)
         assert len(results) == 2
         assert results[0].content == "The document"
+        assert results[0].score > 0.0
         assert results[1].content == "Another document"
+        assert results[1].score > 0.0
 
     def test_embedding_retrieval_with_distance(self, document_store):
         docs = [
@@ -613,6 +628,7 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
         results = document_store._embedding_retrieval(query_embedding=[1.0, 1.0, 1.0, 1.0], distance=0.0)
         assert len(results) == 1
         assert results[0].content == "The document"
+        assert results[0].score > 0.0
 
     def test_embedding_retrieval_with_certainty(self, document_store):
         docs = [
@@ -624,6 +640,7 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
         results = document_store._embedding_retrieval(query_embedding=[0.8, 0.8, 0.8, 1.0], certainty=1.0)
         assert len(results) == 1
         assert results[0].content == "Another document"
+        assert results[0].score > 0.0
 
     def test_embedding_retrieval_with_distance_and_certainty(self, document_store):
         with pytest.raises(ValueError):

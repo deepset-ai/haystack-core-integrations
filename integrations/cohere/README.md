@@ -47,6 +47,11 @@ To only run generators tests:
 hatch run test -m"generators"
 ```
 
+To only run ranker tests:
+```
+hatch run test -m"ranker"
+```
+
 Markers can be combined, for example you can run only integration tests for embedders with:
 ```
 hatch run test -m"integrations and embedders"
