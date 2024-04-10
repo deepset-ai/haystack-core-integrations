@@ -31,9 +31,9 @@ class TestKeywordRetrieval:
         # Mock query and expected documents
         query = "fox"
         docs = [
-            Document(content="The quick brown fox chased the dog", meta={"id": "1"}, embedding=[0.1] * 768),
-            Document(content="The fox was brown", meta={"id": "2"}, embedding=[0.1] * 768),
-            Document(content="The lazy dog", meta={"id": "3"}, embedding=[0.1] * 768),
+            Document(content="The quick brown fox chased the dog", embedding=[0.1] * 768),
+            Document(content="The fox was brown", embedding=[0.1] * 768),
+            Document(content="The lazy dog", embedding=[0.1] * 768),
         ]
 
         document_store.write_documents(docs)
