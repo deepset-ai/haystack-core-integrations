@@ -242,7 +242,7 @@ class PgvectorDocumentStore:
         index_exists = bool(
             self._execute_sql(
                 "SELECT * FROM pg_indexes WHERE tablename = %s",
-                (self.table_name),
+                (self.table_name,),
                 "Could not check if keyword index exists",
             ).fetchone()
         )
