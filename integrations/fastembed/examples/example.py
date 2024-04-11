@@ -26,7 +26,7 @@ query = "Who supports fastembed?"
 
 result = query_pipeline.run({"text_embedder": {"text": query}})
 
-print(result["retriever"]["documents"][0])  # noqa: T201
+print(result["retriever"]["documents"][0])
 
 # Document(id=...,
 #  content: 'fastembed is supported by and maintained by Qdrant.',

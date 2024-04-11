@@ -172,6 +172,7 @@ class CohereDocumentEmbedder:
                 api_url=self.api_base_url,
                 max_retries=self.max_retries,
                 timeout=self.timeout,
+                client_name="haystack",
             )
             all_embeddings, metadata = asyncio.run(
                 get_async_response(cohere_client, texts_to_embed, self.model, self.input_type, self.truncate)
@@ -182,6 +183,7 @@ class CohereDocumentEmbedder:
                 api_url=self.api_base_url,
                 max_retries=self.max_retries,
                 timeout=self.timeout,
+                client_name="haystack",
             )
             all_embeddings, metadata = get_response(
                 cohere_client,
