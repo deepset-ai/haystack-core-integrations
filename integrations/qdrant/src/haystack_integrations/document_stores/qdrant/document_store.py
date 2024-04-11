@@ -71,7 +71,7 @@ class QdrantDocumentStore:
         content_field: str = "content",
         name_field: str = "name",
         embedding_field: str = "embedding",
-        use_sparse_embeddings: bool = True,  # noqa: FBT001, FBT002
+        use_sparse_embeddings: bool = False,  # noqa: FBT001, FBT002
         sparse_embedding_field: str = "sparse_embedding",
         similarity: str = "cosine",
         return_embedding: bool = False,  # noqa: FBT001, FBT002

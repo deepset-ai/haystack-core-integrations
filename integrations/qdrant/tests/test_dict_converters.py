@@ -25,7 +25,7 @@ def test_to_dict():
             "content_field": "content",
             "name_field": "name",
             "embedding_field": "embedding",
-            "use_sparse_embeddings": True,
+            "use_sparse_embeddings": False,
             "sparse_embedding_field": "sparse_embedding",
             "similarity": "cosine",
             "return_embedding": False,
