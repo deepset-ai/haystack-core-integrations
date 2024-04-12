@@ -7,7 +7,7 @@ name = "qdrant-haystack"
 dynamic = ["version"]
 description = 'An integration of Qdrant ANN vector database backend with Haystack'
 readme = "README.md"
-requires-python = ">=3.7"
+requires-python = ">=3.8"
 license = "Apache-2.0"
 keywords = []
 authors = [
@@ -17,7 +17,6 @@ authors = [
 classifiers = [
   "Development Status :: 4 - Beta",
   "Programming Language :: Python",
-  "Programming Language :: Python :: 3.7",
   "Programming Language :: Python :: 3.8",
   "Programming Language :: Python :: 3.9",
   "Programming Language :: Python :: 3.10",
@@ -25,7 +24,7 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
-dependencies = ["haystack-ai>=2.0.0b6", "qdrant-client"]
+dependencies = ["haystack-ai>=2.0.1", "qdrant-client"]
 
 [project.urls]
 Source = "https://github.com/deepset-ai/haystack-core-integrations"
@@ -53,7 +52,7 @@ cov = ["test-cov", "cov-report"]
 docs = ["pydoc-markdown pydoc/config.yml"]
 
 [[tool.hatch.envs.all.matrix]]
-python = ["3.7", "3.8", "3.9", "3.10", "3.11"]
+python = ["3.8", "3.9", "3.10", "3.11"]
 
 [tool.hatch.envs.lint]
 detached = true
@@ -65,12 +64,12 @@ fmt = ["black {args:.}", "ruff --fix {args:.}", "style"]
 all = ["style", "typing"]
 
 [tool.black]
-target-version = ["py37"]
+target-version = ["py38"]
 line-length = 120
 skip-string-normalization = true
 
 [tool.ruff]
-target-version = "py37"
+target-version = "py38"
 line-length = 120
 select = [
   "A",
@@ -104,6 +103,8 @@ ignore = [
   "B027",
   # Allow boolean positional values in function calls, like `dict.get(... True)`
   "FBT003",
+  # Allow boolean arguments in function definition
+  "FBT001", "FBT002",
   # Ignore checks for possible passwords
   "S105",
   "S106",

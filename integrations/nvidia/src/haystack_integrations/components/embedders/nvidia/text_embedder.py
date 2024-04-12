@@ -13,14 +13,14 @@ class NvidiaTextEmbedder:
     """
     A component for embedding strings using embedding models provided by
     [NVIDIA AI Foundation Endpoints](https://www.nvidia.com/en-us/ai-data-science/foundation-models/)
-    and NVIDIA NeMo Inference Microservices.
+    and NVIDIA Inference Microservices.
 
     For models that differentiate between query and document inputs,
     this component embeds the input string as a query.
 
     Usage example:
     ```python
-    from haystack_integrations.components.embedders.nvidia import NvidiaTextEmbedder, NvidiaEmbeddingModel
+    from haystack_integrations.components.embedders.nvidia import NvidiaTextEmbedder
 
     text_to_embed = "I love pizza!"
 
@@ -47,7 +47,7 @@ class NvidiaTextEmbedder:
         :param api_key:
             API key for the NVIDIA AI Foundation Endpoints.
         :param api_url:
-            Custom API URL for the NVIDIA NeMo Inference Microservices.
+            Custom API URL for the NVIDIA Inference Microservices.
         :param prefix:
             A string to add to the beginning of each text.
         :param suffix:

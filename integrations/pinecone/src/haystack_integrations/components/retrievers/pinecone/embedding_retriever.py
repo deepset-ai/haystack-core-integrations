@@ -93,8 +93,8 @@ class PineconeEmbeddingRetriever:
         :returns:
             Deserialized component.
         """
-        data["init_parameters"]["document_store"] = default_from_dict(
-            PineconeDocumentStore, data["init_parameters"]["document_store"]
+        data["init_parameters"]["document_store"] = PineconeDocumentStore.from_dict(
+            data["init_parameters"]["document_store"]
         )
         return default_from_dict(cls, data)
 

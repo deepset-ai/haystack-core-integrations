@@ -28,7 +28,7 @@ dependencies = [
   "haystack-ai",
   "transformers[sentencepiece]",
   # The main export function of Optimum into ONNX has hidden dependencies.
-  # It depends on either "sentence-transformers", "diffusers" or "timm", based 
+  # It depends on either "sentence-transformers", "diffusers" or "timm", based
   # on which model is loaded from HF Hub.
   # Ref: https://github.com/huggingface/optimum/blob/8651c0ca1cccf095458bc80329dec9df4601edb4/optimum/exporters/onnx/__main__.py#L164
   # "sentence-transformers" has been added, since most embedding models use it
@@ -53,7 +53,12 @@ root = "../.."
 git_describe_command = 'git describe --tags --match="integrations/optimum-v[0-9]*"'
 
 [tool.hatch.envs.default]
-dependencies = ["coverage[toml]>=6.5", "pytest", "haystack-pydoc-tools"]
+dependencies = [
+  "coverage[toml]>=6.5",
+  "pytest",
+  "haystack-pydoc-tools",
+  "databind-core<4.5.0", "setuptools",  # FIXME: the latest 4.5.0 causes loops in pip resolver
+]
 [tool.hatch.envs.default.scripts]
 test = "pytest {args:tests}"
 test-cov = "coverage run -m pytest {args:tests}"
@@ -82,12 +87,12 @@ allow-direct-references = true
 known-first-party = ["src"]
 
 [tool.black]
-target-version = ["py37"]
+target-version = ["py38"]
 line-length = 120
 skip-string-normalization = true
 
 [tool.ruff]
-target-version = "py37"
+target-version = "py38"
 line-length = 120
 select = [
   "A",

@@ -5,6 +5,7 @@ loaders:
       [
         "haystack_integrations.components.embedders.jina.document_embedder",
         "haystack_integrations.components.embedders.jina.text_embedder",
+        "haystack_integrations.components.rankers.jina.ranker",
       ]
     ignore_when_discovered: ["__init__"]
 processors:

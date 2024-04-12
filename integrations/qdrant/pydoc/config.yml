@@ -5,8 +5,7 @@ loaders:
       [
         "haystack_integrations.components.retrievers.qdrant.retriever",
         "haystack_integrations.document_stores.qdrant.document_store",
-        "haystack_integrations.document_stores.qdrant.converters",
-        "haystack_integrations.document_stores.qdrant.filters",
+        "haystack_integrations.document_stores.qdrant.migrate_to_sparse",
       ]
     ignore_when_discovered: ["__init__"]
 processors:

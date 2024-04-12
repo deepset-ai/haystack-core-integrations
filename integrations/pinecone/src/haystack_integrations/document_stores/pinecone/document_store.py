@@ -45,8 +45,7 @@ class PineconeDocumentStore:
         Creates a new PineconeDocumentStore instance.
         It is meant to be connected to a Pinecone index and namespace.
 
-        :param api_key: The Pinecone API key. It can be explicitly provided or automatically read from the
-            environment variable `PINECONE_API_KEY` (recommended).
+        :param api_key: The Pinecone API key.
         :param environment: The Pinecone environment to connect to.
         :param index: The Pinecone index to connect to. If the index does not exist, it will be created.
         :param namespace: The Pinecone namespace to connect to. If the namespace does not exist, it will be created
@@ -59,16 +58,9 @@ class PineconeDocumentStore:
             [API reference](https://docs.pinecone.io/reference/create_index).
 
         """
-        resolved_api_key = api_key.resolve_value()
-        if resolved_api_key is None:
-            msg = (
-                "PineconeDocumentStore expects an API key. "
-                "Set the PINECONE_API_KEY environment variable (recommended) or pass it explicitly."
-            )
-            raise ValueError(msg)
         self.api_key = api_key
 
-        pinecone.init(api_key=resolved_api_key, environment=environment)
+        pinecone.init(api_key=api_key.resolve_value(), environment=environment)
 
         if index not in pinecone.list_indexes():
             logger.info(f"Index {index} does not exist. Creating a new index.")
@@ -291,6 +283,13 @@ class PineconeDocumentStore:
                     f"Document {document.id} has the `blob` field set, but storing `ByteStream` "
                     "objects in Pinecone is not supported. "
                     "The content of the `blob` field will be ignored."
+                )
+            if hasattr(document, "sparse_embedding") and document.sparse_embedding is not None:
+                logger.warning(
+                    "Document %s has the `sparse_embedding` field set,"
+                    "but storing sparse embeddings in Pinecone is not currently supported."
+                    "The `sparse_embedding` field will be ignored.",
+                    document.id,
                 )
 
             documents_for_pinecone.append(doc_for_pinecone)
