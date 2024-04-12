@@ -42,7 +42,7 @@ def migrate_to_sparse_embeddings_support(old_document_store: QdrantDocumentStore
                                              use_sparse_embeddings=True)
     ```
 
-    
+
     :param old_document_store: The existing QdrantDocumentStore instance to migrate from.
     :param new_index: The name of the new index/collection to create with sparse embeddings support.
     """
