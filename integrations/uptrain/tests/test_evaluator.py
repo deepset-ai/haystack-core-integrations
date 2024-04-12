@@ -361,7 +361,12 @@ def test_evaluator_invalid_inputs(metric, inputs, error_string, params):
             ],
             None,
         ),
-        (UpTrainMetric.CRITIQUE_TONE, {"responses": ["r9"]}, [[("critique_tone", 0.4, "12")]], {"llm_persona": "idiot"}),
+        (
+            UpTrainMetric.CRITIQUE_TONE,
+            {"responses": ["r9"]},
+            [[("critique_tone", 0.4, "12")]],
+            {"llm_persona": "idiot"},
+        ),
         (
             UpTrainMetric.GUIDELINE_ADHERENCE,
             {"questions": ["q10"], "responses": ["r10"]},
@@ -402,4 +407,3 @@ def test_evaluator_outputs(metric, inputs, expected_outputs, metric_params):
         expected = {(name if name is not None else str(metric), score, exp) for name, score, exp in o}
         got = {(x["name"], x["score"], x["explanation"]) for x in r}
         assert got == expected
-
