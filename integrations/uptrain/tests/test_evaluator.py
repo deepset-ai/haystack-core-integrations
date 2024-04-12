@@ -156,6 +156,7 @@ def test_integration_run(metric, inputs, metric_params):
         "metric": metric,
         "metric_params": metric_params,
         "api": "openai",
+        "api_key": Secret.from_env_var("OPENAI_API_KEY"),
     }
     eval = UpTrainEvaluator(**init_params)
     output = eval.run(**inputs)
