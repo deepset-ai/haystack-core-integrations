@@ -103,6 +103,69 @@ class MockBackend:
         return data
 
 
+# This integration test validates the evaluator by running it against the
+# OpenAI API. It is parameterized by the metric, the inputs to the evalutor
+# and the metric parameters.
+@pytest.mark.integration
+@pytest.mark.skipif("OPENAI_API_KEY" not in os.environ, reason="OPENAI_API_KEY not set")
+@pytest.mark.parametrize(
+    "metric, inputs, metric_params",
+    [
+        (UpTrainMetric.CONTEXT_RELEVANCE, {"questions": DEFAULT_QUESTIONS, "contexts": DEFAULT_CONTEXTS}, None),
+        (
+            UpTrainMetric.FACTUAL_ACCURACY,
+            {"questions": DEFAULT_QUESTIONS, "contexts": DEFAULT_CONTEXTS, "responses": DEFAULT_RESPONSES},
+            None,
+        ),
+        (UpTrainMetric.RESPONSE_RELEVANCE, {"questions": DEFAULT_QUESTIONS, "responses": DEFAULT_RESPONSES}, None),
+        (UpTrainMetric.RESPONSE_COMPLETENESS, {"questions": DEFAULT_QUESTIONS, "responses": DEFAULT_RESPONSES}, None),
+        (
+            UpTrainMetric.RESPONSE_COMPLETENESS_WRT_CONTEXT,
+            {"questions": DEFAULT_QUESTIONS, "contexts": DEFAULT_CONTEXTS, "responses": DEFAULT_RESPONSES},
+            None,
+        ),
+        (
+            UpTrainMetric.RESPONSE_CONSISTENCY,
+            {"questions": DEFAULT_QUESTIONS, "contexts": DEFAULT_CONTEXTS, "responses": DEFAULT_RESPONSES},
+            None,
+        ),
+        (UpTrainMetric.RESPONSE_CONCISENESS, {"questions": DEFAULT_QUESTIONS, "responses": DEFAULT_RESPONSES}, None),
+        (UpTrainMetric.CRITIQUE_LANGUAGE, {"responses": DEFAULT_RESPONSES}, None),
+        (UpTrainMetric.CRITIQUE_TONE, {"responses": DEFAULT_RESPONSES}, {"llm_persona": "idiot"}),
+        (
+            UpTrainMetric.GUIDELINE_ADHERENCE,
+            {"questions": DEFAULT_QUESTIONS, "responses": DEFAULT_RESPONSES},
+            {"guideline": "Do nothing", "guideline_name": "somename", "response_schema": None},
+        ),
+        (
+            UpTrainMetric.RESPONSE_MATCHING,
+            {
+                "questions": DEFAULT_QUESTIONS,
+                "ground_truths": [
+                    "Consumerism is the most popular sport in the world",
+                    "Python language was created by some dude.",
+                ],
+                "responses": DEFAULT_RESPONSES,
+            },
+            {"method": "llm"},
+        ),
+    ],
+)
+def test_integration_run(metric, inputs, metric_params):
+    init_params = {
+        "metric": metric,
+        "metric_params": metric_params,
+        "api": "openai",
+    }
+    eval = UpTrainEvaluator(**init_params)
+    output = eval.run(**inputs)
+
+    assert type(output) == dict
+    assert len(output) == 1
+    assert "results" in output
+    assert len(output["results"]) == len(next(iter(inputs.values())))
+
+
 def test_evaluator_api(monkeypatch):
     monkeypatch.setenv("OPENAI_API_KEY", "test-api-key")
     monkeypatch.setenv("UPTRAIN_API_KEY", "test-api-key")
@@ -340,65 +403,3 @@ def test_evaluator_outputs(metric, inputs, expected_outputs, metric_params):
         got = {(x["name"], x["score"], x["explanation"]) for x in r}
         assert got == expected
 
-
-# This integration test validates the evaluator by running it against the
-# OpenAI API. It is parameterized by the metric, the inputs to the evalutor
-# and the metric parameters.
-@pytest.mark.integration
-@pytest.mark.skipif("OPENAI_API_KEY" not in os.environ, reason="OPENAI_API_KEY not set")
-@pytest.mark.parametrize(
-    "metric, inputs, metric_params",
-    [
-        (UpTrainMetric.CONTEXT_RELEVANCE, {"questions": DEFAULT_QUESTIONS, "contexts": DEFAULT_CONTEXTS}, None),
-        (
-            UpTrainMetric.FACTUAL_ACCURACY,
-            {"questions": DEFAULT_QUESTIONS, "contexts": DEFAULT_CONTEXTS, "responses": DEFAULT_RESPONSES},
-            None,
-        ),
-        (UpTrainMetric.RESPONSE_RELEVANCE, {"questions": DEFAULT_QUESTIONS, "responses": DEFAULT_RESPONSES}, None),
-        (UpTrainMetric.RESPONSE_COMPLETENESS, {"questions": DEFAULT_QUESTIONS, "responses": DEFAULT_RESPONSES}, None),
-        (
-            UpTrainMetric.RESPONSE_COMPLETENESS_WRT_CONTEXT,
-            {"questions": DEFAULT_QUESTIONS, "contexts": DEFAULT_CONTEXTS, "responses": DEFAULT_RESPONSES},
-            None,
-        ),
-        (
-            UpTrainMetric.RESPONSE_CONSISTENCY,
-            {"questions": DEFAULT_QUESTIONS, "contexts": DEFAULT_CONTEXTS, "responses": DEFAULT_RESPONSES},
-            None,
-        ),
-        (UpTrainMetric.RESPONSE_CONCISENESS, {"questions": DEFAULT_QUESTIONS, "responses": DEFAULT_RESPONSES}, None),
-        (UpTrainMetric.CRITIQUE_LANGUAGE, {"responses": DEFAULT_RESPONSES}, None),
-        (UpTrainMetric.CRITIQUE_TONE, {"responses": DEFAULT_RESPONSES}, {"llm_persona": "idiot"}),
-        (
-            UpTrainMetric.GUIDELINE_ADHERENCE,
-            {"questions": DEFAULT_QUESTIONS, "responses": DEFAULT_RESPONSES},
-            {"guideline": "Do nothing", "guideline_name": "somename", "response_schema": None},
-        ),
-        (
-            UpTrainMetric.RESPONSE_MATCHING,
-            {
-                "questions": DEFAULT_QUESTIONS,
-                "ground_truths": [
-                    "Consumerism is the most popular sport in the world",
-                    "Python language was created by some dude.",
-                ],
-                "responses": DEFAULT_RESPONSES,
-            },
-            {"method": "llm"},
-        ),
-    ],
-)
-def test_integration_run(metric, inputs, metric_params):
-    init_params = {
-        "metric": metric,
-        "metric_params": metric_params,
-        "api": "openai",
-    }
-    eval = UpTrainEvaluator(**init_params)
-    output = eval.run(**inputs)
-
-    assert type(output) == dict
-    assert len(output) == 1
-    assert "results" in output
-    assert len(output["results"]) == len(next(iter(inputs.values())))
