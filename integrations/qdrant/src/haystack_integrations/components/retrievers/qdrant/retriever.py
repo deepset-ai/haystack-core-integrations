@@ -33,8 +33,8 @@ class QdrantEmbeddingRetriever:
         document_store: QdrantDocumentStore,
         filters: Optional[Dict[str, Any]] = None,
         top_k: int = 10,
-        scale_score: bool = True,  # noqa: FBT001, FBT002
-        return_embedding: bool = False,  # noqa: FBT001, FBT002
+        scale_score: bool = True,
+        return_embedding: bool = False,
     ):
         """
         Create a QdrantEmbeddingRetriever component.
@@ -137,7 +137,7 @@ class QdrantSparseRetriever:
     document_store = QdrantDocumentStore(
         ":memory:",
         recreate_index=True,
-        return_sparse_embedding=True,
+        return_embedding=True,
         wait_result_from_api=True,
     )
     retriever = QdrantSparseRetriever(document_store=document_store)
@@ -151,8 +151,8 @@ class QdrantSparseRetriever:
         document_store: QdrantDocumentStore,
         filters: Optional[Dict[str, Any]] = None,
         top_k: int = 10,
-        scale_score: bool = True,  # noqa: FBT001, FBT002
-        return_embedding: bool = False,  # noqa: FBT001, FBT002
+        scale_score: bool = True,
+        return_embedding: bool = False,
     ):
         """
         Create a QdrantSparseRetriever component.

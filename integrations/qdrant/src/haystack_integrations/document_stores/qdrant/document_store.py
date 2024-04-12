@@ -12,19 +12,22 @@ from haystack.dataclasses.sparse_embedding import SparseEmbedding
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
 from haystack.utils import Secret, deserialize_secrets_inplace
-from haystack.utils.filters import convert
+from haystack.utils.filters import convert as convert_legacy_filters
 from qdrant_client import grpc
 from qdrant_client.http import models as rest
 from qdrant_client.http.exceptions import UnexpectedResponse
 from tqdm import tqdm
 
-from .converters import HaystackToQdrant, QdrantToHaystack
-from .filters import QdrantFilterConverter
+from .converters import (
+    DENSE_VECTORS_NAME,
+    SPARSE_VECTORS_NAME,
+    convert_haystack_documents_to_qdrant_points,
+    convert_id,
+    convert_qdrant_point_to_haystack_document,
+)
+from .filters import convert_filters_to_qdrant
 
 logger = logging.getLogger(__name__)
-
-DENSE_VECTORS_NAME = "text-dense"
-SPARSE_VECTORS_NAME = "text-sparse"
 
 
 class QdrantStoreError(DocumentStoreError):
@@ -58,7 +61,7 @@ class QdrantDocumentStore:
         url: Optional[str] = None,
         port: int = 6333,
         grpc_port: int = 6334,
-        prefer_grpc: bool = False,  # noqa: FBT001, FBT002
+        prefer_grpc: bool = False,
         https: Optional[bool] = None,
         api_key: Optional[Secret] = None,
         prefix: Optional[str] = None,
@@ -67,17 +70,16 @@ class QdrantDocumentStore:
         path: Optional[str] = None,
         index: str = "Document",
         embedding_dim: int = 768,
-        on_disk: bool = False,  # noqa: FBT001, FBT002
+        on_disk: bool = False,
         content_field: str = "content",
         name_field: str = "name",
         embedding_field: str = "embedding",
-        use_sparse_embeddings: bool = False,  # noqa: FBT001, FBT002
-        sparse_embedding_field: str = "sparse_embedding",
+        use_sparse_embeddings: bool = False,
         similarity: str = "cosine",
-        return_embedding: bool = False,  # noqa: FBT001, FBT002
-        progress_bar: bool = True,  # noqa: FBT001, FBT002
+        return_embedding: bool = False,
+        progress_bar: bool = True,
         duplicate_documents: str = "overwrite",
-        recreate_index: bool = False,  # noqa: FBT001, FBT002
+        recreate_index: bool = False,
         shard_number: Optional[int] = None,
         replication_factor: Optional[int] = None,
         write_consistency_factor: Optional[int] = None,
@@ -87,7 +89,7 @@ class QdrantDocumentStore:
         wal_config: Optional[dict] = None,
         quantization_config: Optional[dict] = None,
         init_from: Optional[dict] = None,
-        wait_result_from_api: bool = True,  # noqa: FBT001, FBT002
+        wait_result_from_api: bool = True,
         metadata: Optional[dict] = None,
         write_batch_size: int = 100,
         scroll_size: int = 10_000,
@@ -151,17 +153,11 @@ class QdrantDocumentStore:
         self.content_field = content_field
         self.name_field = name_field
         self.embedding_field = embedding_field
-        self.sparse_embedding_field = sparse_embedding_field
         self.similarity = similarity
         self.index = index
         self.return_embedding = return_embedding
         self.progress_bar = progress_bar
         self.duplicate_documents = duplicate_documents
-        self.qdrant_filter_converter = QdrantFilterConverter()
-        self.haystack_to_qdrant_converter = HaystackToQdrant()
-        self.qdrant_to_haystack = QdrantToHaystack(
-            content_field, name_field, embedding_field, use_sparse_embeddings, sparse_embedding_field
-        )
         self.write_batch_size = write_batch_size
         self.scroll_size = scroll_size
 
@@ -186,7 +182,7 @@ class QdrantDocumentStore:
             raise ValueError(msg)
 
         if filters and "operator" not in filters:
-            filters = convert(filters)
+            filters = convert_legacy_filters(filters)
         return list(
             self.get_documents_generator(
                 filters,
@@ -217,11 +213,10 @@ class QdrantDocumentStore:
         batched_documents = get_batches_from_generator(document_objects, self.write_batch_size)
         with tqdm(total=len(document_objects), disable=not self.progress_bar) as progress_bar:
             for document_batch in batched_documents:
-                batch = self.haystack_to_qdrant_converter.documents_to_batch(
+                batch = convert_haystack_documents_to_qdrant_points(
                     document_batch,
                     embedding_field=self.embedding_field,
                     use_sparse_embeddings=self.use_sparse_embeddings,
-                    sparse_embedding_field=self.sparse_embedding_field,
                 )
 
                 self.client.upsert(
@@ -234,7 +229,7 @@ class QdrantDocumentStore:
         return len(document_objects)
 
     def delete_documents(self, ids: List[str]):
-        ids = [self.haystack_to_qdrant_converter.convert_id(_id) for _id in ids]
+        ids = [convert_id(_id) for _id in ids]
         try:
             self.client.delete(
                 collection_name=self.index,
@@ -267,7 +262,7 @@ class QdrantDocumentStore:
         filters: Optional[Dict[str, Any]] = None,
     ) -> Generator[Document, None, None]:
         index = self.index
-        qdrant_filters = self.qdrant_filter_converter.convert(filters)
+        qdrant_filters = convert_filters_to_qdrant(filters)
 
         next_offset = None
         stop_scrolling = False
@@ -285,7 +280,9 @@ class QdrantDocumentStore:
             )
 
             for record in records:
-                yield self.qdrant_to_haystack.point_to_document(record)
+                yield convert_qdrant_point_to_haystack_document(
+                    record, use_sparse_embeddings=self.use_sparse_embeddings
+                )
 
     def get_documents_by_id(
         self,
@@ -296,7 +293,7 @@ class QdrantDocumentStore:
 
         documents: List[Document] = []
 
-        ids = [self.haystack_to_qdrant_converter.convert_id(_id) for _id in ids]
+        ids = [convert_id(_id) for _id in ids]
         records = self.client.retrieve(
             collection_name=index,
             ids=ids,
@@ -305,7 +302,9 @@ class QdrantDocumentStore:
         )
 
         for record in records:
-            documents.append(self.qdrant_to_haystack.point_to_document(record))
+            documents.append(
+                convert_qdrant_point_to_haystack_document(record, use_sparse_embeddings=self.use_sparse_embeddings)
+            )
         return documents
 
     def query_by_sparse(
@@ -313,8 +312,8 @@ class QdrantDocumentStore:
         query_sparse_embedding: SparseEmbedding,
         filters: Optional[Dict[str, Any]] = None,
         top_k: int = 10,
-        scale_score: bool = True,  # noqa: FBT001, FBT002
-        return_embedding: bool = False,  # noqa: FBT001, FBT002
+        scale_score: bool = True,
+        return_embedding: bool = False,
     ) -> List[Document]:
         if not self.use_sparse_embeddings:
             message = (
@@ -323,7 +322,7 @@ class QdrantDocumentStore:
             )
             raise QdrantStoreError(message)
 
-        qdrant_filters = self.qdrant_filter_converter.convert(filters)
+        qdrant_filters = convert_filters_to_qdrant(filters)
         query_indices = query_sparse_embedding.indices
         query_values = query_sparse_embedding.values
         points = self.client.search(
@@ -339,7 +338,10 @@ class QdrantDocumentStore:
             limit=top_k,
             with_vectors=return_embedding,
         )
-        results = [self.qdrant_to_haystack.point_to_document(point) for point in points]
+        results = [
+            convert_qdrant_point_to_haystack_document(point, use_sparse_embeddings=self.use_sparse_embeddings)
+            for point in points
+        ]
         if scale_score:
             for document in results:
                 score = document.score
@@ -352,10 +354,10 @@ class QdrantDocumentStore:
         query_embedding: List[float],
         filters: Optional[Dict[str, Any]] = None,
         top_k: int = 10,
-        scale_score: bool = True,  # noqa: FBT001, FBT002
-        return_embedding: bool = False,  # noqa: FBT001, FBT002
+        scale_score: bool = True,
+        return_embedding: bool = False,
     ) -> List[Document]:
-        qdrant_filters = self.qdrant_filter_converter.convert(filters)
+        qdrant_filters = convert_filters_to_qdrant(filters)
 
         points = self.client.search(
             collection_name=self.index,
@@ -367,7 +369,10 @@ class QdrantDocumentStore:
             limit=top_k,
             with_vectors=return_embedding,
         )
-        results = [self.qdrant_to_haystack.point_to_document(point) for point in points]
+        results = [
+            convert_qdrant_point_to_haystack_document(point, use_sparse_embeddings=self.use_sparse_embeddings)
+            for point in points
+        ]
         if scale_score:
             for document in results:
                 score = document.score
@@ -406,10 +411,10 @@ class QdrantDocumentStore:
         self,
         collection_name: str,
         embedding_dim: int,
-        recreate_collection: bool,  # noqa: FBT001
+        recreate_collection: bool,
         similarity: str,
-        use_sparse_embeddings: bool,  # noqa: FBT001
-        on_disk: bool = False,  # noqa: FBT001, FBT002
+        use_sparse_embeddings: bool,
+        on_disk: bool = False,
         payload_fields_to_index: Optional[List[dict]] = None,
     ):
         distance = self._get_distance(similarity)
@@ -490,13 +495,15 @@ class QdrantDocumentStore:
         collection_name: str,
         distance,
         embedding_dim: int,
-        on_disk: bool,  # noqa: FBT001
-        use_sparse_embeddings: bool,  # noqa: FBT001
+        on_disk: bool,
+        use_sparse_embeddings: bool,
     ):
-        dense_vectors_config = rest.VectorParams(size=embedding_dim, on_disk=on_disk, distance=distance)
+        # dense vectors configuration
+        vectors_config = rest.VectorParams(size=embedding_dim, on_disk=on_disk, distance=distance)
 
         if use_sparse_embeddings:
-            vectors_config = {DENSE_VECTORS_NAME: dense_vectors_config}
+            # in this case, we need to define named vectors
+            vectors_config = {DENSE_VECTORS_NAME: vectors_config}
 
             sparse_vectors_config = {
                 SPARSE_VECTORS_NAME: rest.SparseVectorParams(
@@ -505,8 +512,6 @@ class QdrantDocumentStore:
                     )
                 ),
             }
-        else:
-            vectors_config = dense_vectors_config
 
         self.client.recreate_collection(
             collection_name=collection_name,
