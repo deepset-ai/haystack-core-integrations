@@ -6,7 +6,7 @@ from functools import partial
 from typing import Any, Callable, Dict, Iterable, List, Optional, Type, Union
 
 from uptrain import CritiqueTone, Evals, GuidelineAdherence, ResponseMatching  # type: ignore
-from uptrain.framework.evals import ParametricEval
+from uptrain.framework.evalllm import ParametricEval
 
 
 class UpTrainMetric(Enum):
@@ -313,7 +313,7 @@ class OutputConverters:
     def critique_tone(
         output: Dict[str, Any], metric_params: Optional[Dict[str, Any]]  # noqa: ARG004
     ) -> List[MetricResult]:
-        return [OutputConverters._extract_default_results(output, "tone")]
+        return [OutputConverters._extract_default_results(output, "critique_tone")]
 
     @staticmethod
     def guideline_adherence(output: Dict[str, Any], metric_params: Optional[Dict[str, Any]]) -> List[MetricResult]:

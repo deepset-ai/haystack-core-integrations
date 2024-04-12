@@ -82,8 +82,8 @@ class MockBackend:
                 "explanation_politeness": "11",
             },
             UpTrainMetric.CRITIQUE_TONE: {
-                "score_tone": 0.4,
-                "explanation_tone": "12",
+                "score_critique_tone": 0.4,
+                "explanation_critique_tone": "12",
             },
             UpTrainMetric.GUIDELINE_ADHERENCE: {
                 "score_guideline_adherence": 1.0,
@@ -107,9 +107,8 @@ def test_evaluator_api(monkeypatch):
     monkeypatch.setenv("OPENAI_API_KEY", "test-api-key")
     monkeypatch.setenv("UPTRAIN_API_KEY", "test-api-key")
 
-    eval = UpTrainEvaluator(UpTrainMetric.RESPONSE_COMPLETENESS)
-    assert eval.api == "openai"
-    assert eval.api_key == Secret.from_env_var("OPENAI_API_KEY")
+    with pytest.raises(ValueError, match="OpenAI API Key is invalid"):
+        eval = UpTrainEvaluator(UpTrainMetric.RESPONSE_COMPLETENESS)
 
     eval = UpTrainEvaluator(
         UpTrainMetric.RESPONSE_COMPLETENESS,
@@ -127,7 +126,7 @@ def test_evaluator_api(monkeypatch):
     with pytest.raises(ValueError, match="None of the following authentication environment variables are set"):
         UpTrainEvaluator(UpTrainMetric.CONTEXT_RELEVANCE, api="uptrain", api_key=Secret.from_env_var("asd39920qqq"))
 
-    with pytest.raises(ValueError, match="does not support additional parameters"):
+    with pytest.raises(ValueError, match="OpenAI API Key is invalid"):
         UpTrainEvaluator(
             UpTrainMetric.CONTEXT_RELEVANCE,
             api_params={"project_name": "test"},
@@ -299,7 +298,7 @@ def test_evaluator_invalid_inputs(metric, inputs, error_string, params):
             ],
             None,
         ),
-        (UpTrainMetric.CRITIQUE_TONE, {"responses": ["r9"]}, [[("tone", 0.4, "12")]], {"llm_persona": "idiot"}),
+        (UpTrainMetric.CRITIQUE_TONE, {"responses": ["r9"]}, [[("critique_tone", 0.4, "12")]], {"llm_persona": "idiot"}),
         (
             UpTrainMetric.GUIDELINE_ADHERENCE,
             {"questions": ["q10"], "responses": ["r10"]},
