@@ -454,7 +454,8 @@ class QdrantDocumentStore:
                 f"but it has been originally created without sparse embedding vectors. "
                 f"If you want to use that collection, you can set `use_sparse_embeddings=False`. "
                 f"To use sparse embeddings, you need to recreate the collection or migrate the existing one. "
-                f"See `migrate_to_sparse_embeddings_support` function in `haystack_integrations.document_stores.qdrant`."
+                f"See `migrate_to_sparse_embeddings_support` function in "
+                f"`haystack_integrations.document_stores.qdrant`."
             )
             raise QdrantStoreError(msg)
 
