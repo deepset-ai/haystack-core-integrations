@@ -271,6 +271,160 @@ class AnthropicClaudeChatAdapter(BedrockModelChatAdapter):
         return {"content": [{"type": "text", "text": m.content}], "role": m.role.value}
 
 
+class MistralChatAdapter(BedrockModelChatAdapter):
+    """
+    Model adapter for the Mistral chat model.
+    """
+
+    chat_template = """
+    {% if messages[0]['role'] == 'system' %}
+        {% set loop_messages = messages[1:] %}
+        {% set system_message = messages[0]['content'] %}
+    {% else %}
+        {% set loop_messages = messages %}
+        {% set system_message = false %}
+    {% endif %}
+    {{bos_token}}
+    {% for message in loop_messages %}
+        {% if (message['role'] == 'user') != (loop.index0 % 2 == 0) %}
+            {{ raise_exception('Conversation roles must alternate user/assistant/user/assistant/...') }}
+        {% endif %}
+        {% if loop.index0 == 0 and system_message != false %}
+            {% set content = system_message + '\n' + message['content'] %}
+        {% else %}
+            {% set content = message['content'] %}
+        {% endif %}
+        {% if message['role'] == 'user' %}
+            {{ '[INST] ' + content.strip() + ' [/INST]' }}
+        {% elif message['role'] == 'assistant' %}
+            {{ content.strip() + eos_token }}
+        {% endif %}
+    {% endfor %}
+    """
+    chat_template = "".join(line.strip() for line in chat_template.splitlines())
+
+    # the above template was designed to match https://docs.mistral.ai/models/#chat-template
+    # and to support system messages, otherwise we could use the default mistral chat template
+    # available on HF infrastructure
+
+    # https://docs.aws.amazon.com/bedrock/latest/userguide/model-parameters-anthropic-claude-messages.html
+    ALLOWED_PARAMS: ClassVar[List[str]] = [
+        "max_tokens",
+        "safe_prompt",
+        "random_seed",
+        "temperature",
+        "top_p",
+    ]
+
+    def __init__(self, generation_kwargs: Dict[str, Any]):
+        """
+        Initializes the Mistral chat adapter.
+
+        :param generation_kwargs: The generation kwargs.
+        """
+        super().__init__(generation_kwargs)
+
+        # We pop the model_max_length as it is not sent to the model
+        # but used to truncate the prompt if needed
+        # Mistral has a limit of at least 32000 tokens
+        model_max_length = self.generation_kwargs.pop("model_max_length", 32000)
+
+        # Use `mistralai/Mistral-7B-v0.1` as tokenizer, all mistral models likely use the same tokenizer
+        # a) we should get good estimates for the prompt length
+        # b) we can use apply_chat_template with the template above to delineate ChatMessages
+        tokenizer: PreTrainedTokenizer = AutoTokenizer.from_pretrained("mistralai/Mistral-7B-Instruct-v0.1")
+        self.prompt_handler = DefaultPromptHandler(
+            tokenizer=tokenizer,
+            model_max_length=model_max_length,
+            max_length=self.generation_kwargs.get("max_gen_len") or 512,
+        )
+
+    def prepare_body(self, messages: List[ChatMessage], **inference_kwargs) -> Dict[str, Any]:
+        """
+        Prepares the body for the Mistral request.
+
+        :param messages: The chat messages to package into the request.
+        :param inference_kwargs: Additional inference kwargs to use.
+        :returns: The prepared body.
+        """
+        default_params = {
+            "max_tokens": self.generation_kwargs.get("max_tokens") or 512,  # max_tokens is required
+        }
+        # replace stop_words from inference_kwargs with stop, as this is Mistral specific parameter
+        stop_words = inference_kwargs.pop("stop_words", [])
+        if stop_words:
+            inference_kwargs["stop"] = stop_words
+        params = self._get_params(inference_kwargs, default_params, self.ALLOWED_PARAMS)
+        body = {"prompt": self.prepare_chat_messages(messages=messages), **params}
+        return body
+
+    def prepare_chat_messages(self, messages: List[ChatMessage]) -> str:
+        """
+        Prepares the chat messages for the Mistral request.
+
+        :param messages: The chat messages to prepare.
+        :returns: The prepared chat messages as a string.
+        """
+        # it would be great to use the default mistral chat template, but it doesn't support system messages
+        # the class variable defined chat_template is a workaround to support system messages
+        # default is https://huggingface.co/mistralai/Mixtral-8x7B-Instruct-v0.1/blob/main/tokenizer_config.json
+        # but we'll use our custom chat template
+        prepared_prompt: str = self.prompt_handler.tokenizer.apply_chat_template(
+            conversation=[self.to_openai_format(m) for m in messages], tokenize=False, chat_template=self.chat_template
+        )
+        return self._ensure_token_limit(prepared_prompt)
+
+    def to_openai_format(self, m: ChatMessage) -> Dict[str, Any]:
+        """
+        Convert the message to the format expected by OpenAI's Chat API.
+        See the [API reference](https://platform.openai.com/docs/api-reference/chat/create) for details.
+
+        :returns: A dictionary with the following key:
+            - `role`
+            - `content`
+            - `name` (optional)
+        """
+        msg = {"role": m.role.value, "content": m.content}
+        if m.name:
+            msg["name"] = m.name
+        return msg
+
+    def check_prompt(self, prompt: str) -> Dict[str, Any]:
+        """
+        Checks the prompt length and resizes it if necessary. If the prompt is too long, it will be truncated.
+
+        :param prompt: The prompt to check.
+        :returns: A dictionary containing the resized prompt and additional information.
+        """
+        return self.prompt_handler(prompt)
+
+    def _extract_messages_from_response(self, response_body: Dict[str, Any]) -> List[ChatMessage]:
+        """
+        Extracts the messages from the response body.
+
+        :param response_body: The response body.
+        :return: The extracted ChatMessage list.
+        """
+        messages: List[ChatMessage] = []
+        responses = response_body.get("outputs", [])
+        for response in responses:
+            meta = {k: v for k, v in response.items() if k not in ["text"]}
+            messages.append(ChatMessage.from_assistant(response["text"], meta=meta))
+        return messages
+
+    def _extract_token_from_stream(self, chunk: Dict[str, Any]) -> str:
+        """
+        Extracts the token from a streaming chunk.
+
+        :param chunk: The streaming chunk.
+        :returns: The extracted token.
+        """
+        response_chunk = chunk.get("outputs", [])
+        if response_chunk:
+            return response_chunk[0].get("text", "")
+        return ""
+
+
 class MetaLlama2ChatAdapter(BedrockModelChatAdapter):
     """
     Model adapter for the Meta Llama 2 models.

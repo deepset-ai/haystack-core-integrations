@@ -9,10 +9,16 @@ from haystack_integrations.components.generators.amazon_bedrock.chat.adapters im
     AnthropicClaudeChatAdapter,
     BedrockModelChatAdapter,
     MetaLlama2ChatAdapter,
+    MistralChatAdapter,
 )
 
 KLASS = "haystack_integrations.components.generators.amazon_bedrock.chat.chat_generator.AmazonBedrockChatGenerator"
 MODELS_TO_TEST = ["anthropic.claude-3-sonnet-20240229-v1:0", "anthropic.claude-v2:1", "meta.llama2-13b-chat-v1"]
+MISTRAL_MODELS = [
+    "mistral.mistral-7b-instruct-v0:2",
+    "mistral.mixtral-8x7b-instruct-v0:1",
+    "mistral.mistral-large-2402-v1:0",
+]
 
 
 def test_to_dict(mock_boto3_session):
@@ -174,6 +180,80 @@ class TestAnthropicClaudeAdapter:
         )
 
         assert body == expected_body
+
+
+class TestMistralAdapter:
+    def test_prepare_body_with_default_params(self) -> None:
+        layer = MistralChatAdapter(generation_kwargs={})
+        prompt = "Hello, how are you?"
+        expected_body = {
+            "max_tokens": 512,
+            "prompt": "<s>[INST] Hello, how are you? [/INST]",
+        }
+
+        body = layer.prepare_body([ChatMessage.from_user(prompt)])
+
+        assert body == expected_body
+
+    def test_prepare_body_with_custom_inference_params(self) -> None:
+        layer = MistralChatAdapter(generation_kwargs={"temperature": 0.7, "top_p": 0.8, "top_k": 4})
+        prompt = "Hello, how are you?"
+        expected_body = {
+            "prompt": "<s>[INST] Hello, how are you? [/INST]",
+            "max_tokens": 512,
+            "temperature": 0.7,
+            "top_p": 0.8,
+        }
+
+        body = layer.prepare_body([ChatMessage.from_user(prompt)], top_p=0.8, top_k=5, max_tokens_to_sample=69)
+
+        assert body == expected_body
+
+    def test_mistral_chat_template_correct_order(self):
+        layer = MistralChatAdapter(generation_kwargs={})
+        layer.prepare_body([ChatMessage.from_user("A"), ChatMessage.from_assistant("B"), ChatMessage.from_user("C")])
+        layer.prepare_body([ChatMessage.from_system("A"), ChatMessage.from_user("B"), ChatMessage.from_assistant("C")])
+
+    def test_mistral_chat_template_incorrect_order(self):
+        layer = MistralChatAdapter(generation_kwargs={})
+        try:
+            layer.prepare_body([ChatMessage.from_assistant("B"), ChatMessage.from_assistant("C")])
+            msg = "Expected TemplateError"
+            raise AssertionError(msg)
+        except Exception as e:
+            assert "Conversation roles must alternate user/assistant/" in str(e)
+
+        try:
+            layer.prepare_body([ChatMessage.from_user("A"), ChatMessage.from_user("B")])
+            msg = "Expected TemplateError"
+            raise AssertionError(msg)
+        except Exception as e:
+            assert "Conversation roles must alternate user/assistant/" in str(e)
+
+        try:
+            layer.prepare_body([ChatMessage.from_system("A"), ChatMessage.from_system("B")])
+            msg = "Expected TemplateError"
+            raise AssertionError(msg)
+        except Exception as e:
+            assert "Conversation roles must alternate user/assistant/" in str(e)
+
+    @pytest.mark.parametrize("model_name", MISTRAL_MODELS)
+    @pytest.mark.integration
+    def test_default_inference_params(self, model_name, chat_messages):
+        client = AmazonBedrockChatGenerator(model=model_name)
+        response = client.run(chat_messages)
+
+        assert "replies" in response, "Response does not contain 'replies' key"
+        replies = response["replies"]
+        assert isinstance(replies, list), "Replies is not a list"
+        assert len(replies) > 0, "No replies received"
+
+        first_reply = replies[0]
+        assert isinstance(first_reply, ChatMessage), "First reply is not a ChatMessage instance"
+        assert first_reply.content, "First reply has no content"
+        assert ChatMessage.is_from(first_reply, ChatRole.ASSISTANT), "First reply is not from the assistant"
+        assert "paris" in first_reply.content.lower(), "First reply does not contain 'paris'"
+        assert first_reply.meta, "First reply has no metadata"
 
 
 @pytest.fixture
