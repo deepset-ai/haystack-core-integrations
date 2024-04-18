@@ -167,7 +167,7 @@ class OllamaGenerator:
         chunk_message = StreamingChunk(content, meta)
         return chunk_message
 
-    @component.output_types(replies=List[str], metadata=List[Dict[str, Any]])
+    @component.output_types(replies=List[str], meta=List[Dict[str, Any]])
     def run(
         self,
         prompt: str,
