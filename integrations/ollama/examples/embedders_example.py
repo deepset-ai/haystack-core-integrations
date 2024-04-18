@@ -1,5 +1,5 @@
 # In order to run this example, you will need to have an instance of Ollama running with
-# an embedding model downloaded. Use the following commands to serve a nomic-embed-text model from Ollama
+# an embedding model downloaded. Use the following commands to serve the nomic-embed-text model with Ollama
 #
 # docker run -d -p 11434:11434 --name ollama ollama/ollama:latest
 # docker exec ollama ollama pull nomic-embed-text
