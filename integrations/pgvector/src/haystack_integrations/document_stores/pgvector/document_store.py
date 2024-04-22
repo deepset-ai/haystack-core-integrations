@@ -528,8 +528,11 @@ class PgvectorDocumentStore:
             FROM {table_name}, plainto_tsquery({language}, {query}) query
             WHERE to_tsvector({language}, content) @@ query {where_clause} LIMIT {top_k}"""
         ).format(
-            table_name=Identifier(self.table_name), language=self.language, query=SQLLiteral(user_query), top_k=top_k,
-            where_clause=sql_where_clause
+            table_name=Identifier(self.table_name),
+            language=self.language,
+            query=SQLLiteral(user_query),
+            top_k=top_k,
+            where_clause=sql_where_clause,
         )
 
         result = self._execute_sql(
