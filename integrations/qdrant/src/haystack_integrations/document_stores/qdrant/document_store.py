@@ -16,6 +16,7 @@ from haystack.utils.filters import convert as convert_legacy_filters
 from qdrant_client import grpc
 from qdrant_client.http import models as rest
 from qdrant_client.http.exceptions import UnexpectedResponse
+from qdrant_client.hybrid.fusion import reciprocal_rank_fusion
 from tqdm import tqdm
 
 from .converters import (
@@ -307,7 +308,7 @@ class QdrantDocumentStore:
             )
         return documents
 
-    def query_by_sparse(
+    def _query_by_sparse(
         self,
         query_sparse_embedding: SparseEmbedding,
         filters: Optional[Dict[str, Any]] = None,
@@ -349,7 +350,7 @@ class QdrantDocumentStore:
                 document.score = score
         return results
 
-    def query_by_embedding(
+    def _query_by_embedding(
         self,
         query_embedding: List[float],
         filters: Optional[Dict[str, Any]] = None,
@@ -381,6 +382,77 @@ class QdrantDocumentStore:
                 else:
                     score = float(1 / (1 + np.exp(-score / 100)))
                 document.score = score
+        return results
+
+    def _query_hybrid(
+        self,
+        query_embedding: List[float],
+        query_sparse_embedding: SparseEmbedding,
+        filters: Optional[Dict[str, Any]] = None,
+        top_k: int = 10,
+        return_embedding: bool = False,
+    ) -> List[Document]:
+        """
+        Retrieves documents based on both dense and sparse embeddings
+         and fuses the results using Reciprocal Rank Fusion.
+
+        This method is not mean to be part of the public interface of
+        `QdrantDocumentStore` nor called directly.
+        `QdrantHybridRetriever` uses this method directly and is the public interface for it.
+
+        :param query_embedding: Dense embedding of the query.
+        :param query_sparse_embedding: Sparse embedding of the query.
+        :param filters: Filters applied to the retrieved Documents.
+        :param top_k: Maximum number of Documents to return.
+        :param return_embedding: Whether to return the embeddings of the retrieved documents.
+
+        :returns: List of Document that are most similar to `query_embedding` and `query_sparse_embedding`.
+        """
+
+        # this implementation is based on that of Python Qdrant client
+        # https://github.com/qdrant/qdrant-client/blob/8e3ea58f781e4110d11c0a6985b5e6bb66b85d33/qdrant_client/qdrant_fastembed.py#L519
+        if not self.use_sparse_embeddings:
+            message = (
+                "You are trying to query using sparse embeddings, but the Document Store "
+                "was initialized with `use_sparse_embeddings=False`. "
+            )
+            raise QdrantStoreError(message)
+
+        qdrant_filters = convert_filters_to_qdrant(filters)
+
+        sparse_request = rest.SearchRequest(
+            vector=rest.NamedSparseVector(
+                name=SPARSE_VECTORS_NAME,
+                vector=rest.SparseVector(
+                    indices=query_sparse_embedding.indices,
+                    values=query_sparse_embedding.values,
+                ),
+            ),
+            filter=qdrant_filters,
+            limit=top_k,
+            with_payload=True,
+            with_vector=return_embedding,
+        )
+
+        dense_request = rest.SearchRequest(
+            vector=rest.NamedVector(
+                name=DENSE_VECTORS_NAME,
+                vector=query_embedding,
+            ),
+            filter=qdrant_filters,
+            limit=top_k,
+            with_payload=True,
+            with_vector=return_embedding,
+        )
+
+        dense_request_response, sparse_request_response = self.client.search_batch(
+            collection_name=self.index, requests=[dense_request, sparse_request]
+        )
+
+        points = reciprocal_rank_fusion(responses=[dense_request_response, sparse_request_response], limit=top_k)
+
+        results = [convert_qdrant_point_to_haystack_document(point, use_sparse_embeddings=True) for point in points]
+
         return results
 
     def _get_distance(self, similarity: str) -> rest.Distance:
