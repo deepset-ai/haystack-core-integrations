@@ -503,7 +503,7 @@ class PgvectorDocumentStore:
         self,
         user_query: str,
         top_k: int = 10,
-        # filters: Optional[Dict[str, Any]] = None,
+        filters: Optional[Dict[str, Any]] = None,
     ) -> List[Document]:
         """
         Retrieves documents that are most similar to the query using a full-text search.
@@ -517,17 +517,24 @@ class PgvectorDocumentStore:
             msg = "user_query must be a non-empty string"
             raise ValueError(msg)
 
+        params = ()
+        sql_where_clause = SQL("")
+        if filters:
+            sql_where_clause, params = _convert_filters_to_where_clause_and_params(filters)
+
         sql_select = SQL(
             """SELECT *, RANK() OVER (ORDER BY
             ts_rank_cd(to_tsvector({language}, content), query) DESC) AS rank
             FROM {table_name}, plainto_tsquery({language}, {query}) query
-            WHERE to_tsvector({language}, content) @@ query LIMIT {top_k}"""
+            WHERE to_tsvector({language}, content) @@ query {where_clause} LIMIT {top_k}"""
         ).format(
-            table_name=Identifier(self.table_name), language=self.language, query=SQLLiteral(user_query), top_k=top_k
+            table_name=Identifier(self.table_name), language=self.language, query=SQLLiteral(user_query), top_k=top_k,
+            where_clause=sql_where_clause
         )
 
         result = self._execute_sql(
             sql_select,
+            params,
             error_msg="Could not retrieve documents from PgvectorDocumentStore.",
             cursor=self._dict_cursor,
         )

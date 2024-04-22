@@ -111,7 +111,7 @@ class PgvectorKeywordRetriever:
         top_k: Optional[int] = None,
     ):
         """
-        Retrieve documents from the `PgvectorDocumentStore`, based on their embeddings.
+        Retrieve documents from the `PgvectorDocumentStore`, based on keywords.
 
         :param user_input: The user's query.
         :param filters: Filters applied to the retrieved Documents.
