@@ -149,6 +149,7 @@ class PgvectorDocumentStore:
         if recreate_table:
             self.delete_table()
         self._create_table_if_not_exists()
+        self._create_keyword_index()
 
         if search_strategy == "hnsw":
             self._handle_hnsw()
@@ -512,7 +513,6 @@ class PgvectorDocumentStore:
         `PgvectorKeywordRetriever` uses this method directly and is the public interface for it.
         :returns: List of Documents that are most similar to `user_query`
         """
-        self._create_keyword_index()
         if not user_query:
             msg = "user_query must be a non-empty string"
             raise ValueError(msg)
