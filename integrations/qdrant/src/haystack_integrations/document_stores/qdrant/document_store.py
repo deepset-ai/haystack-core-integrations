@@ -393,12 +393,10 @@ class QdrantDocumentStore:
         return_embedding: bool = False,
     ) -> List[Document]:
         """
-        Retrieves documents based on both dense and sparse embeddings
-         and fuses the results using Reciprocal Rank Fusion.
+        Retrieves documents based on dense and sparse embeddings and fuses the results using Reciprocal Rank Fusion.
 
-        This method is not mean to be part of the public interface of
-        `QdrantDocumentStore` nor called directly.
-        `QdrantHybridRetriever` uses this method directly and is the public interface for it.
+        This method is not part of the public interface of `QdrantDocumentStore` and shouldn't be used directly.
+        Use the `QdrantHybridRetriever` instead.
 
         :param query_embedding: Dense embedding of the query.
         :param query_sparse_embedding: Sparse embedding of the query.
@@ -409,7 +407,7 @@ class QdrantDocumentStore:
         :returns: List of Document that are most similar to `query_embedding` and `query_sparse_embedding`.
         """
 
-        # this implementation is based on that of Python Qdrant client
+        # This implementation is based on the code from the Python Qdrant client:
         # https://github.com/qdrant/qdrant-client/blob/8e3ea58f781e4110d11c0a6985b5e6bb66b85d33/qdrant_client/qdrant_fastembed.py#L519
         if not self.use_sparse_embeddings:
             message = (

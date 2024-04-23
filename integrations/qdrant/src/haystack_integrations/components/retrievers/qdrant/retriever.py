@@ -291,9 +291,9 @@ class QdrantHybridRetriever:
         Create a QdrantHybridRetriever component.
 
         :param document_store: An instance of QdrantDocumentStore.
-        :param filters: A dictionary with filters to narrow down the search space. Default is None.
-        :param top_k: The maximum number of documents to retrieve. Default is 10.
-        :param return_embedding: Whether to return the embeddings of the retrieved Documents. Default is False.
+        :param filters: A dictionary with filters to narrow down the search space.
+        :param top_k: The maximum number of documents to retrieve.
+        :param return_embedding: Whether to return the embeddings of the retrieved Documents.
 
         :raises ValueError: If 'document_store' is not an instance of QdrantDocumentStore.
         """
