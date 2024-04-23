@@ -44,7 +44,6 @@ class TestKeywordRetrieval:
         assert len(results) == 2
         assert results[0].content == docs[0].content
 
-
     @pytest.mark.parametrize("document_store", ["document_store_keyword"], indirect=True)
     def test_keyword_retrieval_with_filters(self, document_store: PgvectorDocumentStore):
         docs = [Document(content=f"Document {i}", embedding=rand(768).tolist()) for i in range(10)]
