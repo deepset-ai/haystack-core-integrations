@@ -119,11 +119,6 @@ integration:unstructured-fileconverter:
       - any-glob-to-any-file: "integrations/unstructured/**/*"
       - any-glob-to-any-file: ".github/workflows/unstructured.yml"
 
-integration:uptrain:
-  - changed-files:
-      - any-glob-to-any-file: "integrations/uptrain/**/*"
-      - any-glob-to-any-file: ".github/workflows/uptrain.yml"
-
 integration:weaviate:
   - changed-files:
       - any-glob-to-any-file: "integrations/weaviate/**/*"
