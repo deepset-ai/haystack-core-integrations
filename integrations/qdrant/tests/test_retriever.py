@@ -8,7 +8,7 @@ from haystack.testing.document_store import (
 )
 from haystack_integrations.components.retrievers.qdrant import (
     QdrantEmbeddingRetriever,
-    QdrantSparseRetriever,
+    QdrantSparseEmbeddingRetriever,
 )
 from haystack_integrations.document_stores.qdrant import QdrantDocumentStore
 
@@ -135,10 +135,10 @@ class TestQdrantRetriever(FilterableDocsFixtureMixin):
             assert document.embedding is None
 
 
-class TestQdrantSparseRetriever(FilterableDocsFixtureMixin):
+class TestQdrantSparseEmbeddingRetriever(FilterableDocsFixtureMixin):
     def test_init_default(self):
         document_store = QdrantDocumentStore(location=":memory:", index="test")
-        retriever = QdrantSparseRetriever(document_store=document_store)
+        retriever = QdrantSparseEmbeddingRetriever(document_store=document_store)
         assert retriever._document_store == document_store
         assert retriever._filters is None
         assert retriever._top_k == 10
@@ -146,10 +146,10 @@ class TestQdrantSparseRetriever(FilterableDocsFixtureMixin):
 
     def test_to_dict(self):
         document_store = QdrantDocumentStore(location=":memory:", index="test")
-        retriever = QdrantSparseRetriever(document_store=document_store)
+        retriever = QdrantSparseEmbeddingRetriever(document_store=document_store)
         res = retriever.to_dict()
         assert res == {
-            "type": "haystack_integrations.components.retrievers.qdrant.retriever.QdrantSparseRetriever",
+            "type": "haystack_integrations.components.retrievers.qdrant.retriever.QdrantSparseEmbeddingRetriever",
             "init_parameters": {
                 "document_store": {
                     "type": "haystack_integrations.document_stores.qdrant.document_store.QdrantDocumentStore",
@@ -202,7 +202,7 @@ class TestQdrantSparseRetriever(FilterableDocsFixtureMixin):
 
     def test_from_dict(self):
         data = {
-            "type": "haystack_integrations.components.retrievers.qdrant.retriever.QdrantSparseRetriever",
+            "type": "haystack_integrations.components.retrievers.qdrant.retriever.QdrantSparseEmbeddingRetriever",
             "init_parameters": {
                 "document_store": {
                     "init_parameters": {"location": ":memory:", "index": "test"},
@@ -214,7 +214,7 @@ class TestQdrantSparseRetriever(FilterableDocsFixtureMixin):
                 "return_embedding": True,
             },
         }
-        retriever = QdrantSparseRetriever.from_dict(data)
+        retriever = QdrantSparseEmbeddingRetriever.from_dict(data)
         assert isinstance(retriever._document_store, QdrantDocumentStore)
         assert retriever._document_store.index == "test"
         assert retriever._filters is None
@@ -241,7 +241,7 @@ class TestQdrantSparseRetriever(FilterableDocsFixtureMixin):
             doc.sparse_embedding = SparseEmbedding.from_dict(self._generate_mocked_sparse_embedding(1)[0])
 
         document_store.write_documents(filterable_docs)
-        retriever = QdrantSparseRetriever(document_store=document_store)
+        retriever = QdrantSparseEmbeddingRetriever(document_store=document_store)
         sparse_embedding = SparseEmbedding(indices=[0, 1, 2, 3], values=[0.1, 0.8, 0.05, 0.33])
 
         results: List[Document] = retriever.run(query_sparse_embedding=sparse_embedding)["documents"]
