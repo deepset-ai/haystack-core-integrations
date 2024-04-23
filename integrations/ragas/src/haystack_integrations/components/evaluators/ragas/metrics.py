@@ -16,7 +16,7 @@ from ragas.metrics import (  # type: ignore
     ContextUtilization,  # type: ignore
     Faithfulness,  # type: ignore
 )
-from ragas.metrics.base import Metric  # type: ignore
+from ragas.metrics.base import Metric
 
 
 class RagasBaseEnum(Enum):

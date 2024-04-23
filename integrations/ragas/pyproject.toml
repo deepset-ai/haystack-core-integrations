@@ -21,7 +21,7 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
-dependencies = ["haystack-ai", "ragas==0.1.1"]
+dependencies = ["haystack-ai", "ragas"]
 
 [project.urls]
 Source = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/ragas"
@@ -152,6 +152,7 @@ module = [
   "haystack.*",
   "pytest.*",
   "ragas.*",
+  "datasets.*",
   "numpy",
   "grpc",
   "haystack_integrations.*",
