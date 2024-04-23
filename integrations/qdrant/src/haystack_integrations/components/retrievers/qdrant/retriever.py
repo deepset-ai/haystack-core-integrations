@@ -124,13 +124,13 @@ class QdrantEmbeddingRetriever:
 
 
 @component
-class QdrantSparseRetriever:
+class QdrantSparseEmbeddingRetriever:
     """
     A component for retrieving documents from an QdrantDocumentStore using sparse vectors.
 
     Usage example:
     ```python
-    from haystack_integrations.components.retrievers.qdrant import QdrantSparseRetriever
+    from haystack_integrations.components.retrievers.qdrant import QdrantSparseEmbeddingRetriever
     from haystack_integrations.document_stores.qdrant import QdrantDocumentStore
     from haystack.dataclasses.sparse_embedding import SparseEmbedding
 
@@ -140,7 +140,7 @@ class QdrantSparseRetriever:
         return_embedding=True,
         wait_result_from_api=True,
     )
-    retriever = QdrantSparseRetriever(document_store=document_store)
+    retriever = QdrantSparseEmbeddingRetriever(document_store=document_store)
     sparse_embedding = SparseEmbedding(indices=[0, 1, 2, 3], values=[0.1, 0.8, 0.05, 0.33])
     retriever.run(query_sparse_embedding=sparse_embedding)
     ```
@@ -155,7 +155,7 @@ class QdrantSparseRetriever:
         return_embedding: bool = False,
     ):
         """
-        Create a QdrantSparseRetriever component.
+        Create a QdrantSparseEmbeddingRetriever component.
 
         :param document_store: An instance of QdrantDocumentStore.
         :param filters: A dictionary with filters to narrow down the search space. Default is None.
