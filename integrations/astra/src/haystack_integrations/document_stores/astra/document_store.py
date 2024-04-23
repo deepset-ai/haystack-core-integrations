@@ -210,7 +210,7 @@ class AstraDocumentStore:
         documents_to_write = [_convert_input_document(doc) for doc in documents]
 
         duplicate_documents = []
-        new_documents = []
+        new_documents: List[Document] = []
         i = 0
         while i < len(documents_to_write):
             doc = documents_to_write[i]
