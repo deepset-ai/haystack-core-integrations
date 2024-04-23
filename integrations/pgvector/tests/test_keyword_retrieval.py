@@ -1,6 +1,7 @@
 import pytest
 from haystack.dataclasses.document import Document
 from haystack_integrations.document_stores.pgvector import PgvectorDocumentStore
+from numpy.random import rand
 
 
 @pytest.mark.integration
@@ -42,3 +43,21 @@ class TestKeywordRetrieval:
 
         assert len(results) == 2
         assert results[0].content == docs[0].content
+
+
+    @pytest.mark.parametrize("document_store", ["document_store_keyword"], indirect=True)
+    def test_keyword_retrieval_with_filters(self, document_store: PgvectorDocumentStore):
+        docs = [Document(content=f"Document {i}", embedding=rand(768).tolist()) for i in range(10)]
+
+        for i in range(10):
+            docs[i].meta["meta_field"] = "custom_value" if i % 2 == 0 else "other_value"
+
+        document_store.write_documents(docs)
+
+        query = "value"
+        filters = {"field": "meta.meta_field", "operator": "==", "value": "custom_value"}
+
+        results = document_store._keyword_retrieval(user_query=query, top_k=3, filters=filters)
+        assert len(results) == 3
+        for result in results:
+            assert result.meta["meta_field"] == "custom_value"
