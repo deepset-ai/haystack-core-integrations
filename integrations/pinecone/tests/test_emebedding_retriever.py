@@ -4,6 +4,7 @@
 from unittest.mock import Mock, patch
 
 from haystack.dataclasses import Document
+from haystack.utils import Secret
 
 from haystack_integrations.components.retrievers.pinecone import PineconeEmbeddingRetriever
 from haystack_integrations.document_stores.pinecone import PineconeDocumentStore
@@ -63,6 +64,13 @@ def test_from_dict(mock_pinecone, monkeypatch):
         "init_parameters": {
             "document_store": {
                 "init_parameters": {
+                    "api_key": {
+                        "env_vars": [
+                            "PINECONE_API_KEY",
+                        ],
+                        "strict": True,
+                        "type": "env_var",
+                    },
                     "environment": "gcp-starter",
                     "index": "default",
                     "namespace": "test-namespace",
@@ -82,6 +90,7 @@ def test_from_dict(mock_pinecone, monkeypatch):
 
     document_store = retriever.document_store
     assert document_store.environment == "gcp-starter"
+    assert document_store.api_key == Secret.from_env_var("PINECONE_API_KEY", strict=True)
     assert document_store.index == "default"
     assert document_store.namespace == "test-namespace"
     assert document_store.batch_size == 50

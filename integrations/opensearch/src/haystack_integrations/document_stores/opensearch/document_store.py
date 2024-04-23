@@ -67,7 +67,6 @@ class OpenSearchDocumentStore:
             "dynamic_templates": [
                 {
                     "strings": {
-                        "path_match": "*",
                         "match_mapping_type": "string",
                         "mapping": {
                             "type": "keyword",

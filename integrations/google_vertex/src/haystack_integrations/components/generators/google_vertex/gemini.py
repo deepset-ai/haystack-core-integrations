@@ -35,7 +35,7 @@ class VertexAIGeminiGenerator:
 
     gemini = VertexAIGeminiGenerator(project_id=project_id)
     result = gemini.run(parts = ["What is the most interesting thing you know?"])
-    for answer in result["answers"]:
+    for answer in result["replies"]:
         print(answer)
 
     >>> 1. **The Origin of Life:** How and where did life begin? The answers to this ...
@@ -175,14 +175,14 @@ class VertexAIGeminiGenerator:
             msg = f"Unsupported type {type(part)} for part {part}"
             raise ValueError(msg)
 
-    @component.output_types(answers=List[Union[str, Dict[str, str]]])
+    @component.output_types(replies=List[Union[str, Dict[str, str]]])
     def run(self, parts: Variadic[Union[str, ByteStream, Part]]):
         """
         Generates content using the Gemini model.
 
         :param parts: Prompt for the model.
         :returns: A dictionary with the following keys:
-            - `answers`: A list of generated content.
+            - `replies`: A list of generated content.
         """
         converted_parts = [self._convert_part(p) for p in parts]
 
@@ -194,16 +194,16 @@ class VertexAIGeminiGenerator:
             tools=self._tools,
         )
         self._model.start_chat()
-        answers = []
+        replies = []
         for candidate in res.candidates:
             for part in candidate.content.parts:
                 if part._raw_part.text != "":
-                    answers.append(part.text)
+                    replies.append(part.text)
                 elif part.function_call is not None:
                     function_call = {
                         "name": part.function_call.name,
                         "args": dict(part.function_call.args.items()),
                     }
-                    answers.append(function_call)
+                    replies.append(function_call)
 
-        return {"answers": answers}
+        return {"replies": replies}

@@ -25,8 +25,8 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
 dependencies = [
-"haystack-ai",
-"fastembed>=0.2",
+"haystack-ai>=2.0.1",
+"fastembed>=0.2.5",
 ]
 
 [project.urls]
@@ -155,7 +155,7 @@ ban-relative-imports = "parents"
 # Tests can use magic values, assertions, and relative imports
 "tests/**/*" = ["PLR2004", "S101", "TID252"]
 # examples can contain "print" commands
-"examples/**/*" = ["T201"]
+"examples/**/*" = ["T201", "E501"]
 
 [tool.coverage.run]
 source = ["haystack_integrations"]

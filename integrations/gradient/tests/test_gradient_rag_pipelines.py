@@ -13,6 +13,7 @@ from haystack_integrations.components.embedders.gradient import GradientDocument
 from haystack_integrations.components.generators.gradient import GradientGenerator
 
 
+@pytest.mark.integration
 @pytest.mark.skipif(
     not os.environ.get("GRADIENT_ACCESS_TOKEN", None) or not os.environ.get("GRADIENT_WORKSPACE_ID", None),
     reason="Export env variables called GRADIENT_ACCESS_TOKEN and GRADIENT_WORKSPACE_ID \
@@ -29,17 +30,14 @@ def test_gradient_embedding_retrieval_rag_pipeline(tmp_path):
     \nAnswer:
     """
 
-    gradient_access_token = os.environ.get("GRADIENT_ACCESS_TOKEN")
     rag_pipeline = Pipeline()
-    embedder = GradientTextEmbedder(access_token=gradient_access_token)
+    embedder = GradientTextEmbedder()
     rag_pipeline.add_component(instance=embedder, name="text_embedder")
     rag_pipeline.add_component(
         instance=InMemoryEmbeddingRetriever(document_store=InMemoryDocumentStore()), name="retriever"
     )
     rag_pipeline.add_component(instance=PromptBuilder(template=prompt_template), name="prompt_builder")
-    rag_pipeline.add_component(
-        instance=GradientGenerator(access_token=gradient_access_token, base_model_slug="llama2-7b-chat"), name="llm"
-    )
+    rag_pipeline.add_component(instance=GradientGenerator(base_model_slug="llama2-7b-chat"), name="llm")
     rag_pipeline.add_component(instance=AnswerBuilder(), name="answer_builder")
     rag_pipeline.connect("text_embedder", "retriever")
     rag_pipeline.connect("retriever", "prompt_builder.documents")

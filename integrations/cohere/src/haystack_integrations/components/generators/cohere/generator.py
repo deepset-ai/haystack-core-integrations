@@ -84,7 +84,7 @@ class CohereGenerator:
         self.streaming_callback = streaming_callback
         self.api_base_url = api_base_url
         self.model_parameters = kwargs
-        self.client = Client(api_key=self.api_key.resolve_value(), api_url=self.api_base_url)
+        self.client = Client(api_key=self.api_key.resolve_value(), api_url=self.api_base_url, client_name="haystack")
 
     def to_dict(self) -> Dict[str, Any]:
         """

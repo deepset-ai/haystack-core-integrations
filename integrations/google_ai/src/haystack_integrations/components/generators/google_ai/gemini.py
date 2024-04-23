@@ -26,7 +26,7 @@ class GoogleAIGeminiGenerator:
 
     gemini = GoogleAIGeminiGenerator(model="gemini-pro", api_key=Secret.from_token("<MY_API_KEY>"))
     res = gemini.run(parts = ["What is the most interesting thing you know?"])
-    for answer in res["answers"]:
+    for answer in res["replies"]:
         print(answer)
     ```
 
@@ -55,7 +55,7 @@ class GoogleAIGeminiGenerator:
 
     gemini = GoogleAIGeminiGenerator(model="gemini-pro-vision", api_key=Secret.from_token("<MY_API_KEY>"))
     result = gemini.run(parts = ["What can you tell me about this robots?", *images])
-    for answer in result["answers"]:
+    for answer in result["replies"]:
         print(answer)
     ```
     """
@@ -173,7 +173,7 @@ class GoogleAIGeminiGenerator:
             msg = f"Unsupported type {type(part)} for part {part}"
             raise ValueError(msg)
 
-    @component.output_types(answers=List[Union[str, Dict[str, str]]])
+    @component.output_types(replies=List[Union[str, Dict[str, str]]])
     def run(self, parts: Variadic[Union[str, ByteStream, Part]]):
         """
         Generates text based on the given input parts.
@@ -182,7 +182,7 @@ class GoogleAIGeminiGenerator:
             A heterogeneous list of strings, `ByteStream` or `Part` objects.
         :returns:
             A dictionary containing the following key:
-            - `answers`: A list of strings or dictionaries with function calls.
+            - `replies`: A list of strings or dictionaries with function calls.
         """
 
         converted_parts = [self._convert_part(p) for p in parts]
@@ -194,16 +194,16 @@ class GoogleAIGeminiGenerator:
             safety_settings=self._safety_settings,
         )
         self._model.start_chat()
-        answers = []
+        replies = []
         for candidate in res.candidates:
             for part in candidate.content.parts:
                 if part.text != "":
-                    answers.append(part.text)
+                    replies.append(part.text)
                 elif part.function_call is not None:
                     function_call = {
                         "name": part.function_call.name,
                         "args": dict(part.function_call.args.items()),
                     }
-                    answers.append(function_call)
+                    replies.append(function_call)
 
-        return {"answers": answers}
+        return {"replies": replies}

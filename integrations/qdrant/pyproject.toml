@@ -24,7 +24,7 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
-dependencies = ["haystack-ai>=2.0.0b6", "qdrant-client"]
+dependencies = ["haystack-ai>=2.0.1", "qdrant-client"]
 
 [project.urls]
 Source = "https://github.com/deepset-ai/haystack-core-integrations"
@@ -103,6 +103,8 @@ ignore = [
   "B027",
   # Allow boolean positional values in function calls, like `dict.get(... True)`
   "FBT003",
+  # Allow boolean arguments in function definition
+  "FBT001", "FBT002",
   # Ignore checks for possible passwords
   "S105",
   "S106",
@@ -125,6 +127,8 @@ ban-relative-imports = "parents"
 [tool.ruff.per-file-ignores]
 # Tests can use magic values, assertions, and relative imports
 "tests/**/*" = ["PLR2004", "S101", "TID252"]
+# examples can contain "print" commands
+"examples/**/*" = ["T201"]
 
 
 [tool.coverage.run]

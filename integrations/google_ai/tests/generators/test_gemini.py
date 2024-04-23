@@ -188,4 +188,4 @@ def test_from_dict(monkeypatch):
 def test_run():
     gemini = GoogleAIGeminiGenerator(model="gemini-pro")
     res = gemini.run("Tell me something cool")
-    assert len(res["answers"]) > 0
+    assert len(res["replies"]) > 0

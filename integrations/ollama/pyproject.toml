@@ -153,7 +153,7 @@ ban-relative-imports = "parents"
 # Tests can use magic values, assertions, and relative imports
 "tests/**/*" = ["PLR2004", "S101", "TID252"]
 # Examples can print their output
-"example/**" = ["T201"]
+"examples/**" = ["T201"]
 
 
 [tool.coverage.run]
