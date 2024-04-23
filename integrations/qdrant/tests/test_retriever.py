@@ -13,8 +13,6 @@ from haystack_integrations.components.retrievers.qdrant import (
 )
 from haystack_integrations.document_stores.qdrant import QdrantDocumentStore
 
-from .test_document_store import _generate_mocked_sparse_embedding
-
 
 class TestQdrantRetriever(FilterableDocsFixtureMixin):
     def test_init_default(self):
@@ -225,12 +223,12 @@ class TestQdrantSparseEmbeddingRetriever(FilterableDocsFixtureMixin):
         assert retriever._scale_score is False
         assert retriever._return_embedding is True
 
-    def test_run(self, filterable_docs: List[Document]):
+    def test_run(self, filterable_docs: List[Document], generate_sparse_embedding):
         document_store = QdrantDocumentStore(location=":memory:", index="Boi", use_sparse_embeddings=True)
 
         # Add fake sparse embedding to documents
         for doc in filterable_docs:
-            doc.sparse_embedding = SparseEmbedding.from_dict(_generate_mocked_sparse_embedding(1)[0])
+            doc.sparse_embedding = generate_sparse_embedding()
 
         document_store.write_documents(filterable_docs)
         retriever = QdrantSparseEmbeddingRetriever(document_store=document_store)

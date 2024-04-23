@@ -1,6 +1,5 @@
 from typing import List
 
-import numpy as np
 import pytest
 from haystack import Document
 from haystack.dataclasses import SparseEmbedding
@@ -13,18 +12,6 @@ from haystack.testing.document_store import (
     _random_embeddings,
 )
 from haystack_integrations.document_stores.qdrant.document_store import QdrantDocumentStore, QdrantStoreError
-
-
-def _generate_mocked_sparse_embedding(n):
-    list_of_sparse_vectors = []
-    for _ in range(n):
-        random_indice_length = np.random.randint(3, 15)
-        data = {
-            "indices": list(range(random_indice_length)),
-            "values": [np.random.random_sample() for _ in range(random_indice_length)],
-        }
-        list_of_sparse_vectors.append(data)
-    return list_of_sparse_vectors
 
 
 class TestQdrantDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsTest):
@@ -56,14 +43,15 @@ class TestQdrantDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocu
         with pytest.raises(DuplicateDocumentError):
             document_store.write_documents(docs, DuplicatePolicy.FAIL)
 
-    def test_query_hybrid(self):
+    def test_query_hybrid(self, generate_sparse_embedding):
         document_store = QdrantDocumentStore(location=":memory:", use_sparse_embeddings=True)
 
         docs = []
         for i in range(20):
-            sparse_embedding = SparseEmbedding.from_dict(_generate_mocked_sparse_embedding(1)[0])
             docs.append(
-                Document(content=f"doc {i}", sparse_embedding=sparse_embedding, embedding=_random_embeddings(768))
+                Document(
+                    content=f"doc {i}", sparse_embedding=generate_sparse_embedding(), embedding=_random_embeddings(768)
+                )
             )
 
         document_store.write_documents(docs)
