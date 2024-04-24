@@ -12,7 +12,7 @@ class LangfuseSpan(Span):
     def __init__(self, span: "Union[langfuse.client.StatefulSpanClient, langfuse.client.StatefulTraceClient]") -> None:
         self._span = span
         # locally cache tags
-        self._data = {}
+        self._data: Dict[str, Any] = {}
 
     def set_tag(self, key: str, value: Any) -> None:
         coerced_value = tracing_utils.coerce_tag_value(value)

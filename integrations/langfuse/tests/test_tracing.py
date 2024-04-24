@@ -15,9 +15,9 @@ from haystack_integrations.components.others.langfuse import LangfuseComponent
 
 @pytest.mark.integration
 @pytest.mark.skipif(
-        not os.environ.get("LANGFUSE_SECRET_KEY", None) and not os.environ.get("LANGFUSE_PUBLIC_KEY", None),
-        reason="Export an env var called LANGFUSE_SECRET_KEY and LANGFUSE_PUBLIC_KEY containing Langfuse credentials.",
-    )
+    not os.environ.get("LANGFUSE_SECRET_KEY", None) and not os.environ.get("LANGFUSE_PUBLIC_KEY", None),
+    reason="Export an env var called LANGFUSE_SECRET_KEY and LANGFUSE_PUBLIC_KEY containing Langfuse credentials.",
+)
 def test_tracing_integration():
 
     pipe = Pipeline()
@@ -46,8 +46,9 @@ def test_tracing_integration():
 
     try:
         # GET request with Basic Authentication on the Langfuse API
-        response = requests.get(url+uuid, auth=HTTPBasicAuth(os.environ.get("LANGFUSE_PUBLIC_KEY"),
-                                                              os.environ.get("LANGFUSE_SECRET_KEY")))
+        response = requests.get(
+            url + uuid, auth=HTTPBasicAuth(os.environ.get("LANGFUSE_PUBLIC_KEY"), os.environ.get("LANGFUSE_SECRET_KEY"))
+        )
 
         assert response.status_code == 200, f"Failed to retrieve data from Langfuse API: {response.status_code}"
     except requests.exceptions.RequestException as e:

@@ -1,5 +1,4 @@
-from haystack import tracing, component
-
+from haystack import component, tracing
 from haystack_integrations.tracing.langfuse import LangfuseTracer
 
 from langfuse import Langfuse
@@ -14,5 +13,4 @@ class LangfuseComponent:
 
     @component.output_types(name=str, trace_url=str)
     def run(self):
-        return {"name": self.name,
-                "trace_url": self.tracer.get_trace_url()}
+        return {"name": self.name, "trace_url": self.tracer.get_trace_url()}
