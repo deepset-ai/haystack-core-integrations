@@ -104,3 +104,6 @@ class LangfuseTracer(Tracer):
             # The root span has to be a trace
             self._context.append(LangfuseSpan(self._tracer.trace(name=self._name)))
         return self._context[-1]
+
+    def get_trace_url(self) -> str:
+        return self._tracer.get_trace_url()

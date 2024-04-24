@@ -9,8 +9,10 @@ from langfuse import Langfuse
 class LangfuseComponent:
     def __init__(self, name: str):
         self.name = name
-        tracing.enable_tracing(LangfuseTracer(Langfuse(), name))
+        self.tracer = LangfuseTracer(Langfuse(), name)
+        tracing.enable_tracing(self.tracer)
 
-    @component.output_types(name=str)
+    @component.output_types(name=str, trace_url=str)
     def run(self):
-        return {"name": self.name}
+        return {"name": self.name,
+                "trace_url": self.tracer.get_trace_url()}
