@@ -521,6 +521,7 @@ class PgvectorDocumentStore:
         sql_where_clause = SQL("")
         if filters:
             sql_where_clause, params = _convert_filters_to_where_clause_and_params(filters)
+            sql_where_clause.replace("WHERE", "AND")
 
         sql_select = SQL(
             """SELECT *, RANK() OVER (ORDER BY
