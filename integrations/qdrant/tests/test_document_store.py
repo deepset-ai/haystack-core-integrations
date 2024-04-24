@@ -1,4 +1,5 @@
 from typing import List
+from unittest.mock import patch
 
 import pytest
 from haystack import Document
@@ -78,3 +79,26 @@ class TestQdrantDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocu
                 query_sparse_embedding=sparse_embedding,
                 query_embedding=embedding,
             )
+
+    def test_query_hybrid_search_batch_failure(self):
+        document_store = QdrantDocumentStore(location=":memory:", use_sparse_embeddings=True)
+
+        sparse_embedding = SparseEmbedding(indices=[0, 1, 2, 3], values=[0.1, 0.8, 0.05, 0.33])
+        embedding = [0.1] * 768
+
+        with patch.object(document_store.client, "search_batch", side_effect=Exception("search_batch error")):
+
+            with pytest.raises(QdrantStoreError):
+                document_store._query_hybrid(query_sparse_embedding=sparse_embedding, query_embedding=embedding)
+
+    @patch("haystack_integrations.document_stores.qdrant.document_store.reciprocal_rank_fusion")
+    def test_query_hybrid_reciprocal_rank_fusion_failure(self, mocked_fusion):
+        document_store = QdrantDocumentStore(location=":memory:", use_sparse_embeddings=True)
+
+        sparse_embedding = SparseEmbedding(indices=[0, 1, 2, 3], values=[0.1, 0.8, 0.05, 0.33])
+        embedding = [0.1] * 768
+
+        mocked_fusion.side_effect = Exception("reciprocal_rank_fusion error")
+
+        with pytest.raises(QdrantStoreError):
+            document_store._query_hybrid(query_sparse_embedding=sparse_embedding, query_embedding=embedding)

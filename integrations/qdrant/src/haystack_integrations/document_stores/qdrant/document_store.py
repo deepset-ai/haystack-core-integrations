@@ -446,11 +446,19 @@ class QdrantDocumentStore:
             with_vector=return_embedding,
         )
 
-        dense_request_response, sparse_request_response = self.client.search_batch(
-            collection_name=self.index, requests=[dense_request, sparse_request]
-        )
+        try:
+            dense_request_response, sparse_request_response = self.client.search_batch(
+                collection_name=self.index, requests=[dense_request, sparse_request]
+            )
+        except Exception as e:
+            msg = "Error during hybrid search"
+            raise QdrantStoreError(msg) from e
 
-        points = reciprocal_rank_fusion(responses=[dense_request_response, sparse_request_response], limit=top_k)
+        try:
+            points = reciprocal_rank_fusion(responses=[dense_request_response, sparse_request_response], limit=top_k)
+        except Exception as e:
+            msg = "Error while applying Reciprocal Rank Fusion"
+            raise QdrantStoreError(msg) from e
 
         results = [convert_qdrant_point_to_haystack_document(point, use_sparse_embeddings=True) for point in points]
 
