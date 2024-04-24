@@ -405,6 +405,9 @@ class QdrantDocumentStore:
         :param return_embedding: Whether to return the embeddings of the retrieved documents.
 
         :returns: List of Document that are most similar to `query_embedding` and `query_sparse_embedding`.
+
+        :raises QdrantStoreError: 
+            If the Document Store was initialized with `use_sparse_embeddings=False`.
         """
 
         # This implementation is based on the code from the Python Qdrant client:

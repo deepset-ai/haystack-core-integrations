@@ -3,10 +3,10 @@ import pytest
 from haystack.dataclasses import SparseEmbedding
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def generate_sparse_embedding():
     """
-    This fixture generates a random SparseEmbedding object each time it is used.
+    This fixture returns a function that generates a random SparseEmbedding each time it is called.
     """
 
     def _generate_random_sparse_embedding():
