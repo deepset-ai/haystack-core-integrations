@@ -55,6 +55,7 @@ class AstraDocumentStore:
         embedding_dimension: int = 768,
         duplicates_policy: DuplicatePolicy = DuplicatePolicy.NONE,
         similarity: str = "cosine",
+        namespace: Optional[str] = None,
     ):
         """
         The connection to Astra DB is established and managed through the JSON API.
@@ -99,6 +100,8 @@ class AstraDocumentStore:
         self.embedding_dimension = embedding_dimension
         self.duplicates_policy = duplicates_policy
         self.similarity = similarity
+        if namespace:
+            self.namespace = namespace
 
         self.index = AstraClient(
             resolved_api_endpoint,
@@ -106,6 +109,7 @@ class AstraDocumentStore:
             self.collection_name,
             self.embedding_dimension,
             self.similarity,
+            namespace,
         )
 
     @classmethod
