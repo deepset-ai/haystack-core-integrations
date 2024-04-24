@@ -406,7 +406,7 @@ class QdrantDocumentStore:
 
         :returns: List of Document that are most similar to `query_embedding` and `query_sparse_embedding`.
 
-        :raises QdrantStoreError: 
+        :raises QdrantStoreError:
             If the Document Store was initialized with `use_sparse_embeddings=False`.
         """
 
