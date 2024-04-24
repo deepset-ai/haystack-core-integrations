@@ -74,6 +74,13 @@ class TestDocumentStore(DocumentStoreBaseTests):
         assert document_store.write_documents(documents=[doc1], policy=DuplicatePolicy.OVERWRITE) == 1
         self.assert_documents_are_equal(document_store.filter_documents(), [doc1])
 
+    def test_write_documents_skip_duplicates(self, document_store: AstraDocumentStore):
+        docs = [
+            Document(id="1", content="test doc 1"),
+            Document(id="1", content="test doc 2"),
+        ]
+        assert document_store.write_documents(docs, policy=DuplicatePolicy.SKIP) == 1
+
     def test_delete_documents_non_existing_document(self, document_store: AstraDocumentStore):
         """
         Test delete_documents() doesn't delete any Document when called with non existing id.
