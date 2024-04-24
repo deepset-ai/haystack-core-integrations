@@ -1,6 +1,7 @@
 import contextlib
 from typing import Any, Dict, Iterator, Optional, Union
 
+from haystack.dataclasses import ChatMessage
 from haystack.tracing import Span, Tracer, tracer
 from haystack.tracing import utils as tracing_utils
 
@@ -21,16 +22,15 @@ class LangfuseSpan(Span):
     def set_content_tag(self, key: str, value: Any) -> None:
         if not tracer.is_content_tracing_enabled:
             return
-
         if key.endswith(".input"):
             if "messages" in value:
-                messages = [m.to_openai_format() for m in value["messages"]]
+                messages = [self.to_openai_format(m) for m in value["messages"]]
                 self._span.update(input=messages)
             else:
                 self._span.update(input=value)
         elif key.endswith(".output"):
             if "replies" in value:
-                replies = [m.to_openai_format() for m in value["replies"]]
+                replies = [self.to_openai_format(m) for m in value["replies"]]
                 self._span.update(output=replies)
             else:
                 self._span.update(output=value)
@@ -42,6 +42,16 @@ class LangfuseSpan(Span):
 
     def get_correlation_data_for_logs(self) -> Dict[str, Any]:
         return {}
+
+    def to_openai_format(self, m: ChatMessage) -> Dict[str, Any]:
+        """
+        Remove after haystack 2.0.1 has been released and use the `to_openai_format` method from the ChatMessage class
+        """
+        msg = {"role": m.role.value, "content": m.content}
+        if m.name:
+            msg["name"] = m.name
+
+        return msg
 
 
 class LangfuseTracer(Tracer):
@@ -77,6 +87,13 @@ class LangfuseTracer(Tracer):
             if replies:
                 meta = replies[0].meta
                 span._span.update(usage=meta.get("usage"), model=meta.get("model"))
+
+        pipeline_input = tags.get("haystack.pipeline.input_data", None)
+        if pipeline_input:
+            span._span.update(input=tags["haystack.pipeline.input_data"])
+        pipeline_output = tags.get("haystack.pipeline.output_data", None)
+        if pipeline_output:
+            span._span.update(output=tags["haystack.pipeline.output_data"])
 
         span.raw_span().end()
         self._context.pop()
