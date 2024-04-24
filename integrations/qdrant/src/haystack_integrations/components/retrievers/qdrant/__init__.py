@@ -2,6 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from .retriever import QdrantEmbeddingRetriever, QdrantSparseEmbeddingRetriever
+from .retriever import QdrantEmbeddingRetriever, QdrantHybridRetriever, QdrantSparseEmbeddingRetriever
 
-__all__ = ("QdrantEmbeddingRetriever", "QdrantSparseEmbeddingRetriever")
+__all__ = ("QdrantEmbeddingRetriever", "QdrantSparseEmbeddingRetriever", "QdrantHybridRetriever")
