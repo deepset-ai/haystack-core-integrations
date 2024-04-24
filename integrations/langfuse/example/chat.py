@@ -31,3 +31,4 @@ if __name__ == "__main__":
         data={"prompt_builder": {"template_variables": {"location": "Berlin"}, "prompt_source": messages}}
     )
     print(response["llm"]["replies"][0])
+    print(response["tracer"]["trace_url"])
