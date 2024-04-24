@@ -14,6 +14,7 @@ authors = [
   { name = "Anant Corporation", email = "support@anant.us" },
 ]
 classifiers = [
+  "License :: OSI Approved :: Apache Software License",
   "Development Status :: 4 - Beta",
   "Programming Language :: Python",
   "Programming Language :: Python :: 3.8",
