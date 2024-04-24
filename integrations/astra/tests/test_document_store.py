@@ -25,6 +25,22 @@ def test_namespace_init():
         assert client.call_args.kwargs["namespace"] == "foo"
 
 
+def test_to_dict():
+    with mock.patch("haystack_integrations.document_stores.astra.astra_client.AstraDB"):
+        ds = AstraDocumentStore()
+        result = ds.to_dict()
+        assert result["type"] == "haystack_integrations.document_stores.astra.document_store.AstraDocumentStore"
+        assert set(result["init_parameters"]) == {
+            "api_endpoint",
+            "token",
+            "collection_name",
+            "embedding_dimension",
+            "duplicates_policy",
+            "similarity",
+            "namespace",
+        }
+
+
 @pytest.mark.integration
 @pytest.mark.skipif(
     os.environ.get("ASTRA_DB_APPLICATION_TOKEN", "") == "", reason="ASTRA_DB_APPLICATION_TOKEN env var not set"
