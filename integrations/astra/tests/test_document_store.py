@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 import os
 from typing import List
+from unittest import mock
 
 import pytest
 from haystack import Document
@@ -11,6 +12,33 @@ from haystack.document_stores.types import DuplicatePolicy
 from haystack.testing.document_store import DocumentStoreBaseTests
 
 from haystack_integrations.document_stores.astra import AstraDocumentStore
+
+
+def test_namespace_init():
+    with mock.patch("haystack_integrations.document_stores.astra.astra_client.AstraDB") as client:
+        AstraDocumentStore()
+        assert "namespace" in client.call_args.kwargs
+        assert client.call_args.kwargs["namespace"] is None
+
+        AstraDocumentStore(namespace="foo")
+        assert "namespace" in client.call_args.kwargs
+        assert client.call_args.kwargs["namespace"] == "foo"
+
+
+def test_to_dict():
+    with mock.patch("haystack_integrations.document_stores.astra.astra_client.AstraDB"):
+        ds = AstraDocumentStore()
+        result = ds.to_dict()
+        assert result["type"] == "haystack_integrations.document_stores.astra.document_store.AstraDocumentStore"
+        assert set(result["init_parameters"]) == {
+            "api_endpoint",
+            "token",
+            "collection_name",
+            "embedding_dimension",
+            "duplicates_policy",
+            "similarity",
+            "namespace",
+        }
 
 
 @pytest.mark.integration
