@@ -20,7 +20,7 @@ from psycopg.types.json import Jsonb
 
 from pgvector.psycopg import register_vector
 
-from .filters import _convert_filters_to_where_clause_and_params
+from .filters import _convert_filters_to_and_clause_and_params, _convert_filters_to_where_clause_and_params
 
 logger = logging.getLogger(__name__)
 
@@ -520,8 +520,7 @@ class PgvectorDocumentStore:
         params = ()
         sql_where_clause = SQL("")
         if filters:
-            sql_where_clause, params = _convert_filters_to_where_clause_and_params(filters)
-            sql_where_clause = str(sql_where_clause).replace("WHERE", "AND")
+            sql_where_clause, params = _convert_filters_to_and_clause_and_params(filters)
 
         sql_select = SQL(
             """SELECT *, RANK() OVER (ORDER BY

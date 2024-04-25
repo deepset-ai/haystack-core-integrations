@@ -37,6 +37,21 @@ def _convert_filters_to_where_clause_and_params(filters: Dict[str, Any]) -> tupl
     return where_clause, params
 
 
+def _convert_filters_to_and_clause_and_params(filters: Dict[str, Any]) -> tuple[SQL, tuple]:
+    """
+    Convert Haystack filters to a WHERE clause and a tuple of params to query PostgreSQL.
+    """
+    if "field" in filters:
+        query, values = _parse_comparison_condition(filters)
+    else:
+        query, values = _parse_logical_condition(filters)
+
+    where_clause = SQL(" AND ") + SQL(query)
+    params = tuple(value for value in values if value != NO_VALUE)
+
+    return where_clause, params
+
+
 def _parse_logical_condition(condition: Dict[str, Any]) -> tuple[str, List[Any]]:
     if "operator" not in condition:
         msg = f"'operator' key missing in {condition}"
