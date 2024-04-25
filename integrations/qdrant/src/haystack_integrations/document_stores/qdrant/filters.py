@@ -14,7 +14,8 @@ def convert_filters_to_qdrant(
     filter_term: Optional[Union[List[dict], dict]] = None,
 ) -> Optional[models.Filter]:
     """Converts Haystack filters to the format used by Qdrant."""
-
+    if isinstance(filter_term, models.Filter):
+        return filter_term
     if not filter_term:
         return None
 
