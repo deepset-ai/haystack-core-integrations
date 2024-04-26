@@ -12,6 +12,7 @@ class QdrantEmbeddingRetriever:
 
     Usage example:
     ```python
+    from haystack.dataclasses import Document
     from haystack_integrations.components.retrievers.qdrant import QdrantEmbeddingRetriever
     from haystack_integrations.document_stores.qdrant import QdrantDocumentStore
 
@@ -42,12 +43,12 @@ class QdrantEmbeddingRetriever:
         Create a QdrantEmbeddingRetriever component.
 
         :param document_store: An instance of QdrantDocumentStore.
-        :param filters: A dictionary with filters to narrow down the search space. Default is None.
-        :param top_k: The maximum number of documents to retrieve. Default is 10.
-        :param scale_score: Whether to scale the scores of the retrieved documents or not. Default is True.
-        :param return_embedding: Whether to return the embedding of the retrieved Documents. Default is False.
+        :param filters: A dictionary with filters to narrow down the search space.
+        :param top_k: The maximum number of documents to retrieve.
+        :param scale_score: Whether to scale the scores of the retrieved documents or not.
+        :param return_embedding: Whether to return the embedding of the retrieved Documents.
 
-        :raises ValueError: If 'document_store' is not an instance of QdrantDocumentStore.
+        :raises ValueError: If `document_store` is not an instance of `QdrantDocumentStore`.
         """
 
         if not isinstance(document_store, QdrantDocumentStore):
@@ -134,7 +135,7 @@ class QdrantSparseEmbeddingRetriever:
     ```python
     from haystack_integrations.components.retrievers.qdrant import QdrantSparseEmbeddingRetriever
     from haystack_integrations.document_stores.qdrant import QdrantDocumentStore
-    from haystack.dataclasses.sparse_embedding import SparseEmbedding
+    from haystack.dataclasses import Document, SparseEmbedding
 
     document_store = QdrantDocumentStore(
         ":memory:",
@@ -164,12 +165,12 @@ class QdrantSparseEmbeddingRetriever:
         Create a QdrantSparseEmbeddingRetriever component.
 
         :param document_store: An instance of QdrantDocumentStore.
-        :param filters: A dictionary with filters to narrow down the search space. Default is None.
-        :param top_k: The maximum number of documents to retrieve. Default is 10.
-        :param scale_score: Whether to scale the scores of the retrieved documents or not. Default is True.
-        :param return_embedding: Whether to return the sparse embedding of the retrieved Documents. Default is False.
+        :param filters: A dictionary with filters to narrow down the search space.
+        :param top_k: The maximum number of documents to retrieve.
+        :param scale_score: Whether to scale the scores of the retrieved documents or not.
+        :param return_embedding: Whether to return the sparse embedding of the retrieved Documents.
 
-        :raises ValueError: If 'document_store' is not an instance of QdrantDocumentStore.
+        :raises ValueError: If `document_store` is not an instance of `QdrantDocumentStore`.
         """
 
         if not isinstance(document_store, QdrantDocumentStore):
@@ -257,7 +258,7 @@ class QdrantHybridRetriever:
     ```python
     from haystack_integrations.components.retrievers.qdrant import QdrantHybridRetriever
     from haystack_integrations.document_stores.qdrant import QdrantDocumentStore
-    from haystack.dataclasses.sparse_embedding import SparseEmbedding
+    from haystack.dataclasses import Document, SparseEmbedding
 
     document_store = QdrantDocumentStore(
         ":memory:",
