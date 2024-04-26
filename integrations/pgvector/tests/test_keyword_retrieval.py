@@ -1,7 +1,6 @@
 import pytest
 from haystack.dataclasses.document import Document
 from haystack_integrations.document_stores.pgvector import PgvectorDocumentStore
-from numpy.random import rand
 
 
 @pytest.mark.integration
@@ -58,7 +57,7 @@ class TestKeywordRetrieval:
 
         document_store.write_documents(docs)
 
-        query = "Document"
+        query = "fox"
         filters = {"field": "meta.meta_field", "operator": "==", "value": "custom_value"}
 
         results = document_store._keyword_retrieval(user_query=query, top_k=3, filters=filters)
