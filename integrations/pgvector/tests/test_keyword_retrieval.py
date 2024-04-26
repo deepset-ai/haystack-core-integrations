@@ -46,14 +46,14 @@ class TestKeywordRetrieval:
 
     @pytest.mark.parametrize("document_store", ["document_store_keyword"], indirect=True)
     def test_keyword_retrieval_with_filters(self, document_store: PgvectorDocumentStore):
-        docs = [Document(content=f"Document {i}", embedding=rand(768).tolist()) for i in range(10)]
+        docs = [Document(content=f"Document {i} testing", embedding=rand(768).tolist()) for i in range(10)]
 
         for i in range(10):
             docs[i].meta["meta_field"] = "custom_value" if i % 2 == 0 else "other_value"
 
         document_store.write_documents(docs)
 
-        query = "value"
+        query = "Document"
         filters = {"field": "meta.meta_field", "operator": "==", "value": "custom_value"}
 
         results = document_store._keyword_retrieval(user_query=query, top_k=3, filters=filters)
