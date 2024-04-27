@@ -30,7 +30,10 @@ class LangfuseSpan(Span):
                 self._span.update(input=value)
         elif key.endswith(".output"):
             if "replies" in value:
-                replies = [self.to_openai_format(m) for m in value["replies"]]
+                if all(isinstance(r, ChatMessage) for r in value["replies"]):
+                    replies = [self.to_openai_format(m) for m in value["replies"]]
+                else:
+                    replies = value["replies"]
                 self._span.update(output=replies)
             else:
                 self._span.update(output=value)
