@@ -20,7 +20,6 @@ pip install langfuse-haystack
 This is a community built integration for the Langfuse Open Source LLM Engineering Platform. It uses the Haystack tracing functionality as described in https://docs.haystack.deepset.ai/docs/tracing. This extension provides detailed tracking of pipeline executions and component runs. Designed specifically for monitoring LLM applications, it allows for efficient diagnostics and performance assessment.
 
 Example of a nested pipeline trace:
-Below is an example trace of a nested pipeline:
 
 ![Nested Trace](./imgs/nested_trace.png)
 

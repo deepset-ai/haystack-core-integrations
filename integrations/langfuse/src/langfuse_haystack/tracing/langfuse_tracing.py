@@ -174,7 +174,7 @@ class LangfuseTrace:
 
 
 class LangfuseSpan(Span):
-    def __init__(self, langfuse: Langfuse, tags: dict[str, Any] | None = None) -> None:
+    def __init__(self, langfuse: Langfuse, tags: dict[str, Any]) -> None:
         self.langfuse = langfuse
         self.tags = tags
         self.component_name = self.tags.pop("haystack.component.name", None)
@@ -216,7 +216,6 @@ class LangfuseSpan(Span):
 
         if key == "haystack.component.input":
             if "prompt" in value:
-                # other items of the value dict will be stored in meta
                 meta = {k: v for k, v in value.items() if k != "prompt"}
                 self._span.update(input=value["prompt"], meta=meta)
             else:
@@ -225,20 +224,25 @@ class LangfuseSpan(Span):
             TraceContextManager.add_input({self.component_name: value})
 
         elif key == "haystack.component.output":
+            if "meta" in value:
+                meta = {}
+                if isinstance(value["meta"], list):
+                    meta = value["meta"][-1]
+                else:
+                    meta = value["meta"]
+
+                if "model" in meta:
+                    self._span.update(model=meta["model"])
+                if "usage" in meta:
+                    self._span.update(usage=meta["usage"])
+                TraceContextManager.add_metadata(meta)
+
             if "replies" in value:
                 meta = {k: v for k, v in value.items() if k != "replies"}
                 self._span.update(output=value["replies"][0], meta=meta)
             else:
                 self._span.update(output=value)
             TraceContextManager.add_output({self.component_name: value})
-
-            if "meta" in value:
-                meta = value["meta"][-1]
-                if "model" in meta:
-                    self._span.update(model=meta["model"])
-                if "usage" in meta:
-                    self._span.update(usage=meta["usage"])
-                TraceContextManager.add_metadata(meta)
 
         self._span.update(tags={key: coerced_value})
 
