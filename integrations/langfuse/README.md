@@ -15,7 +15,7 @@ langfuse-haystack integrates tracing capabilities into [Haystack](https://github
 
 ## Installation
 
-To install langfuse-haystack, simply run the following command:
+To install langfuse-haystack, run the following command:
 
 ```sh
 pip install langfuse-haystack
