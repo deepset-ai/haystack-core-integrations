@@ -58,10 +58,11 @@ class LangfuseSpan(Span):
 
 
 class LangfuseTracer(Tracer):
-    def __init__(self, tracer: "langfuse.Langfuse", name: str = "Haystack") -> None:
+    def __init__(self, tracer: "langfuse.Langfuse", name: str = "Haystack", public: bool = False) -> None:
         self._tracer = tracer
         self._context: list[LangfuseSpan] = []
         self._name = name
+        self._public = public
 
     @contextlib.contextmanager
     def trace(self, operation_name: str, tags: Optional[Dict[str, Any]] = None) -> Iterator[Span]:
@@ -105,7 +106,7 @@ class LangfuseTracer(Tracer):
     def current_span(self) -> Span:
         if not self._context:
             # The root span has to be a trace
-            self._context.append(LangfuseSpan(self._tracer.trace(name=self._name)))
+            self._context.append(LangfuseSpan(self._tracer.trace(name=self._name, public=self._public)))
         return self._context[-1]
 
     def get_trace_url(self) -> str:
