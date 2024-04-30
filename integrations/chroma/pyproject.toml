@@ -26,7 +26,7 @@ classifiers = [
 ]
 dependencies = [
   "haystack-ai",
-  "chromadb<0.4.20",  #  FIXME: investigate why filtering tests broke on 0.4.20
+  "chromadb",
   "typing_extensions>=4.8.0"
 ]
 
