@@ -67,7 +67,7 @@ Langfuse provides a user-friendly interface to visualize and analyze the traces 
 
 ## Contributing
 
-`hatch` is the best way to interact with this project, to install it:
+`hatch` is the best way to interact with this project. To install it, run:
 ```sh
 pip install hatch
 ```
