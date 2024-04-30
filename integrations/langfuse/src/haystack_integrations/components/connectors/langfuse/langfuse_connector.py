@@ -10,7 +10,7 @@ class LangfuseConnector:
     LangfuseConnector connects Haystack LLM framework with Langfuse in order to enable the tracing of operations
     and data flow within various components of a pipeline.
 
-    Simply add this component to your pipeline, DO NOT connect it to any other component. The LangfuseConnector will
+    Simply add this component to your pipeline, but *do not* connect it to any other component. The LangfuseConnector will
     automatically trace the operations and data flow within the pipeline.
 
     Here is an example of how to use it:
@@ -57,7 +57,7 @@ class LangfuseConnector:
             Langfuse dashboard.
         :param public: Whether the tracing data should be public or private. If set to `True`, the tracing data will be
             publicly accessible to anyone with the tracing URL. If set to `False`, the tracing data will be private and
-            only accessible to the Langfuse account owner. Default is `False`.
+            only accessible to the Langfuse account owner. The default is `False`.
         """
         self.name = name
         self.tracer = LangfuseTracer(tracer=Langfuse(), name=name, public=public)
