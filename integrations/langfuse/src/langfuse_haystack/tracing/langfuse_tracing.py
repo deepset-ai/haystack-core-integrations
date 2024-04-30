@@ -9,21 +9,143 @@ from typing import TYPE_CHECKING, Any, Iterator
 
 from haystack.tracing import Span, Tracer
 from haystack.tracing import utils as tracing_utils
-from langfuse_haystack.tracing.context import TraceContextManager
 
 if TYPE_CHECKING:
+    from langfuse.client import StatefulClient
     from langfuse import Langfuse
 
 
 session_context = threading.local()
 session_context.id = None
 
-
 @contextlib.contextmanager
 def langfuse_session():
     session_context.id = uuid.uuid4().hex
-    yield
+    yield session_context.id
     session_context.id = None
+
+
+@dataclass
+class TraceContext:
+    trace_id: str
+    inputs: dict[str, Any] | None = field(default_factory=dict)
+    outputs: dict[str, Any] | None = field(default_factory=dict)
+    current_span: str | None = None
+    metadata: dict[str, Any] | None = field(default_factory=dict)
+
+
+class TraceContextManager:
+    context = threading.local()
+
+    @classmethod
+    def add(cls, span_or_trace: StatefulClient):
+        if not hasattr(cls.context, "langfuse_trace"):
+            cls.context.langfuse_trace = []
+
+        cls.context.langfuse_trace.append(TraceContext(span_or_trace.id))
+
+    @classmethod
+    def get(cls):
+        if hasattr(cls.context, "langfuse_trace") and cls.context.langfuse_trace:
+            return cls.context.langfuse_trace[-1]
+        return None
+
+    @classmethod
+    def get_trace_id(cls):
+        if hasattr(cls.context, "langfuse_trace") and cls.context.langfuse_trace:
+            return cls.context.langfuse_trace[0].trace_id
+        return None
+
+    @classmethod
+    def is_active(cls):
+        return hasattr(cls.context, "langfuse_trace") and cls.context.langfuse_trace
+
+    @classmethod
+    def add_input(cls, data: dict[str, Any]):
+        if hasattr(cls.context, "langfuse_trace"):
+            cls.context.langfuse_trace[-1].inputs.update(data)
+
+    @classmethod
+    def add_output(cls, output: dict[str, Any]):
+        if hasattr(cls.context, "langfuse_trace"):
+            cls.context.langfuse_trace[-1].outputs.update(output)
+
+    @classmethod
+    def add_metadata(cls, metadata: dict[str, Any]):
+        if hasattr(cls.context, "langfuse_trace"):
+            cls.context.langfuse_trace[-1].metadata = metadata
+
+    @classmethod
+    def get_metadata(cls):
+        if hasattr(cls.context, "langfuse_trace") and cls.has_metadata():
+            return cls.context.langfuse_trace[-1].metadata
+        return None
+
+    @classmethod
+    def has_metadata(cls):
+        if hasattr(cls.context, "langfuse_trace"):
+            return bool(cls.context.langfuse_trace[-1].metadata)
+        return False
+
+    @classmethod
+    def add_current_span(cls, span: Span):
+        if hasattr(cls.context, "langfuse_trace"):
+            cls.context.langfuse_trace[-1].current_span = span
+
+    @classmethod
+    def has_current_span(cls):
+        if hasattr(cls.context, "langfuse_trace") and cls.context.langfuse_trace:
+            return bool(cls.context.langfuse_trace[-1].current_span)
+        return False
+
+    @classmethod
+    def get_current_span(cls):
+        if hasattr(cls.context, "langfuse_trace") and cls.has_current_span():
+            return cls.context.langfuse_trace[-1].current_span
+        return None
+
+    @classmethod
+    def remove_current_span(cls):
+        if hasattr(cls.context, "langfuse_trace") and cls.has_current_span():
+            cls.context.langfuse_trace[-1].current_span = None
+
+    @classmethod
+    def has_input(cls):
+        if hasattr(cls.context, "langfuse_trace") and cls.context.langfuse_trace:
+            return bool(cls.context.langfuse_trace[-1].inputs)
+        return False
+
+    @classmethod
+    def has_output(cls):
+        if hasattr(cls.context, "langfuse_trace") and cls.context.langfuse_trace:
+            return bool(cls.context.langfuse_trace[-1].outputs)
+        return False
+
+    @classmethod
+    def get_input(cls):
+        if hasattr(cls.context, "langfuse_trace") and cls.has_input():
+            return cls.context.langfuse_trace[-1].inputs
+        return None
+
+    @classmethod
+    def get_output(cls):
+        if hasattr(cls.context, "langfuse_trace") and cls.has_output():
+            return cls.context.langfuse_trace[-1].outputs
+        return None
+
+    @classmethod
+    def remove(cls):
+        cls.context.langfuse_trace.pop()
+
+    @classmethod
+    def parent_id(cls):
+        if hasattr(cls.context, "langfuse_trace") and len(cls.context.langfuse_trace) > 1:
+            return cls.context.langfuse_trace[-1].trace_id
+        return None
+    
+    @classmethod
+    def reset(cls):
+        cls.context = threading.local()
 
 
 class LangfuseTrace:
@@ -78,6 +200,8 @@ class LangfuseSpan(Span):
 
         TraceContextManager.add_current_span(self._span)
 
+        return self
+
     def __exit__(self, exc_type, exc_val, exc_tb) -> None:
         if exc_tb and exc_val:
             stack_trace = traceback.format_exception(exc_type, exc_val, exc_tb)
@@ -117,28 +241,6 @@ class LangfuseSpan(Span):
 
         self._span.update(tags={key: coerced_value})
 
-    def _is_generation_span(self, component_name: str) -> bool:
-        return component_name.endswith(("Embedder", "Generator"))
+    def _is_generation_span(self, component_type: str) -> bool:
+        return component_type.lower().endswith(("embedder", "generator"))
 
-
-class LangfuseTracer(Tracer):
-    def __init__(self, langfuse: Langfuse) -> None:
-        self.langfuse = langfuse
-
-    @contextlib.contextmanager
-    def trace(self, operation_name: str, tags: dict[str, Any] | None = None) -> Iterator[Span]:
-        if "pipeline" in operation_name:
-            if TraceContextManager.is_active():
-                TraceContextManager.add(self.current_span())
-                yield
-                TraceContextManager.remove()
-            else:
-                with LangfuseTrace(self.langfuse, name=operation_name, tags=tags):
-                    yield
-
-        else:
-            with LangfuseSpan(self.langfuse, tags) as span:
-                yield span
-
-    def current_span(self) -> Span | None:
-        return TraceContextManager.get_current_span()
