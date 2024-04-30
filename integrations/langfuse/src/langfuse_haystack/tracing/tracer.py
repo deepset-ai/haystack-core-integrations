@@ -1,14 +1,10 @@
 from __future__ import annotations
 
 import contextlib
-import threading
-import traceback
-import uuid
-from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Iterator
 
 from haystack.tracing import Span, Tracer
-from haystack.tracing import utils as tracing_utils
+
 from langfuse_haystack.tracing.langfuse_tracing import LangfuseSpan, LangfuseTrace, TraceContextManager
 
 if TYPE_CHECKING:

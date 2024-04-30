@@ -5,18 +5,19 @@ import threading
 import traceback
 import uuid
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, Iterator
+from typing import TYPE_CHECKING, Any
 
-from haystack.tracing import Span, Tracer
+from haystack.tracing import Span
 from haystack.tracing import utils as tracing_utils
 
 if TYPE_CHECKING:
-    from langfuse.client import StatefulClient
     from langfuse import Langfuse
+    from langfuse.client import StatefulClient
 
 
 session_context = threading.local()
 session_context.id = None
+
 
 @contextlib.contextmanager
 def langfuse_session():
@@ -142,7 +143,7 @@ class TraceContextManager:
         if hasattr(cls.context, "langfuse_trace") and len(cls.context.langfuse_trace) > 1:
             return cls.context.langfuse_trace[-1].trace_id
         return None
-    
+
     @classmethod
     def reset(cls):
         cls.context = threading.local()
@@ -243,4 +244,3 @@ class LangfuseSpan(Span):
 
     def _is_generation_span(self, component_type: str) -> bool:
         return component_type.lower().endswith(("embedder", "generator"))
-

@@ -1,14 +1,20 @@
-import pytest
 from unittest import mock
-from langfuse.client import StatefulClient
-from langfuse_haystack.tracing.langfuse_tracing import LangfuseTrace, TraceContextManager, LangfuseSpan, langfuse_session
 
+import pytest
 from haystack.tracing import Span
+from langfuse.client import StatefulClient
+from langfuse_haystack.tracing.langfuse_tracing import (
+    LangfuseSpan,
+    LangfuseTrace,
+    TraceContextManager,
+    langfuse_session,
+)
 
 
 @pytest.fixture(autouse=True)
 def reset_context():
     TraceContextManager.reset()
+
 
 @pytest.fixture
 def mock_trace():
@@ -16,32 +22,38 @@ def mock_trace():
     client.id = "trace_id"
     return client
 
+
 @pytest.fixture
 def mock_stateful_client():
     client = mock.Mock(spec=StatefulClient)
     client.id = "stateful_client_id"
     return client
 
+
 @pytest.fixture
 def mock_span():
-    span = mock.Mock(spec=Span)
-    return span
+    return mock.Mock(spec=Span)
+
 
 @pytest.fixture
 def mock_langfuse():
     return mock.Mock()
 
+
 @pytest.fixture
 def mock_tags():
     return {"haystack.component.name": "TestComponent", "haystack.component.type": "TestType"}
+
 
 @pytest.fixture
 def mock_generator_tags():
     return {"haystack.component.name": "llm", "haystack.component.type": "TestComponentGenerator"}
 
+
 @pytest.fixture
 def mock_embedder_tags():
     return {"haystack.component.name": "embeddings", "haystack.component.type": "TestComponentEmbedder"}
+
 
 class TestTraceContextManager:
     @pytest.fixture(autouse=True)
@@ -66,7 +78,7 @@ class TestTraceContextManager:
         TraceContextManager.add(mock_stateful_client)
         assert TraceContextManager.is_active()
 
-    def test_is_active(self, mock_stateful_client):
+    def test_add_input(self, mock_stateful_client):
         TraceContextManager.add(mock_stateful_client)
         TraceContextManager.add_input({"test": "input"})
         assert TraceContextManager.context.langfuse_trace[-1].inputs["test"] == "input"
@@ -147,6 +159,7 @@ class TestTraceContextManager:
         TraceContextManager.add(mock_stateful_client)
         assert TraceContextManager.parent_id() == "stateful_client_id"
 
+
 class TestLangfuseSpan:
     def test_init(self, mock_langfuse, mock_tags):
         span = LangfuseSpan(mock_langfuse, mock_tags)
@@ -166,42 +179,39 @@ class TestLangfuseSpan:
             span.set_tag("haystack.component.output", "test")
             mock_langfuse.span.return_value.update.assert_called_with(tags={"haystack.component.output": "test"})
 
-    def test_is_generation_span(self, mock_langfuse, mock_tags):
-        with LangfuseSpan(mock_langfuse, mock_tags) as span:
-            assert span._is_generation_span("TestEmbedder") is True
-            assert span._is_generation_span("TestGenerator") is True
-            assert span._is_generation_span("TestOther") is False
-
     def test_parent_span(self, mock_langfuse, mock_tags, mock_trace, mock_stateful_client):
         TraceContextManager.add(mock_trace)
         TraceContextManager.add(mock_stateful_client)
 
-        with LangfuseSpan(mock_langfuse, mock_tags) as span:
+        with LangfuseSpan(mock_langfuse, mock_tags):
             pass
-        mock_langfuse.span.assert_called_with(name="TestComponent::TestType", trace_id=mock_trace.id, parent_observation_id=mock_stateful_client.id, session_id=None)
+        mock_langfuse.span.assert_called_with(
+            name="TestComponent::TestType",
+            trace_id=mock_trace.id,
+            parent_observation_id=mock_stateful_client.id,
+            session_id=None,
+        )
 
     def test_span_with_session(self, mock_langfuse, mock_tags, mock_trace, mock_stateful_client):
         TraceContextManager.add(mock_trace)
         TraceContextManager.add(mock_stateful_client)
 
-        with langfuse_session():
-            with LangfuseSpan(mock_langfuse, mock_tags) as span:
-                pass
-        assert span.langfuse == mock_langfuse
-        assert span.langfuse.span.call_args[1]['session_id'] is not None
-       
+        with langfuse_session(), LangfuseSpan(mock_langfuse, mock_tags) as span:
+            assert span.langfuse == mock_langfuse
+            assert span.langfuse.span.call_args[1]["session_id"] is not None
+
     def test_span_without_session(self, mock_langfuse, mock_tags, mock_trace):
         TraceContextManager.add(mock_trace)
 
         with LangfuseSpan(mock_langfuse, mock_tags) as span:
             pass
         assert span.langfuse == mock_langfuse
-        assert span.langfuse.span.call_args[1]['session_id'] is None
-    
+        assert span.langfuse.span.call_args[1]["session_id"] is None
+
     def test_span_for_embedder_is_generation(self, mock_langfuse, mock_embedder_tags, mock_trace):
         TraceContextManager.add(mock_trace)
 
-        with LangfuseSpan(mock_langfuse, mock_embedder_tags) as span:
+        with LangfuseSpan(mock_langfuse, mock_embedder_tags):
             pass
 
         assert mock_langfuse.generation.called
@@ -210,7 +220,7 @@ class TestLangfuseSpan:
     def test_span_for_generator_is_generation(self, mock_langfuse, mock_generator_tags, mock_trace):
         TraceContextManager.add(mock_trace)
 
-        with LangfuseSpan(mock_langfuse, mock_generator_tags) as span:
+        with LangfuseSpan(mock_langfuse, mock_generator_tags):
             pass
 
         assert mock_langfuse.generation.called
@@ -220,10 +230,14 @@ class TestLangfuseSpan:
         TraceContextManager.add(mock_trace)
         TraceContextManager.add(mock_stateful_client)
 
-        try: 
-            with LangfuseSpan(mock_langfuse, mock_tags) as span:
-                raise Exception("TestException")
-        except:
+        def raise_error():
+            details = "TestException"
+            raise RuntimeError(details)
+
+        try:
+            with LangfuseSpan(mock_langfuse, mock_tags):
+                raise_error()
+        except RuntimeError:
             pass
         assert mock_langfuse.span.return_value.update.called
         call_args = mock_langfuse.span.return_value.update.call_args[1]
@@ -235,12 +249,13 @@ class TestLangfuseSpan:
         with LangfuseSpan(mock_langfuse, mock_tags) as span:
             span.set_tag("haystack.component.prompt", "test")
             mock_langfuse.span.return_value.update.assert_called_with(tags={"haystack.component.prompt": "test"})
-    
+
     def test_set_tag_with_prompt_and_meta_is_extracted(self, mock_langfuse, mock_tags):
+        expected_tags = {"haystack.component.prompt": '{"prompt": "test", "meta": {"test": "meta"}}'}
         with LangfuseSpan(mock_langfuse, mock_tags) as span:
             span.set_tag("haystack.component.prompt", {"prompt": "test", "meta": {"test": "meta"}})
-            mock_langfuse.span.return_value.update.assert_called_with(tags={'haystack.component.prompt': '{"prompt": "test", "meta": {"test": "meta"}}'})
-    
+            mock_langfuse.span.return_value.update.assert_called_with(tags=expected_tags)
+
 
 class TestLangfuseTrace:
     def test_init(self, mock_langfuse):
@@ -255,10 +270,9 @@ class TestLangfuseTrace:
 
         assert mock_langfuse.trace.called
         assert mock_langfuse.trace.call_args[1] == {"name": "TestTrace", "session_id": None}
-    
+
     def test_trace_is_create_with_session(self, mock_langfuse):
-        with langfuse_session() as session_id:
-            with LangfuseTrace(mock_langfuse, name="TestTrace"):
-                pass
+        with langfuse_session() as session_id, LangfuseTrace(mock_langfuse, name="TestTrace"):
+            pass
         assert mock_langfuse.trace.called
         assert mock_langfuse.trace.call_args[1] == {"name": "TestTrace", "session_id": session_id}

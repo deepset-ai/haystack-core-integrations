@@ -1,20 +1,21 @@
+import logging
 import os
 import time
-from typing import Any, Dict, List, Optional
-from langfuse import Langfuse
+from typing import Any, Dict, List
 
-from haystack import Pipeline
-
-from haystack import component
+from haystack import Pipeline, component, tracing
 from haystack.components.converters import OutputAdapter
-from langfuse_haystack.tracing.tracer import LangfuseTracer
+from langfuse import Langfuse
 from langfuse_haystack.tracing.langfuse_tracing import langfuse_session
-from haystack import tracing
+from langfuse_haystack.tracing.tracer import LangfuseTracer
+
+logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO)
 
 langfuse = Langfuse(
-  secret_key=os.environ["LANGFUSE_SECRET_KEY"],
-  public_key=os.environ["LANGFUSE_PUBLIC_KEY"],
-  host="https://cloud.langfuse.com"
+    secret_key=os.environ["LANGFUSE_SECRET_KEY"],
+    public_key=os.environ["LANGFUSE_PUBLIC_KEY"],
+    host="https://cloud.langfuse.com",
 )
 
 haystack_tracer = LangfuseTracer(langfuse)
@@ -36,17 +37,21 @@ class WaitingComponent:
         time.sleep(self.wait_time)
         return {"text": text}
 
+
 @component
 class FailComponent:
     """
     A component that fails
     """
 
+    error_details = "This component always fails"
+
     @component.output_types(text=str)
-    def run(self, text: str, should_fail: bool = True) -> Dict[str, Any]:
+    def run(self, text_input: str, *, should_fail: bool = True) -> Dict[str, Any]:
         if should_fail:
-           raise Exception("This component always fails")   
-        return {"text": text}
+            raise RuntimeError(self.error_details)
+        return {"text": text_input}
+
 
 @component
 class MockedLLMGenerator:
@@ -56,20 +61,19 @@ class MockedLLMGenerator:
 
     @component.output_types(replies=List[str], meta=List[Dict[str, Any]])
     def run(self, prompt: str):
-        print("Hello, world!", prompt)
+        logger.info("Hello, world! %s", prompt)
         time.sleep(0.4)
 
         return {
             "replies": ["This is a mocked response with some text."],
-            "meta": [{
-                "model": "gpt-3.5-turbo-0613",
-                "usage": {
-                    "prompt_tokens": 20,
-                    "completion_tokens": 10,
-                    "total_tokens": 30
+            "meta": [
+                {
+                    "model": "gpt-3.5-turbo-0613",
+                    "usage": {"prompt_tokens": 20, "completion_tokens": 10, "total_tokens": 30},
                 }
-            }]
+            ],
         }
+
 
 @component
 class PipelineComponent:
@@ -78,7 +82,7 @@ class PipelineComponent:
     """
 
     @component.output_types(text=str)
-    def run(self, text:str) -> Dict[str, Any]:
+    def run(self, text: str) -> Dict[str, Any]:
         p = Pipeline()
         p.add_component("waiting_component1", WaitingComponent())
         p.add_component("output_adapter1", OutputAdapter(template="{{ replies[-1]}}", output_type=str))
@@ -91,28 +95,32 @@ class PipelineComponent:
 
         return {"text": retvalue["waiting_component1"]}
 
+
 pipeline = Pipeline()
 pipeline.add_component("waiting_component", WaitingComponent())
-pipeline.add_component("output_adapter", OutputAdapter(template="{{ replies[-1]}}", output_type=str))
+pipeline.add_component("output_adapter", OutputAdapter(template="{{ replies[-1] }}", output_type=str))
 pipeline.add_component(name="mocked_llm_generator", instance=MockedLLMGenerator())
 pipeline.add_component(name="pipeline_component", instance=PipelineComponent())
 pipeline.add_component(name="failing_component", instance=FailComponent())
 
 pipeline.connect("mocked_llm_generator.replies", "output_adapter.replies")
-pipeline.connect("output_adapter", "failing_component.text")
+pipeline.connect("output_adapter.output", "failing_component.text_input")
 pipeline.connect("failing_component", "pipeline_component.text")
 pipeline.connect("pipeline_component.text", "waiting_component.text")
 
 
 if __name__ == "__main__":
-    print(pipeline)
-    try: 
+    logger.info(pipeline)
+    try:
         with langfuse_session():
-            pipeline.run(data={"mocked_llm_generator": {"prompt": "Hello, world!"}})
-    except:
-        pass
+            pipeline.run(
+                data={"mocked_llm_generator": {"prompt": "Hello, world!"}, "failing_component": {"should_fail": True}}
+            )
+    except RuntimeError as e:
+        logger.debug(e)
 
-    pipeline.run(data={"mocked_llm_generator": {"prompt": "Hello, world!"}, "failing_component": {"should_fail": False}})
+    pipeline.run(
+        data={"mocked_llm_generator": {"prompt": "Hello, world!"}, "failing_component": {"should_fail": False}}
+    )
 
     langfuse.flush()
-    

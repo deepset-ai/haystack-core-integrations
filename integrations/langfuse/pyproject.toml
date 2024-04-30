@@ -5,13 +5,13 @@ build-backend = "hatchling.build"
 [project]
 name = "langfuse-haystack"
 dynamic = ["version"]
-description = 'An integration for the Langfuse eLLM engineering platform.'
+description = 'A community built integration for the Langfuse LLM engineering platform.'
 readme = "README.md"
 requires-python = ">=3.8"
 license = "Apache-2.0"
 keywords = []
 authors = [
-  { name = "deepset GmbH", email = "info@deepset.ai" },
+  { name = "Alexander Gruhl", email = "gruhl.alexander@gmail.com" },
 ]
 classifiers = [
   "Development Status :: 4 - Beta",
@@ -77,9 +77,111 @@ omit = [
 langfuse_haystack = ["src/langfuse_haystack", "*/langfuse-haystack/src/langfuse_haystack"]
 tests = ["tests", "*/langfuse-haystack/tests"]
 
+[[tool.hatch.envs.all.matrix]]
+python = ["3.8", "3.9", "3.10", "3.11", "3.12"]
+
+[tool.hatch.envs.lint]
+detached = true
+dependencies = [
+  "black>=23.1.0",
+  "mypy>=1.0.0",
+  "ruff>=0.0.243",
+  "numpy"
+]
+[tool.hatch.envs.lint.scripts]
+typing = "mypy --install-types --non-interactive --explicit-package-bases {args:src/ tests}"
+style = [
+  "ruff {args:.}",
+  "black --check --diff {args:.}",
+]
+fmt = [
+  "black {args:.}",
+  "ruff --fix {args:.}",
+  "style",
+]
+all = [
+  "style",
+  "typing",
+]
+
+[tool.black]
+target-version = ["py38"]
+line-length = 120
+skip-string-normalization = true
+
+[tool.ruff]
+target-version = "py38"
+line-length = 120
+select = [
+  "A",
+  "ARG",
+  "B",
+  "C",
+  "DTZ",
+  "E",
+  "EM",
+  "F",
+  "FBT",
+  "I",
+  "ICN",
+  "ISC",
+  "N",
+  "PLC",
+  "PLE",
+  "PLR",
+  "PLW",
+  "Q",
+  "RUF",
+  "S",
+  "T",
+  "TID",
+  "UP",
+  "W",
+  "YTT",
+]
+ignore = [
+  # Allow non-abstract empty methods in abstract base classes
+  "B027",
+  # Allow boolean positional values in function calls, like `dict.get(... True)`
+  "FBT003",
+  "FBT001", "FBT002",
+  # Ignore checks for possible passwords
+  "S105", "S106", "S107",
+  # Ignore complexity
+  "C901", "PLR0911", "PLR0912", "PLR0913", "PLR0915",
+]
+unfixable = [
+  # Don't touch unused imports
+  "F401",
+]
+
+[tool.ruff.isort]
+known-first-party = ["src"]
+
+[tool.ruff.flake8-tidy-imports]
+ban-relative-imports = "parents"
+
+[tool.ruff.per-file-ignores]
+# Tests can use magic values, assertions, and relative imports
+"tests/**/*" = ["PLR2004", "S101", "TID252"]
+# examples can contain "print" commands
+"examples/**/*" = ["T201", "E501"]
+
 [tool.coverage.report]
+omit = ["*/tests/*", "*/__init__.py"]
+show_missing=true
 exclude_lines = [
   "no cov",
   "if __name__ == .__main__.:",
   "if TYPE_CHECKING:",
 ]
+
+[[tool.mypy.overrides]]
+module = [
+  "haystack.*",
+  "haystack_integrations.*",
+  "langfuse_haystack.*",
+  "pytest.*",
+  "langfuse.*"
+]
+ignore_missing_imports = true
