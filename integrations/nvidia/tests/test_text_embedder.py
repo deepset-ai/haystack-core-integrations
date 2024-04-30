@@ -151,7 +151,6 @@ class TestNvidiaTextEmbedder:
         assert all(isinstance(x, float) for x in embedding)
         assert "usage" in meta
 
-
     @pytest.mark.skipif(
         not os.environ.get("NVIDIA_CATALOG_API_KEY", None),
         reason="Export an env var called NVIDIA_CATALOG_API_KEY containing the Nvidia API key to run this test.",
