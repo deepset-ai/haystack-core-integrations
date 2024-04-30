@@ -1,6 +1,7 @@
 # SPDX-FileCopyrightText: 2023-present John Doe <jd@example.com>
 #
 # SPDX-License-Identifier: Apache-2.0
+import operator
 import uuid
 from typing import List
 from unittest import mock
@@ -56,6 +57,9 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, LegacyFilterDoc
         This can happen for example when the Document Store sets a score to returned Documents.
         Since we can't know what the score will be, we can't compare the Documents reliably.
         """
+        received.sort(key=operator.attrgetter("id"))
+        expected.sort(key=operator.attrgetter("id"))
+
         for doc_received, doc_expected in zip(received, expected):
             assert doc_received.content == doc_expected.content
             assert doc_received.meta == doc_expected.meta
