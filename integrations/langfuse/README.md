@@ -72,7 +72,7 @@ Langfuse provides a user-friendly interface to visualize and analyze the traces 
 pip install hatch
 ```
 
-With `hatch` installed, to run all the tests:
+With `hatch` installed, run all the tests:
 ```
 hatch run test
 ```
