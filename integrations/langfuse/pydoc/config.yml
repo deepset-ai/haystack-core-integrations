@@ -2,7 +2,7 @@ loaders:
   - type: haystack_pydoc_tools.loaders.CustomPythonLoader
     search_path: [../src]
     modules: [
-      "haystack_integrations.components.others.langfuse.component",
+      "haystack_integrations.components.connectors.langfuse.langfuse_connector",
       "haystack_integrations.tracing.langfuse.tracer",
     ]
     ignore_when_discovered: ["__init__"]

@@ -1,19 +1,16 @@
 import os
 
-os.environ["LANGFUSE_HOST"] = "https://cloud.langfuse.com"
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 os.environ["HAYSTACK_CONTENT_TRACING_ENABLED"] = "true"
 
 from datasets import load_dataset
-
-from haystack.document_stores.in_memory import InMemoryDocumentStore
 from haystack import Document, Pipeline
-from haystack.components.embedders import SentenceTransformersDocumentEmbedder, SentenceTransformersTextEmbedder
-from haystack.components.retrievers import InMemoryEmbeddingRetriever
-from haystack.components.generators import OpenAIGenerator
 from haystack.components.builders import PromptBuilder
-
-from haystack_integrations.components.others.langfuse import LangfuseComponent
+from haystack.components.embedders import SentenceTransformersDocumentEmbedder, SentenceTransformersTextEmbedder
+from haystack.components.generators import OpenAIGenerator
+from haystack.components.retrievers import InMemoryEmbeddingRetriever
+from haystack.document_stores.in_memory import InMemoryDocumentStore
+from haystack_integrations.components.connectors.langfuse import LangfuseConnector
 
 
 def get_pipeline(document_store: InMemoryDocumentStore):
@@ -35,7 +32,7 @@ def get_pipeline(document_store: InMemoryDocumentStore):
 
     basic_rag_pipeline = Pipeline()
     # Add components to your pipeline
-    basic_rag_pipeline.add_component("tracer", LangfuseComponent("Basic RAG Pipeline"))
+    basic_rag_pipeline.add_component("tracer", LangfuseConnector("Basic RAG Pipeline"))
     basic_rag_pipeline.add_component(
         "text_embedder", SentenceTransformersTextEmbedder(model="sentence-transformers/all-MiniLM-L6-v2")
     )
@@ -65,3 +62,4 @@ if __name__ == "__main__":
     response = pipeline.run({"text_embedder": {"text": question}, "prompt_builder": {"question": question}})
 
     print(response["llm"]["replies"][0])
+    print(response["tracer"]["trace_url"])

@@ -10,7 +10,7 @@ from haystack.components.generators.chat import OpenAIChatGenerator
 from haystack.dataclasses import ChatMessage
 from requests.auth import HTTPBasicAuth
 
-from haystack_integrations.components.others.langfuse import LangfuseComponent
+from haystack_integrations.components.connectors.langfuse import LangfuseConnector
 
 
 @pytest.mark.integration
@@ -21,7 +21,7 @@ from haystack_integrations.components.others.langfuse import LangfuseComponent
 def test_tracing_integration():
 
     pipe = Pipeline()
-    pipe.add_component("tracer", LangfuseComponent("Chat example"))
+    pipe.add_component("tracer", LangfuseConnector("Chat example"))
     pipe.add_component("prompt_builder", DynamicChatPromptBuilder())
     pipe.add_component("llm", OpenAIChatGenerator(model="gpt-3.5-turbo"))
 

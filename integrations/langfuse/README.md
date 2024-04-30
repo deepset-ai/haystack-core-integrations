@@ -37,11 +37,11 @@ from haystack.components.generators.chat import OpenAIChatGenerator
 from haystack.dataclasses import ChatMessage
 from haystack import Pipeline
 
-from haystack_integrations.components.others.langfuse import LangfuseComponent
+from haystack_integrations.components.connectors.langfuse import LangfuseConnector
 
 if __name__ == "__main__":
     pipe = Pipeline()
-    pipe.add_component("tracer", LangfuseComponent("Chat example"))
+    pipe.add_component("tracer", LangfuseConnector("Chat example"))
     pipe.add_component("prompt_builder", DynamicChatPromptBuilder())
     pipe.add_component("llm", OpenAIChatGenerator(model="gpt-3.5-turbo"))
 

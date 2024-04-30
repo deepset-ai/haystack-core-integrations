@@ -5,7 +5,7 @@ from langfuse import Langfuse
 
 
 @component
-class LangfuseComponent:
+class LangfuseConnector:
     def __init__(self, name: str):
         self.name = name
         self.tracer = LangfuseTracer(Langfuse(), name)
