@@ -77,7 +77,7 @@ With `hatch` installed, to run all the tests:
 hatch run test
 ```
 
-To run the linters `ruff` and `mypy`:
+Run the linters `ruff` and `mypy`:
 ```
 hatch run lint:all
 ```
