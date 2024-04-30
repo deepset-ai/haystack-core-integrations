@@ -38,10 +38,8 @@ Source = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/int
 packages = ["src/haystack_integrations"]
 
 [tool.hatch.version]
-# Remove the following line and uncomment the others to enable git versioning
-path = "src/haystack_integrations/components/others/langfuse/__about__.py"
-# source = "vcs"
-# tag-pattern = 'integrations\/langfuse-v(?P<version>.*)'
+source = "vcs"
+tag-pattern = 'integrations\/langfuse-v(?P<version>.*)'
 
 
 [tool.hatch.version.raw-options]
