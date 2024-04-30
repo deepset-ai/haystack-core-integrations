@@ -150,3 +150,24 @@ class TestNvidiaTextEmbedder:
 
         assert all(isinstance(x, float) for x in embedding)
         assert "usage" in meta
+
+
+    @pytest.mark.skipif(
+        not os.environ.get("NVIDIA_CATALOG_API_KEY", None),
+        reason="Export an env var called NVIDIA_CATALOG_API_KEY containing the Nvidia API key to run this test.",
+    )
+    @pytest.mark.integration
+    def test_run_integration_with_api_catalog(self):
+        embedder = NvidiaTextEmbedder(
+            model="NV-Embed-QA",
+            api_url="https://ai.api.nvidia.com/v1/retrieval/nvidia",
+            api_key=Secret.from_env_var("NVIDIA_CATALOG_API_KEY"),
+        )
+        embedder.warm_up()
+
+        result = embedder.run("A transformer is a deep learning architecture")
+        embedding = result["embedding"]
+        meta = result["meta"]
+
+        assert all(isinstance(x, float) for x in embedding)
+        assert "usage" in meta

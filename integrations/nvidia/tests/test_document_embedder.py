@@ -355,3 +355,30 @@ class TestNvidiaDocumentEmbedder:
         for doc in docs_with_embeddings:
             assert isinstance(doc.embedding, list)
             assert isinstance(doc.embedding[0], float)
+
+    @pytest.mark.skipif(
+        not os.environ.get("NVIDIA_CATALOG_API_KEY", None),
+        reason="Export an env var called NVIDIA_CATALOG_API_KEY containing the Nvidia API key to run this test.",
+    )
+    @pytest.mark.integration
+    def test_run_integration_with_api_catalog(self):
+        embedder = NvidiaDocumentEmbedder(
+            model="NV-Embed-QA",
+            api_url="https://ai.api.nvidia.com/v1/retrieval/nvidia",
+            api_key=Secret.from_env_var("NVIDIA_CATALOG_API_KEY"),
+        )
+        embedder.warm_up()
+
+        docs = [
+            Document(content="I love cheese", meta={"topic": "Cuisine"}),
+            Document(content="A transformer is a deep learning architecture", meta={"topic": "ML"}),
+        ]
+
+        result = embedder.run(docs)
+        docs_with_embeddings = result["documents"]
+
+        assert isinstance(docs_with_embeddings, list)
+        assert len(docs_with_embeddings) == len(docs)
+        for doc in docs_with_embeddings:
+            assert isinstance(doc.embedding, list)
+            assert isinstance(doc.embedding[0], float)
