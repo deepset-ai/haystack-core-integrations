@@ -55,7 +55,7 @@ class ChromaQueryTextRetriever:
     def run(
         self,
         query: str,
-        _: Optional[Dict[str, Any]] = None,  # filters not yet supported
+        filters: Optional[Dict[str, Any]] = None,
         top_k: Optional[int] = None,
     ):
         """
@@ -64,6 +64,7 @@ class ChromaQueryTextRetriever:
         :param query: The input data for the retriever. In this case, a plain-text query.
         :param top_k: The maximum number of documents to retrieve.
             If not specified, the default value from the constructor is used.
+        :param filters: a dictionary of filters to apply to the search. Accepts filters in haystack format.
         :returns: A dictionary with the following keys:
             - `documents`: List of documents returned by the search engine.
 
@@ -71,7 +72,7 @@ class ChromaQueryTextRetriever:
         """
         top_k = top_k or self.top_k
 
-        return {"documents": self.document_store.search([query], top_k)[0]}
+        return {"documents": self.document_store.search([query], top_k, filters)[0]}
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "ChromaQueryTextRetriever":
