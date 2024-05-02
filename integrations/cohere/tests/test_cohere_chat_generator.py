@@ -14,7 +14,7 @@ pytestmark = pytest.mark.chat_generators
 @pytest.fixture
 def mock_chat_response():
     """
-    Mock the CohereI API response and reuse it for tests
+    Mock the Cohere API response and reuse it for tests
     """
     with patch("cohere.Client.chat", autospec=True) as mock_chat_response:
         # mimic the response from the Cohere API
@@ -33,6 +33,27 @@ def mock_chat_response():
         }
         mock_chat_response.return_value = mock_response
         yield mock_chat_response
+
+
+@pytest.fixture
+def mock_chat_streaming_response():
+    with patch("cohere.Client.chat_stream", autospec=True) as mock_chat_stream_response:
+        # mimic the response from the Cohere API
+
+        mock_response = Mock()
+        mock_response.text = "I'm fine, thanks."
+        mock_response.token_count = {
+            "prompt_tokens": 66,
+            "response_tokens": 78,
+            "total_tokens": 144,
+            "billed_tokens": 133,
+        }
+        mock_response.meta = {
+            "api_version": {"version": "1"},
+            "billed_units": {"input_tokens": 55, "output_tokens": 78},
+        }
+        mock_chat_stream_response.return_value = mock_response
+        yield mock_chat_stream_response
 
 
 def streaming_chunk(text: str):
@@ -60,7 +81,7 @@ class TestCohereChatGenerator:
         assert component.api_key == Secret.from_env_var(["COHERE_API_KEY", "CO_API_KEY"])
         assert component.model == "command"
         assert component.streaming_callback is None
-        assert component.api_base_url == cohere.COHERE_API_URL
+        assert component.api_base_url == "https://api.cohere.com"
         assert not component.generation_kwargs
 
     def test_init_fail_wo_api_key(self, monkeypatch):
@@ -93,7 +114,7 @@ class TestCohereChatGenerator:
                 "model": "command",
                 "streaming_callback": None,
                 "api_key": {"env_vars": ["COHERE_API_KEY", "CO_API_KEY"], "strict": True, "type": "env_var"},
-                "api_base_url": "https://api.cohere.ai",
+                "api_base_url": "https://api.cohere.com",
                 "generation_kwargs": {},
             },
         }
@@ -209,7 +230,7 @@ class TestCohereChatGenerator:
         assert len(response["replies"]) == 1
         assert [isinstance(reply, ChatMessage) for reply in response["replies"]]
 
-    def test_run_streaming(self, chat_messages, mock_chat_response):
+    def test_run_streaming(self, chat_messages, mock_chat_streaming_response):
         streaming_call_count = 0
 
         # Define the streaming callback function and assert that it is called with StreamingChunk objects
@@ -229,7 +250,7 @@ class TestCohereChatGenerator:
             yield streaming_chunk("How are you?")
 
         mock_response = Mock(**{"__iter__": mock_iter})
-        mock_chat_response.return_value = mock_response
+        mock_chat_streaming_response.return_value = mock_response
 
         response = generator.run(chat_messages)
 
