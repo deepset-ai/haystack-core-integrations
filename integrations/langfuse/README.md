@@ -59,7 +59,7 @@ if __name__ == "__main__":
     print(response["tracer"]["trace_url"])
 ```
 
-In this example, we add the `LangfuseComponent` to the pipeline with the name "tracer". Each run of the pipeline produces one trace viewable on the Langfuse website with a specific URL. The trace captures the entire execution context, including the prompts, completions, and metadata.
+In this example, we add the `LangfuseConnector` to the pipeline with the name "tracer". Each run of the pipeline produces one trace viewable on the Langfuse website with a specific URL. The trace captures the entire execution context, including the prompts, completions, and metadata.
 
 ## Trace Visualization
 
