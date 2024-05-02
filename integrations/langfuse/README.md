@@ -23,7 +23,11 @@ pip install langfuse-haystack
 
 ## Usage
 
-To enable tracing in your Haystack pipeline, add the `LangfuseConnector` to your pipeline. Here's an example:
+To enable tracing in your Haystack pipeline, add the `LangfuseConnector` to your pipeline.
+You also need to set the `LANGFUSE_SECRET_KEY` and `LANGFUSE_PUBLIC_KEY` environment variables in order to connect to Langfuse account.
+You can get these keys by signing up for an account on the Langfuse website.
+
+Here's an example:
 
 ```python
 import os

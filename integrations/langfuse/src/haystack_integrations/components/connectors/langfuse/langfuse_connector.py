@@ -13,6 +13,13 @@ class LangfuseConnector:
     Simply add this component to your pipeline, but *do not* connect it to any other component. The LangfuseConnector
     will automatically trace the operations and data flow within the pipeline.
 
+    Note that you need to set the `LANGFUSE_SECRET_KEY` and `LANGFUSE_PUBLIC_KEY` environment variables in order
+    to use this component. The `LANGFUSE_SECRET_KEY` and `LANGFUSE_PUBLIC_KEY` are the secret and public keys provided by
+    Langfuse. You can get these keys by signing up for an account on the Langfuse website.
+
+    In addition, you need to set the `HAYSTACK_CONTENT_TRACING_ENABLED` environment variable to `true` in order to enable
+    Haystack tracing in your pipeline.
+
     Here is an example of how to use it:
 
     ```python
