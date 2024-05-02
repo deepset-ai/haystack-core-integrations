@@ -3,66 +3,84 @@ requires = ["hatchling", "hatch-vcs"]
 build-backend = "hatchling.build"
 
 [project]
-name = "cohere-haystack"
+name = "langfuse-haystack"
 dynamic = ["version"]
 description = ''
 readme = "README.md"
 requires-python = ">=3.8"
 license = "Apache-2.0"
 keywords = []
-authors = [{ name = "deepset GmbH", email = "info@deepset.ai" }]
+authors = [
+  { name = "deepset GmbH", email = "info@deepset.ai" },
+]
 classifiers = [
-  "License :: OSI Approved :: Apache Software License",
   "Development Status :: 4 - Beta",
   "Programming Language :: Python",
   "Programming Language :: Python :: 3.8",
   "Programming Language :: Python :: 3.9",
   "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
 dependencies = [
   "haystack-ai",
-  "cohere==5.*",
+  "langfuse"
 ]
 
 [project.urls]
-Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/cohere#readme"
+Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/langfuse#readme"
 Issues = "https://github.com/deepset-ai/haystack-core-integrations/issues"
-Source = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/cohere"
+Source = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/langfuse"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/haystack_integrations"]
 
 [tool.hatch.version]
 source = "vcs"
-tag-pattern = 'integrations\/cohere-v(?P<version>.*)'
+tag-pattern = 'integrations\/langfuse-v(?P<version>.*)'
+
 
 [tool.hatch.version.raw-options]
 root = "../.."
-git_describe_command = 'git describe --tags --match="integrations/cohere-v[0-9]*"'
+git_describe_command = 'git describe --tags --match="integrations/langfuse-v[0-9]*"'
 
 [tool.hatch.envs.default]
-dependencies = ["coverage[toml]>=6.5", "pytest", "haystack-pydoc-tools"]
+dependencies = [
+  "coverage[toml]>=6.5",
+  "pytest",
+  "haystack-pydoc-tools",
+]
 [tool.hatch.envs.default.scripts]
 test = "pytest {args:tests}"
 test-cov = "coverage run -m pytest {args:tests}"
-cov-report = ["- coverage combine", "coverage report"]
-cov = ["test-cov", "cov-report"]
+cov-report = [
+  "- coverage combine",
+  "coverage report",
+]
+cov = [
+  "test-cov",
+  "cov-report",
+]
 docs = ["pydoc-markdown pydoc/config.yml"]
 
+
 [[tool.hatch.envs.all.matrix]]
-python = ["3.8", "3.9", "3.10", "3.11"]
+python = ["3.8", "3.9", "3.10", "3.11", "3.12"]
 
 [tool.hatch.envs.lint]
 detached = true
 dependencies = ["black>=23.1.0", "mypy>=1.0.0", "ruff>=0.0.243"]
+
 [tool.hatch.envs.lint.scripts]
 typing = "mypy --install-types --non-interactive --explicit-package-bases {args:src/ tests}"
-style = ["ruff {args:.}", "black --check --diff {args:.}"]
+style = ["ruff check {args:.}", "black --check --diff {args:.}"]
 fmt = ["black {args:.}", "ruff --fix {args:.}", "style"]
 all = ["style", "typing"]
+
+[tool.hatch.metadata]
+allow-direct-references = true
 
 [tool.black]
 target-version = ["py38"]
@@ -72,7 +90,7 @@ skip-string-normalization = true
 [tool.ruff]
 target-version = "py38"
 line-length = 120
-select = [
+lint.select = [
   "A",
   "ARG",
   "B",
@@ -98,7 +116,8 @@ select = [
   "W",
   "YTT",
 ]
-ignore = [
+
+lint.ignore = [
   # Allow non-abstract empty methods in abstract base classes
   "B027",
   # Ignore checks for possible passwords
@@ -111,24 +130,27 @@ ignore = [
   "PLR0912",
   "PLR0913",
   "PLR0915",
-  # Misc
-  "B008",
+  # Asserts
   "S101",
 ]
-unfixable = [
+lint.unfixable = [
   # Don't touch unused imports
   "F401",
 ]
+extend-exclude = ["tests", "example"]
 
-[tool.ruff.isort]
+[tool.ruff.lint.isort]
 known-first-party = ["src"]
 
-[tool.ruff.flake8-tidy-imports]
+[tool.ruff.lint.flake8-tidy-imports]
 ban-relative-imports = "parents"
 
-[tool.ruff.per-file-ignores]
+[tool.ruff.lint.per-file-ignores]
 # Tests can use magic values, assertions, and relative imports
 "tests/**/*" = ["PLR2004", "S101", "TID252"]
+# Examples can print their output
+"examples/**" = ["T201"]
+"tests/**" = ["T201"]
 
 [tool.coverage.run]
 source = ["haystack_integrations"]
@@ -145,10 +167,9 @@ exclude_lines = [
   "if TYPE_CHECKING:",
 ]
 
-
 [[tool.mypy.overrides]]
 module = [
-  "cohere.*",
+  "langfuse.*",
   "haystack.*",
   "haystack_integrations.*",
   "pytest.*",
@@ -160,10 +181,5 @@ ignore_missing_imports = true
 addopts = "--strict-markers"
 markers = [
   "integration: integration tests",
-  "unit: unit tests",
-  "embedders: embedders tests",
-  "generators: generators tests",
-  "chat_generators: chat_generators tests",
-  "ranker: ranker tests"
 ]
 log_cli = true
