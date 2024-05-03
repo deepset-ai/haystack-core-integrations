@@ -1,7 +1,7 @@
 from typing import Any, Dict, List, Optional, Tuple
 
 import requests
-from haystack.utils.auth import Secret
+from haystack.utils import Secret
 
 from .backend import GeneratorBackend
 
@@ -32,7 +32,7 @@ class NimBackend(GeneratorBackend):
         self.model_kwargs = model_kwargs or {}
 
     def generate(self, prompt: str) -> Tuple[List[str], List[Dict[str, Any]]]:
-        # We're using the chat completion endpoint as the NVidia API doesn't support
+        # We're using the chat completion endpoint as the NIM API doesn't support
         # the /completions endpoint. So both the non-chat and chat generator will use this.
         # This is the same for local containers and the cloud API.
         url = f"{self.api_url}/chat/completions"

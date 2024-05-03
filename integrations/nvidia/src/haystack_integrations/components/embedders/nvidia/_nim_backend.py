@@ -1,7 +1,7 @@
 from typing import Any, Dict, List, Optional, Tuple
 
 import requests
-from haystack.utils.auth import Secret
+from haystack.utils import Secret
 
 from .backend import EmbedderBackend
 
