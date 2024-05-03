@@ -1,9 +1,8 @@
 import os
-from unittest.mock import Mock, patch
+from unittest.mock import Mock
 
-from cohere.core import ApiError
 import pytest
-
+from cohere.core import ApiError
 from haystack.components.generators.utils import print_streaming_chunk
 from haystack.dataclasses import ChatMessage, ChatRole, StreamingChunk
 from haystack.utils import Secret

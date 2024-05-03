@@ -2,14 +2,14 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 import logging
-from typing import Any, Callable, Dict, List, Optional, cast
+from typing import Any, Callable, Dict, List, Optional
 
 from haystack import component, default_from_dict, default_to_dict
 from haystack.components.generators.utils import deserialize_callback_handler, serialize_callback_handler
 from haystack.dataclasses import StreamingChunk
 from haystack.utils import Secret, deserialize_secrets_inplace
 
-from cohere import Client, Generation
+from cohere import Client
 
 logger = logging.getLogger(__name__)
 
@@ -152,7 +152,6 @@ class CohereGenerator:
             return {"replies": [generated_text], "meta": [metadata_dict]}
 
         response = self.client.generate(model=self.model, prompt=prompt, **self.model_parameters)
-        print(response)
         metadata = {"finish_reason": response.finish_reason}
         if response.finish_reason == "MAX_TOKENS":
             logger.warning(

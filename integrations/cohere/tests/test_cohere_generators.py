@@ -5,7 +5,6 @@ import os
 
 import pytest
 from cohere.core import ApiError
-
 from haystack.components.generators.utils import print_streaming_chunk
 from haystack.utils import Secret
 from haystack_integrations.components.generators.cohere import CohereGenerator
@@ -140,8 +139,6 @@ class TestCohereGenerator:
     )
     @pytest.mark.integration
     def test_cohere_generator_run_wrong_model(self):
-        import cohere
-
         component = CohereGenerator(model="something-obviously-wrong")
         with pytest.raises(ApiError):
             component.run(prompt="What's the capital of France?")
