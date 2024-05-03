@@ -24,7 +24,6 @@ class TestCohereTextEmbedder:
         assert embedder.api_base_url == COHERE_API_URL
         assert embedder.truncate == "END"
         assert embedder.use_async_client is False
-        assert embedder.max_retries == 3
         assert embedder.timeout == 120
 
     def test_init_with_parameters(self):
@@ -38,7 +37,6 @@ class TestCohereTextEmbedder:
             api_base_url="https://custom-api-base-url.com",
             truncate="START",
             use_async_client=True,
-            max_retries=5,
             timeout=60,
         )
         assert embedder.api_key == Secret.from_token("test-api-key")
@@ -47,7 +45,6 @@ class TestCohereTextEmbedder:
         assert embedder.api_base_url == "https://custom-api-base-url.com"
         assert embedder.truncate == "START"
         assert embedder.use_async_client is True
-        assert embedder.max_retries == 5
         assert embedder.timeout == 60
 
     def test_to_dict(self):
@@ -65,7 +62,6 @@ class TestCohereTextEmbedder:
                 "api_base_url": COHERE_API_URL,
                 "truncate": "END",
                 "use_async_client": False,
-                "max_retries": 3,
                 "timeout": 120,
             },
         }
@@ -81,7 +77,6 @@ class TestCohereTextEmbedder:
             api_base_url="https://custom-api-base-url.com",
             truncate="START",
             use_async_client=True,
-            max_retries=5,
             timeout=60,
         )
         component_dict = embedder_component.to_dict()
@@ -94,7 +89,6 @@ class TestCohereTextEmbedder:
                 "api_base_url": "https://custom-api-base-url.com",
                 "truncate": "START",
                 "use_async_client": True,
-                "max_retries": 5,
                 "timeout": 60,
             },
         }

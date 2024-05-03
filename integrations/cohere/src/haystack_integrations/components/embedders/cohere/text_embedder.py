@@ -39,7 +39,6 @@ class CohereTextEmbedder:
         api_base_url: str = "https://api.cohere.com",
         truncate: str = "END",
         use_async_client: bool = False,
-        max_retries: int = 3,
         timeout: int = 120,
     ):
         """
@@ -60,7 +59,6 @@ class CohereTextEmbedder:
             If "NONE" is selected, when the input exceeds the maximum input token length an error will be returned.
         :param use_async_client: flag to select the AsyncClient. It is recommended to use
             AsyncClient for applications with many concurrent calls.
-        :param max_retries: maximum number of retries for requests.
         :param timeout: request timeout in seconds.
         """
 
@@ -70,7 +68,6 @@ class CohereTextEmbedder:
         self.api_base_url = api_base_url
         self.truncate = truncate
         self.use_async_client = use_async_client
-        self.max_retries = max_retries
         self.timeout = timeout
 
     def to_dict(self) -> Dict[str, Any]:
@@ -88,7 +85,6 @@ class CohereTextEmbedder:
             api_base_url=self.api_base_url,
             truncate=self.truncate,
             use_async_client=self.use_async_client,
-            max_retries=self.max_retries,
             timeout=self.timeout,
         )
 
@@ -132,7 +128,6 @@ class CohereTextEmbedder:
             cohere_client = AsyncClient(
                 api_key,
                 base_url=self.api_base_url,
-                max_retries=self.max_retries,
                 timeout=self.timeout,
                 client_name="haystack",
             )
@@ -143,7 +138,6 @@ class CohereTextEmbedder:
             cohere_client = Client(
                 api_key,
                 base_url=self.api_base_url,
-                max_retries=self.max_retries,
                 timeout=self.timeout,
                 client_name="haystack",
             )

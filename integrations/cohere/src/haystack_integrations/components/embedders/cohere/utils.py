@@ -62,7 +62,7 @@ def get_response(
         desc="Calculating embeddings",
     ):
         batch = texts[i : i + batch_size]
-        response = cohere_client.embed(batch, model=model_name, input_type=input_type, truncate=truncate)
+        response = cohere_client.embed(texts=batch, model=model_name, input_type=input_type, truncate=truncate)
         for emb in response.embeddings:
             all_embeddings.append(emb)
         if response.meta is not None:
