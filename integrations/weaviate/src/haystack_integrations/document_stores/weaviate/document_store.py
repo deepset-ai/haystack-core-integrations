@@ -166,7 +166,9 @@ class WeaviateDocumentStore:
             }
         else:
             # Set the class if not set
-            collection_settings["class"] = collection_settings.get("class", "default").capitalize()
+            _class_name = collection_settings.get("class", "Default")
+            _class_name = _class_name[0].upper() + _class_name[1:]
+            collection_settings["class"] = _class_name
             # Set the properties if they're not set
             collection_settings["properties"] = collection_settings.get("properties", DOCUMENT_COLLECTION_PROPERTIES)
 
