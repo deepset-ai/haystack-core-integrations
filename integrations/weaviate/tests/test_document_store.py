@@ -679,5 +679,3 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
             collection_settings=collection_settings,
         )
         assert doc_score._collection_settings["class"] == "Lower_case_name"
-
-
