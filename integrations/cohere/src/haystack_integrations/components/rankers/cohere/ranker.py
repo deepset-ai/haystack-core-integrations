@@ -36,7 +36,7 @@ class CohereRanker:
         model: str = "rerank-english-v2.0",
         top_k: int = 10,
         api_key: Secret = Secret.from_env_var(["COHERE_API_KEY", "CO_API_KEY"]),
-        api_base_url: str = cohere.COHERE_API_URL,
+        api_base_url: str = "https://api.cohere.com",
         max_chunks_per_doc: Optional[int] = None,
         meta_fields_to_embed: Optional[List[str]] = None,
         meta_data_separator: str = "\n",
@@ -66,7 +66,7 @@ class CohereRanker:
         self.meta_fields_to_embed = meta_fields_to_embed or []
         self.meta_data_separator = meta_data_separator
         self._cohere_client = cohere.Client(
-            api_key=self.api_key.resolve_value(), api_url=self.api_base_url, client_name="haystack"
+            api_key=self.api_key.resolve_value(), base_url=self.api_base_url, client_name="haystack"
         )
 
     def to_dict(self) -> Dict[str, Any]:

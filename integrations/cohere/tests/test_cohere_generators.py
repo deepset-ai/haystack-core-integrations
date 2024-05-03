@@ -4,12 +4,12 @@
 import os
 
 import pytest
-from cohere import COHERE_API_URL
 from haystack.components.generators.utils import print_streaming_chunk
 from haystack.utils import Secret
 from haystack_integrations.components.generators.cohere import CohereGenerator
 
 pytestmark = pytest.mark.generators
+COHERE_API_URL = "https://api.cohere.com"
 
 
 class TestCohereGenerator:

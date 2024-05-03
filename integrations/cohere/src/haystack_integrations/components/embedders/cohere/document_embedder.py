@@ -8,7 +8,7 @@ from haystack import Document, component, default_from_dict, default_to_dict
 from haystack.utils import Secret, deserialize_secrets_inplace
 from haystack_integrations.components.embedders.cohere.utils import get_async_response, get_response
 
-from cohere import COHERE_API_URL, AsyncClient, Client
+from cohere import AsyncClient, Client
 
 
 @component
@@ -39,7 +39,7 @@ class CohereDocumentEmbedder:
         api_key: Secret = Secret.from_env_var(["COHERE_API_KEY", "CO_API_KEY"]),
         model: str = "embed-english-v2.0",
         input_type: str = "search_document",
-        api_base_url: str = COHERE_API_URL,
+        api_base_url: str = "https://api.cohere.com",
         truncate: str = "END",
         use_async_client: bool = False,
         max_retries: int = 3,
@@ -169,7 +169,7 @@ class CohereDocumentEmbedder:
         if self.use_async_client:
             cohere_client = AsyncClient(
                 api_key,
-                api_url=self.api_base_url,
+                base_url=self.api_base_url,
                 max_retries=self.max_retries,
                 timeout=self.timeout,
                 client_name="haystack",
@@ -180,7 +180,7 @@ class CohereDocumentEmbedder:
         else:
             cohere_client = Client(
                 api_key,
-                api_url=self.api_base_url,
+                base_url=self.api_base_url,
                 max_retries=self.max_retries,
                 timeout=self.timeout,
                 client_name="haystack",

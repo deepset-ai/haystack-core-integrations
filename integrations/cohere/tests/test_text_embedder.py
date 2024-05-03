@@ -4,11 +4,11 @@
 import os
 
 import pytest
-from cohere import COHERE_API_URL
 from haystack.utils import Secret
 from haystack_integrations.components.embedders.cohere import CohereTextEmbedder
 
 pytestmark = pytest.mark.embedders
+COHERE_API_URL = "https://api.cohere.com"
 
 
 class TestCohereTextEmbedder:

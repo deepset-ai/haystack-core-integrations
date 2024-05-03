@@ -82,7 +82,7 @@ class CohereChatGenerator:
         cohere_import.check()
 
         if not api_base_url:
-            api_base_url = cohere.COHERE_API_URL
+            api_base_url = "https://api.cohere.com"
         if generation_kwargs is None:
             generation_kwargs = {}
         self.api_key = api_key
@@ -92,7 +92,7 @@ class CohereChatGenerator:
         self.generation_kwargs = generation_kwargs
         self.model_parameters = kwargs
         self.client = cohere.Client(
-            api_key=self.api_key.resolve_value(), api_url=self.api_base_url, client_name="haystack"
+            api_key=self.api_key.resolve_value(), base_url=self.api_base_url, client_name="haystack"
         )
 
     def _get_telemetry_data(self) -> Dict[str, Any]:
@@ -156,14 +156,13 @@ class CohereChatGenerator:
         # update generation kwargs by merging with the generation kwargs passed to the run method
         generation_kwargs = {**self.generation_kwargs, **(generation_kwargs or {})}
         chat_history = [self._message_to_dict(m) for m in messages[:-1]]
-        response = self.client.chat(
-            message=messages[-1].content,
-            model=self.model,
-            stream=self.streaming_callback is not None,
-            chat_history=chat_history,
-            **generation_kwargs,
-        )
         if self.streaming_callback:
+            response = self.client.chat_stream(
+                message=messages[-1].content,
+                model=self.model,
+                chat_history=chat_history,
+                **generation_kwargs,
+            )
             for chunk in response:
                 if chunk.event_type == "text-generation":
                     stream_chunk = self._build_chunk(chunk)
@@ -180,6 +179,12 @@ class CohereChatGenerator:
                 }
             )
         else:
+            response = self.client.chat(
+                message=messages[-1].content,
+                model=self.model,
+                chat_history=chat_history,
+                **generation_kwargs,
+            )
             chat_message = self._build_message(response)
         return {"replies": [chat_message]}
 
