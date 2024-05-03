@@ -4,8 +4,6 @@ on:
   push:
     tags:
       - "**-v[0-9].[0-9]+.[0-9]+"
-    branches:
-      - sync-debug
 
   workflow_dispatch: # Activate this workflow manually
     inputs:
@@ -16,8 +14,7 @@ on:
         default: integrations/<INTEGRATION_FOLDER_NAME>-v1.0.0
 
 env:
-  # TAG: ${{ inputs.tag || github.ref_name }}
-  TAG: integrations/cohere-v1.0.0
+  TAG: ${{ inputs.tag || github.ref_name }}
 
 jobs:
   get-versions:
