@@ -21,7 +21,6 @@ class TestCohereDocumentEmbedder:
         assert embedder.api_base_url == COHERE_API_URL
         assert embedder.truncate == "END"
         assert embedder.use_async_client is False
-        assert embedder.max_retries == 3
         assert embedder.timeout == 120
         assert embedder.batch_size == 32
         assert embedder.progress_bar is True
@@ -36,7 +35,6 @@ class TestCohereDocumentEmbedder:
             api_base_url="https://custom-api-base-url.com",
             truncate="START",
             use_async_client=True,
-            max_retries=5,
             timeout=60,
             batch_size=64,
             progress_bar=False,
@@ -49,7 +47,6 @@ class TestCohereDocumentEmbedder:
         assert embedder.api_base_url == "https://custom-api-base-url.com"
         assert embedder.truncate == "START"
         assert embedder.use_async_client is True
-        assert embedder.max_retries == 5
         assert embedder.timeout == 60
         assert embedder.batch_size == 64
         assert embedder.progress_bar is False
@@ -68,7 +65,6 @@ class TestCohereDocumentEmbedder:
                 "api_base_url": COHERE_API_URL,
                 "truncate": "END",
                 "use_async_client": False,
-                "max_retries": 3,
                 "timeout": 120,
                 "batch_size": 32,
                 "progress_bar": True,
@@ -85,7 +81,6 @@ class TestCohereDocumentEmbedder:
             api_base_url="https://custom-api-base-url.com",
             truncate="START",
             use_async_client=True,
-            max_retries=5,
             timeout=60,
             batch_size=64,
             progress_bar=False,
@@ -102,7 +97,6 @@ class TestCohereDocumentEmbedder:
                 "api_base_url": "https://custom-api-base-url.com",
                 "truncate": "START",
                 "use_async_client": True,
-                "max_retries": 5,
                 "timeout": 60,
                 "batch_size": 64,
                 "progress_bar": False,

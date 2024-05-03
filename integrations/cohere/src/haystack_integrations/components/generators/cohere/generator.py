@@ -75,6 +75,10 @@ class CohereGenerator:
             - 'logit_bias': Used to prevent the model from generating unwanted tokens or to incentivize it to include
                 desired tokens. The format is {token_id: bias} where bias is a float between -10 and 10.
         """
+        logger.warning(
+            "The 'generate' API is marked as Legacy and is no longer maintained by Cohere. "
+            "We recommend to use the CohereChatGenerator instead."
+        )
         if not api_base_url:
             api_base_url = "https://api.cohere.com"
 
@@ -132,20 +136,30 @@ class CohereGenerator:
         if self.streaming_callback:
             response = self.client.generate_stream(model=self.model, prompt=prompt, **self.model_parameters)
             metadata_dict: Dict[str, Any] = {}
-            for chunk in response:
-                stream_chunk = self._build_chunk(chunk)
-                self.streaming_callback(stream_chunk)
-            replies = response.texts
-            metadata_dict["finish_reason"] = response.finish_reason
-            metadata = [metadata_dict]
-            self._check_truncated_answers(metadata)
-            return {"replies": replies, "meta": metadata}
+            generated_text = ""
+            for event in response:
+                if event.event_type == "text-generation":
+                    generated_text += event.text
+                    stream_chunk = self._build_chunk(event)
+                    self.streaming_callback(stream_chunk)
+                elif event.event_type == "stream-end":
+                    metadata_dict["finish_reason"] = event.finish_reason
+                    if event.finish_reason == "MAX_TOKENS":
+                        logger.warning(
+                            "Responses have been truncated before reaching a natural stopping point. "
+                            "Increase the max_tokens parameter to allow for longer completions."
+                        )
+            return {"replies": [generated_text], "meta": [metadata_dict]}
 
         response = self.client.generate(model=self.model, prompt=prompt, **self.model_parameters)
-        metadata = [{"finish_reason": resp.finish_reason} for resp in cast(Generation, response)]
-        replies = [resp.text for resp in response]
-        self._check_truncated_answers(metadata)
-        return {"replies": replies, "meta": metadata}
+        print(response)
+        metadata = {"finish_reason": response.finish_reason}
+        if response.finish_reason == "MAX_TOKENS":
+            logger.warning(
+                "Responses have been truncated before reaching a natural stopping point. "
+                "Increase the max_tokens parameter to allow for longer completions."
+            )
+        return {"replies": [response.text], "meta": [metadata]}
 
     def _build_chunk(self, chunk) -> StreamingChunk:
         """
@@ -155,15 +169,3 @@ class CohereGenerator:
         """
         streaming_chunk = StreamingChunk(content=chunk.text, meta={"index": chunk.index})
         return streaming_chunk
-
-    def _check_truncated_answers(self, metadata: List[Dict[str, Any]]):
-        """
-        Check the `finish_reason` returned with the Cohere response.
-        If the `finish_reason` is `MAX_TOKEN`, log a warning to the user.
-        :param metadata: The metadata returned by the Cohere API.
-        """
-        if metadata[0]["finish_reason"] == "MAX_TOKENS":
-            logger.warning(
-                "Responses have been truncated before reaching a natural stopping point. "
-                "Increase the max_tokens parameter to allow for longer completions."
-            )
