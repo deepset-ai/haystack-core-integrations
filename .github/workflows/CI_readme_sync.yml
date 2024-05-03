@@ -4,6 +4,9 @@ on:
   push:
     tags:
       - "**-v[0-9].[0-9]+.[0-9]+"
+    branches:
+      - sync-debug
+
   workflow_dispatch: # Activate this workflow manually
     inputs:
       tag:
@@ -13,7 +16,8 @@ on:
         default: integrations/<INTEGRATION_FOLDER_NAME>-v1.0.0
 
 env:
-  TAG: ${{ inputs.tag || github.ref_name }}
+  # TAG: ${{ inputs.tag || github.ref_name }}
+  TAG: integrations/cohere-v1.0.0
 
 jobs:
   get-versions:
@@ -24,7 +28,7 @@ jobs:
       - name: Get Haystack Docs versions
         id: version_finder
         run: |
-          curl https://dash.readme.com/api/v1/version --header 'authorization: Basic ${{ secrets.README_API_KEY }}' > out
+          curl -s https://dash.readme.com/api/v1/version --header 'authorization: Basic ${{ secrets.README_API_KEY }}' > out
           VERSIONS=$(jq '[ .[] | select(.version | startswith("2."))| .version ]' out)
           echo "versions=$VERSIONS" >> "$GITHUB_OUTPUT"
 
