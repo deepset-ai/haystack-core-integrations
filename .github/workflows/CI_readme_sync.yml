@@ -18,6 +18,11 @@ env:
 jobs:
   sync:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        hs-docs-version: ['2.0', '2.1', '2.2-unstable']
     steps:
       - name: Checkout this repo
         uses: actions/checkout@v4
@@ -39,7 +44,7 @@ jobs:
           import os
           project_path = os.environ["TAG"].rsplit("-", maxsplit=1)[0]
           with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
-            print(f'project_path={project_path}', file=f)          
+            print(f'project_path={project_path}', file=f)
 
       - name: Generate docs
         working-directory: ${{ steps.pathfinder.outputs.project_path }}
@@ -54,7 +59,7 @@ jobs:
           find . -name "_readme_*.md" -exec cp "{}" tmp \;
           ls tmp
 
-      - name: Sync API docs
+      - name: Sync API docs with Haystack docs version ${{ matrix.hs-docs-version }}
         uses: readmeio/rdme@v8
         with:
-          rdme: docs ${{ steps.pathfinder.outputs.project_path }}/tmp --key=${{ secrets.README_API_KEY }} --version=2.0
+          rdme: docs ${{ steps.pathfinder.outputs.project_path }}/tmp --key=${{ secrets.README_API_KEY }} --version=${{ matrix.hs-docs-version }}
