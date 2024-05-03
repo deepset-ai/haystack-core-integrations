@@ -4,6 +4,7 @@ on:
   push:
     tags:
       - "**-v[0-9].[0-9]+.[0-9]+"
+
   workflow_dispatch: # Activate this workflow manually
     inputs:
       tag:
@@ -24,9 +25,13 @@ jobs:
       - name: Get Haystack Docs versions
         id: version_finder
         run: |
-          curl https://dash.readme.com/api/v1/version --header 'authorization: Basic ${{ secrets.README_API_KEY }}' > out
+          curl -s https://dash.readme.com/api/v1/version --header 'authorization: Basic ${{ secrets.README_API_KEY }}' > out
           VERSIONS=$(jq '[ .[] | select(.version | startswith("2."))| .version ]' out)
-          echo "versions=$VERSIONS" >> "$GITHUB_OUTPUT"
+          {
+            echo 'versions<<EOF'
+            echo $VERSIONS
+            echo EOF
+          } >> "$GITHUB_OUTPUT"
 
   sync:
     runs-on: ubuntu-latest
