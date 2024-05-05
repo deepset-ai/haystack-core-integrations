@@ -26,6 +26,7 @@ Hosts = Union[str, List[Union[str, Mapping[str, Union[str, int]]]]]
 # Increase the default if most unscaled scores are larger than expected (>30) and otherwise would incorrectly
 # all be mapped to scores ~1.
 BM25_SCALING_FACTOR = 8
+DEFAULT_MAX_CHUNK_BYTES = 100 * 1024 * 1024
 
 
 class OpenSearchDocumentStore:
@@ -34,6 +35,7 @@ class OpenSearchDocumentStore:
         *,
         hosts: Optional[Hosts] = None,
         index: str = "default",
+        max_chunk_bytes: int = DEFAULT_MAX_CHUNK_BYTES,
         **kwargs,
     ):
         """
@@ -45,11 +47,13 @@ class OpenSearchDocumentStore:
 
         :param hosts: List of hosts running the OpenSearch client. Defaults to None
         :param index: Name of index in OpenSearch, if it doesn't exist it will be created. Defaults to "default"
+        :param max_chunk_bytes: Maximum size of the requests in bytes. Defaults to 100MB
         :param **kwargs: Optional arguments that ``OpenSearch`` takes.
         """
         self._hosts = hosts
         self._client = OpenSearch(hosts, **kwargs)
         self._index = index
+        self._max_chunk_bytes = max_chunk_bytes
         self._kwargs = kwargs
 
         # Check client connection, this will raise if not connected
@@ -101,6 +105,7 @@ class OpenSearchDocumentStore:
             self,
             hosts=self._hosts,
             index=self._index,
+            max_chunk_bytes=self._max_chunk_bytes,
             **self._kwargs,
         )
 
@@ -174,6 +179,7 @@ class OpenSearchDocumentStore:
             refresh="wait_for",
             index=self._index,
             raise_on_error=False,
+            max_chunk_bytes=self._max_chunk_bytes,
         )
 
         if errors:
