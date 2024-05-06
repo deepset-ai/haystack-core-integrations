@@ -64,6 +64,7 @@ class TestNvidiaDocumentEmbedder:
                 "progress_bar": True,
                 "meta_fields_to_embed": [],
                 "embedding_separator": "\n",
+                "truncate": "NONE",
             },
         }
 
@@ -78,6 +79,7 @@ class TestNvidiaDocumentEmbedder:
             progress_bar=False,
             meta_fields_to_embed=["test_field"],
             embedding_separator=" | ",
+            truncate="END"
         )
         data = component.to_dict()
         assert data == {
@@ -92,6 +94,7 @@ class TestNvidiaDocumentEmbedder:
                 "progress_bar": False,
                 "meta_fields_to_embed": ["test_field"],
                 "embedding_separator": " | ",
+                "truncate": "END",
             },
         }
 

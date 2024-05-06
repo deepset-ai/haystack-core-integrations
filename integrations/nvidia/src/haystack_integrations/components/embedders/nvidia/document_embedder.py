@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Literal, Optional, Tuple
 
 from haystack import Document, component, default_from_dict, default_to_dict
 from haystack.utils import Secret, deserialize_secrets_inplace
@@ -41,6 +41,7 @@ class NvidiaDocumentEmbedder:
         progress_bar: bool = True,
         meta_fields_to_embed: Optional[List[str]] = None,
         embedding_separator: str = "\n",
+        truncate: Literal["NONE", "START", "END"] = "NONE",
     ):
         """
         Create a NvidiaTextEmbedder component.
@@ -64,6 +65,8 @@ class NvidiaDocumentEmbedder:
             List of meta fields that should be embedded along with the Document text.
         :param embedding_separator:
             Separator used to concatenate the meta fields to the Document text.
+        :param truncate:
+            Specifies how inputs longer that the maximum token length should be truncated.
         """
 
         self.api_key = api_key
@@ -75,6 +78,7 @@ class NvidiaDocumentEmbedder:
         self.progress_bar = progress_bar
         self.meta_fields_to_embed = meta_fields_to_embed or []
         self.embedding_separator = embedding_separator
+        self.truncate = truncate
 
         self.backend: Optional[EmbedderBackend] = None
         self._initialized = False
@@ -94,7 +98,7 @@ class NvidiaDocumentEmbedder:
             self.backend = NvcfBackend(self.model, api_key=self.api_key, model_kwargs={"model": "passage"})
         else:
             self.backend = NimBackend(
-                self.model, api_url=self.api_url, api_key=self.api_key, model_kwargs={"input_type": "passage"}
+                self.model, api_url=self.api_url, model_kwargs={"input_type": "passage", "truncate": self.truncate}
             )
 
         self._initialized = True
@@ -117,6 +121,7 @@ class NvidiaDocumentEmbedder:
             progress_bar=self.progress_bar,
             meta_fields_to_embed=self.meta_fields_to_embed,
             embedding_separator=self.embedding_separator,
+            truncate=self.truncate,
         )
 
     @classmethod

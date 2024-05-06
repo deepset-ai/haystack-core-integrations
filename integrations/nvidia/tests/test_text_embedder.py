@@ -46,6 +46,7 @@ class TestNvidiaTextEmbedder:
                 "model": "nvolveqa_40k",
                 "prefix": "",
                 "suffix": "",
+                "truncate": "NONE"
             },
         }
 
@@ -55,6 +56,7 @@ class TestNvidiaTextEmbedder:
             model="nvolveqa_40k",
             prefix="prefix",
             suffix="suffix",
+            truncate="START",
         )
         data = component.to_dict()
         assert data == {
@@ -65,6 +67,7 @@ class TestNvidiaTextEmbedder:
                 "model": "nvolveqa_40k",
                 "prefix": "prefix",
                 "suffix": "suffix",
+                "truncate": "START"
             },
         }
 
