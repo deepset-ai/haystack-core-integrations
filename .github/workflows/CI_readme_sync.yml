@@ -71,6 +71,9 @@ jobs:
           # from Readme.io as we need them to associate the slug
           # in config files with their id.
           README_API_KEY: ${{ secrets.README_API_KEY }}
+          # The same category has a different id on different readme docs versions.
+          # This is the docs version on readme that we'll use to get the category id.
+          PYDOC_TOOLS_HAYSTACK_DOC_VERSION: ${{ matrix.hs-docs-version }}
         run: |
           hatch run docs
           mkdir tmp
