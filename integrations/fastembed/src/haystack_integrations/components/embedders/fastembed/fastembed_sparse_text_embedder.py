@@ -13,28 +13,25 @@ class FastembedSparseTextEmbedder:
 
     Usage example:
     ```python
-    # To use this component, install the "fastembed-haystack" package.
-    # pip install fastembed-haystack
-
     from haystack_integrations.components.embedders.fastembed import FastembedSparseTextEmbedder
 
-    text = "It clearly says online this will work on a Mac OS system. The disk comes and it does not, only Windows. Do Not order this if you have a Mac!!"
+    text = ("It clearly says online this will work on a Mac OS system. "
+            "The disk comes and it does not, only Windows. Do Not order this if you have a Mac!!")
 
-    text_embedder = FastembedSparseTextEmbedder(
+    sparse_text_embedder = FastembedSparseTextEmbedder(
         model="prithvida/Splade_PP_en_v1"
     )
-    text_embedder.warm_up()
+    sparse_text_embedder.warm_up()
 
-    embedding = text_embedder.run(text)["embedding"]
+    sparse_embedding = sparse_text_embedder.run(text)["sparse_embedding"]
     ```
-    """  # noqa: E501
+    """
 
     def __init__(
         self,
         model: str = "prithvida/Splade_PP_en_v1",
         cache_dir: Optional[str] = None,
         threads: Optional[int] = None,
-        batch_size: int = 32,
         progress_bar: bool = True,
         parallel: Optional[int] = None,
     ):
@@ -46,7 +43,6 @@ class FastembedSparseTextEmbedder:
                 Can be set using the `FASTEMBED_CACHE_PATH` env variable.
                 Defaults to `fastembed_cache` in the system's temp directory.
         :param threads: The number of threads single onnxruntime session can use. Defaults to None.
-        :param batch_size: Number of strings to encode at once.
         :param progress_bar: If true, displays progress bar during embedding.
         :param parallel:
                 If > 1, data-parallel encoding will be used, recommended for offline encoding of large datasets.
@@ -57,7 +53,6 @@ class FastembedSparseTextEmbedder:
         self.model_name = model
         self.cache_dir = cache_dir
         self.threads = threads
-        self.batch_size = batch_size
         self.progress_bar = progress_bar
         self.parallel = parallel
 
@@ -73,7 +68,6 @@ class FastembedSparseTextEmbedder:
             model=self.model_name,
             cache_dir=self.cache_dir,
             threads=self.threads,
-            batch_size=self.batch_size,
             progress_bar=self.progress_bar,
             parallel=self.parallel,
         )
@@ -110,7 +104,6 @@ class FastembedSparseTextEmbedder:
 
         embedding = self.embedding_backend.embed(
             [text],
-            batch_size=self.batch_size,
             show_progress_bar=self.progress_bar,
             parallel=self.parallel,
         )[0]

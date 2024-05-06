@@ -12,12 +12,10 @@ class FastembedTextEmbedder:
 
     Usage example:
     ```python
-    # To use this component, install the "fastembed-haystack" package.
-    # pip install fastembed-haystack
-
     from haystack_integrations.components.embedders.fastembed import FastembedTextEmbedder
 
-    text = "It clearly says online this will work on a Mac OS system. The disk comes and it does not, only Windows. Do Not order this if you have a Mac!!"
+    text = ("It clearly says online this will work on a Mac OS system. "
+            "The disk comes and it does not, only Windows. Do Not order this if you have a Mac!!")
 
     text_embedder = FastembedTextEmbedder(
         model="BAAI/bge-small-en-v1.5"
@@ -26,7 +24,7 @@ class FastembedTextEmbedder:
 
     embedding = text_embedder.run(text)["embedding"]
     ```
-    """  # noqa: E501
+    """
 
     def __init__(
         self,

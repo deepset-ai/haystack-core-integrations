@@ -12,30 +12,31 @@ class FastembedSparseDocumentEmbedder:
 
     Usage example:
     ```python
-    # To use this component, install the "fastembed-haystack" package.
-    # pip install fastembed-haystack
-
     from haystack_integrations.components.embedders.fastembed import FastembedSparseDocumentEmbedder
     from haystack.dataclasses import Document
 
-    doc_embedder = FastembedSparseDocumentEmbedder(
+    sparse_doc_embedder = FastembedSparseDocumentEmbedder(
         model="prithvida/Splade_PP_en_v1",
         batch_size=32,
     )
 
-    doc_embedder.warm_up()
+    sparse_doc_embedder.warm_up()
 
     # Text taken from PubMed QA Dataset (https://huggingface.co/datasets/pubmed_qa)
     document_list = [
         Document(
-            content="Oxidative stress generated within inflammatory joints can produce autoimmune phenomena and joint destruction. Radical species with oxidative activity, including reactive nitrogen species, represent mediators of inflammation and cartilage damage.",
+            content=("Oxidative stress generated within inflammatory joints can produce autoimmune phenomena and joint "
+                     "destruction. Radical species with oxidative activity, including reactive nitrogen species, "
+                     "represent mediators of inflammation and cartilage damage."),
             meta={
                 "pubid": "25,445,628",
                 "long_answer": "yes",
             },
         ),
         Document(
-            content="Plasma levels of pancreatic polypeptide (PP) rise upon food intake. Although other pancreatic islet hormones, such as insulin and glucagon, have been extensively investigated, PP secretion and actions are still poorly understood.",
+            content=("Plasma levels of pancreatic polypeptide (PP) rise upon food intake. Although other pancreatic "
+                     "islet hormones, such as insulin and glucagon, have been extensively investigated, PP secretion "
+                     "and actions are still poorly understood."),
             meta={
                 "pubid": "25,445,712",
                 "long_answer": "yes",
@@ -43,12 +44,12 @@ class FastembedSparseDocumentEmbedder:
         ),
     ]
 
-    result = doc_embedder.run(document_list)
+    result = sparse_doc_embedder.run(document_list)
     print(f"Document Text: {result['documents'][0].content}")
-    print(f"Document Embedding: {result['documents'][0].sparse_embedding}")
-    print(f"Embedding Dimension: {len(result['documents'][0].sparse_embedding)}")
+    print(f"Document Sparse Embedding: {result['documents'][0].sparse_embedding}")
+    print(f"Sparse Embedding Dimension: {len(result['documents'][0].sparse_embedding)}")
     ```
-    """  # noqa: E501
+    """
 
     def __init__(
         self,
