@@ -79,7 +79,7 @@ class TestNvidiaDocumentEmbedder:
             progress_bar=False,
             meta_fields_to_embed=["test_field"],
             embedding_separator=" | ",
-            truncate="END"
+            truncate="END",
         )
         data = component.to_dict()
         assert data == {

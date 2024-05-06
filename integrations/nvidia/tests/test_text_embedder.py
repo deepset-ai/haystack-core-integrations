@@ -46,7 +46,7 @@ class TestNvidiaTextEmbedder:
                 "model": "nvolveqa_40k",
                 "prefix": "",
                 "suffix": "",
-                "truncate": "NONE"
+                "truncate": "NONE",
             },
         }
 
@@ -67,7 +67,7 @@ class TestNvidiaTextEmbedder:
                 "model": "nvolveqa_40k",
                 "prefix": "prefix",
                 "suffix": "suffix",
-                "truncate": "START"
+                "truncate": "START",
             },
         }
 
