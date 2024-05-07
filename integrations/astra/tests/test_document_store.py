@@ -14,7 +14,13 @@ from haystack.testing.document_store import DocumentStoreBaseTests
 from haystack_integrations.document_stores.astra import AstraDocumentStore
 
 
-def test_namespace_init():
+@pytest.fixture
+def mock_auth(monkeypatch):
+    monkeypatch.setenv("ASTRA_DB_API_ENDPOINT", "http://example.com")
+    monkeypatch.setenv("ASTRA_DB_APPLICATION_TOKEN", "test_token")
+
+
+def test_namespace_init(mock_auth):  # noqa
     with mock.patch("haystack_integrations.document_stores.astra.astra_client.AstraDB") as client:
         AstraDocumentStore()
         assert "namespace" in client.call_args.kwargs
@@ -25,7 +31,7 @@ def test_namespace_init():
         assert client.call_args.kwargs["namespace"] == "foo"
 
 
-def test_to_dict():
+def test_to_dict(mock_auth):  # noqa
     with mock.patch("haystack_integrations.document_stores.astra.astra_client.AstraDB"):
         ds = AstraDocumentStore()
         result = ds.to_dict()
