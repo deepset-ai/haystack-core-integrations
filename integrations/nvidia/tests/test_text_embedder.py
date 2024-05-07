@@ -3,7 +3,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 from haystack.utils import Secret
-from haystack_integrations.components.embedders.nvidia import NvidiaTextEmbedder
+from haystack_integrations.components.embedders.nvidia import NvidiaTextEmbedder, TruncateMode
 
 
 class TestNvidiaTextEmbedder:
@@ -46,7 +46,7 @@ class TestNvidiaTextEmbedder:
                 "model": "nvolveqa_40k",
                 "prefix": "",
                 "suffix": "",
-                "truncate": "NONE",
+                "truncate": None,
             },
         }
 
@@ -56,7 +56,7 @@ class TestNvidiaTextEmbedder:
             model="nvolveqa_40k",
             prefix="prefix",
             suffix="suffix",
-            truncate="START",
+            truncate=TruncateMode.START,
         )
         data = component.to_dict()
         assert data == {
@@ -70,6 +70,26 @@ class TestNvidiaTextEmbedder:
                 "truncate": "START",
             },
         }
+
+    def from_dict(self, monkeypatch):
+        monkeypatch.setenv("NVIDIA_API_KEY", "fake-api-key")
+        data = {
+            "type": "haystack_integrations.components.embedders.nvidia.text_embedder.NvidiaTextEmbedder",
+            "init_parameters": {
+                "api_key": {"env_vars": ["NVIDIA_API_KEY"], "strict": True, "type": "env_var"},
+                "api_url": None,
+                "model": "nvolveqa_40k",
+                "prefix": "prefix",
+                "suffix": "suffix",
+                "truncate": "START",
+            },
+        }
+        component = NvidiaTextEmbedder.from_dict(data)
+        assert component.model == "nvolveqa_40k"
+        assert component.api_url is None
+        assert component.prefix == "prefix"
+        assert component.suffix == "suffix"
+        assert component.truncate == TruncateMode.START
 
     @patch("haystack_integrations.components.embedders.nvidia._nvcf_backend.NvidiaCloudFunctionsClient")
     def test_run(self, mock_client_class):

@@ -4,7 +4,7 @@ from unittest.mock import Mock, patch
 import pytest
 from haystack import Document
 from haystack.utils import Secret
-from haystack_integrations.components.embedders.nvidia import NvidiaDocumentEmbedder
+from haystack_integrations.components.embedders.nvidia import NvidiaDocumentEmbedder, TruncateMode
 
 
 class TestNvidiaDocumentEmbedder:
@@ -64,7 +64,7 @@ class TestNvidiaDocumentEmbedder:
                 "progress_bar": True,
                 "meta_fields_to_embed": [],
                 "embedding_separator": "\n",
-                "truncate": "NONE",
+                "truncate": None,
             },
         }
 
@@ -79,7 +79,7 @@ class TestNvidiaDocumentEmbedder:
             progress_bar=False,
             meta_fields_to_embed=["test_field"],
             embedding_separator=" | ",
-            truncate="END",
+            truncate=TruncateMode.END,
         )
         data = component.to_dict()
         assert data == {
@@ -97,6 +97,34 @@ class TestNvidiaDocumentEmbedder:
                 "truncate": "END",
             },
         }
+
+    def from_dict(self, monkeypatch):
+        monkeypatch.setenv("NVIDIA_API_KEY", "fake-api-key")
+        data = {
+            "type": "haystack_integrations.components.embedders.nvidia.document_embedder.NvidiaDocumentEmbedder",
+            "init_parameters": {
+                "api_key": {"env_vars": ["NVIDIA_API_KEY"], "strict": True, "type": "env_var"},
+                "api_url": "https://example.com",
+                "model": "playground_nvolveqa_40k",
+                "prefix": "prefix",
+                "suffix": "suffix",
+                "batch_size": 10,
+                "progress_bar": False,
+                "meta_fields_to_embed": ["test_field"],
+                "embedding_separator": " | ",
+                "truncate": "START",
+            },
+        }
+        component = NvidiaDocumentEmbedder.from_dict(data)
+        assert component.model == "nvolveqa_40k"
+        assert component.api_url is None
+        assert component.prefix == "prefix"
+        assert component.suffix == "suffix"
+        assert component.batch_size == 32
+        assert component.progress_bar
+        assert component.meta_fields_to_embed == []
+        assert component.embedding_separator == "\n"
+        assert component.truncate == TruncateMode.START
 
     def test_prepare_texts_to_embed_w_metadata(self):
         documents = [

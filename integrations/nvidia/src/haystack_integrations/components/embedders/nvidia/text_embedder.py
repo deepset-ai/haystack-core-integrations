@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Literal, Optional
+from typing import Any, Dict, List, Optional
 
 from haystack import component, default_from_dict, default_to_dict
 from haystack.utils import Secret, deserialize_secrets_inplace
@@ -6,6 +6,7 @@ from haystack.utils import Secret, deserialize_secrets_inplace
 from ._nim_backend import NimBackend
 from ._nvcf_backend import NvcfBackend
 from .backend import EmbedderBackend
+from .truncate import TruncateMode
 
 
 @component
@@ -38,7 +39,7 @@ class NvidiaTextEmbedder:
         api_url: Optional[str] = None,
         prefix: str = "",
         suffix: str = "",
-        truncate: Literal["NONE", "START", "END"] = "NONE",
+        truncate: Optional[TruncateMode] = None,
     ):
         """
         Create a NvidiaTextEmbedder component.
@@ -55,6 +56,10 @@ class NvidiaTextEmbedder:
             A string to add to the end of each text.
         :param truncate:
             Specifies how inputs longer that the maximum token length should be truncated.
+            If START, the input will be truncated from the start.
+            If END, the input will be truncated from the end.
+            If None an error will be raised if the input is too long.
+            Defaults to None.
         """
 
         self.api_key = api_key
@@ -101,7 +106,7 @@ class NvidiaTextEmbedder:
             api_url=self.api_url,
             prefix=self.prefix,
             suffix=self.suffix,
-            truncate=self.truncate,
+            truncate=str(self.truncate) if self.truncate is not None else None,
         )
 
     @classmethod
@@ -115,6 +120,8 @@ class NvidiaTextEmbedder:
             The deserialized component.
         """
         deserialize_secrets_inplace(data["init_parameters"], keys=["api_key"])
+        if (truncate_mode := data["init_parameters"].get("truncate")) is not None:
+            data["init_parameters"]["truncate"] = TruncateMode.from_str(truncate_mode)
         return default_from_dict(cls, data)
 
     @component.output_types(embedding=List[float], meta=Dict[str, Any])
