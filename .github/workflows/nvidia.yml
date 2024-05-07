@@ -22,6 +22,7 @@ env:
   PYTHONUNBUFFERED: "1"
   FORCE_COLOR: "1"
   NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
+  NVIDIA_CATALOG_API_KEY: ${{ secrets.NVIDIA_CATALOG_API_KEY }}
 
 jobs:
   run:
@@ -73,7 +74,7 @@ jobs:
         uses: ./.github/actions/send_failure
         with:
           title: |
-            core-integrations failure: 
+            core-integrations failure:
             ${{ (steps.tests.conclusion == 'nightly-haystack-main') && 'nightly-haystack-main' || 'tests' }}
              - ${{ github.workflow }}
           api-key: ${{ secrets.CORE_DATADOG_API_KEY }}
