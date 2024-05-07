@@ -68,7 +68,7 @@ class NvidiaDocumentEmbedder:
             Separator used to concatenate the meta fields to the Document text.
         :param truncate:
             Specifies how inputs longer that the maximum token length should be truncated.
-            If None an error will be raised if the input is too long.
+            If None the behavior is model-dependent, see the official documentation for more information.
         """
 
         self.api_key = api_key
