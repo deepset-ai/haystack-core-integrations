@@ -4,12 +4,13 @@
 import os
 
 import pytest
-from cohere import COHERE_API_URL
+from cohere.core import ApiError
 from haystack.components.generators.utils import print_streaming_chunk
 from haystack.utils import Secret
 from haystack_integrations.components.generators.cohere import CohereGenerator
 
 pytestmark = pytest.mark.generators
+COHERE_API_URL = "https://api.cohere.com"
 
 
 class TestCohereGenerator:
@@ -119,15 +120,6 @@ class TestCohereGenerator:
         assert component.api_base_url == "test-base-url"
         assert component.model_parameters == {"max_tokens": 10, "some_test_param": "test-params"}
 
-    def test_check_truncated_answers(self, caplog):
-        component = CohereGenerator(api_key=Secret.from_token("test-api-key"))
-        meta = [{"finish_reason": "MAX_TOKENS"}]
-        component._check_truncated_answers(meta)
-        assert caplog.records[0].message == (
-            "Responses have been truncated before reaching a natural stopping point. "
-            "Increase the max_tokens parameter to allow for longer completions."
-        )
-
     @pytest.mark.skipif(
         not os.environ.get("COHERE_API_KEY", None) and not os.environ.get("CO_API_KEY", None),
         reason="Export an env var called COHERE_API_KEY/CO_API_KEY containing the Cohere API key to run this test.",
@@ -147,10 +139,8 @@ class TestCohereGenerator:
     )
     @pytest.mark.integration
     def test_cohere_generator_run_wrong_model(self):
-        import cohere
-
         component = CohereGenerator(model="something-obviously-wrong")
-        with pytest.raises(cohere.CohereAPIError):
+        with pytest.raises(ApiError):
             component.run(prompt="What's the capital of France?")
 
     @pytest.mark.skipif(

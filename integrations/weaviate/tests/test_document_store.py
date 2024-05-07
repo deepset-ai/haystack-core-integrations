@@ -664,3 +664,18 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
         document_store.write_documents(docs)
         with pytest.raises(DocumentStoreError):
             document_store.filter_documents({"field": "content", "operator": "==", "value": "This is some content"})
+
+    def test_schema_class_name_conversion_preserves_pascal_case(self):
+        collection_settings = {"class": "CaseDocument"}
+        doc_score = WeaviateDocumentStore(
+            url="http://localhost:8080",
+            collection_settings=collection_settings,
+        )
+        assert doc_score._collection_settings["class"] == "CaseDocument"
+
+        collection_settings = {"class": "lower_case_name"}
+        doc_score = WeaviateDocumentStore(
+            url="http://localhost:8080",
+            collection_settings=collection_settings,
+        )
+        assert doc_score._collection_settings["class"] == "Lower_case_name"

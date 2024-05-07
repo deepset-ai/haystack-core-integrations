@@ -20,7 +20,7 @@ processors:
   - type: smart
   - type: crossref
 renderer:
-  type: haystack_pydoc_tools.renderers.ReadmePreviewRenderer
+  type: haystack_pydoc_tools.renderers.ReadmeIntegrationRenderer
   excerpt: Amazon Bedrock integration for Haystack
   category_slug: integrations-api
   title: Amazon Bedrock

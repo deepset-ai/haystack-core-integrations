@@ -18,7 +18,7 @@ processors:
   - type: smart
   - type: crossref
 renderer:
-  type: haystack_pydoc_tools.renderers.ReadmePreviewRenderer
+  type: haystack_pydoc_tools.renderers.ReadmeIntegrationRenderer
   excerpt: Ragas integration for Haystack
   category_slug: integrations-api
   title: Ragas
