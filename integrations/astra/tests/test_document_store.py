@@ -10,7 +10,6 @@ from haystack import Document
 from haystack.document_stores.errors import MissingDocumentError
 from haystack.document_stores.types import DuplicatePolicy
 from haystack.testing.document_store import DocumentStoreBaseTests
-from haystack.utils import Secret
 
 from haystack_integrations.document_stores.astra import AstraDocumentStore
 
@@ -21,7 +20,7 @@ def mock_auth(monkeypatch):
     monkeypatch.setenv("ASTRA_DB_APPLICATION_TOKEN", "test_token")
 
 
-def test_namespace_init(mock_auth):
+def test_namespace_init(mock_auth):  # noqa
     with mock.patch("haystack_integrations.document_stores.astra.astra_client.AstraDB") as client:
         AstraDocumentStore()
         assert "namespace" in client.call_args.kwargs
@@ -32,7 +31,7 @@ def test_namespace_init(mock_auth):
         assert client.call_args.kwargs["namespace"] == "foo"
 
 
-def test_to_dict(mock_auth):
+def test_to_dict(mock_auth):  # noqa
     with mock.patch("haystack_integrations.document_stores.astra.astra_client.AstraDB"):
         ds = AstraDocumentStore()
         result = ds.to_dict()
