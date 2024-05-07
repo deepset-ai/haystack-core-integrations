@@ -65,8 +65,8 @@ class NvidiaTextEmbedder:
         self.prefix = prefix
         self.suffix = suffix
 
-        if isinstance(truncate, EmbeddingTruncateMode):
-            truncate = str(truncate)
+        if isinstance(truncate, str):
+            truncate = EmbeddingTruncateMode.from_str(truncate)
         self.truncate = truncate
 
         self.backend: Optional[EmbedderBackend] = None
@@ -88,7 +88,7 @@ class NvidiaTextEmbedder:
         else:
             model_kwargs = {"input_type": "query"}
             if self.truncate is not None:
-                model_kwargs["truncate"] = self.truncate
+                model_kwargs["truncate"] = str(self.truncate)
             self.backend = NimBackend(
                 self.model,
                 api_url=self.api_url,

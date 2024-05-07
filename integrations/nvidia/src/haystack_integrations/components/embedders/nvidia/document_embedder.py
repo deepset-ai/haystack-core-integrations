@@ -81,8 +81,8 @@ class NvidiaDocumentEmbedder:
         self.meta_fields_to_embed = meta_fields_to_embed or []
         self.embedding_separator = embedding_separator
 
-        if isinstance(truncate, EmbeddingTruncateMode):
-            truncate = str(truncate)
+        if isinstance(truncate, str):
+            truncate = EmbeddingTruncateMode.from_str(truncate)
         self.truncate = truncate
 
         self.backend: Optional[EmbedderBackend] = None
@@ -104,7 +104,7 @@ class NvidiaDocumentEmbedder:
         else:
             model_kwargs = {"input_type": "passage"}
             if self.truncate is not None:
-                model_kwargs["truncate"] = self.truncate
+                model_kwargs["truncate"] = str(self.truncate)
             self.backend = NimBackend(
                 self.model,
                 api_url=self.api_url,
