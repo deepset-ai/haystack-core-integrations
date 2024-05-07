@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 from haystack import component, default_from_dict, default_to_dict
 from haystack.utils import Secret, deserialize_secrets_inplace
@@ -6,7 +6,7 @@ from haystack.utils import Secret, deserialize_secrets_inplace
 from ._nim_backend import NimBackend
 from ._nvcf_backend import NvcfBackend
 from .backend import EmbedderBackend
-from .truncate import TruncateMode
+from .truncate import EmbeddingTruncateMode
 
 
 @component
@@ -39,7 +39,7 @@ class NvidiaTextEmbedder:
         api_url: Optional[str] = None,
         prefix: str = "",
         suffix: str = "",
-        truncate: Optional[TruncateMode] = None,
+        truncate: Optional[Union[EmbeddingTruncateMode, str]] = None,
     ):
         """
         Create a NvidiaTextEmbedder component.
@@ -56,10 +56,7 @@ class NvidiaTextEmbedder:
             A string to add to the end of each text.
         :param truncate:
             Specifies how inputs longer that the maximum token length should be truncated.
-            If START, the input will be truncated from the start.
-            If END, the input will be truncated from the end.
             If None an error will be raised if the input is too long.
-            Defaults to None.
         """
 
         self.api_key = api_key
@@ -67,6 +64,9 @@ class NvidiaTextEmbedder:
         self.api_url = api_url
         self.prefix = prefix
         self.suffix = suffix
+
+        if isinstance(truncate, EmbeddingTruncateMode):
+            truncate = str(truncate)
         self.truncate = truncate
 
         self.backend: Optional[EmbedderBackend] = None
@@ -86,8 +86,14 @@ class NvidiaTextEmbedder:
 
             self.backend = NvcfBackend(self.model, api_key=self.api_key, model_kwargs={"model": "query"})
         else:
+            model_kwargs = {"input_type": "query"}
+            if self.truncate is not None:
+                model_kwargs["truncate"] = self.truncate
             self.backend = NimBackend(
-                self.model, api_url=self.api_url, model_kwargs={"input_type": "query", "truncate": self.truncate}
+                self.model,
+                api_url=self.api_url,
+                api_key=self.api_key,
+                model_kwargs=model_kwargs,
             )
 
         self._initialized = True
@@ -120,8 +126,6 @@ class NvidiaTextEmbedder:
             The deserialized component.
         """
         deserialize_secrets_inplace(data["init_parameters"], keys=["api_key"])
-        if (truncate_mode := data["init_parameters"].get("truncate")) is not None:
-            data["init_parameters"]["truncate"] = TruncateMode.from_str(truncate_mode)
         return default_from_dict(cls, data)
 
     @component.output_types(embedding=List[float], meta=Dict[str, Any])

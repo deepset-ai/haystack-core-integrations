@@ -3,7 +3,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 from haystack.utils import Secret
-from haystack_integrations.components.embedders.nvidia import NvidiaTextEmbedder, TruncateMode
+from haystack_integrations.components.embedders.nvidia import EmbeddingTruncateMode, NvidiaTextEmbedder
 
 
 class TestNvidiaTextEmbedder:
@@ -56,7 +56,7 @@ class TestNvidiaTextEmbedder:
             model="nvolveqa_40k",
             prefix="prefix",
             suffix="suffix",
-            truncate=TruncateMode.START,
+            truncate=EmbeddingTruncateMode.START,
         )
         data = component.to_dict()
         assert data == {
@@ -89,7 +89,7 @@ class TestNvidiaTextEmbedder:
         assert component.api_url is None
         assert component.prefix == "prefix"
         assert component.suffix == "suffix"
-        assert component.truncate == TruncateMode.START
+        assert component.truncate == "START"
 
     @patch("haystack_integrations.components.embedders.nvidia._nvcf_backend.NvidiaCloudFunctionsClient")
     def test_run(self, mock_client_class):

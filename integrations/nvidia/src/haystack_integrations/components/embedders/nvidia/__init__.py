@@ -1,5 +1,5 @@
 from .document_embedder import NvidiaDocumentEmbedder
 from .text_embedder import NvidiaTextEmbedder
-from .truncate import TruncateMode
+from .truncate import EmbeddingTruncateMode
 
-__all__ = ["NvidiaDocumentEmbedder", "NvidiaTextEmbedder", "TruncateMode"]
+__all__ = ["NvidiaDocumentEmbedder", "NvidiaTextEmbedder", "EmbeddingTruncateMode"]

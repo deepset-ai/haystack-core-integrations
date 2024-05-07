@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 from haystack import Document, component, default_from_dict, default_to_dict
 from haystack.utils import Secret, deserialize_secrets_inplace
@@ -7,7 +7,7 @@ from tqdm import tqdm
 from ._nim_backend import NimBackend
 from ._nvcf_backend import NvcfBackend
 from .backend import EmbedderBackend
-from .truncate import TruncateMode
+from .truncate import EmbeddingTruncateMode
 
 
 @component
@@ -42,7 +42,7 @@ class NvidiaDocumentEmbedder:
         progress_bar: bool = True,
         meta_fields_to_embed: Optional[List[str]] = None,
         embedding_separator: str = "\n",
-        truncate: Optional[TruncateMode] = None,
+        truncate: Optional[Union[EmbeddingTruncateMode, str]] = None,
     ):
         """
         Create a NvidiaTextEmbedder component.
@@ -68,10 +68,7 @@ class NvidiaDocumentEmbedder:
             Separator used to concatenate the meta fields to the Document text.
         :param truncate:
             Specifies how inputs longer that the maximum token length should be truncated.
-            If START, the input will be truncated from the start.
-            If END, the input will be truncated from the end.
             If None an error will be raised if the input is too long.
-            Defaults to None.
         """
 
         self.api_key = api_key
@@ -83,6 +80,9 @@ class NvidiaDocumentEmbedder:
         self.progress_bar = progress_bar
         self.meta_fields_to_embed = meta_fields_to_embed or []
         self.embedding_separator = embedding_separator
+
+        if isinstance(truncate, EmbeddingTruncateMode):
+            truncate = str(truncate)
         self.truncate = truncate
 
         self.backend: Optional[EmbedderBackend] = None
@@ -102,8 +102,14 @@ class NvidiaDocumentEmbedder:
 
             self.backend = NvcfBackend(self.model, api_key=self.api_key, model_kwargs={"model": "passage"})
         else:
+            model_kwargs = {"input_type": "passage"}
+            if self.truncate is not None:
+                model_kwargs["truncate"] = self.truncate
             self.backend = NimBackend(
-                self.model, api_url=self.api_url, model_kwargs={"input_type": "passage", "truncate": self.truncate}
+                self.model,
+                api_url=self.api_url,
+                api_key=self.api_key,
+                model_kwargs=model_kwargs,
             )
 
         self._initialized = True
@@ -140,8 +146,6 @@ class NvidiaDocumentEmbedder:
             The deserialized component.
         """
         deserialize_secrets_inplace(data["init_parameters"], keys=["api_key"])
-        if (truncate_mode := data["init_parameters"].get("truncate")) is not None:
-            data["init_parameters"]["truncate"] = TruncateMode.from_str(truncate_mode)
         return default_from_dict(cls, data)
 
     def _prepare_texts_to_embed(self, documents: List[Document]) -> List[str]:

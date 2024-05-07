@@ -4,7 +4,7 @@ from unittest.mock import Mock, patch
 import pytest
 from haystack import Document
 from haystack.utils import Secret
-from haystack_integrations.components.embedders.nvidia import NvidiaDocumentEmbedder, TruncateMode
+from haystack_integrations.components.embedders.nvidia import EmbeddingTruncateMode, NvidiaDocumentEmbedder
 
 
 class TestNvidiaDocumentEmbedder:
@@ -79,7 +79,7 @@ class TestNvidiaDocumentEmbedder:
             progress_bar=False,
             meta_fields_to_embed=["test_field"],
             embedding_separator=" | ",
-            truncate=TruncateMode.END,
+            truncate=EmbeddingTruncateMode.END,
         )
         data = component.to_dict()
         assert data == {
@@ -124,7 +124,7 @@ class TestNvidiaDocumentEmbedder:
         assert component.progress_bar
         assert component.meta_fields_to_embed == []
         assert component.embedding_separator == "\n"
-        assert component.truncate == TruncateMode.START
+        assert component.truncate == EmbeddingTruncateMode.START
 
     def test_prepare_texts_to_embed_w_metadata(self):
         documents = [

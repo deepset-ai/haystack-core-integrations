@@ -1,9 +1,11 @@
 from enum import Enum
 
 
-class TruncateMode(Enum):
+class EmbeddingTruncateMode(Enum):
     """
-    Enum used to specify truncation mode for embeddings.
+    Specifies how inputs to the NVIDIA embedding components are truncated.
+    If START, the input will be truncated from the start.
+    If END, the input will be truncated from the end.
     """
 
     START = "START"
@@ -13,7 +15,7 @@ class TruncateMode(Enum):
         return self.value
 
     @classmethod
-    def from_str(cls, string: str) -> "TruncateMode":
+    def from_str(cls, string: str) -> "EmbeddingTruncateMode":
         """
         Create an truncate mode from a string.
 
@@ -22,7 +24,7 @@ class TruncateMode(Enum):
         :returns:
             Truncate mode.
         """
-        enum_map = {e.value: e for e in TruncateMode}
+        enum_map = {e.value: e for e in EmbeddingTruncateMode}
         opt_mode = enum_map.get(string)
         if opt_mode is None:
             msg = f"Unknown truncate mode '{string}'. Supported modes are: {list(enum_map.keys())}"
