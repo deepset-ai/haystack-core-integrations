@@ -29,14 +29,18 @@ class FastembedDocumentEmbedder:
     # Text taken from PubMed QA Dataset (https://huggingface.co/datasets/pubmed_qa)
     document_list = [
         Document(
-            content="Oxidative stress generated within inflammatory joints can produce autoimmune phenomena and joint destruction. Radical species with oxidative activity, including reactive nitrogen species, represent mediators of inflammation and cartilage damage.",
+            content=("Oxidative stress generated within inflammatory joints can produce autoimmune phenomena and joint "
+                     "destruction. Radical species with oxidative activity, including reactive nitrogen species, "
+                     "represent mediators of inflammation and cartilage damage."),
             meta={
                 "pubid": "25,445,628",
                 "long_answer": "yes",
             },
         ),
         Document(
-            content="Plasma levels of pancreatic polypeptide (PP) rise upon food intake. Although other pancreatic islet hormones, such as insulin and glucagon, have been extensively investigated, PP secretion and actions are still poorly understood.",
+            content=("Plasma levels of pancreatic polypeptide (PP) rise upon food intake. Although other pancreatic "
+                     "islet hormones, such as insulin and glucagon, have been extensively investigated, PP secretion "
+                     "and actions are still poorly understood."),
             meta={
                 "pubid": "25,445,712",
                 "long_answer": "yes",
@@ -49,7 +53,7 @@ class FastembedDocumentEmbedder:
     print(f"Document Embedding: {result['documents'][0].embedding}")
     print(f"Embedding Dimension: {len(result['documents'][0].embedding)}")
     ```
-    """  # noqa: E501
+    """
 
     def __init__(
         self,

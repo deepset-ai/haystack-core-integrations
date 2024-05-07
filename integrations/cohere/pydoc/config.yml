@@ -7,6 +7,7 @@ loaders:
       "haystack_integrations.components.embedders.cohere.utils",
       "haystack_integrations.components.generators.cohere.generator",
       "haystack_integrations.components.generators.cohere.chat.chat_generator",
+      "haystack_integrations.components.rankers.cohere.ranker",
     ]
     ignore_when_discovered: ["__init__"]
 processors:
@@ -18,7 +19,7 @@ processors:
   - type: smart
   - type: crossref
 renderer:
-  type: haystack_pydoc_tools.renderers.ReadmePreviewRenderer
+  type: haystack_pydoc_tools.renderers.ReadmeIntegrationRenderer
   excerpt: Cohere integration for Haystack
   category_slug: integrations-api
   title: Cohere

@@ -16,6 +16,7 @@ authors = [
   { name = "Hayden Wilson", email = "contact@gradient.ai" },
 ]
 classifiers = [
+  "License :: OSI Approved :: Apache Software License",
   "Development Status :: 4 - Beta",
   "Programming Language :: Python",
   "Programming Language :: Python :: 3.8",

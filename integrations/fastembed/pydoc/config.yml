@@ -5,6 +5,8 @@ loaders:
       [
         "haystack_integrations.components.embedders.fastembed.fastembed_document_embedder",
         "haystack_integrations.components.embedders.fastembed.fastembed_text_embedder",
+        "haystack_integrations.components.embedders.fastembed.fastembed_sparse_document_embedder",
+        "haystack_integrations.components.embedders.fastembed.fastembed_sparse_text_embedder"
       ]
     ignore_when_discovered: ["__init__"]
 processors:
@@ -16,7 +18,7 @@ processors:
   - type: smart
   - type: crossref
 renderer:
-  type: haystack_pydoc_tools.renderers.ReadmePreviewRenderer
+  type: haystack_pydoc_tools.renderers.ReadmeIntegrationRenderer
   excerpt: FastEmbed integration for Haystack
   category_slug: integrations-api
   title: FastEmbed

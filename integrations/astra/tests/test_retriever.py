@@ -30,6 +30,7 @@ def test_retriever_to_json(*_):
                     "embedding_dimension": 768,
                     "duplicates_policy": "NONE",
                     "similarity": "cosine",
+                    "namespace": None,
                 },
             },
         },
@@ -42,7 +43,6 @@ def test_retriever_to_json(*_):
 )
 @patch("haystack_integrations.document_stores.astra.document_store.AstraClient")
 def test_retriever_from_json(*_):
-
     data = {
         "type": "haystack_integrations.components.retrievers.astra.retriever.AstraEmbeddingRetriever",
         "init_parameters": {

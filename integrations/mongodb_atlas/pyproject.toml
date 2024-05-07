@@ -14,6 +14,7 @@ authors = [
   { name = "deepset GmbH", email = "info@deepset.ai" },
 ]
 classifiers = [
+  "License :: OSI Approved :: Apache Software License",
   "Development Status :: 4 - Beta",
   "Programming Language :: Python",
   "Programming Language :: Python :: 3.8",
@@ -25,7 +26,7 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
 dependencies = [
-  "haystack-ai>=2.0.0b6",
+  "haystack-ai",
   "pymongo[srv]",
 ]
 
@@ -50,7 +51,7 @@ dependencies = [
   "coverage[toml]>=6.5",
   "pytest",
   "ipython",
-  "haystack-pydoc-tools",  
+  "haystack-pydoc-tools",
 ]
 [tool.hatch.envs.default.scripts]
 test = "pytest {args:tests}"

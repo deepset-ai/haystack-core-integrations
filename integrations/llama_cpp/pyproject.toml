@@ -15,6 +15,7 @@ authors = [
     { name = "Ashwin Mathur", email = "" },
 ]
 classifiers = [
+  "License :: OSI Approved :: Apache Software License",
     "Development Status :: 4 - Beta",
     "Programming Language :: Python",
     "Programming Language :: Python :: 3.8",

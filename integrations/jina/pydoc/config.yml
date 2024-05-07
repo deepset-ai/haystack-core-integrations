@@ -1,7 +1,7 @@
 loaders:
   - type: haystack_pydoc_tools.loaders.CustomPythonLoader
     search_path: [../src]
-    modules: 
+    modules:
       [
         "haystack_integrations.components.embedders.jina.document_embedder",
         "haystack_integrations.components.embedders.jina.text_embedder",
@@ -17,7 +17,7 @@ processors:
   - type: smart
   - type: crossref
 renderer:
-  type: haystack_pydoc_tools.renderers.ReadmePreviewRenderer
+  type: haystack_pydoc_tools.renderers.ReadmeIntegrationRenderer
   excerpt: Jina integration for Haystack
   category_slug: integrations-api
   title: Jina

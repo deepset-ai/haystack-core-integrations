@@ -59,6 +59,11 @@ integration:jina:
       - any-glob-to-any-file: "integrations/jina/**/*"
       - any-glob-to-any-file: ".github/workflows/jina.yml"
 
+integration:langfuse:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/langfuse/**/*"
+      - any-glob-to-any-file: ".github/workflows/langfuse.yml"
+
 integration:llama_cpp:
   - changed-files:
       - any-glob-to-any-file: "integrations/llama_cpp/**/*"
@@ -118,11 +123,6 @@ integration:unstructured-fileconverter:
   - changed-files:
       - any-glob-to-any-file: "integrations/unstructured/**/*"
       - any-glob-to-any-file: ".github/workflows/unstructured.yml"
-
-integration:uptrain:
-  - changed-files:
-      - any-glob-to-any-file: "integrations/uptrain/**/*"
-      - any-glob-to-any-file: ".github/workflows/uptrain.yml"
 
 integration:weaviate:
   - changed-files:

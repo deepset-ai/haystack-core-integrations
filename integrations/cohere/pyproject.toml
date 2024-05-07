@@ -12,6 +12,7 @@ license = "Apache-2.0"
 keywords = []
 authors = [{ name = "deepset GmbH", email = "info@deepset.ai" }]
 classifiers = [
+  "License :: OSI Approved :: Apache Software License",
   "Development Status :: 4 - Beta",
   "Programming Language :: Python",
   "Programming Language :: Python :: 3.8",
@@ -23,7 +24,7 @@ classifiers = [
 ]
 dependencies = [
   "haystack-ai",
-  "cohere<5",
+  "cohere==5.*",
 ]
 
 [project.urls]
@@ -163,5 +164,6 @@ markers = [
   "embedders: embedders tests",
   "generators: generators tests",
   "chat_generators: chat_generators tests",
+  "ranker: ranker tests"
 ]
 log_cli = true

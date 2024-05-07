@@ -1,38 +1,14 @@
 import os
-from unittest.mock import Mock, patch
+from unittest.mock import Mock
 
-import cohere
 import pytest
+from cohere.core import ApiError
 from haystack.components.generators.utils import print_streaming_chunk
 from haystack.dataclasses import ChatMessage, ChatRole, StreamingChunk
 from haystack.utils import Secret
 from haystack_integrations.components.generators.cohere import CohereChatGenerator
 
 pytestmark = pytest.mark.chat_generators
-
-
-@pytest.fixture
-def mock_chat_response():
-    """
-    Mock the CohereI API response and reuse it for tests
-    """
-    with patch("cohere.Client.chat", autospec=True) as mock_chat_response:
-        # mimic the response from the Cohere API
-
-        mock_response = Mock()
-        mock_response.text = "I'm fine, thanks."
-        mock_response.token_count = {
-            "prompt_tokens": 66,
-            "response_tokens": 78,
-            "total_tokens": 144,
-            "billed_tokens": 133,
-        }
-        mock_response.meta = {
-            "api_version": {"version": "1"},
-            "billed_units": {"input_tokens": 55, "output_tokens": 78},
-        }
-        mock_chat_response.return_value = mock_response
-        yield mock_chat_response
 
 
 def streaming_chunk(text: str):
@@ -60,7 +36,7 @@ class TestCohereChatGenerator:
         assert component.api_key == Secret.from_env_var(["COHERE_API_KEY", "CO_API_KEY"])
         assert component.model == "command"
         assert component.streaming_callback is None
-        assert component.api_base_url == cohere.COHERE_API_URL
+        assert component.api_base_url == "https://api.cohere.com"
         assert not component.generation_kwargs
 
     def test_init_fail_wo_api_key(self, monkeypatch):
@@ -93,7 +69,7 @@ class TestCohereChatGenerator:
                 "model": "command",
                 "streaming_callback": None,
                 "api_key": {"env_vars": ["COHERE_API_KEY", "CO_API_KEY"], "strict": True, "type": "env_var"},
-                "api_base_url": "https://api.cohere.ai",
+                "api_base_url": "https://api.cohere.com",
                 "generation_kwargs": {},
             },
         }
@@ -175,72 +151,10 @@ class TestCohereChatGenerator:
         with pytest.raises(ValueError):
             CohereChatGenerator.from_dict(data)
 
-    def test_run(self, chat_messages, mock_chat_response):  # noqa: ARG002
-        component = CohereChatGenerator(api_key=Secret.from_token("test-api-key"))
-        response = component.run(chat_messages)
-
-        # check that the component returns the correct ChatMessage response
-        assert isinstance(response, dict)
-        assert "replies" in response
-        assert isinstance(response["replies"], list)
-        assert len(response["replies"]) == 1
-        assert [isinstance(reply, ChatMessage) for reply in response["replies"]]
-
     def test_message_to_dict(self, chat_messages):
         obj = CohereChatGenerator(api_key=Secret.from_token("test-api-key"))
         dictionary = [obj._message_to_dict(message) for message in chat_messages]
         assert dictionary == [{"user_name": "Chatbot", "text": "What's the capital of France"}]
-
-    def test_run_with_params(self, chat_messages, mock_chat_response):
-        component = CohereChatGenerator(
-            api_key=Secret.from_token("test-api-key"), generation_kwargs={"max_tokens": 10, "temperature": 0.5}
-        )
-        response = component.run(chat_messages)
-
-        # check that the component calls the Cohere API with the correct parameters
-        _, kwargs = mock_chat_response.call_args
-        assert kwargs["max_tokens"] == 10
-        assert kwargs["temperature"] == 0.5
-
-        # check that the component returns the correct response
-        assert isinstance(response, dict)
-        assert "replies" in response
-        assert isinstance(response["replies"], list)
-        assert len(response["replies"]) == 1
-        assert [isinstance(reply, ChatMessage) for reply in response["replies"]]
-
-    def test_run_streaming(self, chat_messages, mock_chat_response):
-        streaming_call_count = 0
-
-        # Define the streaming callback function and assert that it is called with StreamingChunk objects
-        def streaming_callback_fn(chunk: StreamingChunk):
-            nonlocal streaming_call_count
-            streaming_call_count += 1
-            assert isinstance(chunk, StreamingChunk)
-
-        generator = CohereChatGenerator(
-            api_key=Secret.from_token("test-api-key"), streaming_callback=streaming_callback_fn
-        )
-
-        # Create a fake streamed response
-        # self needed here, don't remove
-        def mock_iter(self):  # noqa: ARG001
-            yield streaming_chunk("Hello")
-            yield streaming_chunk("How are you?")
-
-        mock_response = Mock(**{"__iter__": mock_iter})
-        mock_chat_response.return_value = mock_response
-
-        response = generator.run(chat_messages)
-
-        # Assert that the streaming callback was called twice
-        assert streaming_call_count == 2
-
-        # Assert that the response contains the generated replies
-        assert "replies" in response
-        assert isinstance(response["replies"], list)
-        assert len(response["replies"]) > 0
-        assert [isinstance(reply, ChatMessage) for reply in response["replies"]]
 
     @pytest.mark.skipif(
         not os.environ.get("COHERE_API_KEY", None) and not os.environ.get("CO_API_KEY", None),
@@ -262,7 +176,7 @@ class TestCohereChatGenerator:
     @pytest.mark.integration
     def test_live_run_wrong_model(self, chat_messages):
         component = CohereChatGenerator(model="something-obviously-wrong")
-        with pytest.raises(cohere.CohereAPIError):
+        with pytest.raises(ApiError):
             component.run(chat_messages)
 
     @pytest.mark.skipif(
@@ -288,7 +202,7 @@ class TestCohereChatGenerator:
 
         assert len(results["replies"]) == 1
         message: ChatMessage = results["replies"][0]
-        assert "Paris" in message.content[0]
+        assert "Paris" in message.content
 
         assert message.meta["finish_reason"] == "COMPLETE"
 
@@ -332,7 +246,7 @@ class TestCohereChatGenerator:
 
         assert len(results["replies"]) == 1
         message: ChatMessage = results["replies"][0]
-        assert "Paris" in message.content[0]
+        assert "Paris" in message.content
 
         assert message.meta["finish_reason"] == "COMPLETE"
 

@@ -123,7 +123,7 @@ class PgvectorKeywordRetriever:
         top_k = top_k or self.top_k
 
         docs = self.document_store._keyword_retrieval(
-            user_query=user_query,
+            query=user_query,
             filters=filters,
             top_k=top_k,
         )

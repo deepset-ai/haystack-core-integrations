@@ -55,6 +55,7 @@ class AstraDocumentStore:
         embedding_dimension: int = 768,
         duplicates_policy: DuplicatePolicy = DuplicatePolicy.NONE,
         similarity: str = "cosine",
+        namespace: Optional[str] = None,
     ):
         """
         The connection to Astra DB is established and managed through the JSON API.
@@ -99,6 +100,7 @@ class AstraDocumentStore:
         self.embedding_dimension = embedding_dimension
         self.duplicates_policy = duplicates_policy
         self.similarity = similarity
+        self.namespace = namespace
 
         self.index = AstraClient(
             resolved_api_endpoint,
@@ -106,6 +108,7 @@ class AstraDocumentStore:
             self.collection_name,
             self.embedding_dimension,
             self.similarity,
+            namespace,
         )
 
     @classmethod
@@ -128,6 +131,7 @@ class AstraDocumentStore:
         :returns:
             Dictionary with serialized data.
         """
+
         return default_to_dict(
             self,
             api_endpoint=self.api_endpoint.to_dict(),
@@ -136,6 +140,7 @@ class AstraDocumentStore:
             embedding_dimension=self.embedding_dimension,
             duplicates_policy=self.duplicates_policy.name,
             similarity=self.similarity,
+            namespace=self.namespace,
         )
 
     def write_documents(
@@ -210,12 +215,15 @@ class AstraDocumentStore:
         documents_to_write = [_convert_input_document(doc) for doc in documents]
 
         duplicate_documents = []
-        new_documents = []
+        new_documents: List[Document] = []
         i = 0
         while i < len(documents_to_write):
             doc = documents_to_write[i]
+            # check to see if this ID already exists in our new_documents array
+            exists = [d for d in new_documents if d["_id"] == doc["_id"]]
+            # check to see if this ID is already in the DB
             response = self.index.find_documents({"filter": {"_id": doc["_id"]}})
-            if response:
+            if response or exists:
                 if policy == DuplicatePolicy.FAIL:
                     msg = f"ID '{doc['_id']}' already exists."
                     raise DuplicateDocumentError(msg)

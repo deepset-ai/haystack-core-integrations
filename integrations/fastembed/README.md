@@ -43,6 +43,31 @@ doc = Document(content="fastembed is supported by and maintained by Qdrant.", me
 result = embedder.run(documents=[doc])
 ```
 
+You can use `FastembedSparseTextEmbedder` and `FastembedSparseDocumentEmbedder` by importing as:
+
+```python
+from haystack_integrations.components.embedders.fastembed import FastembedSparseTextEmbedder
+
+text = "fastembed is supported by and maintained by Qdrant."
+text_embedder = FastembedSparseTextEmbedder(
+    model="prithvida/Splade_PP_en_v1"
+)
+text_embedder.warm_up()
+embedding = text_embedder.run(text)["embedding"]
+```
+
+```python
+from haystack_integrations.components.embedders.fastembed import FastembedSparseDocumentEmbedder
+from haystack.dataclasses import Document
+
+embedder = FastembedSparseDocumentEmbedder(
+    model="prithvida/Splade_PP_en_v1",
+)
+embedder.warm_up()
+doc = Document(content="fastembed is supported by and maintained by Qdrant.", meta={"long_answer": "no",})
+result = embedder.run(documents=[doc])
+```
+
 ## License
 
 `fastembed-haystack` is distributed under the terms of the [Apache-2.0](https://spdx.org/licenses/Apache-2.0.html) license.

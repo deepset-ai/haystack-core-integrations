@@ -15,7 +15,7 @@ from haystack_integrations.common.amazon_bedrock.errors import (
 )
 from haystack_integrations.common.amazon_bedrock.utils import get_aws_session
 
-from .adapters import AnthropicClaudeChatAdapter, BedrockModelChatAdapter, MetaLlama2ChatAdapter
+from .adapters import AnthropicClaudeChatAdapter, BedrockModelChatAdapter, MetaLlama2ChatAdapter, MistralChatAdapter
 
 logger = logging.getLogger(__name__)
 
@@ -50,6 +50,7 @@ class AmazonBedrockChatGenerator:
     SUPPORTED_MODEL_PATTERNS: ClassVar[Dict[str, Type[BedrockModelChatAdapter]]] = {
         r"anthropic.claude.*": AnthropicClaudeChatAdapter,
         r"meta.llama2.*": MetaLlama2ChatAdapter,
+        r"mistral.*": MistralChatAdapter,
     }
 
     def __init__(
@@ -209,6 +210,7 @@ class AmazonBedrockChatGenerator:
         :returns:
             Dictionary with serialized data.
         """
+        callback_name = serialize_callable(self.streaming_callback) if self.streaming_callback else None
         return default_to_dict(
             self,
             aws_access_key_id=self.aws_access_key_id.to_dict() if self.aws_access_key_id else None,
@@ -219,7 +221,7 @@ class AmazonBedrockChatGenerator:
             model=self.model,
             stop_words=self.stop_words,
             generation_kwargs=self.model_adapter.generation_kwargs,
-            streaming_callback=serialize_callable(self.streaming_callback),
+            streaming_callback=callback_name,
         )
 
     @classmethod

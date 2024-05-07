@@ -14,6 +14,7 @@ authors = [
   { name = "John Doe", email = "jd@example.com" },
 ]
 classifiers = [
+  "License :: OSI Approved :: Apache Software License",
   "Development Status :: 4 - Beta",
   "Programming Language :: Python",
   "Programming Language :: Python :: 3.8",
@@ -25,7 +26,7 @@ classifiers = [
 ]
 dependencies = [
   "haystack-ai",
-  "chromadb<0.4.20",  #  FIXME: investigate why filtering tests broke on 0.4.20
+  "chromadb",
   "typing_extensions>=4.8.0"
 ]
 

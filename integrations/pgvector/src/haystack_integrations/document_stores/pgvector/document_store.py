@@ -20,7 +20,7 @@ from psycopg.types.json import Jsonb
 
 from pgvector.psycopg import register_vector
 
-from .filters import _convert_filters_to_and_clause_and_params, _convert_filters_to_where_clause_and_params
+from .filters import _convert_filters_to_where_clause_and_params
 
 logger = logging.getLogger(__name__)
 
@@ -53,6 +53,12 @@ blob_mime_type = EXCLUDED.blob_mime_type,
 meta = EXCLUDED.meta
 """
 
+KEYWORD_QUERY = """
+SELECT {table_name}.*, ts_rank_cd(to_tsvector({language}, content), query) AS score
+FROM {table_name}, plainto_tsquery({language}, %s) query
+WHERE to_tsvector({language}, content) @@ query
+"""
+
 VALID_VECTOR_FUNCTIONS = ["cosine_similarity", "inner_product", "l2_distance"]
 
 VECTOR_FUNCTION_TO_POSTGRESQL_OPS = {
@@ -64,6 +70,8 @@ VECTOR_FUNCTION_TO_POSTGRESQL_OPS = {
 HNSW_INDEX_CREATION_VALID_KWARGS = ["m", "ef_construction"]
 
 HNSW_INDEX_NAME = "haystack_hnsw_index"
+
+KEYWORD_INDEX_NAME = "haystack_keyword_index"
 
 
 class PgvectorDocumentStore:
@@ -242,14 +250,18 @@ class PgvectorDocumentStore:
         """
         index_exists = bool(
             self._execute_sql(
-                "SELECT * FROM pg_indexes WHERE tablename = %s",
-                (self.table_name,),
+                "SELECT 1 FROM pg_indexes WHERE tablename = %s AND indexname = %s",
+                (self.table_name, KEYWORD_INDEX_NAME),
                 "Could not check if keyword index exists",
             ).fetchone()
         )
 
-        sql_create_index = SQL('CREATE INDEX ON "{table_name}" USING GIN (to_tsvector({language}, content))').format(
-            table_name=SQLLiteral(self.table_name), language=SQLLiteral(self.language)
+        sql_create_index = SQL(
+            "CREATE INDEX {index_name} ON {table_name} USING GIN (to_tsvector({language}, content))"
+        ).format(
+            index_name=Identifier(KEYWORD_INDEX_NAME),
+            table_name=Identifier(self.table_name),
+            language=SQLLiteral(self.language),
         )
 
         if not index_exists:
@@ -501,9 +513,10 @@ class PgvectorDocumentStore:
 
     def _keyword_retrieval(
         self,
-        user_query: str,
-        top_k: int = 10,
+        query: str,
+        *,
         filters: Optional[Dict[str, Any]] = None,
+        top_k: int = 10,
     ) -> List[Document]:
         """
         Retrieves documents that are most similar to the query using a full-text search.
@@ -511,33 +524,33 @@ class PgvectorDocumentStore:
         This method is not meant to be part of the public interface of
         `PgvectorDocumentStore` and it should not be called directly.
         `PgvectorKeywordRetriever` uses this method directly and is the public interface for it.
-        :returns: List of Documents that are most similar to `user_query`
+
+        :returns: List of Documents that are most similar to `query`
         """
-        if not user_query:
-            msg = "user_query must be a non-empty string"
+        if not query:
+            msg = "query must be a non-empty string"
             raise ValueError(msg)
 
-        params = ()
-        sql_where_clause = SQL("")
-        if filters:
-            sql_where_clause, params = _convert_filters_to_and_clause_and_params(filters)
-
-        sql_select = SQL(
-            """SELECT *, RANK() OVER (ORDER BY
-            ts_rank_cd(to_tsvector({language}, content), query) DESC) AS rank
-            FROM {table_name}, plainto_tsquery({language}, {query}) query
-            WHERE to_tsvector({language}, content) @@ query {where_clause} LIMIT {top_k}"""
-        ).format(
+        sql_select = SQL(KEYWORD_QUERY).format(
             table_name=Identifier(self.table_name),
-            language=self.language,
-            query=SQLLiteral(user_query),
-            top_k=top_k,
-            where_clause=sql_where_clause,
+            language=SQLLiteral(self.language),
+            query=SQLLiteral(query),
         )
 
+        where_params = ()
+        sql_where_clause = SQL("")
+        if filters:
+            sql_where_clause, where_params = _convert_filters_to_where_clause_and_params(
+                filters=filters, operator="AND"
+            )
+
+        sql_top_k = SQL(" ORDER BY score DESC LIMIT {top_k}").format(top_k=SQLLiteral(top_k))
+
+        sql_query = sql_select + sql_where_clause + sql_top_k
+
         result = self._execute_sql(
-            sql_select,
-            params,
+            sql_query,
+            (query, *where_params),
             error_msg="Could not retrieve documents from PgvectorDocumentStore.",
             cursor=self._dict_cursor,
         )
