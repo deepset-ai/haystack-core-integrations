@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 from haystack import Document, component, default_from_dict, default_to_dict
 from haystack.utils import Secret, deserialize_secrets_inplace
@@ -7,6 +7,7 @@ from tqdm import tqdm
 from ._nim_backend import NimBackend
 from ._nvcf_backend import NvcfBackend
 from .backend import EmbedderBackend
+from .truncate import EmbeddingTruncateMode
 
 
 @component
@@ -41,6 +42,7 @@ class NvidiaDocumentEmbedder:
         progress_bar: bool = True,
         meta_fields_to_embed: Optional[List[str]] = None,
         embedding_separator: str = "\n",
+        truncate: Optional[Union[EmbeddingTruncateMode, str]] = None,
     ):
         """
         Create a NvidiaTextEmbedder component.
@@ -64,6 +66,9 @@ class NvidiaDocumentEmbedder:
             List of meta fields that should be embedded along with the Document text.
         :param embedding_separator:
             Separator used to concatenate the meta fields to the Document text.
+        :param truncate:
+            Specifies how inputs longer that the maximum token length should be truncated.
+            If None the behavior is model-dependent, see the official documentation for more information.
         """
 
         self.api_key = api_key
@@ -75,6 +80,10 @@ class NvidiaDocumentEmbedder:
         self.progress_bar = progress_bar
         self.meta_fields_to_embed = meta_fields_to_embed or []
         self.embedding_separator = embedding_separator
+
+        if isinstance(truncate, str):
+            truncate = EmbeddingTruncateMode.from_str(truncate)
+        self.truncate = truncate
 
         self.backend: Optional[EmbedderBackend] = None
         self._initialized = False
@@ -93,7 +102,15 @@ class NvidiaDocumentEmbedder:
 
             self.backend = NvcfBackend(self.model, api_key=self.api_key, model_kwargs={"model": "passage"})
         else:
-            self.backend = NimBackend(self.model, api_url=self.api_url, model_kwargs={"input_type": "passage"})
+            model_kwargs = {"input_type": "passage"}
+            if self.truncate is not None:
+                model_kwargs["truncate"] = str(self.truncate)
+            self.backend = NimBackend(
+                self.model,
+                api_url=self.api_url,
+                api_key=self.api_key,
+                model_kwargs=model_kwargs,
+            )
 
         self._initialized = True
 
@@ -115,6 +132,7 @@ class NvidiaDocumentEmbedder:
             progress_bar=self.progress_bar,
             meta_fields_to_embed=self.meta_fields_to_embed,
             embedding_separator=self.embedding_separator,
+            truncate=str(self.truncate) if self.truncate is not None else None,
         )
 
     @classmethod

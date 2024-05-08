@@ -202,3 +202,23 @@ class TestNvidiaGenerator:
 
         assert result["replies"]
         assert result["meta"]
+
+    @pytest.mark.skipif(
+        not os.environ.get("NVIDIA_CATALOG_API_KEY", None),
+        reason="Export an env var called NVIDIA_CATALOG_API_KEY containing the Nvidia API key to run this test.",
+    )
+    @pytest.mark.integration
+    def test_run_integration_with_api_catalog(self):
+        generator = NvidiaGenerator(
+            model="meta/llama3-70b-instruct",
+            api_url="https://integrate.api.nvidia.com/v1",
+            api_key=Secret.from_env_var("NVIDIA_CATALOG_API_KEY"),
+            model_arguments={
+                "temperature": 0.2,
+            },
+        )
+        generator.warm_up()
+        result = generator.run(prompt="What is the answer?")
+
+        assert result["replies"]
+        assert result["meta"]

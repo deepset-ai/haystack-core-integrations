@@ -117,7 +117,6 @@ unfixable = [
   # Don't touch unused imports
   "F401",
 ]
-extend-exclude = ["tests", "example"]
 
 [tool.ruff.isort]
 known-first-party = ["src"]
