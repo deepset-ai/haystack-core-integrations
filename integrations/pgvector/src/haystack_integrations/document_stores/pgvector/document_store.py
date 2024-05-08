@@ -53,6 +53,12 @@ blob_mime_type = EXCLUDED.blob_mime_type,
 meta = EXCLUDED.meta
 """
 
+KEYWORD_QUERY = """
+SELECT {table_name}.*, ts_rank_cd(to_tsvector({language}, content), query) AS score
+FROM {table_name}, plainto_tsquery({language}, %s) query
+WHERE to_tsvector({language}, content) @@ query
+"""
+
 VALID_VECTOR_FUNCTIONS = ["cosine_similarity", "inner_product", "l2_distance"]
 
 VECTOR_FUNCTION_TO_POSTGRESQL_OPS = {
@@ -65,6 +71,8 @@ HNSW_INDEX_CREATION_VALID_KWARGS = ["m", "ef_construction"]
 
 HNSW_INDEX_NAME = "haystack_hnsw_index"
 
+KEYWORD_INDEX_NAME = "haystack_keyword_index"
+
 
 class PgvectorDocumentStore:
     """
@@ -76,6 +84,7 @@ class PgvectorDocumentStore:
         *,
         connection_string: Secret = Secret.from_env_var("PG_CONN_STR"),
         table_name: str = "haystack_documents",
+        language: str = "english",
         embedding_dimension: int = 768,
         vector_function: Literal["cosine_similarity", "inner_product", "l2_distance"] = "cosine_similarity",
         recreate_table: bool = False,
@@ -92,6 +101,10 @@ class PgvectorDocumentStore:
         :param connection_string: The connection string to use to connect to the PostgreSQL database, defined as an
             environment variable, e.g.: `PG_CONN_STR="postgresql://USER:PASSWORD@HOST:PORT/DB_NAME"`
         :param table_name: The name of the table to use to store Haystack documents.
+        :param language: The language to be used to parse query and document content in keyword retrieval.
+            To see the list of available languages, you can run the following SQL query in your PostgreSQL database:
+            `SELECT cfgname FROM pg_ts_config;`.
+            More information can be found in this [StackOverflow answer](https://stackoverflow.com/a/39752553).
         :param embedding_dimension: The dimension of the embedding.
         :param vector_function: The similarity function to use when searching for similar embeddings.
             `"cosine_similarity"` and `"inner_product"` are similarity functions and
@@ -116,7 +129,7 @@ class PgvectorDocumentStore:
             [pgvector documentation](https://github.com/pgvector/pgvector?tab=readme-ov-file#hnsw)
         :param hnsw_ef_search: The `ef_search` parameter to use at query time. Only used if search_strategy is set to
             `"hnsw"`. You can find more information about this parameter in the
-            [pgvector documentation](https://github.com/pgvector/pgvector?tab=readme-ov-file#hnsw)
+            [pgvector documentation](https://github.com/pgvector/pgvector?tab=readme-ov-file#hnsw).
         """
 
         self.connection_string = connection_string
@@ -131,6 +144,7 @@ class PgvectorDocumentStore:
         self.hnsw_recreate_index_if_exists = hnsw_recreate_index_if_exists
         self.hnsw_index_creation_kwargs = hnsw_index_creation_kwargs or {}
         self.hnsw_ef_search = hnsw_ef_search
+        self.language = language
 
         connection = connect(self.connection_string.resolve_value())
         connection.autocommit = True
@@ -146,6 +160,7 @@ class PgvectorDocumentStore:
         if recreate_table:
             self.delete_table()
         self._create_table_if_not_exists()
+        self._create_keyword_index_if_not_exists()
 
         if search_strategy == "hnsw":
             self._handle_hnsw()
@@ -168,6 +183,7 @@ class PgvectorDocumentStore:
             hnsw_recreate_index_if_exists=self.hnsw_recreate_index_if_exists,
             hnsw_index_creation_kwargs=self.hnsw_index_creation_kwargs,
             hnsw_ef_search=self.hnsw_ef_search,
+            language=self.language,
         )
 
     @classmethod
@@ -230,6 +246,29 @@ class PgvectorDocumentStore:
         delete_sql = SQL("DROP TABLE IF EXISTS {table_name}").format(table_name=Identifier(self.table_name))
 
         self._execute_sql(delete_sql, error_msg=f"Could not delete table {self.table_name} in PgvectorDocumentStore")
+
+    def _create_keyword_index_if_not_exists(self):
+        """
+        Internal method to create the keyword index if not exists.
+        """
+        index_exists = bool(
+            self._execute_sql(
+                "SELECT 1 FROM pg_indexes WHERE tablename = %s AND indexname = %s",
+                (self.table_name, KEYWORD_INDEX_NAME),
+                "Could not check if keyword index exists",
+            ).fetchone()
+        )
+
+        sql_create_index = SQL(
+            "CREATE INDEX {index_name} ON {table_name} USING GIN (to_tsvector({language}, content))"
+        ).format(
+            index_name=Identifier(KEYWORD_INDEX_NAME),
+            table_name=Identifier(self.table_name),
+            language=SQLLiteral(self.language),
+        )
+
+        if not index_exists:
+            self._execute_sql(sql_create_index, error_msg="Could not create keyword index on table")
 
     def _handle_hnsw(self):
         """
@@ -475,6 +514,54 @@ class PgvectorDocumentStore:
 
         self._execute_sql(delete_sql, error_msg="Could not delete documents from PgvectorDocumentStore")
 
+    def _keyword_retrieval(
+        self,
+        query: str,
+        *,
+        filters: Optional[Dict[str, Any]] = None,
+        top_k: int = 10,
+    ) -> List[Document]:
+        """
+        Retrieves documents that are most similar to the query using a full-text search.
+
+        This method is not meant to be part of the public interface of
+        `PgvectorDocumentStore` and it should not be called directly.
+        `PgvectorKeywordRetriever` uses this method directly and is the public interface for it.
+
+        :returns: List of Documents that are most similar to `query`
+        """
+        if not query:
+            msg = "query must be a non-empty string"
+            raise ValueError(msg)
+
+        sql_select = SQL(KEYWORD_QUERY).format(
+            table_name=Identifier(self.table_name),
+            language=SQLLiteral(self.language),
+            query=SQLLiteral(query),
+        )
+
+        where_params = ()
+        sql_where_clause = SQL("")
+        if filters:
+            sql_where_clause, where_params = _convert_filters_to_where_clause_and_params(
+                filters=filters, operator="AND"
+            )
+
+        sql_sort = SQL(" ORDER BY score DESC LIMIT {top_k}").format(top_k=SQLLiteral(top_k))
+
+        sql_query = sql_select + sql_where_clause + sql_sort
+
+        result = self._execute_sql(
+            sql_query,
+            (query, *where_params),
+            error_msg="Could not retrieve documents from PgvectorDocumentStore.",
+            cursor=self._dict_cursor,
+        )
+
+        records = result.fetchall()
+        docs = self._from_pg_to_haystack_documents(records)
+        return docs
+
     def _embedding_retrieval(
         self,
         query_embedding: List[float],
@@ -489,6 +576,7 @@ class PgvectorDocumentStore:
         This method is not meant to be part of the public interface of
         `PgvectorDocumentStore` and it should not be called directly.
         `PgvectorEmbeddingRetriever` uses this method directly and is the public interface for it.
+
         :returns: List of Documents that are most similar to `query_embedding`
         """
 

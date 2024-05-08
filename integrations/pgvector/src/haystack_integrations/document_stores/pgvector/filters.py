@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 from datetime import datetime
 from itertools import chain
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Literal, Tuple
 
 from haystack.errors import FilterError
 from pandas import DataFrame
@@ -22,7 +22,9 @@ PYTHON_TYPES_TO_PG_TYPES = {
 NO_VALUE = "no_value"
 
 
-def _convert_filters_to_where_clause_and_params(filters: Dict[str, Any]) -> Tuple[SQL, Tuple]:
+def _convert_filters_to_where_clause_and_params(
+    filters: Dict[str, Any], operator: Literal["WHERE", "AND"] = "WHERE"
+) -> Tuple[SQL, Tuple]:
     """
     Convert Haystack filters to a WHERE clause and a tuple of params to query PostgreSQL.
     """
@@ -31,7 +33,7 @@ def _convert_filters_to_where_clause_and_params(filters: Dict[str, Any]) -> Tupl
     else:
         query, values = _parse_logical_condition(filters)
 
-    where_clause = SQL(" WHERE ") + SQL(query)
+    where_clause = SQL(f" {operator} ") + SQL(query)
     params = tuple(value for value in values if value != NO_VALUE)
 
     return where_clause, params

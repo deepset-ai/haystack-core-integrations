@@ -1,3 +1,4 @@
+import warnings
 from dataclasses import asdict, dataclass
 from typing import Any, Dict, List, Literal, Optional, Tuple, Union
 
@@ -17,6 +18,7 @@ class NvcfBackend(EmbedderBackend):
         api_key: Secret,
         model_kwargs: Optional[Dict[str, Any]] = None,
     ):
+        warnings.warn("Nvidia NGC is deprecated, use Nvidia NIM instead.", DeprecationWarning, stacklevel=2)
         if not model.startswith("playground_"):
             model = f"playground_{model}"
 

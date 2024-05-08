@@ -4,7 +4,7 @@ from unittest.mock import Mock, patch
 import pytest
 from haystack import Document
 from haystack.utils import Secret
-from haystack_integrations.components.embedders.nvidia import NvidiaDocumentEmbedder
+from haystack_integrations.components.embedders.nvidia import EmbeddingTruncateMode, NvidiaDocumentEmbedder
 
 
 class TestNvidiaDocumentEmbedder:
@@ -64,6 +64,7 @@ class TestNvidiaDocumentEmbedder:
                 "progress_bar": True,
                 "meta_fields_to_embed": [],
                 "embedding_separator": "\n",
+                "truncate": None,
             },
         }
 
@@ -78,6 +79,7 @@ class TestNvidiaDocumentEmbedder:
             progress_bar=False,
             meta_fields_to_embed=["test_field"],
             embedding_separator=" | ",
+            truncate=EmbeddingTruncateMode.END,
         )
         data = component.to_dict()
         assert data == {
@@ -92,8 +94,37 @@ class TestNvidiaDocumentEmbedder:
                 "progress_bar": False,
                 "meta_fields_to_embed": ["test_field"],
                 "embedding_separator": " | ",
+                "truncate": "END",
             },
         }
+
+    def from_dict(self, monkeypatch):
+        monkeypatch.setenv("NVIDIA_API_KEY", "fake-api-key")
+        data = {
+            "type": "haystack_integrations.components.embedders.nvidia.document_embedder.NvidiaDocumentEmbedder",
+            "init_parameters": {
+                "api_key": {"env_vars": ["NVIDIA_API_KEY"], "strict": True, "type": "env_var"},
+                "api_url": "https://example.com",
+                "model": "playground_nvolveqa_40k",
+                "prefix": "prefix",
+                "suffix": "suffix",
+                "batch_size": 10,
+                "progress_bar": False,
+                "meta_fields_to_embed": ["test_field"],
+                "embedding_separator": " | ",
+                "truncate": "START",
+            },
+        }
+        component = NvidiaDocumentEmbedder.from_dict(data)
+        assert component.model == "nvolveqa_40k"
+        assert component.api_url is None
+        assert component.prefix == "prefix"
+        assert component.suffix == "suffix"
+        assert component.batch_size == 32
+        assert component.progress_bar
+        assert component.meta_fields_to_embed == []
+        assert component.embedding_separator == "\n"
+        assert component.truncate == EmbeddingTruncateMode.START
 
     def test_prepare_texts_to_embed_w_metadata(self):
         documents = [
@@ -342,6 +373,33 @@ class TestNvidiaDocumentEmbedder:
             api_key=None,
         )
         embedder.warm_up()
+        docs = [
+            Document(content="I love cheese", meta={"topic": "Cuisine"}),
+            Document(content="A transformer is a deep learning architecture", meta={"topic": "ML"}),
+        ]
+
+        result = embedder.run(docs)
+        docs_with_embeddings = result["documents"]
+
+        assert isinstance(docs_with_embeddings, list)
+        assert len(docs_with_embeddings) == len(docs)
+        for doc in docs_with_embeddings:
+            assert isinstance(doc.embedding, list)
+            assert isinstance(doc.embedding[0], float)
+
+    @pytest.mark.skipif(
+        not os.environ.get("NVIDIA_CATALOG_API_KEY", None),
+        reason="Export an env var called NVIDIA_CATALOG_API_KEY containing the Nvidia API key to run this test.",
+    )
+    @pytest.mark.integration
+    def test_run_integration_with_api_catalog(self):
+        embedder = NvidiaDocumentEmbedder(
+            model="NV-Embed-QA",
+            api_url="https://ai.api.nvidia.com/v1/retrieval/nvidia",
+            api_key=Secret.from_env_var("NVIDIA_CATALOG_API_KEY"),
+        )
+        embedder.warm_up()
+
         docs = [
             Document(content="I love cheese", meta={"topic": "Cuisine"}),
             Document(content="A transformer is a deep learning architecture", meta={"topic": "ML"}),
