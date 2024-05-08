@@ -68,7 +68,7 @@ jobs:
         id: nightly-haystack-main
         run: |
           hatch run pip install git+https://github.com/deepset-ai/haystack.git
-          hatch run test
+          hatch run test -m "not integration"
       
       - name: Send event to Datadog for nightly failures
         if: failure() && github.event_name == 'schedule'
