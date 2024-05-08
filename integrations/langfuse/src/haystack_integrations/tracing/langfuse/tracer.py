@@ -10,7 +10,7 @@ import langfuse
 
 class LangfuseSpan(Span):
     """
-    Internal class representing a bridge between the Haystack span tracing API and the Langfuse.
+    Internal class representing a bridge between the Haystack span tracing API and Langfuse.
     """
 
     def __init__(self, span: "Union[langfuse.client.StatefulSpanClient, langfuse.client.StatefulTraceClient]") -> None:
@@ -75,7 +75,7 @@ class LangfuseSpan(Span):
 
 class LangfuseTracer(Tracer):
     """
-    Internal class representing a bridge between the Haystack tracer and the Langfuse.
+    Internal class representing a bridge between the Haystack tracer and Langfuse.
     """
 
     def __init__(self, tracer: "langfuse.Langfuse", name: str = "Haystack", public: bool = False) -> None:
@@ -87,7 +87,7 @@ class LangfuseTracer(Tracer):
             Langfuse dashboard.
         :param public: Whether the tracing data should be public or private. If set to `True`, the tracing data will
         be publicly accessible to anyone with the tracing URL. If set to `False`, the tracing data will be private
-        and only accessible to the Langfuse account owner. The default is `False`.
+        and only accessible to the Langfuse account owner.
         """
         self._tracer = tracer
         self._context: list[LangfuseSpan] = []
