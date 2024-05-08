@@ -9,29 +9,50 @@ import langfuse
 
 
 class LangfuseSpan(Span):
+    """
+    Internal class representing a bridge between the Haystack span tracing API and the Langfuse.
+    """
+
     def __init__(self, span: "Union[langfuse.client.StatefulSpanClient, langfuse.client.StatefulTraceClient]") -> None:
+        """
+        Initialize a LangfuseSpan instance.
+
+        :param span: The span instance managed by Langfuse.
+        """
         self._span = span
         # locally cache tags
         self._data: Dict[str, Any] = {}
 
     def set_tag(self, key: str, value: Any) -> None:
+        """
+        Set a generic tag for this span.
+
+        :param key: The tag key.
+        :param value: The tag value.
+        """
         coerced_value = tracing_utils.coerce_tag_value(value)
         self._span.update(metadata={key: coerced_value})
         self._data[key] = value
 
     def set_content_tag(self, key: str, value: Any) -> None:
+        """
+        Set a content-specific tag for this span.
+
+        :param key: The content tag key.
+        :param value: The content tag value.
+        """
         if not tracer.is_content_tracing_enabled:
             return
         if key.endswith(".input"):
             if "messages" in value:
-                messages = [self.to_openai_format(m) for m in value["messages"]]
+                messages = [m.to_openai_format() for m in value["messages"]]
                 self._span.update(input=messages)
             else:
                 self._span.update(input=value)
         elif key.endswith(".output"):
             if "replies" in value:
                 if all(isinstance(r, ChatMessage) for r in value["replies"]):
-                    replies = [self.to_openai_format(m) for m in value["replies"]]
+                    replies = [m.to_openai_format() for m in value["replies"]]
                 else:
                     replies = value["replies"]
                 self._span.update(output=replies)
@@ -41,24 +62,33 @@ class LangfuseSpan(Span):
         self._data[key] = value
 
     def raw_span(self) -> Any:
+        """
+        Return the underlying span instance.
+
+        :return: The Langfuse span instance.
+        """
         return self._span
 
     def get_correlation_data_for_logs(self) -> Dict[str, Any]:
         return {}
 
-    def to_openai_format(self, m: ChatMessage) -> Dict[str, Any]:
-        """
-        Remove after haystack 2.0.1 has been released and use the `to_openai_format` method from the ChatMessage class
-        """
-        msg = {"role": m.role.value, "content": m.content}
-        if m.name:
-            msg["name"] = m.name
-
-        return msg
-
 
 class LangfuseTracer(Tracer):
+    """
+    Internal class representing a bridge between the Haystack tracer and the Langfuse.
+    """
+
     def __init__(self, tracer: "langfuse.Langfuse", name: str = "Haystack", public: bool = False) -> None:
+        """
+        Initialize a LangfuseTracer instance.
+
+        :param tracer: The Langfuse tracer instance.
+        :param name: The name of the pipeline or component. This name will be used to identify the tracing run on the
+            Langfuse dashboard.
+        :param public: Whether the tracing data should be public or private. If set to `True`, the tracing data will
+        be publicly accessible to anyone with the tracing URL. If set to `False`, the tracing data will be private
+        and only accessible to the Langfuse account owner. The default is `False`.
+        """
         self._tracer = tracer
         self._context: list[LangfuseSpan] = []
         self._name = name
@@ -66,6 +96,12 @@ class LangfuseTracer(Tracer):
 
     @contextlib.contextmanager
     def trace(self, operation_name: str, tags: Optional[Dict[str, Any]] = None) -> Iterator[Span]:
+        """
+        Start and manage a new trace span.
+        :param operation_name: The name of the operation.
+        :param tags: A dictionary of tags to attach to the span.
+        :return: A context manager yielding the span.
+        """
         tags = tags or {}
         span_name = tags.get("haystack.component.name", operation_name)
 
@@ -104,10 +140,19 @@ class LangfuseTracer(Tracer):
         self._tracer.flush()
 
     def current_span(self) -> Span:
+        """
+        Return the currently active span.
+
+        :return: The currently active span.
+        """
         if not self._context:
             # The root span has to be a trace
             self._context.append(LangfuseSpan(self._tracer.trace(name=self._name, public=self._public)))
         return self._context[-1]
 
     def get_trace_url(self) -> str:
+        """
+        Return the URL to the tracing data.
+        :return: The URL to the tracing data.
+        """
         return self._tracer.get_trace_url()
