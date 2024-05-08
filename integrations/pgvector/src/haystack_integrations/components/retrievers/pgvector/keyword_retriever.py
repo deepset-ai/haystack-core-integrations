@@ -11,43 +11,36 @@ from haystack_integrations.document_stores.pgvector import PgvectorDocumentStore
 @component
 class PgvectorKeywordRetriever:
     """
-    Retrieves documents from the `PgvectorDocumentStore`, based on their sparse vectors.
+    Retrieve documents from the `PgvectorDocumentStore`, based on keywords.
 
-    Example usage:
+    To rank the documents, the `ts_rank_cd` function of PostgreSQL is used.
+    It considers how often the query terms appear in the document, how close together the terms are in the document,
+    and how important is the part of the document where they occur.
+    For more details, see
+    [Postgres documentation](https://www.postgresql.org/docs/current/textsearch-controls.html#TEXTSEARCH-RANKING).
+
+    Usage example:
     ```python
     from haystack.document_stores import DuplicatePolicy
-    from haystack import Document, Pipeline
-    from haystack.components.embedders import SentenceTransformersTextEmbedder, SentenceTransformersDocumentEmbedder
+    from haystack import Document
 
     from haystack_integrations.document_stores.pgvector import PgvectorDocumentStore
-    from haystack_integrations.components.retrievers.pgvector import PgvectorEmbeddingRetriever
+    from haystack_integrations.components.retrievers.pgvector import PgvectorKeywordRetriever
 
     # Set an environment variable `PG_CONN_STR` with the connection string to your PostgreSQL database.
     # e.g., "postgresql://USER:PASSWORD@HOST:PORT/DB_NAME"
 
-    document_store = PgvectorDocumentStore(
-    embedding_dimension=768,
-    vector_function="cosine_similarity",
-    recreate_table=True,
-    )
+    document_store = PgvectorDocumentStore(language="english", recreate_table=True)
 
     documents = [Document(content="There are over 7,000 languages spoken around the world today."),
         Document(content="Elephants have been observed to behave in a way that indicates..."),
         Document(content="In certain places, you can witness the phenomenon of bioluminescent waves.")]
 
-    document_embedder = SentenceTransformersDocumentEmbedder()
-    document_embedder.warm_up()
-    documents_with_embeddings = document_embedder.run(documents)
-
     document_store.write_documents(documents_with_embeddings.get("documents"), policy=DuplicatePolicy.OVERWRITE)
 
-    query_pipeline = Pipeline()
-    query_pipeline.add_component("retriever", PgvectorKeywordRetriever(document_store=document_store))
-    query_pipeline.connect("query", "retriever.query")
+    retriever = PgvectorKeywordRetriever(document_store=document_store)
 
-    query = "How many languages are there?"
-
-    res = query_pipeline.run({"retriever": {"text": query}})
+    result = retriever.run(query="languages")
 
     assert res['retriever']['documents'][0].content == "There are over 7,000 languages spoken around the world today."
     """
@@ -60,12 +53,11 @@ class PgvectorKeywordRetriever:
         top_k: int = 10,
     ):
         """
-        :param document_store: An instance of `PgvectorDocumentStore}.
+        :param document_store: An instance of `PgvectorDocumentStore`.
         :param filters: Filters applied to the retrieved Documents.
         :param top_k: Maximum number of Documents to return.
 
-        :raises ValueError: If `document_store` is not an instance of `PgvectorDocumentStore` or if `vector_function`
-            is not one of the valid options.
+        :raises ValueError: If `document_store` is not an instance of `PgvectorDocumentStore`.
         """
         if not isinstance(document_store, PgvectorDocumentStore):
             msg = "document_store must be an instance of PgvectorDocumentStore"
@@ -106,24 +98,25 @@ class PgvectorKeywordRetriever:
     @component.output_types(documents=List[Document])
     def run(
         self,
-        user_query: str,
+        query: str,
         filters: Optional[Dict[str, Any]] = None,
         top_k: Optional[int] = None,
     ):
         """
         Retrieve documents from the `PgvectorDocumentStore`, based on keywords.
 
-        :param user_input: The user's query.
+        :param query: String to search in `Document`s' content.
         :param filters: Filters applied to the retrieved Documents.
         :param top_k: Maximum number of Documents to return.
 
-        :returns: List of Documents similar to `user_query`.
+        :returns: A dictionary with the following keys:
+            - `documents`: List of `Document`s that match the query.
         """
         filters = filters or self.filters
         top_k = top_k or self.top_k
 
         docs = self.document_store._keyword_retrieval(
-            query=user_query,
+            query=query,
             filters=filters,
             top_k=top_k,
         )

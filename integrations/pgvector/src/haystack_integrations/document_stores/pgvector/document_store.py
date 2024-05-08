@@ -84,6 +84,7 @@ class PgvectorDocumentStore:
         *,
         connection_string: Secret = Secret.from_env_var("PG_CONN_STR"),
         table_name: str = "haystack_documents",
+        language: str = "english",
         embedding_dimension: int = 768,
         vector_function: Literal["cosine_similarity", "inner_product", "l2_distance"] = "cosine_similarity",
         recreate_table: bool = False,
@@ -91,7 +92,6 @@ class PgvectorDocumentStore:
         hnsw_recreate_index_if_exists: bool = False,
         hnsw_index_creation_kwargs: Optional[Dict[str, int]] = None,
         hnsw_ef_search: Optional[int] = None,
-        language: str = "english",
     ):
         """
         Creates a new PgvectorDocumentStore instance.
@@ -101,6 +101,10 @@ class PgvectorDocumentStore:
         :param connection_string: The connection string to use to connect to the PostgreSQL database, defined as an
             environment variable, e.g.: `PG_CONN_STR="postgresql://USER:PASSWORD@HOST:PORT/DB_NAME"`
         :param table_name: The name of the table to use to store Haystack documents.
+        :param language: The language to be used to parse query and document content in keyword retrieval.
+            To see the list of available languages, you can run the following SQL query in your PostgreSQL database:
+            `SELECT cfgname FROM pg_ts_config;`.
+            More information can be found in this [StackOverflow answer](https://stackoverflow.com/a/39752553).
         :param embedding_dimension: The dimension of the embedding.
         :param vector_function: The similarity function to use when searching for similar embeddings.
             `"cosine_similarity"` and `"inner_product"` are similarity functions and
@@ -125,8 +129,7 @@ class PgvectorDocumentStore:
             [pgvector documentation](https://github.com/pgvector/pgvector?tab=readme-ov-file#hnsw)
         :param hnsw_ef_search: The `ef_search` parameter to use at query time. Only used if search_strategy is set to
             `"hnsw"`. You can find more information about this parameter in the
-            [pgvector documentation](https://github.com/pgvector/pgvector?tab=readme-ov-file#hnsw)
-        :param language: The language to use for the full-text/hybrid search.
+            [pgvector documentation](https://github.com/pgvector/pgvector?tab=readme-ov-file#hnsw).
         """
 
         self.connection_string = connection_string
@@ -157,7 +160,7 @@ class PgvectorDocumentStore:
         if recreate_table:
             self.delete_table()
         self._create_table_if_not_exists()
-        self._create_keyword_index()
+        self._create_keyword_index_if_not_exists()
 
         if search_strategy == "hnsw":
             self._handle_hnsw()
@@ -244,7 +247,7 @@ class PgvectorDocumentStore:
 
         self._execute_sql(delete_sql, error_msg=f"Could not delete table {self.table_name} in PgvectorDocumentStore")
 
-    def _create_keyword_index(self):
+    def _create_keyword_index_if_not_exists(self):
         """
         Internal method to create the keyword index if not exists.
         """
@@ -544,9 +547,9 @@ class PgvectorDocumentStore:
                 filters=filters, operator="AND"
             )
 
-        sql_top_k = SQL(" ORDER BY score DESC LIMIT {top_k}").format(top_k=SQLLiteral(top_k))
+        sql_sort = SQL(" ORDER BY score DESC LIMIT {top_k}").format(top_k=SQLLiteral(top_k))
 
-        sql_query = sql_select + sql_where_clause + sql_top_k
+        sql_query = sql_select + sql_where_clause + sql_sort
 
         result = self._execute_sql(
             sql_query,
@@ -573,6 +576,7 @@ class PgvectorDocumentStore:
         This method is not meant to be part of the public interface of
         `PgvectorDocumentStore` and it should not be called directly.
         `PgvectorEmbeddingRetriever` uses this method directly and is the public interface for it.
+
         :returns: List of Documents that are most similar to `query_embedding`
         """
 

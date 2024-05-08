@@ -64,7 +64,7 @@ class PgvectorEmbeddingRetriever:
         vector_function: Optional[Literal["cosine_similarity", "inner_product", "l2_distance"]] = None,
     ):
         """
-        :param document_store: An instance of `PgvectorDocumentStore}.
+        :param document_store: An instance of `PgvectorDocumentStore`.
         :param filters: Filters applied to the retrieved Documents.
         :param top_k: Maximum number of Documents to return.
         :param vector_function: The similarity function to use when searching for similar embeddings.
