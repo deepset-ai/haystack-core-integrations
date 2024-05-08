@@ -89,6 +89,7 @@ def test_to_dict(monkeypatch):
             "recreate_table": True,
             "search_strategy": "hnsw",
             "hnsw_recreate_index_if_exists": True,
+            "language": "english",
             "hnsw_index_creation_kwargs": {"m": 32, "ef_construction": 128},
             "hnsw_ef_search": 50,
         },
