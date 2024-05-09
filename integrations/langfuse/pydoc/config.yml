@@ -20,7 +20,7 @@ renderer:
   category_slug: integrations-api
   title: langfuse
   slug: integrations-langfuse
-  order: 135
+  order: 136
   markdown:
     descriptive_class_title: false
     classdef_code_block: false
