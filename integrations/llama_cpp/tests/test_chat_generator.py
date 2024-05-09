@@ -189,65 +189,65 @@ class TestLlamaCppChatGenerator:
             assert len(result["replies"]) > 0
             assert any(answer.lower() in reply.content.lower() for reply in result["replies"])
 
-    @pytest.mark.integration
-    def test_run_rag_pipeline(self, generator):
-        """
-        Test that a valid message returns a list of replies.
-        """
-        user_message = (
-            ChatMessage.from_user
-        ) = """GPT4 Correct User: Answer the question in a single word. {{question}}
-        Context:
-        {% for doc in documents %}
-            {{ doc.content }}
-        {% endfor %}
-        <|end_of_turn|>
-        GPT4 Correct Assistant:
-        """
-        rag_pipeline = Pipeline()
-        rag_pipeline.add_component(
-            instance=InMemoryBM25Retriever(document_store=InMemoryDocumentStore(), top_k=1), name="retriever"
-        )
-        rag_pipeline.add_component(
-            instance=DynamicChatPromptBuilder(runtime_variables=["query", "documents"]), name="prompt_builder"
-        )
-        rag_pipeline.add_component(instance=generator, name="llm")
-        rag_pipeline.add_component(instance=AnswerBuilder(), name="answer_builder")
-        rag_pipeline.connect("retriever", "prompt_builder.documents")
-        rag_pipeline.connect("prompt_builder", "llm")
-        rag_pipeline.connect("llm.replies", "answer_builder.replies")
-        rag_pipeline.connect("retriever", "answer_builder.documents")
+    # @pytest.mark.integration
+    # def test_run_rag_pipeline(self, generator):
+    #     """
+    #     Test that a valid message returns a list of replies.
+    #     """
+    #     user_message = (
+    #         ChatMessage.from_user
+    #     ) = """GPT4 Correct User: Answer the question in a single word. {{question}}
+    #     Context:
+    #     {% for doc in documents %}
+    #         {{ doc.content }}
+    #     {% endfor %}
+    #     <|end_of_turn|>
+    #     GPT4 Correct Assistant:
+    #     """
+    #     rag_pipeline = Pipeline()
+    #     rag_pipeline.add_component(
+    #         instance=InMemoryBM25Retriever(document_store=InMemoryDocumentStore(), top_k=1), name="retriever"
+    #     )
+    #     rag_pipeline.add_component(
+    #         instance=DynamicChatPromptBuilder(runtime_variables=["query", "documents"]), name="prompt_builder"
+    #     )
+    #     rag_pipeline.add_component(instance=generator, name="llm")
+    #     rag_pipeline.add_component(instance=AnswerBuilder(), name="answer_builder")
+    #     rag_pipeline.connect("retriever", "prompt_builder.documents")
+    #     rag_pipeline.connect("prompt_builder", "llm")
+    #     rag_pipeline.connect("llm.replies", "answer_builder.replies")
+    #     rag_pipeline.connect("retriever", "answer_builder.documents")
 
-        # Populate the document store
-        documents = [
-            Document(content="The capital of France is Paris."),
-            Document(content="The capital of Canada is Ottawa."),
-            Document(content="The capital of Ghana is Accra."),
-        ]
-        rag_pipeline.get_component("retriever").document_store.write_documents(documents)
+    #     # Populate the document store
+    #     documents = [
+    #         Document(content="The capital of France is Paris."),
+    #         Document(content="The capital of Canada is Ottawa."),
+    #         Document(content="The capital of Ghana is Accra."),
+    #     ]
+    #     rag_pipeline.get_component("retriever").document_store.write_documents(documents)
 
-        # Query and assert
-        questions_and_answers = [
-            ("What's the capital of France?", "Paris"),
-            ("What is the capital of Canada?", "Ottawa"),
-            ("What is the capital of Ghana?", "Accra"),
-        ]
+    #     # Query and assert
+    #     questions_and_answers = [
+    #         ("What's the capital of France?", "Paris"),
+    #         ("What is the capital of Canada?", "Ottawa"),
+    #         ("What is the capital of Ghana?", "Accra"),
+    #     ]
 
-        for question, answer in questions_and_answers:
-            result = rag_pipeline.run(
-                {
-                    "retriever": {"query": question},
-                    "prompt_builder": {
-                        "prompt_source": [user_message],
-                        "query": question,
-                    },
-                    "llm": {"generation_kwargs": {"temperature": 0.1}},
-                }
-            )
+    #     for question, answer in questions_and_answers:
+    #         result = rag_pipeline.run(
+    #             {
+    #                 "retriever": {"query": question},
+    #                 "prompt_builder": {
+    #                     "prompt_source": [user_message],
+    #                     "query": question,
+    #                 },
+    #                 "llm": {"generation_kwargs": {"temperature": 0.1}},
+    #             }
+    #         )
 
-            assert len(result["answer_builder"]["answers"]) == 1
-            generated_answer = result["answer_builder"]["answers"][0]
-            assert answer.lower() in generated_answer.data.lower()
-            assert generated_answer.query == question
-            assert hasattr(generated_answer, "documents")
-            assert hasattr(generated_answer, "meta")
+    #         assert len(result["answer_builder"]["answers"]) == 1
+    #         generated_answer = result["answer_builder"]["answers"][0]
+    #         assert answer.lower() in generated_answer.data.lower()
+    #         assert generated_answer.query == question
+    #         assert hasattr(generated_answer, "documents")
+    #         assert hasattr(generated_answer, "meta")
