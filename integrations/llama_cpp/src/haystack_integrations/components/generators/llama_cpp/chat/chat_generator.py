@@ -2,7 +2,7 @@ import logging
 from typing import Any, Dict, List, Optional
 
 from haystack import component
-from haystack.dataclasses import ChatMessage
+from haystack.dataclasses import ChatMessage, ChatRole
 from llama_cpp import Llama
 
 logger = logging.getLogger(__name__)
@@ -69,6 +69,10 @@ class LlamaCppChatGenerator:
         if self.model is None:
             self.model = Llama(**self.model_kwargs)
 
+    def stream_to_stdout(self, chunk):
+        """Print streamed data to stdout."""
+        print(chunk.content, end='', flush=True)
+
     @component.output_types(replies=List[ChatMessage])
     def run(self, messages: List[ChatMessage], generation_kwargs: Optional[Dict[str, Any]] = None):
         """
@@ -86,12 +90,27 @@ class LlamaCppChatGenerator:
             error_msg = "The model has not been loaded. Please call warm_up() before running."
             raise RuntimeError(error_msg)
 
+        if not messages:
+            return {"replies": []}
+
         updated_generation_kwargs = {**self.generation_kwargs, **(generation_kwargs or {})}
         formatted_messages = [msg.to_openai_format() for msg in messages]
 
-        # Check if stream in generation_kwargs is set to True; handle streaming
+        response = self.model.create_chat_completion(messages=formatted_messages, **updated_generation_kwargs)
+        replies = []
+        for choice in response["choices"]:
+            metadata = {
+                "response_id": response["id"],
+                "model": response["model"],
+                "created": response["created"],
+                "index": choice["index"],
+                "finish_reason": choice["finish_reason"],
+                "usage": response["usage"],
+            }
 
-        output = self.model.create_chat_completion(messages=formatted_messages, **updated_generation_kwargs)
-        replies = [ChatMessage.from_assistant(content=output["choices"][0]["message"]["content"])]
+            content = choice["message"]["content"]
+            role = choice["message"]["role"].upper()
 
+            chat_message = ChatMessage(content=content, role=ChatRole[role], name=None, meta=metadata)
+            replies.append(chat_message)
         return {"replies": replies}
