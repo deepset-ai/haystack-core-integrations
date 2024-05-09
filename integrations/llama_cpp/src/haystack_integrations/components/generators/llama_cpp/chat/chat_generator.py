@@ -69,10 +69,6 @@ class LlamaCppChatGenerator:
         if self.model is None:
             self.model = Llama(**self.model_kwargs)
 
-    def stream_to_stdout(self, chunk):
-        """Print streamed data to stdout."""
-        print(chunk.content, end='', flush=True)
-
     @component.output_types(replies=List[ChatMessage])
     def run(self, messages: List[ChatMessage], generation_kwargs: Optional[Dict[str, Any]] = None):
         """
