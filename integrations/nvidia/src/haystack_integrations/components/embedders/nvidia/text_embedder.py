@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 from haystack import component, default_from_dict, default_to_dict
 from haystack.utils import Secret, deserialize_secrets_inplace
@@ -6,6 +6,7 @@ from haystack.utils import Secret, deserialize_secrets_inplace
 from ._nim_backend import NimBackend
 from ._nvcf_backend import NvcfBackend
 from .backend import EmbedderBackend
+from .truncate import EmbeddingTruncateMode
 
 
 @component
@@ -38,6 +39,7 @@ class NvidiaTextEmbedder:
         api_url: Optional[str] = None,
         prefix: str = "",
         suffix: str = "",
+        truncate: Optional[Union[EmbeddingTruncateMode, str]] = None,
     ):
         """
         Create a NvidiaTextEmbedder component.
@@ -52,6 +54,9 @@ class NvidiaTextEmbedder:
             A string to add to the beginning of each text.
         :param suffix:
             A string to add to the end of each text.
+        :param truncate:
+            Specifies how inputs longer that the maximum token length should be truncated.
+            If None the behavior is model-dependent, see the official documentation for more information.
         """
 
         self.api_key = api_key
@@ -59,6 +64,10 @@ class NvidiaTextEmbedder:
         self.api_url = api_url
         self.prefix = prefix
         self.suffix = suffix
+
+        if isinstance(truncate, str):
+            truncate = EmbeddingTruncateMode.from_str(truncate)
+        self.truncate = truncate
 
         self.backend: Optional[EmbedderBackend] = None
         self._initialized = False
@@ -77,7 +86,15 @@ class NvidiaTextEmbedder:
 
             self.backend = NvcfBackend(self.model, api_key=self.api_key, model_kwargs={"model": "query"})
         else:
-            self.backend = NimBackend(self.model, api_url=self.api_url, model_kwargs={"input_type": "query"})
+            model_kwargs = {"input_type": "query"}
+            if self.truncate is not None:
+                model_kwargs["truncate"] = str(self.truncate)
+            self.backend = NimBackend(
+                self.model,
+                api_url=self.api_url,
+                api_key=self.api_key,
+                model_kwargs=model_kwargs,
+            )
 
         self._initialized = True
 
@@ -95,6 +112,7 @@ class NvidiaTextEmbedder:
             api_url=self.api_url,
             prefix=self.prefix,
             suffix=self.suffix,
+            truncate=str(self.truncate) if self.truncate is not None else None,
         )
 
     @classmethod

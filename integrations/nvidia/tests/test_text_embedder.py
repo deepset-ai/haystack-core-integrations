@@ -3,7 +3,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 from haystack.utils import Secret
-from haystack_integrations.components.embedders.nvidia import NvidiaTextEmbedder
+from haystack_integrations.components.embedders.nvidia import EmbeddingTruncateMode, NvidiaTextEmbedder
 
 
 class TestNvidiaTextEmbedder:
@@ -46,6 +46,7 @@ class TestNvidiaTextEmbedder:
                 "model": "nvolveqa_40k",
                 "prefix": "",
                 "suffix": "",
+                "truncate": None,
             },
         }
 
@@ -55,6 +56,7 @@ class TestNvidiaTextEmbedder:
             model="nvolveqa_40k",
             prefix="prefix",
             suffix="suffix",
+            truncate=EmbeddingTruncateMode.START,
         )
         data = component.to_dict()
         assert data == {
@@ -65,8 +67,29 @@ class TestNvidiaTextEmbedder:
                 "model": "nvolveqa_40k",
                 "prefix": "prefix",
                 "suffix": "suffix",
+                "truncate": "START",
             },
         }
+
+    def from_dict(self, monkeypatch):
+        monkeypatch.setenv("NVIDIA_API_KEY", "fake-api-key")
+        data = {
+            "type": "haystack_integrations.components.embedders.nvidia.text_embedder.NvidiaTextEmbedder",
+            "init_parameters": {
+                "api_key": {"env_vars": ["NVIDIA_API_KEY"], "strict": True, "type": "env_var"},
+                "api_url": None,
+                "model": "nvolveqa_40k",
+                "prefix": "prefix",
+                "suffix": "suffix",
+                "truncate": "START",
+            },
+        }
+        component = NvidiaTextEmbedder.from_dict(data)
+        assert component.model == "nvolveqa_40k"
+        assert component.api_url is None
+        assert component.prefix == "prefix"
+        assert component.suffix == "suffix"
+        assert component.truncate == "START"
 
     @patch("haystack_integrations.components.embedders.nvidia._nvcf_backend.NvidiaCloudFunctionsClient")
     def test_run(self, mock_client_class):
@@ -141,6 +164,26 @@ class TestNvidiaTextEmbedder:
             model=model,
             api_url=url,
             api_key=None,
+        )
+        embedder.warm_up()
+
+        result = embedder.run("A transformer is a deep learning architecture")
+        embedding = result["embedding"]
+        meta = result["meta"]
+
+        assert all(isinstance(x, float) for x in embedding)
+        assert "usage" in meta
+
+    @pytest.mark.skipif(
+        not os.environ.get("NVIDIA_CATALOG_API_KEY", None),
+        reason="Export an env var called NVIDIA_CATALOG_API_KEY containing the Nvidia API key to run this test.",
+    )
+    @pytest.mark.integration
+    def test_run_integration_with_api_catalog(self):
+        embedder = NvidiaTextEmbedder(
+            model="NV-Embed-QA",
+            api_url="https://ai.api.nvidia.com/v1/retrieval/nvidia",
+            api_key=Secret.from_env_var("NVIDIA_CATALOG_API_KEY"),
         )
         embedder.warm_up()
 

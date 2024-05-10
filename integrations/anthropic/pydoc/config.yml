@@ -15,12 +15,12 @@ processors:
   - type: smart
   - type: crossref
 renderer:
-  type: haystack_pydoc_tools.renderers.ReadmePreviewRenderer
+  type: haystack_pydoc_tools.renderers.ReadmeIntegrationRenderer
   excerpt: Anthropic integration for Haystack
   category_slug: integrations-api
   title: Anthropic
   slug: integrations-anthropic
-  order: 22
+  order: 23
   markdown:
     descriptive_class_title: false
     descriptive_module_title: true

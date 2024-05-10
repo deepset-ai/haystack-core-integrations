@@ -163,21 +163,32 @@ class CohereChatGenerator:
                 chat_history=chat_history,
                 **generation_kwargs,
             )
-            for chunk in response:
-                if chunk.event_type == "text-generation":
-                    stream_chunk = self._build_chunk(chunk)
+
+            response_text = ""
+            finish_response = None
+            for event in response:
+                if event.event_type == "text-generation":
+                    stream_chunk = self._build_chunk(event)
                     self.streaming_callback(stream_chunk)
-            chat_message = ChatMessage.from_assistant(content=response.texts)
-            chat_message.meta.update(
-                {
-                    "model": self.model,
-                    "usage": response.token_count,
-                    "index": 0,
-                    "finish_reason": response.finish_reason,
-                    "documents": response.documents,
-                    "citations": response.citations,
-                }
-            )
+                    response_text += event.text
+                elif event.event_type == "stream-end":
+                    finish_response = event.response
+            chat_message = ChatMessage.from_assistant(content=response_text)
+
+            if finish_response and finish_response.meta:
+                if finish_response.meta.billed_units:
+                    tokens_in = finish_response.meta.billed_units.input_tokens or -1
+                    tokens_out = finish_response.meta.billed_units.output_tokens or -1
+                    chat_message.meta["usage"] = tokens_in + tokens_out
+                chat_message.meta.update(
+                    {
+                        "model": self.model,
+                        "index": 0,
+                        "finish_reason": finish_response.finish_reason,
+                        "documents": finish_response.documents,
+                        "citations": finish_response.citations,
+                    }
+                )
         else:
             response = self.client.chat(
                 message=messages[-1].content,
@@ -195,7 +206,7 @@ class CohereChatGenerator:
         :param choice: The choice returned by the OpenAI API.
         :returns: The StreamingChunk.
         """
-        chat_message = StreamingChunk(content=chunk.text, meta={"index": chunk.index, "event_type": chunk.event_type})
+        chat_message = StreamingChunk(content=chunk.text, meta={"event_type": chunk.event_type})
         return chat_message
 
     def _build_message(self, cohere_response):
@@ -206,10 +217,12 @@ class CohereChatGenerator:
         """
         content = cohere_response.text
         message = ChatMessage.from_assistant(content=content)
+
+        total_tokens = cohere_response.meta.billed_units.input_tokens + cohere_response.meta.billed_units.output_tokens
         message.meta.update(
             {
                 "model": self.model,
-                "usage": cohere_response.token_count,
+                "usage": total_tokens,
                 "index": 0,
                 "finish_reason": None,
                 "documents": cohere_response.documents,

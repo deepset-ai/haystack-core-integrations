@@ -1,6 +1,7 @@
 from typing import Any, Dict, List, Optional, Tuple
 
 import requests
+from haystack.utils import Secret
 
 from .backend import EmbedderBackend
 
@@ -12,12 +13,17 @@ class NimBackend(EmbedderBackend):
         self,
         model: str,
         api_url: str,
+        api_key: Optional[Secret] = None,
         model_kwargs: Optional[Dict[str, Any]] = None,
     ):
         headers = {
             "Content-Type": "application/json",
             "accept": "application/json",
         }
+
+        if api_key:
+            headers["authorization"] = f"Bearer {api_key.resolve_value()}"
+
         self.session = requests.Session()
         self.session.headers.update(headers)
 

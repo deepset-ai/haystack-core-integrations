@@ -17,12 +17,12 @@ processors:
   - type: smart
   - type: crossref
 renderer:
-  type: haystack_pydoc_tools.renderers.ReadmePreviewRenderer
+  type: haystack_pydoc_tools.renderers.ReadmeIntegrationRenderer
   excerpt: Nvidia integration for Haystack
   category_slug: integrations-api
   title: Nvidia
   slug: integrations-nvidia
-  order: 50
+  order: 165
   markdown:
     descriptive_class_title: false
     classdef_code_block: false
