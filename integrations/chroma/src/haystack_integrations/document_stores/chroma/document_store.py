@@ -209,16 +209,30 @@ class ChromaDocumentStore:
         """
         self._collection.delete(ids=document_ids)
 
-    def search(self, queries: List[str], top_k: int) -> List[List[Document]]:
+    def search(self, queries: List[str], top_k: int, filters: Optional[Dict[str, Any]] = None) -> List[List[Document]]:
         """Search the documents in the store using the provided text queries.
 
         :param queries: the list of queries to search for.
         :param top_k: top_k documents to return for each query.
+        :param filters: a dictionary of filters to apply to the search. Accepts filters in haystack format.
         :returns: matching documents for each query.
         """
-        results = self._collection.query(
-            query_texts=queries, n_results=top_k, include=["embeddings", "documents", "metadatas", "distances"]
-        )
+        if filters is None:
+            results = self._collection.query(
+                query_texts=queries,
+                n_results=top_k,
+                include=["embeddings", "documents", "metadatas", "distances"],
+            )
+        else:
+            chroma_filters = self._normalize_filters(filters=filters)
+            results = self._collection.query(
+                query_texts=queries,
+                n_results=top_k,
+                where=chroma_filters[1],
+                where_document=chroma_filters[2],
+                include=["embeddings", "documents", "metadatas", "distances"],
+            )
+
         return self._query_result_to_documents(results)
 
     def search_embeddings(
