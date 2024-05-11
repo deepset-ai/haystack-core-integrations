@@ -1,3 +1,4 @@
+import json
 import os
 import urllib.request
 from pathlib import Path
@@ -5,7 +6,6 @@ from unittest.mock import MagicMock
 
 import pytest
 from haystack import Document, Pipeline
-from haystack.components.builders.answer_builder import AnswerBuilder
 from haystack.components.builders.dynamic_chat_prompt_builder import DynamicChatPromptBuilder
 from haystack.components.retrievers.in_memory import InMemoryBM25Retriever
 from haystack.dataclasses import ChatMessage, ChatRole
@@ -41,7 +41,7 @@ class TestLlamaCppChatGenerator:
         download_file(gguf_model_path, str(model_path / filename), capsys)
 
         model_path = str(model_path / filename)
-        generator = LlamaCppChatGenerator(model=model_path, n_ctx=128, n_batch=128)
+        generator = LlamaCppChatGenerator(model=model_path, n_ctx=8192, n_batch=512)
         generator.warm_up()
         return generator
 
@@ -70,14 +70,14 @@ class TestLlamaCppChatGenerator:
         """
         generator = LlamaCppChatGenerator(
             model="test_model.gguf",
-            n_ctx=2048,
+            n_ctx=8192,
             n_batch=512,
         )
 
         assert generator.model_path == "test_model.gguf"
-        assert generator.n_ctx == 2048
+        assert generator.n_ctx == 8192
         assert generator.n_batch == 512
-        assert generator.model_kwargs == {"model_path": "test_model.gguf", "n_ctx": 2048, "n_batch": 512}
+        assert generator.model_kwargs == {"model_path": "test_model.gguf", "n_ctx": 8192, "n_batch": 512}
         assert generator.generation_kwargs == {}
 
     def test_ignores_model_path_if_specified_in_model_kwargs(self):
@@ -86,7 +86,7 @@ class TestLlamaCppChatGenerator:
         """
         generator = LlamaCppChatGenerator(
             model="test_model.gguf",
-            n_ctx=512,
+            n_ctx=8192,
             n_batch=512,
             model_kwargs={"model_path": "other_model.gguf"},
         )
@@ -96,15 +96,15 @@ class TestLlamaCppChatGenerator:
         """
         Test that n_ctx is ignored if already specified in model_kwargs.
         """
-        generator = LlamaCppChatGenerator(model="test_model.gguf", n_ctx=512, n_batch=512, model_kwargs={"n_ctx": 1024})
-        assert generator.model_kwargs["n_ctx"] == 1024
+        generator = LlamaCppChatGenerator(model="test_model.gguf", n_ctx=512, n_batch=512, model_kwargs={"n_ctx": 8192})
+        assert generator.model_kwargs["n_ctx"] == 8192
 
     def test_ignores_n_batch_if_specified_in_model_kwargs(self):
         """
         Test that n_batch is ignored if already specified in model_kwargs.
         """
         generator = LlamaCppChatGenerator(
-            model="test_model.gguf", n_ctx=512, n_batch=512, model_kwargs={"n_batch": 1024}
+            model="test_model.gguf", n_ctx=8192, n_batch=512, model_kwargs={"n_batch": 1024}
         )
         assert generator.model_kwargs["n_batch"] == 1024
 
@@ -189,65 +189,124 @@ class TestLlamaCppChatGenerator:
             assert len(result["replies"]) > 0
             assert any(answer.lower() in reply.content.lower() for reply in result["replies"])
 
-    # @pytest.mark.integration
-    # def test_run_rag_pipeline(self, generator):
-    #     """
-    #     Test that a valid message returns a list of replies.
-    #     """
-    #     user_message = (
-    #         ChatMessage.from_user
-    #     ) = """GPT4 Correct User: Answer the question in a single word. {{question}}
-    #     Context:
-    #     {% for doc in documents %}
-    #         {{ doc.content }}
-    #     {% endfor %}
-    #     <|end_of_turn|>
-    #     GPT4 Correct Assistant:
-    #     """
-    #     rag_pipeline = Pipeline()
-    #     rag_pipeline.add_component(
-    #         instance=InMemoryBM25Retriever(document_store=InMemoryDocumentStore(), top_k=1), name="retriever"
-    #     )
-    #     rag_pipeline.add_component(
-    #         instance=DynamicChatPromptBuilder(runtime_variables=["query", "documents"]), name="prompt_builder"
-    #     )
-    #     rag_pipeline.add_component(instance=generator, name="llm")
-    #     rag_pipeline.add_component(instance=AnswerBuilder(), name="answer_builder")
-    #     rag_pipeline.connect("retriever", "prompt_builder.documents")
-    #     rag_pipeline.connect("prompt_builder", "llm")
-    #     rag_pipeline.connect("llm.replies", "answer_builder.replies")
-    #     rag_pipeline.connect("retriever", "answer_builder.documents")
+    @pytest.mark.integration
+    def test_run_rag_pipeline(self, generator):
+        """
+        Test that a valid message returns a list of replies.
+        """
+        document_store = InMemoryDocumentStore()
+        documents = [
+            Document(content="There are over 7,000 languages spoken around the world today."),
+            Document(
+                content="Elephants have been observed to behave in a way that indicates a high level of self-awareness, such as recognizing themselves in mirrors."
+            ),
+            Document(
+                content="In certain parts of the world, like the Maldives, Puerto Rico, and San Diego, you can witness the phenomenon of bioluminescent waves."
+            ),
+        ]
+        document_store.write_documents(documents=documents)
 
-    #     # Populate the document store
-    #     documents = [
-    #         Document(content="The capital of France is Paris."),
-    #         Document(content="The capital of Canada is Ottawa."),
-    #         Document(content="The capital of Ghana is Accra."),
-    #     ]
-    #     rag_pipeline.get_component("retriever").document_store.write_documents(documents)
+        pipeline = Pipeline()
+        pipeline.add_component(
+            instance=InMemoryBM25Retriever(document_store=document_store, top_k=1),
+            name="retriever",
+        )
+        pipeline.add_component(
+            instance=DynamicChatPromptBuilder(runtime_variables=["query", "documents"]), name="prompt_builder"
+        )
+        pipeline.add_component(instance=generator, name="llm")
+        pipeline.connect("retriever.documents", "prompt_builder.documents")
+        pipeline.connect("prompt_builder.prompt", "llm.messages")
 
-    #     # Query and assert
-    #     questions_and_answers = [
-    #         ("What's the capital of France?", "Paris"),
-    #         ("What is the capital of Canada?", "Ottawa"),
-    #         ("What is the capital of Ghana?", "Accra"),
-    #     ]
+        question = "How many languages are there?"
+        location = "Puerto Rico"
+        system_message = ChatMessage.from_system(
+            "You are a helpful assistant giving out valuable information to tourists."
+        )
+        messages = [
+            system_message,
+            ChatMessage.from_user(
+                """
+        Given these documents and given that I am currently in {{ location }}, answer the question.\nDocuments:
+            {% for doc in documents %}
+                {{ doc.content }}
+            {% endfor %}
 
-    #     for question, answer in questions_and_answers:
-    #         result = rag_pipeline.run(
-    #             {
-    #                 "retriever": {"query": question},
-    #                 "prompt_builder": {
-    #                     "prompt_source": [user_message],
-    #                     "query": question,
-    #                 },
-    #                 "llm": {"generation_kwargs": {"temperature": 0.1}},
-    #             }
-    #         )
+            \nQuestion: {{query}}
+            \nAnswer:
+        """
+            ),
+        ]
+        question = "Can I see bioluminescent waves at my current location?"
+        result = pipeline.run(
+            data={
+                "retriever": {"query": question},
+                "prompt_builder": {
+                    "template_variables": {"location": location},
+                    "prompt_source": messages,
+                    "query": question,
+                },
+            }
+        )
 
-    #         assert len(result["answer_builder"]["answers"]) == 1
-    #         generated_answer = result["answer_builder"]["answers"][0]
-    #         assert answer.lower() in generated_answer.data.lower()
-    #         assert generated_answer.query == question
-    #         assert hasattr(generated_answer, "documents")
-    #         assert hasattr(generated_answer, "meta")
+        replies = result['llm']['replies']
+        assert len(replies) > 0
+        assert any("bioluminescent waves" in reply.content for reply in replies)
+        assert all(reply.role == ChatRole.ASSISTANT for reply in replies)
+
+
+class TestLlamaCppChatGeneratorFunctionCalls:
+    @pytest.fixture
+    def generator(self, model_path, capsys):
+        gguf_model_path = (
+            "https://huggingface.co/meetkai/functionary-small-v2.4-GGUF/resolve/main/functionary-small-v2.4.Q4_0.gguf"
+        )
+        filename = "functionary-small-v2.4.Q4_0.gguf"
+        download_file(gguf_model_path, str(model_path / filename), capsys)
+        model_path = str(model_path / filename)
+        hf_tokenizer_path = "meetkai/functionary-small-v2.4-GGUF"
+        generator = LlamaCppChatGenerator(
+            model=model_path,
+            n_ctx=8192,
+            n_batch=512,
+            model_kwargs={
+                "chat_format": "functionary-v2",
+                "hf_tokenizer_path": hf_tokenizer_path,
+            },
+        )
+        generator.warm_up()
+        return generator
+
+    @pytest.mark.integration
+    def test_function_call_scenario(self, generator):
+        tools = [
+            {
+                "type": "function",
+                "function": {
+                    "name": "get_user_info",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "username": {"type": "string", "description": "The username to retrieve information for."}
+                        },
+                        "required": ["username"],
+                    },
+                    "description": "Retrieves detailed information about a user.",
+                },
+            }
+        ]
+        tool_choice = {"type": "function", "function": {"name": "get_user_info"}}
+
+        messages = [
+            ChatMessage.from_user("Get information for user john_doe"),
+        ]
+        generation_kwargs = {"tools": tools, "tool_choice": tool_choice}
+
+        response = generator.run(messages=messages, generation_kwargs=generation_kwargs)
+
+        assert "tool_calls" in response["replies"][0].meta
+        tool_calls = response["replies"][0].meta["tool_calls"]
+        assert len(tool_calls) > 0
+        assert tool_calls[0]["function"]["name"] == "get_user_info"
+        assert "username" in json.loads(tool_calls[0]["function"]["arguments"])
+        assert response["replies"][0].role == ChatRole.ASSISTANT

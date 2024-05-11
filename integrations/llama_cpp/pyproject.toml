@@ -28,7 +28,10 @@ classifiers = [
 ]
 dependencies = [
   "haystack-ai",
-  "llama-cpp-python"
+  "llama-cpp-python",
+  "transformers",
+  "sentencepiece",
+  "protobuf"
 ]
 
 [project.urls]

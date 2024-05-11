@@ -1,9 +1,11 @@
+import json
 import logging
 from typing import Any, Dict, List, Optional
 
 from haystack import component
 from haystack.dataclasses import ChatMessage, ChatRole
 from llama_cpp import Llama
+from llama_cpp.llama_tokenizer import LlamaHFTokenizer
 
 logger = logging.getLogger(__name__)
 
@@ -53,6 +55,10 @@ class LlamaCppChatGenerator:
         model_kwargs = model_kwargs or {}
         generation_kwargs = generation_kwargs or {}
 
+        if 'hf_tokenizer_path' in model_kwargs:
+            tokenizer = LlamaHFTokenizer.from_pretrained(model_kwargs['hf_tokenizer_path'])
+            model_kwargs['tokenizer'] = tokenizer
+
         # check if the model_kwargs contain the essential parameters
         # otherwise, populate them with values from init parameters
         model_kwargs.setdefault("model_path", model)
@@ -94,20 +100,26 @@ class LlamaCppChatGenerator:
         formatted_messages = [msg.to_openai_format() for msg in messages]
 
         response = self.model.create_chat_completion(messages=formatted_messages, **updated_generation_kwargs)
-        replies = []
-        for choice in response["choices"]:
-            metadata = {
-                "response_id": response["id"],
-                "model": response["model"],
-                "created": response["created"],
-                "index": choice["index"],
-                "finish_reason": choice["finish_reason"],
-                "usage": response["usage"],
-            }
+        replies = [
+            ChatMessage(
+                content=choice["message"]["content"],
+                role=ChatRole[choice["message"]["role"].upper()],
+                name=None,
+                meta={
+                    "response_id": response["id"],
+                    "model": response["model"],
+                    "created": response["created"],
+                    "index": choice["index"],
+                    "finish_reason": choice["finish_reason"],
+                    "usage": response["usage"],
+                },
+            )
+            for choice in response["choices"]
+        ]
 
-            content = choice["message"]["content"]
-            role = choice["message"]["role"].upper()
-
-            chat_message = ChatMessage(content=content, role=ChatRole[role], name=None, meta=metadata)
-            replies.append(chat_message)
+        for reply, choice in zip(replies, response["choices"]):
+            tool_calls = choice.get("message", {}).get("tool_calls", [])
+            if tool_calls:
+                reply.meta["tool_calls"] = tool_calls
+        reply.name = tool_calls[0]["function"]["name"] if tool_calls else None
         return {"replies": replies}
