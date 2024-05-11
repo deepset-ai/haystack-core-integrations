@@ -198,10 +198,12 @@ class TestLlamaCppChatGenerator:
         documents = [
             Document(content="There are over 7,000 languages spoken around the world today."),
             Document(
-                content="Elephants have been observed to behave in a way that indicates a high level of self-awareness, such as recognizing themselves in mirrors."
+                content="""Elephants have been observed to behave in a way that indicates a high
+                level of self-awareness, such as recognizing themselves in mirrors."""
             ),
             Document(
-                content="In certain parts of the world, like the Maldives, Puerto Rico, and San Diego, you can witness the phenomenon of bioluminescent waves."
+                content="""In certain parts of the world, like the Maldives, Puerto Rico,
+                and San Diego, you can witness the phenomenon of bioluminescent waves."""
             ),
         ]
         document_store.write_documents(documents=documents)
@@ -249,13 +251,24 @@ class TestLlamaCppChatGenerator:
             }
         )
 
-        replies = result['llm']['replies']
+        replies = result["llm"]["replies"]
         assert len(replies) > 0
         assert any("bioluminescent waves" in reply.content for reply in replies)
         assert all(reply.role == ChatRole.ASSISTANT for reply in replies)
 
 
 class TestLlamaCppChatGeneratorFunctionCalls:
+    def get_current_temperature(self, location):
+        """Get the current temperature in a given location"""
+        if "tokyo" in location.lower():
+            return json.dumps({"location": "Tokyo", "temperature": "10", "unit": "celsius"})
+        elif "san francisco" in location.lower():
+            return json.dumps({"location": "San Francisco", "temperature": "72", "unit": "fahrenheit"})
+        elif "paris" in location.lower():
+            return json.dumps({"location": "Paris", "temperature": "22", "unit": "celsius"})
+        else:
+            return json.dumps({"location": location, "temperature": "unknown"})
+
     @pytest.fixture
     def generator(self, model_path, capsys):
         gguf_model_path = (
@@ -278,7 +291,7 @@ class TestLlamaCppChatGeneratorFunctionCalls:
         return generator
 
     @pytest.mark.integration
-    def test_function_call_scenario(self, generator):
+    def test_function_call(self, generator):
         tools = [
             {
                 "type": "function",
@@ -300,9 +313,7 @@ class TestLlamaCppChatGeneratorFunctionCalls:
         messages = [
             ChatMessage.from_user("Get information for user john_doe"),
         ]
-        generation_kwargs = {"tools": tools, "tool_choice": tool_choice}
-
-        response = generator.run(messages=messages, generation_kwargs=generation_kwargs)
+        response = generator.run(messages=messages, generation_kwargs={"tools": tools, "tool_choice": tool_choice})
 
         assert "tool_calls" in response["replies"][0].meta
         tool_calls = response["replies"][0].meta["tool_calls"]
@@ -310,3 +321,54 @@ class TestLlamaCppChatGeneratorFunctionCalls:
         assert tool_calls[0]["function"]["name"] == "get_user_info"
         assert "username" in json.loads(tool_calls[0]["function"]["arguments"])
         assert response["replies"][0].role == ChatRole.ASSISTANT
+
+    def test_function_call_and_execute(self, generator):
+        messages = [ChatMessage.from_user("What's the weather like in San Francisco?")]
+        tools = [
+            {
+                "type": "function",
+                "function": {
+                    "name": "get_current_temperature",
+                    "description": "Get the current temperature in a given location",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "location": {
+                                "type": "string",
+                                "description": "The city and state, e.g. San Francisco, CA",
+                            },
+                            "unit": {"type": "string", "enum": ["celsius", "fahrenheit"]},
+                        },
+                        "required": ["location"],
+                    },
+                },
+            }
+        ]
+
+        response = generator.run(messages=messages, generation_kwargs={"tools": tools})
+
+        available_functions = {
+            "get_current_temperature": self.get_current_temperature,
+        }
+
+        assert "replies" in response
+        assert len(response["replies"]) > 0
+
+        first_reply = response["replies"][0]
+        assert "tool_calls" in first_reply.meta
+        tool_calls = first_reply.meta["tool_calls"]
+
+        for tool_call in tool_calls:
+            function_name = tool_call["function"]["name"]
+            function_args = json.loads(tool_call["function"]["arguments"])
+            assert function_name in available_functions
+            function_response = available_functions[function_name](**function_args)
+            function_message = ChatMessage.from_function(function_response, function_name)
+            messages.append(function_message)
+
+        second_response = generator.run(messages=messages)
+        print(second_response)
+        assert "replies" in second_response
+        assert len(second_response["replies"]) > 0
+        assert any("current temperature" in reply.content for reply in second_response["replies"])
+        assert any("72" in reply.content for reply in second_response["replies"])

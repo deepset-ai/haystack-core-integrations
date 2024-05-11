@@ -1,4 +1,3 @@
-import json
 import logging
 from typing import Any, Dict, List, Optional
 
@@ -25,7 +24,7 @@ class LlamaCppChatGenerator:
     generator = LlamaCppGenerator(model="zephyr-7b-beta.Q4_0.gguf", n_ctx=2048, n_batch=512)
 
     print(generator.run(user_message, generation_kwargs={"max_tokens": 128}))
-    # {'replies': [ChatMessage(content='John Cusack', role=<ChatRole.ASSISTANT: 'assistant'>, name=None, meta={...}]}
+    # {"replies": [ChatMessage(content="John Cusack", role=<ChatRole.ASSISTANT: "assistant">, name=None, meta={...}]}
     ```
     """
 
@@ -55,9 +54,9 @@ class LlamaCppChatGenerator:
         model_kwargs = model_kwargs or {}
         generation_kwargs = generation_kwargs or {}
 
-        if 'hf_tokenizer_path' in model_kwargs:
-            tokenizer = LlamaHFTokenizer.from_pretrained(model_kwargs['hf_tokenizer_path'])
-            model_kwargs['tokenizer'] = tokenizer
+        if "hf_tokenizer_path" in model_kwargs:
+            tokenizer = LlamaHFTokenizer.from_pretrained(model_kwargs["hf_tokenizer_path"])
+            model_kwargs["tokenizer"] = tokenizer
 
         # check if the model_kwargs contain the essential parameters
         # otherwise, populate them with values from init parameters
