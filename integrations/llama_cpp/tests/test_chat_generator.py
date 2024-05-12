@@ -415,7 +415,7 @@ class TestLlamaCppChatGeneratorFunctionary:
         print(second_response)
         assert "replies" in second_response
         assert len(second_response["replies"]) > 0
-        assert any("current temperature" in reply.content for reply in second_response["replies"])
+        assert any("San Francisco" in reply.content for reply in second_response["replies"])
         assert any("72" in reply.content for reply in second_response["replies"])
 
 
