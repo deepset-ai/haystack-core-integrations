@@ -2,5 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 from .embedding_retriever import PgvectorEmbeddingRetriever
+from .keyword_retriever import PgvectorKeywordRetriever
 
-__all__ = ["PgvectorEmbeddingRetriever"]
+__all__ = ["PgvectorEmbeddingRetriever", "PgvectorKeywordRetriever"]

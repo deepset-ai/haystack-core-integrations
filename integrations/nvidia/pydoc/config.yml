@@ -22,7 +22,7 @@ renderer:
   category_slug: integrations-api
   title: Nvidia
   slug: integrations-nvidia
-  order: 50
+  order: 165
   markdown:
     descriptive_class_title: false
     classdef_code_block: false
