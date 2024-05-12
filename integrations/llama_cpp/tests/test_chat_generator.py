@@ -256,8 +256,53 @@ class TestLlamaCppChatGenerator:
         assert any("bioluminescent waves" in reply.content for reply in replies)
         assert all(reply.role == ChatRole.ASSISTANT for reply in replies)
 
+    @pytest.mark.integration
+    def test_json_constraining(self, generator):
+        """
+        Test that the generator can output valid JSON.
+        """
+        messages = [ChatMessage.from_system("Output valid json only. List 2 people with their name and age.")]
+        json_schema = {
+            "type": "object",
+            "properties": {
+                "people": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "name": {"type": "string"},
+                            "age": {"type": "number"},
+                        },
+                    },
+                },
+            },
+            "required": ["people"],
+        }
 
-class TestLlamaCppChatGeneratorFunctionCalls:
+        result = generator.run(
+            messages=messages,
+            generation_kwargs={
+                "response_format": {"type": "json_object", "schema": json_schema},
+            },
+        )
+
+        assert "replies" in result
+        assert isinstance(result["replies"], list)
+        assert len(result["replies"]) > 0
+        assert all(reply.role == ChatRole.ASSISTANT for reply in result["replies"])
+        for reply in result["replies"]:
+            assert json.loads(reply.content)
+            assert isinstance(json.loads(reply.content), dict)
+            assert "people" in json.loads(reply.content)
+            assert isinstance(json.loads(reply.content)["people"], list)
+            assert all(isinstance(person, dict) for person in json.loads(reply.content)["people"])
+            assert all("name" in person for person in json.loads(reply.content)["people"])
+            assert all("age" in person for person in json.loads(reply.content)["people"])
+            assert all(isinstance(person["name"], str) for person in json.loads(reply.content)["people"])
+            assert all(isinstance(person["age"], int) for person in json.loads(reply.content)["people"])
+
+
+class TestLlamaCppChatGeneratorFunctionary:
     def get_current_temperature(self, location):
         """Get the current temperature in a given location"""
         if "tokyo" in location.lower():
@@ -372,3 +417,67 @@ class TestLlamaCppChatGeneratorFunctionCalls:
         assert len(second_response["replies"]) > 0
         assert any("current temperature" in reply.content for reply in second_response["replies"])
         assert any("72" in reply.content for reply in second_response["replies"])
+
+
+class TestLlamaCppChatGeneratorChatML:
+
+    @pytest.fixture
+    def generator(self, model_path, capsys):
+        gguf_model_path = (
+            "https://huggingface.co/TheBloke/openchat-3.5-1210-GGUF/resolve/main/openchat-3.5-1210.Q3_K_S.gguf"
+        )
+        filename = "openchat-3.5-1210.Q3_K_S.gguf"
+        download_file(gguf_model_path, str(model_path / filename), capsys)
+        model_path = str(model_path / filename)
+        generator = LlamaCppChatGenerator(
+            model=model_path,
+            n_ctx=8192,
+            n_batch=512,
+            model_kwargs={
+                "chat_format": "chatml-function-calling",
+            },
+        )
+        generator.warm_up()
+        return generator
+
+    @pytest.mark.integration
+    def test_function_call_chatml(self, generator):
+        messages = [
+            ChatMessage.from_system(
+                """A chat between a curious user and an artificial intelligence assistant. The assistant gives helpful,
+                detailed, and polite answers to the user's questions. The assistant calls functions with appropriate
+                input when necessary"""
+            ),
+            ChatMessage.from_user("Extract Jason is 25 years old"),
+        ]
+
+        tools = [
+            {
+                "type": "function",
+                "function": {
+                    "name": "UserDetail",
+                    "parameters": {
+                        "type": "object",
+                        "title": "UserDetail",
+                        "properties": {
+                            "name": {"title": "Name", "type": "string"},
+                            "age": {"title": "Age", "type": "integer"},
+                        },
+                        "required": ["name", "age"],
+                    },
+                },
+            }
+        ]
+
+        tool_choice = {"type": "function", "function": {"name": "UserDetail"}}
+
+        response = generator.run(messages=messages, generation_kwargs={"tools": tools, "tool_choice": tool_choice})
+        for reply in response["replies"]:
+            assert "tool_calls" in reply.meta
+            tool_calls = reply.meta["tool_calls"]
+            assert len(tool_calls) > 0
+            assert tool_calls[0]["function"]["name"] == "UserDetail"
+            assert "name" in json.loads(tool_calls[0]["function"]["arguments"])
+            assert "age" in json.loads(tool_calls[0]["function"]["arguments"])
+            assert "Jason" in json.loads(tool_calls[0]["function"]["arguments"])["name"]
+            assert 25 == json.loads(tool_calls[0]["function"]["arguments"])["age"]
