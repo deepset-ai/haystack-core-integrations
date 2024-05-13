@@ -55,7 +55,7 @@ class TestNvidiaGenerator:
         assert data == {
             "type": "haystack_integrations.components.generators.nvidia.generator.NvidiaGenerator",
             "init_parameters": {
-                "api_url": None,
+                "api_url": "https://integrate.api.nvidia.com/v1",
                 "api_key": {"env_vars": ["NVIDIA_API_KEY"], "strict": True, "type": "env_var"},
                 "model": "playground_nemotron_steerlm_8b",
                 "model_arguments": {},
@@ -95,8 +95,9 @@ class TestNvidiaGenerator:
         }
 
     @patch("haystack_integrations.components.generators.nvidia._nvcf_backend.NvidiaCloudFunctionsClient")
-    def test_run(self, mock_client_class):
+    def test_run_deprecated_nvcf(self, mock_client_class):
         generator = NvidiaGenerator(
+            api_url=None,  # force use of deprecated NVCF backend
             model="playground_nemotron_steerlm_8b",
             api_key=Secret.from_token("fake-api-key"),
             model_arguments={
@@ -125,7 +126,8 @@ class TestNvidiaGenerator:
             ),
         )
         mock_client_class.return_value = mock_client
-        generator.warm_up()
+        with pytest.warns(DeprecationWarning):
+            generator.warm_up()
 
         result = generator.run(prompt="What is the answer?")
         mock_client.query_function.assert_called_once_with(
@@ -164,6 +166,7 @@ class TestNvidiaGenerator:
     @pytest.mark.integration
     def test_run_integration_with_nvcf_backend(self):
         generator = NvidiaGenerator(
+            api_url=None,  # force use of deprecated NVCF backend
             model="playground_nv_llama2_rlhf_70b",
             model_arguments={
                 "temperature": 0.2,
@@ -174,7 +177,8 @@ class TestNvidiaGenerator:
                 "stop": None,
             },
         )
-        generator.warm_up()
+        with pytest.warns(DeprecationWarning):
+            generator.warm_up()
         result = generator.run(prompt="What is the answer?")
 
         assert result["replies"]
@@ -222,3 +226,27 @@ class TestNvidiaGenerator:
 
         assert result["replies"]
         assert result["meta"]
+
+    def test_local_nim_without_key(self) -> None:
+        generator = NvidiaGenerator(
+            model="BOGUS",
+            api_url="http://localhost:8000",
+            api_key=None,
+        )
+        generator.warm_up()
+
+    def test_hosted_nim_without_key(self):
+        generator0 = NvidiaGenerator(
+            model="BOGUS",
+            api_url="https://integrate.api.nvidia.com/v1",
+            api_key=None,
+        )
+        with pytest.raises(ValueError):
+            generator0.warm_up()
+
+        generator1 = NvidiaGenerator(
+            model="BOGUS",
+            api_key=None,
+        )
+        with pytest.raises(ValueError):
+            generator1.warm_up()
