@@ -28,8 +28,7 @@ classifiers = [
 ]
 dependencies = [
   "haystack-ai",
-  "llama-cpp-python",
-  "transformers[sentencepiece]"
+  "llama-cpp-python"
 ]
 
 [project.urls]
@@ -53,6 +52,7 @@ dependencies = [
     "coverage[toml]>=6.5",
     "pytest",
     "haystack-pydoc-tools",
+    "transformers[sentencepiece]"
 ]
 [tool.hatch.envs.default.scripts]
 test = "pytest {args:tests}"
