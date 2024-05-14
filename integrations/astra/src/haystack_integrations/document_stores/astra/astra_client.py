@@ -208,6 +208,7 @@ class AstraClient:
             filter=find_query.get("filter"),
             sort=find_query.get("sort"),
             options=find_query.get("options"),
+            projection={"*": 1},
         )
 
         if "data" in response_dict and "documents" in response_dict["data"]:
@@ -273,6 +274,7 @@ class AstraClient:
             filter={id_key: document_id},
             update={"$set": document},
             options={"returnDocument": "after"},
+            projection={"*": 1},
         )
 
         document[id_key] = document_id
