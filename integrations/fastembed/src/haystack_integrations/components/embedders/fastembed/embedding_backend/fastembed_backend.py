@@ -19,13 +19,14 @@ class _FastembedEmbeddingBackendFactory:
         model_name: str,
         cache_dir: Optional[str] = None,
         threads: Optional[int] = None,
+        local_files_only: bool = False,
     ):
         embedding_backend_id = f"{model_name}{cache_dir}{threads}"
 
         if embedding_backend_id in _FastembedEmbeddingBackendFactory._instances:
             return _FastembedEmbeddingBackendFactory._instances[embedding_backend_id]
 
-        embedding_backend = _FastembedEmbeddingBackend(model_name=model_name, cache_dir=cache_dir, threads=threads)
+        embedding_backend = _FastembedEmbeddingBackend(model_name=model_name, cache_dir=cache_dir, threads=threads, local_files_only=local_files_only)
         _FastembedEmbeddingBackendFactory._instances[embedding_backend_id] = embedding_backend
         return embedding_backend
 
@@ -40,8 +41,9 @@ class _FastembedEmbeddingBackend:
         model_name: str,
         cache_dir: Optional[str] = None,
         threads: Optional[int] = None,
+        local_files_only: bool = False,
     ):
-        self.model = TextEmbedding(model_name=model_name, cache_dir=cache_dir, threads=threads)
+        self.model = TextEmbedding(model_name=model_name, cache_dir=cache_dir, threads=threads, local_files_only=local_files_only)
 
     def embed(self, data: List[str], progress_bar=True, **kwargs) -> List[List[float]]:
         # the embed method returns a Iterable[np.ndarray], so we convert it to a list of lists
@@ -66,6 +68,7 @@ class _FastembedSparseEmbeddingBackendFactory:
         model_name: str,
         cache_dir: Optional[str] = None,
         threads: Optional[int] = None,
+        local_files_only: bool = False,
     ):
         embedding_backend_id = f"{model_name}{cache_dir}{threads}"
 
@@ -73,7 +76,7 @@ class _FastembedSparseEmbeddingBackendFactory:
             return _FastembedSparseEmbeddingBackendFactory._instances[embedding_backend_id]
 
         embedding_backend = _FastembedSparseEmbeddingBackend(
-            model_name=model_name, cache_dir=cache_dir, threads=threads
+            model_name=model_name, cache_dir=cache_dir, threads=threads, local_files_only=local_files_only
         )
         _FastembedSparseEmbeddingBackendFactory._instances[embedding_backend_id] = embedding_backend
         return embedding_backend
@@ -89,8 +92,9 @@ class _FastembedSparseEmbeddingBackend:
         model_name: str,
         cache_dir: Optional[str] = None,
         threads: Optional[int] = None,
+        local_files_only: bool = False,
     ):
-        self.model = SparseTextEmbedding(model_name=model_name, cache_dir=cache_dir, threads=threads)
+        self.model = SparseTextEmbedding(model_name=model_name, cache_dir=cache_dir, threads=threads, local_files_only=local_files_only)
 
     def embed(self, data: List[List[str]], progress_bar=True, **kwargs) -> List[SparseEmbedding]:
         # The embed method returns a Iterable[SparseEmbedding], so we convert to Haystack SparseEmbedding type.
