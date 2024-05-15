@@ -21,6 +21,7 @@ class TestFastembedSparseDocumentEmbedderDoc:
         assert embedder.batch_size == 32
         assert embedder.progress_bar is True
         assert embedder.parallel is None
+        assert not embedder.local_files_only
         assert embedder.meta_fields_to_embed == []
         assert embedder.embedding_separator == "\n"
 
@@ -35,6 +36,7 @@ class TestFastembedSparseDocumentEmbedderDoc:
             batch_size=64,
             progress_bar=False,
             parallel=1,
+            local_files_only=True,
             meta_fields_to_embed=["test_field"],
             embedding_separator=" | ",
         )
@@ -44,6 +46,7 @@ class TestFastembedSparseDocumentEmbedderDoc:
         assert embedder.batch_size == 64
         assert embedder.progress_bar is False
         assert embedder.parallel == 1
+        assert embedder.local_files_only
         assert embedder.meta_fields_to_embed == ["test_field"]
         assert embedder.embedding_separator == " | "
 
@@ -62,6 +65,7 @@ class TestFastembedSparseDocumentEmbedderDoc:
                 "batch_size": 32,
                 "progress_bar": True,
                 "parallel": None,
+                "local_files_only": False,
                 "embedding_separator": "\n",
                 "meta_fields_to_embed": [],
             },
@@ -78,6 +82,7 @@ class TestFastembedSparseDocumentEmbedderDoc:
             batch_size=64,
             progress_bar=False,
             parallel=1,
+            local_files_only=True,
             meta_fields_to_embed=["test_field"],
             embedding_separator=" | ",
         )
@@ -91,6 +96,7 @@ class TestFastembedSparseDocumentEmbedderDoc:
                 "batch_size": 64,
                 "progress_bar": False,
                 "parallel": 1,
+                "local_files_only": True,
                 "meta_fields_to_embed": ["test_field"],
                 "embedding_separator": " | ",
             },
@@ -110,6 +116,7 @@ class TestFastembedSparseDocumentEmbedderDoc:
                 "batch_size": 32,
                 "progress_bar": True,
                 "parallel": None,
+                "local_files_only": False,
                 "meta_fields_to_embed": [],
                 "embedding_separator": "\n",
             },
@@ -121,6 +128,7 @@ class TestFastembedSparseDocumentEmbedderDoc:
         assert embedder.batch_size == 32
         assert embedder.progress_bar is True
         assert embedder.parallel is None
+        assert not embedder.local_files_only
         assert embedder.meta_fields_to_embed == []
         assert embedder.embedding_separator == "\n"
 
@@ -138,6 +146,7 @@ class TestFastembedSparseDocumentEmbedderDoc:
                 "batch_size": 64,
                 "progress_bar": False,
                 "parallel": 1,
+                "local_files_only": True,
                 "meta_fields_to_embed": ["test_field"],
                 "embedding_separator": " | ",
             },
@@ -149,6 +158,7 @@ class TestFastembedSparseDocumentEmbedderDoc:
         assert embedder.batch_size == 64
         assert embedder.progress_bar is False
         assert embedder.parallel == 1
+        assert embedder.local_files_only
         assert embedder.meta_fields_to_embed == ["test_field"]
         assert embedder.embedding_separator == " | "
 
@@ -163,7 +173,7 @@ class TestFastembedSparseDocumentEmbedderDoc:
         mocked_factory.get_embedding_backend.assert_not_called()
         embedder.warm_up()
         mocked_factory.get_embedding_backend.assert_called_once_with(
-            model_name="prithvida/Splade_PP_en_v1", cache_dir=None, threads=None
+            model_name="prithvida/Splade_PP_en_v1", cache_dir=None, threads=None, local_files_only=False
         )
 
     @patch(

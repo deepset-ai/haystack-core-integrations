@@ -44,12 +44,12 @@ class FastembedSparseTextEmbedder:
                 Can be set using the `FASTEMBED_CACHE_PATH` env variable.
                 Defaults to `fastembed_cache` in the system's temp directory.
         :param threads: The number of threads single onnxruntime session can use. Defaults to None.
-        :param progress_bar: If true, displays progress bar during embedding.
+        :param progress_bar: If `True`, displays progress bar during embedding.
         :param parallel:
                 If > 1, data-parallel encoding will be used, recommended for offline encoding of large datasets.
                 If 0, use all available cores.
                 If None, don't use data-parallel processing, use default onnxruntime threading instead.
-        :param local_files_only: If true, only use the model files in the cache_dir
+        :param local_files_only: If `True`, only use the model files in the `cache_dir`.
         """
 
         self.model_name = model
