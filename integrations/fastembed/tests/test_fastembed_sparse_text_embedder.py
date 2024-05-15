@@ -52,6 +52,7 @@ class TestFastembedSparseTextEmbedder:
                 "threads": None,
                 "progress_bar": True,
                 "parallel": None,
+                "local_files_only": False,
             },
         }
 
@@ -65,6 +66,7 @@ class TestFastembedSparseTextEmbedder:
             threads=2,
             progress_bar=False,
             parallel=1,
+            local_files_only=True,
         )
         embedder_dict = embedder.to_dict()
         assert embedder_dict == {
@@ -75,6 +77,7 @@ class TestFastembedSparseTextEmbedder:
                 "threads": 2,
                 "progress_bar": False,
                 "parallel": 1,
+                "local_files_only": True,
             },
         }
 
@@ -131,7 +134,7 @@ class TestFastembedSparseTextEmbedder:
         mocked_factory.get_embedding_backend.assert_not_called()
         embedder.warm_up()
         mocked_factory.get_embedding_backend.assert_called_once_with(
-            model_name="prithvida/Splade_PP_en_v1", cache_dir=None, threads=None
+            model_name="prithvida/Splade_PP_en_v1", cache_dir=None, threads=None, local_files_only=False
         )
 
     @patch(
