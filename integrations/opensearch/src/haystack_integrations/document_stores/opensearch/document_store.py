@@ -26,6 +26,8 @@ Hosts = Union[str, List[Union[str, Mapping[str, Union[str, int]]]]]
 # Increase the default if most unscaled scores are larger than expected (>30) and otherwise would incorrectly
 # all be mapped to scores ~1.
 BM25_SCALING_FACTOR = 8
+
+DEFAULT_SETTINGS = {"index.knn": True}
 DEFAULT_MAX_CHUNK_BYTES = 100 * 1024 * 1024
 
 
@@ -36,19 +38,33 @@ class OpenSearchDocumentStore:
         hosts: Optional[Hosts] = None,
         index: str = "default",
         max_chunk_bytes: int = DEFAULT_MAX_CHUNK_BYTES,
+        embedding_dim: int = 768,
+        method: Optional[Dict[str, Any]] = None,
+        mappings: Optional[Dict[str, Any]] = None,
+        settings: Optional[Dict[str, Any]] = DEFAULT_SETTINGS,
         **kwargs,
     ):
         """
         Creates a new OpenSearchDocumentStore instance.
 
-        For more information on connection parameters, see the [official OpenSearch documentation](https://opensearch.org/docs/latest/clients/python-low-level/#connecting-to-opensearch)
+        The ``embeddings_dim``, ``method``, ``mappings``, and ``settings`` arguments are only used if the index does not
+        exists and needs to be created. If the index already exists, its current configurations will be used.
 
-        For the full list of supported kwargs, see the [official OpenSearch reference](https://opensearch-project.github.io/opensearch-py/api-ref/clients/opensearch_client.html)
+        For more information on connection parameters, see the [official OpenSearch documentation](https://opensearch.org/docs/latest/clients/python-low-level/#connecting-to-opensearch)
 
         :param hosts: List of hosts running the OpenSearch client. Defaults to None
         :param index: Name of index in OpenSearch, if it doesn't exist it will be created. Defaults to "default"
         :param max_chunk_bytes: Maximum size of the requests in bytes. Defaults to 100MB
-        :param **kwargs: Optional arguments that ``OpenSearch`` takes.
+        :param embedding_dim: Dimension of the embeddings. Defaults to 768
+        :param method: The method definition of the underlying configuration of the approximate k-NN algorithm. Please
+            see the [official OpenSearch docs](https://opensearch.org/docs/latest/search-plugins/knn/knn-index/#method-definitions)
+            for more information. Defaults to None
+        :param mappings: The mapping of how the documents are stored and indexed. Please see the [official OpenSearch docs](https://opensearch.org/docs/latest/field-types/)
+            for more information. Defaults to None
+        :param settings: The settings of the index to be created. Please see the [official OpenSearch docs](https://opensearch.org/docs/latest/search-plugins/knn/knn-index/#index-settings)
+            for more information. Defaults to {"index.knn": True}
+        :param **kwargs: Optional arguments that ``OpenSearch`` takes. For the full list of supported kwargs,
+            see the [official OpenSearch reference](https://opensearch-project.github.io/opensearch-py/api-ref/clients/opensearch_client.html)
         """
         self._hosts = hosts
         self._client = OpenSearch(hosts, **kwargs)
@@ -59,36 +75,42 @@ class OpenSearchDocumentStore:
         # Check client connection, this will raise if not connected
         self._client.info()
 
-        # configure mapping for the embedding field
-        embedding_dim = kwargs.get("embedding_dim", 768)
-        method = kwargs.get("method", None)
-
-        mappings: Dict[str, Any] = {
-            "properties": {
-                "embedding": {"type": "knn_vector", "index": True, "dimension": embedding_dim},
-                "content": {"type": "text"},
-            },
-            "dynamic_templates": [
-                {
-                    "strings": {
-                        "match_mapping_type": "string",
-                        "mapping": {
-                            "type": "keyword",
-                        },
-                    }
-                }
-            ],
-        }
-        if method:
-            mappings["properties"]["embedding"]["method"] = method
-
-        mappings = kwargs.get("mappings", mappings)
-        settings = kwargs.get("settings", {"index.knn": True})
-
-        body = {"mappings": mappings, "settings": settings}
-
+        if self._client.indices.exists(index=index):
+            logger.debug(
+                "The index '%s' already exists. The `embedding_dim`, `method`, `mappings`, and "
+                "`settings` values will be ignored.",
+                index,
+            )
         # Create the index if it doesn't exist
-        if not self._client.indices.exists(index=index):
+        else:
+            # configure mapping for the embedding field
+            self._embedding_dim = embedding_dim
+            self._method = method
+
+            default_mappings: Dict[str, Any] = {
+                "properties": {
+                    "embedding": {"type": "knn_vector", "index": True, "dimension": self._embedding_dim},
+                    "content": {"type": "text"},
+                },
+                "dynamic_templates": [
+                    {
+                        "strings": {
+                            "match_mapping_type": "string",
+                            "mapping": {
+                                "type": "keyword",
+                            },
+                        }
+                    }
+                ],
+            }
+            if self._method:
+                default_mappings["properties"]["embedding"]["method"] = self._method
+
+            self._mappings = mappings or default_mappings
+            self._settings = settings
+
+            body = {"mappings": self._mappings, "settings": self._settings}
+
             self._client.indices.create(index=index, body=body)
 
     def to_dict(self) -> Dict[str, Any]:
