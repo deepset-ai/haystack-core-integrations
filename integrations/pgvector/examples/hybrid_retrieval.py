@@ -62,7 +62,7 @@ querying.connect("keyword_retriever", "joiner")
 querying.connect("retriever", "joiner")
 
 query = "What is a cross-encoder?"
-results = querying.run({"text_embedder": {"text": query}, "bm25_retriever": {"query": query}})
+results = querying.run({"text_embedder": {"text": query}, "keyword_retriever": {"query": query}})
 
 for doc in results["joiner"]["documents"]:
     print(doc)
