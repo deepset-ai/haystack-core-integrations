@@ -57,11 +57,11 @@ querying.add_component(
     "joiner",
     DocumentJoiner(join_mode="reciprocal_rank_fusion", top_k=3),
 )
-querying.connect("embedder", "retriever")
+querying.connect("text_embedder", "retriever")
 querying.connect("keyword_retriever", "joiner")
 querying.connect("retriever", "joiner")
 
-query = "What is a cross-encoder?"
+query = "cross-encoder"
 results = querying.run({"text_embedder": {"text": query}, "keyword_retriever": {"query": query}})
 
 for doc in results["joiner"]["documents"]:
