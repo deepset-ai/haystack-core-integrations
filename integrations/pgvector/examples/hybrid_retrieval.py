@@ -43,7 +43,7 @@ indexing.add_component("splitter", DocumentSplitter(split_by="sentence", split_l
 indexing.add_component("document_embedder", SentenceTransformersDocumentEmbedder())
 indexing.add_component("writer", DocumentWriter(document_store))
 indexing.connect("converter", "splitter")
-indexing.connect("splitter", "embedder")
+indexing.connect("splitter", "document_embedder")
 indexing.connect("document_embedder", "writer")
 
 indexing.run({"converter": {"sources": file_paths}})
