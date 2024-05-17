@@ -40,17 +40,17 @@ file_paths = glob.glob("neural-search-pills/pills/*.md")
 indexing = Pipeline()
 indexing.add_component("converter", MarkdownToDocument())
 indexing.add_component("splitter", DocumentSplitter(split_by="sentence", split_length=2))
-indexing.add_component("embedder", SentenceTransformersDocumentEmbedder())
+indexing.add_component("document_embedder", SentenceTransformersDocumentEmbedder())
 indexing.add_component("writer", DocumentWriter(document_store))
 indexing.connect("converter", "splitter")
 indexing.connect("splitter", "embedder")
-indexing.connect("embedder", "writer")
+indexing.connect("document_embedder", "writer")
 
 indexing.run({"converter": {"sources": file_paths}})
 
 # Create the querying Pipeline and try a query
 querying = Pipeline()
-querying.add_component("embedder", SentenceTransformersTextEmbedder())
+querying.add_component("text_embedder", SentenceTransformersTextEmbedder())
 querying.add_component("retriever", PgvectorEmbeddingRetriever(document_store=document_store, top_k=3))
 querying.add_component("keyword_retriever", PgvectorKeywordRetriever(document_store=document_store, top_k=3))
 querying.add_component(
