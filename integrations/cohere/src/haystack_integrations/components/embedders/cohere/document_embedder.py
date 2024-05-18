@@ -8,7 +8,7 @@ from haystack import Document, component, default_from_dict, default_to_dict
 from haystack.utils import Secret, deserialize_secrets_inplace
 from haystack_integrations.components.embedders.cohere.utils import get_async_response, get_response
 
-from cohere import COHERE_API_URL, AsyncClient, Client
+from cohere import AsyncClient, Client
 
 
 @component
@@ -39,10 +39,9 @@ class CohereDocumentEmbedder:
         api_key: Secret = Secret.from_env_var(["COHERE_API_KEY", "CO_API_KEY"]),
         model: str = "embed-english-v2.0",
         input_type: str = "search_document",
-        api_base_url: str = COHERE_API_URL,
+        api_base_url: str = "https://api.cohere.com",
         truncate: str = "END",
         use_async_client: bool = False,
-        max_retries: int = 3,
         timeout: int = 120,
         batch_size: int = 32,
         progress_bar: bool = True,
@@ -67,7 +66,6 @@ class CohereDocumentEmbedder:
             If "NONE" is selected, when the input exceeds the maximum input token length an error will be returned.
         :param use_async_client: flag to select the AsyncClient. It is recommended to use
             AsyncClient for applications with many concurrent calls.
-        :param max_retries: maximal number of retries for requests.
         :param timeout: request timeout in seconds.
         :param batch_size: number of Documents to encode at once.
         :param progress_bar: whether to show a progress bar or not. Can be helpful to disable in production deployments
@@ -82,7 +80,6 @@ class CohereDocumentEmbedder:
         self.api_base_url = api_base_url
         self.truncate = truncate
         self.use_async_client = use_async_client
-        self.max_retries = max_retries
         self.timeout = timeout
         self.batch_size = batch_size
         self.progress_bar = progress_bar
@@ -104,7 +101,6 @@ class CohereDocumentEmbedder:
             api_base_url=self.api_base_url,
             truncate=self.truncate,
             use_async_client=self.use_async_client,
-            max_retries=self.max_retries,
             timeout=self.timeout,
             batch_size=self.batch_size,
             progress_bar=self.progress_bar,
@@ -169,8 +165,7 @@ class CohereDocumentEmbedder:
         if self.use_async_client:
             cohere_client = AsyncClient(
                 api_key,
-                api_url=self.api_base_url,
-                max_retries=self.max_retries,
+                base_url=self.api_base_url,
                 timeout=self.timeout,
                 client_name="haystack",
             )
@@ -180,8 +175,7 @@ class CohereDocumentEmbedder:
         else:
             cohere_client = Client(
                 api_key,
-                api_url=self.api_base_url,
-                max_retries=self.max_retries,
+                base_url=self.api_base_url,
                 timeout=self.timeout,
                 client_name="haystack",
             )

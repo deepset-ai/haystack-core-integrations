@@ -5,7 +5,7 @@ from typing import Any, Dict, List, Tuple
 
 from tqdm import tqdm
 
-from cohere import AsyncClient, Client, CohereError
+from cohere import AsyncClient, Client
 
 
 async def get_async_response(cohere_async_client: AsyncClient, texts: List[str], model_name, input_type, truncate):
@@ -24,20 +24,14 @@ async def get_async_response(cohere_async_client: AsyncClient, texts: List[str],
     """
     all_embeddings: List[List[float]] = []
     metadata: Dict[str, Any] = {}
-    try:
-        response = await cohere_async_client.embed(
-            texts=texts, model=model_name, input_type=input_type, truncate=truncate
-        )
-        if response.meta is not None:
-            metadata = response.meta
-        for emb in response.embeddings:
-            all_embeddings.append(emb)
 
-        return all_embeddings, metadata
+    response = await cohere_async_client.embed(texts=texts, model=model_name, input_type=input_type, truncate=truncate)
+    if response.meta is not None:
+        metadata = response.meta
+    for emb in response.embeddings:
+        all_embeddings.append(emb)
 
-    except CohereError as error_response:
-        msg = error_response.message
-        raise ValueError(msg) from error_response
+    return all_embeddings, metadata
 
 
 def get_response(
@@ -62,21 +56,16 @@ def get_response(
     all_embeddings: List[List[float]] = []
     metadata: Dict[str, Any] = {}
 
-    try:
-        for i in tqdm(
-            range(0, len(texts), batch_size),
-            disable=not progress_bar,
-            desc="Calculating embeddings",
-        ):
-            batch = texts[i : i + batch_size]
-            response = cohere_client.embed(batch, model=model_name, input_type=input_type, truncate=truncate)
-            for emb in response.embeddings:
-                all_embeddings.append(emb)
-            if response.meta is not None:
-                metadata = response.meta
+    for i in tqdm(
+        range(0, len(texts), batch_size),
+        disable=not progress_bar,
+        desc="Calculating embeddings",
+    ):
+        batch = texts[i : i + batch_size]
+        response = cohere_client.embed(texts=batch, model=model_name, input_type=input_type, truncate=truncate)
+        for emb in response.embeddings:
+            all_embeddings.append(emb)
+        if response.meta is not None:
+            metadata = response.meta
 
-        return all_embeddings, metadata
-
-    except CohereError as error_response:
-        msg = error_response.message
-        raise ValueError(msg) from error_response
+    return all_embeddings, metadata

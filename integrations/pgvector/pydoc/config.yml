@@ -3,6 +3,7 @@ loaders:
     search_path: [../src]
     modules: [
       "haystack_integrations.components.retrievers.pgvector.embedding_retriever",
+      "haystack_integrations.components.retrievers.pgvector.keyword_retriever",
       "haystack_integrations.document_stores.pgvector.document_store",
     ]
     ignore_when_discovered: ["__init__"]
@@ -15,7 +16,7 @@ processors:
   - type: smart
   - type: crossref
 renderer:
-  type: haystack_pydoc_tools.renderers.ReadmePreviewRenderer
+  type: haystack_pydoc_tools.renderers.ReadmeIntegrationRenderer
   excerpt: Pgvector integration for Haystack
   category_slug: integrations-api
   title: Pgvector

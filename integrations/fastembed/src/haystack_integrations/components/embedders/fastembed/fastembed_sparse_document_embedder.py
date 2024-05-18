@@ -12,30 +12,31 @@ class FastembedSparseDocumentEmbedder:
 
     Usage example:
     ```python
-    # To use this component, install the "fastembed-haystack" package.
-    # pip install fastembed-haystack
-
     from haystack_integrations.components.embedders.fastembed import FastembedSparseDocumentEmbedder
     from haystack.dataclasses import Document
 
-    doc_embedder = FastembedSparseDocumentEmbedder(
+    sparse_doc_embedder = FastembedSparseDocumentEmbedder(
         model="prithvida/Splade_PP_en_v1",
         batch_size=32,
     )
 
-    doc_embedder.warm_up()
+    sparse_doc_embedder.warm_up()
 
     # Text taken from PubMed QA Dataset (https://huggingface.co/datasets/pubmed_qa)
     document_list = [
         Document(
-            content="Oxidative stress generated within inflammatory joints can produce autoimmune phenomena and joint destruction. Radical species with oxidative activity, including reactive nitrogen species, represent mediators of inflammation and cartilage damage.",
+            content=("Oxidative stress generated within inflammatory joints can produce autoimmune phenomena and joint "
+                     "destruction. Radical species with oxidative activity, including reactive nitrogen species, "
+                     "represent mediators of inflammation and cartilage damage."),
             meta={
                 "pubid": "25,445,628",
                 "long_answer": "yes",
             },
         ),
         Document(
-            content="Plasma levels of pancreatic polypeptide (PP) rise upon food intake. Although other pancreatic islet hormones, such as insulin and glucagon, have been extensively investigated, PP secretion and actions are still poorly understood.",
+            content=("Plasma levels of pancreatic polypeptide (PP) rise upon food intake. Although other pancreatic "
+                     "islet hormones, such as insulin and glucagon, have been extensively investigated, PP secretion "
+                     "and actions are still poorly understood."),
             meta={
                 "pubid": "25,445,712",
                 "long_answer": "yes",
@@ -43,12 +44,12 @@ class FastembedSparseDocumentEmbedder:
         ),
     ]
 
-    result = doc_embedder.run(document_list)
+    result = sparse_doc_embedder.run(document_list)
     print(f"Document Text: {result['documents'][0].content}")
-    print(f"Document Embedding: {result['documents'][0].sparse_embedding}")
-    print(f"Embedding Dimension: {len(result['documents'][0].sparse_embedding)}")
+    print(f"Document Sparse Embedding: {result['documents'][0].sparse_embedding}")
+    print(f"Sparse Embedding Dimension: {len(result['documents'][0].sparse_embedding)}")
     ```
-    """  # noqa: E501
+    """
 
     def __init__(
         self,
@@ -58,6 +59,7 @@ class FastembedSparseDocumentEmbedder:
         batch_size: int = 32,
         progress_bar: bool = True,
         parallel: Optional[int] = None,
+        local_files_only: bool = False,
         meta_fields_to_embed: Optional[List[str]] = None,
         embedding_separator: str = "\n",
     ):
@@ -76,6 +78,7 @@ class FastembedSparseDocumentEmbedder:
                 If > 1, data-parallel encoding will be used, recommended for offline encoding of large datasets.
                 If 0, use all available cores.
                 If None, don't use data-parallel processing, use default onnxruntime threading instead.
+        :param local_files_only: If `True`, only use the model files in the `cache_dir`.
         :param meta_fields_to_embed: List of meta fields that should be embedded along with the Document content.
         :param embedding_separator: Separator used to concatenate the meta fields to the Document content.
         """
@@ -86,6 +89,7 @@ class FastembedSparseDocumentEmbedder:
         self.batch_size = batch_size
         self.progress_bar = progress_bar
         self.parallel = parallel
+        self.local_files_only = local_files_only
         self.meta_fields_to_embed = meta_fields_to_embed or []
         self.embedding_separator = embedding_separator
 
@@ -103,6 +107,7 @@ class FastembedSparseDocumentEmbedder:
             batch_size=self.batch_size,
             progress_bar=self.progress_bar,
             parallel=self.parallel,
+            local_files_only=self.local_files_only,
             meta_fields_to_embed=self.meta_fields_to_embed,
             embedding_separator=self.embedding_separator,
         )
@@ -113,7 +118,10 @@ class FastembedSparseDocumentEmbedder:
         """
         if not hasattr(self, "embedding_backend"):
             self.embedding_backend = _FastembedSparseEmbeddingBackendFactory.get_embedding_backend(
-                model_name=self.model_name, cache_dir=self.cache_dir, threads=self.threads
+                model_name=self.model_name,
+                cache_dir=self.cache_dir,
+                threads=self.threads,
+                local_files_only=self.local_files_only,
             )
 
     def _prepare_texts_to_embed(self, documents: List[Document]) -> List[str]:

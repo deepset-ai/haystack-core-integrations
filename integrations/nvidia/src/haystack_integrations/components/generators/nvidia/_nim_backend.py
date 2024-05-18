@@ -1,6 +1,7 @@
 from typing import Any, Dict, List, Optional, Tuple
 
 import requests
+from haystack.utils import Secret
 
 from .backend import GeneratorBackend
 
@@ -12,12 +13,17 @@ class NimBackend(GeneratorBackend):
         self,
         model: str,
         api_url: str,
+        api_key: Optional[Secret] = None,
         model_kwargs: Optional[Dict[str, Any]] = None,
     ):
         headers = {
             "Content-Type": "application/json",
             "accept": "application/json",
         }
+
+        if api_key:
+            headers["authorization"] = f"Bearer {api_key.resolve_value()}"
+
         self.session = requests.Session()
         self.session.headers.update(headers)
 
@@ -26,8 +32,9 @@ class NimBackend(GeneratorBackend):
         self.model_kwargs = model_kwargs or {}
 
     def generate(self, prompt: str) -> Tuple[List[str], List[Dict[str, Any]]]:
-        # We're using the chat completion endpoint as the local containers don't support
+        # We're using the chat completion endpoint as the NIM API doesn't support
         # the /completions endpoint. So both the non-chat and chat generator will use this.
+        # This is the same for local containers and the cloud API.
         url = f"{self.api_url}/chat/completions"
 
         res = self.session.post(
@@ -57,13 +64,17 @@ class NimBackend(GeneratorBackend):
             replies.append(message["content"])
             choice_meta = {
                 "role": message["role"],
-                "finish_reason": choice["finish_reason"],
                 "usage": {
                     "prompt_tokens": completions["usage"]["prompt_tokens"],
-                    "completion_tokens": completions["usage"]["completion_tokens"],
                     "total_tokens": completions["usage"]["total_tokens"],
                 },
             }
+            # These fields could be null, the others will always be present
+            if "finish_reason" in choice:
+                choice_meta["finish_reason"] = choice["finish_reason"]
+            if "completion_tokens" in completions["usage"]:
+                choice_meta["usage"]["completion_tokens"] = completions["usage"]["completion_tokens"]
+
             meta.append(choice_meta)
 
         return replies, meta

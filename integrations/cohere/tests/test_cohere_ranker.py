@@ -2,12 +2,12 @@ import os
 from unittest.mock import Mock, patch
 
 import pytest
-from cohere import COHERE_API_URL
 from haystack import Document
 from haystack.utils.auth import Secret
 from haystack_integrations.components.rankers.cohere import CohereRanker
 
 pytestmark = pytest.mark.ranker
+COHERE_API_URL = "https://api.cohere.com"
 
 
 @pytest.fixture

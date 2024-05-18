@@ -59,6 +59,11 @@ integration:jina:
       - any-glob-to-any-file: "integrations/jina/**/*"
       - any-glob-to-any-file: ".github/workflows/jina.yml"
 
+integration:langfuse:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/langfuse/**/*"
+      - any-glob-to-any-file: ".github/workflows/langfuse.yml"
+
 integration:llama_cpp:
   - changed-files:
       - any-glob-to-any-file: "integrations/llama_cpp/**/*"

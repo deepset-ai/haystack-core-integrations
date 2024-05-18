@@ -24,7 +24,7 @@ classifiers = [
 ]
 dependencies = [
   "haystack-ai",
-  "cohere<5",
+  "cohere==5.*",
 ]
 
 [project.urls]

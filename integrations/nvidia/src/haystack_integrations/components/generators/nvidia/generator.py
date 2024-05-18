@@ -85,6 +85,7 @@ class NvidiaGenerator:
             self._backend = NimBackend(
                 self._model,
                 api_url=self._api_url,
+                api_key=self._api_key,
                 model_kwargs=self._model_arguments,
             )
 

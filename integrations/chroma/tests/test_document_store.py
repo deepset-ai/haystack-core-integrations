@@ -1,6 +1,7 @@
 # SPDX-FileCopyrightText: 2023-present John Doe <jd@example.com>
 #
 # SPDX-License-Identifier: Apache-2.0
+import operator
 import uuid
 from typing import List
 from unittest import mock
@@ -56,6 +57,9 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, LegacyFilterDoc
         This can happen for example when the Document Store sets a score to returned Documents.
         Since we can't know what the score will be, we can't compare the Documents reliably.
         """
+        received.sort(key=operator.attrgetter("id"))
+        expected.sort(key=operator.attrgetter("id"))
+
         for doc_received, doc_expected in zip(received, expected):
             assert doc_received.content == doc_expected.content
             assert doc_received.meta == doc_expected.meta
@@ -127,10 +131,6 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, LegacyFilterDoc
         ChromaDocumentStore("test_name")
         ChromaDocumentStore("test_name")
 
-    @pytest.mark.skip(reason="Filter on array contents is not supported.")
-    def test_filter_document_array(self, document_store: ChromaDocumentStore, filterable_docs: List[Document]):
-        pass
-
     @pytest.mark.skip(reason="Filter on dataframe contents is not supported.")
     def test_filter_document_dataframe(self, document_store: ChromaDocumentStore, filterable_docs: List[Document]):
         pass
@@ -141,10 +141,6 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, LegacyFilterDoc
 
     @pytest.mark.skip(reason="Filter on embedding value is not supported.")
     def test_eq_filter_embedding(self, document_store: ChromaDocumentStore, filterable_docs: List[Document]):
-        pass
-
-    @pytest.mark.skip(reason="$in operator is not supported.")
-    def test_in_filter_explicit(self, document_store: ChromaDocumentStore, filterable_docs: List[Document]):
         pass
 
     @pytest.mark.skip(reason="$in operator is not supported. Filter on table contents is not supported.")
@@ -182,12 +178,6 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, LegacyFilterDoc
         pass
 
     @pytest.mark.skip(reason="Filter syntax not supported.")
-    def test_filter_simple_explicit_and_with_multikey_dict(
-        self, document_store: ChromaDocumentStore, filterable_docs: List[Document]
-    ):
-        pass
-
-    @pytest.mark.skip(reason="Filter syntax not supported.")
     def test_filter_simple_explicit_and_with_list(
         self, document_store: ChromaDocumentStore, filterable_docs: List[Document]
     ):
@@ -195,10 +185,6 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, LegacyFilterDoc
 
     @pytest.mark.skip(reason="Filter syntax not supported.")
     def test_filter_simple_implicit_and(self, document_store: ChromaDocumentStore, filterable_docs: List[Document]):
-        pass
-
-    @pytest.mark.skip(reason="Filter syntax not supported.")
-    def test_filter_nested_explicit_and(self, document_store: ChromaDocumentStore, filterable_docs: List[Document]):
         pass
 
     @pytest.mark.skip(reason="Filter syntax not supported.")
@@ -229,16 +215,4 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, LegacyFilterDoc
     def test_filter_nested_multiple_identical_operators_same_level(
         self, document_store: ChromaDocumentStore, filterable_docs: List[Document]
     ):
-        pass
-
-    @pytest.mark.skip(reason="Duplicate policy not supported.")
-    def test_write_duplicate_fail(self, document_store: ChromaDocumentStore):
-        pass
-
-    @pytest.mark.skip(reason="Duplicate policy not supported.")
-    def test_write_duplicate_skip(self, document_store: ChromaDocumentStore):
-        pass
-
-    @pytest.mark.skip(reason="Duplicate policy not supported.")
-    def test_write_duplicate_overwrite(self, document_store: ChromaDocumentStore):
         pass
