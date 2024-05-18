@@ -6,6 +6,7 @@ from unittest.mock import Mock, patch
 from haystack.dataclasses import Document
 from haystack_integrations.components.retrievers.opensearch import OpenSearchEmbeddingRetriever
 from haystack_integrations.document_stores.opensearch import OpenSearchDocumentStore
+from haystack_integrations.document_stores.opensearch.document_store import DEFAULT_MAX_CHUNK_BYTES
 
 
 def test_init_default():
@@ -29,6 +30,7 @@ def test_to_dict(_mock_opensearch_client):
                 "init_parameters": {
                     "hosts": "some fake host",
                     "index": "default",
+                    "max_chunk_bytes": DEFAULT_MAX_CHUNK_BYTES,
                 },
                 "type": "haystack_integrations.document_stores.opensearch.document_store.OpenSearchDocumentStore",
             },
