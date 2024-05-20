@@ -5,6 +5,7 @@ from haystack.dataclasses.sparse_embedding import SparseEmbedding
 from haystack_integrations.document_stores.qdrant import QdrantDocumentStore
 from qdrant_client.http import models
 
+
 @component
 class QdrantEmbeddingRetriever:
     """
