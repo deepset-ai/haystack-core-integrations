@@ -13,7 +13,7 @@ class NimBackend(GeneratorBackend):
         self,
         model: str,
         api_url: str,
-        api_key: Optional[Secret] = None,
+        api_key: Optional[Secret] = Secret.from_env_var("NVIDIA_API_KEY"),
         model_kwargs: Optional[Dict[str, Any]] = None,
     ):
         headers = {
