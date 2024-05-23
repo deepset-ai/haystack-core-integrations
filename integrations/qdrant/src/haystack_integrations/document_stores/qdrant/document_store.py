@@ -578,9 +578,15 @@ class QdrantDocumentStore:
         collection_name: str,
         distance,
         embedding_dim: int,
-        on_disk: bool,
-        use_sparse_embeddings: bool,
+        on_disk: Optional[bool] = None,
+        use_sparse_embeddings: Optional[bool] = None,
     ):
+        if on_disk is None:
+            on_disk = self.on_disk
+
+        if use_sparse_embeddings is None:
+            use_sparse_embeddings = self.use_sparse_embeddings
+
         # dense vectors configuration
         vectors_config = rest.VectorParams(size=embedding_dim, on_disk=on_disk, distance=distance)
 
