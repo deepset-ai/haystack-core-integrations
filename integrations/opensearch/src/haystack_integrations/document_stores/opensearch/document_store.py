@@ -57,10 +57,10 @@ class OpenSearchDocumentStore:
         if not self._client:
             self._client = OpenSearch(self._hosts, **self._kwargs)
             # Check client connection, this will raise if not connected
-            self._client.info()
+            self._client.info()  # type:ignore
 
             # Create the index if it doesn't exist
-            if not self._client.indices.exists(index=self._index):
+            if not self._client.indices.exists(index=self._index):  # type:ignore
                 # configure fallback mapping for the embedding field
                 method = self._kwargs.get("method", None)
                 embedding_dim = self._kwargs.get("embedding_dim", 768)
@@ -87,7 +87,7 @@ class OpenSearchDocumentStore:
                     "mappings": self._kwargs.get("mappings", default_mappings),
                     "settings": self._kwargs.get("settings", {"index.knn": True}),
                 }
-                self._client.indices.create(index=self._index, body=body)
+                self._client.indices.create(index=self._index, body=body)  # type:ignore
 
         return self._client
 
