@@ -59,6 +59,7 @@ class TestFastembedTextEmbedder:
                 "suffix": "",
                 "progress_bar": True,
                 "parallel": None,
+                "local_files_only": False,
             },
         }
 
@@ -74,6 +75,7 @@ class TestFastembedTextEmbedder:
             suffix="suffix",
             progress_bar=False,
             parallel=1,
+            local_files_only=True,
         )
         embedder_dict = embedder.to_dict()
         assert embedder_dict == {
@@ -86,6 +88,7 @@ class TestFastembedTextEmbedder:
                 "suffix": "suffix",
                 "progress_bar": False,
                 "parallel": 1,
+                "local_files_only": True,
             },
         }
 
@@ -150,7 +153,7 @@ class TestFastembedTextEmbedder:
         mocked_factory.get_embedding_backend.assert_not_called()
         embedder.warm_up()
         mocked_factory.get_embedding_backend.assert_called_once_with(
-            model_name="BAAI/bge-small-en-v1.5", cache_dir=None, threads=None
+            model_name="BAAI/bge-small-en-v1.5", cache_dir=None, threads=None, local_files_only=False
         )
 
     @patch(

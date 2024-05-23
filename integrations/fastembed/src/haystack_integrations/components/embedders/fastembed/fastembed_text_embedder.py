@@ -35,6 +35,7 @@ class FastembedTextEmbedder:
         suffix: str = "",
         progress_bar: bool = True,
         parallel: Optional[int] = None,
+        local_files_only: bool = False,
     ):
         """
         Create a FastembedTextEmbedder component.
@@ -46,11 +47,12 @@ class FastembedTextEmbedder:
         :param threads: The number of threads single onnxruntime session can use. Defaults to None.
         :param prefix: A string to add to the beginning of each text.
         :param suffix: A string to add to the end of each text.
-        :param progress_bar: If true, displays progress bar during embedding.
+        :param progress_bar: If `True`, displays progress bar during embedding.
         :param parallel:
                 If > 1, data-parallel encoding will be used, recommended for offline encoding of large datasets.
                 If 0, use all available cores.
                 If None, don't use data-parallel processing, use default onnxruntime threading instead.
+        :param local_files_only: If `True`, only use the model files in the `cache_dir`.
         """
 
         self.model_name = model
@@ -60,6 +62,7 @@ class FastembedTextEmbedder:
         self.suffix = suffix
         self.progress_bar = progress_bar
         self.parallel = parallel
+        self.local_files_only = local_files_only
 
     def to_dict(self) -> Dict[str, Any]:
         """
@@ -77,6 +80,7 @@ class FastembedTextEmbedder:
             suffix=self.suffix,
             progress_bar=self.progress_bar,
             parallel=self.parallel,
+            local_files_only=self.local_files_only,
         )
 
     def warm_up(self):
@@ -85,7 +89,10 @@ class FastembedTextEmbedder:
         """
         if not hasattr(self, "embedding_backend"):
             self.embedding_backend = _FastembedEmbeddingBackendFactory.get_embedding_backend(
-                model_name=self.model_name, cache_dir=self.cache_dir, threads=self.threads
+                model_name=self.model_name,
+                cache_dir=self.cache_dir,
+                threads=self.threads,
+                local_files_only=self.local_files_only,
             )
 
     @component.output_types(embedding=List[float])

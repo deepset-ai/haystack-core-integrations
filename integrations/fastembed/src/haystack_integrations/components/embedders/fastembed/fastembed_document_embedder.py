@@ -65,6 +65,7 @@ class FastembedDocumentEmbedder:
         batch_size: int = 256,
         progress_bar: bool = True,
         parallel: Optional[int] = None,
+        local_files_only: bool = False,
         meta_fields_to_embed: Optional[List[str]] = None,
         embedding_separator: str = "\n",
     ):
@@ -80,11 +81,12 @@ class FastembedDocumentEmbedder:
         :param prefix: A string to add to the beginning of each text.
         :param suffix: A string to add to the end of each text.
         :param batch_size: Number of strings to encode at once.
-        :param progress_bar: If true, displays progress bar during embedding.
+        :param progress_bar: If `True`, displays progress bar during embedding.
         :param parallel:
                 If > 1, data-parallel encoding will be used, recommended for offline encoding of large datasets.
                 If 0, use all available cores.
                 If None, don't use data-parallel processing, use default onnxruntime threading instead.
+        :param local_files_only: If `True`, only use the model files in the `cache_dir`.
         :param meta_fields_to_embed: List of meta fields that should be embedded along with the Document content.
         :param embedding_separator: Separator used to concatenate the meta fields to the Document content.
         """
@@ -97,6 +99,7 @@ class FastembedDocumentEmbedder:
         self.batch_size = batch_size
         self.progress_bar = progress_bar
         self.parallel = parallel
+        self.local_files_only = local_files_only
         self.meta_fields_to_embed = meta_fields_to_embed or []
         self.embedding_separator = embedding_separator
 
@@ -116,6 +119,7 @@ class FastembedDocumentEmbedder:
             batch_size=self.batch_size,
             progress_bar=self.progress_bar,
             parallel=self.parallel,
+            local_files_only=self.local_files_only,
             meta_fields_to_embed=self.meta_fields_to_embed,
             embedding_separator=self.embedding_separator,
         )
@@ -126,7 +130,10 @@ class FastembedDocumentEmbedder:
         """
         if not hasattr(self, "embedding_backend"):
             self.embedding_backend = _FastembedEmbeddingBackendFactory.get_embedding_backend(
-                model_name=self.model_name, cache_dir=self.cache_dir, threads=self.threads
+                model_name=self.model_name,
+                cache_dir=self.cache_dir,
+                threads=self.threads,
+                local_files_only=self.local_files_only,
             )
 
     def _prepare_texts_to_embed(self, documents: List[Document]) -> List[str]:
