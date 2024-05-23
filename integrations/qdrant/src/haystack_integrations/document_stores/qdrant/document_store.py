@@ -596,7 +596,10 @@ class QdrantDocumentStore:
                 ),
             }
 
-        self.client.recreate_collection(
+        if self.client.collection_exists(collection_name):
+            self.client.delete_collection(collection_name)
+
+        self.client.create_collection(
             collection_name=collection_name,
             vectors_config=vectors_config,
             sparse_vectors_config=sparse_vectors_config if use_sparse_embeddings else None,
