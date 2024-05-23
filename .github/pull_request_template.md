@@ -17,7 +17,7 @@
 
 ### Checklist
 
-- I have read the [contributors guidelines](https://github.com/deepset-ai/haystack-core-integrations/blob/main/CONTRIBUTING.md) and the [code of conduct](https://github.com/deepset-ai/haystack-core-integrations/blob/main/code_of_conduct.txt)
+- I have read the [contributors guidelines](https://github.com/deepset-ai/haystack-core-integrations/blob/main/CONTRIBUTING.md) and the [code of conduct](https://github.com/deepset-ai/haystack-core-integrations/blob/main/CODE_OF_CONDUCT.md)
 - I have updated the related issue with new insights and changes
 - I added unit tests and updated the docstrings
 - I've used one of the [conventional commit types](https://www.conventionalcommits.org/en/v1.0.0/) for my PR title: `fix:`, `feat:`, `build:`, `chore:`, `ci:`, `docs:`, `style:`, `refactor:`, `perf:`, `test:`.
