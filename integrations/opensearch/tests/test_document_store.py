@@ -41,6 +41,12 @@ def test_from_dict(_mock_opensearch_client):
     assert document_store._index == "default"
 
 
+@patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
+def test_init_is_lazy(_mock_opensearch_client):
+    OpenSearchDocumentStore(hosts="testhost")
+    _mock_opensearch_client.assert_not_called()
+
+
 @pytest.mark.integration
 class TestDocumentStore(DocumentStoreBaseTests):
     """
