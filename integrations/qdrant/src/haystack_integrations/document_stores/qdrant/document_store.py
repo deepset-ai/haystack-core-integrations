@@ -5,7 +5,6 @@ from typing import Any, ClassVar, Dict, Generator, List, Optional, Set, Union
 
 import numpy as np
 import qdrant_client
-from grpc import RpcError
 from haystack import default_from_dict, default_to_dict
 from haystack.dataclasses import Document
 from haystack.dataclasses.sparse_embedding import SparseEmbedding
@@ -500,29 +499,15 @@ class QdrantDocumentStore:
     ):
         distance = self.get_distance(similarity)
 
-        if recreate_collection:
+        if recreate_collection or not self.client.collection_exists(collection_name):
             # There is no need to verify the current configuration of that
-            # collection. It might be just recreated again.
+            # collection. It might be just recreated again or does not exist yet.
             self.recreate_collection(collection_name, distance, embedding_dim, on_disk, use_sparse_embeddings)
             # Create Payload index if payload_fields_to_index is provided
             self._create_payload_index(collection_name, payload_fields_to_index)
             return
 
-        try:
-            # Check if the collection already exists and validate its
-            # current configuration with the parameters.
-            collection_info = self.client.get_collection(collection_name)
-        except (UnexpectedResponse, RpcError, ValueError):
-            # That indicates the collection does not exist, so it can be
-            # safely created with any configuration.
-            #
-            # Qdrant local raises ValueError if the collection is not found, but
-            # with the remote server UnexpectedResponse / RpcError is raised.
-            # Until that's unified, we need to catch both.
-            self.recreate_collection(collection_name, distance, embedding_dim, on_disk, use_sparse_embeddings)
-            # Create Payload index if payload_fields_to_index is provided
-            self._create_payload_index(collection_name, payload_fields_to_index)
-            return
+        collection_info = self.client.get_collection(collection_name)
 
         has_named_vectors = (
             isinstance(collection_info.config.params.vectors, dict)
