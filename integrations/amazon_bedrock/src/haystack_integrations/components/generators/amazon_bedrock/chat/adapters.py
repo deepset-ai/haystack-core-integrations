@@ -336,7 +336,7 @@ class MistralChatAdapter(BedrockModelChatAdapter):
         self.prompt_handler = DefaultPromptHandler(
             tokenizer=tokenizer,
             model_max_length=model_max_length,
-            max_length=self.generation_kwargs.get("max_gen_len") or 512,
+            max_length=self.generation_kwargs.get("max_tokens") or 512,
         )
 
     def prepare_body(self, messages: List[ChatMessage], **inference_kwargs) -> Dict[str, Any]:
