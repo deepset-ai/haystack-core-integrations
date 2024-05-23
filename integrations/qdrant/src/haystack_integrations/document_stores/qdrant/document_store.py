@@ -464,7 +464,7 @@ class QdrantDocumentStore:
 
         return results
 
-    def _get_distance(self, similarity: str) -> rest.Distance:
+    def get_distance(self, similarity: str) -> rest.Distance:
         try:
             return self.SIMILARITY[similarity]
         except KeyError as ke:
@@ -498,12 +498,12 @@ class QdrantDocumentStore:
         on_disk: bool = False,
         payload_fields_to_index: Optional[List[dict]] = None,
     ):
-        distance = self._get_distance(similarity)
+        distance = self.get_distance(similarity)
 
         if recreate_collection:
             # There is no need to verify the current configuration of that
             # collection. It might be just recreated again.
-            self._recreate_collection(collection_name, distance, embedding_dim, on_disk, use_sparse_embeddings)
+            self.recreate_collection(collection_name, distance, embedding_dim, on_disk, use_sparse_embeddings)
             # Create Payload index if payload_fields_to_index is provided
             self._create_payload_index(collection_name, payload_fields_to_index)
             return
@@ -519,7 +519,7 @@ class QdrantDocumentStore:
             # Qdrant local raises ValueError if the collection is not found, but
             # with the remote server UnexpectedResponse / RpcError is raised.
             # Until that's unified, we need to catch both.
-            self._recreate_collection(collection_name, distance, embedding_dim, on_disk, use_sparse_embeddings)
+            self.recreate_collection(collection_name, distance, embedding_dim, on_disk, use_sparse_embeddings)
             # Create Payload index if payload_fields_to_index is provided
             self._create_payload_index(collection_name, payload_fields_to_index)
             return
@@ -573,7 +573,7 @@ class QdrantDocumentStore:
             )
             raise ValueError(msg)
 
-    def _recreate_collection(
+    def recreate_collection(
         self,
         collection_name: str,
         distance,
