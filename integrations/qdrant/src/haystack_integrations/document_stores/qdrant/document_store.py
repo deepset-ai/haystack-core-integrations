@@ -66,7 +66,7 @@ class QdrantDocumentStore:
         https: Optional[bool] = None,
         api_key: Optional[Secret] = None,
         prefix: Optional[str] = None,
-        timeout: Optional[float] = None,
+        timeout: Optional[int] = None,
         host: Optional[str] = None,
         path: Optional[str] = None,
         index: str = "Document",
@@ -96,23 +96,7 @@ class QdrantDocumentStore:
         scroll_size: int = 10_000,
         payload_fields_to_index: Optional[List[dict]] = None,
     ):
-        super().__init__()
-
-        metadata = metadata or {}
-        self.client = qdrant_client.QdrantClient(
-            location=location,
-            url=url,
-            port=port,
-            grpc_port=grpc_port,
-            prefer_grpc=prefer_grpc,
-            https=https,
-            api_key=api_key.resolve_value() if api_key else None,
-            prefix=prefix,
-            timeout=timeout,
-            host=host,
-            path=path,
-            metadata=metadata,
-        )
+        self._client = None
 
         # Store the Qdrant client specific attributes
         self.location = location
@@ -126,7 +110,7 @@ class QdrantDocumentStore:
         self.timeout = timeout
         self.host = host
         self.path = path
-        self.metadata = metadata
+        self.metadata = metadata or {}
         self.api_key = api_key
 
         # Store the Qdrant collection specific attributes
@@ -143,12 +127,6 @@ class QdrantDocumentStore:
         self.recreate_index = recreate_index
         self.payload_fields_to_index = payload_fields_to_index
         self.use_sparse_embeddings = use_sparse_embeddings
-
-        # Make sure the collection is properly set up
-        self._set_up_collection(
-            index, embedding_dim, recreate_index, similarity, use_sparse_embeddings, on_disk, payload_fields_to_index
-        )
-
         self.embedding_dim = embedding_dim
         self.on_disk = on_disk
         self.content_field = content_field
@@ -161,6 +139,35 @@ class QdrantDocumentStore:
         self.duplicate_documents = duplicate_documents
         self.write_batch_size = write_batch_size
         self.scroll_size = scroll_size
+
+    @property
+    def client(self):
+        if not self._client:
+            self._client = qdrant_client.QdrantClient(
+                location=self.location,
+                url=self.url,
+                port=self.port,
+                grpc_port=self.grpc_port,
+                prefer_grpc=self.prefer_grpc,
+                https=self.https,
+                api_key=self.api_key.resolve_value() if self.api_key else None,
+                prefix=self.prefix,
+                timeout=self.timeout,
+                host=self.host,
+                path=self.path,
+                metadata=self.metadata,
+            )
+            # Make sure the collection is properly set up
+            self._set_up_collection(
+                self.index,
+                self.embedding_dim,
+                self.recreate_index,
+                self.similarity,
+                self.use_sparse_embeddings,
+                self.on_disk,
+                self.payload_fields_to_index,
+            )
+        return self._client
 
     def count_documents(self) -> int:
         try:
