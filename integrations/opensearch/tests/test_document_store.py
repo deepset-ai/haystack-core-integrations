@@ -73,7 +73,7 @@ class TestDocumentStore(DocumentStoreBaseTests):
             method={"space_type": "cosinesimil", "engine": "nmslib", "name": "hnsw"},
         )
         yield store
-        store._client.indices.delete(index=index, params={"ignore": [400, 404]})
+        store.client.indices.delete(index=index, params={"ignore": [400, 404]})
 
     @pytest.fixture
     def document_store_embedding_dim_4(self, request):
@@ -94,7 +94,7 @@ class TestDocumentStore(DocumentStoreBaseTests):
             method={"space_type": "cosinesimil", "engine": "nmslib", "name": "hnsw"},
         )
         yield store
-        store._client.indices.delete(index=index, params={"ignore": [400, 404]})
+        store.client.indices.delete(index=index, params={"ignore": [400, 404]})
 
     def assert_documents_are_equal(self, received: List[Document], expected: List[Document]):
         """
