@@ -54,6 +54,8 @@ jobs:
 
       - name: Commit changelog
         shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.HAYSTACK_BOT_TOKEN }}
         run: |
           git config --global user.name "HaystackBot"
           git config --global user.email "accounts@deepset.ai"
