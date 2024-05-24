@@ -18,10 +18,10 @@ def test_init_default():
     assert retriever.top_k == 10
 
 
-@patch("haystack_integrations.document_stores.pinecone.document_store.pinecone")
+@patch("haystack_integrations.document_stores.pinecone.document_store.Pinecone")
 def test_to_dict(mock_pinecone, monkeypatch):
     monkeypatch.setenv("PINECONE_API_KEY", "env-api-key")
-    mock_pinecone.Index.return_value.describe_index_stats.return_value = {"dimension": 512}
+    mock_pinecone.return_value.Index.return_value.describe_index_stats.return_value = {"dimension": 512}
     document_store = PineconeDocumentStore(
         environment="gcp-starter",
         index="default",
@@ -57,7 +57,7 @@ def test_to_dict(mock_pinecone, monkeypatch):
     }
 
 
-@patch("haystack_integrations.document_stores.pinecone.document_store.pinecone")
+@patch("haystack_integrations.document_stores.pinecone.document_store.Pinecone")
 def test_from_dict(mock_pinecone, monkeypatch):
     data = {
         "type": "haystack_integrations.components.retrievers.pinecone.embedding_retriever.PineconeEmbeddingRetriever",
@@ -84,7 +84,7 @@ def test_from_dict(mock_pinecone, monkeypatch):
         },
     }
 
-    mock_pinecone.Index.return_value.describe_index_stats.return_value = {"dimension": 512}
+    mock_pinecone.return_value.Index.return_value.describe_index_stats.return_value = {"dimension": 512}
     monkeypatch.setenv("PINECONE_API_KEY", "test-key")
     retriever = PineconeEmbeddingRetriever.from_dict(data)
 

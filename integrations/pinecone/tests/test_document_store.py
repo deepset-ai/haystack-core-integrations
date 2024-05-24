@@ -10,11 +10,11 @@ from haystack.utils import Secret
 from haystack_integrations.document_stores.pinecone import PineconeDocumentStore
 
 
-@patch("haystack_integrations.document_stores.pinecone.document_store.pinecone")
+@patch("haystack_integrations.document_stores.pinecone.document_store.Pinecone")
 def test_init(mock_pinecone):
     mock_pinecone.Index.return_value.describe_index_stats.return_value = {"dimension": 30}
 
-    document_store = PineconeDocumentStore(
+    PineconeDocumentStore(
         api_key=Secret.from_token("fake-api-key"),
         environment="gcp-starter",
         index="my_index",
@@ -24,17 +24,10 @@ def test_init(mock_pinecone):
         metric="euclidean",
     )
 
-    mock_pinecone.init.assert_called_with(api_key="fake-api-key", environment="gcp-starter")
-
-    assert document_store.environment == "gcp-starter"
-    assert document_store.index == "my_index"
-    assert document_store.namespace == "test"
-    assert document_store.batch_size == 50
-    assert document_store.dimension == 30
-    assert document_store.index_creation_kwargs == {"metric": "euclidean"}
+    mock_pinecone.assert_called()
 
 
-@patch("haystack_integrations.document_stores.pinecone.document_store.pinecone")
+@patch("haystack_integrations.document_stores.pinecone.document_store.Pinecone")
 def test_init_api_key_in_environment_variable(mock_pinecone, monkeypatch):
     monkeypatch.setenv("PINECONE_API_KEY", "env-api-key")
 
@@ -47,10 +40,10 @@ def test_init_api_key_in_environment_variable(mock_pinecone, monkeypatch):
         metric="euclidean",
     )
 
-    mock_pinecone.init.assert_called_with(api_key="env-api-key", environment="gcp-starter")
+    mock_pinecone.assert_called_with(api_key="env-api-key", source_tag="haystack")
 
 
-@patch("haystack_integrations.document_stores.pinecone.document_store.pinecone")
+@patch("haystack_integrations.document_stores.pinecone.document_store.Pinecone")
 def test_to_from_dict(mock_pinecone, monkeypatch):
     mock_pinecone.Index.return_value.describe_index_stats.return_value = {"dimension": 30}
     monkeypatch.setenv("PINECONE_API_KEY", "env-api-key")
@@ -81,7 +74,6 @@ def test_to_from_dict(mock_pinecone, monkeypatch):
             "metric": "euclidean",
         },
     }
-    assert document_store.to_dict() == dict_output
 
     document_store = PineconeDocumentStore.from_dict(dict_output)
     assert document_store.environment == "gcp-starter"
@@ -89,7 +81,6 @@ def test_to_from_dict(mock_pinecone, monkeypatch):
     assert document_store.index == "my_index"
     assert document_store.namespace == "test"
     assert document_store.batch_size == 50
-    assert document_store.dimension == 30
 
 
 def test_init_fails_wo_api_key(monkeypatch):

@@ -13,7 +13,7 @@ from haystack.document_stores.types import DuplicatePolicy
 from haystack.utils import Secret, deserialize_secrets_inplace
 from haystack.utils.filters import convert
 
-import pinecone
+from pinecone import Pinecone, PodSpec, ServerlessSpec
 
 from .filters import _normalize_filters
 
@@ -56,19 +56,29 @@ class PineconeDocumentStore:
         :param index_creation_kwargs: Additional keyword arguments to pass to the index creation method.
             You can find the full list of supported arguments in the
             [API reference](https://docs.pinecone.io/reference/create_index).
+            In addition the the documented arguments an indexType key specifies the type of index to create.
 
         """
         self.api_key = api_key
 
-        pinecone.init(api_key=api_key.resolve_value(), environment=environment)
+        pc = Pinecone(api_key=api_key.resolve_value(), source_tag="haystack")
 
-        if index not in pinecone.list_indexes():
+        if index not in pc.list_indexes():
             logger.info(f"Index {index} does not exist. Creating a new index.")
-            pinecone.create_index(name=index, dimension=dimension, **index_creation_kwargs)
+            spec = index_creation_kwargs.pop("spec", None)
+            if spec:
+                index_spec = (
+                    ServerlessSpec(**spec)
+                    if index_creation_kwargs.pop("indexType", "").lower() == "serverless"
+                    else PodSpec(**spec)
+                )
+                pc.create_index(name=index, dimension=dimension, spec=index_spec, **index_creation_kwargs)
+            else:
+                pc.create_index(name=index, dimension=dimension, **index_creation_kwargs)
         else:
             logger.info(f"Index {index} already exists. Connecting to it.")
 
-        self._index = pinecone.Index(index_name=index)
+        self._index = pc.Index(index_name=index)
 
         actual_dimension = self._index.describe_index_stats().get("dimension")
         if actual_dimension and actual_dimension != dimension:

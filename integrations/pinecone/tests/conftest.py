@@ -10,6 +10,11 @@ from haystack_integrations.document_stores.pinecone import PineconeDocumentStore
 SLEEP_TIME = 30
 
 
+@pytest.fixture(autouse=True)
+def patch_api_key(monkeypatch):
+    monkeypatch.setenv("PINECONE_API_KEY", "env-api-key")
+
+
 @pytest.fixture()
 def sleep_time():
     return SLEEP_TIME
