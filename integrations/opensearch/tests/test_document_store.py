@@ -41,6 +41,12 @@ def test_from_dict(_mock_opensearch_client):
     assert document_store._index == "default"
 
 
+@patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
+def test_init_is_lazy(_mock_opensearch_client):
+    OpenSearchDocumentStore(hosts="testhost")
+    _mock_opensearch_client.assert_not_called()
+
+
 @pytest.mark.integration
 class TestDocumentStore(DocumentStoreBaseTests):
     """
@@ -67,7 +73,7 @@ class TestDocumentStore(DocumentStoreBaseTests):
             method={"space_type": "cosinesimil", "engine": "nmslib", "name": "hnsw"},
         )
         yield store
-        store._client.indices.delete(index=index, params={"ignore": [400, 404]})
+        store.client.indices.delete(index=index, params={"ignore": [400, 404]})
 
     @pytest.fixture
     def document_store_embedding_dim_4(self, request):
@@ -88,7 +94,7 @@ class TestDocumentStore(DocumentStoreBaseTests):
             method={"space_type": "cosinesimil", "engine": "nmslib", "name": "hnsw"},
         )
         yield store
-        store._client.indices.delete(index=index, params={"ignore": [400, 404]})
+        store.client.indices.delete(index=index, params={"ignore": [400, 404]})
 
     def assert_documents_are_equal(self, received: List[Document], expected: List[Document]):
         """
