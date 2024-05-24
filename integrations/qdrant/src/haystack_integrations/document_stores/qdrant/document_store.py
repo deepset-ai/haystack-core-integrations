@@ -5,7 +5,6 @@ from typing import Any, ClassVar, Dict, Generator, List, Optional, Set, Union
 
 import numpy as np
 import qdrant_client
-from grpc import RpcError
 from haystack import default_from_dict, default_to_dict
 from haystack.dataclasses import Document
 from haystack.dataclasses.sparse_embedding import SparseEmbedding
@@ -471,7 +470,7 @@ class QdrantDocumentStore:
 
         return results
 
-    def _get_distance(self, similarity: str) -> rest.Distance:
+    def get_distance(self, similarity: str) -> rest.Distance:
         try:
             return self.SIMILARITY[similarity]
         except KeyError as ke:
@@ -505,31 +504,17 @@ class QdrantDocumentStore:
         on_disk: bool = False,
         payload_fields_to_index: Optional[List[dict]] = None,
     ):
-        distance = self._get_distance(similarity)
+        distance = self.get_distance(similarity)
 
-        if recreate_collection:
+        if recreate_collection or not self.client.collection_exists(collection_name):
             # There is no need to verify the current configuration of that
-            # collection. It might be just recreated again.
-            self._recreate_collection(collection_name, distance, embedding_dim, on_disk, use_sparse_embeddings)
+            # collection. It might be just recreated again or does not exist yet.
+            self.recreate_collection(collection_name, distance, embedding_dim, on_disk, use_sparse_embeddings)
             # Create Payload index if payload_fields_to_index is provided
             self._create_payload_index(collection_name, payload_fields_to_index)
             return
 
-        try:
-            # Check if the collection already exists and validate its
-            # current configuration with the parameters.
-            collection_info = self.client.get_collection(collection_name)
-        except (UnexpectedResponse, RpcError, ValueError):
-            # That indicates the collection does not exist, so it can be
-            # safely created with any configuration.
-            #
-            # Qdrant local raises ValueError if the collection is not found, but
-            # with the remote server UnexpectedResponse / RpcError is raised.
-            # Until that's unified, we need to catch both.
-            self._recreate_collection(collection_name, distance, embedding_dim, on_disk, use_sparse_embeddings)
-            # Create Payload index if payload_fields_to_index is provided
-            self._create_payload_index(collection_name, payload_fields_to_index)
-            return
+        collection_info = self.client.get_collection(collection_name)
 
         has_named_vectors = (
             isinstance(collection_info.config.params.vectors, dict)
@@ -580,14 +565,20 @@ class QdrantDocumentStore:
             )
             raise ValueError(msg)
 
-    def _recreate_collection(
+    def recreate_collection(
         self,
         collection_name: str,
         distance,
         embedding_dim: int,
-        on_disk: bool,
-        use_sparse_embeddings: bool,
+        on_disk: Optional[bool] = None,
+        use_sparse_embeddings: Optional[bool] = None,
     ):
+        if on_disk is None:
+            on_disk = self.on_disk
+
+        if use_sparse_embeddings is None:
+            use_sparse_embeddings = self.use_sparse_embeddings
+
         # dense vectors configuration
         vectors_config = rest.VectorParams(size=embedding_dim, on_disk=on_disk, distance=distance)
 
@@ -603,7 +594,10 @@ class QdrantDocumentStore:
                 ),
             }
 
-        self.client.recreate_collection(
+        if self.client.collection_exists(collection_name):
+            self.client.delete_collection(collection_name)
+
+        self.client.create_collection(
             collection_name=collection_name,
             vectors_config=vectors_config,
             sparse_vectors_config=sparse_vectors_config if use_sparse_embeddings else None,
