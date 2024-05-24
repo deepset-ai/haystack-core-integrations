@@ -26,6 +26,11 @@ class TestQdrantDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocu
             use_sparse_embeddings=False,
         )
 
+    def test_init_is_lazy(self):
+        with patch("haystack_integrations.document_stores.qdrant.document_store.qdrant_client") as mocked_qdrant:
+            QdrantDocumentStore(location=":memory:", use_sparse_embeddings=True)
+            mocked_qdrant.assert_not_called()
+
     def assert_documents_are_equal(self, received: List[Document], expected: List[Document]):
         """
         Assert that two lists of Documents are equal.
