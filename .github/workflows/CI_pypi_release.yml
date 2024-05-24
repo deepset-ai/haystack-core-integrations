@@ -48,12 +48,14 @@ jobs:
         run: hatch publish -y
 
       - name: Generate changelog
-        uses: tj-actions/git-cliff@v1
+        uses: orhun/git-cliff-action@v3
+        env:
+          OUTPUT: "${{ steps.pathfinder.outputs.project_path }}/CHANGELOG.md"
         with:
+          config: cliff.toml
           args: >
             --include-path "${{ steps.pathfinder.outputs.project_path }}/*"
             --tag-pattern "${{ steps.pathfinder.outputs.project_path }}-v*"
-            -o "${{ steps.pathfinder.outputs.project_path }}/CHANGELOG.md"
 
       - name: Commit changelog
         uses: EndBug/add-and-commit@v9
