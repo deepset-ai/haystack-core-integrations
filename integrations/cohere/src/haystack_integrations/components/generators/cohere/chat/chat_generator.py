@@ -224,7 +224,7 @@ class CohereChatGenerator:
                 "model": self.model,
                 "usage": total_tokens,
                 "index": 0,
-                "finish_reason": None,
+                "finish_reason": cohere_response.finish_reason,
                 "documents": cohere_response.documents,
                 "citations": cohere_response.citations,
             }
