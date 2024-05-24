@@ -1,9 +1,10 @@
 import json
+from typing import Any, Callable, Dict, List, Optional
+
 import requests
+from requests import Response
 from haystack import component
 from haystack.dataclasses import ChatMessage, StreamingChunk
-from requests import Response
-from typing import Any, Callable, Dict, List, Optional
 
 
 @component
