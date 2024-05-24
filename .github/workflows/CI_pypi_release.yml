@@ -20,8 +20,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          token: ${{ secrets.HAYSTACK_BOT_TOKEN }}
 
       - name: Install Hatch
         run: pip install hatch
@@ -57,6 +55,8 @@ jobs:
       - name: Commit changelog
         shell: bash
         run: |
+          git config --global user.name "HaystackBot"
+          git config --global user.email "accounts@deepset.ai"
           git fetch
           git checkout main
           git add ${{ steps.pathfinder.outputs.project_path }}
