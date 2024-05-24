@@ -178,8 +178,8 @@ class QdrantDocumentStore:
         self,
         filters: Optional[Union[Dict[str, Any], rest.Filter]] = None,
     ) -> List[Document]:
-        if filters and not isinstance(filters, dict):
-            msg = "Filter must be a dictionary"
+        if filters and not isinstance(filters, dict) and not isinstance(filters, rest.Filter):
+            msg = "Filter must be a dictionary or an instance of `qdrant_client.http.models.Filter`"
             raise ValueError(msg)
 
         if filters and not isinstance(filters, rest.Filter) and "operator" not in filters:
