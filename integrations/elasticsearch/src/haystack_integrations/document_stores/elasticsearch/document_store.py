@@ -63,6 +63,7 @@ class ElasticsearchDocumentStore:
         self,
         *,
         hosts: Optional[Hosts] = None,
+        custom_mapping: Optional[Dict[str, Any]] = None,
         index: str = "default",
         embedding_similarity_function: Literal["cosine", "dot_product", "l2_norm", "max_inner_product"] = "cosine",
         **kwargs,
@@ -82,6 +83,7 @@ class ElasticsearchDocumentStore:
         [reference](https://elasticsearch-py.readthedocs.io/en/stable/api.html#module-elasticsearch)
 
         :param hosts: List of hosts running the Elasticsearch client.
+        :param custom_mapping: Custom mapping for the index. If not provided, a default mapping will be used.
         :param index: Name of index in Elasticsearch.
         :param embedding_similarity_function: The similarity function used to compare Documents embeddings.
             This parameter only takes effect if the index does not yet exist and is created.
@@ -98,29 +100,37 @@ class ElasticsearchDocumentStore:
         )
         self._index = index
         self._embedding_similarity_function = embedding_similarity_function
+        self._custom_mapping = custom_mapping
         self._kwargs = kwargs
 
         # Check client connection, this will raise if not connected
         self._client.info()
 
-        # configure mapping for the embedding field
-        mappings = {
-            "properties": {
-                "embedding": {"type": "dense_vector", "index": True, "similarity": embedding_similarity_function},
-                "content": {"type": "text"},
-            },
-            "dynamic_templates": [
-                {
-                    "strings": {
-                        "path_match": "*",
-                        "match_mapping_type": "string",
-                        "mapping": {
-                            "type": "keyword",
-                        },
+        if self._custom_mapping and not isinstance(self._custom_mapping, Dict):
+            msg = "custom_mapping must be a dictionary"
+            raise ValueError(msg)
+
+        if self._custom_mapping:
+            mappings = self._custom_mapping
+        else:
+            # Configure mapping for the embedding field if none is provided
+            mappings = {
+                "properties": {
+                    "embedding": {"type": "dense_vector", "index": True, "similarity": embedding_similarity_function},
+                    "content": {"type": "text"},
+                },
+                "dynamic_templates": [
+                    {
+                        "strings": {
+                            "path_match": "*",
+                            "match_mapping_type": "string",
+                            "mapping": {
+                                "type": "keyword",
+                            },
+                        }
                     }
-                }
-            ],
-        }
+                ],
+            }
 
         # Create the index if it doesn't exist
         if not self._client.indices.exists(index=index):
@@ -139,6 +149,7 @@ class ElasticsearchDocumentStore:
         return default_to_dict(
             self,
             hosts=self._hosts,
+            custom_mapping=self._custom_mapping,
             index=self._index,
             embedding_similarity_function=self._embedding_similarity_function,
             **self._kwargs,
