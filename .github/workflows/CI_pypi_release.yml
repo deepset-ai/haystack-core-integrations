@@ -43,3 +43,20 @@ jobs:
           HATCH_INDEX_USER: __token__
           HATCH_INDEX_AUTH: ${{ secrets.PYPI_API_TOKEN }}
         run: hatch publish -y
+
+      - name: Generate changelog
+        uses: tj-actions/git-cliff@v1
+        with:
+          args: >
+            --include-path "${{ steps.pathfinder.outputs.project_path }}/*"
+            --tag-pattern "${{ steps.pathfinder.outputs.project_path }}-v*"
+            -o "${{ steps.pathfinder.outputs.project_path }}/CHANGELOG.md"
+
+      - name: Commit changelog
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.HAYSTACK_BOT_TOKEN }}
+        run: |
+          git add ${{ steps.pathfinder.outputs.project_path }}
+          git commit -m"Update the changelog"
+          git push
