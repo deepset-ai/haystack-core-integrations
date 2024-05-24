@@ -4,15 +4,11 @@
 import logging
 from typing import Any, Callable, Dict, List, Optional
 
-from haystack import component, default_from_dict, default_to_dict
-from haystack.components.generators.utils import deserialize_callback_handler, serialize_callback_handler
-from haystack.dataclasses import ChatMessage, ChatRole, StreamingChunk
-from haystack.utils import Secret, deserialize_secrets_inplace
-
-from cohere import Client
+from haystack import component
+from haystack.dataclasses import ChatMessage, ChatRole
+from haystack.utils import Secret
 
 from .chat.chat_generator import CohereChatGenerator
-
 
 logger = logging.getLogger(__name__)
 
@@ -52,7 +48,8 @@ class CohereGenerator(CohereChatGenerator):
             "The 'generate' API is marked as Legacy and is no longer maintained by Cohere. "
             "We recommend to use the CohereChatGenerator instead."
         )
-        super(CohereGenerator, self).__init__(api_key, model, streaming_callback, api_base_url, None, **kwargs)
+        # Note we have to call super() like this because of the way components are dynamically built with the decorator
+        super(CohereGenerator, self).__init__(api_key, model, streaming_callback, api_base_url, None, **kwargs)  # noqa
 
     @component.output_types(replies=List[str], meta=List[Dict[str, Any]])
     def run(self, prompt: str):
@@ -65,5 +62,6 @@ class CohereGenerator(CohereChatGenerator):
             - `meta`: metadata about the request.
         """
         chat_message = ChatMessage(content=prompt, role=ChatRole.USER, name="", meta={})
-        results = super(CohereGenerator, self).run([chat_message])
+        # Note we have to call super() like this because of the way components are dynamically built with the decorator
+        results = super(CohereGenerator, self).run([chat_message])  # noqa
         return {"replies": [results["replies"][0].content], "meta": [results["replies"][0].meta]}

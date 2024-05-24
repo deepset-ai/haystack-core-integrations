@@ -43,7 +43,6 @@ class TestCohereGenerator:
         monkeypatch.setenv("COHERE_API_KEY", "test-api-key")
         component = CohereGenerator()
         data = component.to_dict()
-        print(data)
         assert data == {
             "type": "haystack_integrations.components.generators.cohere.generator.CohereGenerator",
             "init_parameters": {
@@ -51,7 +50,7 @@ class TestCohereGenerator:
                 "api_key": {"env_vars": ["COHERE_API_KEY", "CO_API_KEY"], "strict": True, "type": "env_var"},
                 "streaming_callback": None,
                 "api_base_url": COHERE_API_URL,
-                'generation_kwargs': {},
+                "generation_kwargs": {},
             },
         }
 
@@ -67,7 +66,6 @@ class TestCohereGenerator:
             api_base_url="test-base-url",
         )
         data = component.to_dict()
-        print(data)
         assert data == {
             "type": "haystack_integrations.components.generators.cohere.generator.CohereGenerator",
             "init_parameters": {
@@ -75,7 +73,7 @@ class TestCohereGenerator:
                 "api_base_url": "test-base-url",
                 "api_key": {"env_vars": ["ENV_VAR"], "strict": False, "type": "env_var"},
                 "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
-                'generation_kwargs': {},
+                "generation_kwargs": {},
             },
         }
 
@@ -89,15 +87,14 @@ class TestCohereGenerator:
             api_base_url="test-base-url",
         )
         data = component.to_dict()
-        print(data)
         assert data == {
-            'type': 'haystack_integrations.components.generators.cohere.generator.CohereGenerator',
-            'init_parameters': {
-                'model': 'command',
-                'streaming_callback': 'tests.test_cohere_generators.<lambda>',
-                'api_base_url': 'test-base-url',
-                'api_key': {'type': 'env_var', 'env_vars': ['COHERE_API_KEY', 'CO_API_KEY'], 'strict': True},
-                'generation_kwargs': {},
+            "type": "haystack_integrations.components.generators.cohere.generator.CohereGenerator",
+            "init_parameters": {
+                "model": "command",
+                "streaming_callback": "tests.test_cohere_generators.<lambda>",
+                "api_base_url": "test-base-url",
+                "api_key": {"type": "env_var", "env_vars": ["COHERE_API_KEY", "CO_API_KEY"], "strict": True},
+                "generation_kwargs": {},
             },
         }
 
