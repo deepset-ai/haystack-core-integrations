@@ -183,13 +183,13 @@ class QdrantDocumentStore:
 
     def filter_documents(
         self,
-        filters: Optional[Dict[str, Any]] = None,
+        filters: Optional[Union[Dict[str, Any], rest.Filter]] = None,
     ) -> List[Document]:
-        if filters and not isinstance(filters, dict):
-            msg = "Filter must be a dictionary"
+        if filters and not isinstance(filters, dict) and not isinstance(filters, rest.Filter):
+            msg = "Filter must be a dictionary or an instance of `qdrant_client.http.models.Filter`"
             raise ValueError(msg)
 
-        if filters and "operator" not in filters:
+        if filters and not isinstance(filters, rest.Filter) and "operator" not in filters:
             filters = convert_legacy_filters(filters)
         return list(
             self.get_documents_generator(
@@ -267,7 +267,7 @@ class QdrantDocumentStore:
 
     def get_documents_generator(
         self,
-        filters: Optional[Dict[str, Any]] = None,
+        filters: Optional[Union[Dict[str, Any], rest.Filter]] = None,
     ) -> Generator[Document, None, None]:
         index = self.index
         qdrant_filters = convert_filters_to_qdrant(filters)
@@ -318,7 +318,7 @@ class QdrantDocumentStore:
     def _query_by_sparse(
         self,
         query_sparse_embedding: SparseEmbedding,
-        filters: Optional[Dict[str, Any]] = None,
+        filters: Optional[Union[Dict[str, Any], rest.Filter]] = None,
         top_k: int = 10,
         scale_score: bool = True,
         return_embedding: bool = False,
@@ -360,7 +360,7 @@ class QdrantDocumentStore:
     def _query_by_embedding(
         self,
         query_embedding: List[float],
-        filters: Optional[Dict[str, Any]] = None,
+        filters: Optional[Union[Dict[str, Any], rest.Filter]] = None,
         top_k: int = 10,
         scale_score: bool = True,
         return_embedding: bool = False,
@@ -395,7 +395,7 @@ class QdrantDocumentStore:
         self,
         query_embedding: List[float],
         query_sparse_embedding: SparseEmbedding,
-        filters: Optional[Dict[str, Any]] = None,
+        filters: Optional[Union[Dict[str, Any], rest.Filter]] = None,
         top_k: int = 10,
         return_embedding: bool = False,
     ) -> List[Document]:
