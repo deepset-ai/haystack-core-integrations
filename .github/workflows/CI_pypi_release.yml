@@ -61,3 +61,4 @@ jobs:
           author_email: "accounts@deepset.ai"
           message: "Update the changelog"
           add: ${{ steps.pathfinder.outputs.project_path }}
+          push: origin HEAD:main
