@@ -1,10 +1,9 @@
 import json
-from typing import Any, Callable, Dict, List, Optional
-
 import requests
 from haystack import component
-from haystack.dataclasses import ChatMessage, StreamingChunk, ChatRole
+from haystack.dataclasses import ChatMessage, StreamingChunk
 from requests import Response
+from typing import Any, Callable, Dict, List, Optional
 
 
 @component
@@ -54,6 +53,9 @@ class OllamaChatGenerator:
             The full prompt template (overrides what is defined in the Ollama Modelfile).
         :param timeout:
             The number of seconds before throwing a timeout error from the Ollama API.
+        :param streaming_callback:
+            A callback function that is called when a new token is received from the stream.
+            The callback function accepts StreamingChunk as an argument.
         """
 
         self.timeout = timeout
