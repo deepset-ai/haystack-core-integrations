@@ -44,7 +44,7 @@ def test_from_dict(_mock_elasticsearch_client):
     document_store = ElasticsearchDocumentStore.from_dict(data)
     assert document_store._hosts == "some hosts"
     assert document_store._index == "default"
-    assert document_store._custom_mapping == None
+    assert document_store._custom_mapping is None
     assert document_store._embedding_similarity_function == "cosine"
 
 
