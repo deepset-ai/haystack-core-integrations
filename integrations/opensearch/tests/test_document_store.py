@@ -22,9 +22,19 @@ def test_to_dict(_mock_opensearch_client):
     assert res == {
         "type": "haystack_integrations.document_stores.opensearch.document_store.OpenSearchDocumentStore",
         "init_parameters": {
+            "embedding_dim": 768,
             "hosts": "some hosts",
             "index": "default",
+            "mappings": {
+                "dynamic_templates": [{"strings": {"mapping": {"type": "keyword"}, "match_mapping_type": "string"}}],
+                "properties": {
+                    "content": {"type": "text"},
+                    "embedding": {"dimension": 768, "index": True, "type": "knn_vector"},
+                },
+            },
             "max_chunk_bytes": DEFAULT_MAX_CHUNK_BYTES,
+            "method": None,
+            "settings": {"index.knn": True},
         },
     }
 
@@ -33,12 +43,31 @@ def test_to_dict(_mock_opensearch_client):
 def test_from_dict(_mock_opensearch_client):
     data = {
         "type": "haystack_integrations.document_stores.opensearch.document_store.OpenSearchDocumentStore",
-        "init_parameters": {"hosts": "some hosts", "index": "default", "max_chunk_bytes": 1000},
+        "init_parameters": {"hosts": "some hosts", "index": "default", "max_chunk_bytes": 1000, "embedding_dim": 1536},
     }
     document_store = OpenSearchDocumentStore.from_dict(data)
     assert document_store._hosts == "some hosts"
     assert document_store._index == "default"
     assert document_store._max_chunk_bytes == 1000
+    assert document_store._embedding_dim == 1536
+    assert document_store._method is None
+    assert document_store._mappings == {
+        "properties": {
+            "embedding": {"type": "knn_vector", "index": True, "dimension": 1536},
+            "content": {"type": "text"},
+        },
+        "dynamic_templates": [
+            {
+                "strings": {
+                    "match_mapping_type": "string",
+                    "mapping": {
+                        "type": "keyword",
+                    },
+                }
+            }
+        ],
+    }
+    assert document_store._settings == {"index.knn": True}
 
 
 @patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
@@ -135,7 +164,7 @@ class TestDocumentStore(DocumentStoreBaseTests):
                 Document(content="Exilir is a functional programming language"),
                 Document(content="F# is a functional programming language"),
                 Document(content="C# is a functional programming language"),
-                Document(content="C++ is an object oriented programming language"),
+                Document(content="C   is an object oriented programming language"),
                 Document(content="Dart is an object oriented programming language"),
                 Document(content="Go is an object oriented programming language"),
                 Document(content="Python is a object oriented programming language"),
@@ -161,7 +190,7 @@ class TestDocumentStore(DocumentStoreBaseTests):
                 Document(content="Exilir is a functional programming language"),
                 Document(content="F# is a functional programming language"),
                 Document(content="C# is a functional programming language"),
-                Document(content="C++ is an object oriented programming language"),
+                Document(content="C   is an object oriented programming language"),
                 Document(content="Dart is an object oriented programming language"),
                 Document(content="Go is an object oriented programming language"),
                 Document(content="Python is a object oriented programming language"),
@@ -186,7 +215,7 @@ class TestDocumentStore(DocumentStoreBaseTests):
                 Document(content="Exilir is a functional programming language"),
                 Document(content="F# is a functional programming language"),
                 Document(content="C# is a functional programming language"),
-                Document(content="C++ is an object oriented programming language"),
+                Document(content="C   is an object oriented programming language"),
                 Document(content="Dart is an object oriented programming language"),
                 Document(content="Go is an object oriented programming language"),
                 Document(content="Python is a object oriented programming language"),
@@ -207,7 +236,7 @@ class TestDocumentStore(DocumentStoreBaseTests):
                 Document(content="Exilir is a functional programming language"),
                 Document(content="F# is a functional programming language"),
                 Document(content="C# is a functional programming language"),
-                Document(content="C++ is an object oriented programming language"),
+                Document(content="C   is an object oriented programming language"),
                 Document(content="Dart is an object oriented programming language"),
                 Document(content="Go is an object oriented programming language"),
                 Document(content="Python is a object oriented programming language"),
@@ -232,7 +261,7 @@ class TestDocumentStore(DocumentStoreBaseTests):
                 Document(content="Exilir is a functional programming language"),
                 Document(content="F# is a functional programming language"),
                 Document(content="C# is a functional programming language"),
-                Document(content="C++ is an object oriented programming language"),
+                Document(content="C   is an object oriented programming language"),
                 Document(content="Dart is an object oriented programming language"),
                 Document(content="Go is an object oriented programming language"),
                 Document(content="Python is a object oriented programming language"),

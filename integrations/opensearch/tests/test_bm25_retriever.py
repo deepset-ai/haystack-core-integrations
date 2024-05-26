@@ -28,9 +28,21 @@ def test_to_dict(_mock_opensearch_client):
         "init_parameters": {
             "document_store": {
                 "init_parameters": {
+                    "embedding_dim": 768,
                     "hosts": "some fake host",
                     "index": "default",
+                    "mappings": {
+                        "dynamic_templates": [
+                            {"strings": {"mapping": {"type": "keyword"}, "match_mapping_type": "string"}}
+                        ],
+                        "properties": {
+                            "content": {"type": "text"},
+                            "embedding": {"dimension": 768, "index": True, "type": "knn_vector"},
+                        },
+                    },
                     "max_chunk_bytes": DEFAULT_MAX_CHUNK_BYTES,
+                    "method": None,
+                    "settings": {"index.knn": True},
                 },
                 "type": "haystack_integrations.document_stores.opensearch.document_store.OpenSearchDocumentStore",
             },

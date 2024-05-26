@@ -133,6 +133,10 @@ class OpenSearchDocumentStore:
             hosts=self._hosts,
             index=self._index,
             max_chunk_bytes=self._max_chunk_bytes,
+            embedding_dim=self._embedding_dim,
+            method=self._method,
+            mappings=self._mappings,
+            settings=self._settings,
             **self._kwargs,
         )
 
