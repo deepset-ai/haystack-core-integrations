@@ -72,3 +72,32 @@ jobs:
             ${{ (steps.tests.conclusion == 'nightly-haystack-main') && 'nightly-haystack-main' || 'tests' }}
              - ${{ github.workflow }}
           api-key: ${{ secrets.CORE_DATADOG_API_KEY }}
+
+      - name: Extract random contributor to these files (i.e developer who is familiar with the codebase)
+        if: failure() && github.event_name == 'schedule'
+        uses: ./.github/actions/extract-committers
+        id: random_contributor
+        with:
+          project_dir: integrations/anthropic
+          names_handles: '{"Madeesh Kannan":"shadeMe","Massimiliano Pippi":"masci","Stefano Fiorucci":"anakin87","Vladimir Blagojevic":"vblagoje", "Silvano Cerza": "silvanocerza", "Julian Risch": "julian-risch", "David S. Batista": "davidsbatista"}'
+          default_user: "vblagoje"
+
+      - name: Create Issue for Nightly Failure
+        if: failure() && github.event_name == 'schedule'
+        uses: dacbd/create-issue-action@main
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          title: |
+            Nightly [${{ github.workflow }}] failed
+          assignees: ${{ steps.random_contributor.outputs.user }}
+          body: |
+            ## Nightly Failure Report:
+
+            > [!IMPORTANT]
+            > Details on failed run: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+            - Branch: `${{ github.ref }}`
+            - Commit: ${{ github.sha }}
+            - Workflow Path: `${{ github.workflow_ref }}`
+
+            - [ ] **Task**: Review failed CI run, fix the issue(s), and re-run until successful.

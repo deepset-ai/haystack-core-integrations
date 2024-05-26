@@ -1,0 +1,31 @@
+name: Extract Random User from Commit Logs
+description: Extracts a random user from commit logs who is also in the predefined list.
+inputs:
+  project_dir:
+    description: "Project directory to scan for committers"
+    required: true
+  names_handles:
+    description: "Mapping of First/Last Name to GitHub handles in JSON format"
+    required: true
+  default_user:
+    description: "Default GitHub user to assign if extraction fails"
+    required: true
+outputs:
+  user:
+    description: "Extracted user"
+    value: ${{ steps.extract-committers.outputs.user }}
+runs:
+  using: "composite"
+  steps:
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.10"
+    - name: Run the script
+      id: extract-committers
+      run: python .github/actions/extract-committers/main.py
+      env:
+        INPUT_PROJECT_DIR: ${{ inputs.project_dir }}
+        INPUT_NAMES_HANDLES: ${{ inputs.names_handles }}
+        INPUT_DEFAULT_USER: ${{ inputs.default_user }}
+      shell: bash
