@@ -60,7 +60,8 @@ class OpenSearchDocumentStore:
             see the [official OpenSearch docs](https://opensearch.org/docs/latest/search-plugins/knn/knn-index/#method-definitions)
             for more information. Defaults to None
         :param mappings: The mapping of how the documents are stored and indexed. Please see the [official OpenSearch docs](https://opensearch.org/docs/latest/field-types/)
-            for more information. Defaults to None
+            for more information. If None, it uses the embedding_dim and method arguments to create default mappings.
+            Defaults to None
         :param settings: The settings of the index to be created. Please see the [official OpenSearch docs](https://opensearch.org/docs/latest/search-plugins/knn/knn-index/#index-settings)
             for more information. Defaults to {"index.knn": True}
         :param **kwargs: Optional arguments that ``OpenSearch`` takes. For the full list of supported kwargs,
@@ -72,13 +73,12 @@ class OpenSearchDocumentStore:
         self._max_chunk_bytes = max_chunk_bytes
         self._embedding_dim = embedding_dim
         self._method = method
-        self._mappings = mappings or self._default_mappings
+        self._mappings = mappings or self._get_default_mappings()
         self._settings = settings
         self._kwargs = kwargs
 
-    @property
-    def _default_mappings(self):
-        default_mappings: Dict[str, Any] = {
+    def _get_default_mappings(self) -> Dict[str, Any]:
+        default_mappings = {
             "properties": {
                 "embedding": {"type": "knn_vector", "index": True, "dimension": self._embedding_dim},
                 "content": {"type": "text"},
@@ -87,9 +87,7 @@ class OpenSearchDocumentStore:
                 {
                     "strings": {
                         "match_mapping_type": "string",
-                        "mapping": {
-                            "type": "keyword",
-                        },
+                        "mapping": {"type": "keyword"},
                     }
                 }
             ],

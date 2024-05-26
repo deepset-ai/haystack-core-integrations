@@ -60,9 +60,7 @@ def test_from_dict(_mock_opensearch_client):
             {
                 "strings": {
                     "match_mapping_type": "string",
-                    "mapping": {
-                        "type": "keyword",
-                    },
+                    "mapping": {"type": "keyword"},
                 }
             }
         ],
@@ -74,6 +72,17 @@ def test_from_dict(_mock_opensearch_client):
 def test_init_is_lazy(_mock_opensearch_client):
     OpenSearchDocumentStore(hosts="testhost")
     _mock_opensearch_client.assert_not_called()
+
+
+@patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
+def test_get_default_mappings(_mock_opensearch_client):
+    store = OpenSearchDocumentStore(hosts="testhost", embedding_dim=1536, method={"name": "hnsw"})
+    assert store._mappings["properties"]["embedding"] == {
+        "type": "knn_vector",
+        "index": True,
+        "dimension": 1536,
+        "method": {"name": "hnsw"},
+    }
 
 
 @pytest.mark.integration
