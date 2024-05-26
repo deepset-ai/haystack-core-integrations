@@ -263,6 +263,7 @@ class OpenSearchDocumentStore:
             refresh="wait_for",
             index=self._index,
             raise_on_error=False,
+            max_chunk_bytes=self._max_chunk_bytes,
         )
 
     def _bm25_retrieval(
