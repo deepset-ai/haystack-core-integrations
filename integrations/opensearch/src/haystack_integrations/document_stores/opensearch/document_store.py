@@ -105,7 +105,7 @@ class OpenSearchDocumentStore:
             # Check client connection, this will raise if not connected
             self._client.info()  # type:ignore
 
-        if self._client.indices.exists(index=self._index):
+        if self._client.indices.exists(index=self._index):  # type:ignore
             logger.debug(
                 "The index '%s' already exists. The `embedding_dim`, `method`, `mappings`, and "
                 "`settings` values will be ignored.",
@@ -115,7 +115,7 @@ class OpenSearchDocumentStore:
             # Create the index if it doesn't exist
             body = {"mappings": self._mappings, "settings": self._settings}
 
-            self._client.indices.create(index=self._index, body=body)
+            self._client.indices.create(index=self._index, body=body)  # type:ignore
         return self._client
 
     def to_dict(self) -> Dict[str, Any]:
