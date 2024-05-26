@@ -66,52 +66,57 @@ class OpenSearchDocumentStore:
         :param **kwargs: Optional arguments that ``OpenSearch`` takes. For the full list of supported kwargs,
             see the [official OpenSearch reference](https://opensearch-project.github.io/opensearch-py/api-ref/clients/opensearch_client.html)
         """
+        self._client = None
         self._hosts = hosts
-        self._client = OpenSearch(hosts, **kwargs)
         self._index = index
         self._max_chunk_bytes = max_chunk_bytes
+        self._embedding_dim = embedding_dim
+        self._method = method
+        self._mappings = mappings or self._default_mappings
+        self._settings = settings
         self._kwargs = kwargs
 
-        # Check client connection, this will raise if not connected
-        self._client.info()
+    @property
+    def _default_mappings(self):
+        default_mappings: Dict[str, Any] = {
+            "properties": {
+                "embedding": {"type": "knn_vector", "index": True, "dimension": self._embedding_dim},
+                "content": {"type": "text"},
+            },
+            "dynamic_templates": [
+                {
+                    "strings": {
+                        "match_mapping_type": "string",
+                        "mapping": {
+                            "type": "keyword",
+                        },
+                    }
+                }
+            ],
+        }
+        if self._method:
+            default_mappings["properties"]["embedding"]["method"] = self._method
+        return default_mappings
 
-        if self._client.indices.exists(index=index):
+    @property
+    def client(self) -> OpenSearch:
+        if not self._client:
+            self._client = OpenSearch(self._hosts, **self._kwargs)
+            # Check client connection, this will raise if not connected
+            self._client.info()  # type:ignore
+
+        if self._client.indices.exists(index=self._index):
             logger.debug(
                 "The index '%s' already exists. The `embedding_dim`, `method`, `mappings`, and "
                 "`settings` values will be ignored.",
-                index,
+                self._index,
             )
-        # Create the index if it doesn't exist
         else:
-            # configure mapping for the embedding field
-            self._embedding_dim = embedding_dim
-            self._method = method
-
-            default_mappings: Dict[str, Any] = {
-                "properties": {
-                    "embedding": {"type": "knn_vector", "index": True, "dimension": self._embedding_dim},
-                    "content": {"type": "text"},
-                },
-                "dynamic_templates": [
-                    {
-                        "strings": {
-                            "match_mapping_type": "string",
-                            "mapping": {
-                                "type": "keyword",
-                            },
-                        }
-                    }
-                ],
-            }
-            if self._method:
-                default_mappings["properties"]["embedding"]["method"] = self._method
-
-            self._mappings = mappings or default_mappings
-            self._settings = settings
-
+            # Create the index if it doesn't exist
             body = {"mappings": self._mappings, "settings": self._settings}
 
-            self._client.indices.create(index=index, body=body)
+            self._client.indices.create(index=self._index, body=body)
+        return self._client
 
     def to_dict(self) -> Dict[str, Any]:
         # This is not the best solution to serialise this class but is the fastest to implement.
@@ -148,13 +153,13 @@ class OpenSearchDocumentStore:
         """
         Returns how many documents are present in the document store.
         """
-        return self._client.count(index=self._index)["count"]
+        return self.client.count(index=self._index)["count"]
 
     def _search_documents(self, **kwargs) -> List[Document]:
         """
         Calls the OpenSearch client's search method and handles pagination.
         """
-        res = self._client.search(
+        res = self.client.search(
             index=self._index,
             body=kwargs,
         )
@@ -189,7 +194,7 @@ class OpenSearchDocumentStore:
 
         action = "index" if policy == DuplicatePolicy.OVERWRITE else "create"
         documents_written, errors = bulk(
-            client=self._client,
+            client=self.client,
             actions=(
                 {
                     "_op_type": action,
@@ -253,7 +258,7 @@ class OpenSearchDocumentStore:
         """
 
         bulk(
-            client=self._client,
+            client=self.client,
             actions=({"_op_type": "delete", "_id": id_} for id_ in document_ids),
             refresh="wait_for",
             index=self._index,
@@ -322,7 +327,7 @@ class OpenSearchDocumentStore:
 
         if scale_score:
             for doc in documents:
-                doc.score = float(1 / (1 + np.exp(-np.asarray(doc.score / BM25_SCALING_FACTOR))))
+                doc.score = float(1 / (1 + np.exp(-np.asarray(doc.score / BM25_SCALING_FACTOR))))  # type:ignore
 
         return documents
 

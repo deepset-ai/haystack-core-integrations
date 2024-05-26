@@ -4,7 +4,7 @@
 
 import random
 from typing import List
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 import pytest
 from elasticsearch.exceptions import BadRequestError  # type: ignore[import-not-found]
@@ -23,6 +23,7 @@ def test_to_dict(_mock_elasticsearch_client):
         "type": "haystack_integrations.document_stores.elasticsearch.document_store.ElasticsearchDocumentStore",
         "init_parameters": {
             "hosts": "some hosts",
+            "custom_mapping": None,
             "index": "default",
             "embedding_similarity_function": "cosine",
         },
@@ -35,6 +36,7 @@ def test_from_dict(_mock_elasticsearch_client):
         "type": "haystack_integrations.document_stores.elasticsearch.document_store.ElasticsearchDocumentStore",
         "init_parameters": {
             "hosts": "some hosts",
+            "custom_mapping": None,
             "index": "default",
             "embedding_similarity_function": "cosine",
         },
@@ -42,6 +44,7 @@ def test_from_dict(_mock_elasticsearch_client):
     document_store = ElasticsearchDocumentStore.from_dict(data)
     assert document_store._hosts == "some hosts"
     assert document_store._index == "default"
+    assert document_store._custom_mapping is None
     assert document_store._embedding_similarity_function == "cosine"
 
 
@@ -280,3 +283,33 @@ class TestDocumentStore(DocumentStoreBaseTests):
 
         with pytest.raises(DocumentStoreError):
             document_store.write_documents(docs)
+
+    @patch("haystack_integrations.document_stores.elasticsearch.document_store.Elasticsearch")
+    def test_init_with_custom_mapping(self, mock_elasticsearch):
+        custom_mapping = {
+            "properties": {
+                "embedding": {"type": "dense_vector", "index": True, "similarity": "dot_product"},
+                "content": {"type": "text"},
+            },
+            "dynamic_templates": [
+                {
+                    "strings": {
+                        "path_match": "*",
+                        "match_mapping_type": "string",
+                        "mapping": {
+                            "type": "keyword",
+                        },
+                    }
+                }
+            ],
+        }
+        mock_client = Mock(
+            indices=Mock(create=Mock(), exists=Mock(return_value=False)),
+        )
+        mock_elasticsearch.return_value = mock_client
+
+        ElasticsearchDocumentStore(hosts="some hosts", custom_mapping=custom_mapping)
+        mock_client.indices.create.assert_called_once_with(
+            index="default",
+            mappings=custom_mapping,
+        )

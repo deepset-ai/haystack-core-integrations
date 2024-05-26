@@ -29,6 +29,7 @@ def test_to_dict(_mock_elasticsearch_client):
             "document_store": {
                 "init_parameters": {
                     "hosts": "some fake host",
+                    "custom_mapping": None,
                     "index": "default",
                     "embedding_similarity_function": "cosine",
                 },

@@ -5,7 +5,6 @@ from typing import Any, ClassVar, Dict, Generator, List, Optional, Set, Union
 
 import numpy as np
 import qdrant_client
-from grpc import RpcError
 from haystack import default_from_dict, default_to_dict
 from haystack.dataclasses import Document
 from haystack.dataclasses.sparse_embedding import SparseEmbedding
@@ -66,7 +65,7 @@ class QdrantDocumentStore:
         https: Optional[bool] = None,
         api_key: Optional[Secret] = None,
         prefix: Optional[str] = None,
-        timeout: Optional[float] = None,
+        timeout: Optional[int] = None,
         host: Optional[str] = None,
         path: Optional[str] = None,
         index: str = "Document",
@@ -96,23 +95,7 @@ class QdrantDocumentStore:
         scroll_size: int = 10_000,
         payload_fields_to_index: Optional[List[dict]] = None,
     ):
-        super().__init__()
-
-        metadata = metadata or {}
-        self.client = qdrant_client.QdrantClient(
-            location=location,
-            url=url,
-            port=port,
-            grpc_port=grpc_port,
-            prefer_grpc=prefer_grpc,
-            https=https,
-            api_key=api_key.resolve_value() if api_key else None,
-            prefix=prefix,
-            timeout=timeout,
-            host=host,
-            path=path,
-            metadata=metadata,
-        )
+        self._client = None
 
         # Store the Qdrant client specific attributes
         self.location = location
@@ -126,7 +109,7 @@ class QdrantDocumentStore:
         self.timeout = timeout
         self.host = host
         self.path = path
-        self.metadata = metadata
+        self.metadata = metadata or {}
         self.api_key = api_key
 
         # Store the Qdrant collection specific attributes
@@ -143,12 +126,6 @@ class QdrantDocumentStore:
         self.recreate_index = recreate_index
         self.payload_fields_to_index = payload_fields_to_index
         self.use_sparse_embeddings = use_sparse_embeddings
-
-        # Make sure the collection is properly set up
-        self._set_up_collection(
-            index, embedding_dim, recreate_index, similarity, use_sparse_embeddings, on_disk, payload_fields_to_index
-        )
-
         self.embedding_dim = embedding_dim
         self.on_disk = on_disk
         self.content_field = content_field
@@ -161,6 +138,35 @@ class QdrantDocumentStore:
         self.duplicate_documents = duplicate_documents
         self.write_batch_size = write_batch_size
         self.scroll_size = scroll_size
+
+    @property
+    def client(self):
+        if not self._client:
+            self._client = qdrant_client.QdrantClient(
+                location=self.location,
+                url=self.url,
+                port=self.port,
+                grpc_port=self.grpc_port,
+                prefer_grpc=self.prefer_grpc,
+                https=self.https,
+                api_key=self.api_key.resolve_value() if self.api_key else None,
+                prefix=self.prefix,
+                timeout=self.timeout,
+                host=self.host,
+                path=self.path,
+                metadata=self.metadata,
+            )
+            # Make sure the collection is properly set up
+            self._set_up_collection(
+                self.index,
+                self.embedding_dim,
+                self.recreate_index,
+                self.similarity,
+                self.use_sparse_embeddings,
+                self.on_disk,
+                self.payload_fields_to_index,
+            )
+        return self._client
 
     def count_documents(self) -> int:
         try:
@@ -176,13 +182,13 @@ class QdrantDocumentStore:
 
     def filter_documents(
         self,
-        filters: Optional[Dict[str, Any]] = None,
+        filters: Optional[Union[Dict[str, Any], rest.Filter]] = None,
     ) -> List[Document]:
-        if filters and not isinstance(filters, dict):
-            msg = "Filter must be a dictionary"
+        if filters and not isinstance(filters, dict) and not isinstance(filters, rest.Filter):
+            msg = "Filter must be a dictionary or an instance of `qdrant_client.http.models.Filter`"
             raise ValueError(msg)
 
-        if filters and "operator" not in filters:
+        if filters and not isinstance(filters, rest.Filter) and "operator" not in filters:
             filters = convert_legacy_filters(filters)
         return list(
             self.get_documents_generator(
@@ -260,7 +266,7 @@ class QdrantDocumentStore:
 
     def get_documents_generator(
         self,
-        filters: Optional[Dict[str, Any]] = None,
+        filters: Optional[Union[Dict[str, Any], rest.Filter]] = None,
     ) -> Generator[Document, None, None]:
         index = self.index
         qdrant_filters = convert_filters_to_qdrant(filters)
@@ -311,7 +317,7 @@ class QdrantDocumentStore:
     def _query_by_sparse(
         self,
         query_sparse_embedding: SparseEmbedding,
-        filters: Optional[Dict[str, Any]] = None,
+        filters: Optional[Union[Dict[str, Any], rest.Filter]] = None,
         top_k: int = 10,
         scale_score: bool = True,
         return_embedding: bool = False,
@@ -353,7 +359,7 @@ class QdrantDocumentStore:
     def _query_by_embedding(
         self,
         query_embedding: List[float],
-        filters: Optional[Dict[str, Any]] = None,
+        filters: Optional[Union[Dict[str, Any], rest.Filter]] = None,
         top_k: int = 10,
         scale_score: bool = True,
         return_embedding: bool = False,
@@ -388,7 +394,7 @@ class QdrantDocumentStore:
         self,
         query_embedding: List[float],
         query_sparse_embedding: SparseEmbedding,
-        filters: Optional[Dict[str, Any]] = None,
+        filters: Optional[Union[Dict[str, Any], rest.Filter]] = None,
         top_k: int = 10,
         return_embedding: bool = False,
     ) -> List[Document]:
@@ -464,7 +470,7 @@ class QdrantDocumentStore:
 
         return results
 
-    def _get_distance(self, similarity: str) -> rest.Distance:
+    def get_distance(self, similarity: str) -> rest.Distance:
         try:
             return self.SIMILARITY[similarity]
         except KeyError as ke:
@@ -498,31 +504,17 @@ class QdrantDocumentStore:
         on_disk: bool = False,
         payload_fields_to_index: Optional[List[dict]] = None,
     ):
-        distance = self._get_distance(similarity)
+        distance = self.get_distance(similarity)
 
-        if recreate_collection:
+        if recreate_collection or not self.client.collection_exists(collection_name):
             # There is no need to verify the current configuration of that
-            # collection. It might be just recreated again.
-            self._recreate_collection(collection_name, distance, embedding_dim, on_disk, use_sparse_embeddings)
+            # collection. It might be just recreated again or does not exist yet.
+            self.recreate_collection(collection_name, distance, embedding_dim, on_disk, use_sparse_embeddings)
             # Create Payload index if payload_fields_to_index is provided
             self._create_payload_index(collection_name, payload_fields_to_index)
             return
 
-        try:
-            # Check if the collection already exists and validate its
-            # current configuration with the parameters.
-            collection_info = self.client.get_collection(collection_name)
-        except (UnexpectedResponse, RpcError, ValueError):
-            # That indicates the collection does not exist, so it can be
-            # safely created with any configuration.
-            #
-            # Qdrant local raises ValueError if the collection is not found, but
-            # with the remote server UnexpectedResponse / RpcError is raised.
-            # Until that's unified, we need to catch both.
-            self._recreate_collection(collection_name, distance, embedding_dim, on_disk, use_sparse_embeddings)
-            # Create Payload index if payload_fields_to_index is provided
-            self._create_payload_index(collection_name, payload_fields_to_index)
-            return
+        collection_info = self.client.get_collection(collection_name)
 
         has_named_vectors = (
             isinstance(collection_info.config.params.vectors, dict)
@@ -573,14 +565,20 @@ class QdrantDocumentStore:
             )
             raise ValueError(msg)
 
-    def _recreate_collection(
+    def recreate_collection(
         self,
         collection_name: str,
         distance,
         embedding_dim: int,
-        on_disk: bool,
-        use_sparse_embeddings: bool,
+        on_disk: Optional[bool] = None,
+        use_sparse_embeddings: Optional[bool] = None,
     ):
+        if on_disk is None:
+            on_disk = self.on_disk
+
+        if use_sparse_embeddings is None:
+            use_sparse_embeddings = self.use_sparse_embeddings
+
         # dense vectors configuration
         vectors_config = rest.VectorParams(size=embedding_dim, on_disk=on_disk, distance=distance)
 
@@ -596,7 +594,10 @@ class QdrantDocumentStore:
                 ),
             }
 
-        self.client.recreate_collection(
+        if self.client.collection_exists(collection_name):
+            self.client.delete_collection(collection_name)
+
+        self.client.create_collection(
             collection_name=collection_name,
             vectors_config=vectors_config,
             sparse_vectors_config=sparse_vectors_config if use_sparse_embeddings else None,
