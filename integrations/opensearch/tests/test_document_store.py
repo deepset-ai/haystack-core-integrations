@@ -11,6 +11,7 @@ from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumen
 from haystack.document_stores.types import DuplicatePolicy
 from haystack.testing.document_store import DocumentStoreBaseTests
 from haystack_integrations.document_stores.opensearch import OpenSearchDocumentStore
+from haystack_integrations.document_stores.opensearch.document_store import DEFAULT_MAX_CHUNK_BYTES
 from opensearchpy.exceptions import RequestError
 
 
@@ -21,8 +22,19 @@ def test_to_dict(_mock_opensearch_client):
     assert res == {
         "type": "haystack_integrations.document_stores.opensearch.document_store.OpenSearchDocumentStore",
         "init_parameters": {
+            "embedding_dim": 768,
             "hosts": "some hosts",
             "index": "default",
+            "mappings": {
+                "dynamic_templates": [{"strings": {"mapping": {"type": "keyword"}, "match_mapping_type": "string"}}],
+                "properties": {
+                    "content": {"type": "text"},
+                    "embedding": {"dimension": 768, "index": True, "type": "knn_vector"},
+                },
+            },
+            "max_chunk_bytes": DEFAULT_MAX_CHUNK_BYTES,
+            "method": None,
+            "settings": {"index.knn": True},
         },
     }
 
@@ -31,20 +43,46 @@ def test_to_dict(_mock_opensearch_client):
 def test_from_dict(_mock_opensearch_client):
     data = {
         "type": "haystack_integrations.document_stores.opensearch.document_store.OpenSearchDocumentStore",
-        "init_parameters": {
-            "hosts": "some hosts",
-            "index": "default",
-        },
+        "init_parameters": {"hosts": "some hosts", "index": "default", "max_chunk_bytes": 1000, "embedding_dim": 1536},
     }
     document_store = OpenSearchDocumentStore.from_dict(data)
     assert document_store._hosts == "some hosts"
     assert document_store._index == "default"
+    assert document_store._max_chunk_bytes == 1000
+    assert document_store._embedding_dim == 1536
+    assert document_store._method is None
+    assert document_store._mappings == {
+        "properties": {
+            "embedding": {"type": "knn_vector", "index": True, "dimension": 1536},
+            "content": {"type": "text"},
+        },
+        "dynamic_templates": [
+            {
+                "strings": {
+                    "match_mapping_type": "string",
+                    "mapping": {"type": "keyword"},
+                }
+            }
+        ],
+    }
+    assert document_store._settings == {"index.knn": True}
 
 
 @patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
 def test_init_is_lazy(_mock_opensearch_client):
     OpenSearchDocumentStore(hosts="testhost")
     _mock_opensearch_client.assert_not_called()
+
+
+@patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
+def test_get_default_mappings(_mock_opensearch_client):
+    store = OpenSearchDocumentStore(hosts="testhost", embedding_dim=1536, method={"name": "hnsw"})
+    assert store._mappings["properties"]["embedding"] == {
+        "type": "knn_vector",
+        "index": True,
+        "dimension": 1536,
+        "method": {"name": "hnsw"},
+    }
 
 
 @pytest.mark.integration
@@ -339,3 +377,10 @@ class TestDocumentStore(DocumentStoreBaseTests):
         with pytest.raises(DocumentStoreError) as e:
             document_store.write_documents([Document(content="Hello world")])
             e.match(f"{error}")
+
+    @patch("haystack_integrations.document_stores.opensearch.document_store.bulk")
+    def test_write_documents_max_chunk_bytes(self, mock_bulk, document_store):
+        mock_bulk.return_value = (1, [])
+        document_store.write_documents([Document(content="Hello world")])
+
+        assert mock_bulk.call_args.kwargs["max_chunk_bytes"] == DEFAULT_MAX_CHUNK_BYTES

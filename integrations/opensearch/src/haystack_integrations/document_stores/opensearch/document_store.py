@@ -27,6 +27,9 @@ Hosts = Union[str, List[Union[str, Mapping[str, Union[str, int]]]]]
 # all be mapped to scores ~1.
 BM25_SCALING_FACTOR = 8
 
+DEFAULT_SETTINGS = {"index.knn": True}
+DEFAULT_MAX_CHUNK_BYTES = 100 * 1024 * 1024
+
 
 class OpenSearchDocumentStore:
     def __init__(
@@ -34,23 +37,64 @@ class OpenSearchDocumentStore:
         *,
         hosts: Optional[Hosts] = None,
         index: str = "default",
+        max_chunk_bytes: int = DEFAULT_MAX_CHUNK_BYTES,
+        embedding_dim: int = 768,
+        method: Optional[Dict[str, Any]] = None,
+        mappings: Optional[Dict[str, Any]] = None,
+        settings: Optional[Dict[str, Any]] = DEFAULT_SETTINGS,
         **kwargs,
     ):
         """
         Creates a new OpenSearchDocumentStore instance.
 
-        For more information on connection parameters, see the [official OpenSearch documentation](https://opensearch.org/docs/latest/clients/python-low-level/#connecting-to-opensearch)
+        The ``embeddings_dim``, ``method``, ``mappings``, and ``settings`` arguments are only used if the index does not
+        exists and needs to be created. If the index already exists, its current configurations will be used.
 
-        For the full list of supported kwargs, see the [official OpenSearch reference](https://opensearch-project.github.io/opensearch-py/api-ref/clients/opensearch_client.html)
+        For more information on connection parameters, see the [official OpenSearch documentation](https://opensearch.org/docs/latest/clients/python-low-level/#connecting-to-opensearch)
 
         :param hosts: List of hosts running the OpenSearch client. Defaults to None
         :param index: Name of index in OpenSearch, if it doesn't exist it will be created. Defaults to "default"
-        :param **kwargs: Optional arguments that ``OpenSearch`` takes.
+        :param max_chunk_bytes: Maximum size of the requests in bytes. Defaults to 100MB
+        :param embedding_dim: Dimension of the embeddings. Defaults to 768
+        :param method: The method definition of the underlying configuration of the approximate k-NN algorithm. Please
+            see the [official OpenSearch docs](https://opensearch.org/docs/latest/search-plugins/knn/knn-index/#method-definitions)
+            for more information. Defaults to None
+        :param mappings: The mapping of how the documents are stored and indexed. Please see the [official OpenSearch docs](https://opensearch.org/docs/latest/field-types/)
+            for more information. If None, it uses the embedding_dim and method arguments to create default mappings.
+            Defaults to None
+        :param settings: The settings of the index to be created. Please see the [official OpenSearch docs](https://opensearch.org/docs/latest/search-plugins/knn/knn-index/#index-settings)
+            for more information. Defaults to {"index.knn": True}
+        :param **kwargs: Optional arguments that ``OpenSearch`` takes. For the full list of supported kwargs,
+            see the [official OpenSearch reference](https://opensearch-project.github.io/opensearch-py/api-ref/clients/opensearch_client.html)
         """
         self._client = None
         self._hosts = hosts
         self._index = index
+        self._max_chunk_bytes = max_chunk_bytes
+        self._embedding_dim = embedding_dim
+        self._method = method
+        self._mappings = mappings or self._get_default_mappings()
+        self._settings = settings
         self._kwargs = kwargs
+
+    def _get_default_mappings(self) -> Dict[str, Any]:
+        default_mappings: Dict[str, Any] = {
+            "properties": {
+                "embedding": {"type": "knn_vector", "index": True, "dimension": self._embedding_dim},
+                "content": {"type": "text"},
+            },
+            "dynamic_templates": [
+                {
+                    "strings": {
+                        "match_mapping_type": "string",
+                        "mapping": {"type": "keyword"},
+                    }
+                }
+            ],
+        }
+        if self._method:
+            default_mappings["properties"]["embedding"]["method"] = self._method
+        return default_mappings
 
     @property
     def client(self) -> OpenSearch:
@@ -59,36 +103,17 @@ class OpenSearchDocumentStore:
             # Check client connection, this will raise if not connected
             self._client.info()  # type:ignore
 
+        if self._client.indices.exists(index=self._index):  # type:ignore
+            logger.debug(
+                "The index '%s' already exists. The `embedding_dim`, `method`, `mappings`, and "
+                "`settings` values will be ignored.",
+                self._index,
+            )
+        else:
             # Create the index if it doesn't exist
-            if not self._client.indices.exists(index=self._index):  # type:ignore
-                # configure fallback mapping for the embedding field
-                method = self._kwargs.get("method", None)
-                embedding_dim = self._kwargs.get("embedding_dim", 768)
-                default_mappings: Dict[str, Any] = {
-                    "properties": {
-                        "embedding": {"type": "knn_vector", "index": True, "dimension": embedding_dim},
-                        "content": {"type": "text"},
-                    },
-                    "dynamic_templates": [
-                        {
-                            "strings": {
-                                "match_mapping_type": "string",
-                                "mapping": {
-                                    "type": "keyword",
-                                },
-                            }
-                        }
-                    ],
-                }
-                if method:
-                    default_mappings["properties"]["embedding"]["method"] = method
+            body = {"mappings": self._mappings, "settings": self._settings}
 
-                body = {
-                    "mappings": self._kwargs.get("mappings", default_mappings),
-                    "settings": self._kwargs.get("settings", {"index.knn": True}),
-                }
-                self._client.indices.create(index=self._index, body=body)  # type:ignore
-
+            self._client.indices.create(index=self._index, body=body)  # type:ignore
         return self._client
 
     def to_dict(self) -> Dict[str, Any]:
@@ -105,6 +130,11 @@ class OpenSearchDocumentStore:
             self,
             hosts=self._hosts,
             index=self._index,
+            max_chunk_bytes=self._max_chunk_bytes,
+            embedding_dim=self._embedding_dim,
+            method=self._method,
+            mappings=self._mappings,
+            settings=self._settings,
             **self._kwargs,
         )
 
@@ -178,6 +208,7 @@ class OpenSearchDocumentStore:
             refresh="wait_for",
             index=self._index,
             raise_on_error=False,
+            max_chunk_bytes=self._max_chunk_bytes,
         )
 
         if errors:
@@ -234,6 +265,7 @@ class OpenSearchDocumentStore:
             refresh="wait_for",
             index=self._index,
             raise_on_error=False,
+            max_chunk_bytes=self._max_chunk_bytes,
         )
 
     def _bm25_retrieval(
