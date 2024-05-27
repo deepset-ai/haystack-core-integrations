@@ -78,7 +78,7 @@ class OpenSearchDocumentStore:
         self._kwargs = kwargs
 
     def _get_default_mappings(self) -> Dict[str, Any]:
-        default_mappings = {
+        default_mappings: Dict[str, Any] = {
             "properties": {
                 "embedding": {"type": "knn_vector", "index": True, "dimension": self._embedding_dim},
                 "content": {"type": "text"},
