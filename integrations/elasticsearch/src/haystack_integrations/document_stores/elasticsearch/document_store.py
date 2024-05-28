@@ -106,13 +106,13 @@ class ElasticsearchDocumentStore:
     @property
     def client(self) -> Elasticsearch:
         if self._client is None:
-            self._client = Elasticsearch(
+            client = Elasticsearch(
                 self._hosts,
                 headers={"user-agent": f"haystack-py-ds/{haystack_version}"},
                 **self._kwargs,
             )
             # Check client connection, this will raise if not connected
-            self._client.info()
+            client.info()
 
             if self._custom_mapping:
                 mappings = self._custom_mapping
@@ -141,8 +141,10 @@ class ElasticsearchDocumentStore:
                 }
 
             # Create the index if it doesn't exist
-            if not self._client.indices.exists(index=self._index):
-                self._client.indices.create(index=self._index, mappings=mappings)
+            if not client.indices.exists(index=self._index):
+                client.indices.create(index=self._index, mappings=mappings)
+
+            self._client = client
 
         return self._client
 

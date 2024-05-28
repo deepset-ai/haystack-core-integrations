@@ -314,7 +314,7 @@ class TestDocumentStore(DocumentStoreBaseTests):
         )
         mock_elasticsearch.return_value = mock_client
 
-        ElasticsearchDocumentStore(hosts="some hosts", custom_mapping=custom_mapping).client
+        _ = ElasticsearchDocumentStore(hosts="some hosts", custom_mapping=custom_mapping).client
         mock_client.indices.create.assert_called_once_with(
             index="default",
             mappings=custom_mapping,
