@@ -12,6 +12,7 @@ from haystack.document_stores.types import DuplicatePolicy
 from haystack.utils import Secret, deserialize_secrets_inplace
 from haystack_integrations.document_stores.mongodb_atlas.filters import _normalize_filters
 from pymongo import InsertOne, MongoClient, ReplaceOne, UpdateOne
+from pymongo.collection import Collection
 from pymongo.driver_info import DriverInfo
 from pymongo.errors import BulkWriteError
 
@@ -88,6 +89,7 @@ class MongoDBAtlasDocumentStore:
         self.collection_name = collection_name
         self.vector_search_index = vector_search_index
         self._connection: Optional[MongoClient] = None
+        self._collection: Optional[Collection] = None
 
     @property
     def connection(self) -> MongoClient:
@@ -95,14 +97,19 @@ class MongoDBAtlasDocumentStore:
             self._connection = MongoClient(
                 self.resolved_connection_string, driver=DriverInfo(name="MongoDBAtlasHaystackIntegration")
             )
+
+        return self._connection
+
+    @property
+    def collection(self) -> Collection:
+        if self._collection is None:
             database = self.connection[self.database_name]
 
             if self.collection_name not in database.list_collection_names():
                 msg = f"Collection '{self.collection_name}' does not exist in database '{self.database_name}'."
                 raise ValueError(msg)
-            self.collection = database[self.collection_name]
-
-        return self._connection
+            self._collection = database[self.collection_name]
+        return self._collection
 
     def to_dict(self) -> Dict[str, Any]:
         """
