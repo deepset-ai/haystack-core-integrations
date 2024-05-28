@@ -81,22 +81,28 @@ class MongoDBAtlasDocumentStore:
             msg = f'Invalid collection name: "{collection_name}". It can only contain letters, numbers, -, or _.'
             raise ValueError(msg)
 
-        resolved_connection_string = mongo_connection_string.resolve_value()
+        self.resolved_connection_string = mongo_connection_string.resolve_value()
         self.mongo_connection_string = mongo_connection_string
 
         self.database_name = database_name
         self.collection_name = collection_name
         self.vector_search_index = vector_search_index
+        self._connection: Optional[MongoClient] = None
 
-        self.connection: MongoClient = MongoClient(
-            resolved_connection_string, driver=DriverInfo(name="MongoDBAtlasHaystackIntegration")
-        )
-        database = self.connection[self.database_name]
+    @property
+    def connection(self) -> MongoClient:
+        if self._connection is None:
+            self._connection = MongoClient(
+                self.resolved_connection_string, driver=DriverInfo(name="MongoDBAtlasHaystackIntegration")
+            )
+            database = self.connection[self.database_name]
 
-        if collection_name not in database.list_collection_names():
-            msg = f"Collection '{collection_name}' does not exist in database '{database_name}'."
-            raise ValueError(msg)
-        self.collection = database[self.collection_name]
+            if self.collection_name not in database.list_collection_names():
+                msg = f"Collection '{self.collection_name}' does not exist in database '{self.database_name}'."
+                raise ValueError(msg)
+            self.collection = database[self.collection_name]
+
+        return self._connection
 
     def to_dict(self) -> Dict[str, Any]:
         """
