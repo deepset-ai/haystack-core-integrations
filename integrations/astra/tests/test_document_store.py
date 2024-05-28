@@ -20,6 +20,12 @@ def mock_auth(monkeypatch):
     monkeypatch.setenv("ASTRA_DB_APPLICATION_TOKEN", "test_token")
 
 
+@mock.patch("haystack_integrations.document_stores.astra.astra_client.AstraDB")
+def test_init_is_lazy(_mock_client):
+    _ = AstraDocumentStore()
+    _mock_client.assert_not_called()
+
+
 def test_namespace_init(mock_auth):  # noqa
     with mock.patch("haystack_integrations.document_stores.astra.astra_client.AstraDB") as client:
         _ = AstraDocumentStore().index
