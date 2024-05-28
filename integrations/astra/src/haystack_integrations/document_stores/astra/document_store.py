@@ -103,7 +103,7 @@ class AstraDocumentStore:
         self.duplicates_policy = duplicates_policy
         self.similarity = similarity
         self.namespace = namespace
-        self._index = None
+        self._index: Optional[AstraClient] = None
 
     @property
     def index(self) -> AstraClient:
