@@ -22,11 +22,11 @@ def mock_auth(monkeypatch):
 
 def test_namespace_init(mock_auth):  # noqa
     with mock.patch("haystack_integrations.document_stores.astra.astra_client.AstraDB") as client:
-        AstraDocumentStore()
+        _ = AstraDocumentStore().index
         assert "namespace" in client.call_args.kwargs
         assert client.call_args.kwargs["namespace"] is None
 
-        AstraDocumentStore(namespace="foo")
+        _ = AstraDocumentStore(namespace="foo").index
         assert "namespace" in client.call_args.kwargs
         assert client.call_args.kwargs["namespace"] == "foo"
 
