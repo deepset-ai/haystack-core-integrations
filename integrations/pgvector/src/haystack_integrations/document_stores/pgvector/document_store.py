@@ -152,28 +152,36 @@ class PgvectorDocumentStore:
     @property
     def cursor(self):
         if self._cursor is None:
-            self._cursor = self.connection.cursor()
+            self._create_connection()
 
         return self._cursor
 
     @property
     def dict_cursor(self):
         if self._dict_cursor is None:
-            self._dict_cursor = self.connection.cursor(row_factory=dict_row)
+            self._create_connection()
+
         return self._dict_cursor
 
     @property
     def connection(self):
-        if self._connection is not None:
-            return self._connection
+        if self._connection is None:
+            self._create_connection()
 
+        return self._connection
+
+    def _create_connection(self):
         conn_str = self.connection_string.resolve_value() or ""
         connection = connect(conn_str)
         connection.autocommit = True
         connection.execute("CREATE EXTENSION IF NOT EXISTS vector")
-        register_vector(connection)
-        self._connection = connection
+        register_vector(connection)  # Note: this must be called before creating the cursors.
 
+        self._connection = connection
+        self._cursor = self._connection.cursor()
+        self._dict_cursor = self._connection.cursor(row_factory=dict_row)
+
+        # Init schema
         if self.recreate_table:
             self.delete_table()
         self._create_table_if_not_exists()
@@ -503,7 +511,7 @@ class PgvectorDocumentStore:
             # postgresql returns the embedding as a string
             # so we need to convert it to a list of floats
             if document.get("embedding") is not None:
-                haystack_dict["embedding"] = [float(el) for el in document["embedding"].strip("[]").split(",")]
+                haystack_dict["embedding"] = document["embedding"].tolist()
 
             haystack_document = Document.from_dict(haystack_dict)
 
