@@ -85,6 +85,7 @@ class AstraDocumentStore:
                 "Set the ASTRA_DB_API_ENDPOINT environment variable (recommended) or pass it explicitly."
             )
             raise ValueError(msg)
+        self.resolved_api_endpoint = resolved_api_endpoint
 
         resolved_token = token.resolve_value()
         if resolved_token is None:
@@ -93,6 +94,7 @@ class AstraDocumentStore:
                 "Set the ASTRA_DB_APPLICATION_TOKEN environment variable (recommended) or pass it explicitly."
             )
             raise ValueError(msg)
+        self.resolved_token = resolved_token
 
         self.api_endpoint = api_endpoint
         self.token = token
@@ -101,15 +103,20 @@ class AstraDocumentStore:
         self.duplicates_policy = duplicates_policy
         self.similarity = similarity
         self.namespace = namespace
+        self._index: Optional[AstraClient] = None
 
-        self.index = AstraClient(
-            resolved_api_endpoint,
-            resolved_token,
-            self.collection_name,
-            self.embedding_dimension,
-            self.similarity,
-            namespace,
-        )
+    @property
+    def index(self) -> AstraClient:
+        if self._index is None:
+            self._index = AstraClient(
+                self.resolved_api_endpoint,
+                self.resolved_token,
+                self.collection_name,
+                self.embedding_dimension,
+                self.similarity,
+                self.namespace,
+            )
+        return self._index
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "AstraDocumentStore":
