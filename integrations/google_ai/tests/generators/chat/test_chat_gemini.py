@@ -225,3 +225,15 @@ def test_run():
 
     res = gemini_chat.run(messages=messages)
     assert len(res["replies"]) > 0
+
+
+@pytest.mark.skipif("GOOGLE_API_KEY" not in os.environ, reason="GOOGLE_API_KEY not set")
+def test_past_conversation():
+    gemini_chat = GoogleAIGeminiChatGenerator(model="gemini-pro")
+    messages = [
+        ChatMessage.from_user(content="What is 2+2?"),
+        ChatMessage.from_system(content="It's an arithmetic operation."),
+        ChatMessage.from_user(content="Yeah, but what's the result?"),
+    ]
+    res = gemini_chat.run(messages=messages)
+    assert len(res["replies"]) > 0
