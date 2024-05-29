@@ -9,6 +9,7 @@ from haystack.dataclasses.document import ByteStream, Document
 from haystack.document_stores.errors import DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
 from haystack.testing.document_store import CountDocumentsTest, DeleteDocumentsTest, WriteDocumentsTest
+from haystack.utils import Secret
 from haystack_integrations.document_stores.pgvector import PgvectorDocumentStore
 from pandas import DataFrame
 
@@ -194,12 +195,7 @@ def test_from_pg_to_haystack_documents():
         },
     ]
 
-    with patch(
-        "haystack_integrations.document_stores.pgvector.document_store.PgvectorDocumentStore.__init__"
-    ) as mock_init:
-        mock_init.return_value = None
-        ds = PgvectorDocumentStore(connection_string="test")
-
+    ds = PgvectorDocumentStore(connection_string=Secret.from_token("test"))
     haystack_docs = ds._from_pg_to_haystack_documents(pg_docs)
 
     assert haystack_docs[0].id == "1"
