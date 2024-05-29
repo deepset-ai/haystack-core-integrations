@@ -145,25 +145,52 @@ class PgvectorDocumentStore:
         self.hnsw_index_creation_kwargs = hnsw_index_creation_kwargs or {}
         self.hnsw_ef_search = hnsw_ef_search
         self.language = language
+        self._connection = None
+        self._cursor = None
+        self._dict_cursor = None
 
-        connection = connect(self.connection_string.resolve_value())
+    @property
+    def cursor(self):
+        if self._cursor is None:
+            self._create_connection()
+
+        return self._cursor
+
+    @property
+    def dict_cursor(self):
+        if self._dict_cursor is None:
+            self._create_connection()
+
+        return self._dict_cursor
+
+    @property
+    def connection(self):
+        if self._connection is None:
+            self._create_connection()
+
+        return self._connection
+
+    def _create_connection(self):
+        conn_str = self.connection_string.resolve_value() or ""
+        connection = connect(conn_str)
         connection.autocommit = True
-        self._connection = connection
-
-        # we create a generic cursor and another one that returns dictionaries
-        self._cursor = connection.cursor()
-        self._dict_cursor = connection.cursor(row_factory=dict_row)
-
         connection.execute("CREATE EXTENSION IF NOT EXISTS vector")
-        register_vector(connection)
+        register_vector(connection)  # Note: this must be called before creating the cursors.
 
-        if recreate_table:
+        self._connection = connection
+        self._cursor = self._connection.cursor()
+        self._dict_cursor = self._connection.cursor(row_factory=dict_row)
+
+        # Init schema
+        if self.recreate_table:
             self.delete_table()
         self._create_table_if_not_exists()
         self._create_keyword_index_if_not_exists()
 
-        if search_strategy == "hnsw":
+        if self.search_strategy == "hnsw":
             self._handle_hnsw()
+
+        return self._connection
 
     def to_dict(self) -> Dict[str, Any]:
         """
@@ -208,11 +235,11 @@ class PgvectorDocumentStore:
         :param sql_query: The SQL query to execute.
         :param params: The parameters to pass to the SQL query.
         :param error_msg: The error message to use if an exception is raised.
-        :param cursor: The cursor to use to execute the SQL query. Defaults to self._cursor.
+        :param cursor: The cursor to use to execute the SQL query. Defaults to self.cursor.
         """
 
         params = params or ()
-        cursor = cursor or self._cursor
+        cursor = cursor or self.cursor
 
         sql_query_str = sql_query.as_string(cursor) if not isinstance(sql_query, str) else sql_query
         logger.debug("SQL query: %s\nParameters: %s", sql_query_str, params)
@@ -220,7 +247,7 @@ class PgvectorDocumentStore:
         try:
             result = cursor.execute(sql_query, params)
         except Error as e:
-            self._connection.rollback()
+            self.connection.rollback()
             detailed_error_msg = f"{error_msg}.\nYou can find the SQL query and the parameters in the debug logs."
             raise DocumentStoreError(detailed_error_msg) from e
 
@@ -371,7 +398,7 @@ class PgvectorDocumentStore:
             sql_filter,
             params,
             error_msg="Could not filter documents from PgvectorDocumentStore.",
-            cursor=self._dict_cursor,
+            cursor=self.dict_cursor,
         )
 
         records = result.fetchall()
@@ -408,16 +435,16 @@ class PgvectorDocumentStore:
 
         sql_insert += SQL(" RETURNING id")
 
-        sql_query_str = sql_insert.as_string(self._cursor) if not isinstance(sql_insert, str) else sql_insert
+        sql_query_str = sql_insert.as_string(self.cursor) if not isinstance(sql_insert, str) else sql_insert
         logger.debug("SQL query: %s\nParameters: %s", sql_query_str, db_documents)
 
         try:
-            self._cursor.executemany(sql_insert, db_documents, returning=True)
+            self.cursor.executemany(sql_insert, db_documents, returning=True)
         except IntegrityError as ie:
-            self._connection.rollback()
+            self.connection.rollback()
             raise DuplicateDocumentError from ie
         except Error as e:
-            self._connection.rollback()
+            self.connection.rollback()
             error_msg = (
                 "Could not write documents to PgvectorDocumentStore. \n"
                 "You can find the SQL query and the parameters in the debug logs."
@@ -428,9 +455,9 @@ class PgvectorDocumentStore:
         # https://www.psycopg.org/psycopg3/docs/api/cursors.html#psycopg.Cursor.executemany
         written_docs = 0
         while True:
-            if self._cursor.fetchone():
+            if self.cursor.fetchone():
                 written_docs += 1
-            if not self._cursor.nextset():
+            if not self.cursor.nextset():
                 break
 
         return written_docs
@@ -483,8 +510,8 @@ class PgvectorDocumentStore:
 
             # postgresql returns the embedding as a string
             # so we need to convert it to a list of floats
-            if document.get("embedding"):
-                haystack_dict["embedding"] = [float(el) for el in document["embedding"].strip("[]").split(",")]
+            if document.get("embedding") is not None:
+                haystack_dict["embedding"] = document["embedding"].tolist()
 
             haystack_document = Document.from_dict(haystack_dict)
 
@@ -555,7 +582,7 @@ class PgvectorDocumentStore:
             sql_query,
             (query, *where_params),
             error_msg="Could not retrieve documents from PgvectorDocumentStore.",
-            cursor=self._dict_cursor,
+            cursor=self.dict_cursor,
         )
 
         records = result.fetchall()
@@ -633,7 +660,7 @@ class PgvectorDocumentStore:
             sql_query,
             params,
             error_msg="Could not retrieve documents from PgvectorDocumentStore.",
-            cursor=self._dict_cursor,
+            cursor=self.dict_cursor,
         )
 
         records = result.fetchall()
