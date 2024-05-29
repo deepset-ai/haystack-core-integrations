@@ -2,8 +2,8 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 import os
-from uuid import uuid4
 from unittest.mock import patch
+from uuid import uuid4
 
 import pytest
 from haystack.dataclasses.document import ByteStream, Document
