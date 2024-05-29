@@ -4,11 +4,13 @@
 
 from unittest.mock import patch
 
+import numpy as np
 import pytest
 from haystack.dataclasses.document import ByteStream, Document
 from haystack.document_stores.errors import DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
 from haystack.testing.document_store import CountDocumentsTest, DeleteDocumentsTest, WriteDocumentsTest
+from haystack.utils import Secret
 from haystack_integrations.document_stores.pgvector import PgvectorDocumentStore
 from pandas import DataFrame
 
@@ -170,7 +172,7 @@ def test_from_pg_to_haystack_documents():
             "blob_meta": None,
             "blob_mime_type": None,
             "meta": {"meta_key": "meta_value"},
-            "embedding": "[0.1, 0.2, 0.3]",
+            "embedding": np.array([0.1, 0.2, 0.3]),
         },
         {
             "id": "2",
@@ -180,7 +182,7 @@ def test_from_pg_to_haystack_documents():
             "blob_meta": None,
             "blob_mime_type": None,
             "meta": {"meta_key": "meta_value"},
-            "embedding": "[0.4, 0.5, 0.6]",
+            "embedding": np.array([0.4, 0.5, 0.6]),
         },
         {
             "id": "3",
@@ -190,16 +192,11 @@ def test_from_pg_to_haystack_documents():
             "blob_meta": {"blob_meta_key": "blob_meta_value"},
             "blob_mime_type": "mime_type",
             "meta": {"meta_key": "meta_value"},
-            "embedding": "[0.7, 0.8, 0.9]",
+            "embedding": np.array([0.7, 0.8, 0.9]),
         },
     ]
 
-    with patch(
-        "haystack_integrations.document_stores.pgvector.document_store.PgvectorDocumentStore.__init__"
-    ) as mock_init:
-        mock_init.return_value = None
-        ds = PgvectorDocumentStore(connection_string="test")
-
+    ds = PgvectorDocumentStore(connection_string=Secret.from_token("test"))
     haystack_docs = ds._from_pg_to_haystack_documents(pg_docs)
 
     assert haystack_docs[0].id == "1"
