@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 import os
+from unittest.mock import patch
 from uuid import uuid4
 
 import pytest
@@ -16,13 +17,23 @@ from pymongo import MongoClient
 from pymongo.driver_info import DriverInfo
 
 
+@patch("haystack_integrations.document_stores.mongodb_atlas.document_store.MongoClient")
+def test_init_is_lazy(_mock_client):
+    MongoDBAtlasDocumentStore(
+        mongo_connection_string=Secret.from_token("test"),
+        database_name="database_name",
+        collection_name="collection_name",
+        vector_search_index="cosine_index",
+    )
+    _mock_client.assert_not_called()
+
+
 @pytest.mark.skipif(
     "MONGO_CONNECTION_STRING" not in os.environ,
     reason="No MongoDB Atlas connection string provided",
 )
 @pytest.mark.integration
 class TestDocumentStore(DocumentStoreBaseTests):
-
     @pytest.fixture
     def document_store(self):
         database_name = "haystack_integration_test"
