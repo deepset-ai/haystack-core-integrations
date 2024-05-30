@@ -246,7 +246,7 @@ class MongoDBAtlasDocumentStore:
             msg = "Query embedding must not be empty"
             raise ValueError(msg)
 
-        filters = _normalize_filters(filters) if filters else None
+        filters = _normalize_filters(filters) if filters else {}
 
         pipeline = [
             {
