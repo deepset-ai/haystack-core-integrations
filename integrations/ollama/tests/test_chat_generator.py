@@ -41,7 +41,7 @@ class TestOllamaChatGenerator:
         assert component.timeout == 5
 
     def test_create_json_payload(self, chat_messages):
-        observed = OllamaChatGenerator(model="some_model")._create_json_payload(chat_messages, {"temperature": 0.1})
+        observed = OllamaChatGenerator(model="some_model")._create_json_payload(chat_messages, False, {"temperature": 0.1})
         expected = {
             "messages": [
                 {"role": "user", "content": "Tell me about why Super Mario is the greatest superhero"},
