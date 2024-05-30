@@ -21,7 +21,7 @@ def mock_auth(monkeypatch):
 
 
 @mock.patch("haystack_integrations.document_stores.astra.astra_client.AstraDB")
-def test_init_is_lazy(_mock_client):
+def test_init_is_lazy(_mock_client, mock_auth):
     _ = AstraDocumentStore()
     _mock_client.assert_not_called()
 
