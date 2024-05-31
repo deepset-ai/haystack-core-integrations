@@ -41,7 +41,9 @@ class TestOllamaChatGenerator:
         assert component.timeout == 5
 
     def test_create_json_payload(self, chat_messages):
-        observed = OllamaChatGenerator(model="some_model")._create_json_payload(chat_messages, {"temperature": 0.1})
+        observed = OllamaChatGenerator(model="some_model")._create_json_payload(
+            chat_messages, False, {"temperature": 0.1}
+        )
         expected = {
             "messages": [
                 {"role": "user", "content": "Tell me about why Super Mario is the greatest superhero"},
@@ -125,3 +127,27 @@ class TestOllamaChatGenerator:
                 "Based on your infinite wisdom, can you tell me why Alistair and Stefano are so great?"
             )
             component.run([message])
+
+    @pytest.mark.integration
+    def test_run_with_streaming(self):
+        streaming_callback = Mock()
+        chat_generator = OllamaChatGenerator(streaming_callback=streaming_callback)
+
+        chat_history = [
+            {"role": "user", "content": "What is the largest city in the United Kingdom by population?"},
+            {"role": "assistant", "content": "London is the largest city in the United Kingdom by population"},
+            {"role": "user", "content": "And what is the second largest?"},
+        ]
+
+        chat_messages = [
+            ChatMessage(role=ChatRole(message["role"]), content=message["content"], name=None)
+            for message in chat_history
+        ]
+
+        response = chat_generator.run(chat_messages)
+
+        streaming_callback.assert_called()
+
+        assert isinstance(response, dict)
+        assert isinstance(response["replies"], list)
+        assert "Manchester" in response["replies"][-1].content or "Glasgow" in response["replies"][-1].content
