@@ -68,6 +68,7 @@ class QdrantDocumentStore:
         timeout: Optional[int] = None,
         host: Optional[str] = None,
         path: Optional[str] = None,
+        force_disable_check_same_thread: bool = False,
         index: str = "Document",
         embedding_dim: int = 768,
         on_disk: bool = False,
@@ -109,6 +110,7 @@ class QdrantDocumentStore:
         self.timeout = timeout
         self.host = host
         self.path = path
+        self.force_disable_check_same_thread = force_disable_check_same_thread
         self.metadata = metadata or {}
         self.api_key = api_key
 
@@ -155,6 +157,7 @@ class QdrantDocumentStore:
                 host=self.host,
                 path=self.path,
                 metadata=self.metadata,
+                force_disable_check_same_thread=self.force_disable_check_same_thread
             )
             # Make sure the collection is properly set up
             self._set_up_collection(
