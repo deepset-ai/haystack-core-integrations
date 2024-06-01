@@ -157,7 +157,7 @@ class QdrantDocumentStore:
                 host=self.host,
                 path=self.path,
                 metadata=self.metadata,
-                force_disable_check_same_thread=self.force_disable_check_same_thread
+                force_disable_check_same_thread=self.force_disable_check_same_thread,
             )
             # Make sure the collection is properly set up
             self._set_up_collection(
