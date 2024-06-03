@@ -61,7 +61,7 @@ class QdrantEmbeddingRetriever:
             raise ValueError(msg)
 
         self._document_store = document_store
-        self._filters = filters or {}
+        self._filters = filters
         self._top_k = top_k
         self._scale_score = scale_score
         self._return_embedding = return_embedding
@@ -79,6 +79,7 @@ class QdrantEmbeddingRetriever:
             document_store=self._document_store,
             filters=self._filters,
             top_k=self._top_k,
+            filter_policy=self._filter_policy,
             scale_score=self._scale_score,
             return_embedding=self._return_embedding,
         )
@@ -122,7 +123,7 @@ class QdrantEmbeddingRetriever:
 
         """
         if self._filter_policy == "merge" and filters:
-            filters = {**self._filters, **filters}
+            filters = {**(self._filters or {}), **filters}
         else:
             filters = filters or self._filters
 
@@ -131,7 +132,6 @@ class QdrantEmbeddingRetriever:
             filters=filters,
             top_k=top_k or self._top_k,
             scale_score=scale_score or self._scale_score,
-            filter_policy=self._filter_policy,
             return_embedding=return_embedding or self._return_embedding,
         )
 
@@ -194,7 +194,7 @@ class QdrantSparseEmbeddingRetriever:
             raise ValueError(msg)
 
         self._document_store = document_store
-        self._filters = filters or {}
+        self._filters = filters
         self._top_k = top_k
         self._scale_score = scale_score
         self._return_embedding = return_embedding
@@ -256,7 +256,7 @@ class QdrantSparseEmbeddingRetriever:
 
         """
         if self._filter_policy == "merge" and filters:
-            filters = {**self._filters, **filters}
+            filters = {**(self._filters or {}), **filters}
         else:
             filters = filters or self._filters
 
@@ -331,7 +331,7 @@ class QdrantHybridRetriever:
             raise ValueError(msg)
 
         self._document_store = document_store
-        self._filters = filters or {}
+        self._filters = filters
         self._top_k = top_k
         self._return_embedding = return_embedding
         self._filter_policy = filter_policy
@@ -388,7 +388,7 @@ class QdrantHybridRetriever:
 
         """
         if self._filter_policy == "merge" and filters:
-            filters = {**self._filters, **filters}
+            filters = {**(self._filters or {}), **filters}
         else:
             filters = filters or self._filters
 
