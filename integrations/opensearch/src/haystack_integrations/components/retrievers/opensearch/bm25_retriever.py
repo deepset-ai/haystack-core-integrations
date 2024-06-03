@@ -114,10 +114,16 @@ class OpenSearchBM25Retriever:
         else:
             filters = filters or self._filters
 
-        all_terms_must_match = all_terms_must_match or self._all_terms_must_match
-        top_k = top_k or self._top_k
-        fuzziness = fuzziness or self._fuzziness
-        scale_score = scale_score or self._scale_score
+        if filters is None:
+            filters = self._filters
+        if all_terms_must_match is None:
+            all_terms_must_match = self._all_terms_must_match
+        if top_k is None:
+            top_k = self._top_k
+        if fuzziness is None:
+            fuzziness = self._fuzziness
+        if scale_score is None:
+            scale_score = self._scale_score
 
         docs = self._document_store._bm25_retrieval(
             query=query,
