@@ -80,7 +80,6 @@ def test_run():
         fuzziness="AUTO",
         top_k=10,
         scale_score=False,
-        filter_policy="replace",
     )
     assert len(res) == 1
     assert len(res["documents"]) == 1
