@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Literal, Optional
 
 from haystack import component, default_from_dict, default_to_dict
 from haystack.dataclasses import Document
@@ -48,6 +48,7 @@ class ElasticsearchBM25Retriever:
         fuzziness: str = "AUTO",
         top_k: int = 10,
         scale_score: bool = False,
+        filter_policy: Literal["replace", "merge"] = "replace",
     ):
         """
         Initialize ElasticsearchBM25Retriever with an instance ElasticsearchDocumentStore.
@@ -60,6 +61,9 @@ class ElasticsearchBM25Retriever:
             for more details.
         :param top_k: Maximum number of Documents to return.
         :param scale_score: If `True` scales the Document`s scores between 0 and 1.
+        :param filter_policy: Policy to determine how filters are applied. Defaults to "replace".
+                - `replace`: Runtime filters replace init filters.
+                - `merge`: Runtime filters are merged with init filters, with runtime filters overwriting init values.
         :raises ValueError: If `document_store` is not an instance of `ElasticsearchDocumentStore`.
         """
 
@@ -72,6 +76,7 @@ class ElasticsearchBM25Retriever:
         self._fuzziness = fuzziness
         self._top_k = top_k
         self._scale_score = scale_score
+        self._filter_policy = filter_policy
 
     def to_dict(self) -> Dict[str, Any]:
         """
@@ -86,6 +91,7 @@ class ElasticsearchBM25Retriever:
             fuzziness=self._fuzziness,
             top_k=self._top_k,
             scale_score=self._scale_score,
+            filter_policy=self._filter_policy,
             document_store=self._document_store.to_dict(),
         )
 
@@ -115,9 +121,14 @@ class ElasticsearchBM25Retriever:
         :returns: A dictionary with the following keys:
             - `documents`: List of `Document`s that match the query.
         """
+        if self._filter_policy == "merge" and filters:
+            filters = {**self._filters, **filters}
+        else:
+            filters = filters or self._filters
+
         docs = self._document_store._bm25_retrieval(
             query=query,
-            filters=filters or self._filters,
+            filters=filters,
             fuzziness=self._fuzziness,
             top_k=top_k or self._top_k,
             scale_score=self._scale_score,

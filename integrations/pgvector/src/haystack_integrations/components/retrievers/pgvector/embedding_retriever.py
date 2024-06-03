@@ -62,6 +62,7 @@ class PgvectorEmbeddingRetriever:
         filters: Optional[Dict[str, Any]] = None,
         top_k: int = 10,
         vector_function: Optional[Literal["cosine_similarity", "inner_product", "l2_distance"]] = None,
+        filter_policy: Literal["replace", "merge"] = "replace",
     ):
         """
         :param document_store: An instance of `PgvectorDocumentStore`.
@@ -75,7 +76,9 @@ class PgvectorEmbeddingRetriever:
             and the most similar documents are the ones with the smallest score.
             **Important**: if the document store is using the `"hnsw"` search strategy, the vector function
             should match the one utilized during index creation to take advantage of the index.
-
+        :param filter_policy: Policy to determine how filters are applied. Defaults to "replace".
+            - `replace`: Runtime filters replace init filters.
+            - `merge`: Runtime filters are merged with init filters, with runtime filters overwriting init values.
         :raises ValueError: If `document_store` is not an instance of `PgvectorDocumentStore` or if `vector_function`
             is not one of the valid options.
         """
@@ -91,6 +94,7 @@ class PgvectorEmbeddingRetriever:
         self.filters = filters or {}
         self.top_k = top_k
         self.vector_function = vector_function or document_store.vector_function
+        self.filter_policy = filter_policy
 
     def to_dict(self) -> Dict[str, Any]:
         """
@@ -104,6 +108,7 @@ class PgvectorEmbeddingRetriever:
             filters=self.filters,
             top_k=self.top_k,
             vector_function=self.vector_function,
+            filter_policy=self.filter_policy,
             document_store=self.document_store.to_dict(),
         )
 
@@ -139,7 +144,11 @@ class PgvectorEmbeddingRetriever:
 
         :returns: List of Documents similar to `query_embedding`.
         """
-        filters = filters or self.filters
+        if self.filter_policy == "merge" and filters:
+            filters = {**self.filters, **filters}
+        else:
+            filters = filters or self.filters
+
         top_k = top_k or self.top_k
         vector_function = vector_function or self.vector_function
 

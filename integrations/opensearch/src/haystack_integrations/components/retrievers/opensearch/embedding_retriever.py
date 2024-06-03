@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Literal, Optional
 
 from haystack import component, default_from_dict, default_to_dict
 from haystack.dataclasses import Document
@@ -22,6 +22,7 @@ class OpenSearchEmbeddingRetriever:
         document_store: OpenSearchDocumentStore,
         filters: Optional[Dict[str, Any]] = None,
         top_k: int = 10,
+        filter_policy: Literal["replace", "merge"] = "replace",
     ):
         """
         Create the OpenSearchEmbeddingRetriever component.
@@ -30,6 +31,9 @@ class OpenSearchEmbeddingRetriever:
         :param filters: Filters applied to the retrieved Documents. Defaults to None.
             Filters are applied during the approximate kNN search to ensure that top_k matching documents are returned.
         :param top_k: Maximum number of Documents to return, defaults to 10
+        :param filter_policy: Policy to determine how filters are applied. Defaults to "replace".
+             - `replace`: Runtime filters replace init filters.
+             - `merge`: Runtime filters are merged with init filters, with runtime filters overwriting init values.
         :raises ValueError: If `document_store` is not an instance of OpenSearchDocumentStore.
         """
         if not isinstance(document_store, OpenSearchDocumentStore):
@@ -39,6 +43,7 @@ class OpenSearchEmbeddingRetriever:
         self._document_store = document_store
         self._filters = filters or {}
         self._top_k = top_k
+        self._filter_policy = filter_policy
 
     def to_dict(self) -> Dict[str, Any]:
         """
@@ -52,6 +57,7 @@ class OpenSearchEmbeddingRetriever:
             filters=self._filters,
             top_k=self._top_k,
             document_store=self._document_store.to_dict(),
+            filter_policy=self._filter_policy,
         )
 
     @classmethod
@@ -82,10 +88,12 @@ class OpenSearchEmbeddingRetriever:
             Dictionary with key "documents" containing the retrieved Documents.
             - documents: List of Document similar to `query_embedding`.
         """
-        if filters is None:
-            filters = self._filters
-        if top_k is None:
-            top_k = self._top_k
+        if self._filter_policy == "merge" and filters:
+            filters = {**self._filters, **filters}
+        else:
+            filters = filters or self._filters
+
+        top_k = top_k or self._top_k
 
         docs = self._document_store._embedding_retrieval(
             query_embedding=query_embedding,

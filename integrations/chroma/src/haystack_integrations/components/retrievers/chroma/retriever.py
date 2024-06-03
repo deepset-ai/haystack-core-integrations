@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: 2023-present John Doe <jd@example.com>
 #
 # SPDX-License-Identifier: Apache-2.0
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Literal, Optional
 
 from haystack import Document, component, default_from_dict, default_to_dict
 from haystack_integrations.document_stores.chroma import ChromaDocumentStore
@@ -41,15 +41,25 @@ class ChromaQueryTextRetriever:
     ```
     """
 
-    def __init__(self, document_store: ChromaDocumentStore, filters: Optional[Dict[str, Any]] = None, top_k: int = 10):
+    def __init__(
+        self,
+        document_store: ChromaDocumentStore,
+        filters: Optional[Dict[str, Any]] = None,
+        top_k: int = 10,
+        filter_policy: Literal["replace", "merge"] = "replace",
+    ):
         """
         :param document_store: an instance of `ChromaDocumentStore`.
         :param filters: filters to narrow down the search space.
         :param top_k: the maximum number of documents to retrieve.
+        :param filter_policy: Policy to determine how filters are applied. Defaults to "replace".
+             - `replace`: Runtime filters replace init filters.
+             - `merge`: Runtime filters are merged with init filters, with runtime filters overwriting init values.
         """
-        self.filters = filters
+        self.filters = filters or {}
         self.top_k = top_k
         self.document_store = document_store
+        self.filter_policy = filter_policy
 
     @component.output_types(documents=List[Document])
     def run(
@@ -71,6 +81,10 @@ class ChromaQueryTextRetriever:
         :raises ValueError: If the specified document store is not found or is not a MemoryDocumentStore instance.
         """
         top_k = top_k or self.top_k
+        if self.filter_policy == "merge" and filters:
+            filters = {**self.filters, **filters}
+        else:
+            filters = filters or self.filters
 
         return {"documents": self.document_store.search([query], top_k, filters)[0]}
 
@@ -99,6 +113,7 @@ class ChromaQueryTextRetriever:
             self,
             filters=self.filters,
             top_k=self.top_k,
+            filter_policy=self.filter_policy,
             document_store=self.document_store.to_dict(),
         )
 
@@ -120,9 +135,18 @@ class ChromaEmbeddingRetriever(ChromaQueryTextRetriever):
         Run the retriever on the given input data.
 
         :param query_embedding: the query embeddings.
+        :param filters: filters to narrow down the search space.
+        :param top_k: the maximum number of documents to retrieve.
+            If not specified, the default value from the constructor is used.
+
         :returns: a dictionary with the following keys:
             - `documents`: List of documents returned by the search engine.
         """
+        if self.filter_policy == "merge" and filters:
+            filters = {**self.filters, **filters}
+        else:
+            filters = filters or self.filters
+
         top_k = top_k or self.top_k
 
         query_embeddings = [query_embedding]

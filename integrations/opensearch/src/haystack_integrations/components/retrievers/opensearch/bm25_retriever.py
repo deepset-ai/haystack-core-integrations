@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Literal, Optional
 
 from haystack import component, default_from_dict, default_to_dict
 from haystack.dataclasses import Document
@@ -19,6 +19,7 @@ class OpenSearchBM25Retriever:
         top_k: int = 10,
         scale_score: bool = False,
         all_terms_must_match: bool = False,
+        filter_policy: Literal["replace", "merge"] = "replace",
     ):
         """
         Create the OpenSearchBM25Retriever component.
@@ -31,6 +32,9 @@ class OpenSearchBM25Retriever:
             This is useful when comparing documents across different indexes. Defaults to False.
         :param all_terms_must_match: If True, all terms in the query string must be present in the retrieved documents.
             This is useful when searching for short text where even one term can make a difference. Defaults to False.
+        :param filter_policy: Policy to determine how filters are applied. Defaults to "replace".
+             - `replace`: Runtime filters replace init filters.
+             - `merge`: Runtime filters are merged with init filters, with runtime filters overwriting init values.
         :raises ValueError: If `document_store` is not an instance of OpenSearchDocumentStore.
 
         """
@@ -44,6 +48,7 @@ class OpenSearchBM25Retriever:
         self._top_k = top_k
         self._scale_score = scale_score
         self._all_terms_must_match = all_terms_must_match
+        self._filter_policy = filter_policy
 
     def to_dict(self) -> Dict[str, Any]:
         """
@@ -59,6 +64,7 @@ class OpenSearchBM25Retriever:
             top_k=self._top_k,
             scale_score=self._scale_score,
             document_store=self._document_store.to_dict(),
+            filter_policy=self._filter_policy,
         )
 
     @classmethod
@@ -103,16 +109,15 @@ class OpenSearchBM25Retriever:
             - documents: List of retrieved Documents.
 
         """
-        if filters is None:
-            filters = self._filters
-        if all_terms_must_match is None:
-            all_terms_must_match = self._all_terms_must_match
-        if top_k is None:
-            top_k = self._top_k
-        if fuzziness is None:
-            fuzziness = self._fuzziness
-        if scale_score is None:
-            scale_score = self._scale_score
+        if self._filter_policy == "merge" and filters:
+            filters = {**self._filters, **filters}
+        else:
+            filters = filters or self._filters
+
+        all_terms_must_match = all_terms_must_match or self._all_terms_must_match
+        top_k = top_k or self._top_k
+        fuzziness = fuzziness or self._fuzziness
+        scale_score = scale_score or self._scale_score
 
         docs = self._document_store._bm25_retrieval(
             query=query,

@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Literal, Optional
 
 from haystack import Document, component, default_from_dict, default_to_dict
 from haystack_integrations.document_stores.weaviate import WeaviateDocumentStore
@@ -18,6 +18,7 @@ class WeaviateEmbeddingRetriever:
         top_k: int = 10,
         distance: Optional[float] = None,
         certainty: Optional[float] = None,
+        filter_policy: Literal["replace", "merge"] = "replace",
     ):
         """
         Creates a new instance of WeaviateEmbeddingRetriever.
@@ -32,6 +33,9 @@ class WeaviateEmbeddingRetriever:
             The maximum allowed distance between Documents' embeddings.
         :param certainty:
             Normalized distance between the result item and the search vector.
+        :param filter_policy: Policy to determine how filters are applied. Defaults to "replace".
+            - `replace`: Runtime filters replace init filters.
+            - `merge`: Runtime filters are merged with init filters, with runtime filters overwriting init values.
         :raises ValueError:
             If both `distance` and `certainty` are provided.
             See https://weaviate.io/developers/weaviate/api/graphql/search-operators#variables to learn more about
@@ -46,6 +50,7 @@ class WeaviateEmbeddingRetriever:
         self._top_k = top_k
         self._distance = distance
         self._certainty = certainty
+        self._filter_policy = filter_policy
 
     def to_dict(self) -> Dict[str, Any]:
         """
@@ -60,6 +65,7 @@ class WeaviateEmbeddingRetriever:
             top_k=self._top_k,
             distance=self._distance,
             certainty=self._certainty,
+            filter_policy=self._filter_policy,
             document_store=self._document_store.to_dict(),
         )
 
@@ -105,7 +111,10 @@ class WeaviateEmbeddingRetriever:
             See https://weaviate.io/developers/weaviate/api/graphql/search-operators#variables to learn more about
             `distance` and `certainty` parameters.
         """
-        filters = filters or self._filters
+        if self._filter_policy == "merge" and filters:
+            filters = {**self._filters, **filters}
+        else:
+            filters = filters or self._filters
         top_k = top_k or self._top_k
 
         distance = distance or self._distance

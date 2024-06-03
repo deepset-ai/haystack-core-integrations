@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Literal, Optional
 
 from haystack import component, default_from_dict, default_to_dict
 from haystack.dataclasses import Document
@@ -55,11 +55,15 @@ class PineconeEmbeddingRetriever:
         document_store: PineconeDocumentStore,
         filters: Optional[Dict[str, Any]] = None,
         top_k: int = 10,
+        filter_policy: Literal["replace", "merge"] = "replace",
     ):
         """
         :param document_store: The Pinecone Document Store.
         :param filters: Filters applied to the retrieved Documents.
         :param top_k: Maximum number of Documents to return.
+        :param filter_policy: Policy to determine how filters are applied. Defaults to "replace".
+            - `replace`: Runtime filters replace init filters.
+            - `merge`: Runtime filters are merged with init filters, with runtime filters overwriting init values.
 
         :raises ValueError: If `document_store` is not an instance of `PineconeDocumentStore`.
         """
@@ -70,6 +74,7 @@ class PineconeEmbeddingRetriever:
         self.document_store = document_store
         self.filters = filters or {}
         self.top_k = top_k
+        self.filter_policy = filter_policy
 
     def to_dict(self) -> Dict[str, Any]:
         """
@@ -81,6 +86,7 @@ class PineconeEmbeddingRetriever:
             self,
             filters=self.filters,
             top_k=self.top_k,
+            filter_policy=self.filter_policy,
             document_store=self.document_store.to_dict(),
         )
 
@@ -99,16 +105,31 @@ class PineconeEmbeddingRetriever:
         return default_from_dict(cls, data)
 
     @component.output_types(documents=List[Document])
-    def run(self, query_embedding: List[float]):
+    def run(
+        self,
+        query_embedding: List[float],
+        filters: Optional[Dict[str, Any]] = None,
+        top_k: Optional[int] = None,
+    ):
         """
         Retrieve documents from the `PineconeDocumentStore`, based on their dense embeddings.
 
         :param query_embedding: Embedding of the query.
+        :param filters: Filters applied to the retrieved `Document`s.
+        :param top_k: Maximum number of `Document`s to return.
+
         :returns: List of Document similar to `query_embedding`.
         """
+        if self.filter_policy == "merge" and filters:
+            filters = {**self.filters, **filters}
+        else:
+            filters = filters or self.filters
+
+        top_k = top_k or self.top_k
+
         docs = self.document_store._embedding_retrieval(
             query_embedding=query_embedding,
-            filters=self.filters,
-            top_k=self.top_k,
+            filters=filters,
+            top_k=top_k,
         )
         return {"documents": docs}
