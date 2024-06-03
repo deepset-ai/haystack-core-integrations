@@ -18,6 +18,7 @@ def test_init_default():
     assert not retriever._scale_score
     assert retriever._filter_policy == "replace"
 
+
 @patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
 def test_to_dict(_mock_opensearch_client):
     document_store = OpenSearchDocumentStore(hosts="some fake host")
