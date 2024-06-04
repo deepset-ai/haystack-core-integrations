@@ -391,5 +391,10 @@ class OpenSearchDocumentStore:
         if filters:
             body["query"]["bool"]["filter"] = normalize_filters(filters)
 
+        # For some applications not returning the embedding can save a lot of bandwidth
+        # if you don't need this data not retrieving it can be a good idea
+        if not self._return_embedding:
+            body["_source"] = {"excludes": ["embedding"]}
+
         docs = self._search_documents(**body)
         return docs
