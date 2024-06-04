@@ -400,7 +400,7 @@ class TestDocumentStore(DocumentStoreBaseTests):
             index=index,
             http_auth=("admin", "admin"),
             verify_certs=False,
-            embedding_dim=768,
+            embedding_dim=4,
             return_embedding=False,
             method={"space_type": "cosinesimil", "engine": "nmslib", "name": "hnsw"},
         )
