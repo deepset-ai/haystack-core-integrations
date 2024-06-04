@@ -386,7 +386,7 @@ class TestDocumentStore(DocumentStoreBaseTests):
         assert mock_bulk.call_args.kwargs["max_chunk_bytes"] == DEFAULT_MAX_CHUNK_BYTES
 
     @pytest.fixture
-    def document_store_no_embbding_returned(self, request) -> None:
+    def document_store_no_embbding_returned(self, request):
         """
         This is the most basic requirement for the child class: provide
         an instance of this document store so the base class can use it.
