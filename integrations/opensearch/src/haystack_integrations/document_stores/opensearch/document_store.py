@@ -39,6 +39,7 @@ class OpenSearchDocumentStore:
         index: str = "default",
         max_chunk_bytes: int = DEFAULT_MAX_CHUNK_BYTES,
         embedding_dim: int = 768,
+        return_embedding: bool = False,
         method: Optional[Dict[str, Any]] = None,
         mappings: Optional[Dict[str, Any]] = None,
         settings: Optional[Dict[str, Any]] = DEFAULT_SETTINGS,
@@ -56,6 +57,8 @@ class OpenSearchDocumentStore:
         :param index: Name of index in OpenSearch, if it doesn't exist it will be created. Defaults to "default"
         :param max_chunk_bytes: Maximum size of the requests in bytes. Defaults to 100MB
         :param embedding_dim: Dimension of the embeddings. Defaults to 768
+        :param return_embedding:
+            Whether to return the embedding of the retrieved Documents.
         :param method: The method definition of the underlying configuration of the approximate k-NN algorithm. Please
             see the [official OpenSearch docs](https://opensearch.org/docs/latest/search-plugins/knn/knn-index/#method-definitions)
             for more information. Defaults to None
@@ -72,6 +75,7 @@ class OpenSearchDocumentStore:
         self._index = index
         self._max_chunk_bytes = max_chunk_bytes
         self._embedding_dim = embedding_dim
+        self._return_embedding = return_embedding
         self._method = method
         self._mappings = mappings or self._get_default_mappings()
         self._settings = settings
@@ -326,6 +330,11 @@ class OpenSearchDocumentStore:
         if filters:
             body["query"]["bool"]["filter"] = normalize_filters(filters)
 
+        # For some applications not returning the embedding can save a lot of bandwidth
+        # if you don't need this data not retrieving it can be a good idea
+        if not self._return_embedding:
+            body["_source"] = {"excludes": ["embedding"]}
+
         documents = self._search_documents(**body)
 
         if scale_score:
@@ -381,6 +390,11 @@ class OpenSearchDocumentStore:
 
         if filters:
             body["query"]["bool"]["filter"] = normalize_filters(filters)
+
+        # For some applications not returning the embedding can save a lot of bandwidth
+        # if you don't need this data not retrieving it can be a good idea
+        if not self._return_embedding:
+            body["_source"] = {"excludes": ["embedding"]}
 
         docs = self._search_documents(**body)
         return docs

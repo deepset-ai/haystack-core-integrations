@@ -187,6 +187,7 @@ module = [
   "pydantic.*",
   "haystack.*",
   "haystack_integrations.*",
-  "pytest.*"
+  "pytest.*",
+  "openpyxl.*",
 ]
 ignore_missing_imports = true

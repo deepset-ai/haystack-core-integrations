@@ -5,6 +5,13 @@
 ### 🚀 Features
 
 - Defer the database connection to when it's needed (#753)
+- Improve `OpenSearchDocumentStore.__init__` arguments (#739)
+
+### 🐛 Bug Fixes
+
+- Fix order of API docs (#447)
+
+This PR will also push the docs to Readme
 
 ### 📚 Documentation
 
@@ -19,9 +26,30 @@
 
 ## [integrations/opensearch-v0.2.0] - 2024-01-17
 
+### 🐛 Bug Fixes
+
+- Fix links in docstrings (#188)
+
+
+
 ### 🚜 Refactor
 
 - Use `hatch_vcs` to manage integrations versioning (#103)
+
+## [integrations/opensearch-v0.1.1] - 2023-12-05
+
+### 🐛 Bug Fixes
+
+- Fix import and increase version (#77)
+
+
+
+## [integrations/opensearch-v0.1.0] - 2023-12-04
+
+### 🐛 Bug Fixes
+
+- Fix license headers
+
 
 ## [integrations/opensearch-v0.0.2] - 2023-11-30
 

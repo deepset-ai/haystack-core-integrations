@@ -21,7 +21,7 @@ def test_init(monkeypatch):
         top_p=0.5,
         top_k=0.5,
     )
-    safety_settings = {HarmCategory.HARM_CATEGORY_DANGEROUS: HarmBlockThreshold.BLOCK_ONLY_HIGH}
+    safety_settings = {HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_ONLY_HIGH}
     get_current_weather_func = FunctionDeclaration(
         name="get_current_weather",
         description="Get the current weather in a given location",
@@ -67,9 +67,9 @@ def test_to_dict(monkeypatch):
         max_output_tokens=10,
         temperature=0.5,
         top_p=0.5,
-        top_k=0.5,
+        top_k=2,
     )
-    safety_settings = {HarmCategory.HARM_CATEGORY_DANGEROUS: HarmBlockThreshold.BLOCK_ONLY_HIGH}
+    safety_settings = {HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_ONLY_HIGH}
     get_current_weather_func = FunctionDeclaration(
         name="get_current_weather",
         description="Get the current weather in a given location",
@@ -105,12 +105,12 @@ def test_to_dict(monkeypatch):
             "generation_config": {
                 "temperature": 0.5,
                 "top_p": 0.5,
-                "top_k": 0.5,
+                "top_k": 2,
                 "candidate_count": 1,
                 "max_output_tokens": 10,
                 "stop_sequences": ["stop"],
             },
-            "safety_settings": {6: 3},
+            "safety_settings": {10: 3},
             "tools": [
                 b"\n\xad\x01\n\x13get_current_weather\x12+Get the current weather in a given location\x1ai"
                 b"\x08\x06:\x1f\n\x04unit\x12\x17\x08\x01*\x07celsius*\nfahrenheit::\n\x08location\x12.\x08"
@@ -133,12 +133,12 @@ def test_from_dict(monkeypatch):
                     "generation_config": {
                         "temperature": 0.5,
                         "top_p": 0.5,
-                        "top_k": 0.5,
+                        "top_k": 2,
                         "candidate_count": 1,
                         "max_output_tokens": 10,
                         "stop_sequences": ["stop"],
                     },
-                    "safety_settings": {6: 3},
+                    "safety_settings": {10: 3},
                     "tools": [
                         b"\n\xad\x01\n\x13get_current_weather\x12+Get the current weather in a given location\x1ai"
                         b"\x08\x06:\x1f\n\x04unit\x12\x17\x08\x01*\x07celsius*\nfahrenheit::\n\x08location\x12.\x08"
@@ -155,9 +155,9 @@ def test_from_dict(monkeypatch):
         max_output_tokens=10,
         temperature=0.5,
         top_p=0.5,
-        top_k=0.5,
+        top_k=2,
     )
-    assert gemini._safety_settings == {HarmCategory.HARM_CATEGORY_DANGEROUS: HarmBlockThreshold.BLOCK_ONLY_HIGH}
+    assert gemini._safety_settings == {HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_ONLY_HIGH}
     assert gemini._tools == [
         Tool(
             function_declarations=[
