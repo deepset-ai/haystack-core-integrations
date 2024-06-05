@@ -384,3 +384,53 @@ class TestDocumentStore(DocumentStoreBaseTests):
         document_store.write_documents([Document(content="Hello world")])
 
         assert mock_bulk.call_args.kwargs["max_chunk_bytes"] == DEFAULT_MAX_CHUNK_BYTES
+
+    @pytest.fixture
+    def document_store_no_embbding_returned(self, request):
+        """
+        This is the most basic requirement for the child class: provide
+        an instance of this document store so the base class can use it.
+        """
+        hosts = ["https://localhost:9200"]
+        # Use a different index for each test so we can run them in parallel
+        index = f"{request.node.name}"
+
+        store = OpenSearchDocumentStore(
+            hosts=hosts,
+            index=index,
+            http_auth=("admin", "admin"),
+            verify_certs=False,
+            embedding_dim=4,
+            return_embedding=False,
+            method={"space_type": "cosinesimil", "engine": "nmslib", "name": "hnsw"},
+        )
+        yield store
+        store.client.indices.delete(index=index, params={"ignore": [400, 404]})
+
+    def test_embedding_retrieval_but_dont_return_embeddings_for_embedding_retrieval(
+        self, document_store_no_embbding_returned: OpenSearchDocumentStore
+    ):
+        docs = [
+            Document(content="Most similar document", embedding=[1.0, 1.0, 1.0, 1.0]),
+            Document(content="2nd best document", embedding=[0.8, 0.8, 0.8, 1.0]),
+            Document(content="Not very similar document", embedding=[0.0, 0.8, 0.3, 0.9]),
+        ]
+        document_store_no_embbding_returned.write_documents(docs)
+        results = document_store_no_embbding_returned._embedding_retrieval(
+            query_embedding=[0.1, 0.1, 0.1, 0.1], top_k=2, filters={}
+        )
+        assert len(results) == 2
+        assert results[0].embedding is None
+
+    def test_embedding_retrieval_but_dont_return_embeddings_for_bm25_retrieval(
+        self, document_store_no_embbding_returned: OpenSearchDocumentStore
+    ):
+        docs = [
+            Document(content="Most similar document", embedding=[1.0, 1.0, 1.0, 1.0]),
+            Document(content="2nd best document", embedding=[0.8, 0.8, 0.8, 1.0]),
+            Document(content="Not very similar document", embedding=[0.0, 0.8, 0.3, 0.9]),
+        ]
+        document_store_no_embbding_returned.write_documents(docs)
+        results = document_store_no_embbding_returned._bm25_retrieval("document", top_k=2)
+        assert len(results) == 2
+        assert results[0].embedding is None
