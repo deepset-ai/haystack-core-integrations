@@ -234,12 +234,10 @@ class GoogleAIGeminiChatGenerator:
         elif message.role == ChatRole.SYSTEM:
             part = Part()
             part.text = message.content
-            return part
         elif message.role == ChatRole.FUNCTION:
             part = Part()
             part.function_response.name = message.name
             part.function_response.response = message.content
-            return part
         elif message.role == ChatRole.USER:
             part = self._convert_part(message.content)
         else:
