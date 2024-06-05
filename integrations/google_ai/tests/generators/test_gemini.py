@@ -184,7 +184,7 @@ def test_from_dict(monkeypatch):
     assert isinstance(gemini._model, GenerativeModel)
 
 
-@pytest.mark.skipif("GOOGLE_API_KEY" not in os.environ, reason="GOOGLE_API_KEY not set")
+@pytest.mark.skipif(not os.environ.get("GOOGLE_API_KEY", None), reason="GOOGLE_API_KEY env var not set")
 def test_run():
     gemini = GoogleAIGeminiGenerator(model="gemini-pro")
     res = gemini.run("Tell me something cool")

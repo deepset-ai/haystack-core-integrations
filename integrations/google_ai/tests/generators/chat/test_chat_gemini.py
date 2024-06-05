@@ -188,7 +188,7 @@ def test_from_dict(monkeypatch):
     assert isinstance(gemini._model, GenerativeModel)
 
 
-@pytest.mark.skipif("GOOGLE_API_KEY" not in os.environ, reason="GOOGLE_API_KEY not set")
+@pytest.mark.skipif(not os.environ.get("GOOGLE_API_KEY", None), reason="GOOGLE_API_KEY env var not set")
 def test_run():
     # We're ignoring the unused function argument check since we must have that argument for the test
     # to run successfully, but we don't actually use it.
@@ -227,7 +227,7 @@ def test_run():
     assert len(res["replies"]) > 0
 
 
-@pytest.mark.skipif("GOOGLE_API_KEY" not in os.environ, reason="GOOGLE_API_KEY not set")
+@pytest.mark.skipif(not os.environ.get("GOOGLE_API_KEY", None), reason="GOOGLE_API_KEY env var not set")
 def test_past_conversation():
     gemini_chat = GoogleAIGeminiChatGenerator(model="gemini-pro")
     messages = [
