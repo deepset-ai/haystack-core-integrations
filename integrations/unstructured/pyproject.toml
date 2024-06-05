@@ -7,7 +7,7 @@ name = "unstructured-fileconverter-haystack"
 dynamic = ["version"]
 description = 'Haystack 2.x component to convert files into Documents using the Unstructured API'
 readme = "README.md"
-requires-python = ">=3.8"
+requires-python = ">=3.9"
 license = "Apache-2.0"
 keywords = []
 authors = [
@@ -17,7 +17,6 @@ classifiers = [
   "License :: OSI Approved :: Apache Software License",
   "Development Status :: 4 - Beta",
   "Programming Language :: Python",
-  "Programming Language :: Python :: 3.8",
   "Programming Language :: Python :: 3.9",
   "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
@@ -68,7 +67,7 @@ docs = [
 ]
 
 [[tool.hatch.envs.all.matrix]]
-python = ["3.8", "3.9", "3.10", "3.11"]
+python = ["3.9", "3.10", "3.11"]
 
 [tool.hatch.envs.lint]
 detached = true
