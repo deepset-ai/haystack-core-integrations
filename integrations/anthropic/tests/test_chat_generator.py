@@ -25,6 +25,7 @@ class TestAnthropicChatGenerator:
         assert component.model == "claude-3-sonnet-20240229"
         assert component.streaming_callback is None
         assert not component.generation_kwargs
+        assert component.filter_thinking_for_tool_use
 
     def test_init_fail_wo_api_key(self, monkeypatch):
         monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
@@ -37,11 +38,13 @@ class TestAnthropicChatGenerator:
             model="claude-3-sonnet-20240229",
             streaming_callback=print_streaming_chunk,
             generation_kwargs={"max_tokens": 10, "some_test_param": "test-params"},
+            filter_thinking_for_tool_use=False,
         )
         assert component.client.api_key == "test-api-key"
         assert component.model == "claude-3-sonnet-20240229"
         assert component.streaming_callback is print_streaming_chunk
         assert component.generation_kwargs == {"max_tokens": 10, "some_test_param": "test-params"}
+        assert component.filter_thinking_for_tool_use is False
 
     def test_to_dict_default(self, monkeypatch):
         monkeypatch.setenv("ANTHROPIC_API_KEY", "test-api-key")

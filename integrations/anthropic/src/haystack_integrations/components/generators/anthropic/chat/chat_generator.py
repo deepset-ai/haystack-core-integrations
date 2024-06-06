@@ -130,6 +130,7 @@ class AnthropicChatGenerator:
             streaming_callback=callback_name,
             generation_kwargs=self.generation_kwargs,
             api_key=self.api_key.to_dict(),
+            ignore_tools_thinking_messages=self.ignore_tools_thinking_messages,
         )
 
     @classmethod
