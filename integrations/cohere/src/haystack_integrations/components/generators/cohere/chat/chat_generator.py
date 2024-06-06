@@ -215,9 +215,12 @@ class CohereChatGenerator:
         :param cohere_response: The completion returned by the Cohere API.
         :returns: The ChatMessage.
         """
-        content = cohere_response.text
-        message = ChatMessage.from_assistant(content=content)
-
+        message = None
+        if cohere_response.tool_calls:
+            # TODO revisit to see if we need to handle multiple tool calls
+            message = ChatMessage.from_assistant(cohere_response.tool_calls[0].json())
+        elif cohere_response.text:
+            message = ChatMessage.from_assistant(content=cohere_response.text)
         total_tokens = cohere_response.meta.billed_units.input_tokens + cohere_response.meta.billed_units.output_tokens
         message.meta.update(
             {
