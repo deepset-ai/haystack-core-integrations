@@ -18,12 +18,11 @@ def test_init_default():
     assert retriever.top_k == 10
 
 
-@patch("haystack_integrations.document_stores.pinecone.document_store.pinecone")
+@patch("haystack_integrations.document_stores.pinecone.document_store.Pinecone")
 def test_to_dict(mock_pinecone, monkeypatch):
     monkeypatch.setenv("PINECONE_API_KEY", "env-api-key")
-    mock_pinecone.Index.return_value.describe_index_stats.return_value = {"dimension": 512}
+    mock_pinecone.return_value.Index.return_value.describe_index_stats.return_value = {"dimension": 512}
     document_store = PineconeDocumentStore(
-        environment="gcp-starter",
         index="default",
         namespace="test-namespace",
         batch_size=50,
@@ -43,11 +42,12 @@ def test_to_dict(mock_pinecone, monkeypatch):
                         "strict": True,
                         "type": "env_var",
                     },
-                    "environment": "gcp-starter",
                     "index": "default",
                     "namespace": "test-namespace",
                     "batch_size": 50,
                     "dimension": 512,
+                    "spec": {"serverless": {"region": "us-east-1", "cloud": "aws"}},
+                    "metric": "cosine",
                 },
                 "type": "haystack_integrations.document_stores.pinecone.document_store.PineconeDocumentStore",
             },
@@ -57,7 +57,7 @@ def test_to_dict(mock_pinecone, monkeypatch):
     }
 
 
-@patch("haystack_integrations.document_stores.pinecone.document_store.pinecone")
+@patch("haystack_integrations.document_stores.pinecone.document_store.Pinecone")
 def test_from_dict(mock_pinecone, monkeypatch):
     data = {
         "type": "haystack_integrations.components.retrievers.pinecone.embedding_retriever.PineconeEmbeddingRetriever",
@@ -71,11 +71,12 @@ def test_from_dict(mock_pinecone, monkeypatch):
                         "strict": True,
                         "type": "env_var",
                     },
-                    "environment": "gcp-starter",
                     "index": "default",
                     "namespace": "test-namespace",
                     "batch_size": 50,
                     "dimension": 512,
+                    "spec": {"serverless": {"region": "us-east-1", "cloud": "aws"}},
+                    "metric": "cosine",
                 },
                 "type": "haystack_integrations.document_stores.pinecone.document_store.PineconeDocumentStore",
             },
@@ -84,17 +85,18 @@ def test_from_dict(mock_pinecone, monkeypatch):
         },
     }
 
-    mock_pinecone.Index.return_value.describe_index_stats.return_value = {"dimension": 512}
+    mock_pinecone.return_value.Index.return_value.describe_index_stats.return_value = {"dimension": 512}
     monkeypatch.setenv("PINECONE_API_KEY", "test-key")
     retriever = PineconeEmbeddingRetriever.from_dict(data)
 
     document_store = retriever.document_store
-    assert document_store.environment == "gcp-starter"
     assert document_store.api_key == Secret.from_env_var("PINECONE_API_KEY", strict=True)
     assert document_store.index == "default"
     assert document_store.namespace == "test-namespace"
     assert document_store.batch_size == 50
     assert document_store.dimension == 512
+    assert document_store.metric == "cosine"
+    assert document_store.spec == {"serverless": {"region": "us-east-1", "cloud": "aws"}}
 
     assert retriever.filters == {}
     assert retriever.top_k == 10
