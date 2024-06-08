@@ -121,12 +121,14 @@ class LangfuseTracer(Tracer):
                 # Haystack returns one meta dict for each message, but the 'usage' value
                 # is always the same, let's just pick the first item
                 m = meta[0]
-                span._span.update(usage=m.get("usage"), model=m.get("model"))
+                usage = m.get("usage") if m.get("usage") else None
+                span._span.update(usage=usage, model=m.get("model"))
         elif tags.get("haystack.component.type") == "OpenAIChatGenerator":
             replies = span._data.get("haystack.component.output", {}).get("replies")
             if replies:
                 meta = replies[0].meta
-                span._span.update(usage=meta.get("usage"), model=meta.get("model"))
+                usage = meta.get("usage") if meta.get("usage") else None # empty dict will cause langfuse to throw an error - happens when streaming
+                span._span.update(usage=usage, model=meta.get("model"))
 
         pipeline_input = tags.get("haystack.pipeline.input_data", None)
         if pipeline_input:
@@ -137,6 +139,12 @@ class LangfuseTracer(Tracer):
 
         span.raw_span().end()
         self._context.pop()
+
+        if span_name == "haystack.pipeline.run":
+            # The root span has to be a trace, which need to be removed from the context after the pipeline run
+            self._context.pop()
+
+        
         self._tracer.flush()
 
     def current_span(self) -> Span:
