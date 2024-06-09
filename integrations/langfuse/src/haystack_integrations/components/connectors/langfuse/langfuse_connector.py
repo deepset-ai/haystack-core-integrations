@@ -20,6 +20,10 @@ class LangfuseConnector:
     In addition, you need to set the `HAYSTACK_CONTENT_TRACING_ENABLED` environment variable to `true` in order to
     enable Haystack tracing in your pipeline.
 
+    Lastly, you may disable flushing the data after each component by setting the `HAYSTACK_LANGFUSE_ENFORCE_FLUSH` environent
+    variable to `false`. By default, the data is flushed after each component and blocks the thread until the data is sent to
+    Langfuse.
+
     Here is an example of how to use it:
 
     ```python

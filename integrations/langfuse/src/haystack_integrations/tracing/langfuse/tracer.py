@@ -1,4 +1,5 @@
 import contextlib
+import os
 from typing import Any, Dict, Iterator, Optional, Union
 
 from haystack.dataclasses import ChatMessage
@@ -7,6 +8,7 @@ from haystack.tracing import utils as tracing_utils
 
 import langfuse
 
+HAYSTACK_LANGFUSE_ENFORCE_FLUSH_ENV_VAR = "HAYSTACK_LANGFUSE_ENFORCE_FLUSH"
 
 class LangfuseSpan(Span):
     """
@@ -93,6 +95,7 @@ class LangfuseTracer(Tracer):
         self._context: list[LangfuseSpan] = []
         self._name = name
         self._public = public
+        self.enforce_flush = os.getenv(HAYSTACK_LANGFUSE_ENFORCE_FLUSH_ENV_VAR, "true").lower() == "true"
 
     @contextlib.contextmanager
     def trace(self, operation_name: str, tags: Optional[Dict[str, Any]] = None) -> Iterator[Span]:
@@ -140,12 +143,12 @@ class LangfuseTracer(Tracer):
         span.raw_span().end()
         self._context.pop()
 
-        if span_name == "haystack.pipeline.run":
+        if len(self._context) == 1:
             # The root span has to be a trace, which need to be removed from the context after the pipeline run
             self._context.pop()
 
-        
-        self._tracer.flush()
+        if self.enforce_flush:
+            self._tracer.flush()
 
     def current_span(self) -> Span:
         """
