@@ -109,7 +109,7 @@ def test_to_from_dict(mock_pinecone, monkeypatch):
 def test_init_fails_wo_api_key(monkeypatch):
     monkeypatch.delenv("PINECONE_API_KEY", raising=False)
     with pytest.raises(ValueError):
-        PineconeDocumentStore(
+        _ = PineconeDocumentStore(
             index="my_index",
         ).index
 
@@ -187,20 +187,16 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, WriteDocumentsT
     @pytest.mark.xfail(
         run=True, reason="Pinecone supports overwriting by default, but it takes a while for it to take effect"
     )
-    def test_write_documents_duplicate_overwrite(self, document_store: PineconeDocumentStore):
-        ...
+    def test_write_documents_duplicate_overwrite(self, document_store: PineconeDocumentStore): ...
 
     @pytest.mark.skip(reason="Pinecone only supports UPSERT operations")
-    def test_write_documents_duplicate_fail(self, document_store: PineconeDocumentStore):
-        ...
+    def test_write_documents_duplicate_fail(self, document_store: PineconeDocumentStore): ...
 
     @pytest.mark.skip(reason="Pinecone only supports UPSERT operations")
-    def test_write_documents_duplicate_skip(self, document_store: PineconeDocumentStore):
-        ...
+    def test_write_documents_duplicate_skip(self, document_store: PineconeDocumentStore): ...
 
     @pytest.mark.skip(reason="Pinecone creates a namespace only when the first document is written")
-    def test_delete_documents_empty_document_store(self, document_store: PineconeDocumentStore):
-        ...
+    def test_delete_documents_empty_document_store(self, document_store: PineconeDocumentStore): ...
 
     def test_embedding_retrieval(self, document_store: PineconeDocumentStore):
         query_embedding = [0.1] * 768

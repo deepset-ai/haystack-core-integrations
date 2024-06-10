@@ -89,7 +89,7 @@ class PineconeDocumentStore:
             client.create_index(name=self.index_name, dimension=self.dimension, spec=pinecone_spec, metric=self.metric)
         else:
             logger.info(
-                f"Index {self.index_name} already exists. Connecting to it. `dimension`, `spec`, and `metric` will be ignored."
+                f"Connecting to existing index {self.index_name}. `dimension`, `spec`, and `metric` will be ignored."
             )
 
         self._index = client.Index(name=self.index_name)
