@@ -8,9 +8,8 @@ from haystack.tracing import utils as tracing_utils
 
 import langfuse
 
-from threading import Thread
-
 HAYSTACK_LANGFUSE_ENFORCE_FLUSH_ENV_VAR = "HAYSTACK_LANGFUSE_ENFORCE_FLUSH"
+
 
 class LangfuseSpan(Span):
     """
@@ -132,7 +131,7 @@ class LangfuseTracer(Tracer):
             replies = span._data.get("haystack.component.output", {}).get("replies")
             if replies:
                 meta = replies[0].meta
-                usage = meta.get("usage") if meta.get("usage") else None # empty dict will cause langfuse to throw an error - happens when streaming
+                usage = meta.get("usage") if meta.get("usage") else None
                 span._span.update(usage=usage, model=meta.get("model"))
 
         pipeline_input = tags.get("haystack.pipeline.input_data", None)
@@ -148,7 +147,7 @@ class LangfuseTracer(Tracer):
         if len(self._context) == 1:
             # The root span has to be a trace, which need to be removed from the context after the pipeline run
             self._context.pop()
-            
+
             if self.enforce_flush:
                 self.flush()
 

@@ -39,7 +39,9 @@ class TestLangfuseTracer:
                 assert span.raw_span().operation_name == "operation_name"
                 assert span.raw_span().metadata == {"tag1": "value1", "tag2": "value2"}
 
-            assert len(tracer._context) == 0, "The trace span should have been popped, and the root span is closed as well"
+            assert (
+                len(tracer._context) == 0
+            ), "The trace span should have been popped, and the root span is closed as well"
 
     # check that update method is called on the span instance with the provided key value pairs
     def test_update_span_with_pipeline_input_output_data(self):
@@ -89,13 +91,13 @@ class TestLangfuseTracer:
             pass
 
         tracer_mock.flush.assert_called_once()
-        
+
     def test_update_span_flush_disable(self):
         os.environ["HAYSTACK_LANGFUSE_ENFORCE_FLUSH"] = "false"
         tracer_mock = Mock()
 
         from haystack_integrations.tracing.langfuse.tracer import LangfuseTracer
-        
+
         tracer = LangfuseTracer(tracer=tracer_mock, name="Haystack", public=False)
         with tracer.trace(operation_name="operation_name", tags={"haystack.pipeline.input_data": "hello"}) as span:
             pass
