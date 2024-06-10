@@ -679,6 +679,7 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
             url="http://localhost:8080",
             collection_settings=collection_settings,
         )
+        _ = doc_score.client
         assert doc_score._collection_settings["class"] == "CaseDocument"
 
         collection_settings = {"class": "lower_case_name"}
@@ -686,4 +687,5 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
             url="http://localhost:8080",
             collection_settings=collection_settings,
         )
+        _ = doc_score.client
         assert doc_score._collection_settings["class"] == "Lower_case_name"
