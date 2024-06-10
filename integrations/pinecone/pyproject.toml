@@ -24,7 +24,7 @@ classifiers = [
 ]
 dependencies = [
   "haystack-ai",
-  "pinecone-client>=3"
+  "pinecone-client>=3" # our implementation is not compatible with pinecone-client <3
 ]
 
 [project.urls]
