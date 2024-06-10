@@ -63,11 +63,14 @@ jobs:
         run: hatch run docs
 
       - name: Set IS_FORK environment variable
-        run: echo "IS_FORK=$([[ ${{ github.event.pull_request.head.repo.full_name }} != ${{ github.repository }} ]] && echo true || echo false)" >> $GITHUB_ENV
+        run: |
+          if [ "${{ github.event.pull_request.head.repo.full_name }}" != "${{ github.repository }}" ]; then
+            echo "IS_FORK=true" >> $GITHUB_ENV
+          fi
 
 
       - name: AWS authentication
-        if: env.IS_FORK == 'false'      
+        if: env.IS_FORK != 'true'      
         uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502
         with:
           aws-region: ${{ env.AWS_REGION }}
