@@ -6,6 +6,7 @@
 
 - Defer the database connection to when it's needed (#753)
 - Improve `OpenSearchDocumentStore.__init__` arguments (#739)
+- Return_embeddings flag for opensearch (#784)
 
 ### 🐛 Bug Fixes
 
