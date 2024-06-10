@@ -39,7 +39,7 @@ from weaviate.embedded import (
 
 
 @patch("haystack_integrations.document_stores.weaviate.document_store.weaviate.WeaviateClient")
-def test_init_is_lazy(_mock_client):  # noqa
+def test_init_is_lazy(_mock_client):
     _ = WeaviateDocumentStore()
     _mock_client.assert_not_called()
 
