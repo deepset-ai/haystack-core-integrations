@@ -2,7 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 import os
-from unittest.mock import Mock, patch
 
 import pytest
 from haystack.utils import Secret
@@ -93,96 +92,6 @@ class TestNvidiaGenerator:
                 },
             },
         }
-
-    @patch("haystack_integrations.components.generators.nvidia._nvcf_backend.NvidiaCloudFunctionsClient")
-    def test_run_deprecated_nvcf(self, mock_client_class):
-        generator = NvidiaGenerator(
-            api_url=None,  # force use of deprecated NVCF backend
-            model="playground_nemotron_steerlm_8b",
-            api_key=Secret.from_token("fake-api-key"),
-            model_arguments={
-                "temperature": 0.2,
-                "top_p": 0.7,
-                "max_tokens": 1024,
-                "seed": None,
-                "bad": None,
-                "stop": None,
-            },
-        )
-        mock_client = Mock(
-            get_model_nvcf_id=Mock(return_value="some_id"),
-            query_function=Mock(
-                return_value={
-                    "id": "some_id",
-                    "choices": [
-                        {
-                            "index": 0,
-                            "message": {"content": "42", "role": "assistant"},
-                            "finish_reason": "stop",
-                        }
-                    ],
-                    "usage": {"total_tokens": 21, "prompt_tokens": 19, "completion_tokens": 2},
-                }
-            ),
-        )
-        mock_client_class.return_value = mock_client
-        with pytest.warns(DeprecationWarning):
-            generator.warm_up()
-
-        result = generator.run(prompt="What is the answer?")
-        mock_client.query_function.assert_called_once_with(
-            "some_id",
-            {
-                "messages": [
-                    {"content": "What is the answer?", "role": "user"},
-                ],
-                "temperature": 0.2,
-                "top_p": 0.7,
-                "max_tokens": 1024,
-                "seed": None,
-                "bad": None,
-                "stop": None,
-            },
-        )
-        assert result == {
-            "replies": ["42"],
-            "meta": [
-                {
-                    "finish_reason": "stop",
-                    "role": "assistant",
-                    "usage": {
-                        "total_tokens": 21,
-                        "prompt_tokens": 19,
-                        "completion_tokens": 2,
-                    },
-                },
-            ],
-        }
-
-    @pytest.mark.skipif(
-        not os.environ.get("NVIDIA_API_KEY", None),
-        reason="Export an env var called NVIDIA_API_KEY containing the Nvidia API key to run this test.",
-    )
-    @pytest.mark.integration
-    def test_run_integration_with_nvcf_backend(self):
-        generator = NvidiaGenerator(
-            api_url=None,  # force use of deprecated NVCF backend
-            model="playground_nv_llama2_rlhf_70b",
-            model_arguments={
-                "temperature": 0.2,
-                "top_p": 0.7,
-                "max_tokens": 1024,
-                "seed": None,
-                "bad": None,
-                "stop": None,
-            },
-        )
-        with pytest.warns(DeprecationWarning):
-            generator.warm_up()
-        result = generator.run(prompt="What is the answer?")
-
-        assert result["replies"]
-        assert result["meta"]
 
     @pytest.mark.skipif(
         not os.environ.get("NVIDIA_NIM_GENERATOR_MODEL", None) or not os.environ.get("NVIDIA_NIM_ENDPOINT_URL", None),

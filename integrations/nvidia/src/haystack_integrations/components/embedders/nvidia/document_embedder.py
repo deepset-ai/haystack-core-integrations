@@ -5,7 +5,6 @@ from haystack.utils import Secret, deserialize_secrets_inplace
 from tqdm import tqdm
 
 from ._nim_backend import NimBackend
-from ._nvcf_backend import NvcfBackend
 from .backend import EmbedderBackend
 from .truncate import EmbeddingTruncateMode
 
@@ -14,8 +13,7 @@ from .truncate import EmbeddingTruncateMode
 class NvidiaDocumentEmbedder:
     """
     A component for embedding documents using embedding models provided by
-    [NVIDIA AI Foundation Endpoints](https://www.nvidia.com/en-us/ai-data-science/foundation-models/)
-    and NVIDIA Inference Microservices.
+    [NVIDIA NIMs](https://ai.nvidia.com).
 
     Usage example:
     ```python
@@ -23,7 +21,7 @@ class NvidiaDocumentEmbedder:
 
     doc = Document(content="I love pizza!")
 
-    text_embedder = NvidiaDocumentEmbedder(model="nvolveqa_40k")
+    text_embedder = NvidiaDocumentEmbedder(model="NV-Embed-QA", api_url="https://ai.api.nvidia.com/v1/retrieval/nvidia")
     text_embedder.warm_up()
 
     result = document_embedder.run([doc])
@@ -33,9 +31,9 @@ class NvidiaDocumentEmbedder:
 
     def __init__(
         self,
-        model: str,
+        model: str = "NV-Embed-QA",
         api_key: Optional[Secret] = Secret.from_env_var("NVIDIA_API_KEY"),
-        api_url: Optional[str] = None,
+        api_url: str = "https://ai.api.nvidia.com/v1/retrieval/nvidia",
         prefix: str = "",
         suffix: str = "",
         batch_size: int = 32,
@@ -50,9 +48,9 @@ class NvidiaDocumentEmbedder:
         :param model:
             Embedding model to use.
         :param api_key:
-            API key for the NVIDIA AI Foundation Endpoints.
+            API key for the NVIDIA NIM.
         :param api_url:
-            Custom API URL for the NVIDIA Inference Microservices.
+            Custom API URL for the NVIDIA NIM.
         :param prefix:
             A string to add to the beginning of each text.
         :param suffix:
@@ -95,22 +93,15 @@ class NvidiaDocumentEmbedder:
         if self._initialized:
             return
 
-        if self.api_url is None:
-            if self.api_key is None:
-                msg = "API key is required for NVIDIA AI Foundation Endpoints."
-                raise ValueError(msg)
-
-            self.backend = NvcfBackend(self.model, api_key=self.api_key, model_kwargs={"model": "passage"})
-        else:
-            model_kwargs = {"input_type": "passage"}
-            if self.truncate is not None:
-                model_kwargs["truncate"] = str(self.truncate)
-            self.backend = NimBackend(
-                self.model,
-                api_url=self.api_url,
-                api_key=self.api_key,
-                model_kwargs=model_kwargs,
-            )
+        model_kwargs = {"input_type": "passage"}
+        if self.truncate is not None:
+            model_kwargs["truncate"] = str(self.truncate)
+        self.backend = NimBackend(
+            self.model,
+            api_url=self.api_url,
+            api_key=self.api_key,
+            model_kwargs=model_kwargs,
+        )
 
         self._initialized = True
 

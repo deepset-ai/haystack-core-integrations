@@ -1,19 +1,30 @@
 import os
-from unittest.mock import Mock, patch
 
 import pytest
 from haystack import Document
 from haystack.utils import Secret
 from haystack_integrations.components.embedders.nvidia import EmbeddingTruncateMode, NvidiaDocumentEmbedder
+from haystack_integrations.components.embedders.nvidia.backend import EmbedderBackend
+
+
+class MockBackend(EmbedderBackend):
+    def __init__(self, model, model_kwargs):
+        super().__init__(model, model_kwargs)
+
+    def embed(self, texts):
+        inputs = texts
+        data = [[0.1, 0.2, 0.3] for i in range(len(inputs))]
+        return data, {"usage": {"total_tokens": 4, "prompt_tokens": 4}}
 
 
 class TestNvidiaDocumentEmbedder:
     def test_init_default(self, monkeypatch):
         monkeypatch.setenv("NVIDIA_API_KEY", "fake-api-key")
-        embedder = NvidiaDocumentEmbedder("nvolveqa_40k")
+        embedder = NvidiaDocumentEmbedder()
 
         assert embedder.api_key == Secret.from_env_var("NVIDIA_API_KEY")
-        assert embedder.model == "nvolveqa_40k"
+        assert embedder.model == "NV-Embed-QA"
+        assert embedder.api_url == "https://ai.api.nvidia.com/v1/retrieval/nvidia"
         assert embedder.prefix == ""
         assert embedder.suffix == ""
         assert embedder.batch_size == 32
@@ -25,6 +36,7 @@ class TestNvidiaDocumentEmbedder:
         embedder = NvidiaDocumentEmbedder(
             api_key=Secret.from_token("fake-api-key"),
             model="nvolveqa_40k",
+            api_url="https://ai.api.nvidia.com/v1/retrieval/nvidia/test",
             prefix="prefix",
             suffix="suffix",
             batch_size=30,
@@ -35,6 +47,7 @@ class TestNvidiaDocumentEmbedder:
 
         assert embedder.api_key == Secret.from_token("fake-api-key")
         assert embedder.model == "nvolveqa_40k"
+        assert embedder.api_url == "https://ai.api.nvidia.com/v1/retrieval/nvidia/test"
         assert embedder.prefix == "prefix"
         assert embedder.suffix == "suffix"
         assert embedder.batch_size == 30
@@ -56,7 +69,7 @@ class TestNvidiaDocumentEmbedder:
             "type": "haystack_integrations.components.embedders.nvidia.document_embedder.NvidiaDocumentEmbedder",
             "init_parameters": {
                 "api_key": {"env_vars": ["NVIDIA_API_KEY"], "strict": True, "type": "env_var"},
-                "api_url": None,
+                "api_url": "https://ai.api.nvidia.com/v1/retrieval/nvidia",
                 "model": "playground_nvolveqa_40k",
                 "prefix": "",
                 "suffix": "",
@@ -117,7 +130,7 @@ class TestNvidiaDocumentEmbedder:
         }
         component = NvidiaDocumentEmbedder.from_dict(data)
         assert component.model == "nvolveqa_40k"
-        assert component.api_url is None
+        assert component.api_url == "https://example.com"
         assert component.prefix == "prefix"
         assert component.suffix == "suffix"
         assert component.batch_size == 32
@@ -169,8 +182,7 @@ class TestNvidiaDocumentEmbedder:
             "my_prefix document number 4 my_suffix",
         ]
 
-    @patch("haystack_integrations.components.embedders.nvidia._nvcf_backend.NvidiaCloudFunctionsClient")
-    def test_embed_batch(self, mock_client_class):
+    def test_embed_batch(self):
         texts = ["text 1", "text 2", "text 3", "text 4", "text 5"]
 
         embedder = NvidiaDocumentEmbedder(
@@ -178,17 +190,8 @@ class TestNvidiaDocumentEmbedder:
             api_key=Secret.from_token("fake-api-key"),
         )
 
-        def mock_query_function(_, payload):
-            inputs = payload["input"]
-            data = [{"index": i, "embedding": [0.1, 0.2, 0.3]} for i in range(len(inputs))]
-            return {"data": data, "usage": {"total_tokens": 4, "prompt_tokens": 4}}
-
-        mock_client = Mock(
-            get_model_nvcf_id=Mock(return_value="some_id"),
-            query_function=mock_query_function,
-        )
-        mock_client_class.return_value = mock_client
         embedder.warm_up()
+        embedder.backend = MockBackend("aa", None)
 
         embeddings, metadata = embedder._embed_batch(texts_to_embed=texts, batch_size=2)
 
@@ -201,8 +204,7 @@ class TestNvidiaDocumentEmbedder:
 
         assert metadata == {"usage": {"prompt_tokens": 3 * 4, "total_tokens": 3 * 4}}
 
-    @patch("haystack_integrations.components.embedders.nvidia._nvcf_backend.NvidiaCloudFunctionsClient")
-    def test_run(self, mock_client_class):
+    def test_run(self):
         docs = [
             Document(content="I love cheese", meta={"topic": "Cuisine"}),
             Document(content="A transformer is a deep learning architecture", meta={"topic": "ML"}),
@@ -218,17 +220,8 @@ class TestNvidiaDocumentEmbedder:
             embedding_separator=" | ",
         )
 
-        def mock_query_function(_, payload):
-            inputs = payload["input"]
-            data = [{"index": i, "embedding": [0.1, 0.2, 0.3]} for i in range(len(inputs))]
-            return {"data": data, "usage": {"total_tokens": 4, "prompt_tokens": 4}}
-
-        mock_client = Mock(
-            get_model_nvcf_id=Mock(return_value="some_id"),
-            query_function=mock_query_function,
-        )
-        mock_client_class.return_value = mock_client
         embedder.warm_up()
+        embedder.backend = MockBackend("aa", None)
 
         result = embedder.run(documents=docs)
 
@@ -244,8 +237,7 @@ class TestNvidiaDocumentEmbedder:
             assert all(isinstance(x, float) for x in doc.embedding)
         assert metadata == {"usage": {"prompt_tokens": 4, "total_tokens": 4}}
 
-    @patch("haystack_integrations.components.embedders.nvidia._nvcf_backend.NvidiaCloudFunctionsClient")
-    def test_run_custom_batch_size(self, mock_client_class):
+    def test_run_custom_batch_size(self):
         docs = [
             Document(content="I love cheese", meta={"topic": "Cuisine"}),
             Document(content="A transformer is a deep learning architecture", meta={"topic": "ML"}),
@@ -261,17 +253,8 @@ class TestNvidiaDocumentEmbedder:
             batch_size=1,
         )
 
-        def mock_query_function(_, payload):
-            inputs = payload["input"]
-            data = [{"index": i, "embedding": [0.1, 0.2, 0.3]} for i in range(len(inputs))]
-            return {"data": data, "usage": {"total_tokens": 4, "prompt_tokens": 4}}
-
-        mock_client = Mock(
-            get_model_nvcf_id=Mock(return_value="some_id"),
-            query_function=mock_query_function,
-        )
-        mock_client_class.return_value = mock_client
         embedder.warm_up()
+        embedder.backend = MockBackend("aa", None)
 
         result = embedder.run(documents=docs)
 
@@ -288,21 +271,11 @@ class TestNvidiaDocumentEmbedder:
 
         assert metadata == {"usage": {"prompt_tokens": 2 * 4, "total_tokens": 2 * 4}}
 
-    @patch("haystack_integrations.components.embedders.nvidia._nvcf_backend.NvidiaCloudFunctionsClient")
-    def test_run_wrong_input_format(self, mock_client_class):
+    def test_run_wrong_input_format(self):
         embedder = NvidiaDocumentEmbedder("playground_nvolveqa_40k", api_key=Secret.from_token("fake-api-key"))
 
-        def mock_query_function(_, payload):
-            inputs = payload["input"]
-            data = [{"index": i, "embedding": [0.1, 0.2, 0.3]} for i in range(len(inputs))]
-            return {"data": data, "usage": {"total_tokens": 4, "prompt_tokens": 4}}
-
-        mock_client = Mock(
-            get_model_nvcf_id=Mock(return_value="some_id"),
-            query_function=mock_query_function,
-        )
-        mock_client_class.return_value = mock_client
         embedder.warm_up()
+        embedder.backend = MockBackend("aa", None)
 
         string_input = "text"
         list_integers_input = [1, 2, 3]
@@ -313,21 +286,11 @@ class TestNvidiaDocumentEmbedder:
         with pytest.raises(TypeError, match="NvidiaDocumentEmbedder expects a list of Documents as input"):
             embedder.run(documents=list_integers_input)
 
-    @patch("haystack_integrations.components.embedders.nvidia._nvcf_backend.NvidiaCloudFunctionsClient")
-    def test_run_on_empty_list(self, mock_client_class):
+    def test_run_on_empty_list(self):
         embedder = NvidiaDocumentEmbedder("playground_nvolveqa_40k", api_key=Secret.from_token("fake-api-key"))
 
-        def mock_query_function(_, payload):
-            inputs = payload["input"]
-            data = [{"index": i, "embedding": [0.1, 0.2, 0.3]} for i in range(len(inputs))]
-            return {"data": data, "usage": {"total_tokens": 4, "prompt_tokens": 4}}
-
-        mock_client = Mock(
-            get_model_nvcf_id=Mock(return_value="some_id"),
-            query_function=mock_query_function,
-        )
-        mock_client_class.return_value = mock_client
         embedder.warm_up()
+        embedder.backend = MockBackend("aa", None)
 
         empty_list_input = []
         result = embedder.run(documents=empty_list_input)
@@ -339,25 +302,6 @@ class TestNvidiaDocumentEmbedder:
         not os.environ.get("NVIDIA_API_KEY", None),
         reason="Export an env var called NVIDIA_API_KEY containing the Nvidia API key to run this test.",
     )
-    @pytest.mark.integration
-    def test_run_integration(self):
-        embedder = NvidiaDocumentEmbedder("playground_nvolveqa_40k")
-        embedder.warm_up()
-
-        docs = [
-            Document(content="I love cheese", meta={"topic": "Cuisine"}),
-            Document(content="A transformer is a deep learning architecture", meta={"topic": "ML"}),
-        ]
-
-        result = embedder.run(docs)
-        docs_with_embeddings = result["documents"]
-
-        assert isinstance(docs_with_embeddings, list)
-        assert len(docs_with_embeddings) == len(docs)
-        for doc in docs_with_embeddings:
-            assert isinstance(doc.embedding, list)
-            assert isinstance(doc.embedding[0], float)
-
     @pytest.mark.skipif(
         not os.environ.get("NVIDIA_NIM_EMBEDDER_MODEL", None) or not os.environ.get("NVIDIA_NIM_ENDPOINT_URL", None),
         reason="Export an env var called NVIDIA_NIM_EMBEDDER_MODEL containing the hosted model name and "
