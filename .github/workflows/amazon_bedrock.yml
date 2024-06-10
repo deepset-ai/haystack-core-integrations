@@ -62,11 +62,19 @@ jobs:
         if: matrix.python-version == '3.9' && runner.os == 'Linux'
         run: hatch run docs
 
-      - name: Set IS_FORK environment variable
+      - name: Set IS_FORK environment variable (Unix-like)
+        if: runner.os != 'Windows'
         run: |
           if [ "${{ github.event.pull_request.head.repo.full_name }}" != "${{ github.repository }}" ]; then
             echo "IS_FORK=true" >> $GITHUB_ENV
           fi
+
+      - name: Set IS_FORK environment variable (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          if ($Env:GITHUB_EVENT_PULL_REQUEST_HEAD_REPO_FULL_NAME -ne $Env:GITHUB_REPOSITORY) {
+            echo "IS_FORK=true" >> $Env:GITHUB_ENV
+          }
 
 
       - name: AWS authentication
