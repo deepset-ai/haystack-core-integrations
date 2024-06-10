@@ -63,7 +63,7 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
             collection_settings=collection_settings,
         )
         yield store
-        store._client.collections.delete(collection_settings["class"])
+        store.client.collections.delete(collection_settings["class"])
 
     @pytest.fixture
     def filterable_docs(self) -> List[Document]:
