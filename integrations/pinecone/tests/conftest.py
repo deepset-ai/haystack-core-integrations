@@ -7,7 +7,7 @@ from pinecone.core.client.exceptions import NotFoundException
 from haystack_integrations.document_stores.pinecone import PineconeDocumentStore
 
 # This is the approximate time it takes for the documents to be available
-SLEEP_TIME = 30
+SLEEP_TIME = 10
 
 
 @pytest.fixture()
@@ -21,14 +21,12 @@ def document_store(request):
     This is the most basic requirement for the child class: provide
     an instance of this document store so the base class can use it.
     """
-    environment = "gcp-starter"
     index = "default"
     # Use a different namespace for each test so we can run them in parallel
     namespace = f"{request.node.name}-{int(time.time())}"
     dimension = 768
 
     store = PineconeDocumentStore(
-        environment=environment,
         index=index,
         namespace=namespace,
         dimension=dimension,

@@ -13,10 +13,6 @@ from haystack.testing.document_store import (
 class TestFilters(FilterDocumentsTest):
     def assert_documents_are_equal(self, received: List[Document], expected: List[Document]):
         for doc in received:
-            # Pinecone seems to convert strings to datetime objects (undocumented behavior)
-            # We convert them back to strings to compare them
-            if "date" in doc.meta:
-                doc.meta["date"] = doc.meta["date"].isoformat()
             # Pinecone seems to convert integers to floats (undocumented behavior)
             # We convert them back to integers to compare them
             if "number" in doc.meta:
