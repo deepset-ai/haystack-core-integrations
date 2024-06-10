@@ -4,7 +4,6 @@ from haystack import component, default_from_dict, default_to_dict
 from haystack.utils import Secret, deserialize_secrets_inplace
 
 from ._nim_backend import NimBackend
-from ._nvcf_backend import NvcfBackend
 from .backend import EmbedderBackend
 from .truncate import EmbeddingTruncateMode
 
@@ -13,8 +12,7 @@ from .truncate import EmbeddingTruncateMode
 class NvidiaTextEmbedder:
     """
     A component for embedding strings using embedding models provided by
-    [NVIDIA AI Foundation Endpoints](https://www.nvidia.com/en-us/ai-data-science/foundation-models/)
-    and NVIDIA Inference Microservices.
+    [NVIDIA NIMs](https://ai.nvidia.com).
 
     For models that differentiate between query and document inputs,
     this component embeds the input string as a query.
@@ -25,7 +23,7 @@ class NvidiaTextEmbedder:
 
     text_to_embed = "I love pizza!"
 
-    text_embedder = NvidiaTextEmbedder(model="nvolveqa_40k")
+    text_embedder = NvidiaTextEmbedder(model="NV-Embed-QA", api_url="https://ai.api.nvidia.com/v1/retrieval/nvidia")
     text_embedder.warm_up()
 
     print(text_embedder.run(text_to_embed))
@@ -34,9 +32,9 @@ class NvidiaTextEmbedder:
 
     def __init__(
         self,
-        model: str,
+        model: str = "NV-Embed-QA",
         api_key: Optional[Secret] = Secret.from_env_var("NVIDIA_API_KEY"),
-        api_url: Optional[str] = None,
+        api_url: str = "https://ai.api.nvidia.com/v1/retrieval/nvidia",
         prefix: str = "",
         suffix: str = "",
         truncate: Optional[Union[EmbeddingTruncateMode, str]] = None,
@@ -47,9 +45,9 @@ class NvidiaTextEmbedder:
         :param model:
             Embedding model to use.
         :param api_key:
-            API key for the NVIDIA AI Foundation Endpoints.
+            API key for the NVIDIA NIM.
         :param api_url:
-            Custom API URL for the NVIDIA Inference Microservices.
+            Custom API URL for the NVIDIA NIM.
         :param prefix:
             A string to add to the beginning of each text.
         :param suffix:
@@ -79,22 +77,15 @@ class NvidiaTextEmbedder:
         if self._initialized:
             return
 
-        if self.api_url is None:
-            if self.api_key is None:
-                msg = "API key is required for NVIDIA AI Foundation Endpoints."
-                raise ValueError(msg)
-
-            self.backend = NvcfBackend(self.model, api_key=self.api_key, model_kwargs={"model": "query"})
-        else:
-            model_kwargs = {"input_type": "query"}
-            if self.truncate is not None:
-                model_kwargs["truncate"] = str(self.truncate)
-            self.backend = NimBackend(
-                self.model,
-                api_url=self.api_url,
-                api_key=self.api_key,
-                model_kwargs=model_kwargs,
-            )
+        model_kwargs = {"input_type": "query"}
+        if self.truncate is not None:
+            model_kwargs["truncate"] = str(self.truncate)
+        self.backend = NimBackend(
+            self.model,
+            api_url=self.api_url,
+            api_key=self.api_key,
+            model_kwargs=model_kwargs,
+        )
 
         self._initialized = True
 

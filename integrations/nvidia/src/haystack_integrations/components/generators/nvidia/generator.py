@@ -7,7 +7,6 @@ from haystack import component, default_from_dict, default_to_dict
 from haystack.utils.auth import Secret, deserialize_secrets_inplace
 
 from ._nim_backend import NimBackend
-from ._nvcf_backend import NvcfBackend
 from .backend import GeneratorBackend
 
 _DEFAULT_API_URL = "https://integrate.api.nvidia.com/v1"
@@ -43,7 +42,7 @@ class NvidiaGenerator:
     def __init__(
         self,
         model: str,
-        api_url: Optional[str] = _DEFAULT_API_URL,
+        api_url: str = _DEFAULT_API_URL,
         api_key: Optional[Secret] = Secret.from_env_var("NVIDIA_API_KEY"),
         model_arguments: Optional[Dict[str, Any]] = None,
     ):
@@ -55,9 +54,9 @@ class NvidiaGenerator:
             See the [NVIDIA NIMs](https://ai.nvidia.com)
             for more information on the supported models.
         :param api_key:
-            API key for the NVIDIA AI Foundation Endpoints.
+            API key for the NVIDIA NIM.
         :param api_url:
-            Custom API URL for the NVIDIA Inference Microservices.
+            Custom API URL for the NVIDIA NIM.
         :param model_arguments:
             Additional arguments to pass to the model provider. Different models accept different arguments.
             Search your model in the [NVIDIA NIMs](https://ai.nvidia.com)
@@ -77,21 +76,15 @@ class NvidiaGenerator:
         if self._backend is not None:
             return
 
-        if self._api_url is None:
-            if self._api_key is None:
-                msg = "API key is required for NVIDIA AI Foundation Endpoints."
-                raise ValueError(msg)
-            self._backend = NvcfBackend(self._model, api_key=self._api_key, model_kwargs=self._model_arguments)
-        else:
-            if self._api_url == _DEFAULT_API_URL and self._api_key is None:
-                msg = "API key is required for hosted NVIDIA NIMs."
-                raise ValueError(msg)
-            self._backend = NimBackend(
-                self._model,
-                api_url=self._api_url,
-                api_key=self._api_key,
-                model_kwargs=self._model_arguments,
-            )
+        if self._api_url == _DEFAULT_API_URL and self._api_key is None:
+            msg = "API key is required for hosted NVIDIA NIMs."
+            raise ValueError(msg)
+        self._backend = NimBackend(
+            self._model,
+            api_url=self._api_url,
+            api_key=self._api_key,
+            model_kwargs=self._model_arguments,
+        )
 
     def to_dict(self) -> Dict[str, Any]:
         """
