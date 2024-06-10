@@ -148,9 +148,12 @@ class LangfuseTracer(Tracer):
         if len(self._context) == 1:
             # The root span has to be a trace, which need to be removed from the context after the pipeline run
             self._context.pop()
+            
+            if self.enforce_flush:
+                self.flush()
 
-        if self.enforce_flush:
-            self._tracer.flush()
+    def flush(self):
+        self._tracer.flush()
 
     def current_span(self) -> Span:
         """
