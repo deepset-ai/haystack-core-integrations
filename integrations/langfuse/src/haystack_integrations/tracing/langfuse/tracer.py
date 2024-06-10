@@ -8,6 +8,8 @@ from haystack.tracing import utils as tracing_utils
 
 import langfuse
 
+from threading import Thread
+
 HAYSTACK_LANGFUSE_ENFORCE_FLUSH_ENV_VAR = "HAYSTACK_LANGFUSE_ENFORCE_FLUSH"
 
 class LangfuseSpan(Span):

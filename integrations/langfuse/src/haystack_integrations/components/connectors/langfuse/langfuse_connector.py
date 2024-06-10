@@ -22,7 +22,20 @@ class LangfuseConnector:
 
     Lastly, you may disable flushing the data after each component by setting the `HAYSTACK_LANGFUSE_ENFORCE_FLUSH` environent
     variable to `false`. By default, the data is flushed after each component and blocks the thread until the data is sent to
-    Langfuse.
+    Langfuse. **Caution**: Disabling this feature may result in data loss if the program crashes before the data is sent to Langfuse.
+    Make sure you will call langfuse.flush() explicitly before the program exits. e.g. by using: 
+    ```python
+    try:
+        # your code here
+    finally:
+        langfuse.flush()
+    ```
+    or in FastAPI by defining a shutdown event handler:
+    ```python
+    @app.on_event("shutdown")
+    async def shutdown_event():
+        langfuse.flush()
+    ```
 
     Here is an example of how to use it:
 
