@@ -38,6 +38,12 @@ from weaviate.embedded import (
 )
 
 
+@patch("haystack_integrations.document_stores.weaviate.document_store.weaviate.WeaviateClient")
+def test_init_is_lazy(_mock_client):  # noqa
+    _ = WeaviateDocumentStore()
+    _mock_client.assert_not_called()
+
+
 @pytest.mark.integration
 class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsTest, FilterDocumentsTest):
     @pytest.fixture
@@ -150,12 +156,12 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
                 assert received_meta.get(key) == expected_meta.get(key)
 
     @patch("haystack_integrations.document_stores.weaviate.document_store.weaviate.WeaviateClient")
-    def test_init(self, mock_weaviate_client_class, monkeypatch):
+    def test_connection(self, mock_weaviate_client_class, monkeypatch):
         mock_client = MagicMock()
         mock_client.collections.exists.return_value = False
         mock_weaviate_client_class.return_value = mock_client
         monkeypatch.setenv("WEAVIATE_API_KEY", "my_api_key")
-        WeaviateDocumentStore(
+        ds = WeaviateDocumentStore(
             collection_settings={"class": "My_collection"},
             auth_client_secret=AuthApiKey(),
             additional_headers={"X-HuggingFace-Api-Key": "MY_HUGGINGFACE_KEY"},
@@ -170,8 +176,10 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
             ),
         )
 
-        # Verify client is created with correct parameters
+        # Trigger database connection by accessing the `client` property
+        _ = ds.client
 
+        # Verify client is created with correct parameters
         mock_weaviate_client_class.assert_called_once_with(
             auth_client_secret=AuthApiKey().resolve_value(),
             connection_params=None,
