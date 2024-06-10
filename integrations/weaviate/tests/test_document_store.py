@@ -305,6 +305,9 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
             }
         )
 
+        # Make sure the connection was used at least once before serializing
+        _ = document_store.client
+
         assert document_store._url == "http://localhost:8080"
         assert document_store._collection_settings == {
             "class": "Default",
