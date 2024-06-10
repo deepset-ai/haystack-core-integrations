@@ -176,7 +176,8 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
             ),
         )
 
-        # Trigger database connection by accessing the `client` property
+        # Trigger the actual database connection by accessing the `client` property so we
+        # can assert the setup was good
         _ = ds.client
 
         # Verify client is created with correct parameters
@@ -304,9 +305,6 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
                 },
             }
         )
-
-        # Make sure the connection was used at least once before serializing
-        _ = document_store.client
 
         assert document_store._url == "http://localhost:8080"
         assert document_store._collection_settings == {
@@ -682,7 +680,6 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
             url="http://localhost:8080",
             collection_settings=collection_settings,
         )
-        _ = doc_score.client
         assert doc_score._collection_settings["class"] == "CaseDocument"
 
         collection_settings = {"class": "lower_case_name"}
@@ -690,5 +687,4 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
             url="http://localhost:8080",
             collection_settings=collection_settings,
         )
-        _ = doc_score.client
         assert doc_score._collection_settings["class"] == "Lower_case_name"

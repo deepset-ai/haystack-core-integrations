@@ -148,7 +148,23 @@ class WeaviateDocumentStore:
         self._grpc_secure = grpc_secure
         self._client = None
         self._collection = None
-        self._collection_settings = collection_settings
+        # Store the connection settings dictionary
+        self._collection_settings = collection_settings or {
+            "class": "Default",
+            "invertedIndexConfig": {"indexNullState": True},
+            "properties": DOCUMENT_COLLECTION_PROPERTIES,
+        }
+        self._clean_connection_settings()
+
+    def _clean_connection_settings(self):
+        # Set the class if not set
+        _class_name = self._collection_settings.get("class", "Default")
+        _class_name = _class_name[0].upper() + _class_name[1:]
+        self._collection_settings["class"] = _class_name
+        # Set the properties if they're not set
+        self._collection_settings["properties"] = self._collection_settings.get(
+            "properties", DOCUMENT_COLLECTION_PROPERTIES
+        )
 
     @property
     def client(self):
@@ -178,22 +194,6 @@ class WeaviateDocumentStore:
         self._client.collections._get_all(simple=True)
         self._client.collections._get_all(simple=True)
 
-        if self._collection_settings is None:
-            self._collection_settings = {
-                "class": "Default",
-                "invertedIndexConfig": {"indexNullState": True},
-                "properties": DOCUMENT_COLLECTION_PROPERTIES,
-            }
-        else:
-            # Set the class if not set
-            _class_name = self._collection_settings.get("class", "Default")
-            _class_name = _class_name[0].upper() + _class_name[1:]
-            self._collection_settings["class"] = _class_name
-            # Set the properties if they're not set
-            self._collection_settings["properties"] = self._collection_settings.get(
-                "properties", DOCUMENT_COLLECTION_PROPERTIES
-            )
-
         if not self._client.collections.exists(self._collection_settings["class"]):
             self._client.collections.create_from_dict(self._collection_settings)
 
@@ -215,8 +215,6 @@ class WeaviateDocumentStore:
         :returns:
             Dictionary with serialized data.
         """
-        # Make sure the connection was used at least once before serializing
-        _ = self.client
         embedded_options = asdict(self._embedded_options) if self._embedded_options else None
         additional_config = (
             json.loads(self._additional_config.model_dump_json(by_alias=True)) if self._additional_config else None
