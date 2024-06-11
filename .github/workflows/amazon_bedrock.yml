@@ -62,15 +62,23 @@ jobs:
         if: matrix.python-version == '3.9' && runner.os == 'Linux'
         run: hatch run docs
 
-      - name: AWS authentication
+      - name: Run unit tests
+        id: unit-tests
+        run: hatch run cov -m "not integration"        
+
+      # Do not authenticate on pull requests from forks
+      - name: AWS authentication        
+        if: github.event.pull_request.head.repo.full_name == github.repository      
         uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502
         with:
           aws-region: ${{ env.AWS_REGION }}
           role-to-assume: ${{ secrets.AWS_CI_ROLE_ARN }}
 
-      - name: Run tests
-        id: tests
-        run: hatch run cov
+      # Do not run integration tests on pull requests from forks
+      - name: Run integration tests
+        if: github.event.pull_request.head.repo.full_name == github.repository      
+        id: integration-tests
+        run: hatch run cov -m "integration"
 
       - name: Nightly - run unit tests with Haystack main branch
         if: github.event_name == 'schedule'
