@@ -1,5 +1,11 @@
 # Changelog
 
+## [integrations/pinecone-v1.1.0] - 2024-06-11
+
+### 🚀 Features
+
+- Defer the database connection to when it's needed (#804)
+
 ## [integrations/pinecone-v1.0.0] - 2024-06-10
 
 ### 🚀 Features
