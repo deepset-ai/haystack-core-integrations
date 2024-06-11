@@ -66,15 +66,16 @@ jobs:
         id: unit-tests
         run: hatch run cov -m "not integration"        
 
-      - name: AWS authentication
+      # Do not authenticate on pull requests from forks
+      - name: AWS authentication        
         if: github.event.pull_request.head.repo.full_name == github.repository      
         uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502
         with:
           aws-region: ${{ env.AWS_REGION }}
           role-to-assume: ${{ secrets.AWS_CI_ROLE_ARN }}
 
-      - name: Run integration tests
         # Do not run integration tests on pull requests from forks
+      - name: Run integration tests
         if: github.event.pull_request.head.repo.full_name == github.repository      
         id: integration-tests
         run: hatch run cov -m "integration"
