@@ -51,6 +51,6 @@ def document_store(request):
 
     yield store
     try:
-        store._index.delete(delete_all=True, namespace=namespace)
+        store.index.delete(delete_all=True, namespace=namespace)
     except NotFoundException:
         pass

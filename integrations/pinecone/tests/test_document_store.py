@@ -155,7 +155,7 @@ def test_serverless_index_creation_from_scratch(sleep_time):
 
     time.sleep(sleep_time)
 
-    PineconeDocumentStore(
+    ds = PineconeDocumentStore(
         index=index_name,
         namespace="test",
         batch_size=50,
@@ -163,6 +163,8 @@ def test_serverless_index_creation_from_scratch(sleep_time):
         metric="euclidean",
         spec={"serverless": {"region": "us-east-1", "cloud": "aws"}},
     )
+    # Trigger the connection
+    _ = ds.index
 
     index_description = client.describe_index(name=index_name)
     assert index_description["name"] == index_name
