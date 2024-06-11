@@ -62,31 +62,22 @@ jobs:
         if: matrix.python-version == '3.9' && runner.os == 'Linux'
         run: hatch run docs
 
-      - name: Set IS_FORK environment variable (Unix-like)
-        if: runner.os != 'Windows'
-        run: |
-          if [ "${{ github.event.pull_request.head.repo.full_name }}" != "${{ github.repository }}" ]; then
-            echo "IS_FORK=true" >> $GITHUB_ENV
-          fi
-
-      - name: Set IS_FORK environment variable (Windows)
-        if: runner.os == 'Windows'
-        run: |
-          if ($Env:GITHUB_EVENT_PULL_REQUEST_HEAD_REPO_FULL_NAME -ne $Env:GITHUB_REPOSITORY) {
-            echo "IS_FORK=true" >> $Env:GITHUB_ENV
-          }
-
+      - name: Run unit tests
+        id: unit-tests
+        run: hatch run cov -m "not integration"        
 
       - name: AWS authentication
-        if: env.IS_FORK != 'true'      
+        if: github.event.pull_request.head.repo.full_name == github.repository      
         uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502
         with:
           aws-region: ${{ env.AWS_REGION }}
           role-to-assume: ${{ secrets.AWS_CI_ROLE_ARN }}
 
-      - name: Run tests
-        id: tests
-        run: hatch run cov
+      - name: Run integration tests
+        # Do not run integration tests on pull requests from forks
+        if: github.event.pull_request.head.repo.full_name == github.repository      
+        id: integration-tests
+        run: hatch run cov -m "integration"
 
       - name: Nightly - run unit tests with Haystack main branch
         if: github.event_name == 'schedule'

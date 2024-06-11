@@ -1,12 +1,6 @@
-import os
 from unittest.mock import patch
 
 import pytest
-
-
-def pytest_runtest_setup(item):
-    if os.getenv("IS_FORK") == "true" and "integration" in item.keywords:
-        pytest.skip("Skipping integration test since it's running in a forked repository")
 
 
 @pytest.fixture
