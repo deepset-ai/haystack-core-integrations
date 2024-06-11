@@ -74,7 +74,7 @@ jobs:
           aws-region: ${{ env.AWS_REGION }}
           role-to-assume: ${{ secrets.AWS_CI_ROLE_ARN }}
 
-        # Do not run integration tests on pull requests from forks
+      # Do not run integration tests on pull requests from forks
       - name: Run integration tests
         if: github.event.pull_request.head.repo.full_name == github.repository      
         id: integration-tests
