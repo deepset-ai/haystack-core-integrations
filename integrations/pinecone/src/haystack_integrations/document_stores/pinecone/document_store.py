@@ -66,35 +66,45 @@ class PineconeDocumentStore:
         """
         self.api_key = api_key
         spec = spec or DEFAULT_STARTER_PLAN_SPEC
-
-        client = Pinecone(api_key=api_key.resolve_value(), source_tag="haystack")
-
-        if index not in client.list_indexes().names():
-            logger.info(f"Index {index} does not exist. Creating a new index.")
-            pinecone_spec = self._convert_dict_spec_to_pinecone_object(spec)
-            client.create_index(name=index, dimension=dimension, spec=pinecone_spec, metric=metric)
-        else:
-            logger.info(
-                f"Index {index} already exists. Connecting to it. `dimension`, `spec`, and `metric` will be ignored."
-            )
-
-        self._index = client.Index(name=index)
-
-        actual_dimension = self._index.describe_index_stats().get("dimension")
-        if actual_dimension and actual_dimension != dimension:
-            logger.warning(
-                f"Dimension of index {index} is {actual_dimension}, but {dimension} was specified. "
-                "The specified dimension will be ignored."
-                "If you need an index with a different dimension, please create a new one."
-            )
-        self.dimension = actual_dimension or dimension
-
-        self._dummy_vector = [-10.0] * self.dimension
-        self.index = index
         self.namespace = namespace
         self.batch_size = batch_size
         self.metric = metric
         self.spec = spec
+        self.dimension = dimension
+        self.index_name = index
+
+        self._index = None
+        self._dummy_vector = [-10.0] * self.dimension
+
+    @property
+    def index(self):
+        if self._index is not None:
+            return self._index
+
+        client = Pinecone(api_key=self.api_key.resolve_value(), source_tag="haystack")
+
+        if self.index_name not in client.list_indexes().names():
+            logger.info(f"Index {self.index_name} does not exist. Creating a new index.")
+            pinecone_spec = self._convert_dict_spec_to_pinecone_object(self.spec)
+            client.create_index(name=self.index_name, dimension=self.dimension, spec=pinecone_spec, metric=self.metric)
+        else:
+            logger.info(
+                f"Connecting to existing index {self.index_name}. `dimension`, `spec`, and `metric` will be ignored."
+            )
+
+        self._index = client.Index(name=self.index_name)
+
+        actual_dimension = self._index.describe_index_stats().get("dimension")
+        if actual_dimension and actual_dimension != self.dimension:
+            logger.warning(
+                f"Dimension of index {self.index_name} is {actual_dimension}, but {self.dimension} was specified. "
+                "The specified dimension will be ignored."
+                "If you need an index with a different dimension, please create a new one."
+            )
+        self.dimension = actual_dimension or self.dimension
+        self._dummy_vector = [-10.0] * self.dimension
+
+        return self._index
 
     @staticmethod
     def _convert_dict_spec_to_pinecone_object(spec: Dict[str, Any]):
@@ -135,7 +145,7 @@ class PineconeDocumentStore:
             self,
             api_key=self.api_key.to_dict(),
             spec=self.spec,
-            index=self.index,
+            index=self.index_name,
             dimension=self.dimension,
             namespace=self.namespace,
             batch_size=self.batch_size,
@@ -147,7 +157,7 @@ class PineconeDocumentStore:
         Returns how many documents are present in the document store.
         """
         try:
-            count = self._index.describe_index_stats()["namespaces"][self.namespace]["vector_count"]
+            count = self.index.describe_index_stats()["namespaces"][self.namespace]["vector_count"]
         except KeyError:
             count = 0
         return count
@@ -174,9 +184,7 @@ class PineconeDocumentStore:
 
         documents_for_pinecone = self._convert_documents_to_pinecone_format(documents)
 
-        result = self._index.upsert(
-            vectors=documents_for_pinecone, namespace=self.namespace, batch_size=self.batch_size
-        )
+        result = self.index.upsert(vectors=documents_for_pinecone, namespace=self.namespace, batch_size=self.batch_size)
 
         written_docs = result["upserted_count"]
         return written_docs
@@ -214,7 +222,7 @@ class PineconeDocumentStore:
 
         :param document_ids: the document ids to delete
         """
-        self._index.delete(ids=document_ids, namespace=self.namespace)
+        self.index.delete(ids=document_ids, namespace=self.namespace)
 
     def _embedding_retrieval(
         self,
@@ -247,7 +255,7 @@ class PineconeDocumentStore:
             filters = convert(filters)
         filters = _normalize_filters(filters) if filters else None
 
-        result = self._index.query(
+        result = self.index.query(
             vector=query_embedding,
             top_k=top_k,
             namespace=namespace or self.namespace,

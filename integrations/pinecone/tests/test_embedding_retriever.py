@@ -91,7 +91,7 @@ def test_from_dict(mock_pinecone, monkeypatch):
 
     document_store = retriever.document_store
     assert document_store.api_key == Secret.from_env_var("PINECONE_API_KEY", strict=True)
-    assert document_store.index == "default"
+    assert document_store.index_name == "default"
     assert document_store.namespace == "test-namespace"
     assert document_store.batch_size == 50
     assert document_store.dimension == 512

@@ -13,6 +13,12 @@ from haystack_integrations.document_stores.pinecone import PineconeDocumentStore
 
 
 @patch("haystack_integrations.document_stores.pinecone.document_store.Pinecone")
+def test_init_is_lazy(_mock_client):
+    _ = PineconeDocumentStore(api_key=Secret.from_token("fake-api-key"))
+    _mock_client.assert_not_called()
+
+
+@patch("haystack_integrations.document_stores.pinecone.document_store.Pinecone")
 def test_init(mock_pinecone):
     mock_pinecone.return_value.Index.return_value.describe_index_stats.return_value = {"dimension": 60}
 
@@ -25,9 +31,12 @@ def test_init(mock_pinecone):
         metric="euclidean",
     )
 
+    # Trigger an actual connection
+    _ = document_store.index
+
     mock_pinecone.assert_called_with(api_key="fake-api-key", source_tag="haystack")
 
-    assert document_store.index == "my_index"
+    assert document_store.index_name == "my_index"
     assert document_store.namespace == "test"
     assert document_store.batch_size == 50
     assert document_store.dimension == 60
@@ -38,13 +47,16 @@ def test_init(mock_pinecone):
 def test_init_api_key_in_environment_variable(mock_pinecone, monkeypatch):
     monkeypatch.setenv("PINECONE_API_KEY", "env-api-key")
 
-    PineconeDocumentStore(
+    ds = PineconeDocumentStore(
         index="my_index",
         namespace="test",
         batch_size=50,
         dimension=30,
         metric="euclidean",
     )
+
+    # Trigger an actual connection
+    _ = ds.index
 
     mock_pinecone.assert_called_with(api_key="env-api-key", source_tag="haystack")
 
@@ -60,6 +72,9 @@ def test_to_from_dict(mock_pinecone, monkeypatch):
         dimension=30,
         metric="euclidean",
     )
+
+    # Trigger an actual connection
+    _ = document_store.index
 
     dict_output = {
         "type": "haystack_integrations.document_stores.pinecone.document_store.PineconeDocumentStore",
@@ -83,7 +98,7 @@ def test_to_from_dict(mock_pinecone, monkeypatch):
 
     document_store = PineconeDocumentStore.from_dict(dict_output)
     assert document_store.api_key == Secret.from_env_var("PINECONE_API_KEY", strict=True)
-    assert document_store.index == "my_index"
+    assert document_store.index_name == "my_index"
     assert document_store.namespace == "test"
     assert document_store.batch_size == 50
     assert document_store.dimension == 60
@@ -94,9 +109,9 @@ def test_to_from_dict(mock_pinecone, monkeypatch):
 def test_init_fails_wo_api_key(monkeypatch):
     monkeypatch.delenv("PINECONE_API_KEY", raising=False)
     with pytest.raises(ValueError):
-        PineconeDocumentStore(
+        _ = PineconeDocumentStore(
             index="my_index",
-        )
+        ).index
 
 
 def test_convert_dict_spec_to_pinecone_object_serverless():
@@ -108,7 +123,6 @@ def test_convert_dict_spec_to_pinecone_object_serverless():
 
 
 def test_convert_dict_spec_to_pinecone_object_pod():
-
     dict_spec = {"pod": {"replicas": 1, "shards": 1, "pods": 1, "pod_type": "p1.x1", "environment": "us-west1-gcp"}}
     pinecone_object = PineconeDocumentStore._convert_dict_spec_to_pinecone_object(dict_spec)
 
@@ -141,7 +155,7 @@ def test_serverless_index_creation_from_scratch(sleep_time):
 
     time.sleep(sleep_time)
 
-    PineconeDocumentStore(
+    ds = PineconeDocumentStore(
         index=index_name,
         namespace="test",
         batch_size=50,
@@ -149,6 +163,8 @@ def test_serverless_index_creation_from_scratch(sleep_time):
         metric="euclidean",
         spec={"serverless": {"region": "us-east-1", "cloud": "aws"}},
     )
+    # Trigger the connection
+    _ = ds.index
 
     index_description = client.describe_index(name=index_name)
     assert index_description["name"] == index_name
