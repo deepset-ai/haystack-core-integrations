@@ -147,8 +147,8 @@ def test_convert_dict_spec_to_pinecone_object_fail():
 @pytest.mark.skipif("PINECONE_API_KEY" not in os.environ, reason="PINECONE_API_KEY not set")
 # we create an index with a fixed name, to avoid hitting the limit of Pinecone's free tier (max 5 indexes)
 # to avoid collisions, we want this test to run it only once in our test suite
-@pytest.mark.skipif(sys.platform != "linux")
-@pytest.mark.skipif(sys.version_info != (3, 10))
+@pytest.mark.skipif(sys.platform != "linux", reason="This test should run only once in the test suite")
+@pytest.mark.skipif(sys.version_info != (3, 10), reason="This test should run only once in the test suite")
 def test_serverless_index_creation_from_scratch(sleep_time):
     index_name = "my-serverless-index"
 
