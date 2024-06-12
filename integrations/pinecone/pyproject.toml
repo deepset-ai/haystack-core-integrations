@@ -144,9 +144,7 @@ ban-relative-imports = "parents"
 
 [tool.coverage.run]
 source = ["haystack_integrations"]
-branch = true
-concurrency = ["multiprocessing"]
-parallel = true
+parallel = false
 
 
 [tool.coverage.report]
