@@ -92,8 +92,8 @@ class TestLangfuseTracer:
 
         tracer_mock.flush.assert_called_once()
 
-    def test_update_span_flush_disable(self):
-        os.environ["HAYSTACK_LANGFUSE_ENFORCE_FLUSH"] = "false"
+    def test_update_span_flush_disable(self, monkeypatch):
+        monkeypatch.setenv("HAYSTACK_LANGFUSE_ENFORCE_FLUSH", "false")
         tracer_mock = Mock()
 
         from haystack_integrations.tracing.langfuse.tracer import LangfuseTracer
