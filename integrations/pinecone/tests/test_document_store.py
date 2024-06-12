@@ -166,6 +166,8 @@ def test_serverless_index_creation_from_scratch(sleep_time):
     # Trigger the connection
     _ = ds.index
 
+    time.sleep(sleep_time)
+
     index_description = client.describe_index(name=index_name)
     assert index_description["name"] == index_name
     assert index_description["dimension"] == 30
