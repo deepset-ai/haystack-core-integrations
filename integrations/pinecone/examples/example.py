@@ -24,10 +24,10 @@ file_paths = glob.glob("neural-search-pills/pills/*.md")
 
 document_store = PineconeDocumentStore(
     api_key=Secret.from_token("YOUR-PINECONE-API-KEY"),
-    environment="gcp-starter",
     index="default",
     namespace="default",
     dimension=768,
+    spec={"serverless": {"region": "us-east-1", "cloud": "aws"}},
 )
 
 indexing = Pipeline()

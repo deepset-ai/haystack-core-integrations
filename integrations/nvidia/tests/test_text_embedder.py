@@ -1,18 +1,29 @@
 import os
-from unittest.mock import Mock, patch
 
 import pytest
 from haystack.utils import Secret
 from haystack_integrations.components.embedders.nvidia import EmbeddingTruncateMode, NvidiaTextEmbedder
+from haystack_integrations.components.embedders.nvidia.backend import EmbedderBackend
+
+
+class MockBackend(EmbedderBackend):
+    def __init__(self, model, model_kwargs):
+        super().__init__(model, model_kwargs)
+
+    def embed(self, texts):
+        inputs = texts
+        data = [[0.1, 0.2, 0.3] for i in range(len(inputs))]
+        return data, {"usage": {"total_tokens": 4, "prompt_tokens": 4}}
 
 
 class TestNvidiaTextEmbedder:
     def test_init_default(self, monkeypatch):
         monkeypatch.setenv("NVIDIA_API_KEY", "fake-api-key")
-        embedder = NvidiaTextEmbedder("nvolveqa_40k")
+        embedder = NvidiaTextEmbedder()
 
         assert embedder.api_key == Secret.from_env_var("NVIDIA_API_KEY")
-        assert embedder.model == "nvolveqa_40k"
+        assert embedder.model == "NV-Embed-QA"
+        assert embedder.api_url == "https://ai.api.nvidia.com/v1/retrieval/nvidia"
         assert embedder.prefix == ""
         assert embedder.suffix == ""
 
@@ -20,11 +31,13 @@ class TestNvidiaTextEmbedder:
         embedder = NvidiaTextEmbedder(
             api_key=Secret.from_token("fake-api-key"),
             model="nvolveqa_40k",
+            api_url="https://ai.api.nvidia.com/v1/retrieval/nvidia/test",
             prefix="prefix",
             suffix="suffix",
         )
         assert embedder.api_key == Secret.from_token("fake-api-key")
         assert embedder.model == "nvolveqa_40k"
+        assert embedder.api_url == "https://ai.api.nvidia.com/v1/retrieval/nvidia/test"
         assert embedder.prefix == "prefix"
         assert embedder.suffix == "suffix"
 
@@ -42,7 +55,7 @@ class TestNvidiaTextEmbedder:
             "type": "haystack_integrations.components.embedders.nvidia.text_embedder.NvidiaTextEmbedder",
             "init_parameters": {
                 "api_key": {"env_vars": ["NVIDIA_API_KEY"], "strict": True, "type": "env_var"},
-                "api_url": None,
+                "api_url": "https://ai.api.nvidia.com/v1/retrieval/nvidia",
                 "model": "nvolveqa_40k",
                 "prefix": "",
                 "suffix": "",
@@ -54,6 +67,7 @@ class TestNvidiaTextEmbedder:
         monkeypatch.setenv("NVIDIA_API_KEY", "fake-api-key")
         component = NvidiaTextEmbedder(
             model="nvolveqa_40k",
+            api_url="https://example.com",
             prefix="prefix",
             suffix="suffix",
             truncate=EmbeddingTruncateMode.START,
@@ -63,7 +77,7 @@ class TestNvidiaTextEmbedder:
             "type": "haystack_integrations.components.embedders.nvidia.text_embedder.NvidiaTextEmbedder",
             "init_parameters": {
                 "api_key": {"env_vars": ["NVIDIA_API_KEY"], "strict": True, "type": "env_var"},
-                "api_url": None,
+                "api_url": "https://example.com",
                 "model": "nvolveqa_40k",
                 "prefix": "prefix",
                 "suffix": "suffix",
@@ -77,7 +91,7 @@ class TestNvidiaTextEmbedder:
             "type": "haystack_integrations.components.embedders.nvidia.text_embedder.NvidiaTextEmbedder",
             "init_parameters": {
                 "api_key": {"env_vars": ["NVIDIA_API_KEY"], "strict": True, "type": "env_var"},
-                "api_url": None,
+                "api_url": "https://example.com",
                 "model": "nvolveqa_40k",
                 "prefix": "prefix",
                 "suffix": "suffix",
@@ -86,27 +100,19 @@ class TestNvidiaTextEmbedder:
         }
         component = NvidiaTextEmbedder.from_dict(data)
         assert component.model == "nvolveqa_40k"
-        assert component.api_url is None
+        assert component.api_url == "https://example.com"
         assert component.prefix == "prefix"
         assert component.suffix == "suffix"
         assert component.truncate == "START"
 
-    @patch("haystack_integrations.components.embedders.nvidia._nvcf_backend.NvidiaCloudFunctionsClient")
-    def test_run(self, mock_client_class):
+    def test_run(self):
         embedder = NvidiaTextEmbedder(
             "playground_nvolveqa_40k", api_key=Secret.from_token("fake-api-key"), prefix="prefix ", suffix=" suffix"
         )
-        mock_client = Mock(
-            get_model_nvcf_id=Mock(return_value="some_id"),
-            query_function=Mock(
-                return_value={
-                    "data": [{"index": 0, "embedding": [0.1, 0.2, 0.3]}],
-                    "usage": {"total_tokens": 4, "prompt_tokens": 4},
-                }
-            ),
-        )
-        mock_client_class.return_value = mock_client
+
         embedder.warm_up()
+        embedder.backend = MockBackend("aa", None)
+
         result = embedder.run(text="The food was delicious")
 
         assert len(result["embedding"]) == 3
@@ -115,41 +121,15 @@ class TestNvidiaTextEmbedder:
             "usage": {"prompt_tokens": 4, "total_tokens": 4},
         }
 
-    @patch("haystack_integrations.components.embedders.nvidia._nvcf_backend.NvidiaCloudFunctionsClient")
-    def test_run_wrong_input_format(self, mock_client_class):
+    def test_run_wrong_input_format(self):
         embedder = NvidiaTextEmbedder("playground_nvolveqa_40k", api_key=Secret.from_token("fake-api-key"))
-        mock_client = Mock(
-            get_model_nvcf_id=Mock(return_value="some_id"),
-            query_function=Mock(
-                return_value={
-                    "data": [{"index": 0, "embedding": [0.1, 0.2, 0.3]}],
-                    "usage": {"total_tokens": 4, "prompt_tokens": 4},
-                }
-            ),
-        )
-        mock_client_class.return_value = mock_client
         embedder.warm_up()
+        embedder.backend = MockBackend("aa", None)
 
         list_integers_input = [1, 2, 3]
 
         with pytest.raises(TypeError, match="NvidiaTextEmbedder expects a string as an input"):
             embedder.run(text=list_integers_input)
-
-    @pytest.mark.skipif(
-        not os.environ.get("NVIDIA_API_KEY", None),
-        reason="Export an env var called NVIDIA_API_KEY containing the Nvidia API key to run this test.",
-    )
-    @pytest.mark.integration
-    def test_run_integration_with_nvcf_backend(self):
-        embedder = NvidiaTextEmbedder("playground_nvolveqa_40k")
-        embedder.warm_up()
-
-        result = embedder.run("A transformer is a deep learning architecture")
-        embedding = result["embedding"]
-        meta = result["meta"]
-
-        assert all(isinstance(x, float) for x in embedding)
-        assert "usage" in meta
 
     @pytest.mark.skipif(
         not os.environ.get("NVIDIA_NIM_EMBEDDER_MODEL", None) or not os.environ.get("NVIDIA_NIM_ENDPOINT_URL", None),

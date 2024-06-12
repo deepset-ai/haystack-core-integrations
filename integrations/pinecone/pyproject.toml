@@ -24,8 +24,7 @@ classifiers = [
 ]
 dependencies = [
   "haystack-ai",
-  "pinecone-client<3", # our implementation is not compatible with pinecone-client>=3
-  # see https://github.com/deepset-ai/haystack-core-integrations/issues/223
+  "pinecone-client>=3" # our implementation is not compatible with pinecone-client <3
 ]
 
 [project.urls]

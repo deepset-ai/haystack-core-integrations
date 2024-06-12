@@ -1,3 +1,4 @@
+import os
 from typing import Optional, Type
 
 import pytest
@@ -182,6 +183,13 @@ class TestAnthropicClaudeAdapter:
         assert body == expected_body
 
 
+@pytest.mark.skipif(
+    not os.environ.get("HF_API_TOKEN", None),
+    reason=(
+        "To run this test, you need to set the HF_API_TOKEN environment variable. The associated account must also "
+        "have requested access to the gated model `mistralai/Mistral-7B-Instruct-v0.1`"
+    ),
+)
 class TestMistralAdapter:
     def test_prepare_body_with_default_params(self) -> None:
         layer = MistralChatAdapter(generation_kwargs={})

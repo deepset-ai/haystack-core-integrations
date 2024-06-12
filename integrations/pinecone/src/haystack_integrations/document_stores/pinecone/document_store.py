@@ -4,7 +4,7 @@
 import io
 import logging
 from copy import copy
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Literal, Optional
 
 import pandas as pd
 from haystack import default_from_dict, default_to_dict
@@ -13,7 +13,7 @@ from haystack.document_stores.types import DuplicatePolicy
 from haystack.utils import Secret, deserialize_secrets_inplace
 from haystack.utils.filters import convert
 
-import pinecone
+from pinecone import Pinecone, PodSpec, ServerlessSpec
 
 from .filters import _normalize_filters
 
@@ -25,6 +25,9 @@ logger = logging.getLogger(__name__)
 TOP_K_LIMIT = 1_000
 
 
+DEFAULT_STARTER_PLAN_SPEC = {"serverless": {"region": "us-east-1", "cloud": "aws"}}
+
+
 class PineconeDocumentStore:
     """
     A Document Store using [Pinecone vector database](https://www.pinecone.io/).
@@ -34,57 +37,91 @@ class PineconeDocumentStore:
         self,
         *,
         api_key: Secret = Secret.from_env_var("PINECONE_API_KEY"),  # noqa: B008
-        environment: str = "us-west1-gcp",
         index: str = "default",
         namespace: str = "default",
         batch_size: int = 100,
         dimension: int = 768,
-        **index_creation_kwargs,
+        spec: Optional[Dict[str, Any]] = None,
+        metric: Literal["cosine", "euclidean", "dotproduct"] = "cosine",
     ):
         """
         Creates a new PineconeDocumentStore instance.
         It is meant to be connected to a Pinecone index and namespace.
 
         :param api_key: The Pinecone API key.
-        :param environment: The Pinecone environment to connect to.
         :param index: The Pinecone index to connect to. If the index does not exist, it will be created.
         :param namespace: The Pinecone namespace to connect to. If the namespace does not exist, it will be created
             at the first write.
         :param batch_size: The number of documents to write in a single batch. When setting this parameter,
-            consider [documented Pinecone limits](https://docs.pinecone.io/docs/limits).
+            consider [documented Pinecone limits](https://docs.pinecone.io/reference/quotas-and-limits).
         :param dimension: The dimension of the embeddings. This parameter is only used when creating a new index.
-        :param index_creation_kwargs: Additional keyword arguments to pass to the index creation method.
-            You can find the full list of supported arguments in the
-            [API reference](https://docs.pinecone.io/reference/create_index).
+        :param spec: The Pinecone spec to use when creating a new index. Allows choosing between serverless and pod
+            deployment options and setting additional parameters. Refer to the
+            [Pinecone documentation](https://docs.pinecone.io/reference/api/control-plane/create_index) for more
+            details.
+            If not provided, a default spec with serverless deployment in the `us-east-1` region will be used
+            (compatible with the free tier).
+        :param metric: The metric to use for similarity search. This parameter is only used when creating a new index.
 
         """
         self.api_key = api_key
+        spec = spec or DEFAULT_STARTER_PLAN_SPEC
+        self.namespace = namespace
+        self.batch_size = batch_size
+        self.metric = metric
+        self.spec = spec
+        self.dimension = dimension
+        self.index_name = index
 
-        pinecone.init(api_key=api_key.resolve_value(), environment=environment)
+        self._index = None
+        self._dummy_vector = [-10.0] * self.dimension
 
-        if index not in pinecone.list_indexes():
-            logger.info(f"Index {index} does not exist. Creating a new index.")
-            pinecone.create_index(name=index, dimension=dimension, **index_creation_kwargs)
+    @property
+    def index(self):
+        if self._index is not None:
+            return self._index
+
+        client = Pinecone(api_key=self.api_key.resolve_value(), source_tag="haystack")
+
+        if self.index_name not in client.list_indexes().names():
+            logger.info(f"Index {self.index_name} does not exist. Creating a new index.")
+            pinecone_spec = self._convert_dict_spec_to_pinecone_object(self.spec)
+            client.create_index(name=self.index_name, dimension=self.dimension, spec=pinecone_spec, metric=self.metric)
         else:
-            logger.info(f"Index {index} already exists. Connecting to it.")
+            logger.info(
+                f"Connecting to existing index {self.index_name}. `dimension`, `spec`, and `metric` will be ignored."
+            )
 
-        self._index = pinecone.Index(index_name=index)
+        self._index = client.Index(name=self.index_name)
 
         actual_dimension = self._index.describe_index_stats().get("dimension")
-        if actual_dimension and actual_dimension != dimension:
+        if actual_dimension and actual_dimension != self.dimension:
             logger.warning(
-                f"Dimension of index {index} is {actual_dimension}, but {dimension} was specified. "
+                f"Dimension of index {self.index_name} is {actual_dimension}, but {self.dimension} was specified. "
                 "The specified dimension will be ignored."
                 "If you need an index with a different dimension, please create a new one."
             )
-        self.dimension = actual_dimension or dimension
-
+        self.dimension = actual_dimension or self.dimension
         self._dummy_vector = [-10.0] * self.dimension
-        self.environment = environment
-        self.index = index
-        self.namespace = namespace
-        self.batch_size = batch_size
-        self.index_creation_kwargs = index_creation_kwargs
+
+        return self._index
+
+    @staticmethod
+    def _convert_dict_spec_to_pinecone_object(spec: Dict[str, Any]):
+        """Convert the spec dictionary to a Pinecone spec object"""
+
+        if "serverless" in spec:
+            serverless_spec = spec["serverless"]
+            return ServerlessSpec(**serverless_spec)
+        if "pod" in spec:
+            pod_spec = spec["pod"]
+            return PodSpec(**pod_spec)
+
+        msg = (
+            "Invalid spec. Must contain either `serverless` or `pod` key. "
+            "Refer to https://docs.pinecone.io/reference/api/control-plane/create_index for more details."
+        )
+        raise ValueError(msg)
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "PineconeDocumentStore":
@@ -107,12 +144,12 @@ class PineconeDocumentStore:
         return default_to_dict(
             self,
             api_key=self.api_key.to_dict(),
-            environment=self.environment,
-            index=self.index,
+            spec=self.spec,
+            index=self.index_name,
             dimension=self.dimension,
             namespace=self.namespace,
             batch_size=self.batch_size,
-            **self.index_creation_kwargs,
+            metric=self.metric,
         )
 
     def count_documents(self) -> int:
@@ -120,7 +157,7 @@ class PineconeDocumentStore:
         Returns how many documents are present in the document store.
         """
         try:
-            count = self._index.describe_index_stats()["namespaces"][self.namespace]["vector_count"]
+            count = self.index.describe_index_stats()["namespaces"][self.namespace]["vector_count"]
         except KeyError:
             count = 0
         return count
@@ -147,9 +184,7 @@ class PineconeDocumentStore:
 
         documents_for_pinecone = self._convert_documents_to_pinecone_format(documents)
 
-        result = self._index.upsert(
-            vectors=documents_for_pinecone, namespace=self.namespace, batch_size=self.batch_size
-        )
+        result = self.index.upsert(vectors=documents_for_pinecone, namespace=self.namespace, batch_size=self.batch_size)
 
         written_docs = result["upserted_count"]
         return written_docs
@@ -187,7 +222,7 @@ class PineconeDocumentStore:
 
         :param document_ids: the document ids to delete
         """
-        self._index.delete(ids=document_ids, namespace=self.namespace)
+        self.index.delete(ids=document_ids, namespace=self.namespace)
 
     def _embedding_retrieval(
         self,
@@ -220,7 +255,7 @@ class PineconeDocumentStore:
             filters = convert(filters)
         filters = _normalize_filters(filters) if filters else None
 
-        result = self._index.query(
+        result = self.index.query(
             vector=query_embedding,
             top_k=top_k,
             namespace=namespace or self.namespace,
