@@ -40,14 +40,8 @@ class CohereGenerator(CohereChatGenerator):
     ):
         """
         Instantiates a `CohereGenerator` component.
-
-        NOTE: Cohere discontinued the `generate` API, so this generator is a mere wrapper
-        around `CohereChatGenerator` provided for backward compatibility.
         """
-        logger.warning(
-            "The 'generate' API is marked as Legacy and is no longer maintained by Cohere. "
-            "We recommend to use the CohereChatGenerator instead."
-        )
+
         # Note we have to call super() like this because of the way components are dynamically built with the decorator
         super(CohereGenerator, self).__init__(api_key, model, streaming_callback, api_base_url, None, **kwargs)  # noqa
 
