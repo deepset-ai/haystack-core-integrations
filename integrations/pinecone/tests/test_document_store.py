@@ -4,6 +4,7 @@ from unittest.mock import patch
 
 import numpy as np
 import pytest
+import time
 from haystack import Document
 from haystack.testing.document_store import CountDocumentsTest, DeleteDocumentsTest, WriteDocumentsTest
 from haystack.utils import Secret
@@ -145,7 +146,8 @@ def test_convert_dict_spec_to_pinecone_object_fail():
 @pytest.mark.integration
 @pytest.mark.skipif("PINECONE_API_KEY" not in os.environ, reason="PINECONE_API_KEY not set")
 def test_serverless_index_creation_from_scratch(sleep_time):
-    index_name = "my-serverless-index"
+    # the index name is dynamic, so we can run the test in parallel
+    index_name = f"my-serverless-index-{int(time.time())}"
 
     client = Pinecone(api_key=os.environ["PINECONE_API_KEY"])
     try:
@@ -165,8 +167,6 @@ def test_serverless_index_creation_from_scratch(sleep_time):
     )
     # Trigger the connection
     _ = ds.index
-
-    time.sleep(sleep_time)
 
     index_description = client.describe_index(name=index_name)
     assert index_description["name"] == index_name
