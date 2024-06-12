@@ -145,7 +145,10 @@ def test_convert_dict_spec_to_pinecone_object_fail():
 @pytest.mark.integration
 @pytest.mark.skipif("PINECONE_API_KEY" not in os.environ, reason="PINECONE_API_KEY not set")
 def test_serverless_index_creation_from_scratch(sleep_time):
-    index_name = "my-serverless-index"
+    # we use a fixed index name to avoid hitting the limit of Pinecone's free tier (max 5 indexes)
+    # the index name is defined in the test matrix of the GitHub Actions workflow
+    # the default value is provided for local testing
+    index_name = os.environ.get("INDEX_NAME", "serverless-test-index")
 
     client = Pinecone(api_key=os.environ["PINECONE_API_KEY"])
     try:

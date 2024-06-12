@@ -6,13 +6,13 @@ from pinecone.core.client.exceptions import NotFoundException
 
 from haystack_integrations.document_stores.pinecone import PineconeDocumentStore
 
-# This is the approximate time it takes for the documents to be available
-SLEEP_TIME = 10
+# This is the approximate time in seconds it takes for the documents to be available
+SLEEP_TIME_IN_SECONDS = 15
 
 
 @pytest.fixture()
 def sleep_time():
-    return SLEEP_TIME
+    return SLEEP_TIME_IN_SECONDS
 
 
 @pytest.fixture
@@ -37,14 +37,14 @@ def document_store(request):
 
     def write_documents_and_wait(documents, policy=DuplicatePolicy.NONE):
         written_docs = original_write_documents(documents, policy)
-        time.sleep(SLEEP_TIME)
+        time.sleep(SLEEP_TIME_IN_SECONDS)
         return written_docs
 
     original_delete_documents = store.delete_documents
 
     def delete_documents_and_wait(filters):
         original_delete_documents(filters)
-        time.sleep(SLEEP_TIME)
+        time.sleep(SLEEP_TIME_IN_SECONDS)
 
     store.write_documents = write_documents_and_wait
     store.delete_documents = delete_documents_and_wait
