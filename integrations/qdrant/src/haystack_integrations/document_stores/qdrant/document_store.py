@@ -49,9 +49,9 @@ def get_batches_from_generator(iterable, n):
 
 
 class QdrantDocumentStore:
-
     """
-    QdrantDocumentStore is a Document Store for Qdrant. It can be used with any Qdrant instance, in-memory, locally persisted, hosted, and the official Qdrant Cloud.
+    QdrantDocumentStore is a Document Store for Qdrant. It can be used with any Qdrant instance: in-memory,
+    locally persisted, hosted, and the official Qdrant Cloud.
 
     Usage example by creating an in-memory instance:
 
@@ -66,7 +66,7 @@ class QdrantDocumentStore:
         wait_result_from_api=True,
     )
     document_store.write_documents([
-        Document(content="This is first", embedding=[0.0]*5), 
+        Document(content="This is first", embedding=[0.0]*5),
         Document(content="This is second", embedding=[0.1, 0.2, 0.3, 0.4, 0.5])
     ])
     ```
@@ -82,7 +82,7 @@ class QdrantDocumentStore:
         api_key="<your-api-key>",
     )
     document_store.write_documents([
-        Document(content="This is first", embedding=[0.0]*5), 
+        Document(content="This is first", embedding=[0.0]*5),
         Document(content="This is second", embedding=[0.1, 0.2, 0.3, 0.4, 0.5])
     ])
     ```
@@ -135,88 +135,94 @@ class QdrantDocumentStore:
         scroll_size: int = 10_000,
         payload_fields_to_index: Optional[List[dict]] = None,
     ):
-        
         """
-        :param location: 
-            If “:memory:” - use in-memory Qdrant instance. If str - use it as a url parameter. If None - use default values for host and port.
-        :param url: 
-            Either host or str of “Optional[scheme], host, Optional[port], Optional[prefix]”. Default: None
-        :param port: 
-            Port of the REST API interface. Default: 6333
-        :param grpc_port: 
-            Port of the gRPC interface. Default: 6334
-        :param prefer_grpc: 
-            If true - use gRPC interface whenever possible in custom methods. Default: False
-        :param https: 
-            If true - use HTTPS(SSL) protocol. Default: None
-        :param api_key: 
-            API key for authentication in Qdrant Cloud. Default: None
-        :param prefix: 
-            If not None - add prefix to the REST URL path. Example: service/v1 will result in http://localhost:6333/service/v1/{qdrant-endpoint} for REST API. Default: None
-        :param timeout: 
-            Timeout for REST and gRPC API requests. Default: 5 seconds for REST and unlimited for gRPC
-        :param host: 
-            Host name of Qdrant service. If url and host are None, set to ‘localhost’. Default: None
-        :param path: 
-            Persistence path for QdrantLocal. Default: None
-        :param force_disable_check_same_thread: 
-            For QdrantLocal, force disable check_same_thread. Default: False. Only use this if you can guarantee that you can resolve the thread safety outside QdrantClient.
+        :param location:
+            If “:memory:” - use in-memory Qdrant instance. If str - use it as a url parameter.
+            If None - use default values for host and port.
+        :param url:
+            Either host or str of “Optional[scheme], host, Optional[port], Optional[prefix]”. Default: None.
+        :param port:
+            Port of the REST API interface. Default: 6333.
+        :param grpc_port:
+            Port of the gRPC interface. Default: 6334.
+        :param prefer_grpc:
+            If true - use gRPC interface whenever possible in custom methods. Default: False.
+        :param https:
+            If true - use HTTPS(SSL) protocol. Default: None.
+        :param api_key:
+            API key for authentication in Qdrant Cloud. Default: None.
+        :param prefix:
+            If not None - add prefix to the REST URL path.
+            Example: service/v1 will result in http://localhost:6333/service/v1/{qdrant-endpoint}
+            for REST API. Default: None.
+        :param timeout:
+            Timeout for REST and gRPC API requests. Default: 5 seconds for REST and unlimited for gRPC.
+        :param host:
+            Host name of Qdrant service. If url and host are None, set to `localhost`. Default: None.
+        :param path:
+            Persistence path for QdrantLocal. Default: None.
+        :param force_disable_check_same_thread:
+            For QdrantLocal, force disable check_same_thread. Default: False.
+            Only use this if you can guarantee that you can resolve the thread safety outside QdrantClient.
         :param index:
-            Name of the index. Defaults to 'Document'.
+            Name of the index. Default: 'Document'.
         :param embedding_dim:
-            Dimension of the embeddings. Default: 768
+            Dimension of the embeddings. Default: 768.
         :param on_disk:
             Whether to store the collection on disk. Default: False.
         :param content_field:
-            The field name for the document content. Default: 'content'.
+            The field for the document content. Default: 'content'.
         :param name_field:
-            The field name for the document name. Default: 'name'.
+            The field for the document name. Default: 'name'.
         :param embedding_field:
-            The field name for the document embeddings. Default: 'embedding'.
+            The field for the document embeddings. Default: 'embedding'.
         :param use_sparse_embedding:
-            If set to True, enables the use for 'Sparse Embedding' class. Default: False
+            If set to True, enables the use for 'Sparse Embedding' class. Default: False.
         :param similarity:
-            The similarity metric to use. Default: 'cosine'
+            The similarity metric to use. Default: 'cosine'.
         :param return_embedding:
             Whether to return embeddings in the search results. Default: False.
         :param progress_bar:
-            Whether to show a progress bar or not. Default: True
+            Whether to show a progress bar or not. Default: True.
         :param duplicate_documents:
             The policy for handling duplicate documents ("overwrite", "skip", or "fail"). Default: 'overwrite'.
         :param recreate_index:
             Whether to recreate the index. Default: False.
-        :param shard_number: 
+        :param shard_number:
             Number of shards in the collection. Default is 1, minimum is 1.
-        :param replication_factor: 
-            Replication factor for the collection. Default is 1, minimum is 1. 
+        :param replication_factor:
+            Replication factor for the collection. Default is 1, minimum is 1.
             Defines how many copies of each shard will be created. Effective only in distributed mode.
-        :param write_consistency_factor: 
-            Write consistency factor for the collection. Default is 1, minimum is 1. 
-            Defines how many replicas should apply the operation for it to be considered successful. 
-            Increasing this number makes the collection more resilient to inconsistencies but will cause failures if not enough replicas are available. 
-            Effective only in distributed mode. 
-        :param on_disk_payload: 
-            If true, the point's payload will not be stored in memory and will be read from the disk every time it is requested. 
-            This setting saves RAM by slightly increasing response time. Note: indexed payload values remain in RAM. Deafault: None
-        :param hnsw_config: 
-            Params for HNSW index. 
-        :param optimizers_config: 
-            Params for optimizer. 
-        :param wal_config: 
-            Params for Write-Ahead-Log. 
-        :param quantization_config: 
-            Params for quantization. If None, quantization will be disabled. Default: None
-        :param init_from: 
-            Use data stored in another collection to initialize this collection. Default: None
-        :param wait_result_from_api: 
+        :param write_consistency_factor:
+            Write consistency factor for the collection. Default is 1, minimum is 1.
+            Defines how many replicas should apply to the operation for it to be considered successful.
+            Increasing this number makes the collection more resilient to inconsistencies
+            but will cause failures if not enough replicas are available.
+            Effective only in distributed mode.
+        :param on_disk_payload:
+            If true, the point's payload will not be stored in memory and
+            will be read from the disk every time it is requested.
+            This setting saves RAM by slightly increasing response time.
+            Note: indexed payload values remain in RAM. Deafault: None.
+        :param hnsw_config:
+            Params for HNSW index.
+        :param optimizers_config:
+            Params for optimizer.
+        :param wal_config:
+            Params for Write-Ahead-Log.
+        :param quantization_config:
+            Params for quantization. If None, quantization will be disabled. Default: None.
+        :param init_from:
+            Use data stored in another collection to initialize this collection. Default: None.
+        :param wait_result_from_api:
             Whether to wait for the result from the API after each request. Default: True.
-        :param metadata: 
+        :param metadata:
             Additional metadata to include with the documents. Default: None.
-        :param write_batch_size: 
+        :param write_batch_size:
             The batch size for writing documents. Default: 100.
-        :param scroll_size: 
+        :param scroll_size:
             The scroll size for reading documents. Default: 10,000.
-        :param payload_fields_to_index: 
+        :param payload_fields_to_index:
             List of payload fields to index. Default: None.
         """
 
@@ -297,7 +303,7 @@ class QdrantDocumentStore:
 
     def count_documents(self) -> int:
         """
-        Returns the number of documents present in the DocumentStore.
+        Returns the number of documents present in the Document Store.
         """
         try:
             response = self.client.count(
@@ -315,13 +321,13 @@ class QdrantDocumentStore:
         filters: Optional[Union[Dict[str, Any], rest.Filter]] = None,
     ) -> List[Document]:
         """
-        Returns the documents that match the filters provided.
+        Returns the documents that match the provided filters.
 
         For a detailed specification of the filters, refer to the
         DocumentStore.filter_documents() protocol documentation.
 
         :param filters: The filters to apply to the document list.
-        :returns: A list of Documents that match the given filters.
+        :returns: A list of documents that match the given filters.
         """
         if filters and not isinstance(filters, dict) and not isinstance(filters, rest.Filter):
             msg = "Filter must be a dictionary or an instance of `qdrant_client.http.models.Filter`"
@@ -342,12 +348,13 @@ class QdrantDocumentStore:
     ):
         """
         Writes documents to Qdrant using the specified policy.
-        The QdrantDocumentStore can handle duplicate documents based on the given policy. The available policies are:
+        The QdrantDocumentStore can handle duplicate documents based on the given policy.
+        The available policies are:
         - `FAIL`: The operation will raise an error if any document already exists.
         - `OVERWRITE`: Existing documents will be overwritten with the new ones.
         - `SKIP`: Existing documents will be skipped, and only new documents will be added.
 
-        This method validates the documents, sets up the collection, handles duplicates based on the policy, 
+        This method validates the documents, sets up the collection, handles duplicates based on the policy,
         and batches the documents for efficient upsertion into Qdrant.
 
         :param documents: A list of Document objects to write to Qdrant.
@@ -442,7 +449,7 @@ class QdrantDocumentStore:
         """
         Returns a generator that yields documents from Qdrant based on the provided filters.
 
-        :param filters: Filters applied to the retrieved Documents.
+        :param filters: Filters applied to the retrieved documents.
         :returns: A generator that yields Haystack Document objects retrieved from Qdrant.
         """
 
@@ -477,11 +484,11 @@ class QdrantDocumentStore:
         """
         Retrieves documents from Qdrant by their IDs.
 
-        :param ids: 
+        :param ids:
             A list of document IDs to retrieve.
-        :param index: 
-            The name of the index to retrieve documents from. 
-        :returns: 
+        :param index:
+            The name of the index to retrieve documents from.
+        :returns:
             A list of Haystack Document objects.
         """
         index = index or self.index
@@ -514,12 +521,12 @@ class QdrantDocumentStore:
         Queries Qdrant using sparse embeddings and returns the most relevant documents.
 
         :param query_sparse_embedding: Sparse embedding of the query.
-        :param filters: Filters applied to the retrieved Documents.
-        :param top_k: Maximum number of Documents to return.
+        :param filters: Filters applied to the retrieved documents.
+        :param top_k: Maximum number of documents to return.
         :param scale_score: Whether to scale the scores of the retrieved documents. Default: True.
         :param return_embedding: Whether to return the embeddings of the retrieved documents.
 
-        :returns: List of Document that are most similar to `query_sparse_embedding`.
+        :returns: List of documents that are most similar to `query_sparse_embedding`.
 
         :raises QdrantStoreError:
             If the Document Store was initialized with `use_sparse_embeddings=False`.
@@ -571,12 +578,12 @@ class QdrantDocumentStore:
         Queries Qdrant using dense embeddings and returns the most relevant documents.
 
         :param query_embedding: Dense embedding of the query.
-        :param filters: Filters applied to the retrieved Documents.
-        :param top_k: Maximum number of Documents to return.
+        :param filters: Filters applied to the retrieved documents.
+        :param top_k: Maximum number of documents to return.
         :param scale_score: Whether to scale the scores of the retrieved documents. Default: True.
         :param return_embedding: Whether to return the embeddings of the retrieved documents.
 
-        :returns: List of Document that are most similar to `query_embedding`.
+        :returns: List of documents that are most similar to `query_embedding`.
         """
         qdrant_filters = convert_filters_to_qdrant(filters)
 
@@ -620,8 +627,8 @@ class QdrantDocumentStore:
 
         :param query_embedding: Dense embedding of the query.
         :param query_sparse_embedding: Sparse embedding of the query.
-        :param filters: Filters applied to the retrieved Documents.
-        :param top_k: Maximum number of Documents to return.
+        :param filters: Filters applied to the retrieved documents.
+        :param top_k: Maximum number of documents to return.
         :param return_embedding: Whether to return the embeddings of the retrieved documents.
 
         :returns: List of Document that are most similar to `query_embedding` and `query_sparse_embedding`.
@@ -688,11 +695,11 @@ class QdrantDocumentStore:
         """
         Retrieves the distance metric for the specified similarity measure.
 
-        :param similarity: 
+        :param similarity:
             The similarity measure to retrieve the distance.
-        :returns: 
+        :returns:
             The corresponding rest.Distance object.
-        :raises QdrantStoreError: 
+        :raises QdrantStoreError:
             If the provided similarity measure is not supported.
         """
         try:
@@ -730,26 +737,26 @@ class QdrantDocumentStore:
     ):
         """
         Sets up the Qdrant collection with the specified parameters.
-        :param collection_name: 
+        :param collection_name:
             The name of the collection to set up.
-        :param embedding_dim: 
+        :param embedding_dim:
             The dimension of the embeddings.
-        :param recreate_collection: 
+        :param recreate_collection:
             Whether to recreate the collection if it already exists.
-        :param similarity: 
+        :param similarity:
             The similarity measure to use.
-        :param use_sparse_embeddings: 
+        :param use_sparse_embeddings:
             Whether to use sparse embeddings.
-        :param on_disk: 
+        :param on_disk:
             Whether to store the collection on disk. Default: False.
-        :param payload_fields_to_index: 
+        :param payload_fields_to_index:
             List of payload fields to index.
 
-        :raises QdrantStoreError: 
+        :raises QdrantStoreError:
             If the collection exists with incompatible settings.
-        :raises ValueError: 
+        :raises ValueError:
             If the collection exists with a different similarity measure or embedding dimension.
-    
+
         """
         distance = self.get_distance(similarity)
 
@@ -823,15 +830,15 @@ class QdrantDocumentStore:
         """
         Recreates the Qdrant collection with the specified parameters.
 
-        :param collection_name: 
+        :param collection_name:
             The name of the collection to recreate.
-        :param distance: 
+        :param distance:
             The distance metric to use for the collection.
-        :param embedding_dim: 
+        :param embedding_dim:
             The dimension of the embeddings.
-        :param on_disk: 
+        :param on_disk:
             Whether to store the collection on disk. Default: None.
-        :param use_sparse_embeddings: 
+        :param use_sparse_embeddings:
             Whether to use sparse embeddings. Default: None.
         """
         if on_disk is None:
@@ -885,11 +892,11 @@ class QdrantDocumentStore:
 
         :param documents: A list of Haystack Document objects.
         :param index: name of the index
-        :param duplicate_documents: Handle duplicates document based on parameter options.
+        :param duplicate_documents: Handle duplicate documents based on parameter options.
                                     Parameter options : ( 'skip','overwrite','fail')
-                                    skip (default option): Ignore the duplicates documents
+                                    skip (default option): Ignore the duplicates documents.
                                     overwrite: Update any existing documents with the same ID when adding documents.
-                                    fail: an error is raised if the document ID of the document being added already
+                                    fail: An error is raised if the document ID of the document being added already
                                     exists.
         :returns: A list of Haystack Document objects.
         """
@@ -910,10 +917,10 @@ class QdrantDocumentStore:
 
     def _drop_duplicate_documents(self, documents: List[Document], index: Optional[str] = None) -> List[Document]:
         """
-        Drop duplicates documents based on same hash ID
+        Drop duplicate documents based on same hash ID.
 
         :param documents: A list of Haystack Document objects.
-        :param index: name of the index
+        :param index: Name of the index.
         :returns: A list of Haystack Document objects.
         """
         _hash_ids: Set = set()
