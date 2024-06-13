@@ -1,3 +1,4 @@
+import os
 from unittest.mock import Mock, MagicMock, patch
 
 from haystack_integrations.tracing.langfuse.tracer import LangfuseTracer
@@ -38,7 +39,9 @@ class TestLangfuseTracer:
                 assert span.raw_span().operation_name == "operation_name"
                 assert span.raw_span().metadata == {"tag1": "value1", "tag2": "value2"}
 
-            assert len(tracer._context) == 1, "The trace span should have been popped, leaving root span in the context"
+            assert (
+                len(tracer._context) == 0
+            ), "The trace span should have been popped, and the root span is closed as well"
 
     # check that update method is called on the span instance with the provided key value pairs
     def test_update_span_with_pipeline_input_output_data(self):
@@ -79,3 +82,33 @@ class TestLangfuseTracer:
 
         with tracer.trace(operation_name="operation_name", tags={"haystack.pipeline.output_data": "bye"}) as span:
             assert span.raw_span()._data["metadata"] == {"haystack.pipeline.output_data": "bye"}
+
+    def test_update_span_gets_flushed_by_default(self):
+        tracer_mock = Mock()
+
+        tracer = LangfuseTracer(tracer=tracer_mock, name="Haystack", public=False)
+        with tracer.trace(operation_name="operation_name", tags={"haystack.pipeline.input_data": "hello"}) as span:
+            pass
+
+        tracer_mock.flush.assert_called_once()
+
+    def test_update_span_flush_disable(self, monkeypatch):
+        monkeypatch.setenv("HAYSTACK_LANGFUSE_ENFORCE_FLUSH", "false")
+        tracer_mock = Mock()
+
+        from haystack_integrations.tracing.langfuse.tracer import LangfuseTracer
+
+        tracer = LangfuseTracer(tracer=tracer_mock, name="Haystack", public=False)
+        with tracer.trace(operation_name="operation_name", tags={"haystack.pipeline.input_data": "hello"}) as span:
+            pass
+
+        tracer_mock.flush.assert_not_called()
+
+    def test_context_is_empty_after_tracing(self):
+        tracer_mock = Mock()
+
+        tracer = LangfuseTracer(tracer=tracer_mock, name="Haystack", public=False)
+        with tracer.trace(operation_name="operation_name", tags={"haystack.pipeline.input_data": "hello"}) as span:
+            pass
+
+        assert tracer._context == []
