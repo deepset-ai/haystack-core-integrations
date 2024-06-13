@@ -125,14 +125,12 @@ class LangfuseTracer(Tracer):
                 # Haystack returns one meta dict for each message, but the 'usage' value
                 # is always the same, let's just pick the first item
                 m = meta[0]
-                usage = m.get("usage") if m.get("usage") else None
-                span._span.update(usage=usage, model=m.get("model"))
+                span._span.update(usage=m.get("usage") or None, model=m.get("model"))
         elif tags.get("haystack.component.type") == "OpenAIChatGenerator":
             replies = span._data.get("haystack.component.output", {}).get("replies")
             if replies:
                 meta = replies[0].meta
-                usage = meta.get("usage") if meta.get("usage") else None
-                span._span.update(usage=usage, model=meta.get("model"))
+                span._span.update(usage=meta.get("usage") or None, model=meta.get("model"))
 
         pipeline_input = tags.get("haystack.pipeline.input_data", None)
         if pipeline_input:
