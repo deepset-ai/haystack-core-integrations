@@ -98,6 +98,10 @@ class AnthropicClaudeAdapter(BedrockModelAdapter):
     Adapter for the Anthropic Claude models.
     """
 
+    def __init__(self, model_kwargs: Dict[str, Any], max_length: Optional[int]) -> None:
+        self.use_messages_api = model_kwargs.get("use_messages_api", True)
+        super().__init__(model_kwargs, max_length)
+
     def prepare_body(self, prompt: str, **inference_kwargs) -> Dict[str, Any]:
         """
         Prepares the body for the Claude model
@@ -108,16 +112,30 @@ class AnthropicClaudeAdapter(BedrockModelAdapter):
             - `prompt`: The prompt to be sent to the model.
             - specified inference parameters.
         """
-        default_params = {
-            "max_tokens_to_sample": self.max_length,
-            "stop_sequences": ["\n\nHuman:"],
-            "temperature": None,
-            "top_p": None,
-            "top_k": None,
-        }
-        params = self._get_params(inference_kwargs, default_params)
+        if self.use_messages_api:
+            default_params: Dict[str, Any] = {
+                "anthropic_version": "bedrock-2023-05-31",
+                "max_tokens": self.max_length,
+                "system": None,
+                "stop_sequences": None,
+                "temperature": None,
+                "top_p": None,
+                "top_k": None,
+            }
+            params = self._get_params(inference_kwargs, default_params)
 
-        body = {"prompt": f"\n\nHuman: {prompt}\n\nAssistant:", **params}
+            body = {"messages": [{"role": "user", "content": prompt}], **params}
+        else:
+            default_params = {
+                "max_tokens_to_sample": self.max_length,
+                "stop_sequences": ["\n\nHuman:"],
+                "temperature": None,
+                "top_p": None,
+                "top_k": None,
+            }
+            params = self._get_params(inference_kwargs, default_params)
+
+            body = {"prompt": f"\n\nHuman: {prompt}\n\nAssistant:", **params}
         return body
 
     def _extract_completions_from_response(self, response_body: Dict[str, Any]) -> List[str]:
@@ -127,6 +145,9 @@ class AnthropicClaudeAdapter(BedrockModelAdapter):
         :param response_body: The response body from the Amazon Bedrock request.
         :returns: A list of string responses.
         """
+        if self.use_messages_api:
+            return [content["text"] for content in response_body["content"]]
+
         return [response_body["completion"]]
 
     def _extract_token_from_stream(self, chunk: Dict[str, Any]) -> str:
@@ -136,6 +157,9 @@ class AnthropicClaudeAdapter(BedrockModelAdapter):
         :param chunk: The streaming chunk.
         :returns: A string token.
         """
+        if self.use_messages_api:
+            return chunk.get("delta", {}).get("text", "")
+
         return chunk.get("completion", "")
 
 
@@ -240,6 +264,66 @@ class CohereCommandAdapter(BedrockModelAdapter):
         return chunk.get("text", "")
 
 
+class CohereCommandRAdapter(BedrockModelAdapter):
+    """
+    Adapter for the Cohere Command R models.
+    """
+
+    def prepare_body(self, prompt: str, **inference_kwargs: Any) -> Dict[str, Any]:
+        """
+        Prepares the body for the Command model
+
+        :param prompt: The prompt to be sent to the model.
+        :param inference_kwargs: Additional keyword arguments passed to the handler.
+        :returns: A dictionary with the following keys:
+            - `prompt`: The prompt to be sent to the model.
+            - specified inference parameters.
+        """
+        default_params = {
+            "chat_history": None,
+            "documents": None,
+            "search_query_only": None,
+            "preamble": None,
+            "max_tokens": self.max_length,
+            "temperature": None,
+            "p": None,
+            "k": None,
+            "prompt_truncation": None,
+            "frequency_penalty": None,
+            "presence_penalty": None,
+            "seed": None,
+            "return_prompt": None,
+            "tools": None,
+            "tool_results": None,
+            "stop_sequences": None,
+            "raw_prompting": None,
+        }
+        params = self._get_params(inference_kwargs, default_params)
+
+        body = {"message": prompt, **params}
+        return body
+
+    def _extract_completions_from_response(self, response_body: Dict[str, Any]) -> List[str]:
+        """
+        Extracts the responses from the Cohere Command model response.
+
+        :param response_body: The response body from the Amazon Bedrock request.
+        :returns: A list of string responses.
+        """
+        responses = [response_body["text"]]
+        return responses
+
+    def _extract_token_from_stream(self, chunk: Dict[str, Any]) -> str:
+        """
+        Extracts the token from a streaming chunk.
+
+        :param chunk: The streaming chunk.
+        :returns: A string token.
+        """
+        token: str = chunk.get("text", "")
+        return token
+
+
 class AI21LabsJurassic2Adapter(BedrockModelAdapter):
     """
     Model adapter for AI21 Labs' Jurassic 2 models.
@@ -324,7 +408,7 @@ class AmazonTitanAdapter(BedrockModelAdapter):
         return chunk.get("outputText", "")
 
 
-class MetaLlama2ChatAdapter(BedrockModelAdapter):
+class MetaLlamaAdapter(BedrockModelAdapter):
     """
     Adapter for Meta's Llama2 models.
     """
