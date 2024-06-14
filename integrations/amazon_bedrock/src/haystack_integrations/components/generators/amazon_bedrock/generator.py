@@ -19,6 +19,7 @@ from .adapters import (
     AnthropicClaudeAdapter,
     BedrockModelAdapter,
     CohereCommandAdapter,
+    CohereCommandRAdapter,
     MetaLlama2ChatAdapter,
     MistralAdapter,
 )
@@ -56,9 +57,10 @@ class AmazonBedrockGenerator:
     SUPPORTED_MODEL_PATTERNS: ClassVar[Dict[str, Type[BedrockModelAdapter]]] = {
         r"amazon.titan-text.*": AmazonTitanAdapter,
         r"ai21.j2.*": AI21LabsJurassic2Adapter,
-        r"cohere.command.*": CohereCommandAdapter,
+        r"cohere.command-[^r].*": CohereCommandAdapter,
+        r"cohere.command-r.*": CohereCommandRAdapter,
         r"anthropic.claude.*": AnthropicClaudeAdapter,
-        r"meta.llama2.*": MetaLlama2ChatAdapter,
+        r"meta.llama.*": MetaLlama2ChatAdapter,
         r"mistral.*": MistralAdapter,
     }
 
