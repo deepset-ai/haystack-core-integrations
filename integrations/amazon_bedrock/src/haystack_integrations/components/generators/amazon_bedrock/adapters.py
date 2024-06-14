@@ -408,7 +408,7 @@ class AmazonTitanAdapter(BedrockModelAdapter):
         return chunk.get("outputText", "")
 
 
-class MetaLlama2ChatAdapter(BedrockModelAdapter):
+class MetaLlamaAdapter(BedrockModelAdapter):
     """
     Adapter for Meta's Llama2 models.
     """

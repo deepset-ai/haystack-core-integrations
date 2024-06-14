@@ -20,7 +20,7 @@ from .adapters import (
     BedrockModelAdapter,
     CohereCommandAdapter,
     CohereCommandRAdapter,
-    MetaLlama2ChatAdapter,
+    MetaLlamaAdapter,
     MistralAdapter,
 )
 from .handlers import (
@@ -60,7 +60,7 @@ class AmazonBedrockGenerator:
         r"cohere.command-[^r].*": CohereCommandAdapter,
         r"cohere.command-r.*": CohereCommandRAdapter,
         r"anthropic.claude.*": AnthropicClaudeAdapter,
-        r"meta.llama.*": MetaLlama2ChatAdapter,
+        r"meta.llama.*": MetaLlamaAdapter,
         r"mistral.*": MistralAdapter,
     }
 
