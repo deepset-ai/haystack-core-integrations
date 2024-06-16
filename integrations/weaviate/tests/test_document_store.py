@@ -655,6 +655,15 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
         with pytest.raises(ValueError):
             document_store._embedding_retrieval(query_embedding=[], distance=0.1, certainty=0.1)
 
+    def test_filter_documents_with_legacy_filters(self, document_store):
+        docs = []
+        for index in range(10):
+            docs.append(Document(content="This is some content", meta={"index": index}))
+        document_store.write_documents(docs)
+        result = document_store.filter_documents({"content": {"$eq": "This is some content"}})
+
+        assert len(result) == 10
+
     def test_filter_documents_below_default_limit(self, document_store):
         docs = []
         for index in range(9998):
