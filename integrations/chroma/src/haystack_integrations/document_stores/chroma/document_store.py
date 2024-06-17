@@ -31,6 +31,7 @@ class ChromaDocumentStore:
         collection_name: str = "documents",
         embedding_function: str = "default",
         persist_path: Optional[str] = None,
+        distance_function: Optional[str] = None,
         **embedding_function_params,
     ):
         """
@@ -52,15 +53,33 @@ class ChromaDocumentStore:
         self._embedding_function = embedding_function
         self._embedding_function_params = embedding_function_params
         self._persist_path = persist_path
+        self._distance_function = distance_function
         # Create the client instance
         if persist_path is None:
             self._chroma_client = chromadb.Client()
         else:
             self._chroma_client = chromadb.PersistentClient(path=persist_path)
-        self._collection = self._chroma_client.get_or_create_collection(
-            name=collection_name,
-            embedding_function=get_embedding_function(embedding_function, **embedding_function_params),
-        )
+            print (persist_path)
+
+        if distance_function:
+            if collection_name in [c.name for c in self._chroma_client.list_collections()]:
+                print ("Collection already exists. The 'distance_function' parameter will be ignored.")
+                self._collection = self._chroma_client.get_collection(
+                    collection_name,
+                    embedding_function=get_embedding_function(embedding_function, **embedding_function_params)
+                    )
+            else:
+                self._collection = self._chroma_client.create_collection(
+                name=collection_name,
+                metadata={"hnsw:space": distance_function},
+                embedding_function=get_embedding_function(embedding_function, **embedding_function_params)
+                )
+                print ("Distance function is set.")
+        else:
+            self._collection = self._chroma_client.get_or_create_collection(
+                name=collection_name,
+                embedding_function=get_embedding_function(embedding_function, **embedding_function_params),
+            )
 
     def count_documents(self) -> int:
         """
