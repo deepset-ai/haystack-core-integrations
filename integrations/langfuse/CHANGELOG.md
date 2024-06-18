@@ -1,5 +1,7 @@
 # Changelog
 
+## [integrations/langfuse-v0.2.0] - 2024-06-18
+
 ## [integrations/langfuse-v0.1.0] - 2024-06-13
 
 ### 🚀 Features
