@@ -69,9 +69,9 @@ VECTOR_FUNCTION_TO_POSTGRESQL_OPS = {
 
 HNSW_INDEX_CREATION_VALID_KWARGS = ["m", "ef_construction"]
 
-HNSW_INDEX_NAME = "haystack_hnsw_index"
+HNSW_DEFAULT_INDEX_NAME = "haystack_hnsw_index"
 
-KEYWORD_INDEX_NAME = "haystack_keyword_index"
+KEYWORD_DEFAULT_INDEX_NAME = "haystack_keyword_index"
 
 
 class PgvectorDocumentStore:
@@ -91,7 +91,9 @@ class PgvectorDocumentStore:
         search_strategy: Literal["exact_nearest_neighbor", "hnsw"] = "exact_nearest_neighbor",
         hnsw_recreate_index_if_exists: bool = False,
         hnsw_index_creation_kwargs: Optional[Dict[str, int]] = None,
+        hnsw_index_name: str = HNSW_DEFAULT_INDEX_NAME,
         hnsw_ef_search: Optional[int] = None,
+        keyword_index_name: str = KEYWORD_DEFAULT_INDEX_NAME,
     ):
         """
         Creates a new PgvectorDocumentStore instance.
@@ -127,9 +129,11 @@ class PgvectorDocumentStore:
         :param hnsw_index_creation_kwargs: Additional keyword arguments to pass to the HNSW index creation.
             Only used if search_strategy is set to `"hnsw"`. You can find the list of valid arguments in the
             [pgvector documentation](https://github.com/pgvector/pgvector?tab=readme-ov-file#hnsw)
+        :param hnsw_index_name: Index name for the HNSW index.
         :param hnsw_ef_search: The `ef_search` parameter to use at query time. Only used if search_strategy is set to
             `"hnsw"`. You can find more information about this parameter in the
             [pgvector documentation](https://github.com/pgvector/pgvector?tab=readme-ov-file#hnsw).
+        :param keyword_index_name: Index name for the Keyword index.
         """
 
         self.connection_string = connection_string
@@ -143,7 +147,9 @@ class PgvectorDocumentStore:
         self.search_strategy = search_strategy
         self.hnsw_recreate_index_if_exists = hnsw_recreate_index_if_exists
         self.hnsw_index_creation_kwargs = hnsw_index_creation_kwargs or {}
+        self.hnsw_index_name = hnsw_index_name
         self.hnsw_ef_search = hnsw_ef_search
+        self.keyword_index_name = keyword_index_name
         self.language = language
         self._connection = None
         self._cursor = None
@@ -209,7 +215,9 @@ class PgvectorDocumentStore:
             search_strategy=self.search_strategy,
             hnsw_recreate_index_if_exists=self.hnsw_recreate_index_if_exists,
             hnsw_index_creation_kwargs=self.hnsw_index_creation_kwargs,
+            hnsw_index_name=self.hnsw_index_name,
             hnsw_ef_search=self.hnsw_ef_search,
+            keyword_index_name=self.keyword_index_name,
             language=self.language,
         )
 
@@ -281,7 +289,7 @@ class PgvectorDocumentStore:
         index_exists = bool(
             self._execute_sql(
                 "SELECT 1 FROM pg_indexes WHERE tablename = %s AND indexname = %s",
-                (self.table_name, KEYWORD_INDEX_NAME),
+                (self.table_name, self.keyword_index_name),
                 "Could not check if keyword index exists",
             ).fetchone()
         )
@@ -289,7 +297,7 @@ class PgvectorDocumentStore:
         sql_create_index = SQL(
             "CREATE INDEX {index_name} ON {table_name} USING GIN (to_tsvector({language}, content))"
         ).format(
-            index_name=Identifier(KEYWORD_INDEX_NAME),
+            index_name=Identifier(self.keyword_index_name),
             table_name=Identifier(self.table_name),
             language=SQLLiteral(self.language),
         )
@@ -312,7 +320,7 @@ class PgvectorDocumentStore:
         index_exists = bool(
             self._execute_sql(
                 "SELECT 1 FROM pg_indexes WHERE tablename = %s AND indexname = %s",
-                (self.table_name, HNSW_INDEX_NAME),
+                (self.table_name, self.hnsw_index_name),
                 "Could not check if HNSW index exists",
             ).fetchone()
         )
@@ -325,7 +333,7 @@ class PgvectorDocumentStore:
             )
             return
 
-        sql_drop_index = SQL("DROP INDEX IF EXISTS {index_name}").format(index_name=Identifier(HNSW_INDEX_NAME))
+        sql_drop_index = SQL("DROP INDEX IF EXISTS {index_name}").format(index_name=Identifier(self.hnsw_index_name))
         self._execute_sql(sql_drop_index, error_msg="Could not drop HNSW index")
 
         self._create_hnsw_index()
@@ -343,7 +351,7 @@ class PgvectorDocumentStore:
         }
 
         sql_create_index = SQL("CREATE INDEX {index_name} ON {table_name} USING hnsw (embedding {ops}) ").format(
-            index_name=Identifier(HNSW_INDEX_NAME), table_name=Identifier(self.table_name), ops=SQL(pg_ops)
+            index_name=Identifier(self.hnsw_index_name), table_name=Identifier(self.table_name), ops=SQL(pg_ops)
         )
 
         if actual_hnsw_index_creation_kwargs:
