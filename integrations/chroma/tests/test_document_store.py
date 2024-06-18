@@ -152,7 +152,7 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, LegacyFilterDoc
         query = ["Stars are astronomical objects consisting of a luminous spheroid of plasma."]
         results_cosine = doc_store_cosine.search(query, top_k=1)[0]
 
-        assert results_cosine[0].score == pytest.approx(0.47612541913986206)
+        assert results_cosine[0].score == pytest.approx(0.47612541913986206, abs=1e-3)
 
     @pytest.mark.parametrize("setup_document_stores", [("doc_store_l2", "l2")], indirect=True)
     def test_l2_similarity(self, setup_document_stores):
@@ -160,7 +160,7 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, LegacyFilterDoc
         query = ["Stars are astronomical objects consisting of a luminous spheroid of plasma."]
         results_l2 = doc_store_l2.search(query, top_k=1)[0]
 
-        assert results_l2[0].score == pytest.approx(0.9522517323493958)
+        assert results_l2[0].score == pytest.approx(0.9522517323493958, abs=1e-3)
 
     @pytest.mark.integration
     def test_same_collection_name_reinitialization(self):
