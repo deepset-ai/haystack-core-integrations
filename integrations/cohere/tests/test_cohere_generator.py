@@ -91,7 +91,7 @@ class TestCohereGenerator:
             "type": "haystack_integrations.components.generators.cohere.generator.CohereGenerator",
             "init_parameters": {
                 "model": "command",
-                "streaming_callback": "tests.test_cohere_generators.<lambda>",
+                "streaming_callback": "tests.test_cohere_generator.<lambda>",
                 "api_base_url": "test-base-url",
                 "api_key": {"type": "env_var", "env_vars": ["COHERE_API_KEY", "CO_API_KEY"], "strict": True},
                 "generation_kwargs": {},
