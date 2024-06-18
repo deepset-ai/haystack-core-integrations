@@ -9,6 +9,9 @@ from haystack.tracing import utils as tracing_utils
 import langfuse
 
 HAYSTACK_LANGFUSE_ENFORCE_FLUSH_ENV_VAR = "HAYSTACK_LANGFUSE_ENFORCE_FLUSH"
+_SUPPORTED_GENERATORS = ["AzureOpenAIGenerator", "OpenAIGenerator"]
+_SUPPORTED_CHAT_GENERATORS = ["AzureOpenAIChatGenerator", "OpenAIChatGenerator"]
+_ALL_SUPPORTED_GENERATORS = _SUPPORTED_GENERATORS + _SUPPORTED_CHAT_GENERATORS
 
 
 class LangfuseSpan(Span):
@@ -109,7 +112,7 @@ class LangfuseTracer(Tracer):
         tags = tags or {}
         span_name = tags.get("haystack.component.name", operation_name)
 
-        if tags.get("haystack.component.type") in ["OpenAIGenerator", "OpenAIChatGenerator"]:
+        if tags.get("haystack.component.type") in _ALL_SUPPORTED_GENERATORS:
             span = LangfuseSpan(self.current_span().raw_span().generation(name=span_name))
         else:
             span = LangfuseSpan(self.current_span().raw_span().span(name=span_name))
@@ -119,14 +122,14 @@ class LangfuseTracer(Tracer):
 
         yield span
 
-        if tags.get("haystack.component.type") == "OpenAIGenerator":
+        if tags.get("haystack.component.type") in _SUPPORTED_GENERATORS:
             meta = span._data.get("haystack.component.output", {}).get("meta")
             if meta:
                 # Haystack returns one meta dict for each message, but the 'usage' value
                 # is always the same, let's just pick the first item
                 m = meta[0]
                 span._span.update(usage=m.get("usage") or None, model=m.get("model"))
-        elif tags.get("haystack.component.type") == "OpenAIChatGenerator":
+        elif tags.get("haystack.component.type") in _SUPPORTED_CHAT_GENERATORS:
             replies = span._data.get("haystack.component.output", {}).get("replies")
             if replies:
                 meta = replies[0].meta
