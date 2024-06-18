@@ -46,6 +46,8 @@ class ChromaDocumentStore:
         :param collection_name: the name of the collection to use in the database.
         :param embedding_function: the name of the embedding function to use to embed the query
         :param persist_path: where to store the database. If None, the database will be `in-memory`.
+        :param distance_function: distance metric for the embedding space. Valid options are
+        'l2', 'cosine' and 'ip'.
         :param embedding_function_params: additional parameters to pass to the embedding function.
         """
         # Store the params for marshalling
@@ -59,22 +61,21 @@ class ChromaDocumentStore:
             self._chroma_client = chromadb.Client()
         else:
             self._chroma_client = chromadb.PersistentClient(path=persist_path)
-            print (persist_path)
 
         if distance_function:
             if collection_name in [c.name for c in self._chroma_client.list_collections()]:
-                print ("Collection already exists. The 'distance_function' parameter will be ignored.")
                 self._collection = self._chroma_client.get_collection(
                     collection_name,
-                    embedding_function=get_embedding_function(embedding_function, **embedding_function_params)
-                    )
+                    embedding_function=get_embedding_function(embedding_function, **embedding_function_params),
+                )
+                logger.warning("Collection already exists. The 'distance_function' parameter will be ignored.")
+
             else:
                 self._collection = self._chroma_client.create_collection(
-                name=collection_name,
-                metadata={"hnsw:space": distance_function},
-                embedding_function=get_embedding_function(embedding_function, **embedding_function_params)
+                    name=collection_name,
+                    metadata={"hnsw:space": distance_function},
+                    embedding_function=get_embedding_function(embedding_function, **embedding_function_params),
                 )
-                print ("Distance function is set.")
         else:
             self._collection = self._chroma_client.get_or_create_collection(
                 name=collection_name,
