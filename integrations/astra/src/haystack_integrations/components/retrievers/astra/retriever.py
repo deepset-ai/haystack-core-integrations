@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Literal, Optional
 
 from haystack import Document, component, default_from_dict, default_to_dict
 
@@ -31,14 +31,25 @@ class AstraEmbeddingRetriever:
     ```
     """
 
-    def __init__(self, document_store: AstraDocumentStore, filters: Optional[Dict[str, Any]] = None, top_k: int = 10):
+    def __init__(
+        self,
+        document_store: AstraDocumentStore,
+        filters: Optional[Dict[str, Any]] = None,
+        top_k: int = 10,
+        filter_policy: Literal["replace", "merge"] = "replace",
+    ):
         """
+        :param document_store: An instance of AstraDocumentStore.
         :param filters: a dictionary with filters to narrow down the search space.
         :param top_k: the maximum number of documents to retrieve.
+        :param filter_policy: Policy to determine how filters are applied. Defaults to "replace".
+             - `replace`: Runtime filters replace init filters.
+             - `merge`: Runtime filters are merged with init filters, with runtime filters overwriting init values.
         """
-        self.filters = filters
+        self.filters = filters or {}
         self.top_k = top_k
         self.document_store = document_store
+        self.filter_policy = filter_policy
 
         if not isinstance(document_store, AstraDocumentStore):
             message = "document_store must be an instance of AstraDocumentStore"
@@ -54,12 +65,12 @@ class AstraEmbeddingRetriever:
         :returns: a dictionary with the following keys:
             - `documents`: A list of documents retrieved from the AstraDocumentStore.
         """
+        top_k = top_k or self.top_k
 
-        if not top_k:
-            top_k = self.top_k
-
-        if not filters:
-            filters = self.filters
+        if self.filter_policy == "merge" and filters:
+            filters = {**self.filters, **filters}
+        else:
+            filters = filters or self.filters
 
         return {"documents": self.document_store.search(query_embedding, top_k, filters=filters)}
 
@@ -74,6 +85,7 @@ class AstraEmbeddingRetriever:
             self,
             filters=self.filters,
             top_k=self.top_k,
+            filter_policy=self.filter_policy,
             document_store=self.document_store.to_dict(),
         )
 
