@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Literal, Optional
 
 from haystack import component, default_from_dict, default_to_dict
 from haystack.dataclasses import Document
@@ -43,6 +43,7 @@ class MongoDBAtlasEmbeddingRetriever:
         document_store: MongoDBAtlasDocumentStore,
         filters: Optional[Dict[str, Any]] = None,
         top_k: int = 10,
+        filter_policy: Literal["replace", "merge"] = "replace",
     ):
         """
         Create the MongoDBAtlasDocumentStore component.
@@ -52,6 +53,9 @@ class MongoDBAtlasEmbeddingRetriever:
             included in the configuration of the `vector_search_index`. The configuration must be done manually
             in the Web UI of MongoDB Atlas.
         :param top_k: Maximum number of Documents to return.
+        :param filter_policy: Policy to determine how filters are applied. Defaults to "replace".
+                - `replace`: Runtime filters replace init filters.
+                - `merge`: Runtime filters are merged with init filters, with runtime filters overwriting init values.
 
         :raises ValueError: If `document_store` is not an instance of `MongoDBAtlasDocumentStore`.
         """
@@ -62,6 +66,7 @@ class MongoDBAtlasEmbeddingRetriever:
         self.document_store = document_store
         self.filters = filters or {}
         self.top_k = top_k
+        self.filter_policy = filter_policy
 
     def to_dict(self) -> Dict[str, Any]:
         """
@@ -74,6 +79,7 @@ class MongoDBAtlasEmbeddingRetriever:
             self,
             filters=self.filters,
             top_k=self.top_k,
+            filter_policy=self.filter_policy,
             document_store=self.document_store.to_dict(),
         )
 
@@ -108,7 +114,11 @@ class MongoDBAtlasEmbeddingRetriever:
         :returns: A dictionary with the following keys:
             - `documents`: List of Documents most similar to the given `query_embedding`
         """
-        filters = filters or self.filters
+        if self.filter_policy == "merge" and filters:
+            filters = {**self.filters, **filters}
+        else:
+            filters = filters or self.filters
+
         top_k = top_k or self.top_k
 
         docs = self.document_store._embedding_retrieval(
