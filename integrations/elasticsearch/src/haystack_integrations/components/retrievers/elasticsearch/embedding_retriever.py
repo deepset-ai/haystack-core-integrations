@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Literal, Optional
 
 from haystack import component, default_from_dict, default_to_dict
 from haystack.dataclasses import Document
@@ -49,6 +49,7 @@ class ElasticsearchEmbeddingRetriever:
         filters: Optional[Dict[str, Any]] = None,
         top_k: int = 10,
         num_candidates: Optional[int] = None,
+        filter_policy: Literal["replace", "merge"] = "replace",
     ):
         """
         Create the ElasticsearchEmbeddingRetriever component.
@@ -61,6 +62,9 @@ class ElasticsearchEmbeddingRetriever:
             Increasing this value will improve search accuracy at the cost of slower search speeds.
             You can read more about it in the Elasticsearch
             [documentation](https://www.elastic.co/guide/en/elasticsearch/reference/current/knn-search.html#tune-approximate-knn-for-speed-accuracy)
+        :param filter_policy: Policy to determine how filters are applied. Defaults to "replace".
+                - `replace`: Runtime filters replace init filters.
+                - `merge`: Runtime filters are merged with init filters, with runtime filters overwriting init values.
         :raises ValueError: If `document_store` is not an instance of ElasticsearchDocumentStore.
         """
         if not isinstance(document_store, ElasticsearchDocumentStore):
@@ -71,6 +75,7 @@ class ElasticsearchEmbeddingRetriever:
         self._filters = filters or {}
         self._top_k = top_k
         self._num_candidates = num_candidates
+        self._filter_policy = filter_policy
 
     def to_dict(self) -> Dict[str, Any]:
         """
@@ -84,6 +89,7 @@ class ElasticsearchEmbeddingRetriever:
             filters=self._filters,
             top_k=self._top_k,
             num_candidates=self._num_candidates,
+            filter_policy=self._filter_policy,
             document_store=self._document_store.to_dict(),
         )
 
@@ -113,9 +119,14 @@ class ElasticsearchEmbeddingRetriever:
         :returns: A dictionary with the following keys:
             - `documents`: List of `Document`s most similar to the given `query_embedding`
         """
+        if self._filter_policy == "merge" and filters:
+            filters = {**self._filters, **filters}
+        else:
+            filters = filters or self._filters
+
         docs = self._document_store._embedding_retrieval(
             query_embedding=query_embedding,
-            filters=filters or self._filters,
+            filters=filters,
             top_k=top_k or self._top_k,
             num_candidates=self._num_candidates,
         )

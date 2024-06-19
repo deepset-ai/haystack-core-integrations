@@ -37,6 +37,7 @@ def test_to_dict(_mock_elasticsearch_client):
             },
             "filters": {},
             "top_k": 10,
+            "filter_policy": "replace",
             "num_candidates": None,
         },
     }
@@ -54,6 +55,7 @@ def test_from_dict(_mock_elasticsearch_client):
             },
             "filters": {},
             "top_k": 10,
+            "filter_policy": "replace",
             "num_candidates": None,
         },
     }

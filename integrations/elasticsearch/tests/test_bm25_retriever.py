@@ -14,6 +14,7 @@ def test_init_default():
     assert retriever._document_store == mock_store
     assert retriever._filters == {}
     assert retriever._top_k == 10
+    assert retriever._filter_policy == "replace"
     assert not retriever._scale_score
 
 
@@ -38,6 +39,7 @@ def test_to_dict(_mock_elasticsearch_client):
             "fuzziness": "AUTO",
             "top_k": 10,
             "scale_score": False,
+            "filter_policy": "replace",
         },
     }
 
@@ -55,6 +57,7 @@ def test_from_dict(_mock_elasticsearch_client):
             "fuzziness": "AUTO",
             "top_k": 10,
             "scale_score": True,
+            "filter_policy": "replace",
         },
     }
     retriever = ElasticsearchBM25Retriever.from_dict(data)
@@ -63,6 +66,7 @@ def test_from_dict(_mock_elasticsearch_client):
     assert retriever._fuzziness == "AUTO"
     assert retriever._top_k == 10
     assert retriever._scale_score
+    assert retriever._filter_policy == "replace"
 
 
 def test_run():
