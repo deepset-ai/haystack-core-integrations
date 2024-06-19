@@ -60,7 +60,8 @@ jobs:
       - name: Run tests with retry
         uses: Wandalen/wretry.action@v3
         with:
-          command: "hatch run cov"
+          command: |
+            hatch run cov
           attempt_limit: 3
           attempt_delay: 2000
 
