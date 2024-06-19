@@ -7,8 +7,8 @@ on:
     - cron: "0 0 * * *"
   pull_request:
     paths:
-      - 'integrations/astra/**'
-      - '.github/workflows/astra.yml'
+      - "integrations/astra/**"
+      - ".github/workflows/astra.yml"
 
 defaults:
   run:
@@ -31,52 +31,52 @@ jobs:
       max-parallel: 1
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
-        python-version: ['3.9', '3.10']
+        python-version: ["3.9", "3.10"]
 
     steps:
-    - name: Support longpaths
-      if: matrix.os == 'windows-latest'
-      working-directory: .
-      run: git config --system core.longpaths true
+      - name: Support longpaths
+        if: matrix.os == 'windows-latest'
+        working-directory: .
+        run: git config --system core.longpaths true
 
-    - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-    - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v5
-      with:
-        python-version: ${{ matrix.python-version }}
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
 
-    - name: Install Hatch
-      run: pip install --upgrade hatch
+      - name: Install Hatch
+        run: pip install --upgrade hatch
 
-    - name: Lint
-      if: matrix.python-version == '3.9' && runner.os == 'Linux'
-      run: hatch run lint:all
+      - name: Lint
+        if: matrix.python-version == '3.9' && runner.os == 'Linux'
+        run: hatch run lint:all
 
-    - name: Generate docs
-      if: matrix.python-version == '3.9' && runner.os == 'Linux'
-      run: hatch run docs
+      - name: Generate docs
+        if: matrix.python-version == '3.9' && runner.os == 'Linux'
+        run: hatch run docs
 
-    - name: Run tests
-      env:
-        ASTRA_DB_API_ENDPOINT: ${{ secrets.ASTRA_DB_API_ENDPOINT }}
-        ASTRA_DB_APPLICATION_TOKEN: ${{ secrets.ASTRA_DB_APPLICATION_TOKEN }}
-      id: tests
-      run: hatch run cov
+      - name: Run tests with retry
+        uses: Wandalen/wretry.action@v3
+        env:
+          ASTRA_DB_API_ENDPOINT: ${{ secrets.ASTRA_DB_API_ENDPOINT }}
+          ASTRA_DB_APPLICATION_TOKEN: ${{ secrets.ASTRA_DB_APPLICATION_TOKEN }}
+        with:
+          command: hatch run cov
+          attempt_limit: 3
+          attempt_delay: 2000
 
-    - name: Nightly - run unit tests with Haystack main branch
-      if: github.event_name == 'schedule'
-      id: nightly-haystack-main
-      run: |
-        hatch run pip install git+https://github.com/deepset-ai/haystack.git
-        hatch run test -m "not integration"
+      - name: Nightly - run unit tests with Haystack main branch
+        if: github.event_name == 'schedule'
+        run: |
+          hatch run pip install git+https://github.com/deepset-ai/haystack.git
+          hatch run test -m "not integration"
 
-    - name: Send event to Datadog for nightly failures
-      if: failure() && github.event_name == 'schedule'
-      uses: ./.github/actions/send_failure
-      with:
-        title: |
-          core-integrations failure:
-          ${{ (steps.tests.conclusion == 'nightly-haystack-main') && 'nightly-haystack-main' || 'tests' }}
-            - ${{ github.workflow }}
-        api-key: ${{ secrets.CORE_DATADOG_API_KEY }}
+      - name: Send event to Datadog for nightly failures
+        if: failure() && github.event_name == 'schedule'
+        uses: ./.github/actions/send_failure
+        with:
+          title: |
+            Core integrations nightly tests failure: ${{ github.workflow }}
+          api-key: ${{ secrets.CORE_DATADOG_API_KEY }}

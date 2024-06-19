@@ -63,26 +63,27 @@ jobs:
         run: hatch run docs
 
       - name: Run unit tests
-        id: unit-tests
-        run: hatch run cov -m "not integration"        
+        run: hatch run cov -m "not integration"
 
       # Do not authenticate on pull requests from forks
-      - name: AWS authentication        
-        if: github.event.pull_request.head.repo.full_name == github.repository      
+      - name: AWS authentication
+        if: github.event.pull_request.head.repo.full_name == github.repository
         uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502
         with:
           aws-region: ${{ env.AWS_REGION }}
           role-to-assume: ${{ secrets.AWS_CI_ROLE_ARN }}
 
       # Do not run integration tests on pull requests from forks
-      - name: Run integration tests
-        if: github.event.pull_request.head.repo.full_name == github.repository      
-        id: integration-tests
-        run: hatch run cov -m "integration"
+      - name: Run integration tests with retry
+        if: github.event.pull_request.head.repo.full_name == github.repository
+        uses: Wandalen/wretry.action@v3
+        with:
+          command: hatch run cov -m "integration"
+          attempt_limit: 3
+          attempt_delay: 2000
 
       - name: Nightly - run unit tests with Haystack main branch
         if: github.event_name == 'schedule'
-        id: nightly-haystack-main
         run: |
           hatch run pip install git+https://github.com/deepset-ai/haystack.git
           hatch run test -m "not integration"
@@ -92,7 +93,5 @@ jobs:
         uses: ./.github/actions/send_failure
         with:
           title: |
-            core-integrations failure:
-            ${{ (steps.tests.conclusion == 'nightly-haystack-main') && 'nightly-haystack-main' || 'tests' }}
-             - ${{ github.workflow }}
+            Core integrations nightly tests failure: ${{ github.workflow }}
           api-key: ${{ secrets.CORE_DATADOG_API_KEY }}
