@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Literal, Optional
 
 from haystack import component, default_from_dict, default_to_dict
 from haystack.dataclasses import Document
@@ -51,11 +51,15 @@ class PgvectorKeywordRetriever:
         document_store: PgvectorDocumentStore,
         filters: Optional[Dict[str, Any]] = None,
         top_k: int = 10,
+        filter_policy: Literal["replace", "merge"] = "replace",
     ):
         """
         :param document_store: An instance of `PgvectorDocumentStore`.
         :param filters: Filters applied to the retrieved Documents.
         :param top_k: Maximum number of Documents to return.
+        :param filter_policy: Policy to determine how filters are applied. Defaults to "replace".
+            - `replace`: Runtime filters replace init filters.
+            - `merge`: Runtime filters are merged with init filters, with runtime filters overwriting init values.
 
         :raises ValueError: If `document_store` is not an instance of `PgvectorDocumentStore`.
         """
@@ -66,6 +70,7 @@ class PgvectorKeywordRetriever:
         self.document_store = document_store
         self.filters = filters or {}
         self.top_k = top_k
+        self.filter_policy = filter_policy
 
     def to_dict(self) -> Dict[str, Any]:
         """
@@ -78,6 +83,7 @@ class PgvectorKeywordRetriever:
             self,
             filters=self.filters,
             top_k=self.top_k,
+            filter_policy=self.filter_policy,
             document_store=self.document_store.to_dict(),
         )
 
@@ -112,7 +118,11 @@ class PgvectorKeywordRetriever:
         :returns: A dictionary with the following keys:
             - `documents`: List of `Document`s that match the query.
         """
-        filters = filters or self.filters
+        if self.filter_policy == "merge" and filters:
+            filters = {**self.filters, **filters}
+        else:
+            filters = filters or self.filters
+
         top_k = top_k or self.top_k
 
         docs = self.document_store._keyword_retrieval(

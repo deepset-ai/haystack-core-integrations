@@ -16,6 +16,7 @@ class TestEmbeddingRetriever:
         assert retriever.document_store == mock_store
         assert retriever.filters == {}
         assert retriever.top_k == 10
+        assert retriever.filter_policy == "replace"
         assert retriever.vector_function == mock_store.vector_function
 
     def test_init(self, mock_store):
@@ -25,6 +26,7 @@ class TestEmbeddingRetriever:
         assert retriever.document_store == mock_store
         assert retriever.filters == {"field": "value"}
         assert retriever.top_k == 5
+        assert retriever.filter_policy == "replace"
         assert retriever.vector_function == "l2_distance"
 
     def test_to_dict(self, mock_store):
@@ -54,6 +56,7 @@ class TestEmbeddingRetriever:
                 "filters": {"field": "value"},
                 "top_k": 5,
                 "vector_function": "l2_distance",
+                "filter_policy": "replace",
             },
         }
 
@@ -81,6 +84,7 @@ class TestEmbeddingRetriever:
                 "filters": {"field": "value"},
                 "top_k": 5,
                 "vector_function": "l2_distance",
+                "filter_policy": "replace",
             },
         }
 
@@ -100,6 +104,7 @@ class TestEmbeddingRetriever:
 
         assert retriever.filters == {"field": "value"}
         assert retriever.top_k == 5
+        assert retriever.filter_policy == "replace"
         assert retriever.vector_function == "l2_distance"
 
     def test_run(self):
@@ -154,6 +159,7 @@ class TestKeywordRetriever:
                 },
                 "filters": {"field": "value"},
                 "top_k": 5,
+                "filter_policy": "replace",
             },
         }
 
@@ -180,6 +186,7 @@ class TestKeywordRetriever:
                 },
                 "filters": {"field": "value"},
                 "top_k": 5,
+                "filter_policy": "replace",
             },
         }
 
