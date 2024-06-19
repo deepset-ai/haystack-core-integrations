@@ -73,6 +73,7 @@ class AmazonBedrockGenerator:
         aws_region_name: Optional[Secret] = Secret.from_env_var("AWS_DEFAULT_REGION", strict=False),  # noqa: B008
         aws_profile_name: Optional[Secret] = Secret.from_env_var("AWS_PROFILE", strict=False),  # noqa: B008
         max_length: Optional[int] = 100,
+        truncate: Optional[bool] = True,
         **kwargs,
     ):
         """
@@ -95,6 +96,7 @@ class AmazonBedrockGenerator:
             raise ValueError(msg)
         self.model = model
         self.max_length = max_length
+        self.truncate = truncate
         self.aws_access_key_id = aws_access_key_id
         self.aws_secret_access_key = aws_secret_access_key
         self.aws_session_token = aws_session_token
@@ -127,6 +129,7 @@ class AmazonBedrockGenerator:
         # Truncate prompt if prompt tokens > model_max_length-max_length
         # (max_length is the length of the generated text)
         # we use GPT2 tokenizer which will likely provide good token count approximation
+
         self.prompt_handler = DefaultPromptHandler(
             tokenizer="gpt2",
             model_max_length=model_max_length,
@@ -186,6 +189,9 @@ class AmazonBedrockGenerator:
                 f"Make sure to provide a prompt in the format that the model expects."
             )
             raise ValueError(msg)
+
+        if self.truncate:
+            prompt = self._ensure_token_limit(prompt)
 
         body = self.model_adapter.prepare_body(prompt=prompt, **kwargs)
         try:
