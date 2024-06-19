@@ -69,10 +69,6 @@ VECTOR_FUNCTION_TO_POSTGRESQL_OPS = {
 
 HNSW_INDEX_CREATION_VALID_KWARGS = ["m", "ef_construction"]
 
-HNSW_DEFAULT_INDEX_NAME = "haystack_hnsw_index"
-
-KEYWORD_DEFAULT_INDEX_NAME = "haystack_keyword_index"
-
 
 class PgvectorDocumentStore:
     """
@@ -91,9 +87,9 @@ class PgvectorDocumentStore:
         search_strategy: Literal["exact_nearest_neighbor", "hnsw"] = "exact_nearest_neighbor",
         hnsw_recreate_index_if_exists: bool = False,
         hnsw_index_creation_kwargs: Optional[Dict[str, int]] = None,
-        hnsw_index_name: str = HNSW_DEFAULT_INDEX_NAME,
+        hnsw_index_name: str = "haystack_hnsw_index",
         hnsw_ef_search: Optional[int] = None,
-        keyword_index_name: str = KEYWORD_DEFAULT_INDEX_NAME,
+        keyword_index_name: str = "haystack_keyword_index",
     ):
         """
         Creates a new PgvectorDocumentStore instance.
