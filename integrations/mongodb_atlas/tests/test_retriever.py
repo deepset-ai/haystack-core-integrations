@@ -145,12 +145,13 @@ class TestRetriever:
         doc = Document(content="Test doc", embedding=[0.1, 0.2])
         mock_store._embedding_retrieval.return_value = [doc]
 
-        retriever = MongoDBAtlasEmbeddingRetriever(document_store=mock_store, filters={"foo": "boo"},
-                                                   filter_policy="merge")
+        retriever = MongoDBAtlasEmbeddingRetriever(
+            document_store=mock_store, filters={"foo": "boo"}, filter_policy="merge"
+        )
         res = retriever.run(query_embedding=[0.3, 0.5], filters={"field": "value"})
 
-        mock_store._embedding_retrieval.assert_called_once_with(query_embedding=[0.3, 0.5],
-                                                                filters={"field": "value", "foo": "boo"},
-                                                                top_k=10)
+        mock_store._embedding_retrieval.assert_called_once_with(
+            query_embedding=[0.3, 0.5], filters={"field": "value", "foo": "boo"}, top_k=10
+        )
 
         assert res == {"documents": [doc]}
