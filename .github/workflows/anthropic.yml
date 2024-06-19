@@ -58,11 +58,11 @@ jobs:
         run: hatch run docs
 
       - name: Run tests with retry
-        uses: Wandalen/wretry.action/main@v3
+        uses: nick-fields/retry@v3
         with:
-          command: hatch -q --no-interactive --no-color run test
-          attempt_limit: 3
-          attempt_delay: 2000
+          max_attempts: 3
+          retry_on: error
+          command: hatch run cov
 
       - name: Nightly - run unit tests with Haystack main branch
         if: github.event_name == 'schedule'
