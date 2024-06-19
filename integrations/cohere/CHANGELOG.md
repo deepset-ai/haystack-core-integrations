@@ -1,5 +1,11 @@
 # Changelog
 
+## [unreleased]
+
+### 🚀 Features
+
+- Update Anthropic/Cohere for tools use (#790)
+
 ## [integrations/cohere-v1.1.1] - 2024-06-12
 
 ## [integrations/cohere-v1.1.0] - 2024-05-24
