@@ -58,7 +58,7 @@ jobs:
         run: hatch run docs
 
       - name: Run tests with retry
-        uses: Wandalen/wretry.action@v3
+        uses: Wandalen/wretry.action/main@v3
         with:
           command: hatch -q --no-interactive --no-color run test
           attempt_limit: 3
