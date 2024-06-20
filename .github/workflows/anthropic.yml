@@ -46,6 +46,9 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
+      - name: Install Hatch
+        run: pip install --upgrade hatch
+
       - name: Lint
         if: matrix.python-version == '3.9' && runner.os == 'Linux'
         run: hatch run lint:all
@@ -60,6 +63,7 @@ jobs:
           max_attempts: 3
           timeout_minutes: 10
           retry_on: error
+          shell: bash -e {0}
           command: hatch run cov
 
       - name: Nightly - run unit tests with Haystack main branch
