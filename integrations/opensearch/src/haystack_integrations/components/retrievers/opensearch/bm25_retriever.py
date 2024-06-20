@@ -1,13 +1,12 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
-from typing import Any, Dict, List, Literal, Optional
+from typing import Any, Dict, List, Optional
 
 from haystack import component, default_from_dict, default_to_dict
 from haystack.dataclasses import Document
 from haystack.document_stores.types import FilterPolicy
 from haystack.document_stores.types.filter_policy import apply_filter_policy
-
 from haystack_integrations.document_stores.opensearch import OpenSearchDocumentStore
 
 
@@ -22,7 +21,7 @@ class OpenSearchBM25Retriever:
         top_k: int = 10,
         scale_score: bool = False,
         all_terms_must_match: bool = False,
-        filter_policy: Optional[FilterPolicy] = FilterPolicy.REPLACE
+        filter_policy: Optional[FilterPolicy] = FilterPolicy.REPLACE,
     ):
         """
         Create the OpenSearchBM25Retriever component.
@@ -65,7 +64,7 @@ class OpenSearchBM25Retriever:
             top_k=self._top_k,
             scale_score=self._scale_score,
             document_store=self._document_store.to_dict(),
-            filter_policy=self._filter_policy,
+            filter_policy=self._filter_policy.value if self._filter_policy else None,
         )
 
     @classmethod
@@ -82,6 +81,8 @@ class OpenSearchBM25Retriever:
         data["init_parameters"]["document_store"] = OpenSearchDocumentStore.from_dict(
             data["init_parameters"]["document_store"]
         )
+        if "filter_policy" in data["init_parameters"]:
+            data["init_parameters"]["filter_policy"] = FilterPolicy.from_str(data["init_parameters"]["filter_policy"])
         return default_from_dict(cls, data)
 
     @component.output_types(documents=List[Document])
