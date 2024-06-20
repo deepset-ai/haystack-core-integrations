@@ -5,6 +5,8 @@ from typing import Any, Dict, List, Literal, Optional
 
 from haystack import component, default_from_dict, default_to_dict
 from haystack.dataclasses import Document
+from haystack.document_stores.types import FilterPolicy
+from haystack.document_stores.types.filter_policy import apply_filter_policy
 
 from haystack_integrations.document_stores.pinecone import PineconeDocumentStore
 
@@ -55,15 +57,13 @@ class PineconeEmbeddingRetriever:
         document_store: PineconeDocumentStore,
         filters: Optional[Dict[str, Any]] = None,
         top_k: int = 10,
-        filter_policy: Literal["replace", "merge"] = "replace",
+        filter_policy: Optional[FilterPolicy] = FilterPolicy.REPLACE
     ):
         """
         :param document_store: The Pinecone Document Store.
         :param filters: Filters applied to the retrieved Documents.
         :param top_k: Maximum number of Documents to return.
         :param filter_policy: Policy to determine how filters are applied.
-            - `replace`: Runtime filters replace init filters.
-            - `merge`: Runtime filters are merged with init filters, with runtime filters overwriting init values.
 
         :raises ValueError: If `document_store` is not an instance of `PineconeDocumentStore`.
         """
@@ -122,10 +122,7 @@ class PineconeEmbeddingRetriever:
 
         :returns: List of Document similar to `query_embedding`.
         """
-        if self.filter_policy == "merge" and filters:
-            filters = {**self.filters, **filters}
-        else:
-            filters = filters or self.filters
+        filters = apply_filter_policy(self.filter_policy, self.filters, filters)
 
         top_k = top_k or self.top_k
 
