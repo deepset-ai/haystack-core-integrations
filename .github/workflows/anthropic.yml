@@ -64,7 +64,7 @@ jobs:
           timeout_minutes: 10
           retry_on: error
           command: |
-            hatch shell \
+            hatch shell default \
             hatch run cov
 
       - name: Nightly - run unit tests with Haystack main branch
