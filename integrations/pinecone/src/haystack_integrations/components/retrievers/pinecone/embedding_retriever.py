@@ -61,7 +61,7 @@ class PineconeEmbeddingRetriever:
         :param document_store: The Pinecone Document Store.
         :param filters: Filters applied to the retrieved Documents.
         :param top_k: Maximum number of Documents to return.
-        :param filter_policy: Policy to determine how filters are applied. Defaults to "replace".
+        :param filter_policy: Policy to determine how filters are applied.
             - `replace`: Runtime filters replace init filters.
             - `merge`: Runtime filters are merged with init filters, with runtime filters overwriting init values.
 
@@ -115,7 +115,9 @@ class PineconeEmbeddingRetriever:
         Retrieve documents from the `PineconeDocumentStore`, based on their dense embeddings.
 
         :param query_embedding: Embedding of the query.
-        :param filters: Filters applied to the retrieved `Document`s.
+        :param filters: Filters applied to the retrieved Documents. The way runtime filters are applied depends on
+                        the `filter_policy` chosen at document store initialization. See init method docstring for more
+                        details.
         :param top_k: Maximum number of `Document`s to return.
 
         :returns: List of Document similar to `query_embedding`.
