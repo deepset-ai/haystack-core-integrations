@@ -122,6 +122,28 @@ class TestQdrantRetriever(FilterableDocsFixtureMixin):
         for document in results:
             assert document.embedding is None
 
+    def test_run_filters(self, filterable_docs: List[Document]):
+        document_store = QdrantDocumentStore(location=":memory:", index="Boi", use_sparse_embeddings=False)
+
+        document_store.write_documents(filterable_docs)
+
+        retriever = QdrantEmbeddingRetriever(document_store=document_store,
+                                             filters={"field": "meta.name", "operator": "==", "value": "name_0"},
+                                             filter_policy="merge"
+                                             )
+
+        results: List[Document] = retriever.run(query_embedding=_random_embeddings(768))["documents"]
+        assert len(results) == 3
+
+        results = retriever.run(query_embedding=_random_embeddings(768),
+                                top_k=5,
+                                filters={"field": "meta.chapter", "operator": "==", "value": "abstract"},
+                                return_embedding=False)["documents"]
+        assert len(results) == 5
+
+        for document in results:
+            assert document.embedding is None
+
     def test_run_with_sparse_activated(self, filterable_docs: List[Document]):
         document_store = QdrantDocumentStore(location=":memory:", index="Boi", use_sparse_embeddings=True)
 
