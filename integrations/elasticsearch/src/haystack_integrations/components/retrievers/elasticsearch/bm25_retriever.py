@@ -61,7 +61,7 @@ class ElasticsearchBM25Retriever:
             for more details.
         :param top_k: Maximum number of Documents to return.
         :param scale_score: If `True` scales the Document`s scores between 0 and 1.
-        :param filter_policy: Policy to determine how filters are applied. Defaults to "replace".
+        :param filter_policy: Policy to determine how filters are applied.
                 - `replace`: Runtime filters replace init filters.
                 - `merge`: Runtime filters are merged with init filters, with runtime filters overwriting init values.
         :raises ValueError: If `document_store` is not an instance of `ElasticsearchDocumentStore`.
@@ -116,7 +116,9 @@ class ElasticsearchBM25Retriever:
         Retrieve documents using the BM25 keyword-based algorithm.
 
         :param query: String to search in `Document`s' text.
-        :param filters: Filters applied to the retrieved `Document`s.
+        :param filters: Filters applied to the retrieved Documents. The way runtime filters are applied depends on
+                        the `filter_policy` chosen at document store initialization. See init method docstring for more
+                        details.
         :param top_k: Maximum number of `Document` to return.
         :returns: A dictionary with the following keys:
             - `documents`: List of `Document`s that match the query.

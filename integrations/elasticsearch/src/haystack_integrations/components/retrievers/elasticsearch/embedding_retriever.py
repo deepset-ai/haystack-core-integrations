@@ -62,7 +62,7 @@ class ElasticsearchEmbeddingRetriever:
             Increasing this value will improve search accuracy at the cost of slower search speeds.
             You can read more about it in the Elasticsearch
             [documentation](https://www.elastic.co/guide/en/elasticsearch/reference/current/knn-search.html#tune-approximate-knn-for-speed-accuracy)
-        :param filter_policy: Policy to determine how filters are applied. Defaults to "replace".
+        :param filter_policy: Policy to determine how filters are applied.
                 - `replace`: Runtime filters replace init filters.
                 - `merge`: Runtime filters are merged with init filters, with runtime filters overwriting init values.
         :raises ValueError: If `document_store` is not an instance of ElasticsearchDocumentStore.
@@ -114,7 +114,9 @@ class ElasticsearchEmbeddingRetriever:
         Retrieve documents using a vector similarity metric.
 
         :param query_embedding: Embedding of the query.
-        :param filters: Filters applied to the retrieved `Document`s.
+        :param filters: Filters applied to the retrieved Documents. The way runtime filters are applied depends on
+                        the `filter_policy` chosen at document store initialization. See init method docstring for more
+                        details.
         :param top_k: Maximum number of `Document`s to return.
         :returns: A dictionary with the following keys:
             - `documents`: List of `Document`s most similar to the given `query_embedding`
