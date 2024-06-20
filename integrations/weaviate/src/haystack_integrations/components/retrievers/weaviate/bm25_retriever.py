@@ -37,7 +37,7 @@ class WeaviateBM25Retriever:
             Custom filters applied when running the retriever
         :param top_k:
             Maximum number of documents to return
-        :param filter_policy: Policy to determine how filters are applied. Defaults to "replace".
+        :param filter_policy: Policy to determine how filters are applied.
             - `replace`: Runtime filters replace init filters.
             - `merge`: Runtime filters are merged with init filters, with runtime filters overwriting init values.
         """
@@ -83,8 +83,9 @@ class WeaviateBM25Retriever:
 
         :param query:
             The query text.
-        :param filters:
-            Filters to use when running the retriever.
+        :param filters: Filters applied to the retrieved Documents. The way runtime filters are applied depends on
+                        the `filter_policy` chosen at document store initialization. See init method docstring for more
+                        details.
         :param top_k:
             The maximum number of documents to return.
         """

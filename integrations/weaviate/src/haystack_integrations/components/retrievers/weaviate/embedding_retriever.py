@@ -33,7 +33,7 @@ class WeaviateEmbeddingRetriever:
             The maximum allowed distance between Documents' embeddings.
         :param certainty:
             Normalized distance between the result item and the search vector.
-        :param filter_policy: Policy to determine how filters are applied. Defaults to "replace".
+        :param filter_policy: Policy to determine how filters are applied.
             - `replace`: Runtime filters replace init filters.
             - `merge`: Runtime filters are merged with init filters, with runtime filters overwriting init values.
         :raises ValueError:
@@ -98,8 +98,9 @@ class WeaviateEmbeddingRetriever:
 
         :param query_embedding:
             Embedding of the query.
-        :param filters:
-            Filters to use when running the retriever.
+        :param filters: Filters applied to the retrieved Documents. The way runtime filters are applied depends on
+                        the `filter_policy` chosen at document store initialization. See init method docstring for more
+                        details.
         :param top_k:
             The maximum number of documents to return.
         :param distance:
