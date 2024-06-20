@@ -57,7 +57,7 @@ class PgvectorKeywordRetriever:
         :param document_store: An instance of `PgvectorDocumentStore`.
         :param filters: Filters applied to the retrieved Documents.
         :param top_k: Maximum number of Documents to return.
-        :param filter_policy: Policy to determine how filters are applied. Defaults to "replace".
+        :param filter_policy: Policy to determine how filters are applied.
             - `replace`: Runtime filters replace init filters.
             - `merge`: Runtime filters are merged with init filters, with runtime filters overwriting init values.
 
