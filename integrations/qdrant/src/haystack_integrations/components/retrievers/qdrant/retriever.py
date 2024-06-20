@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Literal, Optional, Union
+from typing import Any, Dict, List, Optional, Union
 
 from haystack import Document, component, default_from_dict, default_to_dict
 from haystack.dataclasses.sparse_embedding import SparseEmbedding
@@ -41,7 +41,7 @@ class QdrantEmbeddingRetriever:
         top_k: int = 10,
         scale_score: bool = True,
         return_embedding: bool = False,
-        filter_policy: Optional[FilterPolicy] = FilterPolicy.REPLACE
+        filter_policy: Optional[FilterPolicy] = FilterPolicy.REPLACE,
     ):
         """
         Create a QdrantEmbeddingRetriever component.
@@ -79,7 +79,7 @@ class QdrantEmbeddingRetriever:
             document_store=self._document_store,
             filters=self._filters,
             top_k=self._top_k,
-            filter_policy=self._filter_policy,
+            filter_policy=self._filter_policy.value if self._filter_policy else None,
             scale_score=self._scale_score,
             return_embedding=self._return_embedding,
         )
@@ -99,6 +99,8 @@ class QdrantEmbeddingRetriever:
         """
         document_store = QdrantDocumentStore.from_dict(data["init_parameters"]["document_store"])
         data["init_parameters"]["document_store"] = document_store
+        if "filter_policy" in data["init_parameters"]:
+            data["init_parameters"]["filter_policy"] = FilterPolicy.from_str(data["init_parameters"]["filter_policy"])
         return default_from_dict(cls, data)
 
     @component.output_types(documents=List[Document])
@@ -169,7 +171,7 @@ class QdrantSparseEmbeddingRetriever:
         top_k: int = 10,
         scale_score: bool = True,
         return_embedding: bool = False,
-        filter_policy: Optional[FilterPolicy] = FilterPolicy.REPLACE
+        filter_policy: Optional[FilterPolicy] = FilterPolicy.REPLACE,
     ):
         """
         Create a QdrantSparseEmbeddingRetriever component.
@@ -208,7 +210,7 @@ class QdrantSparseEmbeddingRetriever:
             filters=self._filters,
             top_k=self._top_k,
             scale_score=self._scale_score,
-            filter_policy=self._filter_policy,
+            filter_policy=self._filter_policy.value if self._filter_policy else None,
             return_embedding=self._return_embedding,
         )
         d["init_parameters"]["document_store"] = self._document_store.to_dict()
@@ -227,6 +229,8 @@ class QdrantSparseEmbeddingRetriever:
         """
         document_store = QdrantDocumentStore.from_dict(data["init_parameters"]["document_store"])
         data["init_parameters"]["document_store"] = document_store
+        if "filter_policy" in data["init_parameters"]:
+            data["init_parameters"]["filter_policy"] = FilterPolicy.from_str(data["init_parameters"]["filter_policy"])
         return default_from_dict(cls, data)
 
     @component.output_types(documents=List[Document])
@@ -304,7 +308,7 @@ class QdrantHybridRetriever:
         filters: Optional[Union[Dict[str, Any], models.Filter]] = None,
         top_k: int = 10,
         return_embedding: bool = False,
-        filter_policy: Optional[FilterPolicy] = FilterPolicy.REPLACE
+        filter_policy: Optional[FilterPolicy] = FilterPolicy.REPLACE,
     ):
         """
         Create a QdrantHybridRetriever component.
@@ -340,7 +344,7 @@ class QdrantHybridRetriever:
             document_store=self._document_store.to_dict(),
             filters=self._filters,
             top_k=self._top_k,
-            filter_policy=self._filter_policy,
+            filter_policy=self._filter_policy.value if self._filter_policy else None,
             return_embedding=self._return_embedding,
         )
 
@@ -356,6 +360,8 @@ class QdrantHybridRetriever:
         """
         document_store = QdrantDocumentStore.from_dict(data["init_parameters"]["document_store"])
         data["init_parameters"]["document_store"] = document_store
+        if "filter_policy" in data["init_parameters"]:
+            data["init_parameters"]["filter_policy"] = FilterPolicy.from_str(data["init_parameters"]["filter_policy"])
         return default_from_dict(cls, data)
 
     @component.output_types(documents=List[Document])
