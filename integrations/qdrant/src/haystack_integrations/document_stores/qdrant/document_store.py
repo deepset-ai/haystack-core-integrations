@@ -158,7 +158,7 @@ class QdrantDocumentStore:
         :param timeout:
             Timeout for REST and gRPC API requests.
         :param host:
-            Host name of Qdrant service. If url and host are None, set to `localhost`.
+            Host name of Qdrant service. If ùrl` and `host` are `None`, set to `localhost`.
         :param path:
             Persistence path for QdrantLocal.
         :param force_disable_check_same_thread:
@@ -177,7 +177,7 @@ class QdrantDocumentStore:
         :param embedding_field:
             The field for the document embeddings.
         :param use_sparse_embedding:
-            If set to True, enables the use for 'Sparse Embedding' class.
+            If set to `True`, enables support for sparse embeddings.
         :param similarity:
             The similarity metric to use.
         :param return_embedding:
@@ -185,7 +185,7 @@ class QdrantDocumentStore:
         :param progress_bar:
             Whether to show a progress bar or not.
         :param duplicate_documents:
-            The policy for handling duplicate documents ("overwrite", "skip", or "fail").
+            The parameter is not used and will be removed in future release.
         :param recreate_index:
             Whether to recreate the index.
         :param shard_number:
@@ -211,7 +211,7 @@ class QdrantDocumentStore:
         :param wal_config:
             Params for Write-Ahead-Log.
         :param quantization_config:
-            Params for quantization. If None, quantization will be disabled.
+            Params for quantization. If `None`, quantization will be disabled.
         :param init_from:
             Use data stored in another collection to initialize this collection.
         :param wait_result_from_api:
@@ -517,7 +517,7 @@ class QdrantDocumentStore:
         return_embedding: bool = False,
     ) -> List[Document]:
         """
-        Queries Qdrant using sparse a embedding and returns the most relevant documents.
+        Queries Qdrant using a sparse embedding and returns the most relevant documents.
 
         :param query_sparse_embedding: Sparse embedding of the query.
         :param filters: Filters applied to the retrieved documents.
