@@ -31,7 +31,7 @@ class OpenSearchEmbeddingRetriever:
         :param filters: Filters applied to the retrieved Documents. Defaults to None.
             Filters are applied during the approximate kNN search to ensure that top_k matching documents are returned.
         :param top_k: Maximum number of Documents to return, defaults to 10
-        :param filter_policy: Policy to determine how filters are applied. Defaults to "replace".
+        :param filter_policy: Policy to determine how filters are applied.
              - `replace`: Runtime filters replace init filters.
              - `merge`: Runtime filters are merged with init filters, with runtime filters overwriting init values.
         :raises ValueError: If `document_store` is not an instance of OpenSearchDocumentStore.
@@ -82,7 +82,9 @@ class OpenSearchEmbeddingRetriever:
         Retrieve documents using a vector similarity metric.
 
         :param query_embedding: Embedding of the query.
-        :param filters: Optional filters to narrow down the search space.
+        :param filters: Filters applied to the retrieved Documents. The way runtime filters are applied depends on
+                        the `filter_policy` chosen at document store initialization. See init method docstring for more
+                        details.
         :param top_k: Maximum number of Documents to return.
         :returns:
             Dictionary with key "documents" containing the retrieved Documents.
