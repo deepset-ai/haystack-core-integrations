@@ -6,6 +6,7 @@ from typing import Any, Dict, List, Literal, Optional
 from haystack import component, default_from_dict, default_to_dict
 from haystack.dataclasses import Document
 from haystack.document_stores.types import FilterPolicy
+from haystack.document_stores.types.filter_policy import apply_filter_policy
 from haystack_integrations.document_stores.pgvector import PgvectorDocumentStore
 from haystack_integrations.document_stores.pgvector.document_store import VALID_VECTOR_FUNCTIONS
 
@@ -149,11 +150,7 @@ class PgvectorEmbeddingRetriever:
 
         :returns: List of Documents similar to `query_embedding`.
         """
-        if self.filter_policy == FilterPolicy.MERGE and filters:
-            filters = {**self.filters, **filters}
-        else:
-            filters = filters or self.filters
-
+        filters = apply_filter_policy(self.filter_policy, self.filters, filters)
         top_k = top_k or self.top_k
         vector_function = vector_function or self.vector_function
 
