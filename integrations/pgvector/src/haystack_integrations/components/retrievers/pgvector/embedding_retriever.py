@@ -79,8 +79,6 @@ class PgvectorEmbeddingRetriever:
             **Important**: if the document store is using the `"hnsw"` search strategy, the vector function
             should match the one utilized during index creation to take advantage of the index.
         :param filter_policy: Policy to determine how filters are applied.
-            - `replace`: Runtime filters replace init filters.
-            - `merge`: Runtime filters are merged with init filters, with runtime filters overwriting init values.
         :raises ValueError: If `document_store` is not an instance of `PgvectorDocumentStore` or if `vector_function`
             is not one of the valid options.
         """
