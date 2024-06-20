@@ -1,6 +1,9 @@
 from typing import Any, Dict, List, Literal, Optional
 
 from haystack import Document, component, default_from_dict, default_to_dict
+from haystack.document_stores.types import FilterPolicy
+from haystack.document_stores.types.filter_policy import apply_filter_policy
+
 from haystack_integrations.document_stores.weaviate import WeaviateDocumentStore
 
 
@@ -18,7 +21,7 @@ class WeaviateEmbeddingRetriever:
         top_k: int = 10,
         distance: Optional[float] = None,
         certainty: Optional[float] = None,
-        filter_policy: Literal["replace", "merge"] = "replace",
+        filter_policy: Optional[FilterPolicy] = FilterPolicy.REPLACE
     ):
         """
         Creates a new instance of WeaviateEmbeddingRetriever.
@@ -33,9 +36,8 @@ class WeaviateEmbeddingRetriever:
             The maximum allowed distance between Documents' embeddings.
         :param certainty:
             Normalized distance between the result item and the search vector.
-        :param filter_policy: Policy to determine how filters are applied.
-            - `replace`: Runtime filters replace init filters.
-            - `merge`: Runtime filters are merged with init filters, with runtime filters overwriting init values.
+        :param filter_policy:
+            Policy to determine how filters are applied.
         :raises ValueError:
             If both `distance` and `certainty` are provided.
             See https://weaviate.io/developers/weaviate/api/graphql/search-operators#variables to learn more about
@@ -112,10 +114,7 @@ class WeaviateEmbeddingRetriever:
             See https://weaviate.io/developers/weaviate/api/graphql/search-operators#variables to learn more about
             `distance` and `certainty` parameters.
         """
-        if self._filter_policy == "merge" and filters:
-            filters = {**self._filters, **filters}
-        else:
-            filters = filters or self._filters
+        filters = apply_filter_policy(self._filter_policy, self._filters, filters)
         top_k = top_k or self._top_k
 
         distance = distance or self._distance
