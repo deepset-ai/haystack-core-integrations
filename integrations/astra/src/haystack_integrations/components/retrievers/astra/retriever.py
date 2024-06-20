@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Any, Dict, List, Literal, Optional
+from typing import Any, Dict, List, Optional
 
 from haystack import Document, component, default_from_dict, default_to_dict
 from haystack.document_stores.types import FilterPolicy
@@ -38,7 +38,7 @@ class AstraEmbeddingRetriever:
         document_store: AstraDocumentStore,
         filters: Optional[Dict[str, Any]] = None,
         top_k: int = 10,
-        filter_policy: Optional[FilterPolicy] = FilterPolicy.REPLACE
+        filter_policy: Optional[FilterPolicy] = FilterPolicy.REPLACE,
     ):
         """
         :param document_store: An instance of AstraDocumentStore.
@@ -83,7 +83,7 @@ class AstraEmbeddingRetriever:
             self,
             filters=self.filters,
             top_k=self.top_k,
-            filter_policy=self.filter_policy.value,
+            filter_policy=self.filter_policy.value if self.filter_policy else None,
             document_store=self.document_store.to_dict(),
         )
 
