@@ -99,6 +99,9 @@ class ChromaQueryTextRetriever:
         """
         document_store = ChromaDocumentStore.from_dict(data["init_parameters"]["document_store"])
         data["init_parameters"]["document_store"] = document_store
+        if "filter_policy" in data["init_parameters"]:
+            data["init_parameters"]["filter_policy"] = FilterPolicy.from_str(data["init_parameters"]["filter_policy"])
+
         return default_from_dict(cls, data)
 
     def to_dict(self) -> Dict[str, Any]:
@@ -112,7 +115,7 @@ class ChromaQueryTextRetriever:
             self,
             filters=self.filters,
             top_k=self.top_k,
-            filter_policy=self.filter_policy,
+            filter_policy=self.filter_policy.value,
             document_store=self.document_store.to_dict(),
         )
 
