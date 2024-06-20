@@ -103,6 +103,7 @@ class AmazonBedrockGenerator:
         self.aws_session_token = aws_session_token
         self.aws_region_name = aws_region_name
         self.aws_profile_name = aws_profile_name
+        self.kwargs = kwargs
 
         def resolve_secret(secret: Optional[Secret]) -> Optional[str]:
             return secret.resolve_value() if secret else None
@@ -271,6 +272,8 @@ class AmazonBedrockGenerator:
             aws_profile_name=self.aws_profile_name.to_dict() if self.aws_profile_name else None,
             model=self.model,
             max_length=self.max_length,
+            truncate=self.truncate,
+            **self.kwargs,
         )
 
     @classmethod

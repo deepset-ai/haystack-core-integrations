@@ -19,10 +19,7 @@ def test_to_dict(mock_boto3_session):
     """
     Test that the to_dict method returns the correct dictionary without aws credentials
     """
-    generator = AmazonBedrockGenerator(
-        model="anthropic.claude-v2",
-        max_length=99,
-    )
+    generator = AmazonBedrockGenerator(model="anthropic.claude-v2", max_length=99, truncate=False, temperature=10)
 
     expected_dict = {
         "type": "haystack_integrations.components.generators.amazon_bedrock.generator.AmazonBedrockGenerator",
@@ -34,6 +31,8 @@ def test_to_dict(mock_boto3_session):
             "aws_profile_name": {"type": "env_var", "env_vars": ["AWS_PROFILE"], "strict": False},
             "model": "anthropic.claude-v2",
             "max_length": 99,
+            "truncate": False,
+            "temperature": 10,
         },
     }
 
