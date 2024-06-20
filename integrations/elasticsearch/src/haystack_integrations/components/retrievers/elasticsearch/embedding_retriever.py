@@ -5,6 +5,8 @@ from typing import Any, Dict, List, Literal, Optional
 
 from haystack import component, default_from_dict, default_to_dict
 from haystack.dataclasses import Document
+from haystack.document_stores.types import FilterPolicy
+from haystack.document_stores.types.filter_policy import apply_filter_policy
 from haystack_integrations.document_stores.elasticsearch.document_store import ElasticsearchDocumentStore
 
 
@@ -49,7 +51,7 @@ class ElasticsearchEmbeddingRetriever:
         filters: Optional[Dict[str, Any]] = None,
         top_k: int = 10,
         num_candidates: Optional[int] = None,
-        filter_policy: Literal["replace", "merge"] = "replace",
+        filter_policy: Optional[FilterPolicy] = FilterPolicy.REPLACE
     ):
         """
         Create the ElasticsearchEmbeddingRetriever component.
@@ -63,8 +65,6 @@ class ElasticsearchEmbeddingRetriever:
             You can read more about it in the Elasticsearch
             [documentation](https://www.elastic.co/guide/en/elasticsearch/reference/current/knn-search.html#tune-approximate-knn-for-speed-accuracy)
         :param filter_policy: Policy to determine how filters are applied.
-                - `replace`: Runtime filters replace init filters.
-                - `merge`: Runtime filters are merged with init filters, with runtime filters overwriting init values.
         :raises ValueError: If `document_store` is not an instance of ElasticsearchDocumentStore.
         """
         if not isinstance(document_store, ElasticsearchDocumentStore):
@@ -121,11 +121,7 @@ class ElasticsearchEmbeddingRetriever:
         :returns: A dictionary with the following keys:
             - `documents`: List of `Document`s most similar to the given `query_embedding`
         """
-        if self._filter_policy == "merge" and filters:
-            filters = {**self._filters, **filters}
-        else:
-            filters = filters or self._filters
-
+        filters = apply_filter_policy(self._filter_policy, self._filters, filters)
         docs = self._document_store._embedding_retrieval(
             query_embedding=query_embedding,
             filters=filters,

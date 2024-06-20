@@ -5,6 +5,8 @@ from typing import Any, Dict, List, Literal, Optional
 
 from haystack import component, default_from_dict, default_to_dict
 from haystack.dataclasses import Document
+from haystack.document_stores.types import FilterPolicy
+from haystack.document_stores.types.filter_policy import apply_filter_policy
 from haystack_integrations.document_stores.elasticsearch.document_store import ElasticsearchDocumentStore
 
 
@@ -48,7 +50,7 @@ class ElasticsearchBM25Retriever:
         fuzziness: str = "AUTO",
         top_k: int = 10,
         scale_score: bool = False,
-        filter_policy: Literal["replace", "merge"] = "replace",
+        filter_policy: Optional[FilterPolicy] = FilterPolicy.REPLACE
     ):
         """
         Initialize ElasticsearchBM25Retriever with an instance ElasticsearchDocumentStore.
@@ -62,8 +64,6 @@ class ElasticsearchBM25Retriever:
         :param top_k: Maximum number of Documents to return.
         :param scale_score: If `True` scales the Document`s scores between 0 and 1.
         :param filter_policy: Policy to determine how filters are applied.
-                - `replace`: Runtime filters replace init filters.
-                - `merge`: Runtime filters are merged with init filters, with runtime filters overwriting init values.
         :raises ValueError: If `document_store` is not an instance of `ElasticsearchDocumentStore`.
         """
 
@@ -123,11 +123,7 @@ class ElasticsearchBM25Retriever:
         :returns: A dictionary with the following keys:
             - `documents`: List of `Document`s that match the query.
         """
-        if self._filter_policy == "merge" and filters:
-            filters = {**self._filters, **filters}
-        else:
-            filters = filters or self._filters
-
+        filters = apply_filter_policy(self._filter_policy, self._filters, filters)
         docs = self._document_store._bm25_retrieval(
             query=query,
             filters=filters,
