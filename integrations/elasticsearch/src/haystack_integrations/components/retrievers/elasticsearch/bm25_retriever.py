@@ -91,7 +91,7 @@ class ElasticsearchBM25Retriever:
             fuzziness=self._fuzziness,
             top_k=self._top_k,
             scale_score=self._scale_score,
-            filter_policy=self._filter_policy,
+            filter_policy=self._filter_policy.value,
             document_store=self._document_store.to_dict(),
         )
 
@@ -108,6 +108,8 @@ class ElasticsearchBM25Retriever:
         data["init_parameters"]["document_store"] = ElasticsearchDocumentStore.from_dict(
             data["init_parameters"]["document_store"]
         )
+        if "filter_policy" in data["init_parameters"]:
+            data["init_parameters"]["filter_policy"] = FilterPolicy.from_str(data["init_parameters"]["filter_policy"])
         return default_from_dict(cls, data)
 
     @component.output_types(documents=List[Document])
