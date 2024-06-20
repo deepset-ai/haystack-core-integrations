@@ -2,6 +2,8 @@ from typing import Any, Dict, List, Literal, Optional, Union
 
 from haystack import Document, component, default_from_dict, default_to_dict
 from haystack.dataclasses.sparse_embedding import SparseEmbedding
+from haystack.document_stores.types import FilterPolicy
+from haystack.document_stores.types.filter_policy import apply_filter_policy
 from haystack_integrations.document_stores.qdrant import QdrantDocumentStore
 from qdrant_client.http import models
 
@@ -39,7 +41,7 @@ class QdrantEmbeddingRetriever:
         top_k: int = 10,
         scale_score: bool = True,
         return_embedding: bool = False,
-        filter_policy: Literal["replace", "merge"] = "replace",
+        filter_policy: Optional[FilterPolicy] = FilterPolicy.REPLACE
     ):
         """
         Create a QdrantEmbeddingRetriever component.
@@ -50,8 +52,6 @@ class QdrantEmbeddingRetriever:
         :param scale_score: Whether to scale the scores of the retrieved documents or not.
         :param return_embedding: Whether to return the embedding of the retrieved Documents.
         :param filter_policy: Policy to determine how filters are applied.
-            - `replace`: Runtime filters replace init filters.
-            - `merge`: Runtime filters are merged with init filters, with runtime filters overwriting init values.
 
         :raises ValueError: If `document_store` is not an instance of `QdrantDocumentStore`.
         """
@@ -122,10 +122,7 @@ class QdrantEmbeddingRetriever:
             The retrieved documents.
 
         """
-        if self._filter_policy == "merge" and filters:
-            filters = {**(self._filters or {}), **filters}
-        else:
-            filters = filters or self._filters
+        filters = apply_filter_policy(self._filter_policy, self._filters, filters)
 
         docs = self._document_store._query_by_embedding(
             query_embedding=query_embedding,
@@ -172,7 +169,7 @@ class QdrantSparseEmbeddingRetriever:
         top_k: int = 10,
         scale_score: bool = True,
         return_embedding: bool = False,
-        filter_policy: Literal["replace", "merge"] = "replace",
+        filter_policy: Optional[FilterPolicy] = FilterPolicy.REPLACE
     ):
         """
         Create a QdrantSparseEmbeddingRetriever component.
@@ -183,8 +180,6 @@ class QdrantSparseEmbeddingRetriever:
         :param scale_score: Whether to scale the scores of the retrieved documents or not.
         :param return_embedding: Whether to return the sparse embedding of the retrieved Documents.
         :param filter_policy: Policy to determine how filters are applied. Defaults to "replace".
-            - `replace`: Runtime filters replace init filters.
-            - `merge`: Runtime filters are merged with init filters, with runtime filters overwriting init values.
 
         :raises ValueError: If `document_store` is not an instance of `QdrantDocumentStore`.
         """
@@ -257,10 +252,7 @@ class QdrantSparseEmbeddingRetriever:
             The retrieved documents.
 
         """
-        if self._filter_policy == "merge" and filters:
-            filters = {**(self._filters or {}), **filters}
-        else:
-            filters = filters or self._filters
+        filters = apply_filter_policy(self._filter_policy, self._filters, filters)
 
         docs = self._document_store._query_by_sparse(
             query_sparse_embedding=query_sparse_embedding,
@@ -312,7 +304,7 @@ class QdrantHybridRetriever:
         filters: Optional[Union[Dict[str, Any], models.Filter]] = None,
         top_k: int = 10,
         return_embedding: bool = False,
-        filter_policy: Literal["replace", "merge"] = "replace",
+        filter_policy: Optional[FilterPolicy] = FilterPolicy.REPLACE
     ):
         """
         Create a QdrantHybridRetriever component.
@@ -322,8 +314,6 @@ class QdrantHybridRetriever:
         :param top_k: The maximum number of documents to retrieve.
         :param return_embedding: Whether to return the embeddings of the retrieved Documents.
         :param filter_policy: Policy to determine how filters are applied.
-            - `replace`: Runtime filters replace init filters.
-            - `merge`: Runtime filters are merged with init filters, with runtime filters overwriting init values.
 
         :raises ValueError: If 'document_store' is not an instance of QdrantDocumentStore.
         """
@@ -391,10 +381,7 @@ class QdrantHybridRetriever:
             The retrieved documents.
 
         """
-        if self._filter_policy == "merge" and filters:
-            filters = {**(self._filters or {}), **filters}
-        else:
-            filters = filters or self._filters
+        filters = apply_filter_policy(self._filter_policy, self._filters, filters)
 
         docs = self._document_store._query_hybrid(
             query_embedding=query_embedding,
