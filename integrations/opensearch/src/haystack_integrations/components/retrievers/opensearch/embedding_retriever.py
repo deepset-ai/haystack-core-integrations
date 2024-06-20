@@ -5,6 +5,9 @@ from typing import Any, Dict, List, Literal, Optional
 
 from haystack import component, default_from_dict, default_to_dict
 from haystack.dataclasses import Document
+from haystack.document_stores.types import FilterPolicy
+from haystack.document_stores.types.filter_policy import apply_filter_policy
+
 from haystack_integrations.document_stores.opensearch import OpenSearchDocumentStore
 
 
@@ -22,7 +25,7 @@ class OpenSearchEmbeddingRetriever:
         document_store: OpenSearchDocumentStore,
         filters: Optional[Dict[str, Any]] = None,
         top_k: int = 10,
-        filter_policy: Literal["replace", "merge"] = "replace",
+        filter_policy: Optional[FilterPolicy] = FilterPolicy.REPLACE
     ):
         """
         Create the OpenSearchEmbeddingRetriever component.
@@ -32,8 +35,6 @@ class OpenSearchEmbeddingRetriever:
             Filters are applied during the approximate kNN search to ensure that top_k matching documents are returned.
         :param top_k: Maximum number of Documents to return, defaults to 10
         :param filter_policy: Policy to determine how filters are applied.
-             - `replace`: Runtime filters replace init filters.
-             - `merge`: Runtime filters are merged with init filters, with runtime filters overwriting init values.
         :raises ValueError: If `document_store` is not an instance of OpenSearchDocumentStore.
         """
         if not isinstance(document_store, OpenSearchDocumentStore):
@@ -90,11 +91,7 @@ class OpenSearchEmbeddingRetriever:
             Dictionary with key "documents" containing the retrieved Documents.
             - documents: List of Document similar to `query_embedding`.
         """
-        if self._filter_policy == "merge" and filters:
-            filters = {**self._filters, **filters}
-        else:
-            filters = filters or self._filters
-
+        filters = apply_filter_policy(self._filter_policy, self._filters, filters)
         top_k = top_k or self._top_k
 
         docs = self._document_store._embedding_retrieval(

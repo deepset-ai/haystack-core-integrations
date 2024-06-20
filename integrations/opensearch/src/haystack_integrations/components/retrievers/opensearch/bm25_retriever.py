@@ -5,6 +5,9 @@ from typing import Any, Dict, List, Literal, Optional
 
 from haystack import component, default_from_dict, default_to_dict
 from haystack.dataclasses import Document
+from haystack.document_stores.types import FilterPolicy
+from haystack.document_stores.types.filter_policy import apply_filter_policy
+
 from haystack_integrations.document_stores.opensearch import OpenSearchDocumentStore
 
 
@@ -19,7 +22,7 @@ class OpenSearchBM25Retriever:
         top_k: int = 10,
         scale_score: bool = False,
         all_terms_must_match: bool = False,
-        filter_policy: Literal["replace", "merge"] = "replace",
+        filter_policy: Optional[FilterPolicy] = FilterPolicy.REPLACE
     ):
         """
         Create the OpenSearchBM25Retriever component.
@@ -33,8 +36,6 @@ class OpenSearchBM25Retriever:
         :param all_terms_must_match: If True, all terms in the query string must be present in the retrieved documents.
             This is useful when searching for short text where even one term can make a difference. Defaults to False.
         :param filter_policy: Policy to determine how filters are applied.
-             - `replace`: Runtime filters replace init filters.
-             - `merge`: Runtime filters are merged with init filters, with runtime filters overwriting init values.
         :raises ValueError: If `document_store` is not an instance of OpenSearchDocumentStore.
 
         """
@@ -111,10 +112,7 @@ class OpenSearchBM25Retriever:
             - documents: List of retrieved Documents.
 
         """
-        if self._filter_policy == "merge" and filters:
-            filters = {**self._filters, **filters}
-        else:
-            filters = filters or self._filters
+        filters = apply_filter_policy(self._filter_policy, self._filters, filters)
 
         if filters is None:
             filters = self._filters
