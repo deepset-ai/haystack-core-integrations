@@ -4,6 +4,9 @@
 from typing import Any, Dict, List, Literal, Optional
 
 from haystack import Document, component, default_from_dict, default_to_dict
+from haystack.document_stores.types import FilterPolicy
+from haystack.document_stores.types.filter_policy import apply_filter_policy
+
 from haystack_integrations.document_stores.chroma import ChromaDocumentStore
 
 
@@ -46,15 +49,13 @@ class ChromaQueryTextRetriever:
         document_store: ChromaDocumentStore,
         filters: Optional[Dict[str, Any]] = None,
         top_k: int = 10,
-        filter_policy: Literal["replace", "merge"] = "replace",
+        filter_policy: Optional[FilterPolicy] = FilterPolicy.REPLACE
     ):
         """
         :param document_store: an instance of `ChromaDocumentStore`.
         :param filters: filters to narrow down the search space.
         :param top_k: the maximum number of documents to retrieve.
-        :param filter_policy: Policy to determine how filters are applied. Defaults to "replace".
-             - `replace`: Runtime filters replace init filters.
-             - `merge`: Runtime filters are merged with init filters, with runtime filters overwriting init values.
+        :param filter_policy: Policy to determine how filters are applied.
         """
         self.filters = filters or {}
         self.top_k = top_k
@@ -82,12 +83,8 @@ class ChromaQueryTextRetriever:
 
         :raises ValueError: If the specified document store is not found or is not a MemoryDocumentStore instance.
         """
+        filters = apply_filter_policy(self.filter_policy, self.filters, filters)
         top_k = top_k or self.top_k
-        if self.filter_policy == "merge" and filters:
-            filters = {**self.filters, **filters}
-        else:
-            filters = filters or self.filters
-
         return {"documents": self.document_store.search([query], top_k, filters)[0]}
 
     @classmethod
