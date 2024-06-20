@@ -64,6 +64,7 @@ jobs:
           timeout_minutes: 10
           retry_on: error
           command: hatch run cov
+          shell: bash
 
       - name: Nightly - run unit tests with Haystack main branch
         if: github.event_name == 'schedule'
