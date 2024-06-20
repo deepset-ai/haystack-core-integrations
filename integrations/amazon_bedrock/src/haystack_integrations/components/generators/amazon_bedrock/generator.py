@@ -86,6 +86,7 @@ class AmazonBedrockGenerator:
         :param aws_region_name: The AWS region name.
         :param aws_profile_name: The AWS profile name.
         :param max_length: The maximum length of the generated text.
+        :param truncate: Whether to truncate the prompt or not.
         :param kwargs: Additional keyword arguments to be passed to the model.
         :raises ValueError: If the model name is empty or None.
         :raises AmazonBedrockConfigurationError: If the AWS environment is not configured correctly or the model is
