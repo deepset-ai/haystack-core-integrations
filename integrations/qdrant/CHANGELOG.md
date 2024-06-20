@@ -1,5 +1,11 @@
 # Changelog
 
+## [integrations/qdrant-v3.8.1] - 2024-06-20
+
+### 📚 Documentation
+
+- Added docstrings for QdrantDocumentStore (#808)
+
 ## [integrations/qdrant-v3.8.0] - 2024-06-06
 
 ### 🚀 Features
