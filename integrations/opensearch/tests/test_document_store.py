@@ -361,10 +361,10 @@ class TestDocumentStore(DocumentStoreBaseTests):
                             "bool": {
                                 "must": {
                                     "match": {
-                                        "content": {{ query }}
+                                        "content": $query
                                     }
                                 },
-                                "filter": {{ filters }}
+                                "filter": $filters
                             }
                         },
                         "field_value_factor": {
@@ -460,13 +460,13 @@ class TestDocumentStore(DocumentStoreBaseTests):
                             {
                                 "knn": {
                                     "embedding": {
-                                        "vector": {{ query_embedding }},
+                                        "vector": $query_embedding,
                                         "k": 3
                                     }
                                 }
                             }
                         ],
-                        "filter": {{ filters }}
+                        "filter": $filters
                     }
                 }
             }

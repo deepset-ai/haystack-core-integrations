@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 import json
 import logging
+from string import Template
 from typing import Any, Dict, List, Mapping, Optional, Union
 
 import numpy as np
@@ -12,7 +13,6 @@ from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumen
 from haystack.document_stores.types import DuplicatePolicy
 from haystack.utils.filters import convert
 from haystack_integrations.document_stores.opensearch.filters import normalize_filters
-from jinja2 import Template
 from opensearchpy import OpenSearch
 from opensearchpy.helpers import bulk
 
@@ -303,8 +303,7 @@ class OpenSearchDocumentStore:
         :param top_k: Maximum number of Documents to return, defaults to 10
         :param scale_score: If `True` scales the Document`s scores between 0 and 1, defaults to False
         :param all_terms_must_match: If `True` all terms in `query` must be present in the Document, defaults to False
-        :param custom_query: The query string containing a mandatory `{{ query }}` and an optional `{{ filters }}`
-            placeholder
+        :param custom_query: The query string containing a mandatory `${query}` and an optional `${filters}` placeholder
 
             **An example custom_query:**
 
@@ -313,10 +312,10 @@ class OpenSearchDocumentStore:
                 "query": {
                     "bool": {
                         "should": [{"multi_match": {
-                            "query": {{ query }},                 // mandatory query placeholder
+                            "query": ${query},                 // mandatory query placeholder
                             "type": "most_fields",
                             "fields": ["content", "title"]}}],
-                        "filter": {{ filters }}                  // optional filter placeholder
+                        "filter": ${filters}                  // optional filter placeholder
                     }
                 }
             }
@@ -338,7 +337,7 @@ class OpenSearchDocumentStore:
                 "query": json.dumps(query),
                 "filters": json.dumps(normalize_filters(filters)),
             }
-            custom_query_json = template.render(substitutions)
+            custom_query_json = template.substitute(**substitutions)
             body = json.loads(custom_query_json)
 
         else:
@@ -398,8 +397,8 @@ class OpenSearchDocumentStore:
         :param filters: Filters applied to the retrieved Documents. Defaults to None.
             Filters are applied during the approximate kNN search to ensure that top_k matching documents are returned.
         :param top_k: Maximum number of Documents to return, defaults to 10
-        :param custom_query: The query string containing a mandatory `{{ query_embedding }}` and an optional
-            `{{ filters }}` placeholder
+        :param custom_query: The query string containing a mandatory `${query_embedding}` and an optional `${filters}`
+            placeholder
 
             **An example custom_query:**
             ```python
@@ -410,13 +409,13 @@ class OpenSearchDocumentStore:
                             {
                                 "knn": {
                                     "embedding": {
-                                        "vector": {{ query_embedding }},   // mandatory query placeholder
+                                        "vector": ${query_embedding},   // mandatory query placeholder
                                         "k": 10000,
                                     }
                                 }
                             }
                         ],
-                        "filter": {{ filters }}                            // optional filter placeholder
+                        "filter": ${filters}                            // optional filter placeholder
                     }
                 }
             }
@@ -437,7 +436,7 @@ class OpenSearchDocumentStore:
                 "query_embedding": json.dumps(query_embedding),
                 "filters": json.dumps(normalize_filters(filters)),
             }
-            custom_query_json = template.render(substitutions)
+            custom_query_json = template.substitute(**substitutions)
             body = json.loads(custom_query_json)
 
         else:
