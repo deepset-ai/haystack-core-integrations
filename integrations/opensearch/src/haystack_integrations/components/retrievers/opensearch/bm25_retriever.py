@@ -32,7 +32,8 @@ class OpenSearchBM25Retriever:
             This is useful when comparing documents across different indexes. Defaults to False.
         :param all_terms_must_match: If True, all terms in the query string must be present in the retrieved documents.
             This is useful when searching for short text where even one term can make a difference. Defaults to False.
-        :param custom_query: The query string containing a mandatory `${query}` and an optional `${filters}` placeholder
+        :param custom_query: The query string containing a mandatory `{{ query }}` and an optional `{{ filters }}`
+            placeholder
 
             **An example custom_query:**
 
@@ -41,10 +42,10 @@ class OpenSearchBM25Retriever:
                 "query": {
                     "bool": {
                         "should": [{"multi_match": {
-                            "query": ${query},                 // mandatory query placeholder
+                            "query": {{ query }},                 // mandatory query placeholder
                             "type": "most_fields",
                             "fields": ["content", "title"]}}],
-                        "filter": ${filters}                  // optional filter placeholder
+                        "filter": {{ filters }}                  // optional filter placeholder
                     }
                 }
             }
@@ -125,7 +126,8 @@ class OpenSearchBM25Retriever:
         :param fuzziness: Fuzziness parameter for full-text queries.
         :param scale_score: Whether to scale the score of retrieved documents between 0 and 1.
             This is useful when comparing documents across different indexes.
-        :param custom_query: The query string containing a mandatory `${query}` and an optional `${filters}` placeholder
+        :param custom_query: The query string containing a mandatory `{{ query }}` and an optional `{{ filters }}`
+            placeholder
 
             **An example custom_query:**
 
@@ -134,10 +136,10 @@ class OpenSearchBM25Retriever:
                 "query": {
                     "bool": {
                         "should": [{"multi_match": {
-                            "query": ${query},                 // mandatory query placeholder
+                            "query": {{ query }},                 // mandatory query placeholder
                             "type": "most_fields",
                             "fields": ["content", "title"]}}],
-                        "filter": ${filters}                  // optional filter placeholder
+                        "filter": {{ filters }}                  // optional filter placeholder
                     }
                 }
             }
@@ -149,7 +151,6 @@ class OpenSearchBM25Retriever:
         retriever.run(query="Why did the revenue increase?",
                         filters={"years": ["2019"], "quarters": ["Q1", "Q2"]})
         ```
-
 
         :returns:
             A dictionary containing the retrieved documents with the following structure:
