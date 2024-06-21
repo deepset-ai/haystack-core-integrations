@@ -24,7 +24,7 @@ classifiers = [
 ]
 dependencies = [
   "haystack-ai",
-  "pinecone-client>=3" # our implementation is not compatible with pinecone-client <3
+  "pinecone-client>=3", # our implementation is not compatible with pinecone-client <3
 ]
 
 [project.urls]
@@ -47,6 +47,7 @@ git_describe_command = 'git describe --tags --match="integrations/pinecone-v[0-9
 dependencies = [
   "coverage[toml]>=6.5",
   "pytest",
+  "pytest-rerunfailures",
   "pytest-xdist",
   "haystack-pydoc-tools",
 ]
@@ -150,12 +151,8 @@ parallel = false
 
 [tool.coverage.report]
 omit = ["*/tests/*", "*/__init__.py"]
-show_missing=true
-exclude_lines = [
-  "no cov",
-  "if __name__ == .__main__.:",
-  "if TYPE_CHECKING:",
-]
+show_missing = true
+exclude_lines = ["no cov", "if __name__ == .__main__.:", "if TYPE_CHECKING:"]
 
 [tool.pytest.ini_options]
 minversion = "6.0"

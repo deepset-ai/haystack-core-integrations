@@ -57,11 +57,13 @@ git_describe_command = 'git describe --tags --match="integrations/optimum-v[0-9]
 dependencies = [
   "coverage[toml]>=6.5",
   "pytest",
+  "pytest-rerunfailures",
   "haystack-pydoc-tools",
-  "databind-core<4.5.0", "setuptools",  # FIXME: the latest 4.5.0 causes loops in pip resolver
+  "databind-core<4.5.0",
+  "setuptools",           # FIXME: the latest 4.5.0 causes loops in pip resolver
 ]
 [tool.hatch.envs.default.scripts]
-test = "pytest {args:tests}"
+test = "pytest --reruns 3 --reruns-delay 30 -x {args:tests}"
 test-cov = "coverage run -m pytest {args:tests}"
 cov-report = ["- coverage combine", "coverage report"]
 cov = ["test-cov", "cov-report"]
@@ -161,12 +163,8 @@ parallel = false
 
 [tool.coverage.report]
 omit = ["*/tests/*", "*/__init__.py"]
-show_missing=true
-exclude_lines = [
-  "no cov",
-  "if __name__ == .__main__.:",
-  "if TYPE_CHECKING:",
-]
+show_missing = true
+exclude_lines = ["no cov", "if __name__ == .__main__.:", "if TYPE_CHECKING:"]
 
 
 [[tool.mypy.overrides]]
