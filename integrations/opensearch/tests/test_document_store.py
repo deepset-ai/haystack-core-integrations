@@ -146,6 +146,7 @@ class TestDocumentStore(DocumentStoreBaseTests):
         store.client.cluster.put_settings(body={"transient": {"action.auto_create_index": False}})
         yield store
         store.client.cluster.put_settings(body={"transient": {"action.auto_create_index": True}})
+        store.client.indices.delete(index=index, params={"ignore": [400, 404]})
 
     @pytest.fixture
     def document_store_embedding_dim_4(self, request):
@@ -203,6 +204,10 @@ class TestDocumentStore(DocumentStoreBaseTests):
         docs = [Document(id="1")]
         with pytest.raises(DocumentStoreError, match="no such index"):
             document_store_readonly.write_documents(docs)
+
+    def test_create_index(self, document_store_readonly: OpenSearchDocumentStore):
+        document_store_readonly.create_index()
+        assert document_store_readonly.client.indices.exists(index=document_store_readonly.index)
 
     def test_bm25_retrieval(self, document_store: OpenSearchDocumentStore):
         document_store.write_documents(
