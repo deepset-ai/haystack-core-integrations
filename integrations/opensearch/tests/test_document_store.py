@@ -45,7 +45,14 @@ def test_to_dict(_mock_opensearch_client):
 def test_from_dict(_mock_opensearch_client):
     data = {
         "type": "haystack_integrations.document_stores.opensearch.document_store.OpenSearchDocumentStore",
-        "init_parameters": {"hosts": "some hosts", "index": "default", "max_chunk_bytes": 1000, "embedding_dim": 1536, "create_index": False, "return_embedding": True},
+        "init_parameters": {
+            "hosts": "some hosts", 
+            "index": "default", 
+            "max_chunk_bytes": 1000, 
+            "embedding_dim": 1536, 
+            "create_index": False, 
+            "return_embedding": True
+        },
     }
     document_store = OpenSearchDocumentStore.from_dict(data)
     assert document_store._hosts == "some hosts"
