@@ -32,13 +32,12 @@ class OpenSearchBM25Retriever:
             This is useful when comparing documents across different indexes. Defaults to False.
         :param all_terms_must_match: If True, all terms in the query string must be present in the retrieved documents.
             This is useful when searching for short text where even one term can make a difference. Defaults to False.
-        :param custom_query: The query string containing a mandatory `${query}` and an optional `${filters}` placeholder.
+        :param custom_query: The query string containing a mandatory `${query}` and an optional `${filters}` placeholder
 
             **An example custom_query:**
 
             ```python
             {
-                "size": 10,
                 "query": {
                     "bool": {
                         "should": [{"multi_match": {

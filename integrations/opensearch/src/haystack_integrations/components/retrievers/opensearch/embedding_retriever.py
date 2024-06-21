@@ -31,21 +31,26 @@ class OpenSearchEmbeddingRetriever:
         :param filters: Filters applied to the retrieved Documents. Defaults to None.
             Filters are applied during the approximate kNN search to ensure that top_k matching documents are returned.
         :param top_k: Maximum number of Documents to return, defaults to 10
-        :param custom_query: The query string containing a mandatory `${query_embedding}` and an optional `${filters}` placeholder.
+        :param custom_query: The query string containing a mandatory `${query_embedding}` and an optional `${filters}`
+            placeholder
 
             **An example custom_query:**
 
             ```python
             {
-                "size": 10,
                 "query": {
                     "bool": {
-                        "must": [{"knn": {
-                            "embedding": {
-                                "vector": ${query_embedding},   // mandatory query placeholder
-                                "k": 10000,
-                            }}],
-                        "filter": ${filters}                  // optional filter placeholder
+                        "must": [
+                            {
+                                "knn": {
+                                    "embedding": {
+                                        "vector": ${query_embedding},   // mandatory query placeholder
+                                        "k": 10000,
+                                    }
+                                }
+                            }
+                        ],
+                        "filter": ${filters}                            // optional filter placeholder
                     }
                 }
             }

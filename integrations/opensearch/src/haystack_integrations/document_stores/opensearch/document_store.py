@@ -303,13 +303,12 @@ class OpenSearchDocumentStore:
         :param top_k: Maximum number of Documents to return, defaults to 10
         :param scale_score: If `True` scales the Document`s scores between 0 and 1, defaults to False
         :param all_terms_must_match: If `True` all terms in `query` must be present in the Document, defaults to False
-        :param custom_query: The query string containing a mandatory `${query}` and an optional `${filters}` placeholder.
+        :param custom_query: The query string containing a mandatory `${query}` and an optional `${filters}` placeholder
 
             **An example custom_query:**
 
             ```python
             {
-                "size": 10,
                 "query": {
                     "bool": {
                         "should": [{"multi_match": {
@@ -330,7 +329,7 @@ class OpenSearchDocumentStore:
             body: Dict[str, Any] = {"query": {"bool": {"must": {"match_all": {}}}}}
             if filters:
                 body["query"]["bool"]["filter"] = normalize_filters(filters)
-        
+
         if custom_query:
             template = Template(custom_query)
             # substitute placeholder for query and filters for the custom_query template string
@@ -343,7 +342,7 @@ class OpenSearchDocumentStore:
 
         else:
             operator = "AND" if all_terms_must_match else "OR"
-            body: Dict[str, Any] = {
+            body = {
                 "query": {
                     "bool": {
                         "must": [
@@ -398,21 +397,25 @@ class OpenSearchDocumentStore:
         :param filters: Filters applied to the retrieved Documents. Defaults to None.
             Filters are applied during the approximate kNN search to ensure that top_k matching documents are returned.
         :param top_k: Maximum number of Documents to return, defaults to 10
-        :param custom_query: The query string containing a mandatory `${query_embedding}` and an optional `${filters}` placeholder.
+        :param custom_query: The query string containing a mandatory `${query_embedding}` and an optional `${filters}`
+            placeholder
 
             **An example custom_query:**
-
             ```python
             {
-                "size": 10,
                 "query": {
                     "bool": {
-                        "must": [{"knn": {
-                            "embedding": {
-                                "vector": ${query_embedding},   // mandatory query placeholder
-                                "k": 10000,
-                            }}],
-                        "filter": ${filters}                  // optional filter placeholder
+                        "must": [
+                            {
+                                "knn": {
+                                    "embedding": {
+                                        "vector": ${query_embedding},   // mandatory query placeholder
+                                        "k": 10000,
+                                    }
+                                }
+                            }
+                        ],
+                        "filter": ${filters}                            // optional filter placeholder
                     }
                 }
             }
@@ -437,7 +440,7 @@ class OpenSearchDocumentStore:
             body = json.loads(custom_query_json)
 
         else:
-            body: Dict[str, Any] = {
+            body = {
                 "query": {
                     "bool": {
                         "must": [
