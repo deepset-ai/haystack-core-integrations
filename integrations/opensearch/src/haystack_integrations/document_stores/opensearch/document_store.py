@@ -283,7 +283,7 @@ class OpenSearchDocumentStore:
         top_k: int = 10,
         scale_score: bool = False,
         all_terms_must_match: bool = False,
-        custom_query: Optional[str] = None,
+        custom_query: Optional[Union[str, Dict[str, Any]]] = None,
     ) -> List[Document]:
         """
         OpenSearch by defaults uses BM25 search algorithm.
@@ -303,7 +303,7 @@ class OpenSearchDocumentStore:
         :param top_k: Maximum number of Documents to return, defaults to 10
         :param scale_score: If `True` scales the Document`s scores between 0 and 1, defaults to False
         :param all_terms_must_match: If `True` all terms in `query` must be present in the Document, defaults to False
-        :param custom_query: The query string containing a mandatory `${query}` and an optional `${filters}` placeholder
+        :param custom_query: The query containing a mandatory `$query` and an optional `$filters` placeholder
 
             **An example custom_query:**
 
@@ -312,10 +312,10 @@ class OpenSearchDocumentStore:
                 "query": {
                     "bool": {
                         "should": [{"multi_match": {
-                            "query": ${query},                 // mandatory query placeholder
+                            "query": $query,                 // mandatory query placeholder
                             "type": "most_fields",
                             "fields": ["content", "title"]}}],
-                        "filter": ${filters}                  // optional filter placeholder
+                        "filter": $filters                  // optional filter placeholder
                     }
                 }
             }
@@ -330,7 +330,7 @@ class OpenSearchDocumentStore:
             if filters:
                 body["query"]["bool"]["filter"] = normalize_filters(filters)
 
-        if custom_query:
+        if isinstance(custom_query, str):
             template = Template(custom_query)
             # substitute placeholder for query and filters for the custom_query template string
             substitutions = {
@@ -339,6 +339,8 @@ class OpenSearchDocumentStore:
             }
             custom_query_json = template.substitute(**substitutions)
             body = json.loads(custom_query_json)
+        elif isinstance(custom_query, dict):
+            body = self._render_custom_query(custom_query, {"$query": query, "$filters": normalize_filters(filters)})
 
         else:
             operator = "AND" if all_terms_must_match else "OR"
@@ -383,7 +385,7 @@ class OpenSearchDocumentStore:
         *,
         filters: Optional[Dict[str, Any]] = None,
         top_k: int = 10,
-        custom_query: Optional[str] = None,
+        custom_query: Optional[Union[str, Dict[str, Any]]] = None,
     ) -> List[Document]:
         """
         Retrieves documents that are most similar to the query embedding using a vector similarity metric.
@@ -397,8 +399,7 @@ class OpenSearchDocumentStore:
         :param filters: Filters applied to the retrieved Documents. Defaults to None.
             Filters are applied during the approximate kNN search to ensure that top_k matching documents are returned.
         :param top_k: Maximum number of Documents to return, defaults to 10
-        :param custom_query: The query string containing a mandatory `${query_embedding}` and an optional `${filters}`
-            placeholder
+        :param custom_query: The query containing a mandatory `$query_embedding` and an optional `$filters` placeholder
 
             **An example custom_query:**
             ```python
@@ -409,13 +410,13 @@ class OpenSearchDocumentStore:
                             {
                                 "knn": {
                                     "embedding": {
-                                        "vector": ${query_embedding},   // mandatory query placeholder
+                                        "vector": $query_embedding,   // mandatory query placeholder
                                         "k": 10000,
                                     }
                                 }
                             }
                         ],
-                        "filter": ${filters}                            // optional filter placeholder
+                        "filter": $filters                            // optional filter placeholder
                     }
                 }
             }
@@ -429,7 +430,7 @@ class OpenSearchDocumentStore:
             msg = "query_embedding must be a non-empty list of floats"
             raise ValueError(msg)
 
-        if custom_query:
+        if isinstance(custom_query, str):
             template = Template(custom_query)
             # substitute placeholder for query and filters for the custom_query template string
             substitutions = {
@@ -438,6 +439,10 @@ class OpenSearchDocumentStore:
             }
             custom_query_json = template.substitute(**substitutions)
             body = json.loads(custom_query_json)
+        elif isinstance(custom_query, dict):
+            body = self._render_custom_query(
+                custom_query, {"$query_embedding": query_embedding, "$filters": normalize_filters(filters)}
+            )
 
         else:
             body = {
@@ -469,3 +474,20 @@ class OpenSearchDocumentStore:
 
         docs = self._search_documents(**body)
         return docs
+
+    def _render_custom_query(self, custom_query: Any, substitutions: Dict[str, Any]) -> Any:
+        """
+        Recursively replaces the placeholders in the custom_query with the actual values.
+
+        :param custom_query: The custom query to replace the placeholders in.
+        :param substitutions: The dictionary containing the actual values to replace the placeholders with.
+        :returns: The custom query with the placeholders replaced.
+        """
+        if isinstance(custom_query, dict):
+            return {key: self._render_custom_query(value, substitutions) for key, value in custom_query.items()}
+        elif isinstance(custom_query, list):
+            return [self._render_custom_query(entry, substitutions) for entry in custom_query]
+        elif isinstance(custom_query, str):
+            return substitutions.get(custom_query, custom_query)
+
+        return custom_query

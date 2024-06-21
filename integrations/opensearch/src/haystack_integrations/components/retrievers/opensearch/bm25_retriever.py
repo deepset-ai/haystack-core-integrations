@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 from haystack import component, default_from_dict, default_to_dict
 from haystack.dataclasses import Document
@@ -19,7 +19,7 @@ class OpenSearchBM25Retriever:
         top_k: int = 10,
         scale_score: bool = False,
         all_terms_must_match: bool = False,
-        custom_query: Optional[str] = None,
+        custom_query: Optional[Union[str, Dict[str, Any]]] = None,
     ):
         """
         Create the OpenSearchBM25Retriever component.
@@ -32,7 +32,7 @@ class OpenSearchBM25Retriever:
             This is useful when comparing documents across different indexes. Defaults to False.
         :param all_terms_must_match: If True, all terms in the query string must be present in the retrieved documents.
             This is useful when searching for short text where even one term can make a difference. Defaults to False.
-        :param custom_query: The query string containing a mandatory `${query}` and an optional `${filters}` placeholder
+        :param custom_query: The query containing a mandatory `$query` and an optional `$filters` placeholder
 
             **An example custom_query:**
 
@@ -41,10 +41,10 @@ class OpenSearchBM25Retriever:
                 "query": {
                     "bool": {
                         "should": [{"multi_match": {
-                            "query": ${query},                 // mandatory query placeholder
+                            "query": $query,                 // mandatory query placeholder
                             "type": "most_fields",
                             "fields": ["content", "title"]}}],
-                        "filter": ${filters}                  // optional filter placeholder
+                        "filter": $filters                  // optional filter placeholder
                     }
                 }
             }
@@ -113,7 +113,7 @@ class OpenSearchBM25Retriever:
         top_k: Optional[int] = None,
         fuzziness: Optional[str] = None,
         scale_score: Optional[bool] = None,
-        custom_query: Optional[str] = None,
+        custom_query: Optional[Union[str, Dict[str, Any]]] = None,
     ):
         """
         Retrieve documents using BM25 retrieval.
@@ -125,7 +125,7 @@ class OpenSearchBM25Retriever:
         :param fuzziness: Fuzziness parameter for full-text queries.
         :param scale_score: Whether to scale the score of retrieved documents between 0 and 1.
             This is useful when comparing documents across different indexes.
-        :param custom_query: The query string containing a mandatory `${query}` and an optional `${filters}` placeholder
+        :param custom_query: The query containing a mandatory `$query` and an optional `$filters` placeholder
 
             **An example custom_query:**
 
@@ -134,10 +134,10 @@ class OpenSearchBM25Retriever:
                 "query": {
                     "bool": {
                         "should": [{"multi_match": {
-                            "query": ${query},                 // mandatory query placeholder
+                            "query": $query,                 // mandatory query placeholder
                             "type": "most_fields",
                             "fields": ["content", "title"]}}],
-                        "filter": ${filters}                  // optional filter placeholder
+                        "filter": $filters                  // optional filter placeholder
                     }
                 }
             }

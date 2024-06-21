@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 from haystack import component, default_from_dict, default_to_dict
 from haystack.dataclasses import Document
@@ -22,7 +22,7 @@ class OpenSearchEmbeddingRetriever:
         document_store: OpenSearchDocumentStore,
         filters: Optional[Dict[str, Any]] = None,
         top_k: int = 10,
-        custom_query: Optional[str] = None,
+        custom_query: Optional[Union[str, Dict[str, Any]]] = None,
     ):
         """
         Create the OpenSearchEmbeddingRetriever component.
@@ -31,8 +31,7 @@ class OpenSearchEmbeddingRetriever:
         :param filters: Filters applied to the retrieved Documents. Defaults to None.
             Filters are applied during the approximate kNN search to ensure that top_k matching documents are returned.
         :param top_k: Maximum number of Documents to return, defaults to 10
-        :param custom_query: The query string containing a mandatory `${query_embedding}` and an optional `${filters}`
-            placeholder
+        :param custom_query: The query containing a mandatory `$query_embedding` and an optional `$filters` placeholder
 
             **An example custom_query:**
 
@@ -44,13 +43,13 @@ class OpenSearchEmbeddingRetriever:
                             {
                                 "knn": {
                                     "embedding": {
-                                        "vector": ${query_embedding},   // mandatory query placeholder
+                                        "vector": $query_embedding,   // mandatory query placeholder
                                         "k": 10000,
                                     }
                                 }
                             }
                         ],
-                        "filter": ${filters}                            // optional filter placeholder
+                        "filter": $filters                            // optional filter placeholder
                     }
                 }
             }
@@ -110,7 +109,7 @@ class OpenSearchEmbeddingRetriever:
         query_embedding: List[float],
         filters: Optional[Dict[str, Any]] = None,
         top_k: Optional[int] = None,
-        custom_query: Optional[str] = None,
+        custom_query: Optional[Union[str, Dict[str, Any]]] = None,
     ):
         """
         Retrieve documents using a vector similarity metric.
@@ -118,8 +117,7 @@ class OpenSearchEmbeddingRetriever:
         :param query_embedding: Embedding of the query.
         :param filters: Optional filters to narrow down the search space.
         :param top_k: Maximum number of Documents to return.
-        :param custom_query: The query string containing a mandatory `${query_embedding}` and an optional `${filters}`
-            placeholder
+        :param custom_query: The query containing a mandatory `$query_embedding` and an optional `$filters` placeholder
 
             **An example custom_query:**
 
@@ -131,13 +129,13 @@ class OpenSearchEmbeddingRetriever:
                             {
                                 "knn": {
                                     "embedding": {
-                                        "vector": ${query_embedding},   // mandatory query placeholder
+                                        "vector": $query_embedding,   // mandatory query placeholder
                                         "k": 10000,
                                     }
                                 }
                             }
                         ],
-                        "filter": ${filters}                            // optional filter placeholder
+                        "filter": $filters                            // optional filter placeholder
                     }
                 }
             }
