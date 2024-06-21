@@ -119,10 +119,15 @@ class OpenSearchDocumentStore:
         elif self._create_index:
             # Create the index if it doesn't exist
             body = {"mappings": self._mappings, "settings": self._settings}
-            self._client.indices.create(index=self._index, body=body)
+            self._client.indices.create(index=self._index, body=body)  # type:ignore
         return self._client
-    
-    def create_index(self, index: Optional[str] = None, mappings: Optional[Dict[str, Any]] = None, settings: Optional[Dict[str, Any]] = None) -> None:
+
+    def create_index(
+        self,
+        index: Optional[str] = None,
+        mappings: Optional[Dict[str, Any]] = None,
+        settings: Optional[Dict[str, Any]] = None,
+    ) -> None:
         """
         Creates an index in OpenSearch.
 
@@ -141,7 +146,7 @@ class OpenSearchDocumentStore:
             mappings = self._mappings
         if not settings:
             settings = self._settings
-        
+
         if not self.client.indices.exists(index=index):
             self.client.indices.create(index=index, body={"mappings": mappings, "settings": settings})
 

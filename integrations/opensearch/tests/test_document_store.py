@@ -207,7 +207,7 @@ class TestDocumentStore(DocumentStoreBaseTests):
 
     def test_create_index(self, document_store_readonly: OpenSearchDocumentStore):
         document_store_readonly.create_index()
-        assert document_store_readonly.client.indices.exists(index=document_store_readonly.index)
+        assert document_store_readonly.client.indices.exists(index=document_store_readonly._index)
 
     def test_bm25_retrieval(self, document_store: OpenSearchDocumentStore):
         document_store.write_documents(
