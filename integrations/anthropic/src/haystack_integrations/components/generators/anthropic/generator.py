@@ -29,7 +29,7 @@ class AnthropicGenerator:
     ```python
     from haystack_integrations.components.generators.anthropic import AnthropicGenerator
 
-    client = AnthropicGenerator(model="claude-2.1")
+    client = AnthropicGenerator(model="claude-3-sonnet-20240229")
     response = client.run("What's Natural Language Processing? Be brief.")
     print(response)
     >>{'replies': ['Natural language processing (NLP) is a branch of artificial intelligence focused on enabling
