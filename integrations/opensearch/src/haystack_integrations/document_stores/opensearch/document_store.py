@@ -43,6 +43,7 @@ class OpenSearchDocumentStore:
         method: Optional[Dict[str, Any]] = None,
         mappings: Optional[Dict[str, Any]] = None,
         settings: Optional[Dict[str, Any]] = DEFAULT_SETTINGS,
+        create_index: bool = True,
         **kwargs,
     ):
         """
@@ -67,6 +68,7 @@ class OpenSearchDocumentStore:
             Defaults to None
         :param settings: The settings of the index to be created. Please see the [official OpenSearch docs](https://opensearch.org/docs/latest/search-plugins/knn/knn-index/#index-settings)
             for more information. Defaults to {"index.knn": True}
+        :param create_index: Whether to create the index if it doesn't exist. Defaults to True
         :param **kwargs: Optional arguments that ``OpenSearch`` takes. For the full list of supported kwargs,
             see the [official OpenSearch reference](https://opensearch-project.github.io/opensearch-py/api-ref/clients/opensearch_client.html)
         """
@@ -79,6 +81,7 @@ class OpenSearchDocumentStore:
         self._method = method
         self._mappings = mappings or self._get_default_mappings()
         self._settings = settings
+        self._create_index = create_index
         self._kwargs = kwargs
 
     def _get_default_mappings(self) -> Dict[str, Any]:
@@ -113,7 +116,7 @@ class OpenSearchDocumentStore:
                 "`settings` values will be ignored.",
                 self._index,
             )
-        else:
+        elif self._create_index:
             # Create the index if it doesn't exist
             body = {"mappings": self._mappings, "settings": self._settings}
 
@@ -139,6 +142,8 @@ class OpenSearchDocumentStore:
             method=self._method,
             mappings=self._mappings,
             settings=self._settings,
+            create_index=self._create_index,
+            return_embedding=self._return_embedding,
             **self._kwargs,
         )
 

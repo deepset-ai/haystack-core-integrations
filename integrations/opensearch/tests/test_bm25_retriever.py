@@ -43,6 +43,8 @@ def test_to_dict(_mock_opensearch_client):
                     "max_chunk_bytes": DEFAULT_MAX_CHUNK_BYTES,
                     "method": None,
                     "settings": {"index.knn": True},
+                    "return_embedding": False,
+                    "create_index": True,
                 },
                 "type": "haystack_integrations.document_stores.opensearch.document_store.OpenSearchDocumentStore",
             },
