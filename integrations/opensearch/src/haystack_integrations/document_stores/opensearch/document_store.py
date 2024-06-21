@@ -135,10 +135,9 @@ class OpenSearchDocumentStore:
 
         :param index: Name of the index to create. If None, the index name from the constructor is used.
         :param mappings: The mapping of how the documents are stored and indexed. Please see the [official OpenSearch docs](https://opensearch.org/docs/latest/field-types/)
-            for more information. If None, it uses the embedding_dim and method arguments to create default mappings.
-            Defaults to None
+            for more information. If None, the mappings from the constructor are used.
         :param settings: The settings of the index to be created. Please see the [official OpenSearch docs](https://opensearch.org/docs/latest/search-plugins/knn/knn-index/#index-settings)
-            for more information. Defaults to {"index.knn": True}
+            for more information. If None, the settings from the constructor are used.
         """
         if not index:
             index = self._index
