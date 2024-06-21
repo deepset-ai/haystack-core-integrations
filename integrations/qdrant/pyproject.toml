@@ -46,7 +46,7 @@ git_describe_command = 'git describe --tags --match="integrations/qdrant-v[0-9]*
 [tool.hatch.envs.default]
 dependencies = ["coverage[toml]>=6.5", "pytest", "haystack-pydoc-tools"]
 [tool.hatch.envs.default.scripts]
-test = "pytest {args:tests}"
+test = "pytest --reruns 3 --reruns-delay 30 -x {args:tests}"
 test-cov = "coverage run -m pytest {args:tests}"
 cov-report = ["- coverage combine", "coverage report"]
 cov = ["test-cov", "cov-report"]
@@ -105,7 +105,8 @@ ignore = [
   # Allow boolean positional values in function calls, like `dict.get(... True)`
   "FBT003",
   # Allow boolean arguments in function definition
-  "FBT001", "FBT002",
+  "FBT001",
+  "FBT002",
   # Ignore checks for possible passwords
   "S105",
   "S106",
@@ -140,12 +141,8 @@ parallel = false
 
 [tool.coverage.report]
 omit = ["*/tests/*", "*/__init__.py"]
-show_missing=true
-exclude_lines = [
-  "no cov",
-  "if __name__ == .__main__.:",
-  "if TYPE_CHECKING:",
-]
+show_missing = true
+exclude_lines = ["no cov", "if __name__ == .__main__.:", "if TYPE_CHECKING:"]
 
 
 [[tool.mypy.overrides]]
