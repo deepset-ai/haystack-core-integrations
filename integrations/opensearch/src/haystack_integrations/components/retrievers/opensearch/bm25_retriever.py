@@ -113,6 +113,7 @@ class OpenSearchBM25Retriever:
         top_k: Optional[int] = None,
         fuzziness: Optional[str] = None,
         scale_score: Optional[bool] = None,
+        custom_query: Optional[str] = None,
     ):
         """
         Retrieve documents using BM25 retrieval.
@@ -124,6 +125,31 @@ class OpenSearchBM25Retriever:
         :param fuzziness: Fuzziness parameter for full-text queries.
         :param scale_score: Whether to scale the score of retrieved documents between 0 and 1.
             This is useful when comparing documents across different indexes.
+        :param custom_query: The query string containing a mandatory `${query}` and an optional `${filters}` placeholder
+
+            **An example custom_query:**
+
+            ```python
+            {
+                "query": {
+                    "bool": {
+                        "should": [{"multi_match": {
+                            "query": ${query},                 // mandatory query placeholder
+                            "type": "most_fields",
+                            "fields": ["content", "title"]}}],
+                        "filter": ${filters}                  // optional filter placeholder
+                    }
+                }
+            }
+            ```
+
+        **For this custom_query, a sample `run()` could be:**
+
+        ```python
+        retriever.run(query="Why did the revenue increase?",
+                        filters={"years": ["2019"], "quarters": ["Q1", "Q2"]})
+        ```
+
 
         :returns:
             A dictionary containing the retrieved documents with the following structure:
@@ -140,6 +166,8 @@ class OpenSearchBM25Retriever:
             fuzziness = self._fuzziness
         if scale_score is None:
             scale_score = self._scale_score
+        if custom_query is None:
+            custom_query = self._custom_query
 
         docs = self._document_store._bm25_retrieval(
             query=query,
@@ -148,6 +176,6 @@ class OpenSearchBM25Retriever:
             top_k=top_k,
             scale_score=scale_score,
             all_terms_must_match=all_terms_must_match,
-            custom_query=self._custom_query,
+            custom_query=custom_query,
         )
         return {"documents": docs}
