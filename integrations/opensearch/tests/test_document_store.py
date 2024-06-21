@@ -540,8 +540,6 @@ class TestDocumentStore(DocumentStoreBaseTests):
         }
 
         filters = {"field": "meta_field", "operator": "==", "value": "custom_value"}
-        # we set top_k=3, to make the test pass as we are not sure whether efficient filtering is supported for nmslib
-        # TODO: remove top_k=3, when efficient filtering is supported for nmslib
         results = document_store_embedding_dim_4._embedding_retrieval(
             query_embedding=[0.1, 0.1, 0.1, 0.1], top_k=1, filters=filters, custom_query=custom_query
         )
@@ -581,8 +579,6 @@ class TestDocumentStore(DocumentStoreBaseTests):
         """
 
         filters = {"field": "meta_field", "operator": "==", "value": "custom_value"}
-        # we set top_k=3, to make the test pass as we are not sure whether efficient filtering is supported for nmslib
-        # TODO: remove top_k=3, when efficient filtering is supported for nmslib
         results = document_store_embedding_dim_4._embedding_retrieval(
             query_embedding=[0.1, 0.1, 0.1, 0.1], top_k=1, filters=filters, custom_query=custom_query
         )
