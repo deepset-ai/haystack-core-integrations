@@ -19,6 +19,7 @@ class OpenSearchBM25Retriever:
         top_k: int = 10,
         scale_score: bool = False,
         all_terms_must_match: bool = False,
+        custom_query: Optional[str] = None,
     ):
         """
         Create the OpenSearchBM25Retriever component.
@@ -31,6 +32,32 @@ class OpenSearchBM25Retriever:
             This is useful when comparing documents across different indexes. Defaults to False.
         :param all_terms_must_match: If True, all terms in the query string must be present in the retrieved documents.
             This is useful when searching for short text where even one term can make a difference. Defaults to False.
+        :param custom_query: The query string containing a mandatory `${query}` and an optional `${filters}` placeholder.
+
+            **An example custom_query:**
+
+            ```python
+            {
+                "size": 10,
+                "query": {
+                    "bool": {
+                        "should": [{"multi_match": {
+                            "query": ${query},                 // mandatory query placeholder
+                            "type": "most_fields",
+                            "fields": ["content", "title"]}}],
+                        "filter": ${filters}                  // optional filter placeholder
+                    }
+                }
+            }
+            ```
+
+        **For this custom_query, a sample `run()` could be:**
+
+        ```python
+        retriever.run(query="Why did the revenue increase?",
+                        filters={"years": ["2019"], "quarters": ["Q1", "Q2"]})
+        ```
+
         :raises ValueError: If `document_store` is not an instance of OpenSearchDocumentStore.
 
         """
@@ -44,6 +71,7 @@ class OpenSearchBM25Retriever:
         self._top_k = top_k
         self._scale_score = scale_score
         self._all_terms_must_match = all_terms_must_match
+        self._custom_query = custom_query
 
     def to_dict(self) -> Dict[str, Any]:
         """
@@ -121,5 +149,6 @@ class OpenSearchBM25Retriever:
             top_k=top_k,
             scale_score=scale_score,
             all_terms_must_match=all_terms_must_match,
+            custom_query=self._custom_query,
         )
         return {"documents": docs}
