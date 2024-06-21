@@ -202,7 +202,7 @@ class TestDocumentStore(DocumentStoreBaseTests):
 
     def test_write_documents_readonly(self, document_store_readonly: OpenSearchDocumentStore):
         docs = [Document(id="1")]
-        with pytest.raises(DocumentStoreError, match="no such index"):
+        with pytest.raises(DocumentStoreError, match="index_not_found_exception"):
             document_store_readonly.write_documents(docs)
 
     def test_create_index(self, document_store_readonly: OpenSearchDocumentStore):
