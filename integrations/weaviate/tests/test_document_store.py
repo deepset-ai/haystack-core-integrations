@@ -1,4 +1,5 @@
 import base64
+import os
 import random
 from typing import List
 from unittest.mock import MagicMock, patch
@@ -16,6 +17,7 @@ from haystack.testing.document_store import (
     FilterDocumentsTest,
     WriteDocumentsTest,
 )
+from haystack.utils.auth import Secret
 from haystack_integrations.document_stores.weaviate.auth import AuthApiKey
 from haystack_integrations.document_stores.weaviate.document_store import (
     DOCUMENT_COLLECTION_PROPERTIES,
@@ -26,8 +28,6 @@ from numpy import array_equal as np_array_equal
 from numpy import float32 as np_float32
 from pandas import DataFrame
 from weaviate.collections.classes.data import DataObject
-
-# from weaviate.auth import AuthApiKey as WeaviateAuthApiKey
 from weaviate.config import AdditionalConfig, ConnectionConfig, Proxies, Timeout
 from weaviate.embedded import (
     DEFAULT_BINARY_PATH,
@@ -697,3 +697,24 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
             collection_settings=collection_settings,
         )
         assert doc_score._collection_settings["class"] == "Lower_case_name"
+
+    @pytest.mark.skipif(
+        not os.environ.get("WEAVIATE_API_KEY", None) and not os.environ.get("WEAVIATE_CLOUD_CLUSTER_URL", None),
+        reason="Both WEAVIATE_API_KEY and WEAVIATE_CLOUD_CLUSTER_URL are not set. Skipping test.",
+    )
+    def test_connect_to_weaviate_cloud(self):
+        document_store = WeaviateDocumentStore(
+            url=os.environ.get("WEAVIATE_CLOUD_CLUSTER_URL"),
+            auth_client_secret=AuthApiKey(api_key=Secret.from_env_var("WEAVIATE_API_KEY")),
+        )
+        assert document_store.client
+
+    def test_connect_to_local(self):
+        document_store = WeaviateDocumentStore(
+            url="http://localhost:8080",
+        )
+        assert document_store.client
+
+    def test_connect_to_embedded(self):
+        document_store = WeaviateDocumentStore(embedded_options=EmbeddedOptions())
+        assert document_store.client

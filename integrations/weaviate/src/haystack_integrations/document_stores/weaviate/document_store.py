@@ -172,12 +172,10 @@ class WeaviateDocumentStore:
         if self._client:
             return self._client
 
-        # This is a quick ugly fix to make sure that users can use the DocumentStore
-        # with Weaviate Cloud Services with no issues
         if self._url and self._url.startswith("http") and self._url.endswith(".weaviate.network"):
             self._client = weaviate.connect_to_wcs(
                 self._url,
-                auth_credentials=self._auth_client_secret.resolve_value(),
+                auth_credentials=self._auth_client_secret.resolve_value() if self._auth_client_secret else None,
                 headers=self._additional_headers,
                 additional_config=self._additional_config,
             )
