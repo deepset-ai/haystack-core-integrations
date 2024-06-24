@@ -53,7 +53,7 @@ dependencies = [
 ]
 [tool.hatch.envs.default.scripts]
 test = "pytest --reruns 3 --reruns-delay 30 -x {args:tests}"
-test-cov = "coverage run -m pytest {args:tests}"
+test-cov = "coverage run -m pytest --reruns 3 --reruns-delay 30 -x {args:tests}"
 cov-report = ["- coverage combine", "coverage report"]
 cov = ["test-cov", "cov-report"]
 
