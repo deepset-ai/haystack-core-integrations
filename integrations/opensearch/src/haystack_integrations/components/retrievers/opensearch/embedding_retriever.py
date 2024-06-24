@@ -5,6 +5,8 @@ from typing import Any, Dict, List, Optional
 
 from haystack import component, default_from_dict, default_to_dict
 from haystack.dataclasses import Document
+from haystack.document_stores.types import FilterPolicy
+from haystack.document_stores.types.filter_policy import apply_filter_policy
 from haystack_integrations.document_stores.opensearch import OpenSearchDocumentStore
 
 
@@ -22,6 +24,7 @@ class OpenSearchEmbeddingRetriever:
         document_store: OpenSearchDocumentStore,
         filters: Optional[Dict[str, Any]] = None,
         top_k: int = 10,
+        filter_policy: Optional[FilterPolicy] = FilterPolicy.REPLACE,
     ):
         """
         Create the OpenSearchEmbeddingRetriever component.
@@ -30,6 +33,7 @@ class OpenSearchEmbeddingRetriever:
         :param filters: Filters applied to the retrieved Documents. Defaults to None.
             Filters are applied during the approximate kNN search to ensure that top_k matching documents are returned.
         :param top_k: Maximum number of Documents to return, defaults to 10
+        :param filter_policy: Policy to determine how filters are applied.
         :raises ValueError: If `document_store` is not an instance of OpenSearchDocumentStore.
         """
         if not isinstance(document_store, OpenSearchDocumentStore):
@@ -39,6 +43,7 @@ class OpenSearchEmbeddingRetriever:
         self._document_store = document_store
         self._filters = filters or {}
         self._top_k = top_k
+        self._filter_policy = filter_policy
 
     def to_dict(self) -> Dict[str, Any]:
         """
@@ -52,6 +57,7 @@ class OpenSearchEmbeddingRetriever:
             filters=self._filters,
             top_k=self._top_k,
             document_store=self._document_store.to_dict(),
+            filter_policy=self._filter_policy.value if self._filter_policy else None,
         )
 
     @classmethod
@@ -68,6 +74,8 @@ class OpenSearchEmbeddingRetriever:
         data["init_parameters"]["document_store"] = OpenSearchDocumentStore.from_dict(
             data["init_parameters"]["document_store"]
         )
+        if "filter_policy" in data["init_parameters"]:
+            data["init_parameters"]["filter_policy"] = FilterPolicy.from_str(data["init_parameters"]["filter_policy"])
         return default_from_dict(cls, data)
 
     @component.output_types(documents=List[Document])
@@ -76,16 +84,16 @@ class OpenSearchEmbeddingRetriever:
         Retrieve documents using a vector similarity metric.
 
         :param query_embedding: Embedding of the query.
-        :param filters: Optional filters to narrow down the search space.
+        :param filters: Filters applied to the retrieved Documents. The way runtime filters are applied depends on
+                        the `filter_policy` chosen at document store initialization. See init method docstring for more
+                        details.
         :param top_k: Maximum number of Documents to return.
         :returns:
             Dictionary with key "documents" containing the retrieved Documents.
             - documents: List of Document similar to `query_embedding`.
         """
-        if filters is None:
-            filters = self._filters
-        if top_k is None:
-            top_k = self._top_k
+        filters = apply_filter_policy(self._filter_policy, self._filters, filters)
+        top_k = top_k or self._top_k
 
         docs = self._document_store._embedding_retrieval(
             query_embedding=query_embedding,

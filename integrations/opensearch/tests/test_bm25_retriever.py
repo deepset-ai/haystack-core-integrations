@@ -16,6 +16,7 @@ def test_init_default():
     assert retriever._filters == {}
     assert retriever._top_k == 10
     assert not retriever._scale_score
+    assert retriever._filter_policy == "replace"
 
 
 @patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
@@ -50,6 +51,7 @@ def test_to_dict(_mock_opensearch_client):
             "fuzziness": "AUTO",
             "top_k": 10,
             "scale_score": False,
+            "filter_policy": "replace",
         },
     }
 
@@ -67,6 +69,7 @@ def test_from_dict(_mock_opensearch_client):
             "fuzziness": "AUTO",
             "top_k": 10,
             "scale_score": True,
+            "filter_policy": "replace",
         },
     }
     retriever = OpenSearchBM25Retriever.from_dict(data)
@@ -75,6 +78,7 @@ def test_from_dict(_mock_opensearch_client):
     assert retriever._fuzziness == "AUTO"
     assert retriever._top_k == 10
     assert retriever._scale_score
+    assert retriever._filter_policy == "replace"
 
 
 def test_run():

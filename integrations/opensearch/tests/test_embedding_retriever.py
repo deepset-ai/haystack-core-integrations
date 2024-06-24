@@ -15,6 +15,7 @@ def test_init_default():
     assert retriever._document_store == mock_store
     assert retriever._filters == {}
     assert retriever._top_k == 10
+    assert retriever._filter_policy == "replace"
 
 
 @patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
@@ -63,6 +64,7 @@ def test_to_dict(_mock_opensearch_client):
             },
             "filters": {},
             "top_k": 10,
+            "filter_policy": "replace",
         },
     }
 
@@ -79,6 +81,7 @@ def test_from_dict(_mock_opensearch_client):
             },
             "filters": {},
             "top_k": 10,
+            "filter_policy": "replace",
         },
     }
     retriever = OpenSearchEmbeddingRetriever.from_dict(data)
