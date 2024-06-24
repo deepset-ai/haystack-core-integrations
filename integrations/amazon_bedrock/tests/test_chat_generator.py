@@ -246,7 +246,7 @@ class TestMistralAdapter:
         with (
             patch("transformers.AutoTokenizer.from_pretrained") as mock_pretrained,
             patch("haystack_integrations.components.generators.amazon_bedrock.chat.adapters.DefaultPromptHandler"),
-            caplog.at_level(logging.WARNING)
+            caplog.at_level(logging.WARNING),
         ):
             MistralChatAdapter(generation_kwargs={})
             mock_pretrained.assert_called_with("NousResearch/Llama-2-7b-chat-hf")
@@ -256,7 +256,7 @@ class TestMistralAdapter:
         monkeypatch.setenv("HF_TOKEN", "test")
         with (
             patch("transformers.AutoTokenizer.from_pretrained") as mock_pretrained,
-            patch("haystack_integrations.components.generators.amazon_bedrock.chat.adapters.DefaultPromptHandler")
+            patch("haystack_integrations.components.generators.amazon_bedrock.chat.adapters.DefaultPromptHandler"),
         ):
             MistralChatAdapter(generation_kwargs={})
             mock_pretrained.assert_called_with("mistralai/Mistral-7B-Instruct-v0.1")
@@ -264,8 +264,8 @@ class TestMistralAdapter:
     @pytest.mark.skipif(
         not os.environ.get("HF_API_TOKEN", None),
         reason=(
-                "To run this test, you need to set the HF_API_TOKEN environment variable. The associated account must also "
-                "have requested access to the gated model `mistralai/Mistral-7B-Instruct-v0.1`"
+            "To run this test, you need to set the HF_API_TOKEN environment variable. The associated account must also "
+            "have requested access to the gated model `mistralai/Mistral-7B-Instruct-v0.1`"
         ),
     )
     @pytest.mark.parametrize("model_name", MISTRAL_MODELS)
