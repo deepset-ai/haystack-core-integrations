@@ -172,22 +172,33 @@ class WeaviateDocumentStore:
         if self._client:
             return self._client
 
-        # proxies, timeout_config, trust_env are part of additional_config now
-        # startup_period has been removed
-        self._client = weaviate.WeaviateClient(
-            connection_params=(
-                weaviate.connect.base.ConnectionParams.from_url(
-                    url=self._url, grpc_port=self._grpc_port, grpc_secure=self._grpc_secure
-                )
-                if self._url
-                else None
-            ),
-            auth_client_secret=self._auth_client_secret.resolve_value() if self._auth_client_secret else None,
-            additional_config=self._additional_config,
-            additional_headers=self._additional_headers,
-            embedded_options=self._embedded_options,
-            skip_init_checks=False,
-        )
+        if self._url and self._url.startswith("http") and self._url.endswith(".weaviate.network"):
+            # We use this utility function instead of using WeaviateClient directly like in other cases
+            # otherwise we'd have to parse the URL to get some information about the connection.
+            # This utility function does all that for us.
+            self._client = weaviate.connect_to_wcs(
+                self._url,
+                auth_credentials=self._auth_client_secret.resolve_value() if self._auth_client_secret else None,
+                headers=self._additional_headers,
+                additional_config=self._additional_config,
+            )
+        else:
+            # proxies, timeout_config, trust_env are part of additional_config now
+            # startup_period has been removed
+            self._client = weaviate.WeaviateClient(
+                connection_params=(
+                    weaviate.connect.base.ConnectionParams.from_url(
+                        url=self._url, grpc_port=self._grpc_port, grpc_secure=self._grpc_secure
+                    )
+                    if self._url
+                    else None
+                ),
+                auth_client_secret=self._auth_client_secret.resolve_value() if self._auth_client_secret else None,
+                additional_config=self._additional_config,
+                additional_headers=self._additional_headers,
+                embedded_options=self._embedded_options,
+                skip_init_checks=False,
+            )
 
         self._client.connect()
 
