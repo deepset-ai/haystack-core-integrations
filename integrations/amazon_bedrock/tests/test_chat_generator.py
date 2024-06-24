@@ -1,7 +1,10 @@
+import logging
 import os
 from typing import Optional, Type
+from unittest.mock import patch
 
 import pytest
+from _pytest.monkeypatch import MonkeyPatch
 from haystack.components.generators.utils import print_streaming_chunk
 from haystack.dataclasses import ChatMessage, ChatRole, StreamingChunk
 
@@ -183,13 +186,6 @@ class TestAnthropicClaudeAdapter:
         assert body == expected_body
 
 
-@pytest.mark.skipif(
-    not os.environ.get("HF_API_TOKEN", None),
-    reason=(
-        "To run this test, you need to set the HF_API_TOKEN environment variable. The associated account must also "
-        "have requested access to the gated model `mistralai/Mistral-7B-Instruct-v0.1`"
-    ),
-)
 class TestMistralAdapter:
     def test_prepare_body_with_default_params(self) -> None:
         layer = MistralChatAdapter(generation_kwargs={})
@@ -245,6 +241,33 @@ class TestMistralAdapter:
         except Exception as e:
             assert "Conversation roles must alternate user/assistant/" in str(e)
 
+    def test_use_mistral_adapter_without_hf_token(self, monkeypatch: MonkeyPatch, caplog) -> None:
+        monkeypatch.delenv("HF_TOKEN", raising=False)
+        with (
+            patch("transformers.AutoTokenizer.from_pretrained") as mock_pretrained,
+            patch("haystack_integrations.components.generators.amazon_bedrock.chat.adapters.DefaultPromptHandler"),
+            caplog.at_level(logging.WARNING)
+        ):
+            MistralChatAdapter(generation_kwargs={})
+            mock_pretrained.assert_called_with("NousResearch/Llama-2-7b-chat-hf")
+            assert "no HF_TOKEN was found" in caplog.text
+
+    def test_use_mistral_adapter_with_hf_token(self, monkeypatch: MonkeyPatch) -> None:
+        monkeypatch.setenv("HF_TOKEN", "test")
+        with (
+            patch("transformers.AutoTokenizer.from_pretrained") as mock_pretrained,
+            patch("haystack_integrations.components.generators.amazon_bedrock.chat.adapters.DefaultPromptHandler")
+        ):
+            MistralChatAdapter(generation_kwargs={})
+            mock_pretrained.assert_called_with("mistralai/Mistral-7B-Instruct-v0.1")
+
+    @pytest.mark.skipif(
+        not os.environ.get("HF_API_TOKEN", None),
+        reason=(
+                "To run this test, you need to set the HF_API_TOKEN environment variable. The associated account must also "
+                "have requested access to the gated model `mistralai/Mistral-7B-Instruct-v0.1`"
+        ),
+    )
     @pytest.mark.parametrize("model_name", MISTRAL_MODELS)
     @pytest.mark.integration
     def test_default_inference_params(self, model_name, chat_messages):

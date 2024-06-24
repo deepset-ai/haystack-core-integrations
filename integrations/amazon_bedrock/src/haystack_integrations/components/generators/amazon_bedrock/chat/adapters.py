@@ -1,5 +1,6 @@
 import json
 import logging
+import os
 from abc import ABC, abstractmethod
 from typing import Any, Callable, ClassVar, Dict, List
 
@@ -332,7 +333,16 @@ class MistralChatAdapter(BedrockModelChatAdapter):
         # Use `mistralai/Mistral-7B-v0.1` as tokenizer, all mistral models likely use the same tokenizer
         # a) we should get good estimates for the prompt length
         # b) we can use apply_chat_template with the template above to delineate ChatMessages
-        tokenizer: PreTrainedTokenizer = AutoTokenizer.from_pretrained("mistralai/Mistral-7B-Instruct-v0.1")
+        # Mistral models are gated on HF Hub. If no HF_TOKEN is found we use a non-gated alternative tokenizer model.
+        if os.environ.get("HF_TOKEN"):
+            tokenizer: PreTrainedTokenizer = AutoTokenizer.from_pretrained("mistralai/Mistral-7B-Instruct-v0.1")
+        else:
+            tokenizer: PreTrainedTokenizer = AutoTokenizer.from_pretrained("NousResearch/Llama-2-7b-chat-hf")
+            logger.warning(f"Gated mistralai/Mistral-7B-Instruct-v0.1 model cannot be used as a tokenizer for "
+                           f"estimating the prompt length because no HF_TOKEN was found. Using "
+                           f"NousResearch/Llama-2-7b-chat-hf instead. To use a mistral tokenizer export an env var "
+                           f"HF_TOKEN containing a Hugging Face token and make sure you have access to the model.")
+
         self.prompt_handler = DefaultPromptHandler(
             tokenizer=tokenizer,
             model_max_length=model_max_length,
