@@ -35,6 +35,8 @@ def test_to_dict(_mock_opensearch_client):
             "max_chunk_bytes": DEFAULT_MAX_CHUNK_BYTES,
             "method": None,
             "settings": {"index.knn": True},
+            "return_embedding": False,
+            "create_index": True,
         },
     }
 
@@ -43,7 +45,14 @@ def test_to_dict(_mock_opensearch_client):
 def test_from_dict(_mock_opensearch_client):
     data = {
         "type": "haystack_integrations.document_stores.opensearch.document_store.OpenSearchDocumentStore",
-        "init_parameters": {"hosts": "some hosts", "index": "default", "max_chunk_bytes": 1000, "embedding_dim": 1536},
+        "init_parameters": {
+            "hosts": "some hosts",
+            "index": "default",
+            "max_chunk_bytes": 1000,
+            "embedding_dim": 1536,
+            "create_index": False,
+            "return_embedding": True,
+        },
     }
     document_store = OpenSearchDocumentStore.from_dict(data)
     assert document_store._hosts == "some hosts"
@@ -66,6 +75,8 @@ def test_from_dict(_mock_opensearch_client):
         ],
     }
     assert document_store._settings == {"index.knn": True}
+    assert document_store._return_embedding is True
+    assert document_store._create_index is False
 
 
 @patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
@@ -111,6 +122,30 @@ class TestDocumentStore(DocumentStoreBaseTests):
             method={"space_type": "cosinesimil", "engine": "nmslib", "name": "hnsw"},
         )
         yield store
+        store.client.indices.delete(index=index, params={"ignore": [400, 404]})
+
+    @pytest.fixture
+    def document_store_readonly(self, request):
+        """
+        This is the most basic requirement for the child class: provide
+        an instance of this document store so the base class can use it.
+        """
+        hosts = ["https://localhost:9200"]
+        # Use a different index for each test so we can run them in parallel
+        index = f"{request.node.name}"
+
+        store = OpenSearchDocumentStore(
+            hosts=hosts,
+            index=index,
+            http_auth=("admin", "admin"),
+            verify_certs=False,
+            embedding_dim=768,
+            method={"space_type": "cosinesimil", "engine": "nmslib", "name": "hnsw"},
+            create_index=False,
+        )
+        store.client.cluster.put_settings(body={"transient": {"action.auto_create_index": False}})
+        yield store
+        store.client.cluster.put_settings(body={"transient": {"action.auto_create_index": True}})
         store.client.indices.delete(index=index, params={"ignore": [400, 404]})
 
     @pytest.fixture
@@ -164,6 +199,15 @@ class TestDocumentStore(DocumentStoreBaseTests):
         assert document_store.write_documents(docs) == 1
         with pytest.raises(DuplicateDocumentError):
             document_store.write_documents(docs, DuplicatePolicy.FAIL)
+
+    def test_write_documents_readonly(self, document_store_readonly: OpenSearchDocumentStore):
+        docs = [Document(id="1")]
+        with pytest.raises(DocumentStoreError, match="index_not_found_exception"):
+            document_store_readonly.write_documents(docs)
+
+    def test_create_index(self, document_store_readonly: OpenSearchDocumentStore):
+        document_store_readonly.create_index()
+        assert document_store_readonly.client.indices.exists(index=document_store_readonly._index)
 
     def test_bm25_retrieval(self, document_store: OpenSearchDocumentStore):
         document_store.write_documents(

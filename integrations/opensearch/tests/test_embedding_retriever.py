@@ -58,6 +58,8 @@ def test_to_dict(_mock_opensearch_client):
                     "settings": {
                         "index.knn": True,
                     },
+                    "return_embedding": False,
+                    "create_index": True,
                 },
                 "type": "haystack_integrations.document_stores.opensearch.document_store.OpenSearchDocumentStore",
             },

@@ -43,6 +43,7 @@ class OpenSearchDocumentStore:
         method: Optional[Dict[str, Any]] = None,
         mappings: Optional[Dict[str, Any]] = None,
         settings: Optional[Dict[str, Any]] = DEFAULT_SETTINGS,
+        create_index: bool = True,
         **kwargs,
     ):
         """
@@ -67,6 +68,7 @@ class OpenSearchDocumentStore:
             Defaults to None
         :param settings: The settings of the index to be created. Please see the [official OpenSearch docs](https://opensearch.org/docs/latest/search-plugins/knn/knn-index/#index-settings)
             for more information. Defaults to {"index.knn": True}
+        :param create_index: Whether to create the index if it doesn't exist. Defaults to True
         :param **kwargs: Optional arguments that ``OpenSearch`` takes. For the full list of supported kwargs,
             see the [official OpenSearch reference](https://opensearch-project.github.io/opensearch-py/api-ref/clients/opensearch_client.html)
         """
@@ -79,6 +81,7 @@ class OpenSearchDocumentStore:
         self._method = method
         self._mappings = mappings or self._get_default_mappings()
         self._settings = settings
+        self._create_index = create_index
         self._kwargs = kwargs
 
     def _get_default_mappings(self) -> Dict[str, Any]:
@@ -113,12 +116,38 @@ class OpenSearchDocumentStore:
                 "`settings` values will be ignored.",
                 self._index,
             )
-        else:
+        elif self._create_index:
             # Create the index if it doesn't exist
             body = {"mappings": self._mappings, "settings": self._settings}
-
             self._client.indices.create(index=self._index, body=body)  # type:ignore
         return self._client
+
+    def create_index(
+        self,
+        index: Optional[str] = None,
+        mappings: Optional[Dict[str, Any]] = None,
+        settings: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        """
+        Creates an index in OpenSearch.
+
+        Note that this method ignores the `create_index` argument from the constructor.
+
+        :param index: Name of the index to create. If None, the index name from the constructor is used.
+        :param mappings: The mapping of how the documents are stored and indexed. Please see the [official OpenSearch docs](https://opensearch.org/docs/latest/field-types/)
+            for more information. If None, the mappings from the constructor are used.
+        :param settings: The settings of the index to be created. Please see the [official OpenSearch docs](https://opensearch.org/docs/latest/search-plugins/knn/knn-index/#index-settings)
+            for more information. If None, the settings from the constructor are used.
+        """
+        if not index:
+            index = self._index
+        if not mappings:
+            mappings = self._mappings
+        if not settings:
+            settings = self._settings
+
+        if not self.client.indices.exists(index=index):
+            self.client.indices.create(index=index, body={"mappings": mappings, "settings": settings})
 
     def to_dict(self) -> Dict[str, Any]:
         # This is not the best solution to serialise this class but is the fastest to implement.
@@ -139,6 +168,8 @@ class OpenSearchDocumentStore:
             method=self._method,
             mappings=self._mappings,
             settings=self._settings,
+            create_index=self._create_index,
+            return_embedding=self._return_embedding,
             **self._kwargs,
         )
 
