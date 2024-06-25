@@ -91,6 +91,7 @@ def test_run():
         top_k=10,
         scale_score=False,
         all_terms_must_match=False,
+        custom_query=None,
     )
     assert len(res) == 1
     assert len(res["documents"]) == 1
@@ -107,6 +108,7 @@ def test_run_init_params():
         scale_score=True,
         top_k=11,
         fuzziness="1",
+        custom_query={"some": "custom query"},
     )
     res = retriever.run(query="some query")
     mock_store._bm25_retrieval.assert_called_once_with(
@@ -116,6 +118,7 @@ def test_run_init_params():
         top_k=11,
         scale_score=True,
         all_terms_must_match=True,
+        custom_query={"some": "custom query"},
     )
     assert len(res) == 1
     assert len(res["documents"]) == 1
@@ -148,6 +151,7 @@ def test_run_time_params():
         top_k=9,
         scale_score=False,
         all_terms_must_match=False,
+        custom_query=None,
     )
     assert len(res) == 1
     assert len(res["documents"]) == 1
