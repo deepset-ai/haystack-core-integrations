@@ -1,12 +1,14 @@
 # Changelog
 
-## [unreleased]
+## [integrations/opensearch-v0.7.0] - 2024-06-25
 
 ### 🚀 Features
 
 - Defer the database connection to when it's needed (#753)
 - Improve `OpenSearchDocumentStore.__init__` arguments (#739)
 - Return_embeddings flag for opensearch (#784)
+- Add create_index option to OpenSearchDocumentStore (#840)
+- Add custom_query param to OpenSearch retrievers (#841)
 
 ### 🐛 Bug Fixes
 
@@ -20,6 +22,10 @@ This PR will also push the docs to Readme
 - Fixing opensearch docstrings (#521)
 - Small consistency improvements (#536)
 - Disable-class-def (#556)
+
+### ⚙️ Miscellaneous Tasks
+
+- Retry tests to reduce flakyness (#836)
 
 ### Opensearch
 
