@@ -1,9 +1,7 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
-import json
 import logging
-from string import Template
 from typing import Any, Dict, List, Mapping, Optional, Union
 
 import numpy as np
