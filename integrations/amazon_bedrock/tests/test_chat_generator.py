@@ -4,7 +4,6 @@ from typing import Optional, Type
 from unittest.mock import patch
 
 import pytest
-from _pytest.monkeypatch import MonkeyPatch
 from haystack.components.generators.utils import print_streaming_chunk
 from haystack.dataclasses import ChatMessage, ChatRole, StreamingChunk
 
@@ -241,7 +240,7 @@ class TestMistralAdapter:
         except Exception as e:
             assert "Conversation roles must alternate user/assistant/" in str(e)
 
-    def test_use_mistral_adapter_without_hf_token(self, monkeypatch: MonkeyPatch, caplog) -> None:
+    def test_use_mistral_adapter_without_hf_token(self, monkeypatch, caplog) -> None:
         monkeypatch.delenv("HF_TOKEN", raising=False)
         with (
             patch("transformers.AutoTokenizer.from_pretrained") as mock_pretrained,
@@ -252,7 +251,7 @@ class TestMistralAdapter:
             mock_pretrained.assert_called_with("NousResearch/Llama-2-7b-chat-hf")
             assert "no HF_TOKEN was found" in caplog.text
 
-    def test_use_mistral_adapter_with_hf_token(self, monkeypatch: MonkeyPatch) -> None:
+    def test_use_mistral_adapter_with_hf_token(self, monkeypatch) -> None:
         monkeypatch.setenv("HF_TOKEN", "test")
         with (
             patch("transformers.AutoTokenizer.from_pretrained") as mock_pretrained,
