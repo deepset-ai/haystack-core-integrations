@@ -283,7 +283,7 @@ class OpenSearchDocumentStore:
         top_k: int = 10,
         scale_score: bool = False,
         all_terms_must_match: bool = False,
-        custom_query: Optional[Union[str, Dict[str, Any]]] = None,
+        custom_query: Optional[Dict[str, Any]] = None,
     ) -> List[Document]:
         """
         OpenSearch by defaults uses BM25 search algorithm.
@@ -293,8 +293,6 @@ class OpenSearchDocumentStore:
         This method is not meant to be part of the public interface of
         `OpenSearchDocumentStore` nor called directly.
         `OpenSearchBM25Retriever` uses this method directly and is the public interface for it.
-
-        `query` must be a non empty string, otherwise a `ValueError` will be raised.
 
         :param query: String to search in saved Documents' text.
         :param filters: Optional filters to narrow down the search space.
@@ -312,16 +310,15 @@ class OpenSearchDocumentStore:
                 "query": {
                     "bool": {
                         "should": [{"multi_match": {
-                            "query": $query,                 // mandatory query placeholder
+                            "query": "$query",                 // mandatory query placeholder
                             "type": "most_fields",
                             "fields": ["content", "title"]}}],
-                        "filter": $filters                  // optional filter placeholder
+                        "filter": "$filters"                  // optional filter placeholder
                     }
                 }
             }
             ```
 
-        :raises ValueError: If `query` is an empty string
         :returns: List of Document that match `query`
         """
 
@@ -330,16 +327,7 @@ class OpenSearchDocumentStore:
             if filters:
                 body["query"]["bool"]["filter"] = normalize_filters(filters)
 
-        if isinstance(custom_query, str):
-            template = Template(custom_query)
-            # substitute placeholder for query and filters for the custom_query template string
-            substitutions = {
-                "query": json.dumps(query),
-                "filters": json.dumps(normalize_filters(filters)),
-            }
-            custom_query_json = template.substitute(**substitutions)
-            body = json.loads(custom_query_json)
-        elif isinstance(custom_query, dict):
+        if isinstance(custom_query, dict):
             body = self._render_custom_query(custom_query, {"$query": query, "$filters": normalize_filters(filters)})
 
         else:
@@ -385,7 +373,7 @@ class OpenSearchDocumentStore:
         *,
         filters: Optional[Dict[str, Any]] = None,
         top_k: int = 10,
-        custom_query: Optional[Union[str, Dict[str, Any]]] = None,
+        custom_query: Optional[Dict[str, Any]] = None,
     ) -> List[Document]:
         """
         Retrieves documents that are most similar to the query embedding using a vector similarity metric.
@@ -410,13 +398,13 @@ class OpenSearchDocumentStore:
                             {
                                 "knn": {
                                     "embedding": {
-                                        "vector": $query_embedding,   // mandatory query placeholder
+                                        "vector": "$query_embedding",   // mandatory query placeholder
                                         "k": 10000,
                                     }
                                 }
                             }
                         ],
-                        "filter": $filters                            // optional filter placeholder
+                        "filter": "$filters"                            // optional filter placeholder
                     }
                 }
             }
@@ -430,16 +418,7 @@ class OpenSearchDocumentStore:
             msg = "query_embedding must be a non-empty list of floats"
             raise ValueError(msg)
 
-        if isinstance(custom_query, str):
-            template = Template(custom_query)
-            # substitute placeholder for query and filters for the custom_query template string
-            substitutions = {
-                "query_embedding": json.dumps(query_embedding),
-                "filters": json.dumps(normalize_filters(filters)),
-            }
-            custom_query_json = template.substitute(**substitutions)
-            body = json.loads(custom_query_json)
-        elif isinstance(custom_query, dict):
+        if isinstance(custom_query, dict):
             body = self._render_custom_query(
                 custom_query, {"$query_embedding": query_embedding, "$filters": normalize_filters(filters)}
             )

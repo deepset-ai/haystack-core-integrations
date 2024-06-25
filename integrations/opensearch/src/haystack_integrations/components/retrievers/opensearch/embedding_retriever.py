@@ -22,7 +22,7 @@ class OpenSearchEmbeddingRetriever:
         document_store: OpenSearchDocumentStore,
         filters: Optional[Dict[str, Any]] = None,
         top_k: int = 10,
-        custom_query: Optional[Union[str, Dict[str, Any]]] = None,
+        custom_query: Optional[Dict[str, Any]] = None,
     ):
         """
         Create the OpenSearchEmbeddingRetriever component.
@@ -43,13 +43,13 @@ class OpenSearchEmbeddingRetriever:
                             {
                                 "knn": {
                                     "embedding": {
-                                        "vector": $query_embedding,   // mandatory query placeholder
+                                        "vector": "$query_embedding",   // mandatory query placeholder
                                         "k": 10000,
                                     }
                                 }
                             }
                         ],
-                        "filter": $filters                            // optional filter placeholder
+                        "filter": "$filters"                            // optional filter placeholder
                     }
                 }
             }
@@ -109,7 +109,7 @@ class OpenSearchEmbeddingRetriever:
         query_embedding: List[float],
         filters: Optional[Dict[str, Any]] = None,
         top_k: Optional[int] = None,
-        custom_query: Optional[Union[str, Dict[str, Any]]] = None,
+        custom_query: Optional[Dict[str, Any]] = None,
     ):
         """
         Retrieve documents using a vector similarity metric.
@@ -129,13 +129,13 @@ class OpenSearchEmbeddingRetriever:
                             {
                                 "knn": {
                                     "embedding": {
-                                        "vector": $query_embedding,   // mandatory query placeholder
+                                        "vector": "$query_embedding",   // mandatory query placeholder
                                         "k": 10000,
                                     }
                                 }
                             }
                         ],
-                        "filter": $filters                            // optional filter placeholder
+                        "filter": "$filters"                            // optional filter placeholder
                     }
                 }
             }

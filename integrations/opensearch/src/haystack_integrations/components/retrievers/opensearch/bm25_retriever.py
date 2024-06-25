@@ -19,7 +19,7 @@ class OpenSearchBM25Retriever:
         top_k: int = 10,
         scale_score: bool = False,
         all_terms_must_match: bool = False,
-        custom_query: Optional[Union[str, Dict[str, Any]]] = None,
+        custom_query: Optional[Dict[str, Any]] = None,
     ):
         """
         Create the OpenSearchBM25Retriever component.
@@ -41,10 +41,10 @@ class OpenSearchBM25Retriever:
                 "query": {
                     "bool": {
                         "should": [{"multi_match": {
-                            "query": $query,                 // mandatory query placeholder
+                            "query": "$query",                 // mandatory query placeholder
                             "type": "most_fields",
                             "fields": ["content", "title"]}}],
-                        "filter": $filters                  // optional filter placeholder
+                        "filter": "$filters"                  // optional filter placeholder
                     }
                 }
             }
@@ -113,7 +113,7 @@ class OpenSearchBM25Retriever:
         top_k: Optional[int] = None,
         fuzziness: Optional[str] = None,
         scale_score: Optional[bool] = None,
-        custom_query: Optional[Union[str, Dict[str, Any]]] = None,
+        custom_query: Optional[Dict[str, Any]] = None,
     ):
         """
         Retrieve documents using BM25 retrieval.
@@ -134,10 +134,10 @@ class OpenSearchBM25Retriever:
                 "query": {
                     "bool": {
                         "should": [{"multi_match": {
-                            "query": $query,                 // mandatory query placeholder
+                            "query": "$query",                 // mandatory query placeholder
                             "type": "most_fields",
                             "fields": ["content", "title"]}}],
-                        "filter": $filters                  // optional filter placeholder
+                        "filter": "$filters"                  // optional filter placeholder
                     }
                 }
             }
