@@ -31,7 +31,7 @@ class ChromaDocumentStore:
         collection_name: str = "documents",
         embedding_function: str = "default",
         persist_path: Optional[str] = None,
-        distance_function: Optional[str] = None,
+        distance_function: Literal["l2", "cosine", "ip"] = "l2",
         **embedding_function_params,
     ):
         """
