@@ -350,6 +350,8 @@ class OpenSearchDocumentStore:
 
         :returns: List of Document that match `query`
         """
+        if filters and "operator" not in filters and "conditions" not in filters:
+            filters = convert(filters)
 
         if not query:
             body: Dict[str, Any] = {"query": {"bool": {"must": {"match_all": {}}}}}
@@ -442,6 +444,8 @@ class OpenSearchDocumentStore:
         :raises ValueError: If `query_embedding` is an empty list
         :returns: List of Document that are most similar to `query_embedding`
         """
+        if filters and "operator" not in filters and "conditions" not in filters:
+            filters = convert(filters)
 
         if not query_embedding:
             msg = "query_embedding must be a non-empty list of floats"
