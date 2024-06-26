@@ -86,6 +86,7 @@ class OpenSearchBM25Retriever:
             top_k=self._top_k,
             scale_score=self._scale_score,
             document_store=self._document_store.to_dict(),
+            custom_query=self._custom_query,
         )
 
     @classmethod
