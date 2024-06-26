@@ -159,7 +159,7 @@ class FastembedSparseDocumentEmbedder:
         embeddings = self.embedding_backend.embed(
             texts_to_embed,
             batch_size=self.batch_size,
-            show_progress_bar=self.progress_bar,
+            progress_bar=self.progress_bar,
             parallel=self.parallel,
         )
 

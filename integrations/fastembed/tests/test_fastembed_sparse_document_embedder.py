@@ -270,7 +270,7 @@ class TestFastembedSparseDocumentEmbedderDoc:
                 "meta_value 4\ndocument-number 4",
             ],
             batch_size=32,
-            show_progress_bar=True,
+            progress_bar=True,
             parallel=None,
         )
 
