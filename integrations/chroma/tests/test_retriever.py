@@ -17,6 +17,7 @@ def test_retriever_to_json(request):
         "init_parameters": {
             "filters": {"foo": "bar"},
             "top_k": 99,
+            "filter_policy": "replace",
             "document_store": {
                 "type": "haystack_integrations.document_stores.chroma.document_store.ChromaDocumentStore",
                 "init_parameters": {
@@ -37,6 +38,7 @@ def test_retriever_from_json(request):
         "init_parameters": {
             "filters": {"bar": "baz"},
             "top_k": 42,
+            "filter_policy": "replace",
             "document_store": {
                 "type": "haystack_integrations.document_stores.chroma.document_store.ChromaDocumentStore",
                 "init_parameters": {
@@ -55,3 +57,4 @@ def test_retriever_from_json(request):
     assert retriever.document_store._persist_path == "."
     assert retriever.filters == {"bar": "baz"}
     assert retriever.top_k == 42
+    assert retriever.filter_policy == "replace"
