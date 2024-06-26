@@ -20,7 +20,7 @@ def test_init_default():
 @patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
 def test_to_dict(_mock_opensearch_client):
     document_store = OpenSearchDocumentStore(hosts="some fake host")
-    retriever = OpenSearchEmbeddingRetriever(document_store=document_store)
+    retriever = OpenSearchEmbeddingRetriever(document_store=document_store, custom_query={"some": "custom query"})
     res = retriever.to_dict()
     type_s = "haystack_integrations.components.retrievers.opensearch.embedding_retriever.OpenSearchEmbeddingRetriever"
     assert res == {
@@ -65,6 +65,7 @@ def test_to_dict(_mock_opensearch_client):
             },
             "filters": {},
             "top_k": 10,
+            "custom_query": {"some": "custom query"},
         },
     }
 
@@ -81,12 +82,14 @@ def test_from_dict(_mock_opensearch_client):
             },
             "filters": {},
             "top_k": 10,
+            "custom_query": {"some": "custom query"},
         },
     }
     retriever = OpenSearchEmbeddingRetriever.from_dict(data)
     assert retriever._document_store
     assert retriever._filters == {}
     assert retriever._top_k == 10
+    assert retriever._custom_query == {"some": "custom query"}
 
 
 def test_run():

@@ -85,6 +85,7 @@ class OpenSearchEmbeddingRetriever:
             filters=self._filters,
             top_k=self._top_k,
             document_store=self._document_store.to_dict(),
+            custom_query=self._custom_query,
         )
 
     @classmethod
