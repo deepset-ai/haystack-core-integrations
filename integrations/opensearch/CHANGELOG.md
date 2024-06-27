@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/opensearch-v0.7.1] - 2024-06-27
+
+### 🐛 Bug Fixes
+
+- Serialization for custom_query in OpenSearch retrievers (#851)
+- Support legacy filters with OpenSearchDocumentStore (#850)
+
 ## [integrations/opensearch-v0.7.0] - 2024-06-25
 
 ### 🚀 Features
