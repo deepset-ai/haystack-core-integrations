@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 import logging
 from collections import defaultdict
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Literal, Optional, Tuple, get_args
 
 import chromadb
 import numpy as np
@@ -16,6 +16,9 @@ from .errors import ChromaDocumentStoreFilterError
 from .utils import get_embedding_function
 
 logger = logging.getLogger(__name__)
+
+
+DistanceFunction = Literal["l2", "cosine", "ip"]
 
 
 class ChromaDocumentStore:
@@ -31,7 +34,7 @@ class ChromaDocumentStore:
         collection_name: str = "documents",
         embedding_function: str = "default",
         persist_path: Optional[str] = None,
-        distance_function: Literal["l2", "cosine", "ip"] = "l2",
+        distance_function: DistanceFunction = "l2",
         **embedding_function_params,
     ):
         """
@@ -46,10 +49,27 @@ class ChromaDocumentStore:
         :param collection_name: the name of the collection to use in the database.
         :param embedding_function: the name of the embedding function to use to embed the query
         :param persist_path: where to store the database. If None, the database will be `in-memory`.
-        :param distance_function: distance metric for the embedding space. Valid options are
-        'l2', 'cosine' and 'ip'.
+        :param distance_function: The distance metric for the embedding space.
+            - `"l2"` computes the Euclidean (straight-line) distance between vectors,
+            where smaller scores indicate more similarity.
+            - `"cosine"` computes the cosine similarity between vectors,
+            with higher scores indicating greater similarity.
+            - `"ip"` stands for inner product, where higher scores indicate greater similarity between vectors.
+            **Note**: `distance_function` can only be set during the creation of a collection.
+            To change the distance metric of an existing collection, consider cloning the collection.
+            For more details, see the [documentation](https://cookbook.chromadb.dev/core/collections/).
+
         :param embedding_function_params: additional parameters to pass to the embedding function.
         """
+
+        if distance_function not in get_args(DistanceFunction):
+            valid_options = ", ".join(get_args(DistanceFunction))
+            error_message = (
+                f"Invalid distance_function: '{distance_function}' for the collection. "
+                f"Valid options are: {valid_options}."
+            )
+            raise ValueError(error_message)
+
         # Store the params for marshalling
         self._collection_name = collection_name
         self._embedding_function = embedding_function
@@ -62,24 +82,20 @@ class ChromaDocumentStore:
         else:
             self._chroma_client = chromadb.PersistentClient(path=persist_path)
 
-        if distance_function:
-            if collection_name in [c.name for c in self._chroma_client.list_collections()]:
-                self._collection = self._chroma_client.get_collection(
-                    collection_name,
-                    embedding_function=get_embedding_function(embedding_function, **embedding_function_params),
-                )
-                logger.warning("Collection already exists. The 'distance_function' parameter will be ignored.")
+        embedding_func = get_embedding_function(embedding_function, **embedding_function_params)
+        metadata = {"hnsw:space": distance_function}
 
-            else:
-                self._collection = self._chroma_client.create_collection(
-                    name=collection_name,
-                    metadata={"hnsw:space": distance_function},
-                    embedding_function=get_embedding_function(embedding_function, **embedding_function_params),
-                )
+        # print(self._chroma_client.list_collections())
+        if collection_name in [c.name for c in self._chroma_client.list_collections()]:
+            self._collection = self._chroma_client.get_collection(collection_name, embedding_function=embedding_func)
+
+            if distance_function != self._collection.metadata["hnsw:space"]:
+                logger.warning("Collection already exists. The `distance_function` parameter will be ignored.")
         else:
-            self._collection = self._chroma_client.get_or_create_collection(
+            self._collection = self._chroma_client.create_collection(
                 name=collection_name,
-                embedding_function=get_embedding_function(embedding_function, **embedding_function_params),
+                metadata=metadata,
+                embedding_function=embedding_func,
             )
 
     def count_documents(self) -> int:
@@ -310,6 +326,7 @@ class ChromaDocumentStore:
             collection_name=self._collection_name,
             embedding_function=self._embedding_function,
             persist_path=self._persist_path,
+            distance_function=self._distance_function,
             **self._embedding_function_params,
         )
 

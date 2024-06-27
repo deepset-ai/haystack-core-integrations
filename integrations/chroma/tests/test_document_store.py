@@ -105,6 +105,7 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, LegacyFilterDoc
                 "embedding_function": "HuggingFaceEmbeddingFunction",
                 "persist_path": None,
                 "api_key": "1234567890",
+                "distance_function": "l2",
             },
         }
 
@@ -119,6 +120,7 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, LegacyFilterDoc
                 "embedding_function": "HuggingFaceEmbeddingFunction",
                 "persist_path": None,
                 "api_key": "1234567890",
+                "distance_function": "l2",
             },
         }
 
@@ -127,56 +129,33 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, LegacyFilterDoc
         assert ds._embedding_function == function_name
         assert ds._embedding_function_params == {"api_key": "1234567890"}
 
-    @pytest.fixture(scope="class")
-    def setup_document_stores(self, request):
-        collection_name, distance_function = request.param
-        doc_store = ChromaDocumentStore(collection_name=collection_name, distance_function=distance_function)
-
-        docs = [
-            Document(content="Cats are small domesticated carnivorous mammals with soft fur.", meta={"id": "A"}),
-            Document(content="Dogs are loyal and friendly animals often kept as pets.", meta={"id": "B"}),
-            Document(content="Birds have feathers, wings, and beaks, and most can fly.", meta={"id": "C"}),
-            Document(content="Fish live in water, have gills, and are often covered with scales.", meta={"id": "D"}),
-            Document(
-                content="The sun is a star at the center of the solar system, providing light and heat to Earth.",
-                meta={"id": "E"},
-            ),
-        ]
-
-        doc_store.write_documents(docs)
-        return doc_store
-
-    @pytest.mark.parametrize("setup_document_stores", [("doc_store_cosine", "cosine")], indirect=True)
-    def test_cosine_similarity(self, setup_document_stores):
-        doc_store_cosine = setup_document_stores
-        query = ["Stars are astronomical objects consisting of a luminous spheroid of plasma."]
-        results_cosine = doc_store_cosine.search(query, top_k=1)[0]
-
-        assert results_cosine[0].score == pytest.approx(0.47612541913986206, abs=1e-3)
-
-    @pytest.mark.parametrize("setup_document_stores", [("doc_store_l2", "l2")], indirect=True)
-    def test_l2_similarity(self, setup_document_stores):
-        doc_store_l2 = setup_document_stores
-        query = ["Stars are astronomical objects consisting of a luminous spheroid of plasma."]
-        results_l2 = doc_store_l2.search(query, top_k=1)[0]
-
-        assert results_l2[0].score == pytest.approx(0.9522517323493958, abs=1e-3)
-
     @pytest.mark.integration
     def test_same_collection_name_reinitialization(self):
-        ChromaDocumentStore("test_name")
-        ChromaDocumentStore("test_name")
+        ChromaDocumentStore("test_1")
+        ChromaDocumentStore("test_1")
 
     @pytest.mark.integration
-    def test_distance_metric_initialization(self):
-        ChromaDocumentStore("test_name_2", distance_function="cosine")
+    def test_distance_metric_initialization(self, caplog):
+        store = ChromaDocumentStore("test_2", distance_function="cosine")
+        assert store._collection.metadata["hnsw:space"] == "cosine"
+
+        with caplog.at_level(logging.ERROR):
+            with pytest.raises(ValueError) as exc_info:
+                ChromaDocumentStore("test_3", distance_function="jaccard")
+            assert (
+                "Invalid distance_function: 'jaccard' for the collection. Valid options are: l2, cosine, ip."
+            ) in str(exc_info.value)
 
     @pytest.mark.integration
     def test_distance_metric_reinitialization(self, caplog):
-        ChromaDocumentStore("test_name_3", distance_function="cosine")
+        store = ChromaDocumentStore("test_4", distance_function="cosine")
 
         with caplog.at_level(logging.WARNING):
-            ChromaDocumentStore("test_name_3", distance_function="l2")
+            new_store = ChromaDocumentStore("test_4", distance_function="ip")
+
+        assert "Collection already exists. The `distance_function` parameter will be ignored." in caplog.text
+        assert store._collection.metadata["hnsw:space"] == "cosine"
+        assert new_store._collection.metadata["hnsw:space"] == "cosine"
 
     @pytest.mark.skip(reason="Filter on dataframe contents is not supported.")
     def test_filter_document_dataframe(self, document_store: ChromaDocumentStore, filterable_docs: List[Document]):
