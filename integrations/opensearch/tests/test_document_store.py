@@ -336,6 +336,146 @@ class TestDocumentStore(DocumentStoreBaseTests):
         assert "functional" in res[1].content
         assert "functional" in res[2].content
 
+    def test_bm25_retrieval_with_filters(self, document_store: OpenSearchDocumentStore):
+        document_store.write_documents(
+            [
+                Document(
+                    content="Haskell is a functional programming language",
+                    meta={"likes": 100000, "language_type": "functional"},
+                    id="1",
+                ),
+                Document(
+                    content="Lisp is a functional programming language",
+                    meta={"likes": 10000, "language_type": "functional"},
+                    id="2",
+                ),
+                Document(
+                    content="Exilir is a functional programming language",
+                    meta={"likes": 1000, "language_type": "functional"},
+                    id="3",
+                ),
+                Document(
+                    content="F# is a functional programming language",
+                    meta={"likes": 100, "language_type": "functional"},
+                    id="4",
+                ),
+                Document(
+                    content="C# is a functional programming language",
+                    meta={"likes": 10, "language_type": "functional"},
+                    id="5",
+                ),
+                Document(
+                    content="C++ is an object oriented programming language",
+                    meta={"likes": 100000, "language_type": "object_oriented"},
+                    id="6",
+                ),
+                Document(
+                    content="Dart is an object oriented programming language",
+                    meta={"likes": 10000, "language_type": "object_oriented"},
+                    id="7",
+                ),
+                Document(
+                    content="Go is an object oriented programming language",
+                    meta={"likes": 1000, "language_type": "object_oriented"},
+                    id="8",
+                ),
+                Document(
+                    content="Python is a object oriented programming language",
+                    meta={"likes": 100, "language_type": "object_oriented"},
+                    id="9",
+                ),
+                Document(
+                    content="Ruby is a object oriented programming language",
+                    meta={"likes": 10, "language_type": "object_oriented"},
+                    id="10",
+                ),
+                Document(
+                    content="PHP is a object oriented programming language",
+                    meta={"likes": 1, "language_type": "object_oriented"},
+                    id="11",
+                ),
+            ]
+        )
+
+        res = document_store._bm25_retrieval(
+            "programming",
+            top_k=10,
+            filters={"field": "language_type", "operator": "==", "value": "functional"},
+        )
+        assert len(res) == 5
+        retrieved_ids = sorted([doc.id for doc in res])
+        assert retrieved_ids == ["1", "2", "3", "4", "5"]
+
+    def test_bm25_retrieval_with_legacy_filters(self, document_store: OpenSearchDocumentStore):
+        document_store.write_documents(
+            [
+                Document(
+                    content="Haskell is a functional programming language",
+                    meta={"likes": 100000, "language_type": "functional"},
+                    id="1",
+                ),
+                Document(
+                    content="Lisp is a functional programming language",
+                    meta={"likes": 10000, "language_type": "functional"},
+                    id="2",
+                ),
+                Document(
+                    content="Exilir is a functional programming language",
+                    meta={"likes": 1000, "language_type": "functional"},
+                    id="3",
+                ),
+                Document(
+                    content="F# is a functional programming language",
+                    meta={"likes": 100, "language_type": "functional"},
+                    id="4",
+                ),
+                Document(
+                    content="C# is a functional programming language",
+                    meta={"likes": 10, "language_type": "functional"},
+                    id="5",
+                ),
+                Document(
+                    content="C++ is an object oriented programming language",
+                    meta={"likes": 100000, "language_type": "object_oriented"},
+                    id="6",
+                ),
+                Document(
+                    content="Dart is an object oriented programming language",
+                    meta={"likes": 10000, "language_type": "object_oriented"},
+                    id="7",
+                ),
+                Document(
+                    content="Go is an object oriented programming language",
+                    meta={"likes": 1000, "language_type": "object_oriented"},
+                    id="8",
+                ),
+                Document(
+                    content="Python is a object oriented programming language",
+                    meta={"likes": 100, "language_type": "object_oriented"},
+                    id="9",
+                ),
+                Document(
+                    content="Ruby is a object oriented programming language",
+                    meta={"likes": 10, "language_type": "object_oriented"},
+                    id="10",
+                ),
+                Document(
+                    content="PHP is a object oriented programming language",
+                    meta={"likes": 1, "language_type": "object_oriented"},
+                    id="11",
+                ),
+            ]
+        )
+
+        res = document_store._bm25_retrieval(
+            "programming",
+            top_k=10,
+            filters={"language_type": "functional"},
+        )
+        assert len(res) == 5
+        retrieved_ids = sorted([doc.id for doc in res])
+        assert retrieved_ids == ["1", "2", "3", "4", "5"]
+
     def test_bm25_retrieval_with_custom_query(self, document_store: OpenSearchDocumentStore):
         document_store.write_documents(
             [
@@ -444,6 +584,27 @@ class TestDocumentStore(DocumentStoreBaseTests):
         document_store_embedding_dim_4.write_documents(docs)
 
         filters = {"field": "meta_field", "operator": "==", "value": "custom_value"}
+        # we set top_k=3, to make the test pass as we are not sure whether efficient filtering is supported for nmslib
+        # TODO: remove top_k=3, when efficient filtering is supported for nmslib
+        results = document_store_embedding_dim_4._embedding_retrieval(
+            query_embedding=[0.1, 0.1, 0.1, 0.1], top_k=3, filters=filters
+        )
+        assert len(results) == 1
+        assert results[0].content == "Not very similar document with meta field"
+
+    def test_embedding_retrieval_with_legacy_filters(self, document_store_embedding_dim_4: OpenSearchDocumentStore):
+        docs = [
+            Document(content="Most similar document", embedding=[1.0, 1.0, 1.0, 1.0]),
+            Document(content="2nd best document", embedding=[0.8, 0.8, 0.8, 1.0]),
+            Document(
+                content="Not very similar document with meta field",
+                embedding=[0.0, 0.8, 0.3, 0.9],
+                meta={"meta_field": "custom_value"},
+            ),
+        ]
+        document_store_embedding_dim_4.write_documents(docs)
+
+        filters = {"meta_field": "custom_value"}
         # we set top_k=3, to make the test pass as we are not sure whether efficient filtering is supported for nmslib
         # TODO: remove top_k=3, when efficient filtering is supported for nmslib
         results = document_store_embedding_dim_4._embedding_retrieval(
