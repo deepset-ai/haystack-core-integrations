@@ -142,7 +142,6 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, LegacyFilterDoc
         with caplog.at_level(logging.ERROR):
             with pytest.raises(ValueError):
                 ChromaDocumentStore("test_3", distance_function="jaccard")
-           
 
     @pytest.mark.integration
     def test_distance_metric_reinitialization(self, caplog):
