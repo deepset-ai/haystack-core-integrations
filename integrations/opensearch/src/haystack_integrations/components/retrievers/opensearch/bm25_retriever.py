@@ -23,7 +23,7 @@ class OpenSearchBM25Retriever:
         scale_score: bool = False,
         all_terms_must_match: bool = False,
         custom_query: Optional[Dict[str, Any]] = None,
-        ignore_errors: bool = False,
+        raise_on_failure: bool = True,
     ):
         """
         Create the OpenSearchBM25Retriever component.
@@ -60,8 +60,8 @@ class OpenSearchBM25Retriever:
         retriever.run(query="Why did the revenue increase?",
                         filters={"years": ["2019"], "quarters": ["Q1", "Q2"]})
         ```
-        :param ignore_errors: If True, the retriever will ignore any errors that occur during the retrieval process
-            and return an empty list.
+        :param raise_on_failure:
+            Whether to raise an exception if the API call fails. Otherwise log a warning and return an empty list.
 
         :raises ValueError: If `document_store` is not an instance of OpenSearchDocumentStore.
 
@@ -77,7 +77,7 @@ class OpenSearchBM25Retriever:
         self._scale_score = scale_score
         self._all_terms_must_match = all_terms_must_match
         self._custom_query = custom_query
-        self._ignore_errors = ignore_errors
+        self._raise_on_failure = raise_on_failure
 
     def to_dict(self) -> Dict[str, Any]:
         """
@@ -94,7 +94,7 @@ class OpenSearchBM25Retriever:
             scale_score=self._scale_score,
             document_store=self._document_store.to_dict(),
             custom_query=self._custom_query,
-            ignore_errors=self._ignore_errors,
+            raise_on_failure=self._raise_on_failure,
         )
 
     @classmethod
@@ -177,6 +177,8 @@ class OpenSearchBM25Retriever:
         if custom_query is None:
             custom_query = self._custom_query
 
+        docs: List[Document] = []
+
         try:
             docs = self._document_store._bm25_retrieval(
                 query=query,
@@ -187,13 +189,14 @@ class OpenSearchBM25Retriever:
                 all_terms_must_match=all_terms_must_match,
                 custom_query=custom_query,
             )
-            return {"documents": docs}
         except Exception as e:
-            if self._ignore_errors:
+            if self._raise_on_failure:
                 logger.warning(
                     "An error during BM25 retrieval occurred and will be ignored by returning empty results: %s",
                     str(e),
                     exc_info=True,
                 )
-                return {"documents": []}
-            raise e
+            else:
+                raise e
+
+        return {"documents": docs}

@@ -26,7 +26,7 @@ class OpenSearchEmbeddingRetriever:
         filters: Optional[Dict[str, Any]] = None,
         top_k: int = 10,
         custom_query: Optional[Dict[str, Any]] = None,
-        ignore_errors: bool = False,
+        raise_on_failure: bool = True,
     ):
         """
         Create the OpenSearchEmbeddingRetriever component.
@@ -65,8 +65,8 @@ class OpenSearchEmbeddingRetriever:
         retriever.run(query_embedding=embedding,
                         filters={"years": ["2019"], "quarters": ["Q1", "Q2"]})
         ```
-        :param ignore_errors: If True, the retriever will ignore any errors that occur during the retrieval process
-            and return an empty list.
+        :param raise_on_failure:
+            Whether to raise an exception if the API call fails. Otherwise log a warning and return an empty list.
 
         :raises ValueError: If `document_store` is not an instance of OpenSearchDocumentStore.
         """
@@ -78,7 +78,7 @@ class OpenSearchEmbeddingRetriever:
         self._filters = filters or {}
         self._top_k = top_k
         self._custom_query = custom_query
-        self._ignore_errors = ignore_errors
+        self._raise_on_failure = raise_on_failure
 
     def to_dict(self) -> Dict[str, Any]:
         """
@@ -93,7 +93,7 @@ class OpenSearchEmbeddingRetriever:
             top_k=self._top_k,
             document_store=self._document_store.to_dict(),
             custom_query=self._custom_query,
-            ignore_errors=self._ignore_errors,
+            raise_on_failure=self._raise_on_failure,
         )
 
     @classmethod
@@ -168,6 +168,8 @@ class OpenSearchEmbeddingRetriever:
         if custom_query is None:
             custom_query = self._custom_query
 
+        docs: List[Document] = []
+
         try:
             docs = self._document_store._embedding_retrieval(
                 query_embedding=query_embedding,
@@ -175,13 +177,14 @@ class OpenSearchEmbeddingRetriever:
                 top_k=top_k,
                 custom_query=custom_query,
             )
-            return {"documents": docs}
         except Exception as e:
-            if self._ignore_errors:
+            if self._raise_on_failure:
                 logger.warning(
                     "An error during embedding retrieval occurred and will be ignored by returning empty results: %s",
                     str(e),
                     exc_info=True,
                 )
-                return {"documents": []}
-            raise e
+            else:
+                raise e
+
+        return {"documents": docs}
