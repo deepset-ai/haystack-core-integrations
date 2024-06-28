@@ -18,7 +18,7 @@ from .utils import get_embedding_function
 logger = logging.getLogger(__name__)
 
 
-DistanceFunction = Literal["l2", "cosine", "ip"]
+VALID_DISTANCE_FUNCTIONS = "l2", "cosine", "ip"
 
 
 class ChromaDocumentStore:
@@ -34,7 +34,7 @@ class ChromaDocumentStore:
         collection_name: str = "documents",
         embedding_function: str = "default",
         persist_path: Optional[str] = None,
-        distance_function: DistanceFunction = "l2",
+        distance_function: Literal["l2", "cosine", "ip"] = "l2",
         **embedding_function_params,
     ):
         """
@@ -57,16 +57,14 @@ class ChromaDocumentStore:
             - `"ip"` stands for inner product, where higher scores indicate greater similarity between vectors.
             **Note**: `distance_function` can only be set during the creation of a collection.
             To change the distance metric of an existing collection, consider cloning the collection.
-            For more details, see the [documentation](https://cookbook.chromadb.dev/core/collections/).
 
         :param embedding_function_params: additional parameters to pass to the embedding function.
         """
 
-        if distance_function not in get_args(DistanceFunction):
-            valid_options = ", ".join(get_args(DistanceFunction))
+        if distance_function not in VALID_DISTANCE_FUNCTIONS:
             error_message = (
                 f"Invalid distance_function: '{distance_function}' for the collection. "
-                f"Valid options are: {valid_options}."
+                f"Valid options are: {VALID_DISTANCE_FUNCTIONS}."
             )
             raise ValueError(error_message)
 
@@ -85,7 +83,6 @@ class ChromaDocumentStore:
         embedding_func = get_embedding_function(embedding_function, **embedding_function_params)
         metadata = {"hnsw:space": distance_function}
 
-        # print(self._chroma_client.list_collections())
         if collection_name in [c.name for c in self._chroma_client.list_collections()]:
             self._collection = self._chroma_client.get_collection(collection_name, embedding_function=embedding_func)
 

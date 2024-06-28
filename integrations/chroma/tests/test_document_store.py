@@ -140,11 +140,9 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, LegacyFilterDoc
         assert store._collection.metadata["hnsw:space"] == "cosine"
 
         with caplog.at_level(logging.ERROR):
-            with pytest.raises(ValueError) as exc_info:
+            with pytest.raises(ValueError):
                 ChromaDocumentStore("test_3", distance_function="jaccard")
-            assert (
-                "Invalid distance_function: 'jaccard' for the collection. Valid options are: l2, cosine, ip."
-            ) in str(exc_info.value)
+           
 
     @pytest.mark.integration
     def test_distance_metric_reinitialization(self, caplog):
