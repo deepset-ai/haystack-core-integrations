@@ -95,7 +95,7 @@ class GoogleAIGeminiChatGenerator:
         self,
         *,
         api_key: Secret = Secret.from_env_var("GOOGLE_API_KEY"),  # noqa: B008
-        model: str = "gemini-pro-vision",
+        model: str = "gemini-1.5-flash",
         generation_config: Optional[Union[GenerationConfig, Dict[str, Any]]] = None,
         safety_settings: Optional[Dict[HarmCategory, HarmBlockThreshold]] = None,
         tools: Optional[List[Tool]] = None,
