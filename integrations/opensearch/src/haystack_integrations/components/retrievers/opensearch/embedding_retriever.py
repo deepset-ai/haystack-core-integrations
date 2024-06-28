@@ -179,12 +179,12 @@ class OpenSearchEmbeddingRetriever:
             )
         except Exception as e:
             if self._raise_on_failure:
+                raise e
+            else:
                 logger.warning(
                     "An error during embedding retrieval occurred and will be ignored by returning empty results: %s",
                     str(e),
                     exc_info=True,
                 )
-            else:
-                raise e
 
         return {"documents": docs}
