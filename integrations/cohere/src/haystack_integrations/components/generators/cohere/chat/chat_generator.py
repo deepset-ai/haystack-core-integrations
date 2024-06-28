@@ -40,7 +40,7 @@ class CohereChatGenerator:
     def __init__(
         self,
         api_key: Secret = Secret.from_env_var(["COHERE_API_KEY", "CO_API_KEY"]),
-        model: str = "command",
+        model: str = "command-r",
         streaming_callback: Optional[Callable[[StreamingChunk], None]] = None,
         api_base_url: Optional[str] = None,
         generation_kwargs: Optional[Dict[str, Any]] = None,
@@ -50,8 +50,7 @@ class CohereChatGenerator:
         Initialize the CohereChatGenerator instance.
 
         :param api_key: the API key for the Cohere API.
-        :param model: The name of the model to use. Available models are: [command, command-light, command-nightly,
-            command-nightly-light].
+        :param model: The name of the model to use. Available models are: [command, command-r, command-r-plus, etc.]
         :param streaming_callback: a callback function to be called with the streaming response.
         :param api_base_url: the base URL of the Cohere API.
         :param generation_kwargs: additional model parameters. These will be used during generation. Refer to
@@ -215,9 +214,12 @@ class CohereChatGenerator:
         :param cohere_response: The completion returned by the Cohere API.
         :returns: The ChatMessage.
         """
-        content = cohere_response.text
-        message = ChatMessage.from_assistant(content=content)
-
+        message = None
+        if cohere_response.tool_calls:
+            # TODO revisit to see if we need to handle multiple tool calls
+            message = ChatMessage.from_assistant(cohere_response.tool_calls[0].json())
+        elif cohere_response.text:
+            message = ChatMessage.from_assistant(content=cohere_response.text)
         total_tokens = cohere_response.meta.billed_units.input_tokens + cohere_response.meta.billed_units.output_tokens
         message.meta.update(
             {

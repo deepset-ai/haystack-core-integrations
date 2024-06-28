@@ -1,3 +1,4 @@
+import json
 import os
 from unittest.mock import Mock
 
@@ -34,7 +35,7 @@ class TestCohereChatGenerator:
 
         component = CohereChatGenerator()
         assert component.api_key == Secret.from_env_var(["COHERE_API_KEY", "CO_API_KEY"])
-        assert component.model == "command"
+        assert component.model == "command-r"
         assert component.streaming_callback is None
         assert component.api_base_url == "https://api.cohere.com"
         assert not component.generation_kwargs
@@ -66,7 +67,7 @@ class TestCohereChatGenerator:
         assert data == {
             "type": "haystack_integrations.components.generators.cohere.chat.chat_generator.CohereChatGenerator",
             "init_parameters": {
-                "model": "command",
+                "model": "command-r",
                 "streaming_callback": None,
                 "api_key": {"env_vars": ["COHERE_API_KEY", "CO_API_KEY"], "strict": True, "type": "env_var"},
                 "api_base_url": "https://api.cohere.com",
@@ -99,7 +100,7 @@ class TestCohereChatGenerator:
     def test_to_dict_with_lambda_streaming_callback(self, monkeypatch):
         monkeypatch.setenv("COHERE_API_KEY", "test-api-key")
         component = CohereChatGenerator(
-            model="command",
+            model="command-r",
             streaming_callback=lambda x: x,
             api_base_url="test-base-url",
             generation_kwargs={"max_tokens": 10, "some_test_param": "test-params"},
@@ -108,7 +109,7 @@ class TestCohereChatGenerator:
         assert data == {
             "type": "haystack_integrations.components.generators.cohere.chat.chat_generator.CohereChatGenerator",
             "init_parameters": {
-                "model": "command",
+                "model": "command-r",
                 "api_base_url": "test-base-url",
                 "api_key": {"env_vars": ["COHERE_API_KEY", "CO_API_KEY"], "strict": True, "type": "env_var"},
                 "streaming_callback": "tests.test_cohere_chat_generator.<lambda>",
@@ -122,7 +123,7 @@ class TestCohereChatGenerator:
         data = {
             "type": "haystack_integrations.components.generators.cohere.chat.chat_generator.CohereChatGenerator",
             "init_parameters": {
-                "model": "command",
+                "model": "command-r",
                 "api_base_url": "test-base-url",
                 "api_key": {"env_vars": ["ENV_VAR"], "strict": False, "type": "env_var"},
                 "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
@@ -130,7 +131,7 @@ class TestCohereChatGenerator:
             },
         }
         component = CohereChatGenerator.from_dict(data)
-        assert component.model == "command"
+        assert component.model == "command-r"
         assert component.streaming_callback is print_streaming_chunk
         assert component.api_base_url == "test-base-url"
         assert component.generation_kwargs == {"max_tokens": 10, "some_test_param": "test-params"}
@@ -141,7 +142,7 @@ class TestCohereChatGenerator:
         data = {
             "type": "haystack_integrations.components.generators.cohere.chat.chat_generator.CohereChatGenerator",
             "init_parameters": {
-                "model": "command",
+                "model": "command-r",
                 "api_base_url": "test-base-url",
                 "api_key": {"env_vars": ["COHERE_API_KEY", "CO_API_KEY"], "strict": True, "type": "env_var"},
                 "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
@@ -254,3 +255,40 @@ class TestCohereChatGenerator:
 
         assert message.meta["documents"] is not None
         assert message.meta["citations"] is not None
+
+    @pytest.mark.skipif(
+        not os.environ.get("COHERE_API_KEY", None) and not os.environ.get("CO_API_KEY", None),
+        reason="Export an env var called COHERE_API_KEY/CO_API_KEY containing the Cohere API key to run this test.",
+    )
+    @pytest.mark.integration
+    def test_tools_use(self):
+        # See https://docs.anthropic.com/en/docs/tool-use for more information
+        tools_schema = {
+            "name": "get_stock_price",
+            "description": "Retrieves the current stock price for a given ticker symbol.",
+            "parameter_definitions": {
+                "ticker": {
+                    "type": "string",
+                    "description": "The stock ticker symbol, e.g. AAPL for Apple Inc.",
+                    "required": True,
+                }
+            },
+        }
+        client = CohereChatGenerator(model="command-r")
+        response = client.run(
+            messages=[ChatMessage.from_user("What is the current price of AAPL?")],
+            generation_kwargs={"tools": [tools_schema]},
+        )
+        replies = response["replies"]
+        assert isinstance(replies, list), "Replies is not a list"
+        assert len(replies) > 0, "No replies received"
+
+        first_reply = replies[0]
+        assert isinstance(first_reply, ChatMessage), "First reply is not a ChatMessage instance"
+        assert first_reply.content, "First reply has no content"
+        assert ChatMessage.is_from(first_reply, ChatRole.ASSISTANT), "First reply is not from the assistant"
+        assert "get_stock_price" in first_reply.content.lower(), "First reply does not contain get_stock_price"
+        assert first_reply.meta, "First reply has no metadata"
+        fc_response = json.loads(first_reply.content)
+        assert "name" in fc_response, "First reply does not contain name of the tool"
+        assert "parameters" in fc_response, "First reply does not contain parameters of the tool"
