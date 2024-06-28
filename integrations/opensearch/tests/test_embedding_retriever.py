@@ -66,6 +66,7 @@ def test_to_dict(_mock_opensearch_client):
             "filters": {},
             "top_k": 10,
             "custom_query": {"some": "custom query"},
+            "raise_on_failure": True,
         },
     }
 
@@ -83,6 +84,7 @@ def test_from_dict(_mock_opensearch_client):
             "filters": {},
             "top_k": 10,
             "custom_query": {"some": "custom query"},
+            "raise_on_failure": False,
         },
     }
     retriever = OpenSearchEmbeddingRetriever.from_dict(data)
@@ -90,6 +92,7 @@ def test_from_dict(_mock_opensearch_client):
     assert retriever._filters == {}
     assert retriever._top_k == 10
     assert retriever._custom_query == {"some": "custom query"}
+    assert retriever._raise_on_failure is False
 
 
 def test_run():
@@ -143,3 +146,13 @@ def test_run_time_params():
     assert len(res["documents"]) == 1
     assert res["documents"][0].content == "Test doc"
     assert res["documents"][0].embedding == [0.1, 0.2]
+
+
+def test_run_ignore_errors(caplog):
+    mock_store = Mock(spec=OpenSearchDocumentStore)
+    mock_store._embedding_retrieval.side_effect = Exception("Some error")
+    retriever = OpenSearchEmbeddingRetriever(document_store=mock_store, raise_on_failure=False)
+    res = retriever.run(query_embedding=[0.5, 0.7])
+    assert len(res) == 1
+    assert res["documents"] == []
+    assert "Some error" in caplog.text

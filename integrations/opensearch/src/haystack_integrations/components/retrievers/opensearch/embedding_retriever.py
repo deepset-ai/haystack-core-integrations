@@ -1,11 +1,14 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
+import logging
 from typing import Any, Dict, List, Optional
 
 from haystack import component, default_from_dict, default_to_dict
 from haystack.dataclasses import Document
 from haystack_integrations.document_stores.opensearch import OpenSearchDocumentStore
+
+logger = logging.getLogger(__name__)
 
 
 @component
@@ -23,6 +26,7 @@ class OpenSearchEmbeddingRetriever:
         filters: Optional[Dict[str, Any]] = None,
         top_k: int = 10,
         custom_query: Optional[Dict[str, Any]] = None,
+        raise_on_failure: bool = True,
     ):
         """
         Create the OpenSearchEmbeddingRetriever component.
@@ -61,6 +65,8 @@ class OpenSearchEmbeddingRetriever:
         retriever.run(query_embedding=embedding,
                         filters={"years": ["2019"], "quarters": ["Q1", "Q2"]})
         ```
+        :param raise_on_failure:
+            Whether to raise an exception if the API call fails. Otherwise log a warning and return an empty list.
 
         :raises ValueError: If `document_store` is not an instance of OpenSearchDocumentStore.
         """
@@ -72,6 +78,7 @@ class OpenSearchEmbeddingRetriever:
         self._filters = filters or {}
         self._top_k = top_k
         self._custom_query = custom_query
+        self._raise_on_failure = raise_on_failure
 
     def to_dict(self) -> Dict[str, Any]:
         """
@@ -86,6 +93,7 @@ class OpenSearchEmbeddingRetriever:
             top_k=self._top_k,
             document_store=self._document_store.to_dict(),
             custom_query=self._custom_query,
+            raise_on_failure=self._raise_on_failure,
         )
 
     @classmethod
@@ -160,10 +168,23 @@ class OpenSearchEmbeddingRetriever:
         if custom_query is None:
             custom_query = self._custom_query
 
-        docs = self._document_store._embedding_retrieval(
-            query_embedding=query_embedding,
-            filters=filters,
-            top_k=top_k,
-            custom_query=custom_query,
-        )
+        docs: List[Document] = []
+
+        try:
+            docs = self._document_store._embedding_retrieval(
+                query_embedding=query_embedding,
+                filters=filters,
+                top_k=top_k,
+                custom_query=custom_query,
+            )
+        except Exception as e:
+            if self._raise_on_failure:
+                raise e
+            else:
+                logger.warning(
+                    "An error during embedding retrieval occurred and will be ignored by returning empty results: %s",
+                    str(e),
+                    exc_info=True,
+                )
+
         return {"documents": docs}
