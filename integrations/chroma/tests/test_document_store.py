@@ -135,13 +135,12 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, LegacyFilterDoc
         ChromaDocumentStore("test_1")
 
     @pytest.mark.integration
-    def test_distance_metric_initialization(self, caplog):
+    def test_distance_metric_initialization(self):
         store = ChromaDocumentStore("test_2", distance_function="cosine")
         assert store._collection.metadata["hnsw:space"] == "cosine"
 
-        with caplog.at_level(logging.ERROR):
-            with pytest.raises(ValueError):
-                ChromaDocumentStore("test_3", distance_function="jaccard")
+        with pytest.raises(ValueError):
+            ChromaDocumentStore("test_3", distance_function="jaccard")
 
     @pytest.mark.integration
     def test_distance_metric_reinitialization(self, caplog):
