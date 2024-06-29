@@ -31,6 +31,7 @@ class TestRetriever:
         assert retriever.document_store == mock_store
         assert retriever.filters == {}
         assert retriever.top_k == 10
+        assert retriever.filter_policy == "replace"
 
     def test_init(self):
         mock_store = Mock(spec=MongoDBAtlasDocumentStore)
@@ -42,6 +43,20 @@ class TestRetriever:
         assert retriever.document_store == mock_store
         assert retriever.filters == {"field": "value"}
         assert retriever.top_k == 5
+        assert retriever.filter_policy == "replace"
+
+    def test_init_filter_policy_merge(self):
+        mock_store = Mock(spec=MongoDBAtlasDocumentStore)
+        retriever = MongoDBAtlasEmbeddingRetriever(
+            document_store=mock_store,
+            filters={"field": "value"},
+            top_k=5,
+            filter_policy="merge",
+        )
+        assert retriever.document_store == mock_store
+        assert retriever.filters == {"field": "value"}
+        assert retriever.top_k == 5
+        assert retriever.filter_policy == "merge"
 
     def test_to_dict(self, mock_client, monkeypatch):  # noqa: ARG002  mock_client appears unused but is required
         monkeypatch.setenv("MONGO_CONNECTION_STRING", "test_conn_str")
@@ -72,6 +87,7 @@ class TestRetriever:
                 },
                 "filters": {"field": "value"},
                 "top_k": 5,
+                "filter_policy": "replace",
             },
         }
 
@@ -96,6 +112,7 @@ class TestRetriever:
                 },
                 "filters": {"field": "value"},
                 "top_k": 5,
+                "filter_policy": "replace",
             },
         }
 
@@ -109,6 +126,7 @@ class TestRetriever:
         assert document_store.vector_search_index == "cosine_index"
         assert retriever.filters == {"field": "value"}
         assert retriever.top_k == 5
+        assert retriever.filter_policy == "replace"
 
     def test_run(self):
         mock_store = Mock(spec=MongoDBAtlasDocumentStore)
@@ -119,5 +137,21 @@ class TestRetriever:
         res = retriever.run(query_embedding=[0.3, 0.5])
 
         mock_store._embedding_retrieval.assert_called_once_with(query_embedding=[0.3, 0.5], filters={}, top_k=10)
+
+        assert res == {"documents": [doc]}
+
+    def test_run_merge_policy_filter(self):
+        mock_store = Mock(spec=MongoDBAtlasDocumentStore)
+        doc = Document(content="Test doc", embedding=[0.1, 0.2])
+        mock_store._embedding_retrieval.return_value = [doc]
+
+        retriever = MongoDBAtlasEmbeddingRetriever(
+            document_store=mock_store, filters={"foo": "boo"}, filter_policy="merge"
+        )
+        res = retriever.run(query_embedding=[0.3, 0.5], filters={"field": "value"})
+
+        mock_store._embedding_retrieval.assert_called_once_with(
+            query_embedding=[0.3, 0.5], filters={"field": "value", "foo": "boo"}, top_k=10
+        )
 
         assert res == {"documents": [doc]}
