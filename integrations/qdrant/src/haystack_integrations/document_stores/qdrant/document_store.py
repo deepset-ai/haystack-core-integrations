@@ -110,14 +110,10 @@ class QdrantDocumentStore:
         index: str = "Document",
         embedding_dim: int = 768,
         on_disk: bool = False,
-        content_field: str = "content",
-        name_field: str = "name",
-        embedding_field: str = "embedding",
         use_sparse_embeddings: bool = False,
         similarity: str = "cosine",
         return_embedding: bool = False,
         progress_bar: bool = True,
-        duplicate_documents: str = "overwrite",
         recreate_index: bool = False,
         shard_number: Optional[int] = None,
         replication_factor: Optional[int] = None,
@@ -170,12 +166,6 @@ class QdrantDocumentStore:
             Dimension of the embeddings.
         :param on_disk:
             Whether to store the collection on disk.
-        :param content_field:
-            The field for the document content.
-        :param name_field:
-            The field for the document name.
-        :param embedding_field:
-            The field for the document embeddings.
         :param use_sparse_embedding:
             If set to `True`, enables support for sparse embeddings.
         :param similarity:
@@ -184,8 +174,6 @@ class QdrantDocumentStore:
             Whether to return embeddings in the search results.
         :param progress_bar:
             Whether to show a progress bar or not.
-        :param duplicate_documents:
-            The parameter is not used and will be removed in future release.
         :param recreate_index:
             Whether to recreate the index.
         :param shard_number:
@@ -260,14 +248,10 @@ class QdrantDocumentStore:
         self.use_sparse_embeddings = use_sparse_embeddings
         self.embedding_dim = embedding_dim
         self.on_disk = on_disk
-        self.content_field = content_field
-        self.name_field = name_field
-        self.embedding_field = embedding_field
         self.similarity = similarity
         self.index = index
         self.return_embedding = return_embedding
         self.progress_bar = progress_bar
-        self.duplicate_documents = duplicate_documents
         self.write_batch_size = write_batch_size
         self.scroll_size = scroll_size
 
@@ -380,7 +364,6 @@ class QdrantDocumentStore:
             for document_batch in batched_documents:
                 batch = convert_haystack_documents_to_qdrant_points(
                     document_batch,
-                    embedding_field=self.embedding_field,
                     use_sparse_embeddings=self.use_sparse_embeddings,
                 )
 
@@ -891,12 +874,7 @@ class QdrantDocumentStore:
 
         :param documents: A list of Haystack Document objects.
         :param index: name of the index
-        :param duplicate_documents: Handle duplicate documents based on parameter options.
-                                    Parameter options : ( 'skip','overwrite','fail')
-                                    skip (default option): Ignore the duplicates documents.
-                                    overwrite: Update any existing documents with the same ID when adding documents.
-                                    fail: An error is raised if the document ID of the document being added already
-                                    exists.
+        :param duplicate_documents: The duplicate policy to use when writing documents.
         :returns: A list of Haystack Document objects.
         """
 
