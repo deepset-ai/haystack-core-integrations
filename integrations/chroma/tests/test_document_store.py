@@ -67,7 +67,11 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, LegacyFilterDoc
 
     def test_document_store_search_without_metadata(self, document_store: ChromaDocumentStore):
         document_store.write_documents([Document(content=e) for e in ["First document", "Second document"]] )
-        document_store.search(["First document"], top_k=1)
+        results = document_store.search(["First document"], top_k=1)[0]
+
+        # Assertions to verify correctness
+        assert len(results) == 1
+        assert results[0].content == "First document"
 
     def test_ne_filter(self, document_store: ChromaDocumentStore, filterable_docs: List[Document]):
         """
