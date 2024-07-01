@@ -22,6 +22,7 @@ class TestQdrantRetriever(FilterableDocsFixtureMixin):
         assert retriever._filters is None
         assert retriever._top_k == 10
         assert retriever._return_embedding is False
+        assert retriever._score_threshold is None
 
     def test_to_dict(self):
         document_store = QdrantDocumentStore(location=":memory:", index="test", use_sparse_embeddings=False)
@@ -77,6 +78,7 @@ class TestQdrantRetriever(FilterableDocsFixtureMixin):
                 "top_k": 10,
                 "scale_score": True,
                 "return_embedding": False,
+                "score_threshold": None,
             },
         }
 
@@ -92,6 +94,7 @@ class TestQdrantRetriever(FilterableDocsFixtureMixin):
                 "top_k": 5,
                 "scale_score": False,
                 "return_embedding": True,
+                "score_threshold": None,
             },
         }
         retriever = QdrantEmbeddingRetriever.from_dict(data)
@@ -101,6 +104,7 @@ class TestQdrantRetriever(FilterableDocsFixtureMixin):
         assert retriever._top_k == 5
         assert retriever._scale_score is False
         assert retriever._return_embedding is True
+        assert retriever._score_threshold is None
 
     def test_run(self, filterable_docs: List[Document]):
         document_store = QdrantDocumentStore(location=":memory:", index="Boi", use_sparse_embeddings=False)
@@ -145,6 +149,7 @@ class TestQdrantSparseEmbeddingRetriever(FilterableDocsFixtureMixin):
         assert retriever._filters is None
         assert retriever._top_k == 10
         assert retriever._return_embedding is False
+        assert retriever._score_threshold is None
 
     def test_to_dict(self):
         document_store = QdrantDocumentStore(location=":memory:", index="test")
@@ -200,6 +205,7 @@ class TestQdrantSparseEmbeddingRetriever(FilterableDocsFixtureMixin):
                 "top_k": 10,
                 "scale_score": True,
                 "return_embedding": False,
+                "score_threshold": None,
             },
         }
 
@@ -215,6 +221,7 @@ class TestQdrantSparseEmbeddingRetriever(FilterableDocsFixtureMixin):
                 "top_k": 5,
                 "scale_score": False,
                 "return_embedding": True,
+                "score_threshold": None,
             },
         }
         retriever = QdrantSparseEmbeddingRetriever.from_dict(data)
@@ -224,6 +231,7 @@ class TestQdrantSparseEmbeddingRetriever(FilterableDocsFixtureMixin):
         assert retriever._top_k == 5
         assert retriever._scale_score is False
         assert retriever._return_embedding is True
+        assert retriever._score_threshold is None
 
     def test_run(self, filterable_docs: List[Document], generate_sparse_embedding):
         document_store = QdrantDocumentStore(location=":memory:", index="Boi", use_sparse_embeddings=True)
@@ -255,6 +263,7 @@ class TestQdrantHybridRetriever:
         assert retriever._filters is None
         assert retriever._top_k == 10
         assert retriever._return_embedding is False
+        assert retriever._score_threshold is None
 
     def test_to_dict(self):
         document_store = QdrantDocumentStore(location=":memory:", index="test")
@@ -309,6 +318,7 @@ class TestQdrantHybridRetriever:
                 "filters": None,
                 "top_k": 5,
                 "return_embedding": True,
+                "score_threshold": None,
             },
         }
 
@@ -323,6 +333,7 @@ class TestQdrantHybridRetriever:
                 "filters": None,
                 "top_k": 5,
                 "return_embedding": True,
+                "score_threshold": None,
             },
         }
         retriever = QdrantHybridRetriever.from_dict(data)
@@ -331,6 +342,7 @@ class TestQdrantHybridRetriever:
         assert retriever._filters is None
         assert retriever._top_k == 5
         assert retriever._return_embedding
+        assert retriever._score_threshold is None
 
     def test_run(self):
         mock_store = Mock(spec=QdrantDocumentStore)
