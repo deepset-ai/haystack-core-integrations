@@ -39,7 +39,7 @@ class QdrantEmbeddingRetriever:
         top_k: int = 10,
         scale_score: bool = True,
         return_embedding: bool = False,
-        score_threshold : float = None,
+        score_threshold : Optional[float] = None,
     ):
         """
         Create a QdrantEmbeddingRetriever component.
@@ -49,7 +49,7 @@ class QdrantEmbeddingRetriever:
         :param top_k: The maximum number of documents to retrieve.
         :param scale_score: Whether to scale the scores of the retrieved documents or not.
         :param return_embedding: Whether to return the embedding of the retrieved Documents.
-        :param score_threshold: Define a minimal score threshold for the result. If defined, less similar results will not be returned.
+        :param score_threshold: A minimal score threshold for the result.
 
         :raises ValueError: If `document_store` is not an instance of `QdrantDocumentStore`.
         """
@@ -117,7 +117,7 @@ class QdrantEmbeddingRetriever:
         :param top_k: The maximum number of documents to return.
         :param scale_score: Whether to scale the scores of the retrieved documents or not.
         :param return_embedding: Whether to return the embedding of the retrieved Documents.
-        :param score_threshold: Define a minimal score threshold for the result. If defined, less similar results will not be returned.
+        :param score_threshold: A minimal score threshold for the result.
         :returns:
             The retrieved documents.
 
@@ -168,7 +168,7 @@ class QdrantSparseEmbeddingRetriever:
         top_k: int = 10,
         scale_score: bool = True,
         return_embedding: bool = False,
-        score_threshold : float = None,
+        score_threshold : Optional[float] = None,
     ):
         """
         Create a QdrantSparseEmbeddingRetriever component.
@@ -178,7 +178,7 @@ class QdrantSparseEmbeddingRetriever:
         :param top_k: The maximum number of documents to retrieve.
         :param scale_score: Whether to scale the scores of the retrieved documents or not.
         :param return_embedding: Whether to return the sparse embedding of the retrieved Documents.
-        :param score_threshold: Define a minimal score threshold for the result. If defined, less similar results will not be returned.
+        :param score_threshold: A minimal score threshold for the result.
 
         :raises ValueError: If `document_store` is not an instance of `QdrantDocumentStore`.
         """
@@ -246,7 +246,7 @@ class QdrantSparseEmbeddingRetriever:
         :param top_k: The maximum number of documents to return.
         :param scale_score: Whether to scale the scores of the retrieved documents or not.
         :param return_embedding: Whether to return the embedding of the retrieved Documents.
-        :param score_threshold: Define a minimal score threshold for the result. If defined, less similar results will not be returned.
+        :param score_threshold: A minimal score threshold for the result.
         :returns:
             The retrieved documents.
 
@@ -302,7 +302,7 @@ class QdrantHybridRetriever:
         filters: Optional[Union[Dict[str, Any], models.Filter]] = None,
         top_k: int = 10,
         return_embedding: bool = False,
-        score_threshold : float = None,
+        score_threshold : Optional[float] = None,
     ):
         """
         Create a QdrantHybridRetriever component.
@@ -311,7 +311,7 @@ class QdrantHybridRetriever:
         :param filters: A dictionary with filters to narrow down the search space.
         :param top_k: The maximum number of documents to retrieve.
         :param return_embedding: Whether to return the embeddings of the retrieved Documents.
-        :param score_threshold: Define a minimal score threshold for the result. If defined, less similar results will not be returned.
+        :param score_threshold: A minimal score threshold for the result.
 
         :raises ValueError: If 'document_store' is not an instance of QdrantDocumentStore.
         """
@@ -374,7 +374,7 @@ class QdrantHybridRetriever:
         :param filters: A dictionary with filters to narrow down the search space.
         :param top_k: The maximum number of documents to return.
         :param return_embedding: Whether to return the embedding of the retrieved Documents.
-        :param score_threshold: Define a minimal score threshold for the result. If defined, less similar results will not be returned.
+        :param score_threshold: A minimal score threshold for the result.
         :returns:
             The retrieved documents.
 
