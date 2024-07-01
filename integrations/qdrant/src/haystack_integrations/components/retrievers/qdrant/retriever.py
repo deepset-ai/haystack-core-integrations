@@ -37,7 +37,7 @@ class QdrantEmbeddingRetriever:
         document_store: QdrantDocumentStore,
         filters: Optional[Union[Dict[str, Any], models.Filter]] = None,
         top_k: int = 10,
-        scale_score: bool = True,
+        scale_score: bool = False,
         return_embedding: bool = False,
     ):
         """
@@ -159,7 +159,7 @@ class QdrantSparseEmbeddingRetriever:
         document_store: QdrantDocumentStore,
         filters: Optional[Union[Dict[str, Any], models.Filter]] = None,
         top_k: int = 10,
-        scale_score: bool = True,
+        scale_score: bool = False,
         return_embedding: bool = False,
     ):
         """

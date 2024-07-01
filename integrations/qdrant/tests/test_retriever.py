@@ -71,7 +71,7 @@ class TestQdrantRetriever(FilterableDocsFixtureMixin):
                 },
                 "filters": None,
                 "top_k": 10,
-                "scale_score": True,
+                "scale_score": False,
                 "return_embedding": False,
             },
         }
@@ -190,7 +190,7 @@ class TestQdrantSparseEmbeddingRetriever(FilterableDocsFixtureMixin):
                 },
                 "filters": None,
                 "top_k": 10,
-                "scale_score": True,
+                "scale_score": False,
                 "return_embedding": False,
             },
         }
