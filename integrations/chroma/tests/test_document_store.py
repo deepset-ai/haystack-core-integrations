@@ -65,6 +65,10 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, LegacyFilterDoc
             assert doc_received.content == doc_expected.content
             assert doc_received.meta == doc_expected.meta
 
+    def test_document_store_search_without_metadata(self, document_store: ChromaDocumentStore):
+        document_store.write_documents([Document(content=e) for e in ["First document", "Second document"]] )
+        document_store.search(["First document"], top_k=1)
+
     def test_ne_filter(self, document_store: ChromaDocumentStore, filterable_docs: List[Document]):
         """
         We customize this test because Chroma consider "not equal" true when
