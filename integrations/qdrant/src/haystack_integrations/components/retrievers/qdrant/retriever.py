@@ -39,7 +39,7 @@ class QdrantEmbeddingRetriever:
         top_k: int = 10,
         scale_score: bool = True,
         return_embedding: bool = False,
-        score_threshold : Optional[float] = None,
+        score_threshold: Optional[float] = None,
     ):
         """
         Create a QdrantEmbeddingRetriever component.
@@ -168,7 +168,7 @@ class QdrantSparseEmbeddingRetriever:
         top_k: int = 10,
         scale_score: bool = True,
         return_embedding: bool = False,
-        score_threshold : Optional[float] = None,
+        score_threshold: Optional[float] = None,
     ):
         """
         Create a QdrantSparseEmbeddingRetriever component.
@@ -302,7 +302,7 @@ class QdrantHybridRetriever:
         filters: Optional[Union[Dict[str, Any], models.Filter]] = None,
         top_k: int = 10,
         return_embedding: bool = False,
-        score_threshold : Optional[float] = None,
+        score_threshold: Optional[float] = None,
     ):
         """
         Create a QdrantHybridRetriever component.
