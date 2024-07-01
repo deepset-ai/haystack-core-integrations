@@ -430,7 +430,7 @@ class ChromaDocumentStore:
                 # prepare metadata
                 metadatas = result.get("metadatas")
                 if metadatas and metadatas[i][j] is not None:
-                    document_dict["meta"] = metadatas[i][j].copy()
+                    document_dict["meta"] = metadatas[i][j]
 
                 if embeddings := result.get("embeddings"):
                     document_dict["embedding"] = np.array(embeddings[i][j])
