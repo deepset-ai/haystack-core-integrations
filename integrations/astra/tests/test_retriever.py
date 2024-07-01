@@ -21,6 +21,7 @@ def test_retriever_to_json(*_):
         "init_parameters": {
             "filters": {"foo": "bar"},
             "top_k": 99,
+            "filter_policy": "replace",
             "document_store": {
                 "type": "haystack_integrations.document_stores.astra.document_store.AstraDocumentStore",
                 "init_parameters": {
@@ -48,6 +49,7 @@ def test_retriever_from_json(*_):
         "init_parameters": {
             "filters": {"bar": "baz"},
             "top_k": 42,
+            "filter_policy": "replace",
             "document_store": {
                 "type": "haystack_integrations.document_stores.astra.document_store.AstraDocumentStore",
                 "init_parameters": {
