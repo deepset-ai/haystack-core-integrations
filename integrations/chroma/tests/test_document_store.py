@@ -92,6 +92,15 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, LegacyFilterDoc
 
         assert document_store.filter_documents(filters={"id": doc.id}) == [doc]
 
+    def test_document_store_search_without_metadata(self):
+        document_store = ChromaDocumentStore()
+        document_store.write_documents([Document(content=e) for e in ["First document", "Second document"]])
+        result = document_store.search(["First document"], top_k=1)
+
+        # Assertions to verify correctness
+        assert len(result) == 1
+        assert result[0][0].content == "First document"
+
     @pytest.mark.integration
     def test_to_json(self, request):
         ds = ChromaDocumentStore(
