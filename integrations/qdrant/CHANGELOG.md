@@ -1,5 +1,17 @@
 # Changelog
 
+## [integrations/qdrant-v4.0.0] - 2024-07-02
+
+### 🚜 Refactor
+
+- [**breaking**] Qdrant - remove unused init parameters: `content_field`, `name_field`, `embedding_field`, and `duplicate_documents` (#861)
+- [**breaking**] Qdrant - set `scale_score` default value to `False` (#862)
+
+### ⚙️ Miscellaneous Tasks
+
+- Retry tests to reduce flakyness (#836)
+- Update ruff invocation to include check parameter (#853)
+
 ## [integrations/qdrant-v3.8.1] - 2024-06-20
 
 ### 📚 Documentation
