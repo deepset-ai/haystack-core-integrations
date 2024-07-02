@@ -65,14 +65,6 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, LegacyFilterDoc
             assert doc_received.content == doc_expected.content
             assert doc_received.meta == doc_expected.meta
 
-    def test_document_store_search_without_metadata(self, document_store: ChromaDocumentStore):
-        document_store.write_documents([Document(content=e) for e in ["First document", "Second document"]])
-        result = document_store.search(["First document"], top_k=1)
-
-        # Assertions to verify correctness
-        assert len(result) == 1
-        assert result[0][0].content == "First document"
-
     def test_ne_filter(self, document_store: ChromaDocumentStore, filterable_docs: List[Document]):
         """
         We customize this test because Chroma consider "not equal" true when
@@ -99,6 +91,15 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, LegacyFilterDoc
         document_store.delete_documents(["non_existing"])
 
         assert document_store.filter_documents(filters={"id": doc.id}) == [doc]
+
+    def test_document_store_search_without_metadata(self):
+        document_store = ChromaDocumentStore()
+        document_store.write_documents([Document(content=e) for e in ["First document", "Second document"]])
+        result = document_store.search(["First document"], top_k=1)
+
+        # Assertions to verify correctness
+        assert len(result) == 1
+        assert result[0][0].content == "First document"
 
     @pytest.mark.integration
     def test_to_json(self, request):
