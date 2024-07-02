@@ -13,6 +13,8 @@ from deepeval.metrics import (  # type: ignore
     ContextualRecallMetric,  # type: ignore
     ContextualRelevancyMetric,  # type: ignore
     FaithfulnessMetric,  # type: ignore
+    BiasMetric,  # type: ignore
+    ToxicityMetric,  # type: ignore
 )
 from deepeval.test_case import LLMTestCase
 
@@ -47,6 +49,14 @@ class DeepEvalMetric(Enum):
     #: Contextual relevance.\
     #: Inputs - `questions: List[str], contexts: List[List[str]], responses: List[str]`
     CONTEXTUAL_RELEVANCE = "contextual_relevance"
+
+    #: Bias.\
+    #: Inputs - `questions: List[str], responses: List[str]`
+    BIAS = "bias"
+
+    #: Toxicity.\
+    #: Inputs - `questions: List[str], responses: List[str]`
+    TOXICITY = "bias"
 
     def __str__(self):
         return self.value
@@ -180,7 +190,16 @@ class InputConverters:
             if param not in received:
                 msg = f"DeepEval evaluator expected input parameter '{param}' for metric '{metric}'"
                 raise ValueError(msg)
-
+                
+    @staticmethod
+    def question_response(
+        questions: List[str], responses: List[str]
+    ) -> Iterable[LLMTestCase]:
+        InputConverters._validate_input_elements(questions=questions, responses=responses)
+        for q, r in zip(questions, responses):  # type: ignore
+            test_case = LLMTestCase(input=q, actual_output=r)
+            yield test_case
+    
     @staticmethod
     def question_context_response(
         questions: List[str], contexts: List[List[str]], responses: List[str]
@@ -253,6 +272,18 @@ METRIC_DESCRIPTORS = {
         DeepEvalMetric.CONTEXTUAL_RELEVANCE,
         ContextualRelevancyMetric,
         InputConverters.question_context_response,  # type: ignore
+        init_parameters={"model": Optional[str]},  # type: ignore
+    ),
+    DeepEvalMetric.BIAS: MetricDescriptor.new(
+        DeepEvalMetric.BIAS,
+        BiasMetric,
+        InputConverters.question_response,  # type: ignore
+        init_parameters={"model": Optional[str]},  # type: ignore
+    ),
+    DeepEvalMetric.TOXICITY: MetricDescriptor.new(
+        DeepEvalMetric.TOXICITY,
+        ToxicityMetric,
+        InputConverters.question_response,  # type: ignore
         init_parameters={"model": Optional[str]},  # type: ignore
     ),
 }
