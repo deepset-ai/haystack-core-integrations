@@ -496,7 +496,7 @@ class QdrantDocumentStore:
         query_sparse_embedding: SparseEmbedding,
         filters: Optional[Union[Dict[str, Any], rest.Filter]] = None,
         top_k: int = 10,
-        scale_score: bool = True,
+        scale_score: bool = False,
         return_embedding: bool = False,
     ) -> List[Document]:
         """
@@ -553,7 +553,7 @@ class QdrantDocumentStore:
         query_embedding: List[float],
         filters: Optional[Union[Dict[str, Any], rest.Filter]] = None,
         top_k: int = 10,
-        scale_score: bool = True,
+        scale_score: bool = False,
         return_embedding: bool = False,
     ) -> List[Document]:
         """
