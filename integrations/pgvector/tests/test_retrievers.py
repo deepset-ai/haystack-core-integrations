@@ -16,6 +16,7 @@ class TestEmbeddingRetriever:
         assert retriever.document_store == mock_store
         assert retriever.filters == {}
         assert retriever.top_k == 10
+        assert retriever.filter_policy == "replace"
         assert retriever.vector_function == mock_store.vector_function
 
     def test_init(self, mock_store):
@@ -25,6 +26,7 @@ class TestEmbeddingRetriever:
         assert retriever.document_store == mock_store
         assert retriever.filters == {"field": "value"}
         assert retriever.top_k == 5
+        assert retriever.filter_policy == "replace"
         assert retriever.vector_function == "l2_distance"
 
     def test_to_dict(self, mock_store):
@@ -56,6 +58,7 @@ class TestEmbeddingRetriever:
                 "filters": {"field": "value"},
                 "top_k": 5,
                 "vector_function": "l2_distance",
+                "filter_policy": "replace",
             },
         }
 
@@ -85,6 +88,7 @@ class TestEmbeddingRetriever:
                 "filters": {"field": "value"},
                 "top_k": 5,
                 "vector_function": "l2_distance",
+                "filter_policy": "replace",
             },
         }
 
@@ -106,6 +110,7 @@ class TestEmbeddingRetriever:
 
         assert retriever.filters == {"field": "value"}
         assert retriever.top_k == 5
+        assert retriever.filter_policy == "replace"
         assert retriever.vector_function == "l2_distance"
 
     def test_run(self):
@@ -136,6 +141,15 @@ class TestKeywordRetriever:
         assert retriever.filters == {"field": "value"}
         assert retriever.top_k == 5
 
+    def test_init_with_filter_policy(self, mock_store):
+        retriever = PgvectorKeywordRetriever(
+            document_store=mock_store, filters={"field": "value"}, top_k=5, filter_policy="merge"
+        )
+        assert retriever.document_store == mock_store
+        assert retriever.filters == {"field": "value"}
+        assert retriever.top_k == 5
+        assert retriever.filter_policy == "merge"
+
     def test_to_dict(self, mock_store):
         retriever = PgvectorKeywordRetriever(document_store=mock_store, filters={"field": "value"}, top_k=5)
         res = retriever.to_dict()
@@ -162,6 +176,7 @@ class TestKeywordRetriever:
                 },
                 "filters": {"field": "value"},
                 "top_k": 5,
+                "filter_policy": "replace",
             },
         }
 
@@ -190,6 +205,7 @@ class TestKeywordRetriever:
                 },
                 "filters": {"field": "value"},
                 "top_k": 5,
+                "filter_policy": "replace",
             },
         }
 
@@ -221,5 +237,21 @@ class TestKeywordRetriever:
         res = retriever.run(query="test query")
 
         mock_store._keyword_retrieval.assert_called_once_with(query="test query", filters={}, top_k=10)
+
+        assert res == {"documents": [doc]}
+
+    def test_run_with_filters(self):
+        mock_store = Mock(spec=PgvectorDocumentStore)
+        doc = Document(content="Test doc", embedding=[0.1, 0.2])
+        mock_store._keyword_retrieval.return_value = [doc]
+
+        retriever = PgvectorKeywordRetriever(
+            document_store=mock_store, filter_policy="merge", filters={"field": "value"}
+        )
+        res = retriever.run(query="test query", filters={"field2": "value2"})
+
+        mock_store._keyword_retrieval.assert_called_once_with(
+            query="test query", filters={"field": "value", "field2": "value2"}, top_k=10
+        )
 
         assert res == {"documents": [doc]}
