@@ -874,7 +874,7 @@ class QdrantDocumentStore:
 
         :param documents: A list of Haystack Document objects.
         :param index: name of the index
-        :param duplicate_documents: The duplicate policy to use when writing documents.
+        :param policy: The duplicate policy to use when writing documents.
         :returns: A list of Haystack Document objects.
         """
 
