@@ -1,10 +1,11 @@
 # Changelog
 
-## [unreleased]
+## [integrations/pgvector-v0.4.0] - 2024-06-20
 
 ### 🚀 Features
 
 - Defer the database connection to when it's needed (#773)
+- Add customizable index names for pgvector (#818)
 
 ## [integrations/pgvector-v0.2.0] - 2024-05-08
 

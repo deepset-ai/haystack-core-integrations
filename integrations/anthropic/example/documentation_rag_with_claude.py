@@ -23,7 +23,6 @@ rag_pipeline.add_component(
     "llm",
     AnthropicChatGenerator(
         api_key=Secret.from_env_var("ANTHROPIC_API_KEY"),
-        model="claude-3-sonnet-20240229",
         streaming_callback=print_streaming_chunk,
     ),
 )

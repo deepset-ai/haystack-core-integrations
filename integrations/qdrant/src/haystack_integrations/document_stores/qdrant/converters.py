@@ -17,7 +17,6 @@ UUID_NAMESPACE = uuid.UUID("3896d314-1e95-4a3a-b45a-945f9f0b541d")
 def convert_haystack_documents_to_qdrant_points(
     documents: List[Document],
     *,
-    embedding_field: str,
     use_sparse_embeddings: bool,
 ) -> List[rest.PointStruct]:
     points = []
@@ -26,7 +25,7 @@ def convert_haystack_documents_to_qdrant_points(
         if use_sparse_embeddings:
             vector = {}
 
-            dense_vector = payload.pop(embedding_field, None)
+            dense_vector = payload.pop("embedding", None)
             if dense_vector is not None:
                 vector[DENSE_VECTORS_NAME] = dense_vector
 
@@ -36,7 +35,7 @@ def convert_haystack_documents_to_qdrant_points(
                 vector[SPARSE_VECTORS_NAME] = sparse_vector_instance
 
         else:
-            vector = payload.pop(embedding_field) or {}
+            vector = payload.pop("embedding") or {}
         _id = convert_id(payload.get("id"))
 
         point = rest.PointStruct(

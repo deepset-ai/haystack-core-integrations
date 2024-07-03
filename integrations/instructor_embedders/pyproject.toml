@@ -67,22 +67,15 @@ git_describe_command = 'git describe --tags --match="integrations/instructor_emb
 dependencies = [
   "coverage[toml]>=6.5",
   "pytest",
+  "pytest-rerunfailures",
   "haystack-pydoc-tools",
 ]
 [tool.hatch.envs.default.scripts]
-test = "pytest {args:tests}"
-test-cov = "coverage run -m pytest {args:tests}"
-cov-report = [
-  "- coverage combine",
-  "coverage report",
-]
-cov = [
-  "test-cov",
-  "cov-report",
-]
-docs = [
-  "pydoc-markdown pydoc/config.yml"
-]
+test = "pytest --reruns 3 --reruns-delay 30 -x {args:tests}"
+test-cov = "coverage run -m pytest --reruns 3 --reruns-delay 30 -x {args:tests}"
+cov-report = ["- coverage combine", "coverage report"]
+cov = ["test-cov", "cov-report"]
+docs = ["pydoc-markdown pydoc/config.yml"]
 
 [[tool.hatch.envs.test.matrix]]
 python = ["38", "39", "310", "311"]
@@ -93,7 +86,7 @@ dependencies = ["black>=23.1.0", "mypy>=1.0.0", "ruff>=0.0.243"]
 
 [tool.hatch.envs.lint.scripts]
 typing = "mypy --install-types --non-interactive --explicit-package-bases {args:src/ tests}"
-style = ["ruff {args:.}", "black --check --diff {args:.}"]
+style = ["ruff check {args:.}", "black --check --diff {args:.}"]
 fmt = ["black {args:.}", "ruff --fix {args:.}", "style"]
 all = ["style", "typing"]
 
@@ -104,7 +97,7 @@ parallel = true
 
 [tool.coverage.report]
 omit = ["*/tests/*", "*/__init__.py"]
-show_missing=true
+show_missing = true
 exclude_lines = ["no cov", "if __name__ == .__main__.:", "if TYPE_CHECKING:"]
 
 [tool.ruff]

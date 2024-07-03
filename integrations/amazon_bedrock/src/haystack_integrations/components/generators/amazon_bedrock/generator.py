@@ -75,6 +75,7 @@ class AmazonBedrockGenerator:
         aws_region_name: Optional[Secret] = Secret.from_env_var("AWS_DEFAULT_REGION", strict=False),  # noqa: B008
         aws_profile_name: Optional[Secret] = Secret.from_env_var("AWS_PROFILE", strict=False),  # noqa: B008
         max_length: Optional[int] = 100,
+        truncate: Optional[bool] = True,
         **kwargs,
     ):
         """
@@ -87,6 +88,7 @@ class AmazonBedrockGenerator:
         :param aws_region_name: The AWS region name.
         :param aws_profile_name: The AWS profile name.
         :param max_length: The maximum length of the generated text.
+        :param truncate: Whether to truncate the prompt or not.
         :param kwargs: Additional keyword arguments to be passed to the model.
         :raises ValueError: If the model name is empty or None.
         :raises AmazonBedrockConfigurationError: If the AWS environment is not configured correctly or the model is
@@ -97,11 +99,13 @@ class AmazonBedrockGenerator:
             raise ValueError(msg)
         self.model = model
         self.max_length = max_length
+        self.truncate = truncate
         self.aws_access_key_id = aws_access_key_id
         self.aws_secret_access_key = aws_secret_access_key
         self.aws_session_token = aws_session_token
         self.aws_region_name = aws_region_name
         self.aws_profile_name = aws_profile_name
+        self.kwargs = kwargs
 
         def resolve_secret(secret: Optional[Secret]) -> Optional[str]:
             return secret.resolve_value() if secret else None
@@ -129,6 +133,7 @@ class AmazonBedrockGenerator:
         # Truncate prompt if prompt tokens > model_max_length-max_length
         # (max_length is the length of the generated text)
         # we use GPT2 tokenizer which will likely provide good token count approximation
+
         self.prompt_handler = DefaultPromptHandler(
             tokenizer="gpt2",
             model_max_length=model_max_length,
@@ -188,6 +193,9 @@ class AmazonBedrockGenerator:
                 f"Make sure to provide a prompt in the format that the model expects."
             )
             raise ValueError(msg)
+
+        if self.truncate:
+            prompt = self._ensure_token_limit(prompt)
 
         body = self.model_adapter.prepare_body(prompt=prompt, **kwargs)
         try:
@@ -266,6 +274,8 @@ class AmazonBedrockGenerator:
             aws_profile_name=self.aws_profile_name.to_dict() if self.aws_profile_name else None,
             model=self.model,
             max_length=self.max_length,
+            truncate=self.truncate,
+            **self.kwargs,
         )
 
     @classmethod
