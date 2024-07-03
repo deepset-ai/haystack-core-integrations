@@ -27,21 +27,21 @@ class AnthropicChatGenerator:
     Enables text generation using Anthropic state-of-the-art Claude 3 family of large language models (LLMs) through
     the Anthropic messaging API.
 
-    It supports models like `claude-3-opus`, `claude-3-sonnet`, and `claude-3-haiku`, accessed through the
-    `/v1/messages` API endpoint using the Claude v2.1 messaging version.
+    It supports models like `claude-3-5-sonnet`, `claude-3-opus`, `claude-3-sonnet`, and `claude-3-haiku`,
+    accessed through the [`/v1/messages`](https://docs.anthropic.com/en/api/messages) API endpoint.
 
     Users can pass any text generation parameters valid for the Anthropic messaging API directly to this component
     via the `generation_kwargs` parameter in `__init__` or the `generation_kwargs` parameter in the `run` method.
 
     For more details on the parameters supported by the Anthropic API, refer to the
-    Anthropic Message API [documentation](https://docs.anthropic.com/claude/reference/messages_post).
+    Anthropic Message API [documentation](https://docs.anthropic.com/en/api/messages).
 
     ```python
     from haystack_integrations.components.generators.anthropic import AnthropicChatGenerator
     from haystack.dataclasses import ChatMessage
 
     messages = [ChatMessage.from_user("What's Natural Language Processing?")]
-    client = AnthropicChatGenerator(model="claude-3-sonnet-20240229")
+    client = AnthropicChatGenerator(model="claude-3-5-sonnet-20240620")
     response = client.run(messages)
     print(response)
 
@@ -49,15 +49,16 @@ class AnthropicChatGenerator:
     >> focuses on enabling computers to understand, interpret, and generate human language. It involves developing
     >> techniques and algorithms to analyze and process text or speech data, allowing machines to comprehend and
     >> communicate in natural languages like English, Spanish, or Chinese.', role=<ChatRole.ASSISTANT: 'assistant'>,
-    >> name=None, meta={'model': 'claude-3-sonnet-20240229', 'index': 0, 'finish_reason': 'end_turn',
+    >> name=None, meta={'model': 'claude-3-5-sonnet-20240620', 'index': 0, 'finish_reason': 'end_turn',
     >> 'usage': {'input_tokens': 15, 'output_tokens': 64}})]}
     ```
 
     For more details on supported models and their capabilities, refer to the Anthropic
     [documentation](https://docs.anthropic.com/claude/docs/intro-to-claude).
 
-    Note: We don't yet support vision [capabilities](https://docs.anthropic.com/claude/docs/vision) in the current
-    implementation.
+    Note: We only support text input/output modalities, and
+    image [modality](https://docs.anthropic.com/en/docs/build-with-claude/vision) is not supported in
+    this version of AnthropicChatGenerator.
     """
 
     # The parameters that can be passed to the Anthropic API https://docs.anthropic.com/claude/reference/messages_post
@@ -76,7 +77,7 @@ class AnthropicChatGenerator:
     def __init__(
         self,
         api_key: Secret = Secret.from_env_var("ANTHROPIC_API_KEY"),  # noqa: B008
-        model: str = "claude-3-sonnet-20240229",
+        model: str = "claude-3-5-sonnet-20240620",
         streaming_callback: Optional[Callable[[StreamingChunk], None]] = None,
         generation_kwargs: Optional[Dict[str, Any]] = None,
         ignore_tools_thinking_messages: bool = True,

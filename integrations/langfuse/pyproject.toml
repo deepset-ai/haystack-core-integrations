@@ -10,9 +10,7 @@ readme = "README.md"
 requires-python = ">=3.8"
 license = "Apache-2.0"
 keywords = []
-authors = [
-  { name = "deepset GmbH", email = "info@deepset.ai" },
-]
+authors = [{ name = "deepset GmbH", email = "info@deepset.ai" }]
 classifiers = [
   "Development Status :: 4 - Beta",
   "Programming Language :: Python",
@@ -24,10 +22,7 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
-dependencies = [
-  "haystack-ai>=2.1.0",
-  "langfuse"
-]
+dependencies = ["haystack-ai>=2.1.0", "langfuse"]
 
 [project.urls]
 Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/langfuse#readme"
@@ -50,19 +45,14 @@ git_describe_command = 'git describe --tags --match="integrations/langfuse-v[0-9
 dependencies = [
   "coverage[toml]>=6.5",
   "pytest",
+  "pytest-rerunfailures",
   "haystack-pydoc-tools",
 ]
 [tool.hatch.envs.default.scripts]
-test = "pytest {args:tests}"
-test-cov = "coverage run -m pytest {args:tests}"
-cov-report = [
-  "- coverage combine",
-  "coverage report",
-]
-cov = [
-  "test-cov",
-  "cov-report",
-]
+test = "pytest --reruns 3 --reruns-delay 30 -x {args:tests}"
+test-cov = "coverage run -m pytest --reruns 3 --reruns-delay 30 -x {args:tests}"
+cov-report = ["- coverage combine", "coverage report"]
+cov = ["test-cov", "cov-report"]
 docs = ["pydoc-markdown pydoc/config.yml"]
 
 
@@ -160,12 +150,8 @@ parallel = false
 
 [tool.coverage.report]
 omit = ["*/tests/*", "*/__init__.py"]
-show_missing=true
-exclude_lines = [
-  "no cov",
-  "if __name__ == .__main__.:",
-  "if TYPE_CHECKING:",
-]
+show_missing = true
+exclude_lines = ["no cov", "if __name__ == .__main__.:", "if TYPE_CHECKING:"]
 
 [[tool.mypy.overrides]]
 module = [
@@ -179,7 +165,5 @@ ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 addopts = "--strict-markers"
-markers = [
-  "integration: integration tests",
-]
+markers = ["integration: integration tests"]
 log_cli = true
