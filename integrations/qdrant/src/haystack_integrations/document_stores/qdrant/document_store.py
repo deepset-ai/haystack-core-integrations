@@ -506,6 +506,7 @@ class QdrantDocumentStore:
         top_k: int = 10,
         scale_score: bool = False,
         return_embedding: bool = False,
+        score_threshold: Optional[float] = None,
     ) -> List[Document]:
         """
         Queries Qdrant using a sparse embedding and returns the most relevant documents.
@@ -515,6 +516,10 @@ class QdrantDocumentStore:
         :param top_k: Maximum number of documents to return.
         :param scale_score: Whether to scale the scores of the retrieved documents.
         :param return_embedding: Whether to return the embeddings of the retrieved documents.
+        :param score_threshold: A minimal score threshold for the result.
+            Score of the returned result might be higher or smaller than the threshold
+             depending on the Distance function used.
+            E.g. for cosine similarity only higher scores will be returned.
 
         :returns: List of documents that are most similar to `query_sparse_embedding`.
 
@@ -544,6 +549,7 @@ class QdrantDocumentStore:
             query_filter=qdrant_filters,
             limit=top_k,
             with_vectors=return_embedding,
+            score_threshold=score_threshold,
         )
         results = [
             convert_qdrant_point_to_haystack_document(point, use_sparse_embeddings=self.use_sparse_embeddings)
@@ -563,6 +569,7 @@ class QdrantDocumentStore:
         top_k: int = 10,
         scale_score: bool = False,
         return_embedding: bool = False,
+        score_threshold: Optional[float] = None,
     ) -> List[Document]:
         """
         Queries Qdrant using a dense embedding and returns the most relevant documents.
@@ -572,6 +579,10 @@ class QdrantDocumentStore:
         :param top_k: Maximum number of documents to return.
         :param scale_score: Whether to scale the scores of the retrieved documents.
         :param return_embedding: Whether to return the embeddings of the retrieved documents.
+        :param score_threshold: A minimal score threshold for the result.
+            Score of the returned result might be higher or smaller than the threshold
+             depending on the Distance function used.
+            E.g. for cosine similarity only higher scores will be returned.
 
         :returns: List of documents that are most similar to `query_embedding`.
         """
@@ -586,6 +597,7 @@ class QdrantDocumentStore:
             query_filter=qdrant_filters,
             limit=top_k,
             with_vectors=return_embedding,
+            score_threshold=score_threshold,
         )
         results = [
             convert_qdrant_point_to_haystack_document(point, use_sparse_embeddings=self.use_sparse_embeddings)
@@ -608,6 +620,7 @@ class QdrantDocumentStore:
         filters: Optional[Union[Dict[str, Any], rest.Filter]] = None,
         top_k: int = 10,
         return_embedding: bool = False,
+        score_threshold: Optional[float] = None,
     ) -> List[Document]:
         """
         Retrieves documents based on dense and sparse embeddings and fuses the results using Reciprocal Rank Fusion.
@@ -620,6 +633,10 @@ class QdrantDocumentStore:
         :param filters: Filters applied to the retrieved documents.
         :param top_k: Maximum number of documents to return.
         :param return_embedding: Whether to return the embeddings of the retrieved documents.
+        :param score_threshold: A minimal score threshold for the result.
+            Score of the returned result might be higher or smaller than the threshold
+             depending on the Distance function used.
+            E.g. for cosine similarity only higher scores will be returned.
 
         :returns: List of Document that are most similar to `query_embedding` and `query_sparse_embedding`.
 
@@ -650,6 +667,7 @@ class QdrantDocumentStore:
             limit=top_k,
             with_payload=True,
             with_vector=return_embedding,
+            score_threshold=score_threshold,
         )
 
         dense_request = rest.SearchRequest(
