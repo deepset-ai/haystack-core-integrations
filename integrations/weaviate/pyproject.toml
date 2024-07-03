@@ -24,7 +24,7 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
 dependencies = [
-  "haystack-ai",
+  "haystack-ai==2.2.4rc1",
   "weaviate-client",
   "haystack-pydoc-tools",
   "python-dateutil",
@@ -75,7 +75,7 @@ skip-string-normalization = true
 [tool.ruff]
 target-version = "py38"
 line-length = 120
-select = [
+lint.select = [
   "A",
   "ARG",
   "B",
@@ -102,7 +102,7 @@ select = [
   "W",
   "YTT",
 ]
-ignore = [
+lint.ignore = [
   # Allow non-abstract empty methods in abstract base classes
   "B027",
   # Allow boolean positional values in function calls, like `dict.get(... True)`
@@ -118,7 +118,7 @@ ignore = [
   "PLR0913",
   "PLR0915",
 ]
-unfixable = [
+lint.unfixable = [
   # Don't touch unused imports
   "F401",
 ]
