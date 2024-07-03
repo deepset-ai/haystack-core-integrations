@@ -111,6 +111,7 @@ class QdrantDocumentStore:
         embedding_dim: int = 768,
         on_disk: bool = False,
         use_sparse_embeddings: bool = False,
+        sparse_idf: bool = False,
         similarity: str = "cosine",
         return_embedding: bool = False,
         progress_bar: bool = True,
@@ -168,6 +169,9 @@ class QdrantDocumentStore:
             Whether to store the collection on disk.
         :param use_sparse_embedding:
             If set to `True`, enables support for sparse embeddings.
+        :param sparse_idf:
+            If set to `True`, computes the Inverse Document Frequency (IDF) when using sparse embeddings.
+            It is required to use techniques like BM42. It is ignored if `use_sparse_embeddings` is `False`.
         :param similarity:
             The similarity metric to use.
         :param return_embedding:
@@ -246,6 +250,7 @@ class QdrantDocumentStore:
         self.recreate_index = recreate_index
         self.payload_fields_to_index = payload_fields_to_index
         self.use_sparse_embeddings = use_sparse_embeddings
+        self.sparse_idf = use_sparse_embeddings and sparse_idf
         self.embedding_dim = embedding_dim
         self.on_disk = on_disk
         self.similarity = similarity
@@ -280,6 +285,7 @@ class QdrantDocumentStore:
                 self.recreate_index,
                 self.similarity,
                 self.use_sparse_embeddings,
+                self.sparse_idf,
                 self.on_disk,
                 self.payload_fields_to_index,
             )
@@ -347,7 +353,9 @@ class QdrantDocumentStore:
             if not isinstance(doc, Document):
                 msg = f"DocumentStore.write_documents() expects a list of Documents but got an element of {type(doc)}."
                 raise ValueError(msg)
-        self._set_up_collection(self.index, self.embedding_dim, False, self.similarity, self.use_sparse_embeddings)
+        self._set_up_collection(
+            self.index, self.embedding_dim, False, self.similarity, self.use_sparse_embeddings, self.sparse_idf
+        )
 
         if len(documents) == 0:
             logger.warning("Calling QdrantDocumentStore.write_documents() with empty list")
@@ -732,6 +740,7 @@ class QdrantDocumentStore:
         recreate_collection: bool,
         similarity: str,
         use_sparse_embeddings: bool,
+        sparse_idf: bool,
         on_disk: bool = False,
         payload_fields_to_index: Optional[List[dict]] = None,
     ):
@@ -747,6 +756,8 @@ class QdrantDocumentStore:
             The similarity measure to use.
         :param use_sparse_embeddings:
             Whether to use sparse embeddings.
+        :param sparse_idf:
+            Whether to compute the Inverse Document Frequency (IDF) when using sparse embeddings. Required for BM42.
         :param on_disk:
             Whether to store the collection on disk.
         :param payload_fields_to_index:
@@ -763,7 +774,9 @@ class QdrantDocumentStore:
         if recreate_collection or not self.client.collection_exists(collection_name):
             # There is no need to verify the current configuration of that
             # collection. It might be just recreated again or does not exist yet.
-            self.recreate_collection(collection_name, distance, embedding_dim, on_disk, use_sparse_embeddings)
+            self.recreate_collection(
+                collection_name, distance, embedding_dim, on_disk, use_sparse_embeddings, sparse_idf
+            )
             # Create Payload index if payload_fields_to_index is provided
             self._create_payload_index(collection_name, payload_fields_to_index)
             return
@@ -826,6 +839,7 @@ class QdrantDocumentStore:
         embedding_dim: int,
         on_disk: Optional[bool] = None,
         use_sparse_embeddings: Optional[bool] = None,
+        sparse_idf: bool = False,
     ):
         """
         Recreates the Qdrant collection with the specified parameters.
@@ -840,6 +854,8 @@ class QdrantDocumentStore:
             Whether to store the collection on disk.
         :param use_sparse_embeddings:
             Whether to use sparse embeddings.
+        :param sparse_idf:
+            Whether to compute the Inverse Document Frequency (IDF) when using sparse embeddings. Required for BM42.
         """
         if on_disk is None:
             on_disk = self.on_disk
@@ -858,7 +874,8 @@ class QdrantDocumentStore:
                 SPARSE_VECTORS_NAME: rest.SparseVectorParams(
                     index=rest.SparseIndexParams(
                         on_disk=on_disk,
-                    )
+                    ),
+                    modifier=rest.Modifier.IDF if sparse_idf else None,
                 ),
             }
 
