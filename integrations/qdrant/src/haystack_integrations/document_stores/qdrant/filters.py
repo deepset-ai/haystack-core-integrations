@@ -1,8 +1,10 @@
 from datetime import datetime
-from typing import List, Optional, Union
+from typing import List, Optional, Union, Dict
 
 from haystack.utils.filters import COMPARISON_OPERATORS, LOGICAL_OPERATORS, FilterError
 from qdrant_client.http import models
+from qdrant_client.http.models import Filter, FieldCondition, MatchText, Range
+
 
 from .converters import convert_id
 
@@ -14,17 +16,19 @@ def convert_filters_to_qdrant(
     filter_term: Optional[Union[List[dict], dict, models.Filter]] = None,
 ) -> Optional[models.Filter]:
     """Converts Haystack filters to the format used by Qdrant."""
+    global count 
+    count = 1
     if isinstance(filter_term, models.Filter):
         return filter_term
     if not filter_term:
         return None
+   
 
     must_clauses, should_clauses, must_not_clauses = [], [], []
-
     if isinstance(filter_term, dict):
         filter_term = [filter_term]
-
     for item in filter_term:
+        
         operator = item.get("operator")
         if operator is None:
             msg = "Operator not found in filters"
@@ -46,20 +50,30 @@ def convert_filters_to_qdrant(
             if field is None or value is None:
                 msg = f"'field' or 'value' not found for '{operator}'"
                 raise FilterError(msg)
-
-            must_clauses.extend(_parse_comparison_operation(comparison_operation=operator, key=field, value=value))
+            
+            parsed_conditions= (_parse_comparison_operation(comparison_operation=operator, key=field, value=value))
+            #if operator in ["!=", "not in"]:
+                #must_not_clauses.extend(parsed_conditions)
+            #else:
+            must_clauses.extend(parsed_conditions)
         else:
             msg = f"Unknown operator {operator} used in filters"
             raise FilterError(msg)
-
+        
+    print("Printing MUST CLAUSES!!!!!!!")
+    print(must_clauses)
+    print("Printing Should CLAUSES!!!!!!!")
+    print(should_clauses)
+    must_filter = models.Filter(must = must_clauses)
     payload_filter = models.Filter(
         must=must_clauses or None,
         should=should_clauses or None,
         must_not=must_not_clauses or None,
     )
-
     filter_result = _squeeze_filter(payload_filter)
-
+    print ("Loop " + str(count))
+    count += 1
+    print (filter_result)
     return filter_result
 
 
@@ -100,16 +114,15 @@ def _build_in_condition(key: str, value: List[models.ValueVariants]) -> models.C
     if not isinstance(value, list):
         msg = f"Value {value} is not a list"
         raise FilterError(msg)
-    return models.Filter(
-        should=[
+    return models.Filter(should=[
             (
                 models.FieldCondition(key=key, match=models.MatchText(text=item))
                 if isinstance(item, str) and " " not in item
                 else models.FieldCondition(key=key, match=models.MatchValue(value=item))
             )
             for item in value
-        ]
-    )
+        ])
+    
 
 
 def _build_ne_condition(key: str, value: models.ValueVariants) -> models.Condition:
@@ -209,6 +222,7 @@ def _squeeze_filter(payload_filter: models.Filter) -> models.Filter:
 
     total_clauses = sum(len(x) for x in filter_parts.values() if x is not None)
     if total_clauses == 0 or total_clauses > 1:
+        
         return payload_filter
 
     # Payload filter has just a single clause provided (either must, should
@@ -224,8 +238,11 @@ def _squeeze_filter(payload_filter: models.Filter) -> models.Filter:
             # so it cannot be simplified.
             continue
 
-        if subfilter.must:
-            return models.Filter(**{part_name: subfilter.must})
+        #if subfilter.must:
+            #print ("INSIDE subfilter")
+            #return models.Filter(**{part_name: subfilter.must})
+
+    
 
     return payload_filter
 
