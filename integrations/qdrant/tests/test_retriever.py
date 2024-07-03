@@ -23,6 +23,7 @@ class TestQdrantRetriever(FilterableDocsFixtureMixin):
         assert retriever._top_k == 10
         assert retriever._filter_policy == "replace"
         assert retriever._return_embedding is False
+        assert retriever._score_threshold is None
 
     def test_to_dict(self):
         document_store = QdrantDocumentStore(location=":memory:", index="test", use_sparse_embeddings=False)
@@ -48,15 +49,12 @@ class TestQdrantRetriever(FilterableDocsFixtureMixin):
                         "index": "test",
                         "embedding_dim": 768,
                         "on_disk": False,
-                        "content_field": "content",
-                        "name_field": "name",
                         "force_disable_check_same_thread": False,
-                        "embedding_field": "embedding",
                         "use_sparse_embeddings": False,
+                        "sparse_idf": False,
                         "similarity": "cosine",
                         "return_embedding": False,
                         "progress_bar": True,
-                        "duplicate_documents": "overwrite",
                         "recreate_index": False,
                         "shard_number": None,
                         "replication_factor": None,
@@ -77,8 +75,9 @@ class TestQdrantRetriever(FilterableDocsFixtureMixin):
                 "filters": None,
                 "top_k": 10,
                 "filter_policy": "replace",
-                "scale_score": True,
+                "scale_score": False,
                 "return_embedding": False,
+                "score_threshold": None,
             },
         }
 
@@ -95,6 +94,7 @@ class TestQdrantRetriever(FilterableDocsFixtureMixin):
                 "filter_policy": "replace",
                 "scale_score": False,
                 "return_embedding": True,
+                "score_threshold": None,
             },
         }
         retriever = QdrantEmbeddingRetriever.from_dict(data)
@@ -105,6 +105,7 @@ class TestQdrantRetriever(FilterableDocsFixtureMixin):
         assert retriever._filter_policy == "replace"
         assert retriever._scale_score is False
         assert retriever._return_embedding is True
+        assert retriever._score_threshold is None
 
     def test_run(self, filterable_docs: List[Document]):
         document_store = QdrantDocumentStore(location=":memory:", index="Boi", use_sparse_embeddings=False)
@@ -146,6 +147,28 @@ class TestQdrantRetriever(FilterableDocsFixtureMixin):
 
         for document in results:
             assert document.embedding is None
+            
+    def test_run_with_score_threshold(self):
+        document_store = QdrantDocumentStore(
+            embedding_dim=4, location=":memory:", similarity="cosine", index="Boi", use_sparse_embeddings=False
+        )
+
+        document_store.write_documents(
+            [
+                Document(
+                    content="Yet another document",
+                    embedding=[-0.1, -0.9, -10.0, -0.2],
+                ),
+                Document(content="The document", embedding=[1.0, 1.0, 1.0, 1.0]),
+                Document(content="Another document", embedding=[0.8, 0.8, 0.5, 1.0]),
+            ]
+        )
+
+        retriever = QdrantEmbeddingRetriever(document_store=document_store)
+        results = retriever.run(
+            query_embedding=[0.9, 0.9, 0.9, 0.9], top_k=5, return_embedding=False, score_threshold=0.5
+        )["documents"]
+        assert len(results) == 2
 
     def test_run_with_sparse_activated(self, filterable_docs: List[Document]):
         document_store = QdrantDocumentStore(location=":memory:", index="Boi", use_sparse_embeddings=True)
@@ -175,6 +198,7 @@ class TestQdrantSparseEmbeddingRetriever(FilterableDocsFixtureMixin):
         assert retriever._top_k == 10
         assert retriever._filter_policy == "replace"
         assert retriever._return_embedding is False
+        assert retriever._score_threshold is None
 
     def test_to_dict(self):
         document_store = QdrantDocumentStore(location=":memory:", index="test")
@@ -200,15 +224,12 @@ class TestQdrantSparseEmbeddingRetriever(FilterableDocsFixtureMixin):
                         "index": "test",
                         "embedding_dim": 768,
                         "on_disk": False,
-                        "content_field": "content",
-                        "name_field": "name",
-                        "embedding_field": "embedding",
                         "force_disable_check_same_thread": False,
                         "use_sparse_embeddings": False,
+                        "sparse_idf": False,
                         "similarity": "cosine",
                         "return_embedding": False,
                         "progress_bar": True,
-                        "duplicate_documents": "overwrite",
                         "recreate_index": False,
                         "shard_number": None,
                         "replication_factor": None,
@@ -228,9 +249,10 @@ class TestQdrantSparseEmbeddingRetriever(FilterableDocsFixtureMixin):
                 },
                 "filters": None,
                 "top_k": 10,
-                "scale_score": True,
+                "scale_score": False,
                 "return_embedding": False,
                 "filter_policy": "replace",
+                "score_threshold": None,
             },
         }
 
@@ -247,6 +269,7 @@ class TestQdrantSparseEmbeddingRetriever(FilterableDocsFixtureMixin):
                 "scale_score": False,
                 "return_embedding": True,
                 "filter_policy": "replace",
+                "score_threshold": None,
             },
         }
         retriever = QdrantSparseEmbeddingRetriever.from_dict(data)
@@ -257,6 +280,7 @@ class TestQdrantSparseEmbeddingRetriever(FilterableDocsFixtureMixin):
         assert retriever._filter_policy == "replace"
         assert retriever._scale_score is False
         assert retriever._return_embedding is True
+        assert retriever._score_threshold is None
 
     def test_run(self, filterable_docs: List[Document], generate_sparse_embedding):
         document_store = QdrantDocumentStore(location=":memory:", index="Boi", use_sparse_embeddings=True)
@@ -289,6 +313,7 @@ class TestQdrantHybridRetriever:
         assert retriever._top_k == 10
         assert retriever._filter_policy == "replace"
         assert retriever._return_embedding is False
+        assert retriever._score_threshold is None
 
     def test_to_dict(self):
         document_store = QdrantDocumentStore(location=":memory:", index="test")
@@ -314,15 +339,12 @@ class TestQdrantHybridRetriever:
                         "index": "test",
                         "embedding_dim": 768,
                         "on_disk": False,
-                        "content_field": "content",
-                        "name_field": "name",
-                        "embedding_field": "embedding",
                         "force_disable_check_same_thread": False,
                         "use_sparse_embeddings": False,
+                        "sparse_idf": False,
                         "similarity": "cosine",
                         "return_embedding": False,
                         "progress_bar": True,
-                        "duplicate_documents": "overwrite",
                         "recreate_index": False,
                         "shard_number": None,
                         "replication_factor": None,
@@ -344,6 +366,7 @@ class TestQdrantHybridRetriever:
                 "top_k": 5,
                 "filter_policy": "replace",
                 "return_embedding": True,
+                "score_threshold": None,
             },
         }
 
@@ -359,6 +382,7 @@ class TestQdrantHybridRetriever:
                 "top_k": 5,
                 "filter_policy": "replace",
                 "return_embedding": True,
+                "score_threshold": None,
             },
         }
         retriever = QdrantHybridRetriever.from_dict(data)
@@ -368,6 +392,7 @@ class TestQdrantHybridRetriever:
         assert retriever._top_k == 5
         assert retriever._filter_policy == "replace"
         assert retriever._return_embedding
+        assert retriever._score_threshold is None
 
     def test_run(self):
         mock_store = Mock(spec=QdrantDocumentStore)

@@ -1,5 +1,5 @@
 import os
-from unittest.mock import Mock, patch
+from unittest.mock import Mock
 
 import pytest
 from botocore.exceptions import BotoCoreError
@@ -83,14 +83,13 @@ def test_default_constructor(set_env_variables, mock_boto3_session):  # noqa: AR
 
 
 def test_init_raises_boto_error(set_env_variables, mock_boto3_session):  # noqa: ARG001
-    with patch("boto3.Session") as mock_boto3_session:
-        mock_boto3_session.side_effect = BotoCoreError()
-        with pytest.raises(
-            AWSConfigurationError,
-            match="Could not connect to SageMaker Inference Endpoint 'test-model'."
-            "Make sure the Endpoint exists and AWS environment is configured.",
-        ):
-            SagemakerGenerator(model="test-model")
+    mock_boto3_session.side_effect = BotoCoreError()
+    with pytest.raises(
+        AWSConfigurationError,
+        match="Could not connect to SageMaker Inference Endpoint 'test-model'."
+        "Make sure the Endpoint exists and AWS environment is configured.",
+    ):
+        SagemakerGenerator(model="test-model")
 
 
 def test_run_with_list_of_dictionaries(set_env_variables, mock_boto3_session):  # noqa: ARG001

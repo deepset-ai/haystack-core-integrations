@@ -39,9 +39,10 @@ class QdrantEmbeddingRetriever:
         document_store: QdrantDocumentStore,
         filters: Optional[Union[Dict[str, Any], models.Filter]] = None,
         top_k: int = 10,
-        scale_score: bool = True,
+        scale_score: bool = False,
         return_embedding: bool = False,
         filter_policy: Optional[FilterPolicy] = FilterPolicy.REPLACE,
+        score_threshold: Optional[float] = None,
     ):
         """
         Create a QdrantEmbeddingRetriever component.
@@ -52,6 +53,10 @@ class QdrantEmbeddingRetriever:
         :param scale_score: Whether to scale the scores of the retrieved documents or not.
         :param return_embedding: Whether to return the embedding of the retrieved Documents.
         :param filter_policy: Policy to determine how filters are applied.
+        :param score_threshold: A minimal score threshold for the result.
+            Score of the returned result might be higher or smaller than the threshold
+             depending on the `similarity` function specified in the Document Store.
+            E.g. for cosine similarity only higher scores will be returned.
 
         :raises ValueError: If `document_store` is not an instance of `QdrantDocumentStore`.
         """
@@ -66,6 +71,7 @@ class QdrantEmbeddingRetriever:
         self._scale_score = scale_score
         self._return_embedding = return_embedding
         self._filter_policy = filter_policy
+        self._score_threshold = score_threshold
 
     def to_dict(self) -> Dict[str, Any]:
         """
@@ -82,6 +88,7 @@ class QdrantEmbeddingRetriever:
             filter_policy=self._filter_policy.value if self._filter_policy else None,
             scale_score=self._scale_score,
             return_embedding=self._return_embedding,
+            score_threshold=self._score_threshold,
         )
         d["init_parameters"]["document_store"] = self._document_store.to_dict()
 
@@ -111,6 +118,7 @@ class QdrantEmbeddingRetriever:
         top_k: Optional[int] = None,
         scale_score: Optional[bool] = None,
         return_embedding: Optional[bool] = None,
+        score_threshold: Optional[float] = None,
     ):
         """
         Run the Embedding Retriever on the given input data.
@@ -120,6 +128,7 @@ class QdrantEmbeddingRetriever:
         :param top_k: The maximum number of documents to return.
         :param scale_score: Whether to scale the scores of the retrieved documents or not.
         :param return_embedding: Whether to return the embedding of the retrieved Documents.
+        :param score_threshold: A minimal score threshold for the result.
         :returns:
             The retrieved documents.
 
@@ -132,6 +141,7 @@ class QdrantEmbeddingRetriever:
             top_k=top_k or self._top_k,
             scale_score=scale_score or self._scale_score,
             return_embedding=return_embedding or self._return_embedding,
+            score_threshold=score_threshold or self._score_threshold,
         )
 
         return {"documents": docs}
@@ -169,9 +179,10 @@ class QdrantSparseEmbeddingRetriever:
         document_store: QdrantDocumentStore,
         filters: Optional[Union[Dict[str, Any], models.Filter]] = None,
         top_k: int = 10,
-        scale_score: bool = True,
+        scale_score: bool = False,
         return_embedding: bool = False,
         filter_policy: Optional[FilterPolicy] = FilterPolicy.REPLACE,
+        score_threshold: Optional[float] = None,
     ):
         """
         Create a QdrantSparseEmbeddingRetriever component.
@@ -182,6 +193,10 @@ class QdrantSparseEmbeddingRetriever:
         :param scale_score: Whether to scale the scores of the retrieved documents or not.
         :param return_embedding: Whether to return the sparse embedding of the retrieved Documents.
         :param filter_policy: Policy to determine how filters are applied. Defaults to "replace".
+        :param score_threshold: A minimal score threshold for the result.
+            Score of the returned result might be higher or smaller than the threshold
+             depending on the Distance function used.
+            E.g. for cosine similarity only higher scores will be returned.
 
         :raises ValueError: If `document_store` is not an instance of `QdrantDocumentStore`.
         """
@@ -196,6 +211,7 @@ class QdrantSparseEmbeddingRetriever:
         self._scale_score = scale_score
         self._return_embedding = return_embedding
         self._filter_policy = filter_policy
+        self._score_threshold = score_threshold
 
     def to_dict(self) -> Dict[str, Any]:
         """
@@ -212,6 +228,7 @@ class QdrantSparseEmbeddingRetriever:
             scale_score=self._scale_score,
             filter_policy=self._filter_policy.value if self._filter_policy else None,
             return_embedding=self._return_embedding,
+            score_threshold=self._score_threshold,
         )
         d["init_parameters"]["document_store"] = self._document_store.to_dict()
 
@@ -241,6 +258,7 @@ class QdrantSparseEmbeddingRetriever:
         top_k: Optional[int] = None,
         scale_score: Optional[bool] = None,
         return_embedding: Optional[bool] = None,
+        score_threshold: Optional[float] = None,
     ):
         """
         Run the Sparse Embedding Retriever on the given input data.
@@ -252,6 +270,10 @@ class QdrantSparseEmbeddingRetriever:
         :param top_k: The maximum number of documents to return.
         :param scale_score: Whether to scale the scores of the retrieved documents or not.
         :param return_embedding: Whether to return the embedding of the retrieved Documents.
+        :param score_threshold: A minimal score threshold for the result.
+            Score of the returned result might be higher or smaller than the threshold
+             depending on the Distance function used.
+            E.g. for cosine similarity only higher scores will be returned.
         :returns:
             The retrieved documents.
 
@@ -264,6 +286,7 @@ class QdrantSparseEmbeddingRetriever:
             top_k=top_k or self._top_k,
             scale_score=scale_score or self._scale_score,
             return_embedding=return_embedding or self._return_embedding,
+            score_threshold=score_threshold or self._score_threshold,
         )
 
         return {"documents": docs}
@@ -309,6 +332,7 @@ class QdrantHybridRetriever:
         top_k: int = 10,
         return_embedding: bool = False,
         filter_policy: Optional[FilterPolicy] = FilterPolicy.REPLACE,
+        score_threshold: Optional[float] = None,
     ):
         """
         Create a QdrantHybridRetriever component.
@@ -318,6 +342,10 @@ class QdrantHybridRetriever:
         :param top_k: The maximum number of documents to retrieve.
         :param return_embedding: Whether to return the embeddings of the retrieved Documents.
         :param filter_policy: Policy to determine how filters are applied.
+        :param score_threshold: A minimal score threshold for the result.
+            Score of the returned result might be higher or smaller than the threshold
+             depending on the Distance function used.
+            E.g. for cosine similarity only higher scores will be returned.
 
         :raises ValueError: If 'document_store' is not an instance of QdrantDocumentStore.
         """
@@ -331,6 +359,7 @@ class QdrantHybridRetriever:
         self._top_k = top_k
         self._return_embedding = return_embedding
         self._filter_policy = filter_policy
+        self._score_threshold = score_threshold
 
     def to_dict(self) -> Dict[str, Any]:
         """
@@ -346,6 +375,7 @@ class QdrantHybridRetriever:
             top_k=self._top_k,
             filter_policy=self._filter_policy.value if self._filter_policy else None,
             return_embedding=self._return_embedding,
+            score_threshold=self._score_threshold,
         )
 
     @classmethod
@@ -372,6 +402,7 @@ class QdrantHybridRetriever:
         filters: Optional[Union[Dict[str, Any], models.Filter]] = None,
         top_k: Optional[int] = None,
         return_embedding: Optional[bool] = None,
+        score_threshold: Optional[float] = None,
     ):
         """
         Run the Sparse Embedding Retriever on the given input data.
@@ -383,6 +414,10 @@ class QdrantHybridRetriever:
                         details.
         :param top_k: The maximum number of documents to return.
         :param return_embedding: Whether to return the embedding of the retrieved Documents.
+        :param score_threshold: A minimal score threshold for the result.
+            Score of the returned result might be higher or smaller than the threshold
+             depending on the Distance function used.
+            E.g. for cosine similarity only higher scores will be returned.
         :returns:
             The retrieved documents.
 
@@ -395,6 +430,7 @@ class QdrantHybridRetriever:
             filters=filters,
             top_k=top_k or self._top_k,
             return_embedding=return_embedding or self._return_embedding,
+            score_threshold=score_threshold or self._score_threshold,
         )
 
         return {"documents": docs}
