@@ -2,6 +2,7 @@ from typing import List
 from unittest.mock import Mock
 
 from haystack.dataclasses import Document, SparseEmbedding
+from haystack.document_stores.types import FilterPolicy
 from haystack.testing.document_store import (
     FilterableDocsFixtureMixin,
     _random_embeddings,
@@ -21,7 +22,7 @@ class TestQdrantRetriever(FilterableDocsFixtureMixin):
         assert retriever._document_store == document_store
         assert retriever._filters is None
         assert retriever._top_k == 10
-        assert retriever._filter_policy == "replace"
+        assert retriever._filter_policy == FilterPolicy.REPLACE
         assert retriever._return_embedding is False
         assert retriever._score_threshold is None
 
@@ -102,7 +103,7 @@ class TestQdrantRetriever(FilterableDocsFixtureMixin):
         assert retriever._document_store.index == "test"
         assert retriever._filters is None
         assert retriever._top_k == 5
-        assert retriever._filter_policy == "replace"
+        assert retriever._filter_policy == FilterPolicy.REPLACE
         assert retriever._scale_score is False
         assert retriever._return_embedding is True
         assert retriever._score_threshold is None
@@ -131,7 +132,7 @@ class TestQdrantRetriever(FilterableDocsFixtureMixin):
         retriever = QdrantEmbeddingRetriever(
             document_store=document_store,
             filters={"field": "meta.name", "operator": "==", "value": "name_0"},
-            filter_policy="merge",
+            filter_policy=FilterPolicy.MERGE,
         )
 
         results: List[Document] = retriever.run(query_embedding=_random_embeddings(768))["documents"]
@@ -147,7 +148,7 @@ class TestQdrantRetriever(FilterableDocsFixtureMixin):
 
         for document in results:
             assert document.embedding is None
-            
+
     def test_run_with_score_threshold(self):
         document_store = QdrantDocumentStore(
             embedding_dim=4, location=":memory:", similarity="cosine", index="Boi", use_sparse_embeddings=False
@@ -196,7 +197,7 @@ class TestQdrantSparseEmbeddingRetriever(FilterableDocsFixtureMixin):
         assert retriever._document_store == document_store
         assert retriever._filters is None
         assert retriever._top_k == 10
-        assert retriever._filter_policy == "replace"
+        assert retriever._filter_policy == FilterPolicy.REPLACE
         assert retriever._return_embedding is False
         assert retriever._score_threshold is None
 
@@ -277,7 +278,7 @@ class TestQdrantSparseEmbeddingRetriever(FilterableDocsFixtureMixin):
         assert retriever._document_store.index == "test"
         assert retriever._filters is None
         assert retriever._top_k == 5
-        assert retriever._filter_policy == "replace"
+        assert retriever._filter_policy == FilterPolicy.REPLACE
         assert retriever._scale_score is False
         assert retriever._return_embedding is True
         assert retriever._score_threshold is None
@@ -311,7 +312,7 @@ class TestQdrantHybridRetriever:
         assert retriever._document_store == document_store
         assert retriever._filters is None
         assert retriever._top_k == 10
-        assert retriever._filter_policy == "replace"
+        assert retriever._filter_policy == FilterPolicy.REPLACE
         assert retriever._return_embedding is False
         assert retriever._score_threshold is None
 
@@ -390,7 +391,7 @@ class TestQdrantHybridRetriever:
         assert retriever._document_store.index == "test"
         assert retriever._filters is None
         assert retriever._top_k == 5
-        assert retriever._filter_policy == "replace"
+        assert retriever._filter_policy == FilterPolicy.REPLACE
         assert retriever._return_embedding
         assert retriever._score_threshold is None
 
