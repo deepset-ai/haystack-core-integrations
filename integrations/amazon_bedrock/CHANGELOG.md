@@ -1,5 +1,16 @@
 # Changelog
 
+## [unreleased]
+
+### 🚀 Features
+
+- Use non-gated tokenizer as fallback for mistral in AmazonBedrockChatGenerator (#843)
+
+### ⚙️ Miscellaneous Tasks
+
+- Retry tests to reduce flakyness (#836)
+- Update ruff invocation to include check parameter (#853)
+
 ## [integrations/amazon_bedrock-v0.9.0] - 2024-06-14
 
 ### 🚀 Features

@@ -1,6 +1,7 @@
 # SPDX-FileCopyrightText: 2023-present John Doe <jd@example.com>
 #
 # SPDX-License-Identifier: Apache-2.0
+import logging
 import operator
 import uuid
 from typing import List
@@ -104,6 +105,7 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, LegacyFilterDoc
                 "embedding_function": "HuggingFaceEmbeddingFunction",
                 "persist_path": None,
                 "api_key": "1234567890",
+                "distance_function": "l2",
             },
         }
 
@@ -118,6 +120,7 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, LegacyFilterDoc
                 "embedding_function": "HuggingFaceEmbeddingFunction",
                 "persist_path": None,
                 "api_key": "1234567890",
+                "distance_function": "l2",
             },
         }
 
@@ -128,8 +131,27 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, LegacyFilterDoc
 
     @pytest.mark.integration
     def test_same_collection_name_reinitialization(self):
-        ChromaDocumentStore("test_name")
-        ChromaDocumentStore("test_name")
+        ChromaDocumentStore("test_1")
+        ChromaDocumentStore("test_1")
+
+    @pytest.mark.integration
+    def test_distance_metric_initialization(self):
+        store = ChromaDocumentStore("test_2", distance_function="cosine")
+        assert store._collection.metadata["hnsw:space"] == "cosine"
+
+        with pytest.raises(ValueError):
+            ChromaDocumentStore("test_3", distance_function="jaccard")
+
+    @pytest.mark.integration
+    def test_distance_metric_reinitialization(self, caplog):
+        store = ChromaDocumentStore("test_4", distance_function="cosine")
+
+        with caplog.at_level(logging.WARNING):
+            new_store = ChromaDocumentStore("test_4", distance_function="ip")
+
+        assert "Collection already exists. The `distance_function` parameter will be ignored." in caplog.text
+        assert store._collection.metadata["hnsw:space"] == "cosine"
+        assert new_store._collection.metadata["hnsw:space"] == "cosine"
 
     @pytest.mark.skip(reason="Filter on dataframe contents is not supported.")
     def test_filter_document_dataframe(self, document_store: ChromaDocumentStore, filterable_docs: List[Document]):

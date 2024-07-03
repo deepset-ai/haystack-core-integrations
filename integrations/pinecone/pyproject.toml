@@ -24,7 +24,7 @@ classifiers = [
 ]
 dependencies = [
   "haystack-ai",
-  "pinecone-client>=3" # our implementation is not compatible with pinecone-client <3
+  "pinecone-client>=3", # our implementation is not compatible with pinecone-client <3
 ]
 
 [project.urls]
@@ -47,14 +47,15 @@ git_describe_command = 'git describe --tags --match="integrations/pinecone-v[0-9
 dependencies = [
   "coverage[toml]>=6.5",
   "pytest",
+  "pytest-rerunfailures",
   "pytest-xdist",
   "haystack-pydoc-tools",
 ]
 [tool.hatch.envs.default.scripts]
 # Pinecone tests are slow (require HTTP requests), so we run them in parallel
 # with pytest-xdist (https://pytest-xdist.readthedocs.io/en/stable/distribution.html)
-test = "pytest -n auto --maxprocesses=2 {args:tests}"
-test-cov = "coverage run -m pytest -n auto --maxprocesses=2 {args:tests}"
+test = "pytest -n auto --maxprocesses=2 --reruns 3 --reruns-delay 30 -x {args:tests}"
+test-cov = "coverage run -m pytest -n auto --maxprocesses=2 --reruns 3 --reruns-delay 30 -x {args:tests}"
 cov-report = ["- coverage combine", "coverage report"]
 cov = ["test-cov", "cov-report"]
 docs = ["pydoc-markdown pydoc/config.yml"]
@@ -67,7 +68,7 @@ detached = true
 dependencies = ["black>=23.1.0", "mypy>=1.0.0", "ruff>=0.0.243", "numpy"]
 [tool.hatch.envs.lint.scripts]
 typing = "mypy --install-types --non-interactive --explicit-package-bases {args:src/ tests}"
-style = ["ruff {args:.}", "black --check --diff {args:.}"]
+style = ["ruff check {args:.}", "black --check --diff {args:.}"]
 fmt = ["black {args:.}", "ruff --fix {args:.}", "style"]
 all = ["style", "typing"]
 
@@ -150,12 +151,8 @@ parallel = false
 
 [tool.coverage.report]
 omit = ["*/tests/*", "*/__init__.py"]
-show_missing=true
-exclude_lines = [
-  "no cov",
-  "if __name__ == .__main__.:",
-  "if TYPE_CHECKING:",
-]
+show_missing = true
+exclude_lines = ["no cov", "if __name__ == .__main__.:", "if TYPE_CHECKING:"]
 
 [tool.pytest.ini_options]
 minversion = "6.0"
