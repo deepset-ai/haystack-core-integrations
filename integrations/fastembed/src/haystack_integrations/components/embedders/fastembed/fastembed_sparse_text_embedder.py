@@ -111,7 +111,7 @@ class FastembedSparseTextEmbedder:
 
         embedding = self.embedding_backend.embed(
             [text],
-            show_progress_bar=self.progress_bar,
+            progress_bar=self.progress_bar,
             parallel=self.parallel,
         )[0]
         return {"sparse_embedding": embedding}

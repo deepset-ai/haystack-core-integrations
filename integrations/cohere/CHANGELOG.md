@@ -5,6 +5,11 @@
 ### 🚀 Features
 
 - Update Anthropic/Cohere for tools use (#790)
+- Update Cohere default LLMs, add examples and update unit tests (#838)
+
+### ⚙️ Miscellaneous Tasks
+
+- Retry tests to reduce flakyness (#836)
 
 ## [integrations/cohere-v1.1.1] - 2024-06-12
 
