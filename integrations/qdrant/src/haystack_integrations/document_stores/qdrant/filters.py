@@ -10,14 +10,18 @@ from .converters import convert_id
 
 COMPARISON_OPERATORS = COMPARISON_OPERATORS.keys()
 LOGICAL_OPERATORS = LOGICAL_OPERATORS.keys()
+count = 1
 
-
+ 
+    
+    
 def convert_filters_to_qdrant(
     filter_term: Optional[Union[List[dict], dict, models.Filter]] = None,
+    current_operator: str = "AND"
 ) -> Optional[models.Filter]:
     """Converts Haystack filters to the format used by Qdrant."""
-    global count 
-    count = 1
+    
+    global count
     if isinstance(filter_term, models.Filter):
         return filter_term
     if not filter_term:
@@ -33,17 +37,18 @@ def convert_filters_to_qdrant(
         if operator is None:
             msg = "Operator not found in filters"
             raise FilterError(msg)
-
+        
         if operator in LOGICAL_OPERATORS and "conditions" not in item:
             msg = f"'conditions' not found for '{operator}'"
             raise FilterError(msg)
 
+        
         if operator == "AND":
-            must_clauses.append(convert_filters_to_qdrant(item.get("conditions", [])))
+            must_clauses.append(convert_filters_to_qdrant(item.get("conditions", []), current_operator= operator))
         elif operator == "OR":
-            should_clauses.append(convert_filters_to_qdrant(item.get("conditions", [])))
+            should_clauses.append(convert_filters_to_qdrant(item.get("conditions", []), current_operator= operator))
         elif operator == "NOT":
-            must_not_clauses.append(convert_filters_to_qdrant(item.get("conditions", [])))
+            must_not_clauses.append(convert_filters_to_qdrant(item.get("conditions", []), current_operator= operator))
         elif operator in COMPARISON_OPERATORS:
             field = item.get("field")
             value = item.get("value")
@@ -55,16 +60,15 @@ def convert_filters_to_qdrant(
             #if operator in ["!=", "not in"]:
                 #must_not_clauses.extend(parsed_conditions)
             #else:
-            must_clauses.extend(parsed_conditions)
+            
+            if current_operator == "OR":
+                should_clauses.extend(parsed_conditions)
+            else:    
+                must_clauses.extend(parsed_conditions)
         else:
             msg = f"Unknown operator {operator} used in filters"
             raise FilterError(msg)
-        
-    print("Printing MUST CLAUSES!!!!!!!")
-    print(must_clauses)
-    print("Printing Should CLAUSES!!!!!!!")
-    print(should_clauses)
-    must_filter = models.Filter(must = must_clauses)
+  
     payload_filter = models.Filter(
         must=must_clauses or None,
         should=should_clauses or None,
@@ -239,7 +243,6 @@ def _squeeze_filter(payload_filter: models.Filter) -> models.Filter:
             continue
 
         #if subfilter.must:
-            #print ("INSIDE subfilter")
             #return models.Filter(**{part_name: subfilter.must})
 
     
