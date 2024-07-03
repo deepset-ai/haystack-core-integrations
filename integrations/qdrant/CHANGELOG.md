@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/qdrant-v4.1.0] - 2024-07-03
+
+### 🚀 Features
+
+- Add `score_threshold` to Qdrant Retrievers (#860)
+- Qdrant - add support for BM42 (#864)
+
 ## [integrations/qdrant-v4.0.0] - 2024-07-02
 
 ### 🚜 Refactor
