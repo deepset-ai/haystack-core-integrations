@@ -4,6 +4,7 @@
 from unittest.mock import Mock, patch
 
 from haystack.dataclasses import Document
+from haystack.document_stores.types import FilterPolicy
 from haystack.utils import Secret
 
 from haystack_integrations.components.retrievers.pinecone import PineconeEmbeddingRetriever
@@ -16,7 +17,7 @@ def test_init_default():
     assert retriever.document_store == mock_store
     assert retriever.filters == {}
     assert retriever.top_k == 10
-    assert retriever.filter_policy == "replace"
+    assert retriever.filter_policy == FilterPolicy.REPLACE
 
 
 @patch("haystack_integrations.document_stores.pinecone.document_store.Pinecone")
@@ -103,7 +104,7 @@ def test_from_dict(mock_pinecone, monkeypatch):
 
     assert retriever.filters == {}
     assert retriever.top_k == 10
-    assert retriever.filter_policy == "replace"
+    assert retriever.filter_policy == FilterPolicy.REPLACE
 
 
 def test_run():
