@@ -52,7 +52,7 @@ class TestRetriever:
             document_store=mock_store,
             filters={"field": "value"},
             top_k=5,
-            filter_policy="merge",
+            filter_policy=FilterPolicy.MERGE,
         )
         assert retriever.document_store == mock_store
         assert retriever.filters == {"field": "value"}
@@ -147,7 +147,7 @@ class TestRetriever:
         mock_store._embedding_retrieval.return_value = [doc]
 
         retriever = MongoDBAtlasEmbeddingRetriever(
-            document_store=mock_store, filters={"foo": "boo"}, filter_policy="merge"
+            document_store=mock_store, filters={"foo": "boo"}, filter_policy=FilterPolicy.MERGE
         )
         res = retriever.run(query_embedding=[0.3, 0.5], filters={"field": "value"})
 
