@@ -44,7 +44,7 @@ class TestRetriever:
         assert retriever.document_store == mock_store
         assert retriever.filters == {"field": "value"}
         assert retriever.top_k == 5
-        assert retriever.filter_policy == "replace"
+        assert retriever.filter_policy == FilterPolicy.REPLACE
 
     def test_init_filter_policy_merge(self):
         mock_store = Mock(spec=MongoDBAtlasDocumentStore)
