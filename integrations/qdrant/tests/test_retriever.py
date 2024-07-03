@@ -117,10 +117,11 @@ class TestQdrantRetriever(FilterableDocsFixtureMixin):
 
         for document in results:
             assert document.embedding is None
-        
-        results = retriever.run(query_embedding=_random_embeddings(768), top_k=5, return_embedding=False, score_threshold=0.999)["documents"]
-        assert len(results) == 0
 
+        results = retriever.run(
+            query_embedding=_random_embeddings(768), top_k=5, return_embedding=False, score_threshold=0.999
+        )["documents"]
+        assert len(results) == 0
 
     def test_run_with_sparse_activated(self, filterable_docs: List[Document]):
         document_store = QdrantDocumentStore(location=":memory:", index="Boi", use_sparse_embeddings=True)
