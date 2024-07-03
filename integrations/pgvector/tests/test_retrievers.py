@@ -48,7 +48,9 @@ class TestEmbeddingRetriever:
                         "hnsw_recreate_index_if_exists": False,
                         "language": "english",
                         "hnsw_index_creation_kwargs": {},
+                        "hnsw_index_name": "haystack_hnsw_index",
                         "hnsw_ef_search": None,
+                        "keyword_index_name": "haystack_keyword_index",
                     },
                 },
                 "filters": {"field": "value"},
@@ -75,7 +77,9 @@ class TestEmbeddingRetriever:
                         "search_strategy": "exact_nearest_neighbor",
                         "hnsw_recreate_index_if_exists": False,
                         "hnsw_index_creation_kwargs": {},
+                        "hnsw_index_name": "haystack_hnsw_index",
                         "hnsw_ef_search": None,
+                        "keyword_index_name": "haystack_keyword_index",
                     },
                 },
                 "filters": {"field": "value"},
@@ -96,7 +100,9 @@ class TestEmbeddingRetriever:
         assert document_store.search_strategy == "exact_nearest_neighbor"
         assert not document_store.hnsw_recreate_index_if_exists
         assert document_store.hnsw_index_creation_kwargs == {}
+        assert document_store.hnsw_index_name == "haystack_hnsw_index"
         assert document_store.hnsw_ef_search is None
+        assert document_store.keyword_index_name == "haystack_keyword_index"
 
         assert retriever.filters == {"field": "value"}
         assert retriever.top_k == 5
@@ -149,7 +155,9 @@ class TestKeywordRetriever:
                         "hnsw_recreate_index_if_exists": False,
                         "language": "english",
                         "hnsw_index_creation_kwargs": {},
+                        "hnsw_index_name": "haystack_hnsw_index",
                         "hnsw_ef_search": None,
+                        "keyword_index_name": "haystack_keyword_index",
                     },
                 },
                 "filters": {"field": "value"},
@@ -175,7 +183,9 @@ class TestKeywordRetriever:
                         "search_strategy": "exact_nearest_neighbor",
                         "hnsw_recreate_index_if_exists": False,
                         "hnsw_index_creation_kwargs": {},
+                        "hnsw_index_name": "haystack_hnsw_index",
                         "hnsw_ef_search": None,
+                        "keyword_index_name": "haystack_keyword_index",
                     },
                 },
                 "filters": {"field": "value"},
@@ -195,7 +205,9 @@ class TestKeywordRetriever:
         assert document_store.search_strategy == "exact_nearest_neighbor"
         assert not document_store.hnsw_recreate_index_if_exists
         assert document_store.hnsw_index_creation_kwargs == {}
+        assert document_store.hnsw_index_name == "haystack_hnsw_index"
         assert document_store.hnsw_ef_search is None
+        assert document_store.keyword_index_name == "haystack_keyword_index"
 
         assert retriever.filters == {"field": "value"}
         assert retriever.top_k == 5

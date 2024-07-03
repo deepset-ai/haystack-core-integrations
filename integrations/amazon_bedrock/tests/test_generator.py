@@ -20,10 +20,7 @@ def test_to_dict(mock_boto3_session):
     """
     Test that the to_dict method returns the correct dictionary without aws credentials
     """
-    generator = AmazonBedrockGenerator(
-        model="anthropic.claude-v2",
-        max_length=99,
-    )
+    generator = AmazonBedrockGenerator(model="anthropic.claude-v2", max_length=99, truncate=False, temperature=10)
 
     expected_dict = {
         "type": "haystack_integrations.components.generators.amazon_bedrock.generator.AmazonBedrockGenerator",
@@ -35,6 +32,8 @@ def test_to_dict(mock_boto3_session):
             "aws_profile_name": {"type": "env_var", "env_vars": ["AWS_PROFILE"], "strict": False},
             "model": "anthropic.claude-v2",
             "max_length": 99,
+            "truncate": False,
+            "temperature": 10,
         },
     }
 
@@ -192,6 +191,46 @@ def test_long_prompt_is_truncated(mock_boto3_session):
 
     # The prompt exceeds the limit, _ensure_token_limit truncates it
     assert prompt_after_resize == truncated_prompt_text
+
+
+def test_long_prompt_is_not_truncated_when_truncate_false(mock_boto3_session):
+    """
+    Test that a long prompt is not truncated and _ensure_token_limit is not called when truncate is set to False
+    """
+    long_prompt_text = "I am a tokenized prompt of length eight"
+
+    # Our mock prompt is 8 tokens long, so it exceeds the total limit (8 prompt tokens + 3 generated tokens > 10 tokens)
+    max_length_generated_text = 3
+    total_model_max_length = 10
+
+    with patch("transformers.AutoTokenizer.from_pretrained", return_value=MagicMock()):
+        generator = AmazonBedrockGenerator(
+            model="anthropic.claude-v2",
+            max_length=max_length_generated_text,
+            model_max_length=total_model_max_length,
+            truncate=False,
+        )
+
+        # Mock the _ensure_token_limit method to track if it is called
+        with patch.object(
+            generator, "_ensure_token_limit", wraps=generator._ensure_token_limit
+        ) as mock_ensure_token_limit:
+            # Mock the model adapter to avoid actual invocation
+            generator.model_adapter.prepare_body = MagicMock(return_value={})
+            generator.client = MagicMock()
+            generator.client.invoke_model = MagicMock(
+                return_value={"body": MagicMock(read=MagicMock(return_value=b'{"generated_text": "response"}'))}
+            )
+            generator.model_adapter.get_responses = MagicMock(return_value=["response"])
+
+            # Invoke the generator
+            generator.invoke(prompt=long_prompt_text)
+
+        # Ensure _ensure_token_limit was not called
+        mock_ensure_token_limit.assert_not_called(),
+
+        # Check the prompt passed to prepare_body
+        generator.model_adapter.prepare_body.assert_called_with(prompt=long_prompt_text)
 
 
 @pytest.mark.parametrize(
