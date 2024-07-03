@@ -509,6 +509,9 @@ class QdrantDocumentStore:
         :param scale_score: Whether to scale the scores of the retrieved documents.
         :param return_embedding: Whether to return the embeddings of the retrieved documents.
         :param score_threshold: A minimal score threshold for the result.
+            Score of the returned result might be higher or smaller than the threshold
+             depending on the Distance function used.
+            E.g. for cosine similarity only higher scores will be returned.
 
         :returns: List of documents that are most similar to `query_sparse_embedding`.
 
@@ -569,6 +572,9 @@ class QdrantDocumentStore:
         :param scale_score: Whether to scale the scores of the retrieved documents.
         :param return_embedding: Whether to return the embeddings of the retrieved documents.
         :param score_threshold: A minimal score threshold for the result.
+            Score of the returned result might be higher or smaller than the threshold
+             depending on the Distance function used.
+            E.g. for cosine similarity only higher scores will be returned.
 
         :returns: List of documents that are most similar to `query_embedding`.
         """
@@ -620,6 +626,9 @@ class QdrantDocumentStore:
         :param top_k: Maximum number of documents to return.
         :param return_embedding: Whether to return the embeddings of the retrieved documents.
         :param score_threshold: A minimal score threshold for the result.
+            Score of the returned result might be higher or smaller than the threshold
+             depending on the Distance function used.
+            E.g. for cosine similarity only higher scores will be returned.
 
         :returns: List of Document that are most similar to `query_embedding` and `query_sparse_embedding`.
 
