@@ -5,6 +5,7 @@ from unittest.mock import Mock
 
 import pytest
 from haystack.dataclasses import Document
+from haystack.document_stores.types import FilterPolicy
 from haystack.utils.auth import EnvVarSecret
 from haystack_integrations.components.retrievers.pgvector import PgvectorEmbeddingRetriever, PgvectorKeywordRetriever
 from haystack_integrations.document_stores.pgvector import PgvectorDocumentStore
@@ -16,7 +17,7 @@ class TestEmbeddingRetriever:
         assert retriever.document_store == mock_store
         assert retriever.filters == {}
         assert retriever.top_k == 10
-        assert retriever.filter_policy == "replace"
+        assert retriever.filter_policy == FilterPolicy.REPLACE
         assert retriever.vector_function == mock_store.vector_function
 
     def test_init(self, mock_store):
@@ -110,7 +111,7 @@ class TestEmbeddingRetriever:
 
         assert retriever.filters == {"field": "value"}
         assert retriever.top_k == 5
-        assert retriever.filter_policy == "replace"
+        assert retriever.filter_policy == FilterPolicy.REPLACE
         assert retriever.vector_function == "l2_distance"
 
     def test_run(self):
@@ -148,7 +149,7 @@ class TestKeywordRetriever:
         assert retriever.document_store == mock_store
         assert retriever.filters == {"field": "value"}
         assert retriever.top_k == 5
-        assert retriever.filter_policy == "merge"
+        assert retriever.filter_policy == FilterPolicy.MERGE
 
     def test_to_dict(self, mock_store):
         retriever = PgvectorKeywordRetriever(document_store=mock_store, filters={"field": "value"}, top_k=5)
