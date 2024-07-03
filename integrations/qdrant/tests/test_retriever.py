@@ -120,7 +120,7 @@ class TestQdrantRetriever(FilterableDocsFixtureMixin):
 
     def test_run_with_score_threshold(self):
         document_store = QdrantDocumentStore(
-            embedding_dim=4, location=":memory:", index="Boi", use_sparse_embeddings=False
+            embedding_dim=4, location=":memory:", similarity="cosine", index="Boi", use_sparse_embeddings=False
         )
 
         document_store.write_documents(
