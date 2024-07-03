@@ -4,6 +4,7 @@
 from unittest.mock import Mock, patch
 
 from haystack.dataclasses import Document
+from haystack.document_stores.types import FilterPolicy
 from haystack_integrations.components.retrievers.opensearch import OpenSearchBM25Retriever
 from haystack_integrations.document_stores.opensearch import OpenSearchDocumentStore
 from haystack_integrations.document_stores.opensearch.document_store import DEFAULT_MAX_CHUNK_BYTES
@@ -16,7 +17,7 @@ def test_init_default():
     assert retriever._filters == {}
     assert retriever._top_k == 10
     assert not retriever._scale_score
-    assert retriever._filter_policy == "replace"
+    assert retriever._filter_policy == FilterPolicy.REPLACE
 
 
 @patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
@@ -84,7 +85,7 @@ def test_from_dict(_mock_opensearch_client):
     assert retriever._fuzziness == "AUTO"
     assert retriever._top_k == 10
     assert retriever._scale_score
-    assert retriever._filter_policy == "replace"
+    assert retriever._filter_policy == FilterPolicy.REPLACE
     assert retriever._custom_query == {"some": "custom query"}
     assert retriever._raise_on_failure is False
 
