@@ -12,7 +12,12 @@ from haystack.testing.document_store import (
     WriteDocumentsTest,
     _random_embeddings,
 )
-from haystack_integrations.document_stores.qdrant.document_store import QdrantDocumentStore, QdrantStoreError
+from haystack_integrations.document_stores.qdrant.document_store import (
+    SPARSE_VECTORS_NAME,
+    QdrantDocumentStore,
+    QdrantStoreError,
+)
+from qdrant_client.http import models as rest
 
 
 class TestQdrantDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsTest):
@@ -48,6 +53,23 @@ class TestQdrantDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocu
         assert document_store.write_documents(docs) == 1
         with pytest.raises(DuplicateDocumentError):
             document_store.write_documents(docs, DuplicatePolicy.FAIL)
+
+    def test_sparse_configuration(self):
+        document_store = QdrantDocumentStore(
+            ":memory:",
+            recreate_index=True,
+            use_sparse_embeddings=True,
+            sparse_idf=True,
+        )
+
+        client = document_store.client
+        sparse_config = client.get_collection("Document").config.params.sparse_vectors
+
+        assert SPARSE_VECTORS_NAME in sparse_config
+
+        # check that the `sparse_idf` parameter takes effect
+        assert hasattr(sparse_config[SPARSE_VECTORS_NAME], "modifier")
+        assert sparse_config[SPARSE_VECTORS_NAME].modifier == rest.Modifier.IDF
 
     def test_query_hybrid(self, generate_sparse_embedding):
         document_store = QdrantDocumentStore(location=":memory:", use_sparse_embeddings=True)

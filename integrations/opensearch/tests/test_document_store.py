@@ -35,6 +35,8 @@ def test_to_dict(_mock_opensearch_client):
             "max_chunk_bytes": DEFAULT_MAX_CHUNK_BYTES,
             "method": None,
             "settings": {"index.knn": True},
+            "return_embedding": False,
+            "create_index": True,
         },
     }
 
@@ -43,7 +45,14 @@ def test_to_dict(_mock_opensearch_client):
 def test_from_dict(_mock_opensearch_client):
     data = {
         "type": "haystack_integrations.document_stores.opensearch.document_store.OpenSearchDocumentStore",
-        "init_parameters": {"hosts": "some hosts", "index": "default", "max_chunk_bytes": 1000, "embedding_dim": 1536},
+        "init_parameters": {
+            "hosts": "some hosts",
+            "index": "default",
+            "max_chunk_bytes": 1000,
+            "embedding_dim": 1536,
+            "create_index": False,
+            "return_embedding": True,
+        },
     }
     document_store = OpenSearchDocumentStore.from_dict(data)
     assert document_store._hosts == "some hosts"
@@ -66,6 +75,8 @@ def test_from_dict(_mock_opensearch_client):
         ],
     }
     assert document_store._settings == {"index.knn": True}
+    assert document_store._return_embedding is True
+    assert document_store._create_index is False
 
 
 @patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
@@ -111,6 +122,30 @@ class TestDocumentStore(DocumentStoreBaseTests):
             method={"space_type": "cosinesimil", "engine": "nmslib", "name": "hnsw"},
         )
         yield store
+        store.client.indices.delete(index=index, params={"ignore": [400, 404]})
+
+    @pytest.fixture
+    def document_store_readonly(self, request):
+        """
+        This is the most basic requirement for the child class: provide
+        an instance of this document store so the base class can use it.
+        """
+        hosts = ["https://localhost:9200"]
+        # Use a different index for each test so we can run them in parallel
+        index = f"{request.node.name}"
+
+        store = OpenSearchDocumentStore(
+            hosts=hosts,
+            index=index,
+            http_auth=("admin", "admin"),
+            verify_certs=False,
+            embedding_dim=768,
+            method={"space_type": "cosinesimil", "engine": "nmslib", "name": "hnsw"},
+            create_index=False,
+        )
+        store.client.cluster.put_settings(body={"transient": {"action.auto_create_index": False}})
+        yield store
+        store.client.cluster.put_settings(body={"transient": {"action.auto_create_index": True}})
         store.client.indices.delete(index=index, params={"ignore": [400, 404]})
 
     @pytest.fixture
@@ -164,6 +199,15 @@ class TestDocumentStore(DocumentStoreBaseTests):
         assert document_store.write_documents(docs) == 1
         with pytest.raises(DuplicateDocumentError):
             document_store.write_documents(docs, DuplicatePolicy.FAIL)
+
+    def test_write_documents_readonly(self, document_store_readonly: OpenSearchDocumentStore):
+        docs = [Document(id="1")]
+        with pytest.raises(DocumentStoreError, match="index_not_found_exception"):
+            document_store_readonly.write_documents(docs)
+
+    def test_create_index(self, document_store_readonly: OpenSearchDocumentStore):
+        document_store_readonly.create_index()
+        assert document_store_readonly.client.indices.exists(index=document_store_readonly._index)
 
     def test_bm25_retrieval(self, document_store: OpenSearchDocumentStore):
         document_store.write_documents(
@@ -292,6 +336,227 @@ class TestDocumentStore(DocumentStoreBaseTests):
         assert "functional" in res[1].content
         assert "functional" in res[2].content
 
+    def test_bm25_retrieval_with_filters(self, document_store: OpenSearchDocumentStore):
+        document_store.write_documents(
+            [
+                Document(
+                    content="Haskell is a functional programming language",
+                    meta={"likes": 100000, "language_type": "functional"},
+                    id="1",
+                ),
+                Document(
+                    content="Lisp is a functional programming language",
+                    meta={"likes": 10000, "language_type": "functional"},
+                    id="2",
+                ),
+                Document(
+                    content="Exilir is a functional programming language",
+                    meta={"likes": 1000, "language_type": "functional"},
+                    id="3",
+                ),
+                Document(
+                    content="F# is a functional programming language",
+                    meta={"likes": 100, "language_type": "functional"},
+                    id="4",
+                ),
+                Document(
+                    content="C# is a functional programming language",
+                    meta={"likes": 10, "language_type": "functional"},
+                    id="5",
+                ),
+                Document(
+                    content="C++ is an object oriented programming language",
+                    meta={"likes": 100000, "language_type": "object_oriented"},
+                    id="6",
+                ),
+                Document(
+                    content="Dart is an object oriented programming language",
+                    meta={"likes": 10000, "language_type": "object_oriented"},
+                    id="7",
+                ),
+                Document(
+                    content="Go is an object oriented programming language",
+                    meta={"likes": 1000, "language_type": "object_oriented"},
+                    id="8",
+                ),
+                Document(
+                    content="Python is a object oriented programming language",
+                    meta={"likes": 100, "language_type": "object_oriented"},
+                    id="9",
+                ),
+                Document(
+                    content="Ruby is a object oriented programming language",
+                    meta={"likes": 10, "language_type": "object_oriented"},
+                    id="10",
+                ),
+                Document(
+                    content="PHP is a object oriented programming language",
+                    meta={"likes": 1, "language_type": "object_oriented"},
+                    id="11",
+                ),
+            ]
+        )
+
+        res = document_store._bm25_retrieval(
+            "programming",
+            top_k=10,
+            filters={"field": "language_type", "operator": "==", "value": "functional"},
+        )
+        assert len(res) == 5
+        retrieved_ids = sorted([doc.id for doc in res])
+        assert retrieved_ids == ["1", "2", "3", "4", "5"]
+
+    def test_bm25_retrieval_with_legacy_filters(self, document_store: OpenSearchDocumentStore):
+        document_store.write_documents(
+            [
+                Document(
+                    content="Haskell is a functional programming language",
+                    meta={"likes": 100000, "language_type": "functional"},
+                    id="1",
+                ),
+                Document(
+                    content="Lisp is a functional programming language",
+                    meta={"likes": 10000, "language_type": "functional"},
+                    id="2",
+                ),
+                Document(
+                    content="Exilir is a functional programming language",
+                    meta={"likes": 1000, "language_type": "functional"},
+                    id="3",
+                ),
+                Document(
+                    content="F# is a functional programming language",
+                    meta={"likes": 100, "language_type": "functional"},
+                    id="4",
+                ),
+                Document(
+                    content="C# is a functional programming language",
+                    meta={"likes": 10, "language_type": "functional"},
+                    id="5",
+                ),
+                Document(
+                    content="C++ is an object oriented programming language",
+                    meta={"likes": 100000, "language_type": "object_oriented"},
+                    id="6",
+                ),
+                Document(
+                    content="Dart is an object oriented programming language",
+                    meta={"likes": 10000, "language_type": "object_oriented"},
+                    id="7",
+                ),
+                Document(
+                    content="Go is an object oriented programming language",
+                    meta={"likes": 1000, "language_type": "object_oriented"},
+                    id="8",
+                ),
+                Document(
+                    content="Python is a object oriented programming language",
+                    meta={"likes": 100, "language_type": "object_oriented"},
+                    id="9",
+                ),
+                Document(
+                    content="Ruby is a object oriented programming language",
+                    meta={"likes": 10, "language_type": "object_oriented"},
+                    id="10",
+                ),
+                Document(
+                    content="PHP is a object oriented programming language",
+                    meta={"likes": 1, "language_type": "object_oriented"},
+                    id="11",
+                ),
+            ]
+        )
+
+        res = document_store._bm25_retrieval(
+            "programming",
+            top_k=10,
+            filters={"language_type": "functional"},
+        )
+        assert len(res) == 5
+        retrieved_ids = sorted([doc.id for doc in res])
+        assert retrieved_ids == ["1", "2", "3", "4", "5"]
+
+    def test_bm25_retrieval_with_custom_query(self, document_store: OpenSearchDocumentStore):
+        document_store.write_documents(
+            [
+                Document(
+                    content="Haskell is a functional programming language",
+                    meta={"likes": 100000, "language_type": "functional"},
+                    id="1",
+                ),
+                Document(
+                    content="Lisp is a functional programming language",
+                    meta={"likes": 10000, "language_type": "functional"},
+                    id="2",
+                ),
+                Document(
+                    content="Exilir is a functional programming language",
+                    meta={"likes": 1000, "language_type": "functional"},
+                    id="3",
+                ),
+                Document(
+                    content="F# is a functional programming language",
+                    meta={"likes": 100, "language_type": "functional"},
+                    id="4",
+                ),
+                Document(
+                    content="C# is a functional programming language",
+                    meta={"likes": 10, "language_type": "functional"},
+                    id="5",
+                ),
+                Document(
+                    content="C++ is an object oriented programming language",
+                    meta={"likes": 100000, "language_type": "object_oriented"},
+                    id="6",
+                ),
+                Document(
+                    content="Dart is an object oriented programming language",
+                    meta={"likes": 10000, "language_type": "object_oriented"},
+                    id="7",
+                ),
+                Document(
+                    content="Go is an object oriented programming language",
+                    meta={"likes": 1000, "language_type": "object_oriented"},
+                    id="8",
+                ),
+                Document(
+                    content="Python is a object oriented programming language",
+                    meta={"likes": 100, "language_type": "object_oriented"},
+                    id="9",
+                ),
+                Document(
+                    content="Ruby is a object oriented programming language",
+                    meta={"likes": 10, "language_type": "object_oriented"},
+                    id="10",
+                ),
+                Document(
+                    content="PHP is a object oriented programming language",
+                    meta={"likes": 1, "language_type": "object_oriented"},
+                    id="11",
+                ),
+            ]
+        )
+
+        custom_query = {
+            "query": {
+                "function_score": {
+                    "query": {"bool": {"must": {"match": {"content": "$query"}}, "filter": "$filters"}},
+                    "field_value_factor": {"field": "likes", "factor": 0.1, "modifier": "log1p", "missing": 0},
+                }
+            }
+        }
+
+        res = document_store._bm25_retrieval(
+            "functional",
+            top_k=3,
+            custom_query=custom_query,
+            filters={"field": "language_type", "operator": "==", "value": "functional"},
+        )
+        assert len(res) == 3
+        assert "1" == res[0].id
+        assert "2" == res[1].id
+        assert "3" == res[2].id
+
     def test_embedding_retrieval(self, document_store_embedding_dim_4: OpenSearchDocumentStore):
         docs = [
             Document(content="Most similar document", embedding=[1.0, 1.0, 1.0, 1.0]),
@@ -327,6 +592,27 @@ class TestDocumentStore(DocumentStoreBaseTests):
         assert len(results) == 1
         assert results[0].content == "Not very similar document with meta field"
 
+    def test_embedding_retrieval_with_legacy_filters(self, document_store_embedding_dim_4: OpenSearchDocumentStore):
+        docs = [
+            Document(content="Most similar document", embedding=[1.0, 1.0, 1.0, 1.0]),
+            Document(content="2nd best document", embedding=[0.8, 0.8, 0.8, 1.0]),
+            Document(
+                content="Not very similar document with meta field",
+                embedding=[0.0, 0.8, 0.3, 0.9],
+                meta={"meta_field": "custom_value"},
+            ),
+        ]
+        document_store_embedding_dim_4.write_documents(docs)
+
+        filters = {"meta_field": "custom_value"}
+        # we set top_k=3, to make the test pass as we are not sure whether efficient filtering is supported for nmslib
+        # TODO: remove top_k=3, when efficient filtering is supported for nmslib
+        results = document_store_embedding_dim_4._embedding_retrieval(
+            query_embedding=[0.1, 0.1, 0.1, 0.1], top_k=3, filters=filters
+        )
+        assert len(results) == 1
+        assert results[0].content == "Not very similar document with meta field"
+
     def test_embedding_retrieval_pagination(self, document_store_embedding_dim_4: OpenSearchDocumentStore):
         """
         Test that handling of pagination works as expected, when the matching documents are > 10.
@@ -342,6 +628,31 @@ class TestDocumentStore(DocumentStoreBaseTests):
             query_embedding=[0.1, 0.1, 0.1, 0.1], top_k=11, filters={}
         )
         assert len(results) == 11
+
+    def test_embedding_retrieval_with_custom_query(self, document_store_embedding_dim_4: OpenSearchDocumentStore):
+        docs = [
+            Document(content="Most similar document", embedding=[1.0, 1.0, 1.0, 1.0]),
+            Document(content="2nd best document", embedding=[0.8, 0.8, 0.8, 1.0]),
+            Document(
+                content="Not very similar document with meta field",
+                embedding=[0.0, 0.8, 0.3, 0.9],
+                meta={"meta_field": "custom_value"},
+            ),
+        ]
+        document_store_embedding_dim_4.write_documents(docs)
+
+        custom_query = {
+            "query": {
+                "bool": {"must": [{"knn": {"embedding": {"vector": "$query_embedding", "k": 3}}}], "filter": "$filters"}
+            }
+        }
+
+        filters = {"field": "meta_field", "operator": "==", "value": "custom_value"}
+        results = document_store_embedding_dim_4._embedding_retrieval(
+            query_embedding=[0.1, 0.1, 0.1, 0.1], top_k=1, filters=filters, custom_query=custom_query
+        )
+        assert len(results) == 1
+        assert results[0].content == "Not very similar document with meta field"
 
     def test_embedding_retrieval_query_documents_different_embedding_sizes(
         self, document_store_embedding_dim_4: OpenSearchDocumentStore

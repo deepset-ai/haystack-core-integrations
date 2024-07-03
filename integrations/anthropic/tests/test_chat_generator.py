@@ -23,7 +23,7 @@ class TestAnthropicChatGenerator:
         monkeypatch.setenv("ANTHROPIC_API_KEY", "test-api-key")
         component = AnthropicChatGenerator()
         assert component.client.api_key == "test-api-key"
-        assert component.model == "claude-3-sonnet-20240229"
+        assert component.model == "claude-3-5-sonnet-20240620"
         assert component.streaming_callback is None
         assert not component.generation_kwargs
         assert component.ignore_tools_thinking_messages
@@ -36,13 +36,13 @@ class TestAnthropicChatGenerator:
     def test_init_with_parameters(self):
         component = AnthropicChatGenerator(
             api_key=Secret.from_token("test-api-key"),
-            model="claude-3-sonnet-20240229",
+            model="claude-3-5-sonnet-20240620",
             streaming_callback=print_streaming_chunk,
             generation_kwargs={"max_tokens": 10, "some_test_param": "test-params"},
             ignore_tools_thinking_messages=False,
         )
         assert component.client.api_key == "test-api-key"
-        assert component.model == "claude-3-sonnet-20240229"
+        assert component.model == "claude-3-5-sonnet-20240620"
         assert component.streaming_callback is print_streaming_chunk
         assert component.generation_kwargs == {"max_tokens": 10, "some_test_param": "test-params"}
         assert component.ignore_tools_thinking_messages is False
@@ -55,7 +55,7 @@ class TestAnthropicChatGenerator:
             "type": "haystack_integrations.components.generators.anthropic.chat.chat_generator.AnthropicChatGenerator",
             "init_parameters": {
                 "api_key": {"env_vars": ["ANTHROPIC_API_KEY"], "strict": True, "type": "env_var"},
-                "model": "claude-3-sonnet-20240229",
+                "model": "claude-3-5-sonnet-20240620",
                 "streaming_callback": None,
                 "generation_kwargs": {},
                 "ignore_tools_thinking_messages": True,
@@ -74,7 +74,7 @@ class TestAnthropicChatGenerator:
             "type": "haystack_integrations.components.generators.anthropic.chat.chat_generator.AnthropicChatGenerator",
             "init_parameters": {
                 "api_key": {"env_vars": ["ENV_VAR"], "strict": True, "type": "env_var"},
-                "model": "claude-3-sonnet-20240229",
+                "model": "claude-3-5-sonnet-20240620",
                 "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
                 "generation_kwargs": {"max_tokens": 10, "some_test_param": "test-params"},
                 "ignore_tools_thinking_messages": True,
@@ -84,7 +84,7 @@ class TestAnthropicChatGenerator:
     def test_to_dict_with_lambda_streaming_callback(self, monkeypatch):
         monkeypatch.setenv("ANTHROPIC_API_KEY", "test-api-key")
         component = AnthropicChatGenerator(
-            model="claude-3-sonnet-20240229",
+            model="claude-3-5-sonnet-20240620",
             streaming_callback=lambda x: x,
             generation_kwargs={"max_tokens": 10, "some_test_param": "test-params"},
         )
@@ -93,7 +93,7 @@ class TestAnthropicChatGenerator:
             "type": "haystack_integrations.components.generators.anthropic.chat.chat_generator.AnthropicChatGenerator",
             "init_parameters": {
                 "api_key": {"env_vars": ["ANTHROPIC_API_KEY"], "strict": True, "type": "env_var"},
-                "model": "claude-3-sonnet-20240229",
+                "model": "claude-3-5-sonnet-20240620",
                 "streaming_callback": "tests.test_chat_generator.<lambda>",
                 "generation_kwargs": {"max_tokens": 10, "some_test_param": "test-params"},
                 "ignore_tools_thinking_messages": True,
@@ -106,14 +106,14 @@ class TestAnthropicChatGenerator:
             "type": "haystack_integrations.components.generators.anthropic.chat.chat_generator.AnthropicChatGenerator",
             "init_parameters": {
                 "api_key": {"env_vars": ["ANTHROPIC_API_KEY"], "strict": True, "type": "env_var"},
-                "model": "claude-3-sonnet-20240229",
+                "model": "claude-3-5-sonnet-20240620",
                 "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
                 "generation_kwargs": {"max_tokens": 10, "some_test_param": "test-params"},
                 "ignore_tools_thinking_messages": True,
             },
         }
         component = AnthropicChatGenerator.from_dict(data)
-        assert component.model == "claude-3-sonnet-20240229"
+        assert component.model == "claude-3-5-sonnet-20240620"
         assert component.streaming_callback is print_streaming_chunk
         assert component.generation_kwargs == {"max_tokens": 10, "some_test_param": "test-params"}
         assert component.api_key == Secret.from_env_var("ANTHROPIC_API_KEY")
@@ -124,7 +124,7 @@ class TestAnthropicChatGenerator:
             "type": "haystack_integrations.components.generators.anthropic.chat.chat_generator.AnthropicChatGenerator",
             "init_parameters": {
                 "api_key": {"env_vars": ["ANTHROPIC_API_KEY"], "strict": True, "type": "env_var"},
-                "model": "claude-3-sonnet-20240229",
+                "model": "claude-3-5-sonnet-20240620",
                 "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
                 "generation_kwargs": {"max_tokens": 10, "some_test_param": "test-params"},
                 "ignore_tools_thinking_messages": True,
