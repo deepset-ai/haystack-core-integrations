@@ -7,7 +7,6 @@ from typing import Any, Dict, List, Optional
 from haystack import Document, component, default_from_dict, default_to_dict
 from haystack.document_stores.types import FilterPolicy
 from haystack.document_stores.types.filter_policy import apply_filter_policy
-
 from haystack_integrations.document_stores.weaviate import WeaviateDocumentStore
 
 
@@ -33,7 +32,7 @@ class WeaviateBM25Retriever:
         document_store: WeaviateDocumentStore,
         filters: Optional[Dict[str, Any]] = None,
         top_k: int = 10,
-        filter_policy: Optional[FilterPolicy] = FilterPolicy.REPLACE
+        filter_policy: Optional[FilterPolicy] = FilterPolicy.REPLACE,
     ):
         """
         Create a new instance of WeaviateBM25Retriever.
