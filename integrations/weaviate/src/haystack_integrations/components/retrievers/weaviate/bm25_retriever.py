@@ -61,7 +61,7 @@ class WeaviateBM25Retriever:
             self,
             filters=self._filters,
             top_k=self._top_k,
-            filter_policy=self._filter_policy,
+            filter_policy=self._filter_policy.value if self._filter_policy else None,
             document_store=self._document_store.to_dict(),
         )
 
@@ -78,6 +78,8 @@ class WeaviateBM25Retriever:
         data["init_parameters"]["document_store"] = WeaviateDocumentStore.from_dict(
             data["init_parameters"]["document_store"]
         )
+        if "filter_policy" in data["init_parameters"]:
+            data["init_parameters"]["filter_policy"] = FilterPolicy.from_str(data["init_parameters"]["filter_policy"])
         return default_from_dict(cls, data)
 
     @component.output_types(documents=List[Document])
