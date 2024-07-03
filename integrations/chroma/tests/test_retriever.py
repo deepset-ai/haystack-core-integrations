@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 import pytest
+from haystack.document_stores.types import FilterPolicy
 from haystack_integrations.components.retrievers.chroma import ChromaQueryTextRetriever
 from haystack_integrations.document_stores.chroma import ChromaDocumentStore
 
@@ -59,4 +60,4 @@ def test_retriever_from_json(request):
     assert retriever.document_store._persist_path == "."
     assert retriever.filters == {"bar": "baz"}
     assert retriever.top_k == 42
-    assert retriever.filter_policy == "replace"
+    assert retriever.filter_policy == FilterPolicy.REPLACE
