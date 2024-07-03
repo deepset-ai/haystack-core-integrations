@@ -55,7 +55,6 @@ jobs:
         run: hatch run lint:all
 
       - name: Run tests
-        id: tests
         run: hatch run cov
 
       - name: Generate docs
@@ -64,7 +63,6 @@ jobs:
 
       - name: Nightly - run unit tests with Haystack main branch
         if: github.event_name == 'schedule'
-        id: nightly-haystack-main
         run: |
           hatch run pip install git+https://github.com/deepset-ai/haystack.git
           hatch run test -m "not integration"
@@ -74,7 +72,5 @@ jobs:
         uses: ./.github/actions/send_failure
         with:
           title: |
-            core-integrations failure:
-            ${{ (steps.tests.conclusion == 'nightly-haystack-main') && 'nightly-haystack-main' || 'tests' }}
-             - ${{ github.workflow }}
+            Core integrations nightly tests failure: ${{ github.workflow }}
           api-key: ${{ secrets.CORE_DATADOG_API_KEY }}

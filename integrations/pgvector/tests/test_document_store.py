@@ -53,7 +53,9 @@ def test_init(monkeypatch):
         search_strategy="hnsw",
         hnsw_recreate_index_if_exists=True,
         hnsw_index_creation_kwargs={"m": 32, "ef_construction": 128},
+        hnsw_index_name="my_hnsw_index",
         hnsw_ef_search=50,
+        keyword_index_name="my_keyword_index",
     )
 
     assert document_store.table_name == "my_table"
@@ -63,7 +65,9 @@ def test_init(monkeypatch):
     assert document_store.search_strategy == "hnsw"
     assert document_store.hnsw_recreate_index_if_exists
     assert document_store.hnsw_index_creation_kwargs == {"m": 32, "ef_construction": 128}
+    assert document_store.hnsw_index_name == "my_hnsw_index"
     assert document_store.hnsw_ef_search == 50
+    assert document_store.keyword_index_name == "my_keyword_index"
 
 
 @pytest.mark.usefixtures("patches_for_unit_tests")
@@ -78,7 +82,9 @@ def test_to_dict(monkeypatch):
         search_strategy="hnsw",
         hnsw_recreate_index_if_exists=True,
         hnsw_index_creation_kwargs={"m": 32, "ef_construction": 128},
+        hnsw_index_name="my_hnsw_index",
         hnsw_ef_search=50,
+        keyword_index_name="my_keyword_index",
     )
 
     assert document_store.to_dict() == {
@@ -93,7 +99,9 @@ def test_to_dict(monkeypatch):
             "hnsw_recreate_index_if_exists": True,
             "language": "english",
             "hnsw_index_creation_kwargs": {"m": 32, "ef_construction": 128},
+            "hnsw_index_name": "my_hnsw_index",
             "hnsw_ef_search": 50,
+            "keyword_index_name": "my_keyword_index",
         },
     }
 

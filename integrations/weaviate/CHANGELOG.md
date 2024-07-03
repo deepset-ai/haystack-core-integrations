@@ -1,5 +1,16 @@
 # Changelog
 
+## [unreleased]
+
+### 🐛 Bug Fixes
+
+- Weaviate filter error (#811)
+- Fix connection to Weaviate Cloud Service (#624)
+
+### ⚙️ Miscellaneous Tasks
+
+- Retry tests to reduce flakyness (#836)
+
 ## [integrations/weaviate-v2.1.0] - 2024-06-10
 
 ### 🚀 Features
