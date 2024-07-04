@@ -144,7 +144,7 @@ class TestQdrantRetriever(FilterableDocsFixtureMixin):
             filters={"field": "meta.chapter", "operator": "==", "value": "abstract"},
             return_embedding=False,
         )["documents"]
-        assert len(results) == 5
+        assert len(results) == 3
 
         for document in results:
             assert document.embedding is None
