@@ -3,7 +3,6 @@ from typing import List, Optional, Union
 
 from haystack.utils.filters import COMPARISON_OPERATORS, LOGICAL_OPERATORS, FilterError
 from qdrant_client.http import models
-
 from .converters import convert_id
 
 COMPARISON_OPERATORS = COMPARISON_OPERATORS.keys()
@@ -11,7 +10,7 @@ LOGICAL_OPERATORS = LOGICAL_OPERATORS.keys()
 
 
 def convert_filters_to_qdrant(
-    filter_term: Optional[Union[List[dict], dict, models.Filter]] = None, current_operator: str = "AND", is_parent_call: bool = True
+    filter_term: Optional[Union[List[dict], dict, models.Filter]] = None,  is_parent_call: bool = True
 ) -> Optional[models.Filter]:
     """Converts Haystack filters to the format used by Qdrant."""
 
@@ -21,13 +20,19 @@ def convert_filters_to_qdrant(
         return None
 
     must_clauses, should_clauses, must_not_clauses = [], [], []
+    flag = False
     conditions = []
     final_filters = []
+    level = []
     if isinstance(filter_term, dict):
         filter_term = [filter_term]
     for item in filter_term:
         
         operator = item.get("operator")
+        if operator in level and operator in LOGICAL_OPERATORS:
+            flag = True
+        else:
+            level.append(operator)
         if operator is None:
             msg = "Operator not found in filters"
             raise FilterError(msg)
@@ -37,11 +42,18 @@ def convert_filters_to_qdrant(
             raise FilterError(msg)
 
         if operator == "AND":
-            must_clauses.extend(convert_filters_to_qdrant(item.get("conditions", []), current_operator=operator, is_parent_call=False))
+            res = convert_filters_to_qdrant(item.get("conditions", []), is_parent_call=False)
+            if flag:
+                temp = must_clauses
+                must_clauses = []
+                must_clauses.append(temp)
+                must_clauses.append(res)
+            else:
+                must_clauses.extend(convert_filters_to_qdrant(item.get("conditions", []), is_parent_call=False))
         elif operator == "OR":
-            should_clauses.extend(convert_filters_to_qdrant(item.get("conditions", []), current_operator=operator, is_parent_call=False))
+            should_clauses.extend(convert_filters_to_qdrant(item.get("conditions", []),  is_parent_call=False))
         elif operator == "NOT":
-            must_not_clauses.extend(convert_filters_to_qdrant(item.get("conditions", []), current_operator=operator, is_parent_call=False))
+            must_not_clauses.extend(convert_filters_to_qdrant(item.get("conditions", []),  is_parent_call=False))
         elif operator in COMPARISON_OPERATORS:
             field = item.get("field")
             value = item.get("value")
@@ -60,13 +72,24 @@ def convert_filters_to_qdrant(
             msg = f"Unknown operator {operator} used in filters"
             raise FilterError(msg)
     
-
+    payload_filter = []  
+    if flag:
+        if any(isinstance(i, list) for i in must_clauses):
+            for i in must_clauses:
+                payload_filter = models.Filter(
+                must=i or None,
+                should=should_clauses or None,
+                must_not=must_not_clauses or None,
+            )
+                final_filters.append(payload_filter)
+            
+        if not is_parent_call:
+            return final_filters
     
     payload_filter = models.Filter(
-            must=must_clauses or None,
-            should=should_clauses or None,
-            must_not=must_not_clauses or None,
-        )
+                must=must_clauses or None,
+                should=should_clauses or None,
+                must_not=must_not_clauses or None,)
     if is_parent_call:
         if conditions:
             must_clauses.extend(conditions)
