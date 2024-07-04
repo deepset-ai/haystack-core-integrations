@@ -23,7 +23,7 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
 dependencies = [
-  "haystack-ai==2.2.4rc1",
+  "haystack-ai",
   "pinecone-client>=3", # our implementation is not compatible with pinecone-client <3
 ]
 
