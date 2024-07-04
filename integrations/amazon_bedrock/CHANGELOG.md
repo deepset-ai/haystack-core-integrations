@@ -5,6 +5,7 @@
 ### 🚀 Features
 
 - Use non-gated tokenizer as fallback for mistral in AmazonBedrockChatGenerator (#843)
+- Made truncation optional for BedrockGenerator (#833)
 
 ### ⚙️ Miscellaneous Tasks
 

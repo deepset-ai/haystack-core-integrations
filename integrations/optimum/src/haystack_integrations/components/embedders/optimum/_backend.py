@@ -173,7 +173,7 @@ class _EmbedderBackend:
         tokenizer_outputs = self.tokenizer(texts, padding=True, truncation=True, return_tensors="pt").to(
             self.model.device
         )
-        model_inputs = {k: v for k, v in tokenizer_outputs.items() if k in self.model.inputs_names}
+        model_inputs = {k: v for k, v in tokenizer_outputs.items() if k in self.model.input_names}
         model_outputs = self.model(**model_inputs)
         return tokenizer_outputs, model_outputs
 
