@@ -23,7 +23,7 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
-dependencies = ["haystack-ai==2.2.4rc1", "pymongo[srv]"]
+dependencies = ["haystack-ai", "pymongo[srv]"]
 
 [project.urls]
 Source = "https://github.com/deepset-ai/haystack-core-integrations"
