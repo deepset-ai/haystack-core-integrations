@@ -52,7 +52,7 @@ def _convert_filters(filters: Optional[Dict[str, Any]] = None) -> Optional[Dict[
 # TODO consider other operators, or filters that are not with the same structure as field operator value
 OPERATORS = {
     "==": "$eq",
-    "!=": "$neq",
+    "!=": "$ne",
     ">": "$gt",
     ">=": "$gte",
     "<": "$lt",
