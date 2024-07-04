@@ -22,7 +22,7 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
-dependencies = ["haystack-ai==2.2.4rc1", "chromadb>=0.5.0", "typing_extensions>=4.8.0"]
+dependencies = ["haystack-ai", "chromadb>=0.5.0", "typing_extensions>=4.8.0"]
 
 [project.urls]
 Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/chroma#readme"
