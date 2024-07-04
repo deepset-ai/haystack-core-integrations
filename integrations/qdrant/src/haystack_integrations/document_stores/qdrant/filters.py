@@ -1,34 +1,28 @@
 from datetime import datetime
-from typing import List, Optional, Union, Dict
+from typing import List, Optional, Union
 
 from haystack.utils.filters import COMPARISON_OPERATORS, LOGICAL_OPERATORS, FilterError
 from qdrant_client.http import models
-from qdrant_client.http.models import Filter, FieldCondition, MatchText, Range
-
 
 from .converters import convert_id
 
 COMPARISON_OPERATORS = COMPARISON_OPERATORS.keys()
 LOGICAL_OPERATORS = LOGICAL_OPERATORS.keys()
-count = 1
 
- 
-    
-    
+
 def convert_filters_to_qdrant(
-    filter_term: Optional[Union[List[dict], dict, models.Filter]] = None,
-    current_operator: str = "AND"
+    filter_term: Optional[Union[List[dict], dict, models.Filter]] = None, current_operator: str = "AND", is_parent_call: bool = True
 ) -> Optional[models.Filter]:
     """Converts Haystack filters to the format used by Qdrant."""
-    
-    global count
+
     if isinstance(filter_term, models.Filter):
         return filter_term
     if not filter_term:
         return None
-   
 
     must_clauses, should_clauses, must_not_clauses = [], [], []
+    conditions = []
+    final_filters = []
     if isinstance(filter_term, dict):
         filter_term = [filter_term]
     for item in filter_term:
@@ -37,48 +31,65 @@ def convert_filters_to_qdrant(
         if operator is None:
             msg = "Operator not found in filters"
             raise FilterError(msg)
-        
+
         if operator in LOGICAL_OPERATORS and "conditions" not in item:
             msg = f"'conditions' not found for '{operator}'"
             raise FilterError(msg)
 
-        
         if operator == "AND":
-            must_clauses.append(convert_filters_to_qdrant(item.get("conditions", []), current_operator= operator))
+            must_clauses.extend(convert_filters_to_qdrant(item.get("conditions", []), current_operator=operator, is_parent_call=False))
         elif operator == "OR":
-            should_clauses.append(convert_filters_to_qdrant(item.get("conditions", []), current_operator= operator))
+            should_clauses.extend(convert_filters_to_qdrant(item.get("conditions", []), current_operator=operator, is_parent_call=False))
         elif operator == "NOT":
-            must_not_clauses.append(convert_filters_to_qdrant(item.get("conditions", []), current_operator= operator))
+            must_not_clauses.extend(convert_filters_to_qdrant(item.get("conditions", []), current_operator=operator, is_parent_call=False))
         elif operator in COMPARISON_OPERATORS:
             field = item.get("field")
             value = item.get("value")
             if field is None or value is None:
                 msg = f"'field' or 'value' not found for '{operator}'"
                 raise FilterError(msg)
+
+            parsed_conditions = _parse_comparison_operation(comparison_operation=operator, key=field, value=value)
+            if len(parsed_conditions) == 1 and isinstance(parsed_conditions[0], models.Filter):
+                final_filters.extend (parsed_conditions)
+                continue
+            else:
+                conditions.extend(parsed_conditions)
             
-            parsed_conditions= (_parse_comparison_operation(comparison_operation=operator, key=field, value=value))
-            #if operator in ["!=", "not in"]:
-                #must_not_clauses.extend(parsed_conditions)
-            #else:
-            
-            if current_operator == "OR":
-                should_clauses.extend(parsed_conditions)
-            else:    
-                must_clauses.extend(parsed_conditions)
         else:
             msg = f"Unknown operator {operator} used in filters"
             raise FilterError(msg)
-  
+    
+
+    
     payload_filter = models.Filter(
-        must=must_clauses or None,
-        should=should_clauses or None,
-        must_not=must_not_clauses or None,
-    )
-    filter_result = _squeeze_filter(payload_filter)
-    print ("Loop " + str(count))
-    count += 1
-    print (filter_result)
-    return filter_result
+            must=must_clauses or None,
+            should=should_clauses or None,
+            must_not=must_not_clauses or None,
+        )
+    if is_parent_call:
+        if conditions:
+            must_clauses.extend(conditions)
+        payload_filter = models.Filter(
+            must=must_clauses or None,
+            should=should_clauses or None,
+            must_not=must_not_clauses or None,
+        )
+        if len(final_filters) == 1:
+            print(final_filters)
+            return final_filters[0]
+        else:
+            print(payload_filter)
+            return payload_filter
+    elif conditions:
+        final_filters.extend(conditions)
+    #elif not conditions:
+        #final_filters.append(payload_filter)
+    
+    if must_clauses or should_clauses or must_not_clauses:
+        final_filters.append(payload_filter)
+   
+    return final_filters
 
 
 def _parse_comparison_operation(
@@ -110,7 +121,7 @@ def _parse_comparison_operation(
 
 def _build_eq_condition(key: str, value: models.ValueVariants) -> models.Condition:
     if isinstance(value, str) and " " in value:
-        models.FieldCondition(key=key, match=models.MatchText(text=value))
+        return models.FieldCondition(key=key, match=models.MatchText(text=value))
     return models.FieldCondition(key=key, match=models.MatchValue(value=value))
 
 
@@ -118,15 +129,16 @@ def _build_in_condition(key: str, value: List[models.ValueVariants]) -> models.C
     if not isinstance(value, list):
         msg = f"Value {value} is not a list"
         raise FilterError(msg)
-    return models.Filter(should=[
+    return models.Filter(
+        should=[
             (
                 models.FieldCondition(key=key, match=models.MatchText(text=item))
                 if isinstance(item, str) and " " not in item
                 else models.FieldCondition(key=key, match=models.MatchValue(value=item))
             )
             for item in value
-        ])
-    
+        ]
+    )
 
 
 def _build_ne_condition(key: str, value: models.ValueVariants) -> models.Condition:
@@ -134,7 +146,7 @@ def _build_ne_condition(key: str, value: models.ValueVariants) -> models.Conditi
         must_not=[
             (
                 models.FieldCondition(key=key, match=models.MatchText(text=value))
-                if isinstance(value, str) and " " not in value
+                if isinstance(value, str) and " " in value
                 else models.FieldCondition(key=key, match=models.MatchValue(value=value))
             )
         ]
@@ -226,7 +238,6 @@ def _squeeze_filter(payload_filter: models.Filter) -> models.Filter:
 
     total_clauses = sum(len(x) for x in filter_parts.values() if x is not None)
     if total_clauses == 0 or total_clauses > 1:
-        
         return payload_filter
 
     # Payload filter has just a single clause provided (either must, should
@@ -244,8 +255,7 @@ def _squeeze_filter(payload_filter: models.Filter) -> models.Filter:
 
         #if subfilter.must:
             #return models.Filter(**{part_name: subfilter.must})
-
-    
+        
 
     return payload_filter
 
