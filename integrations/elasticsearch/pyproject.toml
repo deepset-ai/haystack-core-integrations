@@ -22,7 +22,7 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
-dependencies = ["haystack-ai==2.2.4rc1", "elasticsearch>=8,<9"]
+dependencies = ["haystack-ai", "elasticsearch>=8,<9"]
 
 [project.urls]
 Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/elasticsearch#readme"
