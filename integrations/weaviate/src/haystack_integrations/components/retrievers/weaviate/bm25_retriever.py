@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 from haystack import Document, component, default_from_dict, default_to_dict
 from haystack.document_stores.types import FilterPolicy
@@ -32,7 +32,7 @@ class WeaviateBM25Retriever:
         document_store: WeaviateDocumentStore,
         filters: Optional[Dict[str, Any]] = None,
         top_k: int = 10,
-        filter_policy: Optional[FilterPolicy] = FilterPolicy.REPLACE,
+        filter_policy: Optional[Union[str, FilterPolicy]] = FilterPolicy.REPLACE,
     ):
         """
         Create a new instance of WeaviateBM25Retriever.
@@ -48,7 +48,9 @@ class WeaviateBM25Retriever:
         self._document_store = document_store
         self._filters = filters or {}
         self._top_k = top_k
-        self._filter_policy = filter_policy
+        self._filter_policy = (
+            filter_policy if isinstance(filter_policy, FilterPolicy) else FilterPolicy.from_str(filter_policy)
+        )
 
     def to_dict(self) -> Dict[str, Any]:
         """

@@ -20,6 +20,12 @@ def test_init_default():
     assert retriever._distance is None
     assert retriever._certainty is None
 
+    retriever = WeaviateEmbeddingRetriever(document_store=mock_document_store, filter_policy="replace")
+    assert retriever._filter_policy == FilterPolicy.REPLACE
+
+    with pytest.raises(ValueError):
+        WeaviateEmbeddingRetriever(document_store=mock_document_store, filter_policy="keep_all")
+
 
 def test_init_with_distance_and_certainty():
     mock_document_store = Mock(spec=WeaviateDocumentStore)
