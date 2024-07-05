@@ -4,8 +4,6 @@ from typing import List, Optional, Union
 from haystack.utils.filters import COMPARISON_OPERATORS, LOGICAL_OPERATORS, FilterError
 from qdrant_client.http import models
 
-from .converters import convert_id
-
 COMPARISON_OPERATORS = COMPARISON_OPERATORS.keys()
 LOGICAL_OPERATORS = LOGICAL_OPERATORS.keys()
 
@@ -250,52 +248,6 @@ def _build_gte_condition(key: str, value: Union[str, float, int]) -> models.Cond
 
     msg = f"Value {value} is not an int or float or datetime string"
     raise FilterError(msg)
-
-
-def _build_has_id_condition(id_values: List[models.ExtendedPointId]) -> models.HasIdCondition:
-    return models.HasIdCondition(
-        has_id=[
-            # Ids are converted into their internal representation
-            convert_id(item)
-            for item in id_values
-        ]
-    )
-
-
-def _squeeze_filter(payload_filter: models.Filter) -> models.Filter:
-    """
-    Simplify given payload filter, if the nested structure might be unnested.
-    That happens if there is a single clause in that filter.
-    :param payload_filter:
-    :returns:
-    """
-    filter_parts = {
-        "must": payload_filter.must,
-        "should": payload_filter.should,
-        "must_not": payload_filter.must_not,
-    }
-
-    total_clauses = sum(len(x) for x in filter_parts.values() if x is not None)
-    if total_clauses == 0 or total_clauses > 1:
-        return payload_filter
-
-    # Payload filter has just a single clause provided (either must, should
-    # or must_not). If that single clause is also of a models.Filter type,
-    # then it might be returned instead.
-    for filter_part in filter_parts.items():
-        if not filter_part:
-            continue
-
-        subfilter = filter_part[0]
-        if not isinstance(subfilter, models.Filter):
-            # The inner statement is a simple condition like models.FieldCondition
-            # so it cannot be simplified.
-            continue
-
-        # if subfilter.must:
-        # return models.Filter(**{part_name: subfilter.must})
-
-    return payload_filter
 
 
 def is_datetime_string(value: str) -> bool:
