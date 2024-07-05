@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: 2023-present John Doe <jd@example.com>
 #
 # SPDX-License-Identifier: Apache-2.0
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 from haystack import Document, component, default_from_dict, default_to_dict
 from haystack.document_stores.types import FilterPolicy
@@ -48,7 +48,7 @@ class ChromaQueryTextRetriever:
         document_store: ChromaDocumentStore,
         filters: Optional[Dict[str, Any]] = None,
         top_k: int = 10,
-        filter_policy: Optional[FilterPolicy] = FilterPolicy.REPLACE,
+        filter_policy: Optional[Union[str, FilterPolicy]] = FilterPolicy.REPLACE,
     ):
         """
         :param document_store: an instance of `ChromaDocumentStore`.
@@ -59,7 +59,9 @@ class ChromaQueryTextRetriever:
         self.filters = filters or {}
         self.top_k = top_k
         self.document_store = document_store
-        self.filter_policy = filter_policy
+        self.filter_policy = (
+            filter_policy if isinstance(filter_policy, FilterPolicy) else FilterPolicy.from_str(filter_policy)
+        )
 
     @component.output_types(documents=List[Document])
     def run(

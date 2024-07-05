@@ -8,6 +8,19 @@ from haystack_integrations.document_stores.chroma import ChromaDocumentStore
 
 
 @pytest.mark.integration
+def test_retriever_init(request):
+    ds = ChromaDocumentStore(
+        collection_name=request.node.name, embedding_function="HuggingFaceEmbeddingFunction", api_key="1234567890"
+    )
+    retriever = ChromaQueryTextRetriever(ds, filters={"foo": "bar"}, top_k=99, filter_policy="replace")
+    assert retriever.filter_policy == FilterPolicy.REPLACE
+
+    with pytest.raises(ValueError, match="Unknown FilterPolicy"):
+        ChromaQueryTextRetriever(ds, filters={"foo": "bar"}, top_k=99, filter_policy="unknown")
+
+
+
+@pytest.mark.integration
 def test_retriever_to_json(request):
     ds = ChromaDocumentStore(
         collection_name=request.node.name, embedding_function="HuggingFaceEmbeddingFunction", api_key="1234567890"
