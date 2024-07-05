@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 from unittest.mock import Mock, patch
 
+import pytest
 from haystack.dataclasses import Document
 from haystack.document_stores.types import FilterPolicy
 from haystack.utils import Secret
@@ -18,6 +19,12 @@ def test_init_default():
     assert retriever.filters == {}
     assert retriever.top_k == 10
     assert retriever.filter_policy == FilterPolicy.REPLACE
+
+    retriever = PineconeEmbeddingRetriever(document_store=mock_store, filter_policy="replace")
+    assert retriever.filter_policy == FilterPolicy.REPLACE
+
+    with pytest.raises(ValueError):
+        PineconeEmbeddingRetriever(document_store=mock_store, filter_policy="invalid")
 
 
 @patch("haystack_integrations.document_stores.pinecone.document_store.Pinecone")

@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 from haystack import component, default_from_dict, default_to_dict
 from haystack.dataclasses import Document
@@ -57,7 +57,7 @@ class PineconeEmbeddingRetriever:
         document_store: PineconeDocumentStore,
         filters: Optional[Dict[str, Any]] = None,
         top_k: int = 10,
-        filter_policy: Optional[FilterPolicy] = FilterPolicy.REPLACE,
+        filter_policy: Optional[Union[str, FilterPolicy]] = FilterPolicy.REPLACE,
     ):
         """
         :param document_store: The Pinecone Document Store.
@@ -74,7 +74,9 @@ class PineconeEmbeddingRetriever:
         self.document_store = document_store
         self.filters = filters or {}
         self.top_k = top_k
-        self.filter_policy = filter_policy
+        self.filter_policy = (
+            filter_policy if isinstance(filter_policy, FilterPolicy) else FilterPolicy.from_str(filter_policy)
+        )
 
     def to_dict(self) -> Dict[str, Any]:
         """
