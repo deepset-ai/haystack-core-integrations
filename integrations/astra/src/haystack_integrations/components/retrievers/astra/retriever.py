@@ -38,7 +38,7 @@ class AstraEmbeddingRetriever:
         document_store: AstraDocumentStore,
         filters: Optional[Dict[str, Any]] = None,
         top_k: int = 10,
-        filter_policy: Optional[Union[str, FilterPolicy]] = FilterPolicy.REPLACE,
+        filter_policy: Union[str, FilterPolicy] = FilterPolicy.REPLACE,
     ):
         """
         :param document_store: An instance of AstraDocumentStore.
