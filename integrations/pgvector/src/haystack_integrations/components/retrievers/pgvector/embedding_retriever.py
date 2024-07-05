@@ -126,8 +126,7 @@ class PgvectorEmbeddingRetriever:
         """
         doc_store_params = data["init_parameters"]["document_store"]
         data["init_parameters"]["document_store"] = PgvectorDocumentStore.from_dict(doc_store_params)
-        if "filter_policy" in data["init_parameters"]:
-            data["init_parameters"]["filter_policy"] = FilterPolicy.from_str(data["init_parameters"]["filter_policy"])
+        data["init_parameters"]["filter_policy"] = FilterPolicy.from_str(data["init_parameters"]["filter_policy"])
         return default_from_dict(cls, data)
 
     @component.output_types(documents=List[Document])
