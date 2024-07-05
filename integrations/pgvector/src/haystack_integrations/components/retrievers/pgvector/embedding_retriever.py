@@ -64,7 +64,7 @@ class PgvectorEmbeddingRetriever:
         filters: Optional[Dict[str, Any]] = None,
         top_k: int = 10,
         vector_function: Optional[Literal["cosine_similarity", "inner_product", "l2_distance"]] = None,
-        filter_policy: Optional[Union[str, FilterPolicy]] = FilterPolicy.REPLACE,
+        filter_policy: Union[str, FilterPolicy] = FilterPolicy.REPLACE,
     ):
         """
         :param document_store: An instance of `PgvectorDocumentStore`.
