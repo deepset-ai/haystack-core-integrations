@@ -1,10 +1,12 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 from haystack import component, default_from_dict, default_to_dict
 from haystack.dataclasses import Document
+from haystack.document_stores.types import FilterPolicy
+from haystack.document_stores.types.filter_policy import apply_filter_policy
 from haystack_integrations.document_stores.pgvector import PgvectorDocumentStore
 
 
@@ -51,12 +53,13 @@ class PgvectorKeywordRetriever:
         document_store: PgvectorDocumentStore,
         filters: Optional[Dict[str, Any]] = None,
         top_k: int = 10,
+        filter_policy: Union[str, FilterPolicy] = FilterPolicy.REPLACE,
     ):
         """
         :param document_store: An instance of `PgvectorDocumentStore`.
         :param filters: Filters applied to the retrieved Documents.
         :param top_k: Maximum number of Documents to return.
-
+        :param filter_policy: Policy to determine how filters are applied.
         :raises ValueError: If `document_store` is not an instance of `PgvectorDocumentStore`.
         """
         if not isinstance(document_store, PgvectorDocumentStore):
@@ -66,6 +69,9 @@ class PgvectorKeywordRetriever:
         self.document_store = document_store
         self.filters = filters or {}
         self.top_k = top_k
+        self.filter_policy = (
+            filter_policy if isinstance(filter_policy, FilterPolicy) else FilterPolicy.from_str(filter_policy)
+        )
 
     def to_dict(self) -> Dict[str, Any]:
         """
@@ -78,6 +84,7 @@ class PgvectorKeywordRetriever:
             self,
             filters=self.filters,
             top_k=self.top_k,
+            filter_policy=self.filter_policy.value,
             document_store=self.document_store.to_dict(),
         )
 
@@ -93,6 +100,7 @@ class PgvectorKeywordRetriever:
         """
         doc_store_params = data["init_parameters"]["document_store"]
         data["init_parameters"]["document_store"] = PgvectorDocumentStore.from_dict(doc_store_params)
+        data["init_parameters"]["filter_policy"] = FilterPolicy.from_str(data["init_parameters"]["filter_policy"])
         return default_from_dict(cls, data)
 
     @component.output_types(documents=List[Document])
@@ -106,13 +114,16 @@ class PgvectorKeywordRetriever:
         Retrieve documents from the `PgvectorDocumentStore`, based on keywords.
 
         :param query: String to search in `Document`s' content.
-        :param filters: Filters applied to the retrieved Documents.
+        :param filters: Filters applied to the retrieved Documents. The way runtime filters are applied depends on
+                        the `filter_policy` chosen at document store initialization. See init method docstring for more
+                        details.
         :param top_k: Maximum number of Documents to return.
 
         :returns: A dictionary with the following keys:
             - `documents`: List of `Document`s that match the query.
         """
-        filters = filters or self.filters
+        filters = apply_filter_policy(self.filter_policy, self.filters, filters)
+
         top_k = top_k or self.top_k
 
         docs = self.document_store._keyword_retrieval(
