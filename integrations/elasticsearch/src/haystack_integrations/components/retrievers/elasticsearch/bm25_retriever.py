@@ -91,7 +91,7 @@ class ElasticsearchBM25Retriever:
             fuzziness=self._fuzziness,
             top_k=self._top_k,
             scale_score=self._scale_score,
-            filter_policy=self._filter_policy.value if self._filter_policy is not None else None,
+            filter_policy=self._filter_policy.value,
             document_store=self._document_store.to_dict(),
         )
 
