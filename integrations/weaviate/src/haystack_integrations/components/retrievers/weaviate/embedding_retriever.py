@@ -24,7 +24,7 @@ class WeaviateEmbeddingRetriever:
         top_k: int = 10,
         distance: Optional[float] = None,
         certainty: Optional[float] = None,
-        filter_policy: Optional[Union[str, FilterPolicy]] = FilterPolicy.REPLACE,
+        filter_policy: Union[str, FilterPolicy] = FilterPolicy.REPLACE,
     ):
         """
         Creates a new instance of WeaviateEmbeddingRetriever.

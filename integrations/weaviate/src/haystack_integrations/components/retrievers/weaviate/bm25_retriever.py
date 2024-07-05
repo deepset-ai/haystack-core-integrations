@@ -32,7 +32,7 @@ class WeaviateBM25Retriever:
         document_store: WeaviateDocumentStore,
         filters: Optional[Dict[str, Any]] = None,
         top_k: int = 10,
-        filter_policy: Optional[Union[str, FilterPolicy]] = FilterPolicy.REPLACE,
+        filter_policy: Union[str, FilterPolicy] = FilterPolicy.REPLACE,
     ):
         """
         Create a new instance of WeaviateBM25Retriever.
