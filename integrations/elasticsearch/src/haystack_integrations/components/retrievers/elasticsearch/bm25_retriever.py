@@ -1,10 +1,12 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 from haystack import component, default_from_dict, default_to_dict
 from haystack.dataclasses import Document
+from haystack.document_stores.types import FilterPolicy
+from haystack.document_stores.types.filter_policy import apply_filter_policy
 from haystack_integrations.document_stores.elasticsearch.document_store import ElasticsearchDocumentStore
 
 
@@ -48,6 +50,7 @@ class ElasticsearchBM25Retriever:
         fuzziness: str = "AUTO",
         top_k: int = 10,
         scale_score: bool = False,
+        filter_policy: Union[str, FilterPolicy] = FilterPolicy.REPLACE,
     ):
         """
         Initialize ElasticsearchBM25Retriever with an instance ElasticsearchDocumentStore.
@@ -60,6 +63,7 @@ class ElasticsearchBM25Retriever:
             for more details.
         :param top_k: Maximum number of Documents to return.
         :param scale_score: If `True` scales the Document`s scores between 0 and 1.
+        :param filter_policy: Policy to determine how filters are applied.
         :raises ValueError: If `document_store` is not an instance of `ElasticsearchDocumentStore`.
         """
 
@@ -72,6 +76,7 @@ class ElasticsearchBM25Retriever:
         self._fuzziness = fuzziness
         self._top_k = top_k
         self._scale_score = scale_score
+        self._filter_policy = FilterPolicy.from_str(filter_policy) if isinstance(filter_policy, str) else filter_policy
 
     def to_dict(self) -> Dict[str, Any]:
         """
@@ -86,6 +91,7 @@ class ElasticsearchBM25Retriever:
             fuzziness=self._fuzziness,
             top_k=self._top_k,
             scale_score=self._scale_score,
+            filter_policy=self._filter_policy.value,
             document_store=self._document_store.to_dict(),
         )
 
@@ -102,6 +108,7 @@ class ElasticsearchBM25Retriever:
         data["init_parameters"]["document_store"] = ElasticsearchDocumentStore.from_dict(
             data["init_parameters"]["document_store"]
         )
+        data["init_parameters"]["filter_policy"] = FilterPolicy.from_str(data["init_parameters"]["filter_policy"])
         return default_from_dict(cls, data)
 
     @component.output_types(documents=List[Document])
@@ -110,14 +117,17 @@ class ElasticsearchBM25Retriever:
         Retrieve documents using the BM25 keyword-based algorithm.
 
         :param query: String to search in `Document`s' text.
-        :param filters: Filters applied to the retrieved `Document`s.
+        :param filters: Filters applied to the retrieved Documents. The way runtime filters are applied depends on
+                        the `filter_policy` chosen at document store initialization. See init method docstring for more
+                        details.
         :param top_k: Maximum number of `Document` to return.
         :returns: A dictionary with the following keys:
             - `documents`: List of `Document`s that match the query.
         """
+        filters = apply_filter_policy(self._filter_policy, self._filters, filters)
         docs = self._document_store._bm25_retrieval(
             query=query,
-            filters=filters or self._filters,
+            filters=filters,
             fuzziness=self._fuzziness,
             top_k=top_k or self._top_k,
             scale_score=self._scale_score,

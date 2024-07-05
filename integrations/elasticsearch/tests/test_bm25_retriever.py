@@ -3,7 +3,9 @@
 # SPDX-License-Identifier: Apache-2.0
 from unittest.mock import Mock, patch
 
+import pytest
 from haystack.dataclasses import Document
+from haystack.document_stores.types import FilterPolicy
 from haystack_integrations.components.retrievers.elasticsearch import ElasticsearchBM25Retriever
 from haystack_integrations.document_stores.elasticsearch import ElasticsearchDocumentStore
 
@@ -14,7 +16,14 @@ def test_init_default():
     assert retriever._document_store == mock_store
     assert retriever._filters == {}
     assert retriever._top_k == 10
+    assert retriever._filter_policy == FilterPolicy.REPLACE
     assert not retriever._scale_score
+
+    retriever = ElasticsearchBM25Retriever(document_store=mock_store, filter_policy="replace")
+    assert retriever._filter_policy == FilterPolicy.REPLACE
+
+    with pytest.raises(ValueError):
+        ElasticsearchBM25Retriever(document_store=mock_store, filter_policy="keep")
 
 
 @patch("haystack_integrations.document_stores.elasticsearch.document_store.Elasticsearch")
@@ -38,6 +47,7 @@ def test_to_dict(_mock_elasticsearch_client):
             "fuzziness": "AUTO",
             "top_k": 10,
             "scale_score": False,
+            "filter_policy": "replace",
         },
     }
 
@@ -55,6 +65,7 @@ def test_from_dict(_mock_elasticsearch_client):
             "fuzziness": "AUTO",
             "top_k": 10,
             "scale_score": True,
+            "filter_policy": "replace",
         },
     }
     retriever = ElasticsearchBM25Retriever.from_dict(data)
@@ -63,6 +74,7 @@ def test_from_dict(_mock_elasticsearch_client):
     assert retriever._fuzziness == "AUTO"
     assert retriever._top_k == 10
     assert retriever._scale_score
+    assert retriever._filter_policy == FilterPolicy.REPLACE
 
 
 def test_run():

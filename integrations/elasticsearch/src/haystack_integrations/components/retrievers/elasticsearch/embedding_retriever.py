@@ -1,10 +1,12 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 from haystack import component, default_from_dict, default_to_dict
 from haystack.dataclasses import Document
+from haystack.document_stores.types import FilterPolicy
+from haystack.document_stores.types.filter_policy import apply_filter_policy
 from haystack_integrations.document_stores.elasticsearch.document_store import ElasticsearchDocumentStore
 
 
@@ -49,6 +51,7 @@ class ElasticsearchEmbeddingRetriever:
         filters: Optional[Dict[str, Any]] = None,
         top_k: int = 10,
         num_candidates: Optional[int] = None,
+        filter_policy: Union[str, FilterPolicy] = FilterPolicy.REPLACE,
     ):
         """
         Create the ElasticsearchEmbeddingRetriever component.
@@ -61,6 +64,7 @@ class ElasticsearchEmbeddingRetriever:
             Increasing this value will improve search accuracy at the cost of slower search speeds.
             You can read more about it in the Elasticsearch
             [documentation](https://www.elastic.co/guide/en/elasticsearch/reference/current/knn-search.html#tune-approximate-knn-for-speed-accuracy)
+        :param filter_policy: Policy to determine how filters are applied.
         :raises ValueError: If `document_store` is not an instance of ElasticsearchDocumentStore.
         """
         if not isinstance(document_store, ElasticsearchDocumentStore):
@@ -71,6 +75,7 @@ class ElasticsearchEmbeddingRetriever:
         self._filters = filters or {}
         self._top_k = top_k
         self._num_candidates = num_candidates
+        self._filter_policy = FilterPolicy.from_str(filter_policy) if isinstance(filter_policy, str) else filter_policy
 
     def to_dict(self) -> Dict[str, Any]:
         """
@@ -84,6 +89,7 @@ class ElasticsearchEmbeddingRetriever:
             filters=self._filters,
             top_k=self._top_k,
             num_candidates=self._num_candidates,
+            filter_policy=self._filter_policy.value,
             document_store=self._document_store.to_dict(),
         )
 
@@ -100,6 +106,7 @@ class ElasticsearchEmbeddingRetriever:
         data["init_parameters"]["document_store"] = ElasticsearchDocumentStore.from_dict(
             data["init_parameters"]["document_store"]
         )
+        data["init_parameters"]["filter_policy"] = FilterPolicy.from_str(data["init_parameters"]["filter_policy"])
         return default_from_dict(cls, data)
 
     @component.output_types(documents=List[Document])
@@ -108,14 +115,17 @@ class ElasticsearchEmbeddingRetriever:
         Retrieve documents using a vector similarity metric.
 
         :param query_embedding: Embedding of the query.
-        :param filters: Filters applied to the retrieved `Document`s.
+        :param filters: Filters applied to the retrieved Documents. The way runtime filters are applied depends on
+                        the `filter_policy` chosen at document store initialization. See init method docstring for more
+                        details.
         :param top_k: Maximum number of `Document`s to return.
         :returns: A dictionary with the following keys:
             - `documents`: List of `Document`s most similar to the given `query_embedding`
         """
+        filters = apply_filter_policy(self._filter_policy, self._filters, filters)
         docs = self._document_store._embedding_retrieval(
             query_embedding=query_embedding,
-            filters=filters or self._filters,
+            filters=filters,
             top_k=top_k or self._top_k,
             num_candidates=self._num_candidates,
         )
