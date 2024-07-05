@@ -100,6 +100,8 @@ def convert_filters_to_qdrant(
             return qdrant_filter[0]
         else:
             must_clauses.extend(conditions)
+            payload = build_payload(must_clauses, should_clauses, must_not_clauses)
+            print (payload)
             return build_payload(must_clauses, should_clauses, must_not_clauses)
 
     # Store conditions of each level in output of the loop
