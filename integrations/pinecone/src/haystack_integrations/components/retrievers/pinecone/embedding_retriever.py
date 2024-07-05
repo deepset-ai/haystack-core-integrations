@@ -1,10 +1,12 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 from haystack import component, default_from_dict, default_to_dict
 from haystack.dataclasses import Document
+from haystack.document_stores.types import FilterPolicy
+from haystack.document_stores.types.filter_policy import apply_filter_policy
 
 from haystack_integrations.document_stores.pinecone import PineconeDocumentStore
 
@@ -55,11 +57,13 @@ class PineconeEmbeddingRetriever:
         document_store: PineconeDocumentStore,
         filters: Optional[Dict[str, Any]] = None,
         top_k: int = 10,
+        filter_policy: Union[str, FilterPolicy] = FilterPolicy.REPLACE,
     ):
         """
         :param document_store: The Pinecone Document Store.
         :param filters: Filters applied to the retrieved Documents.
         :param top_k: Maximum number of Documents to return.
+        :param filter_policy: Policy to determine how filters are applied.
 
         :raises ValueError: If `document_store` is not an instance of `PineconeDocumentStore`.
         """
@@ -70,6 +74,9 @@ class PineconeEmbeddingRetriever:
         self.document_store = document_store
         self.filters = filters or {}
         self.top_k = top_k
+        self.filter_policy = (
+            filter_policy if isinstance(filter_policy, FilterPolicy) else FilterPolicy.from_str(filter_policy)
+        )
 
     def to_dict(self) -> Dict[str, Any]:
         """
@@ -81,6 +88,7 @@ class PineconeEmbeddingRetriever:
             self,
             filters=self.filters,
             top_k=self.top_k,
+            filter_policy=self.filter_policy.value,
             document_store=self.document_store.to_dict(),
         )
 
@@ -96,19 +104,34 @@ class PineconeEmbeddingRetriever:
         data["init_parameters"]["document_store"] = PineconeDocumentStore.from_dict(
             data["init_parameters"]["document_store"]
         )
+        data["init_parameters"]["filter_policy"] = FilterPolicy.from_str(data["init_parameters"]["filter_policy"])
         return default_from_dict(cls, data)
 
     @component.output_types(documents=List[Document])
-    def run(self, query_embedding: List[float]):
+    def run(
+        self,
+        query_embedding: List[float],
+        filters: Optional[Dict[str, Any]] = None,
+        top_k: Optional[int] = None,
+    ):
         """
         Retrieve documents from the `PineconeDocumentStore`, based on their dense embeddings.
 
         :param query_embedding: Embedding of the query.
+        :param filters: Filters applied to the retrieved Documents. The way runtime filters are applied depends on
+                        the `filter_policy` chosen at document store initialization. See init method docstring for more
+                        details.
+        :param top_k: Maximum number of `Document`s to return.
+
         :returns: List of Document similar to `query_embedding`.
         """
+        filters = apply_filter_policy(self.filter_policy, self.filters, filters)
+
+        top_k = top_k or self.top_k
+
         docs = self.document_store._embedding_retrieval(
             query_embedding=query_embedding,
-            filters=self.filters,
-            top_k=self.top_k,
+            filters=filters,
+            top_k=top_k,
         )
         return {"documents": docs}
