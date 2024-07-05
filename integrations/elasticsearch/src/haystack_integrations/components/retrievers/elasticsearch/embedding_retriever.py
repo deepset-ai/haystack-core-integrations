@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 from haystack import component, default_from_dict, default_to_dict
 from haystack.dataclasses import Document
@@ -51,7 +51,7 @@ class ElasticsearchEmbeddingRetriever:
         filters: Optional[Dict[str, Any]] = None,
         top_k: int = 10,
         num_candidates: Optional[int] = None,
-        filter_policy: Optional[FilterPolicy] = FilterPolicy.REPLACE,
+        filter_policy: Optional[Union[str, FilterPolicy]] = FilterPolicy.REPLACE,
     ):
         """
         Create the ElasticsearchEmbeddingRetriever component.
@@ -75,7 +75,7 @@ class ElasticsearchEmbeddingRetriever:
         self._filters = filters or {}
         self._top_k = top_k
         self._num_candidates = num_candidates
-        self._filter_policy = filter_policy
+        self._filter_policy = FilterPolicy.from_str(filter_policy) if isinstance(filter_policy, str) else filter_policy
 
     def to_dict(self) -> Dict[str, Any]:
         """

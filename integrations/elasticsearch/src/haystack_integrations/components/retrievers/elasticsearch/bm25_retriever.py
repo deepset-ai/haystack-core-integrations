@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 from haystack import component, default_from_dict, default_to_dict
 from haystack.dataclasses import Document
@@ -50,7 +50,7 @@ class ElasticsearchBM25Retriever:
         fuzziness: str = "AUTO",
         top_k: int = 10,
         scale_score: bool = False,
-        filter_policy: Optional[FilterPolicy] = FilterPolicy.REPLACE,
+        filter_policy: Optional[Union[str, FilterPolicy]] = FilterPolicy.REPLACE,
     ):
         """
         Initialize ElasticsearchBM25Retriever with an instance ElasticsearchDocumentStore.
@@ -76,7 +76,7 @@ class ElasticsearchBM25Retriever:
         self._fuzziness = fuzziness
         self._top_k = top_k
         self._scale_score = scale_score
-        self._filter_policy = filter_policy
+        self._filter_policy = FilterPolicy.from_str(filter_policy) if isinstance(filter_policy, str) else filter_policy
 
     def to_dict(self) -> Dict[str, Any]:
         """

@@ -3,7 +3,9 @@
 # SPDX-License-Identifier: Apache-2.0
 from unittest.mock import Mock, patch
 
+import pytest
 from haystack.dataclasses import Document
+from haystack.document_stores.types import FilterPolicy
 from haystack_integrations.components.retrievers.elasticsearch import ElasticsearchEmbeddingRetriever
 from haystack_integrations.document_stores.elasticsearch import ElasticsearchDocumentStore
 
@@ -15,6 +17,12 @@ def test_init_default():
     assert retriever._filters == {}
     assert retriever._top_k == 10
     assert retriever._num_candidates is None
+
+    retriever = ElasticsearchEmbeddingRetriever(document_store=mock_store, filter_policy="replace")
+    assert retriever._filter_policy == FilterPolicy.REPLACE
+
+    with pytest.raises(ValueError):
+        ElasticsearchEmbeddingRetriever(document_store=mock_store, filter_policy="keep")
 
 
 @patch("haystack_integrations.document_stores.elasticsearch.document_store.Elasticsearch")
