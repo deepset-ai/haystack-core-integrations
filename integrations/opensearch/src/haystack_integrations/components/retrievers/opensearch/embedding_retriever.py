@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 from haystack import component, default_from_dict, default_to_dict
 from haystack.dataclasses import Document
@@ -27,7 +27,7 @@ class OpenSearchEmbeddingRetriever:
         document_store: OpenSearchDocumentStore,
         filters: Optional[Dict[str, Any]] = None,
         top_k: int = 10,
-        filter_policy: Optional[FilterPolicy] = FilterPolicy.REPLACE,
+        filter_policy: Optional[Union[str, FilterPolicy]] = FilterPolicy.REPLACE,
         custom_query: Optional[Dict[str, Any]] = None,
         raise_on_failure: bool = True,
     ):
@@ -81,7 +81,9 @@ class OpenSearchEmbeddingRetriever:
         self._document_store = document_store
         self._filters = filters or {}
         self._top_k = top_k
-        self._filter_policy = filter_policy
+        self._filter_policy = (
+            filter_policy if isinstance(filter_policy, FilterPolicy) else FilterPolicy.from_str(filter_policy)
+        )
         self._custom_query = custom_query
         self._raise_on_failure = raise_on_failure
 

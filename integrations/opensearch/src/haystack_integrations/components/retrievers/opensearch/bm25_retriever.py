@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 from haystack import component, default_from_dict, default_to_dict
 from haystack.dataclasses import Document
@@ -24,7 +24,7 @@ class OpenSearchBM25Retriever:
         top_k: int = 10,
         scale_score: bool = False,
         all_terms_must_match: bool = False,
-        filter_policy: Optional[FilterPolicy] = FilterPolicy.REPLACE,
+        filter_policy: Optional[Union[str, FilterPolicy]] = FilterPolicy.REPLACE,
         custom_query: Optional[Dict[str, Any]] = None,
         raise_on_failure: bool = True,
     ):
@@ -80,7 +80,9 @@ class OpenSearchBM25Retriever:
         self._top_k = top_k
         self._scale_score = scale_score
         self._all_terms_must_match = all_terms_must_match
-        self._filter_policy = filter_policy
+        self._filter_policy = (
+            filter_policy if isinstance(filter_policy, FilterPolicy) else FilterPolicy.from_str(filter_policy)
+        )
         self._custom_query = custom_query
         self._raise_on_failure = raise_on_failure
 
