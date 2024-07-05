@@ -19,7 +19,6 @@ def test_retriever_init(request):
         ChromaQueryTextRetriever(ds, filters={"foo": "bar"}, top_k=99, filter_policy="unknown")
 
 
-
 @pytest.mark.integration
 def test_retriever_to_json(request):
     ds = ChromaDocumentStore(
