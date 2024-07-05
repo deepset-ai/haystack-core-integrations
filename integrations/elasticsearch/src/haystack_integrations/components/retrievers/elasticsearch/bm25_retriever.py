@@ -50,7 +50,7 @@ class ElasticsearchBM25Retriever:
         fuzziness: str = "AUTO",
         top_k: int = 10,
         scale_score: bool = False,
-        filter_policy: Optional[Union[str, FilterPolicy]] = FilterPolicy.REPLACE,
+        filter_policy: Union[str, FilterPolicy] = FilterPolicy.REPLACE,
     ):
         """
         Initialize ElasticsearchBM25Retriever with an instance ElasticsearchDocumentStore.
