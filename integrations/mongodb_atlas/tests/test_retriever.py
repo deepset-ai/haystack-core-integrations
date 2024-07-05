@@ -34,11 +34,11 @@ class TestRetriever:
         assert retriever.top_k == 10
         assert retriever.filter_policy == FilterPolicy.REPLACE
 
-        retriever = MongoDBAtlasEmbeddingRetriever(document_store=mock_store, filters_policy="merge")
+        retriever = MongoDBAtlasEmbeddingRetriever(document_store=mock_store, filter_policy="merge")
         assert retriever.filter_policy == FilterPolicy.MERGE
 
         with pytest.raises(ValueError):
-            MongoDBAtlasEmbeddingRetriever(document_store=mock_store, filters_policy="wrong_policy")
+            MongoDBAtlasEmbeddingRetriever(document_store=mock_store, filter_policy="wrong_policy")
 
     def test_init(self):
         mock_store = Mock(spec=MongoDBAtlasDocumentStore)
