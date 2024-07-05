@@ -72,7 +72,7 @@ class WeaviateEmbeddingRetriever:
             top_k=self._top_k,
             distance=self._distance,
             certainty=self._certainty,
-            filter_policy=self._filter_policy.value if self._filter_policy else None,
+            filter_policy=self._filter_policy.value,
             document_store=self._document_store.to_dict(),
         )
 
