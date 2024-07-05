@@ -41,7 +41,7 @@ class QdrantEmbeddingRetriever:
         top_k: int = 10,
         scale_score: bool = False,
         return_embedding: bool = False,
-        filter_policy: Optional[Union[str, FilterPolicy]] = FilterPolicy.REPLACE,
+        filter_policy: Union[str, FilterPolicy] = FilterPolicy.REPLACE,
         score_threshold: Optional[float] = None,
     ):
         """
@@ -183,7 +183,7 @@ class QdrantSparseEmbeddingRetriever:
         top_k: int = 10,
         scale_score: bool = False,
         return_embedding: bool = False,
-        filter_policy: Optional[Union[str, FilterPolicy]] = FilterPolicy.REPLACE,
+        filter_policy: Union[str, FilterPolicy] = FilterPolicy.REPLACE,
         score_threshold: Optional[float] = None,
     ):
         """
@@ -335,7 +335,7 @@ class QdrantHybridRetriever:
         filters: Optional[Union[Dict[str, Any], models.Filter]] = None,
         top_k: int = 10,
         return_embedding: bool = False,
-        filter_policy: Optional[Union[str, FilterPolicy]] = FilterPolicy.REPLACE,
+        filter_policy: Union[str, FilterPolicy] = FilterPolicy.REPLACE,
         score_threshold: Optional[float] = None,
     ):
         """
