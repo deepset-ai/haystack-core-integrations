@@ -379,7 +379,7 @@ class QdrantHybridRetriever:
             document_store=self._document_store.to_dict(),
             filters=self._filters,
             top_k=self._top_k,
-            filter_policy=self._filter_policy.value if self._filter_policy else None,
+            filter_policy=self._filter_policy.value,
             return_embedding=self._return_embedding,
             score_threshold=self._score_threshold,
         )
