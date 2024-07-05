@@ -52,7 +52,7 @@ class PgvectorKeywordRetriever:
         document_store: PgvectorDocumentStore,
         filters: Optional[Dict[str, Any]] = None,
         top_k: int = 10,
-        filter_policy: Optional[Union[str, FilterPolicy]] = FilterPolicy.MERGE,
+        filter_policy: Optional[Union[str, FilterPolicy]] = FilterPolicy.REPLACE,
     ):
         """
         :param document_store: An instance of `PgvectorDocumentStore`.
