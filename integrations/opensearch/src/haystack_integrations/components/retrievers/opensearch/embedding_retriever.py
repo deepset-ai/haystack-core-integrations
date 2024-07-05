@@ -2,10 +2,12 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 from haystack import component, default_from_dict, default_to_dict
 from haystack.dataclasses import Document
+from haystack.document_stores.types import FilterPolicy
+from haystack.document_stores.types.filter_policy import apply_filter_policy
 from haystack_integrations.document_stores.opensearch import OpenSearchDocumentStore
 
 logger = logging.getLogger(__name__)
@@ -25,6 +27,7 @@ class OpenSearchEmbeddingRetriever:
         document_store: OpenSearchDocumentStore,
         filters: Optional[Dict[str, Any]] = None,
         top_k: int = 10,
+        filter_policy: Union[str, FilterPolicy] = FilterPolicy.REPLACE,
         custom_query: Optional[Dict[str, Any]] = None,
         raise_on_failure: bool = True,
     ):
@@ -35,6 +38,7 @@ class OpenSearchEmbeddingRetriever:
         :param filters: Filters applied to the retrieved Documents. Defaults to None.
             Filters are applied during the approximate kNN search to ensure that top_k matching documents are returned.
         :param top_k: Maximum number of Documents to return, defaults to 10
+        :param filter_policy: Policy to determine how filters are applied.
         :param custom_query: The query containing a mandatory `$query_embedding` and an optional `$filters` placeholder
 
             **An example custom_query:**
@@ -77,6 +81,9 @@ class OpenSearchEmbeddingRetriever:
         self._document_store = document_store
         self._filters = filters or {}
         self._top_k = top_k
+        self._filter_policy = (
+            filter_policy if isinstance(filter_policy, FilterPolicy) else FilterPolicy.from_str(filter_policy)
+        )
         self._custom_query = custom_query
         self._raise_on_failure = raise_on_failure
 
@@ -92,6 +99,7 @@ class OpenSearchEmbeddingRetriever:
             filters=self._filters,
             top_k=self._top_k,
             document_store=self._document_store.to_dict(),
+            filter_policy=self._filter_policy.value,
             custom_query=self._custom_query,
             raise_on_failure=self._raise_on_failure,
         )
@@ -110,6 +118,7 @@ class OpenSearchEmbeddingRetriever:
         data["init_parameters"]["document_store"] = OpenSearchDocumentStore.from_dict(
             data["init_parameters"]["document_store"]
         )
+        data["init_parameters"]["filter_policy"] = FilterPolicy.from_str(data["init_parameters"]["filter_policy"])
         return default_from_dict(cls, data)
 
     @component.output_types(documents=List[Document])
@@ -124,7 +133,9 @@ class OpenSearchEmbeddingRetriever:
         Retrieve documents using a vector similarity metric.
 
         :param query_embedding: Embedding of the query.
-        :param filters: Optional filters to narrow down the search space.
+        :param filters: Filters applied to the retrieved Documents. The way runtime filters are applied depends on
+                        the `filter_policy` chosen at document store initialization. See init method docstring for more
+                        details.
         :param top_k: Maximum number of Documents to return.
         :param custom_query: The query containing a mandatory `$query_embedding` and an optional `$filters` placeholder
 
@@ -161,6 +172,8 @@ class OpenSearchEmbeddingRetriever:
             Dictionary with key "documents" containing the retrieved Documents.
             - documents: List of Document similar to `query_embedding`.
         """
+        filters = apply_filter_policy(self._filter_policy, self._filters, filters)
+        top_k = top_k or self._top_k
         if filters is None:
             filters = self._filters
         if top_k is None:

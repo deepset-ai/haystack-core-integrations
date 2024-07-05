@@ -2,10 +2,12 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 from haystack import component, default_from_dict, default_to_dict
 from haystack.dataclasses import Document
+from haystack.document_stores.types import FilterPolicy
+from haystack.document_stores.types.filter_policy import apply_filter_policy
 from haystack_integrations.document_stores.opensearch import OpenSearchDocumentStore
 
 logger = logging.getLogger(__name__)
@@ -22,6 +24,7 @@ class OpenSearchBM25Retriever:
         top_k: int = 10,
         scale_score: bool = False,
         all_terms_must_match: bool = False,
+        filter_policy: Union[str, FilterPolicy] = FilterPolicy.REPLACE,
         custom_query: Optional[Dict[str, Any]] = None,
         raise_on_failure: bool = True,
     ):
@@ -36,6 +39,7 @@ class OpenSearchBM25Retriever:
             This is useful when comparing documents across different indexes. Defaults to False.
         :param all_terms_must_match: If True, all terms in the query string must be present in the retrieved documents.
             This is useful when searching for short text where even one term can make a difference. Defaults to False.
+        :param filter_policy: Policy to determine how filters are applied.
         :param custom_query: The query containing a mandatory `$query` and an optional `$filters` placeholder
 
             **An example custom_query:**
@@ -76,6 +80,9 @@ class OpenSearchBM25Retriever:
         self._top_k = top_k
         self._scale_score = scale_score
         self._all_terms_must_match = all_terms_must_match
+        self._filter_policy = (
+            filter_policy if isinstance(filter_policy, FilterPolicy) else FilterPolicy.from_str(filter_policy)
+        )
         self._custom_query = custom_query
         self._raise_on_failure = raise_on_failure
 
@@ -93,6 +100,7 @@ class OpenSearchBM25Retriever:
             top_k=self._top_k,
             scale_score=self._scale_score,
             document_store=self._document_store.to_dict(),
+            filter_policy=self._filter_policy.value,
             custom_query=self._custom_query,
             raise_on_failure=self._raise_on_failure,
         )
@@ -111,6 +119,7 @@ class OpenSearchBM25Retriever:
         data["init_parameters"]["document_store"] = OpenSearchDocumentStore.from_dict(
             data["init_parameters"]["document_store"]
         )
+        data["init_parameters"]["filter_policy"] = FilterPolicy.from_str(data["init_parameters"]["filter_policy"])
         return default_from_dict(cls, data)
 
     @component.output_types(documents=List[Document])
@@ -128,7 +137,9 @@ class OpenSearchBM25Retriever:
         Retrieve documents using BM25 retrieval.
 
         :param query: The query string
-        :param filters: Optional filters to narrow down the search space.
+        :param filters: Filters applied to the retrieved Documents. The way runtime filters are applied depends on
+                        the `filter_policy` chosen at document store initialization. See init method docstring for more
+                        details.
         :param all_terms_must_match: If True, all terms in the query string must be present in the retrieved documents.
         :param top_k: Maximum number of Documents to return.
         :param fuzziness: Fuzziness parameter for full-text queries.
@@ -164,6 +175,8 @@ class OpenSearchBM25Retriever:
             - documents: List of retrieved Documents.
 
         """
+        filters = apply_filter_policy(self._filter_policy, self._filters, filters)
+
         if filters is None:
             filters = self._filters
         if all_terms_must_match is None:
