@@ -20,6 +20,12 @@ class TestEmbeddingRetriever:
         assert retriever.filter_policy == FilterPolicy.REPLACE
         assert retriever.vector_function == mock_store.vector_function
 
+        retriever = PgvectorEmbeddingRetriever(document_store=mock_store, filter_policy="merge")
+        assert retriever.filter_policy == FilterPolicy.MERGE
+
+        with pytest.raises(ValueError):
+            PgvectorEmbeddingRetriever(document_store=mock_store, filter_policy="invalid")
+
     def test_init(self, mock_store):
         retriever = PgvectorEmbeddingRetriever(
             document_store=mock_store, filters={"field": "value"}, top_k=5, vector_function="l2_distance"
@@ -135,6 +141,12 @@ class TestKeywordRetriever:
         assert retriever.document_store == mock_store
         assert retriever.filters == {}
         assert retriever.top_k == 10
+
+        retriever = PgvectorKeywordRetriever(document_store=mock_store, filter_policy="merge")
+        assert retriever.filter_policy == FilterPolicy.MERGE
+
+        with pytest.raises(ValueError):
+            PgvectorKeywordRetriever(document_store=mock_store, filter_policy="invalid")
 
     def test_init(self, mock_store):
         retriever = PgvectorKeywordRetriever(document_store=mock_store, filters={"field": "value"}, top_k=5)
