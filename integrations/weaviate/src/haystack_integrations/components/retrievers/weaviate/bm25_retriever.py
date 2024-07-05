@@ -1,6 +1,12 @@
-from typing import Any, Dict, List, Optional
+# SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
+#
+# SPDX-License-Identifier: Apache-2.0
+
+from typing import Any, Dict, List, Optional, Union
 
 from haystack import Document, component, default_from_dict, default_to_dict
+from haystack.document_stores.types import FilterPolicy
+from haystack.document_stores.types.filter_policy import apply_filter_policy
 from haystack_integrations.document_stores.weaviate import WeaviateDocumentStore
 
 
@@ -26,6 +32,7 @@ class WeaviateBM25Retriever:
         document_store: WeaviateDocumentStore,
         filters: Optional[Dict[str, Any]] = None,
         top_k: int = 10,
+        filter_policy: Union[str, FilterPolicy] = FilterPolicy.REPLACE,
     ):
         """
         Create a new instance of WeaviateBM25Retriever.
@@ -36,10 +43,14 @@ class WeaviateBM25Retriever:
             Custom filters applied when running the retriever
         :param top_k:
             Maximum number of documents to return
+        :param filter_policy: Policy to determine how filters are applied.
         """
         self._document_store = document_store
         self._filters = filters or {}
         self._top_k = top_k
+        self._filter_policy = (
+            filter_policy if isinstance(filter_policy, FilterPolicy) else FilterPolicy.from_str(filter_policy)
+        )
 
     def to_dict(self) -> Dict[str, Any]:
         """
@@ -52,6 +63,7 @@ class WeaviateBM25Retriever:
             self,
             filters=self._filters,
             top_k=self._top_k,
+            filter_policy=self._filter_policy.value,
             document_store=self._document_store.to_dict(),
         )
 
@@ -68,6 +80,7 @@ class WeaviateBM25Retriever:
         data["init_parameters"]["document_store"] = WeaviateDocumentStore.from_dict(
             data["init_parameters"]["document_store"]
         )
+        data["init_parameters"]["filter_policy"] = FilterPolicy.from_str(data["init_parameters"]["filter_policy"])
         return default_from_dict(cls, data)
 
     @component.output_types(documents=List[Document])
@@ -77,12 +90,14 @@ class WeaviateBM25Retriever:
 
         :param query:
             The query text.
-        :param filters:
-            Filters to use when running the retriever.
+        :param filters: Filters applied to the retrieved Documents. The way runtime filters are applied depends on
+                        the `filter_policy` chosen at document store initialization. See init method docstring for more
+                        details.
         :param top_k:
             The maximum number of documents to return.
         """
-        filters = filters or self._filters
+        filters = apply_filter_policy(self._filter_policy, self._filters, filters)
+
         top_k = top_k or self._top_k
         documents = self._document_store._bm25_retrieval(query=query, filters=filters, top_k=top_k)
         return {"documents": documents}

@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
+#
+# SPDX-License-Identifier: Apache-2.0
+
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field, fields
 from enum import Enum

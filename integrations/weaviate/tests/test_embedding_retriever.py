@@ -1,6 +1,11 @@
+# SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
+#
+# SPDX-License-Identifier: Apache-2.0
+
 from unittest.mock import Mock, patch
 
 import pytest
+from haystack.document_stores.types import FilterPolicy
 from haystack_integrations.components.retrievers.weaviate import WeaviateEmbeddingRetriever
 from haystack_integrations.document_stores.weaviate import WeaviateDocumentStore
 
@@ -11,8 +16,15 @@ def test_init_default():
     assert retriever._document_store == mock_document_store
     assert retriever._filters == {}
     assert retriever._top_k == 10
+    assert retriever._filter_policy == FilterPolicy.REPLACE
     assert retriever._distance is None
     assert retriever._certainty is None
+
+    retriever = WeaviateEmbeddingRetriever(document_store=mock_document_store, filter_policy="replace")
+    assert retriever._filter_policy == FilterPolicy.REPLACE
+
+    with pytest.raises(ValueError):
+        WeaviateEmbeddingRetriever(document_store=mock_document_store, filter_policy="keep_all")
 
 
 def test_init_with_distance_and_certainty():
@@ -30,6 +42,7 @@ def test_to_dict(_mock_weaviate):
         "init_parameters": {
             "filters": {},
             "top_k": 10,
+            "filter_policy": "replace",
             "distance": None,
             "certainty": None,
             "document_store": {
@@ -66,6 +79,7 @@ def test_from_dict(_mock_weaviate):
             "init_parameters": {
                 "filters": {},
                 "top_k": 10,
+                "filter_policy": "replace",
                 "distance": None,
                 "certainty": None,
                 "document_store": {
