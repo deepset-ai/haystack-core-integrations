@@ -81,7 +81,7 @@ class MongoDBAtlasEmbeddingRetriever:
             self,
             filters=self.filters,
             top_k=self.top_k,
-            filter_policy=self.filter_policy.value if self.filter_policy else None,
+            filter_policy=self.filter_policy.value,
             document_store=self.document_store.to_dict(),
         )
 
