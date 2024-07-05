@@ -99,7 +99,7 @@ class OpenSearchEmbeddingRetriever:
             filters=self._filters,
             top_k=self._top_k,
             document_store=self._document_store.to_dict(),
-            filter_policy=self._filter_policy.value if self._filter_policy else None,
+            filter_policy=self._filter_policy.value,
             custom_query=self._custom_query,
             raise_on_failure=self._raise_on_failure,
         )
