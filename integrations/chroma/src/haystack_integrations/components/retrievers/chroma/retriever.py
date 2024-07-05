@@ -116,7 +116,7 @@ class ChromaQueryTextRetriever:
             self,
             filters=self.filters,
             top_k=self.top_k,
-            filter_policy=self.filter_policy.value if self.filter_policy else None,
+            filter_policy=self.filter_policy.value,
             document_store=self.document_store.to_dict(),
         )
 
@@ -147,10 +147,7 @@ class ChromaEmbeddingRetriever(ChromaQueryTextRetriever):
         :returns: a dictionary with the following keys:
             - `documents`: List of documents returned by the search engine.
         """
-        if self.filter_policy == "merge" and filters:
-            filters = {**self.filters, **filters}
-        else:
-            filters = filters or self.filters
+        filters = apply_filter_policy(self.filter_policy, self.filters, filters)
 
         top_k = top_k or self.top_k
 
