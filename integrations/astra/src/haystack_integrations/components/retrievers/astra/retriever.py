@@ -2,9 +2,11 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 from haystack import Document, component, default_from_dict, default_to_dict
+from haystack.document_stores.types import FilterPolicy
+from haystack.document_stores.types.filter_policy import apply_filter_policy
 
 from haystack_integrations.document_stores.astra import AstraDocumentStore
 
@@ -31,14 +33,25 @@ class AstraEmbeddingRetriever:
     ```
     """
 
-    def __init__(self, document_store: AstraDocumentStore, filters: Optional[Dict[str, Any]] = None, top_k: int = 10):
+    def __init__(
+        self,
+        document_store: AstraDocumentStore,
+        filters: Optional[Dict[str, Any]] = None,
+        top_k: int = 10,
+        filter_policy: Union[str, FilterPolicy] = FilterPolicy.REPLACE,
+    ):
         """
+        :param document_store: An instance of AstraDocumentStore.
         :param filters: a dictionary with filters to narrow down the search space.
         :param top_k: the maximum number of documents to retrieve.
+        :param filter_policy: Policy to determine how filters are applied.
         """
-        self.filters = filters
+        self.filters = filters or {}
         self.top_k = top_k
         self.document_store = document_store
+        self.filter_policy = (
+            filter_policy if isinstance(filter_policy, FilterPolicy) else FilterPolicy.from_str(filter_policy)
+        )
 
         if not isinstance(document_store, AstraDocumentStore):
             message = "document_store must be an instance of AstraDocumentStore"
@@ -49,17 +62,15 @@ class AstraEmbeddingRetriever:
         """Retrieve documents from the AstraDocumentStore.
 
         :param query_embedding: floats representing the query embedding
-        :param filters: filters to narrow down the search space.
+        :param filters: Filters applied to the retrieved Documents. The way runtime filters are applied depends on
+                        the `filter_policy` chosen at document store initialization. See init method docstring for more
+                        details.
         :param top_k: the maximum number of documents to retrieve.
         :returns: a dictionary with the following keys:
             - `documents`: A list of documents retrieved from the AstraDocumentStore.
         """
-
-        if not top_k:
-            top_k = self.top_k
-
-        if not filters:
-            filters = self.filters
+        filters = apply_filter_policy(self.filter_policy, self.filters, filters)
+        top_k = top_k or self.top_k
 
         return {"documents": self.document_store.search(query_embedding, top_k, filters=filters)}
 
@@ -74,6 +85,7 @@ class AstraEmbeddingRetriever:
             self,
             filters=self.filters,
             top_k=self.top_k,
+            filter_policy=self.filter_policy.value,
             document_store=self.document_store.to_dict(),
         )
 
@@ -89,4 +101,5 @@ class AstraEmbeddingRetriever:
         """
         document_store = AstraDocumentStore.from_dict(data["init_parameters"]["document_store"])
         data["init_parameters"]["document_store"] = document_store
+        data["init_parameters"]["filter_policy"] = FilterPolicy.from_str(data["init_parameters"]["filter_policy"])
         return default_from_dict(cls, data)
