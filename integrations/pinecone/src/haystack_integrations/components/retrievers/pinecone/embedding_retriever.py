@@ -104,8 +104,7 @@ class PineconeEmbeddingRetriever:
         data["init_parameters"]["document_store"] = PineconeDocumentStore.from_dict(
             data["init_parameters"]["document_store"]
         )
-        if "filter_policy" in data["init_parameters"]:
-            data["init_parameters"]["filter_policy"] = FilterPolicy.from_str(data["init_parameters"]["filter_policy"])
+        data["init_parameters"]["filter_policy"] = FilterPolicy.from_str(data["init_parameters"]["filter_policy"])
         return default_from_dict(cls, data)
 
     @component.output_types(documents=List[Document])
