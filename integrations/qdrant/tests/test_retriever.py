@@ -1,6 +1,7 @@
 from typing import List
 from unittest.mock import Mock
 
+import pytest
 from haystack.dataclasses import Document, SparseEmbedding
 from haystack.document_stores.types import FilterPolicy
 from haystack.testing.document_store import (
@@ -25,6 +26,12 @@ class TestQdrantRetriever(FilterableDocsFixtureMixin):
         assert retriever._filter_policy == FilterPolicy.REPLACE
         assert retriever._return_embedding is False
         assert retriever._score_threshold is None
+
+        retriever = QdrantEmbeddingRetriever(document_store=document_store, filter_policy="replace")
+        assert retriever._filter_policy == FilterPolicy.REPLACE
+
+        with pytest.raises(ValueError):
+            QdrantEmbeddingRetriever(document_store=document_store, filter_policy="invalid")
 
     def test_to_dict(self):
         document_store = QdrantDocumentStore(location=":memory:", index="test", use_sparse_embeddings=False)
@@ -201,6 +208,12 @@ class TestQdrantSparseEmbeddingRetriever(FilterableDocsFixtureMixin):
         assert retriever._return_embedding is False
         assert retriever._score_threshold is None
 
+        retriever = QdrantSparseEmbeddingRetriever(document_store=document_store, filter_policy="replace")
+        assert retriever._filter_policy == FilterPolicy.REPLACE
+
+        with pytest.raises(ValueError):
+            QdrantSparseEmbeddingRetriever(document_store=document_store, filter_policy="invalid")
+
     def test_to_dict(self):
         document_store = QdrantDocumentStore(location=":memory:", index="test")
         retriever = QdrantSparseEmbeddingRetriever(document_store=document_store)
@@ -315,6 +328,12 @@ class TestQdrantHybridRetriever:
         assert retriever._filter_policy == FilterPolicy.REPLACE
         assert retriever._return_embedding is False
         assert retriever._score_threshold is None
+
+        retriever = QdrantHybridRetriever(document_store=document_store, filter_policy="replace")
+        assert retriever._filter_policy == FilterPolicy.REPLACE
+
+        with pytest.raises(ValueError):
+            QdrantHybridRetriever(document_store=document_store, filter_policy="invalid")
 
     def test_to_dict(self):
         document_store = QdrantDocumentStore(location=":memory:", index="test")

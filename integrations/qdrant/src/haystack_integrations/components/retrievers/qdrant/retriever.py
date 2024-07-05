@@ -41,7 +41,7 @@ class QdrantEmbeddingRetriever:
         top_k: int = 10,
         scale_score: bool = False,
         return_embedding: bool = False,
-        filter_policy: Optional[FilterPolicy] = FilterPolicy.REPLACE,
+        filter_policy: Optional[Union[str, FilterPolicy]] = FilterPolicy.REPLACE,
         score_threshold: Optional[float] = None,
     ):
         """
@@ -70,7 +70,9 @@ class QdrantEmbeddingRetriever:
         self._top_k = top_k
         self._scale_score = scale_score
         self._return_embedding = return_embedding
-        self._filter_policy = filter_policy
+        self._filter_policy = (
+            filter_policy if isinstance(filter_policy, FilterPolicy) else FilterPolicy.from_str(filter_policy)
+        )
         self._score_threshold = score_threshold
 
     def to_dict(self) -> Dict[str, Any]:
@@ -181,7 +183,7 @@ class QdrantSparseEmbeddingRetriever:
         top_k: int = 10,
         scale_score: bool = False,
         return_embedding: bool = False,
-        filter_policy: Optional[FilterPolicy] = FilterPolicy.REPLACE,
+        filter_policy: Optional[Union[str, FilterPolicy]] = FilterPolicy.REPLACE,
         score_threshold: Optional[float] = None,
     ):
         """
@@ -210,7 +212,9 @@ class QdrantSparseEmbeddingRetriever:
         self._top_k = top_k
         self._scale_score = scale_score
         self._return_embedding = return_embedding
-        self._filter_policy = filter_policy
+        self._filter_policy = (
+            filter_policy if isinstance(filter_policy, FilterPolicy) else FilterPolicy.from_str(filter_policy)
+        )
         self._score_threshold = score_threshold
 
     def to_dict(self) -> Dict[str, Any]:
@@ -331,7 +335,7 @@ class QdrantHybridRetriever:
         filters: Optional[Union[Dict[str, Any], models.Filter]] = None,
         top_k: int = 10,
         return_embedding: bool = False,
-        filter_policy: Optional[FilterPolicy] = FilterPolicy.REPLACE,
+        filter_policy: Optional[Union[str, FilterPolicy]] = FilterPolicy.REPLACE,
         score_threshold: Optional[float] = None,
     ):
         """
@@ -358,7 +362,9 @@ class QdrantHybridRetriever:
         self._filters = filters
         self._top_k = top_k
         self._return_embedding = return_embedding
-        self._filter_policy = filter_policy
+        self._filter_policy = (
+            filter_policy if isinstance(filter_policy, FilterPolicy) else FilterPolicy.from_str(filter_policy)
+        )
         self._score_threshold = score_threshold
 
     def to_dict(self) -> Dict[str, Any]:
