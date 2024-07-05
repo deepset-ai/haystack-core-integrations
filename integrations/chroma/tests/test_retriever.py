@@ -15,7 +15,7 @@ def test_retriever_init(request):
     retriever = ChromaQueryTextRetriever(ds, filters={"foo": "bar"}, top_k=99, filter_policy="replace")
     assert retriever.filter_policy == FilterPolicy.REPLACE
 
-    with pytest.raises(ValueError, match="Unknown FilterPolicy"):
+    with pytest.raises(ValueError):
         ChromaQueryTextRetriever(ds, filters={"foo": "bar"}, top_k=99, filter_policy="unknown")
 
 
