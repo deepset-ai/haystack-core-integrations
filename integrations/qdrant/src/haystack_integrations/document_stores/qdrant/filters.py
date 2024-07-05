@@ -22,7 +22,7 @@ def convert_filters_to_qdrant(
     should_clauses: List[models.Filter] = []
     must_not_clauses: List[models.Filter] = []
     same_operator_flag = False  # For same operators on each level, we need nested clauses
-    conditions, qdrant_filters, current_level_operators = (
+    conditions, qdrant_filter, current_level_operators = (
         [],
         [],
         [],
@@ -48,8 +48,10 @@ def convert_filters_to_qdrant(
             raise FilterError(msg)
 
         if operator in LOGICAL_OPERATORS:
+            # Recursively process nested conditions
             current_filter = convert_filters_to_qdrant(item.get("conditions", []), is_parent_call=False) or []
 
+            # Append or nest clauses based on same_operator_flag
             if operator == "AND":
                 must_clauses = [must_clauses, current_filter] if same_operator_flag else must_clauses + current_filter
             elif operator == "OR":
@@ -73,7 +75,7 @@ def convert_filters_to_qdrant(
             # check if the parsed_conditions are models.Filter or models.Condition
             for condition in parsed_conditions:
                 if isinstance(condition, models.Filter):
-                    qdrant_filters.append(condition)
+                    qdrant_filter.append(condition)
                 else:
                     conditions.append(condition)
 
@@ -81,28 +83,30 @@ def convert_filters_to_qdrant(
             msg = f"Unknown operator {operator} used in filters"
             raise FilterError(msg)
 
+    # Handle same operators on each level by building nested payloads
     if same_operator_flag:
-        qdrant_filters = build_payload_for_same_operators(
-            must_clauses, should_clauses, must_not_clauses, qdrant_filters
-        )
+        qdrant_filter = build_payload_for_same_operators(must_clauses, should_clauses, must_not_clauses, qdrant_filter)
         if not is_parent_call:
-            return qdrant_filters
+            return qdrant_filter
+    # Append built payload if any clauses are present
     elif must_clauses or should_clauses or must_not_clauses:
-        qdrant_filters.append(build_payload(must_clauses, should_clauses, must_not_clauses))
+        qdrant_filter.append(build_payload(must_clauses, should_clauses, must_not_clauses))
 
+    # Handle the parent call case to ensure a single Filter is returned
     if is_parent_call:
-        if conditions:
+        # If qdrant_filter has just a single Filter in parent call,
+        # then it might be returned instead.
+        if len(qdrant_filter) == 1 and isinstance(qdrant_filter[0], models.Filter):
+            return qdrant_filter[0]
+        else:
             must_clauses.extend(conditions)
-        return (
-            qdrant_filters[0]
-            if len(qdrant_filters) == 1
-            else build_payload(must_clauses, should_clauses, must_not_clauses)
-        )
+            return build_payload(must_clauses, should_clauses, must_not_clauses)
 
+    # Store conditions of each level in output of the loop
     if conditions:
-        qdrant_filters.extend(conditions)
+        qdrant_filter.extend(conditions)
 
-    return qdrant_filters
+    return qdrant_filter
 
 
 def build_payload(
