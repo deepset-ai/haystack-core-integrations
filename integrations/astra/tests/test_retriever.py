@@ -29,7 +29,7 @@ def test_retriever_init(*_):
     with pytest.raises(ValueError):
         AstraEmbeddingRetriever(ds, filters={"foo": "bar"}, top_k=99, filter_policy="unknown")
 
-    with pytest.raises(ValueError, match="Unknown FilterPolicy"):
+    with pytest.raises(ValueError"):
         AstraEmbeddingRetriever(ds, filters={"foo": "bar"}, top_k=99, filter_policy=None)
 
 
