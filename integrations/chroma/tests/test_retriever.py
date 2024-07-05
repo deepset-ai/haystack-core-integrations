@@ -2,8 +2,21 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 import pytest
+from haystack.document_stores.types import FilterPolicy
 from haystack_integrations.components.retrievers.chroma import ChromaQueryTextRetriever
 from haystack_integrations.document_stores.chroma import ChromaDocumentStore
+
+
+@pytest.mark.integration
+def test_retriever_init(request):
+    ds = ChromaDocumentStore(
+        collection_name=request.node.name, embedding_function="HuggingFaceEmbeddingFunction", api_key="1234567890"
+    )
+    retriever = ChromaQueryTextRetriever(ds, filters={"foo": "bar"}, top_k=99, filter_policy="replace")
+    assert retriever.filter_policy == FilterPolicy.REPLACE
+
+    with pytest.raises(ValueError):
+        ChromaQueryTextRetriever(ds, filters={"foo": "bar"}, top_k=99, filter_policy="unknown")
 
 
 @pytest.mark.integration
@@ -17,6 +30,7 @@ def test_retriever_to_json(request):
         "init_parameters": {
             "filters": {"foo": "bar"},
             "top_k": 99,
+            "filter_policy": "replace",
             "document_store": {
                 "type": "haystack_integrations.document_stores.chroma.document_store.ChromaDocumentStore",
                 "init_parameters": {
@@ -38,6 +52,7 @@ def test_retriever_from_json(request):
         "init_parameters": {
             "filters": {"bar": "baz"},
             "top_k": 42,
+            "filter_policy": "replace",
             "document_store": {
                 "type": "haystack_integrations.document_stores.chroma.document_store.ChromaDocumentStore",
                 "init_parameters": {
@@ -57,3 +72,4 @@ def test_retriever_from_json(request):
     assert retriever.document_store._persist_path == "."
     assert retriever.filters == {"bar": "baz"}
     assert retriever.top_k == 42
+    assert retriever.filter_policy == FilterPolicy.REPLACE
