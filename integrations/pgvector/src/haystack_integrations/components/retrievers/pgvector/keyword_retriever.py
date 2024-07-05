@@ -122,10 +122,7 @@ class PgvectorKeywordRetriever:
         :returns: A dictionary with the following keys:
             - `documents`: List of `Document`s that match the query.
         """
-        if self.filter_policy == FilterPolicy.MERGE and filters:
-            filters = {**self.filters, **filters}
-        else:
-            filters = filters or self.filters
+        filters = apply_filter_policy(self.filter_policy, self.filters, filters)
 
         top_k = top_k or self.top_k
 
