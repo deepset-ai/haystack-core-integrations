@@ -87,7 +87,7 @@ class QdrantEmbeddingRetriever:
             document_store=self._document_store,
             filters=self._filters,
             top_k=self._top_k,
-            filter_policy=self._filter_policy.value if self._filter_policy else None,
+            filter_policy=self._filter_policy.value,
             scale_score=self._scale_score,
             return_embedding=self._return_embedding,
             score_threshold=self._score_threshold,
@@ -108,8 +108,7 @@ class QdrantEmbeddingRetriever:
         """
         document_store = QdrantDocumentStore.from_dict(data["init_parameters"]["document_store"])
         data["init_parameters"]["document_store"] = document_store
-        if "filter_policy" in data["init_parameters"]:
-            data["init_parameters"]["filter_policy"] = FilterPolicy.from_str(data["init_parameters"]["filter_policy"])
+        data["init_parameters"]["filter_policy"] = FilterPolicy.from_str(data["init_parameters"]["filter_policy"])
         return default_from_dict(cls, data)
 
     @component.output_types(documents=List[Document])
@@ -230,7 +229,7 @@ class QdrantSparseEmbeddingRetriever:
             filters=self._filters,
             top_k=self._top_k,
             scale_score=self._scale_score,
-            filter_policy=self._filter_policy.value if self._filter_policy else None,
+            filter_policy=self._filter_policy.value,
             return_embedding=self._return_embedding,
             score_threshold=self._score_threshold,
         )
@@ -250,8 +249,7 @@ class QdrantSparseEmbeddingRetriever:
         """
         document_store = QdrantDocumentStore.from_dict(data["init_parameters"]["document_store"])
         data["init_parameters"]["document_store"] = document_store
-        if "filter_policy" in data["init_parameters"]:
-            data["init_parameters"]["filter_policy"] = FilterPolicy.from_str(data["init_parameters"]["filter_policy"])
+        data["init_parameters"]["filter_policy"] = FilterPolicy.from_str(data["init_parameters"]["filter_policy"])
         return default_from_dict(cls, data)
 
     @component.output_types(documents=List[Document])
@@ -396,8 +394,7 @@ class QdrantHybridRetriever:
         """
         document_store = QdrantDocumentStore.from_dict(data["init_parameters"]["document_store"])
         data["init_parameters"]["document_store"] = document_store
-        if "filter_policy" in data["init_parameters"]:
-            data["init_parameters"]["filter_policy"] = FilterPolicy.from_str(data["init_parameters"]["filter_policy"])
+        data["init_parameters"]["filter_policy"] = FilterPolicy.from_str(data["init_parameters"]["filter_policy"])
         return default_from_dict(cls, data)
 
     @component.output_types(documents=List[Document])
