@@ -44,7 +44,7 @@ class AstraEmbeddingRetriever:
         :param document_store: An instance of AstraDocumentStore.
         :param filters: a dictionary with filters to narrow down the search space.
         :param top_k: the maximum number of documents to retrieve.
-        :param filter_policy: Policy to determine how filters are applied
+        :param filter_policy: Policy to determine how filters are applied.
         """
         self.filters = filters or {}
         self.top_k = top_k
