@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import List, Optional, Union
+from typing import Any, List, Optional, Union
 
 from haystack.utils.filters import COMPARISON_OPERATORS, LOGICAL_OPERATORS, FilterError
 from qdrant_client.http import models
@@ -10,7 +10,7 @@ LOGICAL_OPERATORS = LOGICAL_OPERATORS.keys()
 
 def convert_filters_to_qdrant(
     filter_term: Optional[Union[List[dict], dict, models.Filter]] = None, is_parent_call: bool = True
-) -> Optional[models.Filter]:
+) -> Optional[Union[models.Filter, List[models.Filter]]]:
     """Converts Haystack filters to the format used by Qdrant."""
 
     if isinstance(filter_term, models.Filter):
@@ -21,25 +21,22 @@ def convert_filters_to_qdrant(
     must_clauses: List[models.Filter] = []
     should_clauses: List[models.Filter] = []
     must_not_clauses: List[models.Filter] = []
+    same_operator_flag = False  # For same operators on each level, we need nested clauses
     conditions, qdrant_filters, current_level_operators = (
         [],
         [],
         [],
     )
 
-    # Flag to check if conditional clauses need to be nested
-    same_operator_flag = False
     if isinstance(filter_term, dict):
         filter_term = [filter_term]
 
     for item in filter_term:
-        current_filter: Optional[List[models.Filter]] = []
         operator = item.get("operator")
 
-        # Check for same operator on each level
-        if operator in current_level_operators and operator in LOGICAL_OPERATORS:
-            same_operator_flag = True
-        else:
+        # Check for same operators on each level
+        same_operator_flag = operator in current_level_operators and operator in LOGICAL_OPERATORS
+        if not same_operator_flag:
             current_level_operators.append(operator)
 
         if operator is None:
@@ -51,9 +48,8 @@ def convert_filters_to_qdrant(
             raise FilterError(msg)
 
         if operator in LOGICAL_OPERATORS:
-            current_filter = convert_filters_to_qdrant(item.get("conditions", []), is_parent_call=False)
-            if current_filter is None:
-                current_filter = []
+            current_filter = convert_filters_to_qdrant(item.get("conditions", []), is_parent_call=False) or []
+
             if operator == "AND":
                 must_clauses = [must_clauses, current_filter] if same_operator_flag else must_clauses + current_filter
             elif operator == "OR":
@@ -64,6 +60,7 @@ def convert_filters_to_qdrant(
                 must_not_clauses = (
                     [must_not_clauses, current_filter] if same_operator_flag else must_not_clauses + current_filter
                 )
+
         elif operator in COMPARISON_OPERATORS:
             field = item.get("field")
             value = item.get("value")
@@ -73,7 +70,7 @@ def convert_filters_to_qdrant(
 
             parsed_conditions = _parse_comparison_operation(comparison_operation=operator, key=field, value=value)
 
-            # check if the parsed_conditions are Filter or FieldCondition
+            # check if the parsed_conditions are models.Filter or models.Condition
             for condition in parsed_conditions:
                 if isinstance(condition, models.Filter):
                     qdrant_filters.append(condition)
@@ -85,16 +82,9 @@ def convert_filters_to_qdrant(
             raise FilterError(msg)
 
     if same_operator_flag:
-        if any(isinstance(i, list) for i in must_clauses):
-            for i in must_clauses:
-                qdrant_filters.append(build_payload(i, should_clauses, must_not_clauses))
-        if any(isinstance(i, list) for i in should_clauses):
-            for i in should_clauses:
-                qdrant_filters.append(build_payload(must_clauses, i, must_not_clauses))
-        if any(isinstance(i, list) for i in must_not_clauses):
-            for i in must_not_clauses:
-                qdrant_filters.append(build_payload(must_clauses, should_clauses, i))
-
+        qdrant_filters = build_payload_for_same_operators(
+            must_clauses, should_clauses, must_not_clauses, qdrant_filters
+        )
         if not is_parent_call:
             return qdrant_filters
     elif must_clauses or should_clauses or must_not_clauses:
@@ -103,7 +93,6 @@ def convert_filters_to_qdrant(
     if is_parent_call:
         if conditions:
             must_clauses.extend(conditions)
-
         return (
             qdrant_filters[0]
             if len(qdrant_filters) == 1
@@ -127,6 +116,27 @@ def build_payload(
         should=should_clauses or None,
         must_not=must_not_clauses or None,
     )
+
+
+def build_payload_for_same_operators(
+    must_clauses: List[models.Condition],
+    should_clauses: List[models.Condition],
+    must_not_clauses: List[models.Condition],
+    output_filter: List[Any],
+) -> List[models.Filter]:
+
+    clause_types = [
+        (must_clauses, should_clauses, must_not_clauses),
+        (should_clauses, must_clauses, must_not_clauses),
+        (must_not_clauses, must_clauses, should_clauses),
+    ]
+
+    for clauses, arg1, arg2 in clause_types:
+        if any(isinstance(i, list) for i in clauses):
+            for clause in clauses:
+                output_filter.append(build_payload(clause, arg1, arg2))
+
+    return output_filter
 
 
 def _parse_comparison_operation(
