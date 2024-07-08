@@ -92,6 +92,21 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, LegacyFilterDoc
 
         assert document_store.filter_documents(filters={"id": doc.id}) == [doc]
 
+    def test_search(self):
+        document_store = ChromaDocumentStore()
+        documents = [
+            Document(content="First document", meta={"author": "Author1"}),
+            Document(content="Second document"),  # No metadata
+            Document(content="Third document", meta={"author": "Author2"}),
+            Document(content="Fourth document"),  # No metadata
+        ]
+        document_store.write_documents(documents)
+        result = document_store.search(["Third"], top_k=1)
+
+        # Assertions to verify correctness
+        assert len(result) == 1
+        assert result[0][0].content == "Third document"
+
     @pytest.mark.integration
     def test_to_json(self, request):
         ds = ChromaDocumentStore(
