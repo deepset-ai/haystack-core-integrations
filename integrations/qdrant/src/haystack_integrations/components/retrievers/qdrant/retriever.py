@@ -267,7 +267,7 @@ class QdrantSparseEmbeddingRetriever:
 
         :param query_sparse_embedding: Sparse Embedding of the query.
         :param filters: Filters applied to the retrieved Documents. The way runtime filters are applied depends on
-                        the `filter_policy` chosen at document store initialization. See init method docstring for more
+                        the `filter_policy` chosen at retriever initialization. See init method docstring for more
                         details.
         :param top_k: The maximum number of documents to return.
         :param scale_score: Whether to scale the scores of the retrieved documents or not.
@@ -413,7 +413,7 @@ class QdrantHybridRetriever:
         :param query_embedding: Dense embedding of the query.
         :param query_sparse_embedding: Sparse embedding of the query.
         :param filters: Filters applied to the retrieved Documents. The way runtime filters are applied depends on
-                        the `filter_policy` chosen at document store initialization. See init method docstring for more
+                        the `filter_policy` chosen at retriever initialization. See init method docstring for more
                         details.
         :param top_k: The maximum number of documents to return.
         :param return_embedding: Whether to return the embedding of the retrieved Documents.

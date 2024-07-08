@@ -115,7 +115,7 @@ class PgvectorKeywordRetriever:
 
         :param query: String to search in `Document`s' content.
         :param filters: Filters applied to the retrieved Documents. The way runtime filters are applied depends on
-                        the `filter_policy` chosen at document store initialization. See init method docstring for more
+                        the `filter_policy` chosen at retriever initialization. See init method docstring for more
                         details.
         :param top_k: Maximum number of Documents to return.
 
