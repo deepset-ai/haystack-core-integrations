@@ -429,12 +429,12 @@ class ChromaDocumentStore:
 
                 # prepare metadata
                 metadatas = result.get("metadatas")
-                print (metadatas)
                 try:
                     if metadatas and metadatas[i][j] is not None:
                         document_dict["meta"] = metadatas[i][j]
-                except IndexError:
-                    raise IndexError("No metadata found for document: " + document_dict['id'])
+                except IndexError as e:
+                    msg = "No metadata found for document: " + document_dict["id"]
+                    raise IndexError(msg) from e
 
                 if embeddings := result.get("embeddings"):
                     document_dict["embedding"] = np.array(embeddings[i][j])
