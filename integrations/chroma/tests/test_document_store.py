@@ -92,7 +92,7 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, LegacyFilterDoc
 
         assert document_store.filter_documents(filters={"id": doc.id}) == [doc]
 
-    def test_document_store_search(self):
+    def test_search(self):
         document_store = ChromaDocumentStore()
         documents = [
             Document(content="First document", meta={"author": "Author1"}),
