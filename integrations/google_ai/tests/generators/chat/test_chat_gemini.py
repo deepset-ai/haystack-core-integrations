@@ -2,9 +2,8 @@ import os
 from unittest.mock import patch
 
 import pytest
-from google.ai.generativelanguage import FunctionDeclaration, Tool
 from google.generativeai import GenerationConfig, GenerativeModel
-from google.generativeai.types import HarmBlockThreshold, HarmCategory
+from google.generativeai.types import FunctionDeclaration, HarmBlockThreshold, HarmCategory, Tool
 from haystack.dataclasses.chat_message import ChatMessage
 
 from haystack_integrations.components.generators.google_ai import GoogleAIGeminiChatGenerator
@@ -195,22 +194,11 @@ def test_run():
     def get_current_weather(location: str, unit: str = "celsius"):  # noqa: ARG001
         return {"weather": "sunny", "temperature": 21.8, "unit": unit}
 
-    get_current_weather_func = FunctionDeclaration(
-        name="get_current_weather",
-        description="Get the current weather in a given location",
-        parameters={
-            "type_": "OBJECT",
-            "properties": {
-                "location": {"type_": "STRING", "description": "The city and state, e.g. San Francisco, CA"},
-                "unit": {
-                    "type_": "STRING",
-                    "enum": [
-                        "celsius",
-                        "fahrenheit",
-                    ],
-                },
-            },
-            "required": ["location"],
+    get_current_weather_func = FunctionDeclaration.from_function(
+        get_current_weather,
+        descriptions={
+            "location": "The city and state, e.g. San Francisco, CA",
+            "unit": "The temperature unit of measurement, e.g. celsius or fahrenheit",
         },
     )
 
