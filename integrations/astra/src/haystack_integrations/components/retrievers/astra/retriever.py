@@ -63,7 +63,7 @@ class AstraEmbeddingRetriever:
 
         :param query_embedding: floats representing the query embedding
         :param filters: Filters applied to the retrieved Documents. The way runtime filters are applied depends on
-                        the `filter_policy` chosen at document store initialization. See init method docstring for more
+                        the `filter_policy` chosen at retriever initialization. See init method docstring for more
                         details.
         :param top_k: the maximum number of documents to retrieve.
         :returns: a dictionary with the following keys:

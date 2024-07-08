@@ -134,7 +134,7 @@ class OpenSearchEmbeddingRetriever:
 
         :param query_embedding: Embedding of the query.
         :param filters: Filters applied to the retrieved Documents. The way runtime filters are applied depends on
-                        the `filter_policy` chosen at document store initialization. See init method docstring for more
+                        the `filter_policy` chosen at retriever initialization. See init method docstring for more
                         details.
         :param top_k: Maximum number of Documents to return.
         :param custom_query: The query containing a mandatory `$query_embedding` and an optional `$filters` placeholder

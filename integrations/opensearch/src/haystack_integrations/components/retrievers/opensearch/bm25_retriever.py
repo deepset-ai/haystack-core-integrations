@@ -138,7 +138,7 @@ class OpenSearchBM25Retriever:
 
         :param query: The query string
         :param filters: Filters applied to the retrieved Documents. The way runtime filters are applied depends on
-                        the `filter_policy` chosen at document store initialization. See init method docstring for more
+                        the `filter_policy` chosen at retriever initialization. See init method docstring for more
                         details.
         :param all_terms_must_match: If True, all terms in the query string must be present in the retrieved documents.
         :param top_k: Maximum number of Documents to return.
