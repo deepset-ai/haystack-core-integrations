@@ -92,30 +92,20 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, LegacyFilterDoc
 
         assert document_store.filter_documents(filters={"id": doc.id}) == [doc]
 
-    def test_document_store_search_without_metadata(self):
+    def test_document_store_search(self):
         document_store = ChromaDocumentStore()
-        document_store.write_documents([Document(content=e) for e in ["First document", "Second document"]])
-        result = document_store.search(["First document"], top_k=1)
-
-        # Assertions to verify correctness
-        assert len(result) == 1
-        assert result[0][0].content == "First document"
-
-    def test_document_store_search_with_metadata(self):
-        document_store = ChromaDocumentStore()
-
-        # Writing documents to the document store
         documents = [
             Document(content="First document", meta={"author": "Author1"}),
             Document(content="Second document"),  # No metadata
             Document(content="Third document", meta={"author": "Author2"}),
             Document(content="Fourth document"),  # No metadata
         ]
-
         document_store.write_documents(documents)
-        # Search for a document with metadata
-        result_with_metadata = document_store.search(["Author1"], top_k=1)
-        assert result_with_metadata[0][0].content == "First document"
+        result = document_store.search(["Third"], top_k=1)
+
+        # Assertions to verify correctness
+        assert len(result) == 1
+        assert result[0][0].content == "Third document"
 
     @pytest.mark.integration
     def test_to_json(self, request):
