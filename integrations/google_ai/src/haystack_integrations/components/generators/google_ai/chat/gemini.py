@@ -2,9 +2,10 @@ import logging
 from typing import Any, Dict, List, Optional, Union
 
 import google.generativeai as genai
-from google.ai.generativelanguage import Content, Part, Tool
+from google.ai.generativelanguage import Content, Part
+from google.ai.generativelanguage import Tool as ToolProto
 from google.generativeai import GenerationConfig, GenerativeModel
-from google.generativeai.types import HarmBlockThreshold, HarmCategory
+from google.generativeai.types import HarmBlockThreshold, HarmCategory, Tool
 from haystack.core.component import component
 from haystack.core.serialization import default_from_dict, default_to_dict
 from haystack.dataclasses.byte_stream import ByteStream
@@ -159,7 +160,14 @@ class GoogleAIGeminiChatGenerator:
             tools=self._tools,
         )
         if (tools := data["init_parameters"].get("tools")) is not None:
-            data["init_parameters"]["tools"] = [Tool.serialize(t) for t in tools]
+            data["init_parameters"]["tools"] = []
+            for tool in tools:
+                if isinstance(tool, Tool):
+                    # There are multiple Tool types in the Google lib, one that is a protobuf class and
+                    # another is a simple Python class. They have a similar structure but the Python class
+                    # can't be easily serializated to a dict. We need to convert it to a protobuf class first.
+                    tool = tool.to_proto()  # noqa: PLW2901
+                data["init_parameters"]["tools"].append(ToolProto.serialize(tool))
         if (generation_config := data["init_parameters"].get("generation_config")) is not None:
             data["init_parameters"]["generation_config"] = self._generation_config_to_dict(generation_config)
         if (safety_settings := data["init_parameters"].get("safety_settings")) is not None:
@@ -179,7 +187,15 @@ class GoogleAIGeminiChatGenerator:
         deserialize_secrets_inplace(data["init_parameters"], keys=["api_key"])
 
         if (tools := data["init_parameters"].get("tools")) is not None:
-            data["init_parameters"]["tools"] = [Tool.deserialize(t) for t in tools]
+            deserialized_tools = []
+            for tool in tools:
+                # Tools are always serialized as a protobuf class, so we need to deserialize them first
+                # to be able to convert them to the Python class.
+                proto = ToolProto.deserialize(tool)
+                deserialized_tools.append(
+                    Tool(function_declarations=proto.function_declarations, code_execution=proto.code_execution)
+                )
+            data["init_parameters"]["tools"] = deserialized_tools
         if (generation_config := data["init_parameters"].get("generation_config")) is not None:
             data["init_parameters"]["generation_config"] = GenerationConfig(**generation_config)
         if (safety_settings := data["init_parameters"].get("safety_settings")) is not None:
