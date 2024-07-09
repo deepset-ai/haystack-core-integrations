@@ -157,33 +157,16 @@ def test_from_dict(monkeypatch):
         top_k=2,
     )
     assert gemini._safety_settings == {HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_ONLY_HIGH}
-    assert gemini._tools == [
-        Tool(
-            function_declarations=[
-                FunctionDeclaration(
-                    name="get_current_weather",
-                    description="Get the current weather in a given location",
-                    parameters={
-                        "type_": "OBJECT",
-                        "properties": {
-                            "location": {
-                                "type_": "STRING",
-                                "description": "The city and state, e.g. San Francisco, CA",
-                            },
-                            "unit": {
-                                "type_": "STRING",
-                                "enum": [
-                                    "celsius",
-                                    "fahrenheit",
-                                ],
-                            },
-                        },
-                        "required": ["location"],
-                    },
-                )
-            ]
-        )
-    ]
+    assert len(gemini._tools) == 1
+    assert len(gemini._tools[0].function_declarations) == 1
+    assert gemini._tools[0].function_declarations[0].name == "get_current_weather"
+    assert gemini._tools[0].function_declarations[0].description == "Get the current weather in a given location"
+    assert (
+        gemini._tools[0].function_declarations[0].parameters.properties["location"].description
+        == "The city and state, e.g. San Francisco, CA"
+    )
+    assert gemini._tools[0].function_declarations[0].parameters.properties["unit"].enum == ["celsius", "fahrenheit"]
+    assert gemini._tools[0].function_declarations[0].parameters.required == ["location"]
     assert isinstance(gemini._model, GenerativeModel)
 
 
