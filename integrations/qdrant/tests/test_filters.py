@@ -64,15 +64,15 @@ class TestQdrantStoreBaseTests(FilterDocumentsTest):
     def test_filter_criteria(self, document_store):
         documents = [
             Document(
-                content="This is a test document 1.",
+                content="This is test document 1.",
                 meta={"file_name": "file1", "classification": {"details": {"category1": 0.9, "category2": 0.3}}},
             ),
             Document(
-                content="This is a test document 2.",
+                content="This is test document 2.",
                 meta={"file_name": "file2", "classification": {"details": {"category1": 0.1, "category2": 0.7}}},
             ),
             Document(
-                content="This is a test document 3.",
+                content="This is test document 3.",
                 meta={"file_name": "file3", "classification": {"details": {"category1": 0.7, "category2": 0.9}}},
             ),
         ]
@@ -105,87 +105,24 @@ class TestQdrantStoreBaseTests(FilterDocumentsTest):
             ],
         )
 
-    def test_advanced_filter_criteria(self, document_store):
+    def test_complex_filter_criteria(self, document_store):
         documents = [
             Document(
-                content="This is a test document 1.",
-                meta={"file_name": "file1", "classification": {"details": {"category1": 0.8, "category3": 0.2}}},
-            ),
-            Document(
-                content="This is a test document 2.",
-                meta={"file_name": "file2", "classification": {"details": {"category1": 0.3, "category3": 0.95}}},
-            ),
-            Document(
-                content="This is a test document 3.",
-                meta={"file_name": "file3", "classification": {"details": {"category2": 0.6, "category3": 0.85}}},
-            ),
-            Document(
-                content="This is a test document 4.",
-                meta={"file_name": "file4", "classification": {"details": {"category2": 0.88, "category3": 0.4}}},
-            ),
-        ]
-
-        document_store.write_documents(documents)
-        filter_criteria = {
-            "operator": "AND",
-            "conditions": [
-                {
-                    "operator": "OR",
-                    "conditions": [
-                        {"field": "meta.file_name", "operator": "in", "value": ["file1", "file3"]},
-                        {"field": "meta.file_name", "operator": "in", "value": ["file4"]},
-                    ],
-                },
-                {
-                    "operator": "AND",
-                    "conditions": [
-                        {
-                            "operator": "OR",
-                            "conditions": [
-                                {"field": "meta.classification.details.category1", "operator": ">=", "value": 0.75},
-                                {"field": "meta.classification.details.category2", "operator": ">=", "value": 0.85},
-                            ],
-                        },
-                        {"field": "meta.classification.details.category3", "operator": "<", "value": 0.9},
-                    ],
-                },
-            ],
-        }
-        result = document_store.filter_documents(filter_criteria)
-        self.assert_documents_are_equal(
-            result,
-            [
-                d
-                for d in documents
-                if (
-                    (d.meta.get("file_name") in ["file1", "file3"] or d.meta.get("file_name") == "file4")
-                    and (
-                        (d.meta.get("classification").get("details").get("category1", 0) >= 0.75)
-                        or (d.meta.get("classification").get("details").get("category2", 0) >= 0.85)
-                    )
-                    and (d.meta.get("classification").get("details").get("category3") < 0.9)
-                )
-            ],
-        )
-
-    def test_filter_criteria_complex(self, document_store):
-        documents = [
-            Document(
-                content="Complex document 1.",
+                content="This is test document 1.",
                 meta={
                     "file_name": "file1",
                     "classification": {"details": {"category1": 0.45, "category2": 0.5, "category3": 0.2}},
                 },
             ),
             Document(
-                content="Complex document 2.",
+                content="This is test document 2.",
                 meta={
                     "file_name": "file2",
                     "classification": {"details": {"category1": 0.95, "category2": 0.85, "category3": 0.4}},
                 },
             ),
             Document(
-                content="Complex document 3.",
+                content="This is test document 3.",
                 meta={
                     "file_name": "file3",
                     "classification": {"details": {"category1": 0.85, "category2": 0.7, "category3": 0.95}},

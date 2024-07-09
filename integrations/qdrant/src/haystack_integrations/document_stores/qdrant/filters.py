@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Any, List, Optional, Union
+from typing import List, Optional, Union
 
 from haystack.utils.filters import COMPARISON_OPERATORS, LOGICAL_OPERATORS, FilterError
 from qdrant_client.http import models
@@ -10,8 +10,18 @@ LOGICAL_OPERATORS = LOGICAL_OPERATORS.keys()
 
 def convert_filters_to_qdrant(
     filter_term: Optional[Union[List[dict], dict, models.Filter]] = None, is_parent_call: bool = True
-) -> Optional[Union[models.Filter, List[models.Filter]]]:
-    """Converts Haystack filters to the format used by Qdrant."""
+) -> Optional[Union[models.Filter, List[models.Filter], List[models.Condition]]]:
+    """Converts Haystack filters to the format used by Qdrant.
+
+    :param filter_term: the haystack filter to be converted to qdrant.
+    :param is_parent_call: indicates if this is the top-level call to the function. If True, the function returns
+      a single models.Filter object; if False, it may return a list of filters or conditions for further processing.
+
+    :returns: a single Qdrant Filter in the parent call or a list of such Filters in recursive calls.
+
+    :raises FilterError: If the invalid filter criteria is provided or if an unknown operator is encountered.
+
+    """
 
     if isinstance(filter_term, models.Filter):
         return filter_term
@@ -21,7 +31,9 @@ def convert_filters_to_qdrant(
     must_clauses: List[models.Filter] = []
     should_clauses: List[models.Filter] = []
     must_not_clauses: List[models.Filter] = []
-    same_operator_flag = False  # For same operators on each level, we need nested clauses
+    # Indicates if there are multiple same LOGICAL OPERATORS on each level
+    # and prevents them from being combined
+    same_operator_flag = False
     conditions, qdrant_filter, current_level_operators = (
         [],
         [],
@@ -31,10 +43,12 @@ def convert_filters_to_qdrant(
     if isinstance(filter_term, dict):
         filter_term = [filter_term]
 
+    # ======== IDENTIFY FILTER ITEMS ON EACH LEVEL ========
+
     for item in filter_term:
         operator = item.get("operator")
 
-        # Check for same operators on each level
+        # Check for repeated similar operators on each level
         same_operator_flag = operator in current_level_operators and operator in LOGICAL_OPERATORS
         if not same_operator_flag:
             current_level_operators.append(operator)
@@ -51,7 +65,8 @@ def convert_filters_to_qdrant(
             # Recursively process nested conditions
             current_filter = convert_filters_to_qdrant(item.get("conditions", []), is_parent_call=False) or []
 
-            # Append or nest clauses based on same_operator_flag
+            # When same_operator_flag is set to True,
+            # ensure each clause is appended as an independent list to avoid merging distinct clauses.
             if operator == "AND":
                 must_clauses = [must_clauses, current_filter] if same_operator_flag else must_clauses + current_filter
             elif operator == "OR":
@@ -83,16 +98,25 @@ def convert_filters_to_qdrant(
             msg = f"Unknown operator {operator} used in filters"
             raise FilterError(msg)
 
-    # Handle same operators on each level by building nested payloads
-    if same_operator_flag:
-        qdrant_filter = build_payload_for_same_operators(must_clauses, should_clauses, must_not_clauses, qdrant_filter)
-        if not is_parent_call:
-            return qdrant_filter
-    # Append built payload if any clauses are present
-    elif must_clauses or should_clauses or must_not_clauses:
-        qdrant_filter.append(build_payload(must_clauses, should_clauses, must_not_clauses))
+    # ======== PROCESS FILTER ITEMS ON EACH LEVEL ========
 
-    # Handle the parent call case to ensure a single Filter is returned
+    # If same logical operators have separate clauses, create separate filters
+    if same_operator_flag:
+        qdrant_filter = build_filters_for_repeated_operators(
+            must_clauses, should_clauses, must_not_clauses, qdrant_filter
+        )
+
+    # else append a single Filter for existing clauses
+    elif must_clauses or should_clauses or must_not_clauses:
+        qdrant_filter.append(
+            models.Filter(
+                must=must_clauses or None,
+                should=should_clauses or None,
+                must_not=must_not_clauses or None,
+            )
+        )
+
+    # In case of parent call, a single Filter is returned
     if is_parent_call:
         # If qdrant_filter has just a single Filter in parent call,
         # then it might be returned instead.
@@ -100,47 +124,67 @@ def convert_filters_to_qdrant(
             return qdrant_filter[0]
         else:
             must_clauses.extend(conditions)
-            return build_payload(must_clauses, should_clauses, must_not_clauses)
+            return models.Filter(
+                must=must_clauses or None,
+                should=should_clauses or None,
+                must_not=must_not_clauses or None,
+            )
 
     # Store conditions of each level in output of the loop
-    if conditions:
+    elif conditions:
         qdrant_filter.extend(conditions)
 
     return qdrant_filter
 
 
-def build_payload(
-    must_clauses: List[models.Condition],
-    should_clauses: List[models.Condition],
-    must_not_clauses: List[models.Condition],
-) -> models.Filter:
-
-    return models.Filter(
-        must=must_clauses or None,
-        should=should_clauses or None,
-        must_not=must_not_clauses or None,
-    )
-
-
-def build_payload_for_same_operators(
-    must_clauses: List[models.Condition],
-    should_clauses: List[models.Condition],
-    must_not_clauses: List[models.Condition],
-    output_filter: List[Any],
+def build_filters_for_repeated_operators(
+    must_clauses,
+    should_clauses,
+    must_not_clauses,
+    qdrant_filter,
 ) -> List[models.Filter]:
+    """
+    Flattens the nested lists of clauses by creating separate Filters for each clause of a logical operator.
 
-    clause_types = [
-        (must_clauses, should_clauses, must_not_clauses),
-        (should_clauses, must_clauses, must_not_clauses),
-        (must_not_clauses, must_clauses, should_clauses),
-    ]
+    :param must_clauses: a nested list of must clauses or an empty list.
+    :param should_clauses: a nested list of should clauses or an empty list.
+    :param must_not_clauses: a nested list of must_not clauses or an empty list.
+    :param qdrant_filter: a list where the generated Filter objects will be appended.
+      This list will be modified in-place.
 
-    for clauses, arg1, arg2 in clause_types:
-        if any(isinstance(i, list) for i in clauses):
-            for clause in clauses:
-                output_filter.append(build_payload(clause, arg1, arg2))
 
-    return output_filter
+    :returns: the modified `qdrant_filter` list with appended generated Filter objects.
+    """
+
+    if any(isinstance(i, list) for i in must_clauses):
+        for i in must_clauses:
+            qdrant_filter.append(
+                models.Filter(
+                    must=i or None,
+                    should=should_clauses or None,
+                    must_not=must_not_clauses or None,
+                )
+            )
+    if any(isinstance(i, list) for i in should_clauses):
+        for i in should_clauses:
+            qdrant_filter.append(
+                models.Filter(
+                    must=must_clauses or None,
+                    should=i or None,
+                    must_not=must_not_clauses or None,
+                )
+            )
+    if any(isinstance(i, list) for i in must_not_clauses):
+        for i in must_clauses:
+            qdrant_filter.append(
+                models.Filter(
+                    must=must_clauses or None,
+                    should=should_clauses or None,
+                    must_not=i or None,
+                )
+            )
+
+    return qdrant_filter
 
 
 def _parse_comparison_operation(
@@ -197,7 +241,7 @@ def _build_ne_condition(key: str, value: models.ValueVariants) -> models.Conditi
         must_not=[
             (
                 models.FieldCondition(key=key, match=models.MatchText(text=value))
-                if isinstance(value, str) and " " in value
+                if isinstance(value, str) and " " not in value
                 else models.FieldCondition(key=key, match=models.MatchValue(value=value))
             )
         ]
