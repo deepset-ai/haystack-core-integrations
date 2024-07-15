@@ -1,5 +1,6 @@
 import dataclasses
 import json
+import warnings
 from typing import Any, Callable, ClassVar, Dict, List, Optional, Union
 
 from haystack import component, default_from_dict, default_to_dict, logging
@@ -113,6 +114,13 @@ class AnthropicChatGenerator:
         self.streaming_callback = streaming_callback
         self.client = Anthropic(api_key=self.api_key.resolve_value())
         self.ignore_tools_thinking_messages = ignore_tools_thinking_messages
+
+        warnings.warn(
+            "The output of the AnthropicGenerator will soon change. The 'usage' entry in the 'meta' dictionary "
+            "will have the keys 'input_tokens' and 'output_tokens' replaced by 'prompt_tokens' and 'completion_tokens' "
+            "respectively."
+        )
+
 
     def _get_telemetry_data(self) -> Dict[str, Any]:
         """
