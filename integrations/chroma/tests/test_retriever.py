@@ -85,7 +85,7 @@ def test_retriever_from_json_no_filter_policy(request):
             "document_store": {
                 "type": "haystack_integrations.document_stores.chroma.document_store.ChromaDocumentStore",
                 "init_parameters": {
-                    "collection_name": "test_retriever_from_json",
+                    "collection_name": "test_retriever_from_json_no_filter_policy",
                     "embedding_function": "HuggingFaceEmbeddingFunction",
                     "persist_path": ".",
                     "api_key": "1234567890",
