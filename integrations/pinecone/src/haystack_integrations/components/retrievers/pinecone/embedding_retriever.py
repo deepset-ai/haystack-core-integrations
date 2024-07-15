@@ -104,6 +104,8 @@ class PineconeEmbeddingRetriever:
         data["init_parameters"]["document_store"] = PineconeDocumentStore.from_dict(
             data["init_parameters"]["document_store"]
         )
+        # Pipelines serialized with old versions of the component might not
+        # have the filter_policy field.
         if filter_policy := data["init_parameters"].get("filter_policy"):
             data["init_parameters"]["filter_policy"] = FilterPolicy.from_str(filter_policy)
         return default_from_dict(cls, data)
