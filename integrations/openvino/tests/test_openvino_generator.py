@@ -13,27 +13,25 @@ class TestOpenVINOGenerator:
 
         assert generator.huggingface_pipeline_kwargs == {
             "model": "microsoft/Phi-3-mini-4k-instruct",
-            "task": "text-generation",
             "device": "cpu",
         }
         assert generator.generation_kwargs == {"max_new_tokens": 512}
         assert generator.pipeline is None
 
     def test_warm_up(self, pipeline_mock):
-        generator = OpenVINOGenerator(model="microsoft/Phi-3-mini-4k-instruct", task="text-generation")
+        generator = OpenVINOGenerator(model="microsoft/Phi-3-mini-4k-instruct")
         pipeline_mock.assert_not_called()
 
         generator.warm_up()
 
         pipeline_mock.assert_called_once_with(
             model="microsoft/Phi-3-mini-4k-instruct",
-            task="text-generation",
             device="cpu",
         )
 
     def test_run(self):
         generator = OpenVINOGenerator(
-            model="microsoft/Phi-3-mini-4k-instruct", task="text-generation", generation_kwargs={"max_new_tokens": 100}
+            model="microsoft/Phi-3-mini-4k-instruct", generation_kwargs={"max_new_tokens": 100}
         )
 
         # create the pipeline object (simulating the warm_up)

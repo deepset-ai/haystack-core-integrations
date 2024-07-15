@@ -9,11 +9,10 @@ from haystack_integrations.components.generators.openvino import OpenVINOChatGen
 
 class TestOpenVINOChatGenerator:
     def test_init_task_parameter(self):
-        generator = OpenVINOChatGenerator(task="text-generation", device="cpu")
+        generator = OpenVINOChatGenerator(device="cpu")
 
         assert generator.huggingface_pipeline_kwargs == {
             "model": "microsoft/Phi-3-mini-4k-instruct",
-            "task": "text-generation",
             "device": "cpu",
         }
 
@@ -21,7 +20,6 @@ class TestOpenVINOChatGenerator:
     def test_warm_up(self, pipeline_mock):
         generator = OpenVINOChatGenerator(
             model="microsoft/Phi-3-mini-4k-instruct",
-            task="text-generation",
             device="cpu",
         )
 
@@ -30,7 +28,7 @@ class TestOpenVINOChatGenerator:
         generator.warm_up()
 
         pipeline_mock.assert_called_once_with(
-            model="microsoft/Phi-3-mini-4k-instruct", task="text-generation", token=None, device="cpu"
+            model="microsoft/Phi-3-mini-4k-instruct", device="cpu"
         )
 
     def test_run(self, mock_pipeline_tokenizer, chat_messages):

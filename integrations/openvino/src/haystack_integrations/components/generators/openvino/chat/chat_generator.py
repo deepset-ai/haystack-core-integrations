@@ -59,7 +59,6 @@ class OpenVINOChatGenerator(HuggingFaceLocalChatGenerator):
         model: str = "microsoft/Phi-3-mini-4k-instruct",
         device_openvino: str = "cpu",
         ov_config: dict = DEFAULT_OV_CONFIG,
-        task: Optional[Literal["text-generation", "text2text-generation"]] = "text-generation",
         generation_kwargs: Optional[Dict[str, Any]] = None,
         huggingface_pipeline_kwargs: Optional[Dict[str, Any]] = None,
         tokenizer_kwargs: Optional[Dict[str, Any]] = None,
@@ -69,12 +68,7 @@ class OpenVINOChatGenerator(HuggingFaceLocalChatGenerator):
         """
         Creates an instance of a HuggingFaceLocalGenerator.
 
-        :param model: The name of a Hugging Face model or path of OpenVINO model for text generation,
-        :param task: The task for the Hugging Face pipeline.
-            Possible values are "text-generation" and "text2text-generation".
-            Generally, decoder-only models like GPT support "text-generation",
-            while encoder-decoder models like T5 support "text2text-generation".
-            If the task is also specified in the `huggingface_pipeline_kwargs`, this parameter will be ignored.
+        :param model: The name of a Hugging Face model or path of OpenVINO model for text generation.
         :param device: The device on which the model is loaded.
         :param generation_kwargs: A dictionary containing keyword arguments to customize text generation.
             Some examples: `max_length`, `max_new_tokens`, `temperature`, `top_k`, `top_p`,...
@@ -98,7 +92,7 @@ class OpenVINOChatGenerator(HuggingFaceLocalChatGenerator):
         ov_import.check()
         super().__init__(
             model=model,
-            task=task,
+            task="text-generation",
             generation_kwargs=generation_kwargs,
             huggingface_pipeline_kwargs=huggingface_pipeline_kwargs,
             stop_words=stop_words,
