@@ -119,7 +119,11 @@ class OpenSearchBM25Retriever:
         data["init_parameters"]["document_store"] = OpenSearchDocumentStore.from_dict(
             data["init_parameters"]["document_store"]
         )
-        data["init_parameters"]["filter_policy"] = FilterPolicy.from_str(data["init_parameters"]["filter_policy"])
+
+        # Pipelines serialized with old versions of the component might not
+        # have the filter_policy field.
+        if "filter_policy" in data["init_parameters"]:
+            data["init_parameters"]["filter_policy"] = FilterPolicy.from_str(data["init_parameters"]["filter_policy"])
         return default_from_dict(cls, data)
 
     @component.output_types(documents=List[Document])
@@ -138,7 +142,7 @@ class OpenSearchBM25Retriever:
 
         :param query: The query string
         :param filters: Filters applied to the retrieved Documents. The way runtime filters are applied depends on
-                        the `filter_policy` chosen at document store initialization. See init method docstring for more
+                        the `filter_policy` chosen at retriever initialization. See init method docstring for more
                         details.
         :param all_terms_must_match: If True, all terms in the query string must be present in the retrieved documents.
         :param top_k: Maximum number of Documents to return.

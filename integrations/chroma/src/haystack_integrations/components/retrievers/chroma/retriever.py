@@ -75,7 +75,7 @@ class ChromaQueryTextRetriever:
 
         :param query: The input data for the retriever. In this case, a plain-text query.
         :param filters: Filters applied to the retrieved Documents. The way runtime filters are applied depends on
-                        the `filter_policy` chosen at document store initialization. See init method docstring for more
+                        the `filter_policy` chosen at retriever initialization. See init method docstring for more
                         details.
         :param top_k: The maximum number of documents to retrieve.
             If not specified, the default value from the constructor is used.
@@ -138,7 +138,7 @@ class ChromaEmbeddingRetriever(ChromaQueryTextRetriever):
 
         :param query_embedding: the query embeddings.
         :param filters: Filters applied to the retrieved Documents. The way runtime filters are applied depends on
-                        the `filter_policy` chosen at document store initialization. See init method docstring for more
+                        the `filter_policy` chosen at retriever initialization. See init method docstring for more
                         details.
         :param top_k: the maximum number of documents to retrieve.
             If not specified, the default value from the constructor is used.

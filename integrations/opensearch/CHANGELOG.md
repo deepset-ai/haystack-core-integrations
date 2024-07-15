@@ -1,5 +1,20 @@
 # Changelog
 
+## [integrations/opensearch-v0.8.1] - 2024-07-15
+
+### 🚀 Features
+
+- Add raise_on_failure param to OpenSearch retrievers (#852)
+- Add filter_policy to opensearch integration (#822)
+
+### 🐛 Bug Fixes
+
+- `OpenSearch` - Fallback to default filter policy when deserializing retrievers without the init parameter (#895)
+
+### ⚙️ Miscellaneous Tasks
+
+- Update ruff invocation to include check parameter (#853)
+
 ## [integrations/opensearch-v0.7.1] - 2024-06-27
 
 ### 🐛 Bug Fixes

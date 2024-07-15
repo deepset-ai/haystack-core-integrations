@@ -5,11 +5,18 @@
 ### 🚀 Features
 
 - Defer the database connection to when it's needed (#769)
+- Add filter_policy to astra integration (#827)
 
 ### 🐛 Bug Fixes
 
 - Fix astra nightly
 
+- Fix typing checks
+
+
+### ⚙️ Miscellaneous Tasks
+
+- Retry tests to reduce flakyness (#836)
 
 ## [integrations/astra-v0.7.0] - 2024-05-15
 

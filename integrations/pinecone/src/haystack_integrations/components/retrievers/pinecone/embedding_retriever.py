@@ -119,7 +119,7 @@ class PineconeEmbeddingRetriever:
 
         :param query_embedding: Embedding of the query.
         :param filters: Filters applied to the retrieved Documents. The way runtime filters are applied depends on
-                        the `filter_policy` chosen at document store initialization. See init method docstring for more
+                        the `filter_policy` chosen at retriever initialization. See init method docstring for more
                         details.
         :param top_k: Maximum number of `Document`s to return.
 

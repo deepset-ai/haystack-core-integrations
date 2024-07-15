@@ -1,5 +1,15 @@
 # Changelog
 
+## [integrations/qdrant-v4.1.1] - 2024-07-10
+
+### 🚀 Features
+
+- Add filter_policy to qdrant integration (#819)
+
+### 🐛 Bug Fixes
+
+- Errors in convert_filters_to_qdrant (#870)
+
 ## [integrations/qdrant-v4.1.0] - 2024-07-03
 
 ### 🚀 Features
