@@ -135,7 +135,9 @@ class TestRetriever:
         assert retriever.top_k == 5
         assert retriever.filter_policy == FilterPolicy.REPLACE
 
-    def test_from_dict_no_filter_policy(self, mock_client, monkeypatch):  # noqa: ARG002  mock_client appears unused but is required
+    def test_from_dict_no_filter_policy(
+        self, mock_client, monkeypatch
+    ):  # noqa: ARG002  mock_client appears unused but is required
         monkeypatch.setenv("MONGO_CONNECTION_STRING", "test_conn_str")
 
         data = {
