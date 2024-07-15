@@ -92,3 +92,33 @@ def test_retriever_from_json(*_):
     retriever = AstraEmbeddingRetriever.from_dict(data)
     assert retriever.top_k == 42
     assert retriever.filters == {"bar": "baz"}
+
+
+@patch.dict(
+    "os.environ",
+    {"ASTRA_DB_APPLICATION_TOKEN": "fake-token", "ASTRA_DB_API_ENDPOINT": "http://fake-url.apps.astra.datastax.com"},
+)
+@patch("haystack_integrations.document_stores.astra.document_store.AstraClient")
+def test_retriever_from_json_no_filter_policy(*_):
+    data = {
+        "type": "haystack_integrations.components.retrievers.astra.retriever.AstraEmbeddingRetriever",
+        "init_parameters": {
+            "filters": {"bar": "baz"},
+            "top_k": 42,
+            "document_store": {
+                "type": "haystack_integrations.document_stores.astra.document_store.AstraDocumentStore",
+                "init_parameters": {
+                    "api_endpoint": {"type": "env_var", "env_vars": ["ASTRA_DB_API_ENDPOINT"], "strict": True},
+                    "token": {"type": "env_var", "env_vars": ["ASTRA_DB_APPLICATION_TOKEN"], "strict": True},
+                    "collection_name": "documents",
+                    "embedding_dimension": 768,
+                    "duplicates_policy": "NONE",
+                    "similarity": "cosine",
+                },
+            },
+        },
+    }
+    retriever = AstraEmbeddingRetriever.from_dict(data)
+    assert retriever.top_k == 42
+    assert retriever.filters == {"bar": "baz"}
+    assert retriever.filter_policy == FilterPolicy.REPLACE  # defaults to REPLACE
