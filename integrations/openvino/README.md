@@ -1,4 +1,4 @@
-# cohere-haystack
+# openvino-haystack
 
 [![PyPI - Version](https://img.shields.io/pypi/v/openvino-haystack.svg)](https://pypi.org/project/openvino-haystack)
 [![PyPI - Python Version](https://img.shields.io/pypi/pyversions/openvino-haystack.svg)](https://pypi.org/project/openvino-haystack)
@@ -7,7 +7,7 @@
 
 **Table of Contents**
 
-- [cohere-haystack](#cohere-haystack)
+- [openvino-haystack](#openvino-haystack)
   - [Installation](#installation)
   - [License](#license)
 
