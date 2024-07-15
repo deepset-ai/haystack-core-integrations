@@ -95,7 +95,7 @@ def test_from_dict_no_filter_policy(_mock_elasticsearch_client):
     assert retriever._top_k == 10
     assert retriever._num_candidates is None
     assert retriever._filter_policy == FilterPolicy.REPLACE  # defaults to REPLACE
-    
+
 
 def test_run():
     mock_store = Mock(spec=ElasticsearchDocumentStore)
