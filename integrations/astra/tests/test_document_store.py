@@ -203,10 +203,10 @@ class TestDocumentStore(DocumentStoreBaseTests):
 
         document_store.write_documents(filterable_docs)
         result = document_store.filter_documents(filters=filter_criteria)
-       
+
         self.assert_documents_are_equal(result, [
-            d for d in filterable_docs 
-            if d.meta.get("field1") == "Value 1" and 
+            d for d in filterable_docs
+            if d.meta.get("field1") == "Value 1" and
             (d.meta.get("field2") == "Value 2" or d.meta.get("field2") == "Value 3")
         ])
 
