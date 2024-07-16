@@ -181,7 +181,7 @@ class TestDocumentStore(DocumentStoreBaseTests):
                     "operator": "OR",
                     "conditions": [
                         {"field": "meta.field2", "operator": "==", "value": "Value 2"},
-                        {"field": "meta.field2", "operator": "==", "value": "Value 3"}
+                        {"field": "meta.field2", "operator": "==", "value": "Value 3"},
                     ],
                 },
             ],
