@@ -86,8 +86,7 @@ class ChromaDocumentStore:
 
         embedding_func = get_embedding_function(embedding_function, **embedding_function_params)
 
-        if metadata is None:
-            metadata = {}
+        metadata = metadata or {}
         if "hnsw:space" not in metadata:
             metadata["hnsw:space"] = distance_function
 
