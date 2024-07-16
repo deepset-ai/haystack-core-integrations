@@ -172,7 +172,7 @@ class TestDocumentStore(DocumentStoreBaseTests):
         # No Document has been deleted
         assert document_store.count_documents() == 0
 
-    def test_nested_filters(self, document_store, filterable_docs):
+    def test_filter_documents_nested_filters(self, document_store, filterable_docs):
         """
         Test filter_documents() with nested filters. Two documents from the filterable_docs mixin
         should be found. If those documents change, this test has to change as well.
@@ -197,8 +197,7 @@ class TestDocumentStore(DocumentStoreBaseTests):
         expected_docs = [
             d
             for d in filterable_docs
-            if d.meta.get("page") >= "100"
-            and (d.meta.get("chapter") == "abstract" or d.meta.get("chapter") == "intro")
+            if d.meta.get("page") >= "100" and (d.meta.get("chapter") == "abstract" or d.meta.get("chapter") == "intro")
         ]
         assert len(expected_docs) == 2
 
