@@ -93,12 +93,8 @@ class ChromaDocumentStore:
         if collection_name in [c.name for c in self._chroma_client.list_collections()]:
             self._collection = self._chroma_client.get_collection(collection_name, embedding_function=embedding_func)
 
-            if distance_function != self._collection.metadata["hnsw:space"]:
-                logger.warning("Collection already exists. The `distance_function` parameter will be ignored.")
-
-            for key in metadata:
-                if metadata[key] != self._collection.metadata[key]:
-                    logger.warning(f"Collection already exists. The `metadata[{key}]` parameter will be ignored.")
+            if metadata != self._collection.metadata:
+                logger.warning("Collection already exists. The `distance_function` and `metadata` parameters will be ignored.")
         else:
             self._collection = self._chroma_client.create_collection(
                 name=collection_name,
