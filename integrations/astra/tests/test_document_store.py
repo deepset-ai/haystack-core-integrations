@@ -175,40 +175,30 @@ class TestDocumentStore(DocumentStoreBaseTests):
     def test_nested_filters(self, document_store, filterable_docs):
         filter_criteria = {
             "operator": "AND",
-            "conditions":
-            [
-                {
-                    "field": "meta.field1",
-                    "operator": "==",
-                    "value": "Value 1."
-                },
+            "conditions": [
+                {"field": "meta.field1", "operator": "==", "value": "Value 1."},
                 {
                     "operator": "OR",
-                    "conditions":
-                    [
-                        {
-                            "field": "meta.field2",
-                            "operator": "==",
-                            "value": "Value 2."
-                        },
-                        {
-                            "field": "meta.field2",
-                            "operator": "==",
-                            "value": "Value 3"
-                        }
-                    ]
-                }
-            ]
+                    "conditions": [
+                        {"field": "meta.field2", "operator": "==", "value": "Value 2"},
+                        {"field": "meta.field2", "operator": "==", "value": "Value 3"}
+                    ],
+                },
+            ],
         }
 
         document_store.write_documents(filterable_docs)
         result = document_store.filter_documents(filters=filter_criteria)
 
-        self.assert_documents_are_equal(result, [
-            d for d in filterable_docs
-            if d.meta.get("field1") == "Value 1" and
-            (d.meta.get("field2") == "Value 2" or d.meta.get("field2") == "Value 3")
-        ])
+        self.assert_documents_are_equal(
+            result,
+            [
+                d
+                for d in filterable_docs
+                if d.meta.get("field1") == "Value 1"
+                and (d.meta.get("field2") == "Value 2" or d.meta.get("field2") == "Value 3")
+            ],
+        )
 
     @pytest.mark.skip(reason="Unsupported filter operator not.")
     def test_not_operator(self, document_store, filterable_docs):
