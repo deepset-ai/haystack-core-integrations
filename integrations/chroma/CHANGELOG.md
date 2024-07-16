@@ -1,5 +1,28 @@
 # Changelog
 
+## [integrations/chroma-v0.21.0] - 2024-07-16
+
+### 🚀 Features
+
+- Add metadata parameter to ChromaDocumentStore. (#906)
+
+## [integrations/chroma-v0.20.1] - 2024-07-15
+
+### 🚀 Features
+
+- Added distance_function property to ChromadocumentStore (#817)
+- Add filter_policy to chroma integration (#826)
+
+### 🐛 Bug Fixes
+
+- Allow search in ChromaDocumentStore without metadata (#863)
+- `Chroma` - Fallback to default filter policy when deserializing retrievers without the init parameter (#897)
+
+### ⚙️ Miscellaneous Tasks
+
+- Retry tests to reduce flakyness (#836)
+- Update ruff invocation to include check parameter (#853)
+
 ## [integrations/chroma-v0.18.0] - 2024-05-31
 
 ## [integrations/chroma-v0.17.0] - 2024-05-10

@@ -100,7 +100,10 @@ class ChromaQueryTextRetriever:
         """
         document_store = ChromaDocumentStore.from_dict(data["init_parameters"]["document_store"])
         data["init_parameters"]["document_store"] = document_store
-        data["init_parameters"]["filter_policy"] = FilterPolicy.from_str(data["init_parameters"]["filter_policy"])
+        # Pipelines serialized with old versions of the component might not
+        # have the filter_policy field.
+        if filter_policy := data["init_parameters"].get("filter_policy"):
+            data["init_parameters"]["filter_policy"] = FilterPolicy.from_str(filter_policy)
 
         return default_from_dict(cls, data)
 

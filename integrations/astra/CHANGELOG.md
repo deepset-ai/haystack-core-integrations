@@ -1,6 +1,6 @@
 # Changelog
 
-## [unreleased]
+## [integrations/astra-v0.9.1] - 2024-07-15
 
 ### 🚀 Features
 
@@ -13,6 +13,7 @@
 
 - Fix typing checks
 
+- `Astra` - Fallback to default filter policy when deserializing retrievers without the init parameter (#896)
 
 ### ⚙️ Miscellaneous Tasks
 

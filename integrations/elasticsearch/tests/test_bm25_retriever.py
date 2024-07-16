@@ -77,6 +77,30 @@ def test_from_dict(_mock_elasticsearch_client):
     assert retriever._filter_policy == FilterPolicy.REPLACE
 
 
+@patch("haystack_integrations.document_stores.elasticsearch.document_store.Elasticsearch")
+def test_from_dict_no_filter_policy(_mock_elasticsearch_client):
+    data = {
+        "type": "haystack_integrations.components.retrievers.elasticsearch.bm25_retriever.ElasticsearchBM25Retriever",
+        "init_parameters": {
+            "document_store": {
+                "init_parameters": {"hosts": "some fake host", "index": "default"},
+                "type": "haystack_integrations.document_stores.elasticsearch.document_store.ElasticsearchDocumentStore",
+            },
+            "filters": {},
+            "fuzziness": "AUTO",
+            "top_k": 10,
+            "scale_score": True,
+        },
+    }
+    retriever = ElasticsearchBM25Retriever.from_dict(data)
+    assert retriever._document_store
+    assert retriever._filters == {}
+    assert retriever._fuzziness == "AUTO"
+    assert retriever._top_k == 10
+    assert retriever._scale_score
+    assert retriever._filter_policy == FilterPolicy.REPLACE  # defaults to REPLACE
+
+
 def test_run():
     mock_store = Mock(spec=ElasticsearchDocumentStore)
     mock_store._bm25_retrieval.return_value = [Document(content="Test doc")]

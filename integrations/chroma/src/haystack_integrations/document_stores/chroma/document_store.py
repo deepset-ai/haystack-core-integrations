@@ -35,6 +35,7 @@ class ChromaDocumentStore:
         embedding_function: str = "default",
         persist_path: Optional[str] = None,
         distance_function: Literal["l2", "cosine", "ip"] = "l2",
+        metadata: Optional[dict] = None,
         **embedding_function_params,
     ):
         """
@@ -57,6 +58,9 @@ class ChromaDocumentStore:
             - `"ip"` stands for inner product, where higher scores indicate greater similarity between vectors.
             **Note**: `distance_function` can only be set during the creation of a collection.
             To change the distance metric of an existing collection, consider cloning the collection.
+        :param metadata: a dictionary of chromadb collection parameters passed directly to chromadb's client
+            method `create_collection`. If it contains the key `"hnsw:space"`, the value will take precedence over the
+            `distance_function` parameter above.
 
         :param embedding_function_params: additional parameters to pass to the embedding function.
         """
@@ -81,13 +85,18 @@ class ChromaDocumentStore:
             self._chroma_client = chromadb.PersistentClient(path=persist_path)
 
         embedding_func = get_embedding_function(embedding_function, **embedding_function_params)
-        metadata = {"hnsw:space": distance_function}
+
+        metadata = metadata or {}
+        if "hnsw:space" not in metadata:
+            metadata["hnsw:space"] = distance_function
 
         if collection_name in [c.name for c in self._chroma_client.list_collections()]:
             self._collection = self._chroma_client.get_collection(collection_name, embedding_function=embedding_func)
 
-            if distance_function != self._collection.metadata["hnsw:space"]:
-                logger.warning("Collection already exists. The `distance_function` parameter will be ignored.")
+            if metadata != self._collection.metadata:
+                logger.warning(
+                    "Collection already exists. The `distance_function` and `metadata` parameters will be ignored."
+                )
         else:
             self._collection = self._chroma_client.create_collection(
                 name=collection_name,

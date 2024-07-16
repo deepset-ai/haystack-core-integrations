@@ -1,5 +1,11 @@
 # Changelog
 
+## [integrations/qdrant-v4.1.2] - 2024-07-15
+
+### 🐛 Bug Fixes
+
+- `qdrant` - Fallback to default filter policy when deserializing retrievers without the init parameter (#902)
+
 ## [integrations/qdrant-v4.1.1] - 2024-07-10
 
 ### 🚀 Features
