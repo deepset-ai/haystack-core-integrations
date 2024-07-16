@@ -242,7 +242,7 @@ class TestKeywordRetriever:
         assert retriever.top_k == 5
 
     @pytest.mark.usefixtures("patches_for_unit_tests")
-    def test_from_dict_with_filter_policy(self, monkeypatch):
+    def test_from_dict_without_filter_policy(self, monkeypatch):
         monkeypatch.setenv("PG_CONN_STR", "some-connection-string")
         t = "haystack_integrations.components.retrievers.pgvector.keyword_retriever.PgvectorKeywordRetriever"
         data = {
