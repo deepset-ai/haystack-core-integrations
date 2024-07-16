@@ -168,6 +168,23 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, LegacyFilterDoc
         assert store._collection.metadata["hnsw:space"] == "cosine"
         assert new_store._collection.metadata["hnsw:space"] == "cosine"
 
+    @pytest.mark.integration
+    def test_metadata_initialization(self):
+        store = ChromaDocumentStore(
+            "test_5",
+            distance_function="cosine",
+            metadata={
+                "hnsw:space": "ip",
+                "hnsw:search_ef": 101,
+                "hnsw:construction_ef": 102,
+                "hnsw:M": 103,
+            },
+        )
+        assert store._collection.metadata["hnsw:space"] == "ip"
+        assert store._collection.metadata["hnsw:search_ef"] == 101
+        assert store._collection.metadata["hnsw:construction_ef"] == 102
+        assert store._collection.metadata["hnsw:M"] == 103
+
     @pytest.mark.skip(reason="Filter on dataframe contents is not supported.")
     def test_filter_document_dataframe(self, document_store: ChromaDocumentStore, filterable_docs: List[Document]):
         pass
