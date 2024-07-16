@@ -173,15 +173,19 @@ class TestDocumentStore(DocumentStoreBaseTests):
         assert document_store.count_documents() == 0
 
     def test_nested_filters(self, document_store, filterable_docs):
+        """
+        Test filter_documents() with nested filters. Two documents from the filterable_docs mixin
+        should be found. If those documents change, this test has to change as well.
+        """
         filter_criteria = {
             "operator": "AND",
             "conditions": [
-                {"field": "meta.field1", "operator": "==", "value": "Value 1."},
+                {"field": "meta.page", "operator": ">=", "value": "100"},
                 {
                     "operator": "OR",
                     "conditions": [
-                        {"field": "meta.field2", "operator": "==", "value": "Value 2"},
-                        {"field": "meta.field2", "operator": "==", "value": "Value 3"},
+                        {"field": "meta.chapter", "operator": "==", "value": "abstract"},
+                        {"field": "meta.chapter", "operator": "==", "value": "intro"},
                     ],
                 },
             ],
@@ -190,14 +194,17 @@ class TestDocumentStore(DocumentStoreBaseTests):
         document_store.write_documents(filterable_docs)
         result = document_store.filter_documents(filters=filter_criteria)
 
+        expected_docs = [
+            d
+            for d in filterable_docs
+            if d.meta.get("page") >= "100"
+            and (d.meta.get("chapter") == "abstract" or d.meta.get("chapter") == "intro")
+        ]
+        assert len(expected_docs) == 2
+
         self.assert_documents_are_equal(
             result,
-            [
-                d
-                for d in filterable_docs
-                if d.meta.get("field1") == "Value 1"
-                and (d.meta.get("field2") == "Value 2" or d.meta.get("field2") == "Value 3")
-            ],
+            expected_docs,
         )
 
     @pytest.mark.skip(reason="Unsupported filter operator not.")
