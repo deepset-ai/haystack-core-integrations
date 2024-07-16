@@ -59,8 +59,8 @@ class ChromaDocumentStore:
             **Note**: `distance_function` can only be set during the creation of a collection.
             To change the distance metric of an existing collection, consider cloning the collection.
         :param metadata: a dictionary of chromadb collection parameters passed directly to chromadb's client
-        method `create_collection`. If it contains the key `"hnsw:space"`, the value will take precedence over the
-        `distance_function` parameter above.
+            method `create_collection`. If it contains the key `"hnsw:space"`, the value will take precedence over the
+            `distance_function` parameter above.
 
         :param embedding_function_params: additional parameters to pass to the embedding function.
         """
