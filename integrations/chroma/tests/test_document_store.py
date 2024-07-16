@@ -164,7 +164,10 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, LegacyFilterDoc
         with caplog.at_level(logging.WARNING):
             new_store = ChromaDocumentStore("test_4", distance_function="ip")
 
-        assert "Collection already exists. The `distance_function` and `metadata` parameter will be ignored." in caplog.text
+        assert (
+            "Collection already exists. The `distance_function` and `metadata` parameter will be ignored."
+            in caplog.text
+        )
         assert store._collection.metadata["hnsw:space"] == "cosine"
         assert new_store._collection.metadata["hnsw:space"] == "cosine"
 

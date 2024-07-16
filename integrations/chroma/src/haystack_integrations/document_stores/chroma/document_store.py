@@ -94,7 +94,9 @@ class ChromaDocumentStore:
             self._collection = self._chroma_client.get_collection(collection_name, embedding_function=embedding_func)
 
             if metadata != self._collection.metadata:
-                logger.warning("Collection already exists. The `distance_function` and `metadata` parameters will be ignored.")
+                logger.warning(
+                    "Collection already exists. The `distance_function` and `metadata` parameters will be ignored."
+                )
         else:
             self._collection = self._chroma_client.create_collection(
                 name=collection_name,
