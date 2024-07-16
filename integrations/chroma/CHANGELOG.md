@@ -1,5 +1,11 @@
 # Changelog
 
+## [integrations/chroma-v0.21.0] - 2024-07-16
+
+### 🚀 Features
+
+- Add metadata parameter to ChromaDocumentStore. (#906)
+
 ## [integrations/chroma-v0.20.1] - 2024-07-15
 
 ### 🚀 Features
