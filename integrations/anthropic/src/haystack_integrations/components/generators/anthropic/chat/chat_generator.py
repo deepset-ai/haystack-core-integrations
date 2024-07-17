@@ -121,6 +121,10 @@ class AnthropicChatGenerator:
             "respectively."
         )
 
+        warnings.warn(
+            "The `meta` output of the AnthropicChatGenerator will change in the next release to be inline with "
+            "OpenAI `meta`output keys.", DeprecationWarning
+        )
 
     def _get_telemetry_data(self) -> Dict[str, Any]:
         """
