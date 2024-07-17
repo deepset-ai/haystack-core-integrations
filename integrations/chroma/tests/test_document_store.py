@@ -107,6 +107,28 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, LegacyFilterDoc
         assert len(result) == 1
         assert result[0][0].content == "Third document"
 
+    def test_write_documents_unsupported_meta_values(self, document_store: ChromaDocumentStore):
+        """
+        Unsupported meta values should be removed from the documents before writing them to the database
+        """
+
+        docs = [
+            Document(content="test doc 1", meta={"invalid": {"dict": "value"}}),
+            Document(content="test doc 2", meta={"invalid": ["list", "value"]}),
+            Document(content="test doc 3", meta={"ok": 123}),
+        ]
+
+        document_store.write_documents(docs)
+
+        written_docs = document_store.filter_documents()
+        written_docs.sort(key=lambda x: x.content)
+
+        assert len(written_docs) == 3
+        assert [doc.id for doc in written_docs] == [doc.id for doc in docs]
+        assert written_docs[0].meta == {}
+        assert written_docs[1].meta == {}
+        assert written_docs[2].meta == {"ok": 123}
+
     @pytest.mark.integration
     def test_to_json(self, request):
         ds = ChromaDocumentStore(
@@ -164,9 +186,47 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, LegacyFilterDoc
         with caplog.at_level(logging.WARNING):
             new_store = ChromaDocumentStore("test_4", distance_function="ip")
 
-        assert "Collection already exists. The `distance_function` parameter will be ignored." in caplog.text
+        assert (
+            "Collection already exists. The `distance_function` and `metadata` parameters will be ignored."
+            in caplog.text
+        )
         assert store._collection.metadata["hnsw:space"] == "cosine"
         assert new_store._collection.metadata["hnsw:space"] == "cosine"
+
+    @pytest.mark.integration
+    def test_metadata_initialization(self, caplog):
+        store = ChromaDocumentStore(
+            "test_5",
+            distance_function="cosine",
+            metadata={
+                "hnsw:space": "ip",
+                "hnsw:search_ef": 101,
+                "hnsw:construction_ef": 102,
+                "hnsw:M": 103,
+            },
+        )
+        assert store._collection.metadata["hnsw:space"] == "ip"
+        assert store._collection.metadata["hnsw:search_ef"] == 101
+        assert store._collection.metadata["hnsw:construction_ef"] == 102
+        assert store._collection.metadata["hnsw:M"] == 103
+
+        with caplog.at_level(logging.WARNING):
+            new_store = ChromaDocumentStore(
+                "test_5",
+                metadata={
+                    "hnsw:space": "l2",
+                    "hnsw:search_ef": 101,
+                    "hnsw:construction_ef": 102,
+                    "hnsw:M": 103,
+                },
+            )
+
+        assert (
+            "Collection already exists. The `distance_function` and `metadata` parameters will be ignored."
+            in caplog.text
+        )
+        assert store._collection.metadata["hnsw:space"] == "ip"
+        assert new_store._collection.metadata["hnsw:space"] == "ip"
 
     @pytest.mark.skip(reason="Filter on dataframe contents is not supported.")
     def test_filter_document_dataframe(self, document_store: ChromaDocumentStore, filterable_docs: List[Document]):

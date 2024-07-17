@@ -1,5 +1,20 @@
 # Changelog
 
+## [unreleased]
+
+### 🚀 Features
+
+- Add filter_policy to pgvector integration (#820)
+
+### 🐛 Bug Fixes
+
+- `PgVector` - Fallback to default filter policy when deserializing retrievers without the init parameter (#900)
+
+### ⚙️ Miscellaneous Tasks
+
+- Retry tests to reduce flakyness (#836)
+- Update ruff invocation to include check parameter (#853)
+
 ## [integrations/pgvector-v0.4.0] - 2024-06-20
 
 ### 🚀 Features

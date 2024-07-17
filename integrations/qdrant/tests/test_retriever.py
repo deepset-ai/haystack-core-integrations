@@ -296,6 +296,31 @@ class TestQdrantSparseEmbeddingRetriever(FilterableDocsFixtureMixin):
         assert retriever._return_embedding is True
         assert retriever._score_threshold is None
 
+    def test_from_dict_no_filter_policy(self):
+        data = {
+            "type": "haystack_integrations.components.retrievers.qdrant.retriever.QdrantSparseEmbeddingRetriever",
+            "init_parameters": {
+                "document_store": {
+                    "init_parameters": {"location": ":memory:", "index": "test"},
+                    "type": "haystack_integrations.document_stores.qdrant.document_store.QdrantDocumentStore",
+                },
+                "filters": None,
+                "top_k": 5,
+                "scale_score": False,
+                "return_embedding": True,
+                "score_threshold": None,
+            },
+        }
+        retriever = QdrantSparseEmbeddingRetriever.from_dict(data)
+        assert isinstance(retriever._document_store, QdrantDocumentStore)
+        assert retriever._document_store.index == "test"
+        assert retriever._filters is None
+        assert retriever._top_k == 5
+        assert retriever._filter_policy == FilterPolicy.REPLACE  # defaults to REPLACE
+        assert retriever._scale_score is False
+        assert retriever._return_embedding is True
+        assert retriever._score_threshold is None
+
     def test_run(self, filterable_docs: List[Document], generate_sparse_embedding):
         document_store = QdrantDocumentStore(location=":memory:", index="Boi", use_sparse_embeddings=True)
 
@@ -411,6 +436,29 @@ class TestQdrantHybridRetriever:
         assert retriever._filters is None
         assert retriever._top_k == 5
         assert retriever._filter_policy == FilterPolicy.REPLACE
+        assert retriever._return_embedding
+        assert retriever._score_threshold is None
+
+    def test_from_dict_no_filter_policy(self):
+        data = {
+            "type": "haystack_integrations.components.retrievers.qdrant.retriever.QdrantHybridRetriever",
+            "init_parameters": {
+                "document_store": {
+                    "init_parameters": {"location": ":memory:", "index": "test"},
+                    "type": "haystack_integrations.document_stores.qdrant.document_store.QdrantDocumentStore",
+                },
+                "filters": None,
+                "top_k": 5,
+                "return_embedding": True,
+                "score_threshold": None,
+            },
+        }
+        retriever = QdrantHybridRetriever.from_dict(data)
+        assert isinstance(retriever._document_store, QdrantDocumentStore)
+        assert retriever._document_store.index == "test"
+        assert retriever._filters is None
+        assert retriever._top_k == 5
+        assert retriever._filter_policy == FilterPolicy.REPLACE  # defaults to REPLACE
         assert retriever._return_embedding
         assert retriever._score_threshold is None
 

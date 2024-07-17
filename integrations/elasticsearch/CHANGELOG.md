@@ -5,6 +5,16 @@
 ### 🚀 Features
 
 - Defer the database connection to when it's needed (#766)
+- Add filter_policy to elasticsearch integration (#825)
+
+### 🐛 Bug Fixes
+
+- `ElasticSearch` - Fallback to default filter policy when deserializing retrievers without the init parameter (#898)
+
+### ⚙️ Miscellaneous Tasks
+
+- Retry tests to reduce flakyness (#836)
+- Update ruff invocation to include check parameter (#853)
 
 ## [integrations/elasticsearch-v0.5.0] - 2024-05-24
 
