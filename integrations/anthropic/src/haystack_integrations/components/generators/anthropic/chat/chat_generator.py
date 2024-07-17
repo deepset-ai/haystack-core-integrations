@@ -116,12 +116,6 @@ class AnthropicChatGenerator:
         self.ignore_tools_thinking_messages = ignore_tools_thinking_messages
 
         warnings.warn(
-            "The output of the AnthropicGenerator will soon change. The 'usage' entry in the 'meta' dictionary "
-            "will have the keys 'input_tokens' and 'output_tokens' replaced by 'prompt_tokens' and 'completion_tokens' "
-            "respectively."
-        )
-
-        warnings.warn(
             "The `meta` output of the AnthropicChatGenerator will change in the next release to be inline with "
             "OpenAI `meta`output keys.", stacklevel=2
         )
