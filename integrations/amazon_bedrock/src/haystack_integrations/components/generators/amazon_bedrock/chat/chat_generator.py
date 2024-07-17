@@ -136,12 +136,6 @@ class AmazonBedrockChatGenerator:
         self.stop_words = stop_words or []
         self.streaming_callback = streaming_callback
 
-        warnings.warn(
-            "The `meta` output of the AmazonBedrockChatGenerator will change in the next release to be inline with "
-            "OpenAI `meta`output keys.",
-            stacklevel=2,
-        )
-
     def invoke(self, *args, **kwargs):
         """
         Invokes the Amazon Bedrock LLM with the given parameters. The parameters are passed to the Amazon Bedrock
@@ -179,9 +173,16 @@ class AmazonBedrockChatGenerator:
                 )
                 response_body = json.loads(response.get("body").read().decode("utf-8"))
                 responses = self.model_adapter.get_responses(response_body=response_body)
+
         except ClientError as exception:
             msg = f"Could not inference Amazon Bedrock model {self.model} due: {exception}"
             raise AmazonBedrockInferenceError(msg) from exception
+
+        # rename the meta key to be inline with OpenAI meta output keys
+        for response in responses:
+            if response.meta is not None:
+                response.meta['usage']['prompt_tokens'] = response.meta['usage'].pop('input_tokens')
+                response.meta['usage']['completion_tokens'] = response.meta['usage'].pop('output_tokens')
 
         return responses
 
