@@ -180,7 +180,7 @@ class TestDocumentStore(DocumentStoreBaseTests):
         filter_criteria = {
             "operator": "AND",
             "conditions": [
-                {"field": "meta.page", "operator": ">=", "value": "100"},
+                {"field": "meta.page", "operator": "==", "value": "100"},
                 {
                     "operator": "OR",
                     "conditions": [
