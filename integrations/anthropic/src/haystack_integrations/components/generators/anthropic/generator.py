@@ -75,12 +75,6 @@ class AnthropicGenerator:
         self.system_prompt = system_prompt
         self.client = Anthropic(api_key=self.api_key.resolve_value())
 
-        warnings.warn(
-            "The output of the AnthropicGenerator will soon change. The 'usage' entry in the 'meta' dictionary "
-            "will have the keys 'input_tokens' and 'output_tokens' replaced by 'prompt_tokens' and 'completion_tokens' "
-            "respectively."
-        )
-
     def _get_telemetry_data(self) -> Dict[str, Any]:
         """
         Get telemetry data for the component.
