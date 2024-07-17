@@ -1,6 +1,5 @@
 import dataclasses
 import json
-import warnings
 from typing import Any, Callable, ClassVar, Dict, List, Optional, Union
 
 from haystack import component, default_from_dict, default_to_dict, logging
@@ -114,12 +113,6 @@ class AnthropicChatGenerator:
         self.streaming_callback = streaming_callback
         self.client = Anthropic(api_key=self.api_key.resolve_value())
         self.ignore_tools_thinking_messages = ignore_tools_thinking_messages
-
-        warnings.warn(
-            "The `meta` output of the AnthropicChatGenerator will change in the next release to be inline with "
-            "OpenAI `meta`output keys.",
-            stacklevel=2,
-        )
 
     def _get_telemetry_data(self) -> Dict[str, Any]:
         """

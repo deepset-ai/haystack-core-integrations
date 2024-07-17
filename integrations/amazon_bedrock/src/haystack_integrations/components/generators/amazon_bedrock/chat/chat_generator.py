@@ -1,7 +1,6 @@
 import json
 import logging
 import re
-import warnings
 from typing import Any, Callable, ClassVar, Dict, List, Optional, Type
 
 from botocore.exceptions import ClientError
