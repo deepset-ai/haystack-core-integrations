@@ -1,5 +1,8 @@
-import warnings
 from typing import Any, Callable, ClassVar, Dict, List, Optional, Union
+
+from haystack import component, default_from_dict, default_to_dict, logging
+from haystack.dataclasses import StreamingChunk
+from haystack.utils import Secret, deserialize_callable, deserialize_secrets_inplace, serialize_callable
 
 from anthropic import Anthropic, Stream
 from anthropic.types import (
@@ -10,10 +13,6 @@ from anthropic.types import (
     MessageStartEvent,
     MessageStreamEvent,
 )
-
-from haystack import component, default_from_dict, default_to_dict, logging
-from haystack.dataclasses import StreamingChunk
-from haystack.utils import Secret, deserialize_callable, deserialize_secrets_inplace, serialize_callable
 
 logger = logging.getLogger(__name__)
 
