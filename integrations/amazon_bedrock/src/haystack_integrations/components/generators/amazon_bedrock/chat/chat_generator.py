@@ -180,7 +180,7 @@ class AmazonBedrockChatGenerator:
 
         # rename the meta key to be inline with OpenAI meta output keys
         for response in responses:
-            if response.meta is not None:
+            if response.meta is not None and "usage" in response.meta:
                 response.meta["usage"]["prompt_tokens"] = response.meta["usage"].pop("input_tokens")
                 response.meta["usage"]["completion_tokens"] = response.meta["usage"].pop("output_tokens")
 
