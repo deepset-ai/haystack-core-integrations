@@ -228,18 +228,22 @@ class ChromaDocumentStore:
 
             if doc.meta:
                 valid_meta = {}
+                discarded_keys = []
 
                 for k, v in doc.meta.items():
                     if isinstance(v, SUPPORTED_TYPES_FOR_METADATA_VALUES):
                         valid_meta[k] = v
                     else:
-                        logger.warning(
-                            "Document %s contains a `meta` value of type %s for the key %s. "
-                            "This type is not supported by Chroma. The item will be discarded.",
-                            doc.id,
-                            type(v).__name__,
-                            k,
-                        )
+                        discarded_keys.append(k)
+
+                if discarded_keys:
+                    logger.warning(
+                        "Document %s contains `meta` values of unsupported types for the keys: %s. "
+                        "These items will be discarded. Supported types are: %s.",
+                        doc.id,
+                        ", ".join(discarded_keys),
+                        ", ".join([t.__name__ for t in SUPPORTED_TYPES_FOR_METADATA_VALUES]),
+                    )
 
                 if valid_meta:
                     data["metadatas"] = [valid_meta]
