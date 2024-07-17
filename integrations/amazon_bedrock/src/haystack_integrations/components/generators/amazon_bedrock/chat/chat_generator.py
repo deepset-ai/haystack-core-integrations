@@ -138,7 +138,8 @@ class AmazonBedrockChatGenerator:
 
         warnings.warn(
             "The `meta` output of the AmazonBedrockChatGenerator will change in the next release to be inline with "
-            "OpenAI `meta`output keys.", stacklevel=2
+            "OpenAI `meta`output keys.",
+            stacklevel=2
         )
 
     def invoke(self, *args, **kwargs):
