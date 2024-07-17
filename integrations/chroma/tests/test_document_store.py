@@ -107,6 +107,28 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, LegacyFilterDoc
         assert len(result) == 1
         assert result[0][0].content == "Third document"
 
+    def test_write_documents_unsupported_meta_values(self, document_store: ChromaDocumentStore):
+        """
+        Unsupported meta values should be removed from the documents before writing them to the database
+        """
+
+        docs = [
+            Document(content="test doc 1", meta={"invalid": {"dict": "value"}}),
+            Document(content="test doc 2", meta={"invalid": ["list", "value"]}),
+            Document(content="test doc 3", meta={"ok": 123}),
+        ]
+
+        document_store.write_documents(docs)
+
+        written_docs = document_store.filter_documents()
+        written_docs.sort(key=lambda x: x.content)
+
+        assert len(written_docs) == 3
+        assert [doc.id for doc in written_docs] == [doc.id for doc in docs]
+        assert written_docs[0].meta == {}
+        assert written_docs[1].meta == {}
+        assert written_docs[2].meta == {"ok": 123}
+
     @pytest.mark.integration
     def test_to_json(self, request):
         ds = ChromaDocumentStore(
