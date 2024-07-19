@@ -1,6 +1,6 @@
 # Changelog
 
-## [unreleased]
+## [integrations/amazon_bedrock-v0.9.3] - 2024-07-17
 
 ### 🚀 Features
 

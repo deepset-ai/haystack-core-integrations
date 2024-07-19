@@ -19,6 +19,7 @@ logger = logging.getLogger(__name__)
 
 
 VALID_DISTANCE_FUNCTIONS = "l2", "cosine", "ip"
+SUPPORTED_TYPES_FOR_METADATA_VALUES = str, int, float, bool
 
 
 class ChromaDocumentStore:
@@ -226,7 +227,26 @@ class ChromaDocumentStore:
             data = {"ids": [doc.id], "documents": [doc.content]}
 
             if doc.meta:
-                data["metadatas"] = [doc.meta]
+                valid_meta = {}
+                discarded_keys = []
+
+                for k, v in doc.meta.items():
+                    if isinstance(v, SUPPORTED_TYPES_FOR_METADATA_VALUES):
+                        valid_meta[k] = v
+                    else:
+                        discarded_keys.append(k)
+
+                if discarded_keys:
+                    logger.warning(
+                        "Document %s contains `meta` values of unsupported types for the keys: %s. "
+                        "These items will be discarded. Supported types are: %s.",
+                        doc.id,
+                        ", ".join(discarded_keys),
+                        ", ".join([t.__name__ for t in SUPPORTED_TYPES_FOR_METADATA_VALUES]),
+                    )
+
+                if valid_meta:
+                    data["metadatas"] = [valid_meta]
 
             if doc.embedding is not None:
                 data["embeddings"] = [doc.embedding]

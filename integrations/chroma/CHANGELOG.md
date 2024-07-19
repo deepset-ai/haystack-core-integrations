@@ -1,5 +1,11 @@
 # Changelog
 
+## [integrations/chroma-v0.21.1] - 2024-07-17
+
+### 🐛 Bug Fixes
+
+- `ChromaDocumentStore` - discard `meta` items when the type of their value is not supported in Chroma (#907)
+
 ## [integrations/chroma-v0.21.0] - 2024-07-16
 
 ### 🚀 Features
