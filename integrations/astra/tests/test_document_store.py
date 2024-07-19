@@ -194,16 +194,12 @@ class TestDocumentStore(DocumentStoreBaseTests):
         document_store.write_documents(filterable_docs)
         result = document_store.filter_documents(filters=filter_criteria)
 
-        expected_docs = [
-            d
-            for d in filterable_docs
-            if d.meta.get("page") >= "100" and (d.meta.get("chapter") == "abstract" or d.meta.get("chapter") == "intro")
-        ]
-        assert len(expected_docs) == 2
 
         self.assert_documents_are_equal(
             result,
-            expected_docs,
+            d
+            for d in filterable_docs
+            if d.meta.get("page") == "100" and (d.meta.get("chapter") == "abstract" or d.meta.get("chapter") == "intro")
         )
 
     @pytest.mark.skip(reason="Unsupported filter operator not.")
