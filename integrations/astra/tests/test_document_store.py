@@ -196,9 +196,12 @@ class TestDocumentStore(DocumentStoreBaseTests):
 
         self.assert_documents_are_equal(
             result,
-            d
-            for d in filterable_docs
-            if d.meta.get("page") == "100" and (d.meta.get("chapter") == "abstract" or d.meta.get("chapter") == "intro")
+            [
+                d
+                for d in filterable_docs
+                if d.meta.get("page") == "100"
+                and (d.meta.get("chapter") == "abstract" or d.meta.get("chapter") == "intro")
+            ],
         )
 
     @pytest.mark.skip(reason="Unsupported filter operator not.")
