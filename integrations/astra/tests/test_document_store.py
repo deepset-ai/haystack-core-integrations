@@ -194,7 +194,6 @@ class TestDocumentStore(DocumentStoreBaseTests):
         document_store.write_documents(filterable_docs)
         result = document_store.filter_documents(filters=filter_criteria)
 
-
         self.assert_documents_are_equal(
             result,
             d
