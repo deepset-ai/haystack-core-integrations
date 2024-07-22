@@ -2,7 +2,13 @@ import time
 
 import pytest
 from haystack.document_stores.types import DuplicatePolicy
-from pinecone.core.client.exceptions import NotFoundException
+
+try:
+    # pinecone-client < 5.0.0
+    from pinecone.core.client.exceptions import NotFoundException
+except ModuleNotFoundError:
+    # pinecone-client >= 5.0.0
+    from pinecone.exceptions import NotFoundException
 
 from haystack_integrations.document_stores.pinecone import PineconeDocumentStore
 
