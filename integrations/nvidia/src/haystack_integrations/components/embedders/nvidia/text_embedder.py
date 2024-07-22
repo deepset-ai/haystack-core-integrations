@@ -6,7 +6,8 @@ from haystack.utils import Secret, deserialize_secrets_inplace
 from ._nim_backend import NimBackend
 from .backend import EmbedderBackend
 from .truncate import EmbeddingTruncateMode
-
+from urllib.parse import urlparse
+import warnings
 
 @component
 class NvidiaTextEmbedder:
@@ -32,7 +33,7 @@ class NvidiaTextEmbedder:
 
     def __init__(
         self,
-        model: str = "NV-Embed-QA",
+        model: Optional[str] = "NV-Embed-QA",
         api_key: Optional[Secret] = Secret.from_env_var("NVIDIA_API_KEY"),
         api_url: str = "https://ai.api.nvidia.com/v1/retrieval/nvidia",
         prefix: str = "",
@@ -69,6 +70,30 @@ class NvidiaTextEmbedder:
 
         self.backend: Optional[EmbedderBackend] = None
         self._initialized = False
+    
+    def default_model(self):
+        """Set default model in local NIM mode."""
+        is_hosted = urlparse(self.base_url).netloc in [
+                "integrate.api.nvidia.com",
+                "ai.api.nvidia.com",
+            ]
+        if not is_hosted and not self.model:
+            valid_models = [
+                model.id
+                for model in self.backend.models()
+                if not model.base_model or model.base_model == model.id
+            ]
+            name = next(iter(valid_models), None)
+            if name:
+                warnings.warn(
+                    f"Default model is set as: {name}. \n"
+                    "Set model using model parameter. \n"
+                    "To get available models use available_models property.",
+                    UserWarning,
+                )
+                self.model = name
+            else:
+                raise ValueError("No locally hosted model was found.")
 
     def warm_up(self):
         """
