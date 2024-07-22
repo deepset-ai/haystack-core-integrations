@@ -9,18 +9,13 @@ class Model(BaseModel):
     Model information.
 
     id: unique identifier for the model, passed as model parameter for requests
-    model_type: API type (chat, vlm, embedding, ranking, completion)
-    client: client name, e.g. ChatNVIDIA, NVIDIAEmbeddings, NVIDIARerank
-    endpoint: custom endpoint for the model
     aliases: list of aliases for the model
-    supports_tools: whether the model supports tool calling
-
+    base_model: root model for the model
     All aliases are deprecated and will trigger a warning when used.
     """
 
     id: str
     model_config = ConfigDict(from_attributes=True, protected_namespaces=())
-    model_type: Optional[Literal["embedding"]] = None
     aliases: Optional[list] = None
     base_model: Optional[str] = None
 
