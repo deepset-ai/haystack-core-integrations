@@ -173,10 +173,6 @@ class TestDocumentStore(DocumentStoreBaseTests):
         assert document_store.count_documents() == 0
 
     def test_filter_documents_nested_filters(self, document_store, filterable_docs):
-        """
-        Test filter_documents() with nested filters. Two documents from the filterable_docs mixin
-        should be found. If those documents change, this test has to change as well.
-        """
         filter_criteria = {
             "operator": "AND",
             "conditions": [
