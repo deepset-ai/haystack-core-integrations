@@ -106,6 +106,23 @@ def test_from_dict(_mock_opensearch_client):
     assert retriever._raise_on_failure is False
     assert retriever._filter_policy == FilterPolicy.REPLACE
 
+    # For backwards compatibility with older versions of the retriever without a filter policy
+    data = {
+        "type": type_s,
+        "init_parameters": {
+            "document_store": {
+                "init_parameters": {"hosts": "some fake host", "index": "default"},
+                "type": "haystack_integrations.document_stores.opensearch.document_store.OpenSearchDocumentStore",
+            },
+            "filters": {},
+            "top_k": 10,
+            "custom_query": {"some": "custom query"},
+            "raise_on_failure": False,
+        },
+    }
+    retriever = OpenSearchEmbeddingRetriever.from_dict(data)
+    assert retriever._filter_policy == FilterPolicy.REPLACE
+
 
 def test_run():
     mock_store = Mock(spec=OpenSearchDocumentStore)

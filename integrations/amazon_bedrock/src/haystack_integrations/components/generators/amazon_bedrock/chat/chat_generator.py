@@ -1,6 +1,7 @@
 import json
 import logging
 import re
+import warnings
 from typing import Any, Callable, ClassVar, Dict, List, Optional, Type
 
 from botocore.exceptions import ClientError
@@ -134,6 +135,12 @@ class AmazonBedrockChatGenerator:
 
         self.stop_words = stop_words or []
         self.streaming_callback = streaming_callback
+
+        warnings.warn(
+            "The `meta` output of the AmazonBedrockChatGenerator will change in the next release to be inline with "
+            "OpenAI `meta`output keys.",
+            stacklevel=2,
+        )
 
     def invoke(self, *args, **kwargs):
         """

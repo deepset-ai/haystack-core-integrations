@@ -1,15 +1,23 @@
 # Changelog
 
-## [unreleased]
+## [integrations/astra-v0.9.1] - 2024-07-15
 
 ### 🚀 Features
 
 - Defer the database connection to when it's needed (#769)
+- Add filter_policy to astra integration (#827)
 
 ### 🐛 Bug Fixes
 
 - Fix astra nightly
 
+- Fix typing checks
+
+- `Astra` - Fallback to default filter policy when deserializing retrievers without the init parameter (#896)
+
+### ⚙️ Miscellaneous Tasks
+
+- Retry tests to reduce flakyness (#836)
 
 ## [integrations/astra-v0.7.0] - 2024-05-15
 

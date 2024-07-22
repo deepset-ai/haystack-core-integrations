@@ -241,6 +241,54 @@ class TestKeywordRetriever:
         assert retriever.filters == {"field": "value"}
         assert retriever.top_k == 5
 
+    @pytest.mark.usefixtures("patches_for_unit_tests")
+    def test_from_dict_without_filter_policy(self, monkeypatch):
+        monkeypatch.setenv("PG_CONN_STR", "some-connection-string")
+        t = "haystack_integrations.components.retrievers.pgvector.keyword_retriever.PgvectorKeywordRetriever"
+        data = {
+            "type": t,
+            "init_parameters": {
+                "document_store": {
+                    "type": "haystack_integrations.document_stores.pgvector.document_store.PgvectorDocumentStore",
+                    "init_parameters": {
+                        "connection_string": {"env_vars": ["PG_CONN_STR"], "strict": True, "type": "env_var"},
+                        "table_name": "haystack_test_to_dict",
+                        "embedding_dimension": 768,
+                        "vector_function": "cosine_similarity",
+                        "recreate_table": True,
+                        "search_strategy": "exact_nearest_neighbor",
+                        "hnsw_recreate_index_if_exists": False,
+                        "hnsw_index_creation_kwargs": {},
+                        "hnsw_index_name": "haystack_hnsw_index",
+                        "hnsw_ef_search": None,
+                        "keyword_index_name": "haystack_keyword_index",
+                    },
+                },
+                "filters": {"field": "value"},
+                "top_k": 5,
+            },
+        }
+
+        retriever = PgvectorKeywordRetriever.from_dict(data)
+        document_store = retriever.document_store
+
+        assert isinstance(document_store, PgvectorDocumentStore)
+        assert isinstance(document_store.connection_string, EnvVarSecret)
+        assert document_store.table_name == "haystack_test_to_dict"
+        assert document_store.embedding_dimension == 768
+        assert document_store.vector_function == "cosine_similarity"
+        assert document_store.recreate_table
+        assert document_store.search_strategy == "exact_nearest_neighbor"
+        assert not document_store.hnsw_recreate_index_if_exists
+        assert document_store.hnsw_index_creation_kwargs == {}
+        assert document_store.hnsw_index_name == "haystack_hnsw_index"
+        assert document_store.hnsw_ef_search is None
+        assert document_store.keyword_index_name == "haystack_keyword_index"
+
+        assert retriever.filters == {"field": "value"}
+        assert retriever.filter_policy == FilterPolicy.REPLACE  # defaults to REPLACE
+        assert retriever.top_k == 5
+
     def test_run(self):
         mock_store = Mock(spec=PgvectorDocumentStore)
         doc = Document(content="Test doc", embedding=[0.1, 0.2])

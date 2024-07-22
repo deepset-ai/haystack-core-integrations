@@ -1,5 +1,12 @@
 # Changelog
 
+## [unreleased]
+
+### ⚙️ Miscellaneous Tasks
+
+- Retry tests to reduce flakyness (#836)
+- Update ruff invocation to include check parameter (#853)
+
 ## [integrations/google_ai-v1.1.0] - 2024-06-05
 
 ### 🐛 Bug Fixes

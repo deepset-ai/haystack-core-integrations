@@ -135,6 +135,42 @@ class TestRetriever:
         assert retriever.top_k == 5
         assert retriever.filter_policy == FilterPolicy.REPLACE
 
+    def test_from_dict_no_filter_policy(self, monkeypatch):  # mock_client appears unused but is required
+        monkeypatch.setenv("MONGO_CONNECTION_STRING", "test_conn_str")
+
+        data = {
+            "type": "haystack_integrations.components.retrievers.mongodb_atlas.embedding_retriever.MongoDBAtlasEmbeddingRetriever",  # noqa: E501
+            "init_parameters": {
+                "document_store": {
+                    "type": "haystack_integrations.document_stores.mongodb_atlas.document_store.MongoDBAtlasDocumentStore",  # noqa: E501
+                    "init_parameters": {
+                        "mongo_connection_string": {
+                            "env_vars": ["MONGO_CONNECTION_STRING"],
+                            "strict": True,
+                            "type": "env_var",
+                        },
+                        "database_name": "haystack_integration_test",
+                        "collection_name": "test_embeddings_collection",
+                        "vector_search_index": "cosine_index",
+                    },
+                },
+                "filters": {"field": "value"},
+                "top_k": 5,
+            },
+        }
+
+        retriever = MongoDBAtlasEmbeddingRetriever.from_dict(data)
+        document_store = retriever.document_store
+
+        assert isinstance(document_store, MongoDBAtlasDocumentStore)
+        assert isinstance(document_store.mongo_connection_string, EnvVarSecret)
+        assert document_store.database_name == "haystack_integration_test"
+        assert document_store.collection_name == "test_embeddings_collection"
+        assert document_store.vector_search_index == "cosine_index"
+        assert retriever.filters == {"field": "value"}
+        assert retriever.top_k == 5
+        assert retriever.filter_policy == FilterPolicy.REPLACE  # defaults to REPLACE
+
     def test_run(self):
         mock_store = Mock(spec=MongoDBAtlasDocumentStore)
         doc = Document(content="Test doc", embedding=[0.1, 0.2])

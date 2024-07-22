@@ -5,10 +5,17 @@
 ### 🚀 Features
 
 - Defer the database connection to when it's needed (#770)
+- Add filter_policy to mongodb_atlas integration (#823)
 
 ### 🐛 Bug Fixes
 
 - Pass empty dict to filter instead of None (#775)
+- `Mongo` - Fallback to default filter policy when deserializing retrievers without the init parameter (#899)
+
+### ⚙️ Miscellaneous Tasks
+
+- Retry tests to reduce flakyness (#836)
+- Update ruff invocation to include check parameter (#853)
 
 ## [integrations/mongodb_atlas-v0.2.1] - 2024-04-09
 
