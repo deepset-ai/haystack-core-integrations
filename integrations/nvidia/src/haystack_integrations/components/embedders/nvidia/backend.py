@@ -1,5 +1,28 @@
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Literal, Optional, Tuple
+
+from pydantic import BaseModel, ConfigDict
+
+
+class Model(BaseModel):
+    """
+    Model information.
+
+    id: unique identifier for the model, passed as model parameter for requests
+    model_type: API type (chat, vlm, embedding, ranking, completion)
+    client: client name, e.g. ChatNVIDIA, NVIDIAEmbeddings, NVIDIARerank
+    endpoint: custom endpoint for the model
+    aliases: list of aliases for the model
+    supports_tools: whether the model supports tool calling
+
+    All aliases are deprecated and will trigger a warning when used.
+    """
+
+    id: str
+    model_config = ConfigDict(from_attributes=True, protected_namespaces=())
+    model_type: Optional[Literal["embedding"]] = None
+    aliases: Optional[list] = None
+    base_model: Optional[str] = None
 
 
 class EmbedderBackend(ABC):
@@ -25,5 +48,15 @@ class EmbedderBackend(ABC):
         :return:
             Vector representation of the texts and
             metadata returned by the service.
+        """
+        pass
+
+    @abstractmethod
+    def models(self) -> List[Model]:
+        """
+        Invoke the backend to get available models.
+
+        :return:
+            Models available
         """
         pass

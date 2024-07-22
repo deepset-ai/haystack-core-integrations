@@ -1,7 +1,9 @@
 # SPDX-FileCopyrightText: 2024-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
+import warnings
 from typing import Any, Dict, List, Optional
+from urllib.parse import urlparse
 
 from haystack import component, default_from_dict, default_to_dict
 from haystack.utils.auth import Secret, deserialize_secrets_inplace
@@ -41,7 +43,7 @@ class NvidiaGenerator:
 
     def __init__(
         self,
-        model: str,
+        model: Optional[str] = None,
         api_url: str = _DEFAULT_API_URL,
         api_key: Optional[Secret] = Secret.from_env_var("NVIDIA_API_KEY"),
         model_arguments: Optional[Dict[str, Any]] = None,
@@ -69,6 +71,30 @@ class NvidiaGenerator:
 
         self._backend: Optional[GeneratorBackend] = None
 
+        self.is_hosted = urlparse(api_url).netloc in [
+            "integrate.api.nvidia.com",
+            "ai.api.nvidia.com",
+        ]
+
+    def default_model(self):
+        """Set default model in local NIM mode."""
+        valid_models = [
+            model.id for model in self._backend.models() if not model.base_model or model.base_model == model.id
+        ]
+        name = next(iter(valid_models), None)
+        if name:
+            warnings.warn(
+                f"Default model is set as: {name}. \n"
+                "Set model using model parameter. \n"
+                "To get available models use available_models property.",
+                UserWarning,
+                stacklevel=2,
+            )
+            self._model = self._backend.model_name = name
+        else:
+            error_message = "No locally hosted model was found."
+            raise ValueError(error_message)
+
     def warm_up(self):
         """
         Initializes the component.
@@ -85,6 +111,9 @@ class NvidiaGenerator:
             api_key=self._api_key,
             model_kwargs=self._model_arguments,
         )
+
+        if not self.is_hosted and not self._model:
+            self.default_model()
 
     def to_dict(self) -> Dict[str, Any]:
         """

@@ -3,7 +3,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import requests
 from haystack.utils import Secret
 
-from .backend import GeneratorBackend
+from .backend import GeneratorBackend, Model
 
 REQUEST_TIMEOUT = 60
 
@@ -78,3 +78,20 @@ class NimBackend(GeneratorBackend):
             meta.append(choice_meta)
 
         return replies, meta
+
+    def models(self) -> List[Model]:
+        url = f"{self.api_url}/models"
+
+        res = self.session.get(
+            url,
+            timeout=REQUEST_TIMEOUT,
+        )
+        res.raise_for_status()
+
+        data = res.json()["data"]
+        models = []
+        for element in data:
+            assert "id" in element, f"No id found in {element}"
+            models.append(Model(id=element["id"]))
+
+        return models

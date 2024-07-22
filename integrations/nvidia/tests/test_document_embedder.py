@@ -4,7 +4,26 @@ import pytest
 from haystack import Document
 from haystack.utils import Secret
 from haystack_integrations.components.embedders.nvidia import EmbeddingTruncateMode, NvidiaDocumentEmbedder
-from haystack_integrations.components.embedders.nvidia.backend import EmbedderBackend
+from haystack_integrations.components.embedders.nvidia.backend import EmbedderBackend, Model
+from requests_mock import Mocker
+
+
+@pytest.fixture
+def mock_local_models(requests_mock: Mocker) -> None:
+    requests_mock.get(
+        "http://localhost:8080/v1/models",
+        json={
+            "data": [
+                {
+                    "id": "model1",
+                    "object": "model",
+                    "created": 1234567890,
+                    "owned_by": "OWNER",
+                    "root": "model1",
+                },
+            ]
+        },
+    )
 
 
 class MockBackend(EmbedderBackend):
@@ -15,6 +34,9 @@ class MockBackend(EmbedderBackend):
         inputs = texts
         data = [[0.1, 0.2, 0.3] for i in range(len(inputs))]
         return data, {"usage": {"total_tokens": 4, "prompt_tokens": 4}}
+
+    def models(self):
+        return [Model(id="aa")]
 
 
 class TestNvidiaDocumentEmbedder:
@@ -203,6 +225,44 @@ class TestNvidiaDocumentEmbedder:
             assert all(isinstance(x, float) for x in embedding)
 
         assert metadata == {"usage": {"prompt_tokens": 3 * 4, "total_tokens": 3 * 4}}
+
+    @pytest.mark.usefixtures("mock_local_models")
+    def test_run_default_model(self):
+        docs = [
+            Document(content="I love cheese", meta={"topic": "Cuisine"}),
+            Document(content="A transformer is a deep learning architecture", meta={"topic": "ML"}),
+        ]
+
+        embedder = NvidiaDocumentEmbedder(
+            api_key=Secret.from_token("fake-api-key"),
+            model=None,
+            api_url="http://localhost:8080/v1",
+            prefix="prefix ",
+            suffix=" suffix",
+            meta_fields_to_embed=["topic"],
+            embedding_separator=" | ",
+        )
+
+        with pytest.warns(UserWarning):
+            embedder.warm_up()
+        assert not embedder.is_hosted
+        assert embedder.model == "model1"
+
+        embedder.backend = MockBackend("aa", None)
+
+        result = embedder.run(documents=docs)
+
+        documents_with_embeddings = result["documents"]
+        metadata = result["meta"]
+
+        assert isinstance(documents_with_embeddings, list)
+        assert len(documents_with_embeddings) == len(docs)
+        for doc in documents_with_embeddings:
+            assert isinstance(doc, Document)
+            assert isinstance(doc.embedding, list)
+            assert len(doc.embedding) == 3
+            assert all(isinstance(x, float) for x in doc.embedding)
+        assert metadata == {"usage": {"prompt_tokens": 4, "total_tokens": 4}}
 
     def test_run(self):
         docs = [

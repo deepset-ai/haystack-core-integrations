@@ -3,7 +3,26 @@ import os
 import pytest
 from haystack.utils import Secret
 from haystack_integrations.components.embedders.nvidia import EmbeddingTruncateMode, NvidiaTextEmbedder
-from haystack_integrations.components.embedders.nvidia.backend import EmbedderBackend
+from haystack_integrations.components.embedders.nvidia.backend import EmbedderBackend, Model
+from requests_mock import Mocker
+
+
+@pytest.fixture
+def mock_local_models(requests_mock: Mocker) -> None:
+    requests_mock.get(
+        "http://localhost:8080/v1/models",
+        json={
+            "data": [
+                {
+                    "id": "model1",
+                    "object": "model",
+                    "created": 1234567890,
+                    "owned_by": "OWNER",
+                    "root": "model1",
+                },
+            ]
+        },
+    )
 
 
 class MockBackend(EmbedderBackend):
@@ -15,6 +34,9 @@ class MockBackend(EmbedderBackend):
         data = [[0.1, 0.2, 0.3] for i in range(len(inputs))]
         return data, {"usage": {"total_tokens": 4, "prompt_tokens": 4}}
 
+    def models(self):
+        return [Model(id="a1"), Model(id="a2")]
+
 
 class TestNvidiaTextEmbedder:
     def test_init_default(self, monkeypatch):
@@ -22,7 +44,6 @@ class TestNvidiaTextEmbedder:
         embedder = NvidiaTextEmbedder()
 
         assert embedder.api_key == Secret.from_env_var("NVIDIA_API_KEY")
-        assert embedder.model == "NV-Embed-QA"
         assert embedder.api_url == "https://ai.api.nvidia.com/v1/retrieval/nvidia"
         assert embedder.prefix == ""
         assert embedder.suffix == ""
@@ -104,6 +125,28 @@ class TestNvidiaTextEmbedder:
         assert component.prefix == "prefix"
         assert component.suffix == "suffix"
         assert component.truncate == "START"
+
+    @pytest.mark.usefixtures("mock_local_models")
+    def test_run_default_model(self):
+        embedder = NvidiaTextEmbedder(api_url="http://localhost:8080/v1", api_key=Secret.from_token("fake-api-key"))
+
+        assert embedder.model is None
+
+        with pytest.warns(UserWarning):
+            embedder.warm_up()
+
+        assert not embedder.is_hosted
+        assert embedder.model == "model1"
+
+        embedder.backend = MockBackend("aa", None)
+
+        result = embedder.run(text="The food was delicious")
+
+        assert len(result["embedding"]) == 3
+        assert all(isinstance(x, float) for x in result["embedding"])
+        assert result["meta"] == {
+            "usage": {"prompt_tokens": 4, "total_tokens": 4},
+        }
 
     def test_run(self):
         embedder = NvidiaTextEmbedder(

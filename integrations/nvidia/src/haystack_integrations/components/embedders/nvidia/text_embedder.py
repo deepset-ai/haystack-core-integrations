@@ -1,4 +1,6 @@
+import warnings
 from typing import Any, Dict, List, Optional, Union
+from urllib.parse import urlparse
 
 from haystack import component, default_from_dict, default_to_dict
 from haystack.utils import Secret, deserialize_secrets_inplace
@@ -6,8 +8,7 @@ from haystack.utils import Secret, deserialize_secrets_inplace
 from ._nim_backend import NimBackend
 from .backend import EmbedderBackend
 from .truncate import EmbeddingTruncateMode
-from urllib.parse import urlparse
-import warnings
+
 
 @component
 class NvidiaTextEmbedder:
@@ -33,7 +34,7 @@ class NvidiaTextEmbedder:
 
     def __init__(
         self,
-        model: Optional[str] = "NV-Embed-QA",
+        model: Optional[str] = None,
         api_key: Optional[Secret] = Secret.from_env_var("NVIDIA_API_KEY"),
         api_url: str = "https://ai.api.nvidia.com/v1/retrieval/nvidia",
         prefix: str = "",
@@ -70,30 +71,33 @@ class NvidiaTextEmbedder:
 
         self.backend: Optional[EmbedderBackend] = None
         self._initialized = False
-    
+
+        self.is_hosted = urlparse(self.api_url).netloc in [
+            "integrate.api.nvidia.com",
+            "ai.api.nvidia.com",
+        ]
+        if self.is_hosted and not self.model:
+            # manually set default model
+            self.model = "NV-Embed-QA"
+
     def default_model(self):
         """Set default model in local NIM mode."""
-        is_hosted = urlparse(self.base_url).netloc in [
-                "integrate.api.nvidia.com",
-                "ai.api.nvidia.com",
-            ]
-        if not is_hosted and not self.model:
-            valid_models = [
-                model.id
-                for model in self.backend.models()
-                if not model.base_model or model.base_model == model.id
-            ]
-            name = next(iter(valid_models), None)
-            if name:
-                warnings.warn(
-                    f"Default model is set as: {name}. \n"
-                    "Set model using model parameter. \n"
-                    "To get available models use available_models property.",
-                    UserWarning,
-                )
-                self.model = name
-            else:
-                raise ValueError("No locally hosted model was found.")
+        valid_models = [
+            model.id for model in self.backend.models() if not model.base_model or model.base_model == model.id
+        ]
+        name = next(iter(valid_models), None)
+        if name:
+            warnings.warn(
+                f"Default model is set as: {name}. \n"
+                "Set model using model parameter. \n"
+                "To get available models use available_models property.",
+                UserWarning,
+                stacklevel=2,
+            )
+            self.model = self.backend.model = name
+        else:
+            error_message = "No locally hosted model was found."
+            raise ValueError(error_message)
 
     def warm_up(self):
         """
@@ -113,6 +117,9 @@ class NvidiaTextEmbedder:
         )
 
         self._initialized = True
+
+        if not self.is_hosted and not self.model:
+            self.default_model()
 
     def to_dict(self) -> Dict[str, Any]:
         """
