@@ -177,7 +177,8 @@ class TestNvidiaGenerator:
                 "temperature": 0.2,
             },
         )
-        generator.warm_up()
+        with pytest.warns(UserWarning):
+            generator.warm_up()
         assert generator._model == "model1"
         assert not generator.is_hosted
 
