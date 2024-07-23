@@ -1,5 +1,7 @@
 # Changelog
 
+## [integrations/astra-v0.9.2] - 2024-07-22
+
 ## [integrations/astra-v0.9.1] - 2024-07-15
 
 ### 🚀 Features

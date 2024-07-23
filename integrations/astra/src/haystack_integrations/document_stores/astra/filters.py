@@ -73,7 +73,7 @@ def _parse_logical_condition(condition: Dict[str, Any]) -> Dict[str, Any]:
         raise FilterError(msg)
 
     operator = condition["operator"]
-    conditions = [_parse_comparison_condition(c) for c in condition["conditions"]]
+    conditions = [_normalize_filters(c) for c in condition["conditions"]]
     if len(conditions) > 1:
         conditions = _normalize_ranges(conditions)
     if operator not in OPERATORS:
