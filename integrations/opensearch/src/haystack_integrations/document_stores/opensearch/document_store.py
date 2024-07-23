@@ -142,7 +142,7 @@ class OpenSearchDocumentStore:
     def client(self) -> OpenSearch:
         if not self._client:
             http_auth = self._http_auth
-            if not http_auth and self._aws_region_name:
+            if not http_auth and self._aws_region_name and self._aws_region_name.resolve_value():
                 http_auth = self._get_aws_auth()
 
             self._client = OpenSearch(hosts=self._hosts, http_auth=http_auth, use_ssl=self._use_ssl, verify_certs=self._verify_certs, timeout=self._timeout, **self._kwargs)

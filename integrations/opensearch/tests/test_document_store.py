@@ -37,6 +37,16 @@ def test_to_dict(_mock_opensearch_client):
             "settings": {"index.knn": True},
             "return_embedding": False,
             "create_index": True,
+            "aws_access_key_id": {"type": "env_var", "env_vars": ["AWS_ACCESS_KEY_ID"], "strict": False},
+            "aws_secret_access_key": {"type": "env_var", "env_vars": ["AWS_SECRET_ACCESS_KEY"], "strict": False},
+            "aws_session_token": {"type": "env_var", "env_vars": ["AWS_SESSION_TOKEN"], "strict": False},
+            "aws_region_name": {"type": "env_var", "env_vars": ["AWS_DEFAULT_REGION"], "strict": False},
+            "aws_profile_name": {"type": "env_var", "env_vars": ["AWS_PROFILE"], "strict": False},
+            "aws_service": "es",
+            "http_auth": None,
+            "use_ssl": None,
+            "verify_certs": None,
+            "timeout": None,
         },
     }
 
@@ -52,6 +62,11 @@ def test_from_dict(_mock_opensearch_client):
             "embedding_dim": 1536,
             "create_index": False,
             "return_embedding": True,
+            "aws_service": "es",
+            "http_auth": ("admin", "admin"),
+            "use_ssl": True,
+            "verify_certs": True,
+            "timeout": 60,
         },
     }
     document_store = OpenSearchDocumentStore.from_dict(data)
@@ -77,6 +92,11 @@ def test_from_dict(_mock_opensearch_client):
     assert document_store._settings == {"index.knn": True}
     assert document_store._return_embedding is True
     assert document_store._create_index is False
+    assert document_store._aws_service == "es"
+    assert document_store._http_auth == ("admin", "admin")
+    assert document_store._use_ssl is True
+    assert document_store._verify_certs is True
+    assert document_store._timeout == 60
 
 
 @patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
