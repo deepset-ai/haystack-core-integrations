@@ -283,6 +283,7 @@ def test_evaluator_outputs(current_metric, inputs, expected_outputs, metric_para
 # This integration test validates the evaluator by running it against the
 # OpenAI API. It is parameterized by the metric, the inputs to the evaluator
 # and the metric parameters.
+@pytest.mark.asyncio
 @pytest.mark.skipif("OPENAI_API_KEY" not in os.environ, reason="OPENAI_API_KEY not set")
 @pytest.mark.parametrize(
     "metric, inputs, metric_params",
