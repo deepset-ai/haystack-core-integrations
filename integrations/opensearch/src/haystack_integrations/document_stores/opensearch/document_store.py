@@ -84,6 +84,16 @@ class OpenSearchDocumentStore:
         :param settings: The settings of the index to be created. Please see the [official OpenSearch docs](https://opensearch.org/docs/latest/search-plugins/knn/knn-index/#index-settings)
             for more information. Defaults to {"index.knn": True}
         :param create_index: Whether to create the index if it doesn't exist. Defaults to True
+        :param aws_access_key_id: AWS access key ID. Defaults to None
+        :param aws_secret_access_key: AWS secret access key. Defaults to None
+        :param aws_session_token: AWS session token. Defaults to None
+        :param aws_region_name: AWS region name. Defaults to None
+        :param aws_profile_name: AWS profile name. Defaults to None
+        :param aws_service: AWS service name. Defaults to "es"
+        :param http_auth: HTTP authentication. Defaults to None
+        :param use_ssl: Whether to use SSL. Defaults to None
+        :param verify_certs: Whether to verify certificates. Defaults to None
+        :param timeout: Timeout in seconds. Defaults to None
         :param **kwargs: Optional arguments that ``OpenSearch`` takes. For the full list of supported kwargs,
             see the [official OpenSearch reference](https://opensearch-project.github.io/opensearch-py/api-ref/clients/opensearch_client.html)
         """
@@ -219,6 +229,16 @@ class OpenSearchDocumentStore:
             settings=self._settings,
             create_index=self._create_index,
             return_embedding=self._return_embedding,
+            aws_access_key_id=self._aws_access_key_id.to_dict() if self._aws_access_key_id else None,
+            aws_secret_access_key=self._aws_secret_access_key.to_dict() if self._aws_secret_access_key else None,
+            aws_session_token=self._aws_session_token.to_dict() if self._aws_session_token else None,
+            aws_region_name=self._aws_region_name.to_dict() if self._aws_region_name else None,
+            aws_profile_name=self._aws_profile_name.to_dict() if self._aws_profile_name else None,
+            aws_service=self._aws_service,
+            http_auth=self._http_auth,
+            use_ssl=self._use_ssl,
+            verify_certs=self._verify_certs,
+            timeout=self._timeout,
             **self._kwargs,
         )
 
@@ -233,6 +253,10 @@ class OpenSearchDocumentStore:
         :returns:
             Deserialized component.
         """
+        deserialize_secrets_inplace(
+            data["init_parameters"],
+            ["aws_access_key_id", "aws_secret_access_key", "aws_session_token", "aws_region_name", "aws_profile_name"],
+        )
         return default_from_dict(cls, data)
 
     def count_documents(self) -> int:

@@ -48,13 +48,3 @@ def get_aws_session(
         provided_aws_config = {k: v for k, v in kwargs.items() if k in AWS_CONFIGURATION_KEYS}
         msg = f"Failed to initialize the session with provided AWS credentials {provided_aws_config}"
         raise AWSConfigurationError(msg) from e
-
-
-def aws_configured(**kwargs) -> bool:
-    """
-    Checks whether AWS configuration is provided.
-    :param kwargs: The kwargs passed down to the generator.
-    :returns: True if AWS configuration is provided, False otherwise.
-    """
-    aws_config_provided = any(key in kwargs for key in AWS_CONFIGURATION_KEYS)
-    return aws_config_provided
