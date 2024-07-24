@@ -69,6 +69,7 @@ def test_to_dict(_mock_opensearch_client):
                     },
                     "return_embedding": False,
                     "create_index": True,
+                    "aws_auth": False,
                     "aws_access_key_id": {"type": "env_var", "env_vars": ["AWS_ACCESS_KEY_ID"], "strict": False},
                     "aws_secret_access_key": {"type": "env_var", "env_vars": ["AWS_SECRET_ACCESS_KEY"], "strict": False},
                     "aws_session_token": {"type": "env_var", "env_vars": ["AWS_SESSION_TOKEN"], "strict": False},

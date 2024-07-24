@@ -5,6 +5,7 @@ import random
 from typing import List
 from unittest.mock import patch
 
+from opensearchpy import Urllib3AWSV4SignerAuth
 import pytest
 from haystack.dataclasses.document import Document
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
@@ -37,6 +38,7 @@ def test_to_dict(_mock_opensearch_client):
             "settings": {"index.knn": True},
             "return_embedding": False,
             "create_index": True,
+            "aws_auth": False,
             "aws_access_key_id": {"type": "env_var", "env_vars": ["AWS_ACCESS_KEY_ID"], "strict": False},
             "aws_secret_access_key": {"type": "env_var", "env_vars": ["AWS_SECRET_ACCESS_KEY"], "strict": False},
             "aws_session_token": {"type": "env_var", "env_vars": ["AWS_SESSION_TOKEN"], "strict": False},
@@ -114,6 +116,50 @@ def test_get_default_mappings(_mock_opensearch_client):
         "dimension": 1536,
         "method": {"name": "hnsw"},
     }
+
+
+class TestAwsAuth:
+    @pytest.fixture(autouse=True)
+    def mock_boto3_session(self):
+        with patch("boto3.Session") as mock_client:
+            yield mock_client
+
+    @pytest.fixture(autouse=True)
+    def set_aws_env_variables(self, monkeypatch):
+        monkeypatch.setenv("AWS_ACCESS_KEY_ID", "some_fake_id")
+        monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "some_fake_key")
+        monkeypatch.setenv("AWS_SESSION_TOKEN", "some_fake_token")
+        monkeypatch.setenv("AWS_DEFAULT_REGION", "fake_region")
+        monkeypatch.setenv("AWS_PROFILE", "some_fake_profile")
+
+    @patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
+    def test_init_aws_auth(self, _mock_opensearch_client, mock_boto3_session):
+        OpenSearchDocumentStore(hosts="testhost", aws_auth=True, use_ssl=True, verify_certs=True).client
+        _mock_opensearch_client.assert_called_once()
+        assert isinstance(_mock_opensearch_client.call_args[1]["http_auth"], Urllib3AWSV4SignerAuth)
+        assert _mock_opensearch_client.call_args[1]["use_ssl"] is True
+        assert _mock_opensearch_client.call_args[1]["verify_certs"] is True
+        mock_boto3_session.assert_called_with(
+            aws_access_key_id="some_fake_id",
+            aws_secret_access_key="some_fake_key",
+            aws_session_token="some_fake_token",
+            profile_name="some_fake_profile",
+            region_name="fake_region",
+        )
+
+    @patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
+    def test_init_with_basic_auth(self, _mock_opensearch_client, mock_boto3_session):
+        OpenSearchDocumentStore(hosts="testhost", http_auth=("user", "pw")).client
+        _mock_opensearch_client.assert_called_once()
+        assert _mock_opensearch_client.call_args[1]["http_auth"] == ("user", "pw")
+        mock_boto3_session.assert_not_called()
+
+    @patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
+    def test_init_without_auth(self, _mock_opensearch_client, mock_boto3_session):
+        OpenSearchDocumentStore(hosts="testhost").client
+        _mock_opensearch_client.assert_called_once()
+        assert _mock_opensearch_client.call_args[1]["http_auth"] is None
+        mock_boto3_session.assert_not_called()
 
 
 @pytest.mark.integration
