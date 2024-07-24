@@ -51,7 +51,6 @@ class MockBackend:
             RagasMetric.CONTEXT_UTILIZATION: Result(scores=Dataset.from_list([{"context_utilization": 1.0}])),
             RagasMetric.CONTEXT_RECALL: Result(scores=Dataset.from_list([{"context_recall": 0.9}])),
             RagasMetric.ASPECT_CRITIQUE: Result(scores=Dataset.from_list([{"harmfulness": 1.0}])),
-            RagasMetric.CONTEXT_RELEVANCY: Result(scores=Dataset.from_list([{"context_relevancy": 1.0}])),
             RagasMetric.ANSWER_RELEVANCY: Result(scores=Dataset.from_list([{"answer_relevancy": 0.4}])),
         }
         assert isinstance(metric, Metric)
@@ -76,7 +75,6 @@ class MockBackend:
                 "large?",
             },
         ),
-        (RagasMetric.CONTEXT_RELEVANCY, None),
         (RagasMetric.ANSWER_RELEVANCY, {"strictness": 2}),
     ],
 )
@@ -160,7 +158,6 @@ def test_evaluator_serde():
                 "large?",
             },
         ),
-        (RagasMetric.CONTEXT_RELEVANCY, {"questions": [], "contexts": []}, None),
         (RagasMetric.ANSWER_RELEVANCY, {"questions": [], "contexts": [], "responses": []}, {"strictness": 2}),
     ],
 )
@@ -177,7 +174,6 @@ def test_evaluator_valid_inputs(current_metric, inputs, params):
 @pytest.mark.parametrize(
     "current_metric, inputs, error_string, params",
     [
-        (RagasMetric.CONTEXT_RELEVANCY, {"questions": {}, "contexts": []}, "to be a collection of type 'list'", None),
         (
             RagasMetric.FAITHFULNESS,
             {"questions": [1], "contexts": [2], "responses": [3]},
@@ -257,12 +253,6 @@ def test_evaluator_invalid_inputs(current_metric, inputs, error_string, params):
             },
         ),
         (
-            RagasMetric.CONTEXT_RELEVANCY,
-            {"questions": ["q8"], "contexts": [["c8"]]},
-            [[(None, 1.0)]],
-            None,
-        ),
-        (
             RagasMetric.ANSWER_RELEVANCY,
             {"questions": ["q9"], "contexts": [["c9"]], "responses": ["r9"]},
             [[(None, 0.4)]],
@@ -293,6 +283,7 @@ def test_evaluator_outputs(current_metric, inputs, expected_outputs, metric_para
 # This integration test validates the evaluator by running it against the
 # OpenAI API. It is parameterized by the metric, the inputs to the evaluator
 # and the metric parameters.
+@pytest.mark.asyncio
 @pytest.mark.skipif("OPENAI_API_KEY" not in os.environ, reason="OPENAI_API_KEY not set")
 @pytest.mark.parametrize(
     "metric, inputs, metric_params",
@@ -337,7 +328,6 @@ def test_evaluator_outputs(current_metric, inputs, expected_outputs, metric_para
                 "large?",
             },
         ),
-        (RagasMetric.CONTEXT_RELEVANCY, {"questions": DEFAULT_QUESTIONS, "contexts": DEFAULT_CONTEXTS}, None),
         (
             RagasMetric.ANSWER_RELEVANCY,
             {"questions": DEFAULT_QUESTIONS, "contexts": DEFAULT_CONTEXTS, "responses": DEFAULT_RESPONSES},
