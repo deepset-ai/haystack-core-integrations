@@ -119,7 +119,7 @@ def test_get_default_mappings(_mock_opensearch_client):
     }
 
 
-class TestAwsAuth:
+class TestAuth:
     @pytest.fixture(autouse=True)
     def mock_boto3_session(self):
         with patch("boto3.Session") as mock_client:
