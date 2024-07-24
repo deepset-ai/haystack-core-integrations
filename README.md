@@ -20,6 +20,31 @@ Hatch will take care of setting up an isolated Python environment and run the te
 
 Please check out our [Contribution Guidelines](CONTRIBUTING.md) for all the details.
 
+## Releasing
+
+To release a new version of an integration to PyPI tag the commit with the right version number and push the tag to 
+GitHub. The GitHub Actions workflow will take care of the rest.
+
+1. Tag the commit with the right version number
+
+    The tag needs to have the following format:
+
+    ```
+    git tag integrations/<INTEGRATION_FOLDER_NAME>-<version>
+    ```
+
+    For example, if we want to release version 1.0.99 of the google-vertex-haystack integration we'd have to push the tag:
+
+    ```
+    git tag integrations/google_vertex-v1.0.99
+    ```
+2. Push the tag to GitHub
+
+    ```
+    git push --tags origin
+    ```
+3. Wait for the CI to do its magic
+
 ## Inventory
 
 | Package                                                                                                        | Type                | PyPi Package                                                                                                                                             | Status                                                                                                                                                                                                                                               |
