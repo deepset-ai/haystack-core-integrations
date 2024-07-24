@@ -154,5 +154,5 @@ minversion = "6.0"
 markers = ["unit: unit tests", "integration: integration tests"]
 
 [[tool.mypy.overrides]]
-module = ["haystack.*", "haystack_integrations.*", "pytest.*", "opensearchpy.*"]
+module = ["botocore.*", "boto3.*", "haystack.*", "haystack_integrations.*", "pytest.*", "opensearchpy.*"]
 ignore_missing_imports = true
