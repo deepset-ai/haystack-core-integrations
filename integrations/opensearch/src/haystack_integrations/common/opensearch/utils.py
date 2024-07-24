@@ -2,7 +2,6 @@ from typing import Optional
 
 import boto3
 from botocore.exceptions import BotoCoreError
-
 from haystack_integrations.common.opensearch.errors import AWSConfigurationError
 
 AWS_CONFIGURATION_KEYS = [

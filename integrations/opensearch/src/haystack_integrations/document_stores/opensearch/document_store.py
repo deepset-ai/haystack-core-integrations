@@ -4,15 +4,15 @@
 import logging
 from typing import Any, Dict, List, Mapping, Optional, Union
 
-from haystack_integrations.common.opensearch.errors import AWSConfigurationError
-from haystack_integrations.common.opensearch.utils import get_aws_session
 import numpy as np
 from haystack import default_from_dict, default_to_dict
 from haystack.dataclasses import Document
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
-from haystack.utils.filters import convert
 from haystack.utils.auth import Secret, deserialize_secrets_inplace
+from haystack.utils.filters import convert
+from haystack_integrations.common.opensearch.errors import AWSConfigurationError
+from haystack_integrations.common.opensearch.utils import get_aws_session
 from haystack_integrations.document_stores.opensearch.filters import normalize_filters
 from opensearchpy import OpenSearch, Urllib3AWSV4SignerAuth
 from opensearchpy.helpers import bulk
@@ -92,9 +92,9 @@ class OpenSearchDocumentStore:
         :param aws_region_name: AWS region name. Defaults to None
         :param aws_profile_name: AWS profile name. Defaults to None
         :param aws_service: AWS service name. Defaults to "es"
-        :param http_auth: http_auth param passed to the underying connection class. Default connection class is `Urllib3HttpConnection`.
-            For basic authentication with `Urllib3HttpConnection` this can be 
-            - a tuple of (username, password) 
+        :param http_auth: http_auth param passed to the underying connection class.
+            For basic authentication with default connection class `Urllib3HttpConnection` this can be
+            - a tuple of (username, password)
             - a list of [username, password]
             - a string of "username:password"
             Defaults to None
@@ -153,7 +153,14 @@ class OpenSearchDocumentStore:
             if self._aws_auth:
                 http_auth = self._get_aws_auth()
 
-            self._client = OpenSearch(hosts=self._hosts, http_auth=http_auth, use_ssl=self._use_ssl, verify_certs=self._verify_certs, timeout=self._timeout, **self._kwargs)
+            self._client = OpenSearch(
+                hosts=self._hosts,
+                http_auth=http_auth,
+                use_ssl=self._use_ssl,
+                verify_certs=self._verify_certs,
+                timeout=self._timeout,
+                **self._kwargs,
+            )
 
         if self._client.indices.exists(index=self._index):  # type:ignore
             logger.debug(
@@ -174,19 +181,19 @@ class OpenSearchDocumentStore:
         try:
             region_name = resolve_secret(self._aws_region_name)
             session = get_aws_session(
-                        aws_access_key_id=resolve_secret(self._aws_access_key_id),
-                        aws_secret_access_key=resolve_secret(self._aws_secret_access_key),
-                        aws_session_token=resolve_secret(self._aws_session_token),
-                        aws_region_name=region_name,
-                        aws_profile_name=resolve_secret(self._aws_profile_name),
-                    )
+                aws_access_key_id=resolve_secret(self._aws_access_key_id),
+                aws_secret_access_key=resolve_secret(self._aws_secret_access_key),
+                aws_session_token=resolve_secret(self._aws_session_token),
+                aws_region_name=region_name,
+                aws_profile_name=resolve_secret(self._aws_profile_name),
+            )
             credentials = session.get_credentials()
             return Urllib3AWSV4SignerAuth(credentials, region_name, self._aws_service)
         except Exception as exception:
             msg = (
-                        "Could not connect to AWS OpenSearch. Make sure the AWS environment is configured correctly. "
-                        "See https://boto3.amazonaws.com/v1/documentation/api/latest/guide/quickstart.html#configuration"
-                    )
+                "Could not connect to AWS OpenSearch. Make sure the AWS environment is configured correctly. "
+                "See https://boto3.amazonaws.com/v1/documentation/api/latest/guide/quickstart.html#configuration"
+            )
             raise AWSConfigurationError(msg) from exception
 
     def create_index(

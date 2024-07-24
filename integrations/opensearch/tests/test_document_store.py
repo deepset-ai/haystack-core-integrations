@@ -1,11 +1,11 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
+# ruff: noqa: B018
 import random
 from typing import List
 from unittest.mock import patch
 
-from opensearchpy import Urllib3AWSV4SignerAuth
 import pytest
 from haystack.dataclasses.document import Document
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
@@ -13,6 +13,7 @@ from haystack.document_stores.types import DuplicatePolicy
 from haystack.testing.document_store import DocumentStoreBaseTests
 from haystack_integrations.document_stores.opensearch import OpenSearchDocumentStore
 from haystack_integrations.document_stores.opensearch.document_store import DEFAULT_MAX_CHUNK_BYTES
+from opensearchpy import Urllib3AWSV4SignerAuth
 from opensearchpy.exceptions import RequestError
 
 
