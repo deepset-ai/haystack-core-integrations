@@ -28,18 +28,19 @@ class TestNvidiaTextEmbedder:
         assert embedder.suffix == ""
 
     def test_init_with_parameters(self):
-        embedder = NvidiaTextEmbedder(
-            api_key=Secret.from_token("fake-api-key"),
-            model="nvolveqa_40k",
-            api_url="https://ai.api.nvidia.com/v1/retrieval/nvidia/test",
-            prefix="prefix",
-            suffix="suffix",
-        )
-        assert embedder.api_key == Secret.from_token("fake-api-key")
-        assert embedder.model == "nvolveqa_40k"
-        assert embedder.api_url == "https://ai.api.nvidia.com/v1/retrieval/nvidia/test"
-        assert embedder.prefix == "prefix"
-        assert embedder.suffix == "suffix"
+        with pytest.raises(ValueError):
+            embedder = NvidiaTextEmbedder(
+                api_key=Secret.from_token("fake-api-key"),
+                model="nvolveqa_40k",
+                api_url="https://ai.api.nvidia.com/v1/retrieval/nvidia/test",
+                prefix="prefix",
+                suffix="suffix",
+            )
+            assert embedder.api_key == Secret.from_token("fake-api-key")
+            assert embedder.model == "nvolveqa_40k"
+            assert embedder.api_url == "https://ai.api.nvidia.com/v1/retrieval/nvidia/test"
+            assert embedder.prefix == "prefix"
+            assert embedder.suffix == "suffix"
 
     def test_init_fail_wo_api_key(self, monkeypatch):
         monkeypatch.delenv("NVIDIA_API_KEY", raising=False)
@@ -77,7 +78,7 @@ class TestNvidiaTextEmbedder:
             "type": "haystack_integrations.components.embedders.nvidia.text_embedder.NvidiaTextEmbedder",
             "init_parameters": {
                 "api_key": {"env_vars": ["NVIDIA_API_KEY"], "strict": True, "type": "env_var"},
-                "api_url": "https://example.com",
+                "api_url": "https://example.com/v1",
                 "model": "nvolveqa_40k",
                 "prefix": "prefix",
                 "suffix": "suffix",
@@ -100,7 +101,7 @@ class TestNvidiaTextEmbedder:
         }
         component = NvidiaTextEmbedder.from_dict(data)
         assert component.model == "nvolveqa_40k"
-        assert component.api_url == "https://example.com"
+        assert component.api_url == "https://example.com/v1"
         assert component.prefix == "prefix"
         assert component.suffix == "suffix"
         assert component.truncate == "START"
