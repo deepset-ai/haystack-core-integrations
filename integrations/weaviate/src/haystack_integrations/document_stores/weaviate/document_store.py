@@ -203,7 +203,7 @@ class WeaviateDocumentStore:
         self._client.connect()
 
         # Test connection, it will raise an exception if it fails.
-        self._client.collections._get_all(simple=True)
+        self._client.collections.list_all(simple=True)
         if not self._client.collections.exists(self._collection_settings["class"]):
             self._client.collections.create_from_dict(self._collection_settings)
 
