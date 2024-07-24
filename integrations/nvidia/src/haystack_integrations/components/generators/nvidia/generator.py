@@ -1,12 +1,11 @@
 # SPDX-FileCopyrightText: 2024-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
-import warnings
 from typing import Any, Dict, List, Optional
-from urllib.parse import urlparse, urlunparse
 
 from haystack import component, default_from_dict, default_to_dict
 from haystack.utils.auth import Secret, deserialize_secrets_inplace
+from haystack_integrations.utils.nvidia import url_validation
 
 from ._nim_backend import NimBackend
 from .backend import GeneratorBackend
@@ -65,32 +64,11 @@ class NvidiaGenerator:
             to know the supported arguments.
         """
         self._model = model
-        self._api_url = self._url_validation(api_url)
+        self._api_url = url_validation(api_url, _DEFAULT_API_URL, ["v1/chat/completions"])
         self._api_key = api_key
         self._model_arguments = model_arguments or {}
 
         self._backend: Optional[GeneratorBackend] = None
-
-    def _url_validation(self, api_url):
-        ## Making sure /v1 in added to the url, followed by infer_path
-        result = urlparse(api_url)
-        expected_format = "Expected format is 'http://host:port'."
-
-        if api_url == _DEFAULT_API_URL:
-            return api_url
-        if result.path:
-            normalized_path = result.path.strip("/")
-            if normalized_path == "v1":
-                pass
-            elif normalized_path in ["v1/chat/completions"]:
-                warn_msg = f"{expected_format} Rest is ingnored."
-                warnings.warn(warn_msg, stacklevel=2)
-            else:
-                err_msg = f"Base URL path is not recognized. {expected_format}"
-                raise ValueError(err_msg)
-
-        base_url = urlunparse((result.scheme, result.netloc, "v1", "", "", ""))
-        return base_url
 
     def warm_up(self):
         """

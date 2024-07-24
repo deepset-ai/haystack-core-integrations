@@ -1,9 +1,8 @@
-import warnings
 from typing import Any, Dict, List, Optional, Tuple, Union
-from urllib.parse import urlparse, urlunparse
 
 from haystack import Document, component, default_from_dict, default_to_dict
 from haystack.utils import Secret, deserialize_secrets_inplace
+from haystack_integrations.utils.nvidia import url_validation
 from tqdm import tqdm
 
 from ._nim_backend import NimBackend
@@ -76,7 +75,7 @@ class NvidiaDocumentEmbedder:
 
         self.api_key = api_key
         self.model = model
-        self.api_url = self._url_validation(api_url)
+        self.api_url = url_validation(api_url, _DEFAULT_API_URL, ["v1/embeddings"])
         self.prefix = prefix
         self.suffix = suffix
         self.batch_size = batch_size
@@ -90,27 +89,6 @@ class NvidiaDocumentEmbedder:
 
         self.backend: Optional[EmbedderBackend] = None
         self._initialized = False
-
-    def _url_validation(self, api_url):
-        ## Making sure /v1 in added to the url, followed by infer_path
-        result = urlparse(api_url)
-        expected_format = "Expected format is 'http://host:port'."
-
-        if api_url == _DEFAULT_API_URL:
-            return api_url
-        if result.path:
-            normalized_path = result.path.strip("/")
-            if normalized_path == "v1":
-                pass
-            elif normalized_path in ["v1/embeddings"]:
-                warn_msg = f"{expected_format} Rest is ingnored."
-                warnings.warn(warn_msg, stacklevel=2)
-            else:
-                err_msg = f"Base URL path is not recognized. {expected_format}"
-                raise ValueError(err_msg)
-
-        base_url = urlunparse((result.scheme, result.netloc, "v1", "", "", ""))
-        return base_url
 
     def warm_up(self):
         """
