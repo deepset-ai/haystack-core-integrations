@@ -1,8 +1,9 @@
 import warnings
+from typing import List
 from urllib.parse import urlparse, urlunparse
 
 
-def url_validation(api_url: str, default_api_url: str, allowed_paths: list) -> str:
+def url_validation(api_url: str, default_api_url: str, allowed_paths: List[str]) -> str:
     """
     Validate and normalize an API URL.
 
