@@ -2,7 +2,23 @@ import warnings
 from urllib.parse import urlparse, urlunparse
 
 
-def url_validation(api_url: str, default_api_url: str, allowed_paths: list):
+def url_validation(api_url: str, default_api_url: str, allowed_paths: list) -> str:
+    """
+    Validate and normalize an API URL.
+
+    :param api_url:
+        The API URL to validate and normalize.
+    :param default_api_url:
+        The default API URL for comparison.
+    :param allowed_paths:
+        A list of allowed base paths that are valid if present in the URL.
+
+    :return:
+        A normalized version of the API URL with '/v1' path appended, if needed.
+
+    :raises ValueError:
+        If the base URL path is not recognized or does not match expected format.
+    """
     ## Making sure /v1 in added to the url, followed by infer_path
     result = urlparse(api_url)
     expected_format = "Expected format is 'http://host:port'."
