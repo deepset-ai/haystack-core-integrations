@@ -9,10 +9,11 @@ from haystack import default_from_dict, default_to_dict
 from haystack.dataclasses import Document
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
-from haystack.utils.auth import Secret, deserialize_secrets_inplace
+from haystack.utils.auth import Secret
 from haystack.utils.filters import convert
 from haystack_integrations.common.opensearch.errors import AWSConfigurationError
 from haystack_integrations.common.opensearch.utils import get_aws_session
+from haystack_integrations.document_stores.opensearch.auth import AWSAuth
 from haystack_integrations.document_stores.opensearch.filters import normalize_filters
 from opensearchpy import OpenSearch, Urllib3AWSV4SignerAuth
 from opensearchpy.helpers import bulk
@@ -47,15 +48,7 @@ class OpenSearchDocumentStore:
         mappings: Optional[Dict[str, Any]] = None,
         settings: Optional[Dict[str, Any]] = DEFAULT_SETTINGS,
         create_index: bool = True,
-        aws_auth: bool = False,
-        aws_access_key_id: Optional[Secret] = Secret.from_env_var("AWS_ACCESS_KEY_ID", strict=False),  # noqa: B008
-        aws_secret_access_key: Optional[Secret] = Secret.from_env_var(  # noqa: B008
-            "AWS_SECRET_ACCESS_KEY", strict=False
-        ),
-        aws_session_token: Optional[Secret] = Secret.from_env_var("AWS_SESSION_TOKEN", strict=False),  # noqa: B008
-        aws_region_name: Optional[Secret] = Secret.from_env_var("AWS_DEFAULT_REGION", strict=False),  # noqa: B008
-        aws_profile_name: Optional[Secret] = Secret.from_env_var("AWS_PROFILE", strict=False),  # noqa: B008
-        aws_service: str = "es",
+        aws_auth: Optional[AWSAuth] = None,
         http_auth: Any = None,
         use_ssl: Optional[bool] = None,
         verify_certs: Optional[bool] = None,
@@ -85,13 +78,7 @@ class OpenSearchDocumentStore:
         :param settings: The settings of the index to be created. Please see the [official OpenSearch docs](https://opensearch.org/docs/latest/search-plugins/knn/knn-index/#index-settings)
             for more information. Defaults to {"index.knn": True}
         :param create_index: Whether to create the index if it doesn't exist. Defaults to True
-        :param aws_auth: Whether to use AWS authentication. Defaults to False
-        :param aws_access_key_id: AWS access key ID. Defaults to None
-        :param aws_secret_access_key: AWS secret access key. Defaults to None
-        :param aws_session_token: AWS session token. Defaults to None
-        :param aws_region_name: AWS region name. Defaults to None
-        :param aws_profile_name: AWS profile name. Defaults to None
-        :param aws_service: AWS service name. Defaults to "es"
+        :param aws_auth: AWS authentication credentials. Defaults to None
         :param http_auth: http_auth param passed to the underying connection class.
             For basic authentication with default connection class `Urllib3HttpConnection` this can be
             - a tuple of (username, password)
@@ -115,12 +102,6 @@ class OpenSearchDocumentStore:
         self._settings = settings
         self._create_index = create_index
         self._aws_auth = aws_auth
-        self._aws_access_key_id = aws_access_key_id
-        self._aws_secret_access_key = aws_secret_access_key
-        self._aws_session_token = aws_session_token
-        self._aws_region_name = aws_region_name
-        self._aws_profile_name = aws_profile_name
-        self._aws_service = aws_service
         self._http_auth = http_auth
         self._use_ssl = use_ssl
         self._verify_certs = verify_certs
@@ -151,7 +132,7 @@ class OpenSearchDocumentStore:
         if not self._client:
             http_auth = self._http_auth
             if self._aws_auth:
-                http_auth = self._get_aws_auth()
+                http_auth = self._get_aws_auth(self._aws_auth)
 
             self._client = OpenSearch(
                 hosts=self._hosts,
@@ -174,21 +155,22 @@ class OpenSearchDocumentStore:
             self._client.indices.create(index=self._index, body=body)  # type:ignore
         return self._client
 
-    def _get_aws_auth(self) -> Urllib3AWSV4SignerAuth:
+    @staticmethod
+    def _get_aws_auth(aws_auth: AWSAuth) -> Urllib3AWSV4SignerAuth:
         def resolve_secret(secret: Optional[Secret]) -> Optional[str]:
             return secret.resolve_value() if secret else None
 
         try:
-            region_name = resolve_secret(self._aws_region_name)
+            region_name = resolve_secret(aws_auth.aws_region_name)
             session = get_aws_session(
-                aws_access_key_id=resolve_secret(self._aws_access_key_id),
-                aws_secret_access_key=resolve_secret(self._aws_secret_access_key),
-                aws_session_token=resolve_secret(self._aws_session_token),
+                aws_access_key_id=resolve_secret(aws_auth.aws_access_key_id),
+                aws_secret_access_key=resolve_secret(aws_auth.aws_secret_access_key),
+                aws_session_token=resolve_secret(aws_auth.aws_session_token),
                 aws_region_name=region_name,
-                aws_profile_name=resolve_secret(self._aws_profile_name),
+                aws_profile_name=resolve_secret(aws_auth.aws_profile_name),
             )
             credentials = session.get_credentials()
-            return Urllib3AWSV4SignerAuth(credentials, region_name, self._aws_service)
+            return Urllib3AWSV4SignerAuth(credentials, region_name, aws_auth.aws_service)
         except Exception as exception:
             msg = (
                 "Could not connect to AWS OpenSearch. Make sure the AWS environment is configured correctly. "
@@ -244,13 +226,7 @@ class OpenSearchDocumentStore:
             settings=self._settings,
             create_index=self._create_index,
             return_embedding=self._return_embedding,
-            aws_auth=self._aws_auth,
-            aws_access_key_id=self._aws_access_key_id.to_dict() if self._aws_access_key_id else None,
-            aws_secret_access_key=self._aws_secret_access_key.to_dict() if self._aws_secret_access_key else None,
-            aws_session_token=self._aws_session_token.to_dict() if self._aws_session_token else None,
-            aws_region_name=self._aws_region_name.to_dict() if self._aws_region_name else None,
-            aws_profile_name=self._aws_profile_name.to_dict() if self._aws_profile_name else None,
-            aws_service=self._aws_service,
+            aws_auth=self._aws_auth.to_dict() if self._aws_auth else None,
             http_auth=self._http_auth,
             use_ssl=self._use_ssl,
             verify_certs=self._verify_certs,
@@ -269,10 +245,9 @@ class OpenSearchDocumentStore:
         :returns:
             Deserialized component.
         """
-        deserialize_secrets_inplace(
-            data["init_parameters"],
-            ["aws_access_key_id", "aws_secret_access_key", "aws_session_token", "aws_region_name", "aws_profile_name"],
-        )
+        if aws_auth := data.get("init_parameters", {}).get("aws_auth"):
+            data["init_parameters"]["aws_auth"] = AWSAuth.from_dict(aws_auth)
+
         return default_from_dict(cls, data)
 
     def count_documents(self) -> int:
