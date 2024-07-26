@@ -12,6 +12,10 @@ from opensearchpy import Urllib3AWSV4SignerAuth
 class AWSAuth:
     """
     Auth credentials for AWS OpenSearch services.
+
+    This class works as a thin wrapper around the `Urllib3AWSV4SignerAuth` class from the `opensearch-py` library.
+    It facilitates the creation of the `Urllib3AWSV4SignerAuth` by making use of Haystack secrets and taking care of
+    the necessary `Urllib3AWSV4SignerAuth` creation steps including boto3 Sessions and boto3 credentials.
     """
 
     aws_access_key_id: Optional[Secret] = field(
