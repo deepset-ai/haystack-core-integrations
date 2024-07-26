@@ -9,13 +9,10 @@ from haystack import default_from_dict, default_to_dict
 from haystack.dataclasses import Document
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
-from haystack.utils.auth import Secret
 from haystack.utils.filters import convert
-from haystack_integrations.common.opensearch.errors import AWSConfigurationError
-from haystack_integrations.common.opensearch.utils import get_aws_session
 from haystack_integrations.document_stores.opensearch.auth import AWSAuth
 from haystack_integrations.document_stores.opensearch.filters import normalize_filters
-from opensearchpy import OpenSearch, Urllib3AWSV4SignerAuth
+from opensearchpy import OpenSearch
 from opensearchpy.helpers import bulk
 
 logger = logging.getLogger(__name__)
@@ -132,7 +129,7 @@ class OpenSearchDocumentStore:
         if not self._client:
             http_auth = self._http_auth
             if self._aws_auth:
-                http_auth = self._get_aws_auth(self._aws_auth)
+                http_auth = self._aws_auth.get_urlib3_aws_v4_signer_auth()
 
             self._client = OpenSearch(
                 hosts=self._hosts,
@@ -154,29 +151,6 @@ class OpenSearchDocumentStore:
             body = {"mappings": self._mappings, "settings": self._settings}
             self._client.indices.create(index=self._index, body=body)  # type:ignore
         return self._client
-
-    @staticmethod
-    def _get_aws_auth(aws_auth: AWSAuth) -> Urllib3AWSV4SignerAuth:
-        def resolve_secret(secret: Optional[Secret]) -> Optional[str]:
-            return secret.resolve_value() if secret else None
-
-        try:
-            region_name = resolve_secret(aws_auth.aws_region_name)
-            session = get_aws_session(
-                aws_access_key_id=resolve_secret(aws_auth.aws_access_key_id),
-                aws_secret_access_key=resolve_secret(aws_auth.aws_secret_access_key),
-                aws_session_token=resolve_secret(aws_auth.aws_session_token),
-                aws_region_name=region_name,
-                aws_profile_name=resolve_secret(aws_auth.aws_profile_name),
-            )
-            credentials = session.get_credentials()
-            return Urllib3AWSV4SignerAuth(credentials, region_name, aws_auth.aws_service)
-        except Exception as exception:
-            msg = (
-                "Could not connect to AWS OpenSearch. Make sure the AWS environment is configured correctly. "
-                "See https://boto3.amazonaws.com/v1/documentation/api/latest/guide/quickstart.html#configuration"
-            )
-            raise AWSConfigurationError(msg) from exception
 
     def create_index(
         self,

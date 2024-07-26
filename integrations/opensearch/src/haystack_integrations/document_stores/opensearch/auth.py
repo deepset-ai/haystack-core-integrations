@@ -2,6 +2,9 @@ from dataclasses import dataclass, field, fields
 from typing import Any, Dict, Optional, Union
 
 from haystack.utils.auth import Secret, deserialize_secrets_inplace
+from haystack_integrations.common.opensearch.errors import AWSConfigurationError
+from haystack_integrations.common.opensearch.utils import get_aws_session
+from opensearchpy import Urllib3AWSV4SignerAuth
 
 
 @dataclass(frozen=True)
@@ -52,3 +55,25 @@ class AWSAuth:
             ["aws_access_key_id", "aws_secret_access_key", "aws_session_token", "aws_region_name", "aws_profile_name"],
         )
         return cls(**data)
+
+    def get_urlib3_aws_v4_signer_auth(self) -> Urllib3AWSV4SignerAuth:
+        def resolve_secret(secret: Optional[Secret]) -> Optional[str]:
+            return secret.resolve_value() if secret else None
+
+        try:
+            region_name = resolve_secret(self.aws_region_name)
+            session = get_aws_session(
+                aws_access_key_id=resolve_secret(self.aws_access_key_id),
+                aws_secret_access_key=resolve_secret(self.aws_secret_access_key),
+                aws_session_token=resolve_secret(self.aws_session_token),
+                aws_region_name=region_name,
+                aws_profile_name=resolve_secret(self.aws_profile_name),
+            )
+            credentials = session.get_credentials()
+            return Urllib3AWSV4SignerAuth(credentials, region_name, self.aws_service)
+        except Exception as exception:
+            msg = (
+                "Could not connect to AWS OpenSearch. Make sure the AWS environment is configured correctly. "
+                "See https://boto3.amazonaws.com/v1/documentation/api/latest/guide/quickstart.html#configuration"
+            )
+            raise AWSConfigurationError(msg) from exception
