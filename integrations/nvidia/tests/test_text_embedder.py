@@ -4,25 +4,6 @@ import pytest
 from haystack.utils import Secret
 from haystack_integrations.components.embedders.nvidia import EmbeddingTruncateMode, NvidiaTextEmbedder
 from haystack_integrations.components.embedders.nvidia.backend import EmbedderBackend, Model
-from requests_mock import Mocker
-
-
-@pytest.fixture
-def mock_local_models(requests_mock: Mocker) -> None:
-    requests_mock.get(
-        "http://localhost:8080/v1/models",
-        json={
-            "data": [
-                {
-                    "id": "model1",
-                    "object": "model",
-                    "created": 1234567890,
-                    "owned_by": "OWNER",
-                    "root": "model1",
-                },
-            ]
-        },
-    )
 
 
 class MockBackend(EmbedderBackend):
@@ -132,9 +113,11 @@ class TestNvidiaTextEmbedder:
 
         assert embedder.model is None
 
-        with pytest.warns(UserWarning):
+        with pytest.warns(UserWarning) as record:
             embedder.warm_up()
 
+        assert len(record) == 1
+        assert "Default model is set as:" in str(record[0].message)
         assert not embedder.is_hosted
         assert embedder.model == "model1"
 

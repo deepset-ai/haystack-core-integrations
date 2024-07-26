@@ -10,24 +10,6 @@ from requests_mock import Mocker
 
 
 @pytest.fixture
-def mock_local_models(requests_mock: Mocker) -> None:
-    requests_mock.get(
-        "http://localhost:8080/v1/models",
-        json={
-            "data": [
-                {
-                    "id": "model1",
-                    "object": "model",
-                    "created": 1234567890,
-                    "owned_by": "OWNER",
-                    "root": "model1",
-                },
-            ]
-        },
-    )
-
-
-@pytest.fixture
 def mock_local_chat_completion(requests_mock: Mocker) -> None:
     requests_mock.post(
         "http://localhost:8080/v1/chat/completions",
@@ -177,8 +159,10 @@ class TestNvidiaGenerator:
                 "temperature": 0.2,
             },
         )
-        with pytest.warns(UserWarning):
+        with pytest.warns(UserWarning) as record:
             generator.warm_up()
+        assert len(record) == 1
+        assert "Default model is set as:" in str(record[0].message)
         assert generator._model == "model1"
         assert not generator.is_hosted
 

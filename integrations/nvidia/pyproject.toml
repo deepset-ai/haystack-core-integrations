@@ -147,6 +147,8 @@ module = [
   "haystack_integrations.*",
   "pytest.*",
   "numpy.*",
+  "requests_mock.*",
+  "pydantic.*"
 ]
 ignore_missing_imports = true
 
