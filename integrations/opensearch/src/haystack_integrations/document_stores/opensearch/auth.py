@@ -1,13 +1,14 @@
 from dataclasses import dataclass, field, fields
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict, Optional
 
+from haystack import default_from_dict, default_to_dict
 from haystack.utils.auth import Secret, deserialize_secrets_inplace
 from haystack_integrations.common.opensearch.errors import AWSConfigurationError
 from haystack_integrations.common.opensearch.utils import get_aws_session
 from opensearchpy import Urllib3AWSV4SignerAuth
 
 
-@dataclass(frozen=True)
+@dataclass()
 class AWSAuth:
     """
     Auth credentials for AWS OpenSearch services.
@@ -28,6 +29,12 @@ class AWSAuth:
     aws_profile_name: Optional[Secret] = field(default_factory=lambda: Secret.from_env_var("AWS_PROFILE", strict=False))
     aws_service: str = field(default="es")
 
+    def __post_init__(self) -> None:
+        """
+        Initializes the AWSAuth object.
+        """
+        self._urllib3_aws_v4_signer_auth = self._get_urllib3_aws_v4_signer_auth()
+
     def to_dict(self) -> Dict[str, Any]:
         """
         Converts the object to a dictionary representation for serialization.
@@ -40,23 +47,33 @@ class AWSAuth:
             else:
                 _fields[_field.name] = field_value
 
-        return {**_fields}
+        return default_to_dict(self, **_fields)
 
     @classmethod
-    def from_dict(cls, data: Union[Dict[str, Any], bool]) -> Optional["AWSAuth"]:
+    def from_dict(cls, data: Dict[str, Any]) -> Optional["AWSAuth"]:
         """
         Converts a dictionary representation to an AWSAuth object.
         """
-        if isinstance(data, bool):
-            return cls() if data else None
-
+        init_parameters = data.get("init_parameters", {})
         deserialize_secrets_inplace(
-            data,
+            init_parameters,
             ["aws_access_key_id", "aws_secret_access_key", "aws_session_token", "aws_region_name", "aws_profile_name"],
         )
-        return cls(**data)
+        return default_from_dict(cls, data)
 
-    def get_urlib3_aws_v4_signer_auth(self) -> Urllib3AWSV4SignerAuth:
+    def __call__(self, method: str, url: str, body: Any) -> Dict[str, str]:
+        """
+        Signs the request and returns headers.
+
+        This method is executed by Urllib3 when making a request to the OpenSearch service.
+
+        :param method: HTTP method
+        :param url: URL
+        :param body: Body
+        """
+        return self._urllib3_aws_v4_signer_auth(method, url, body)
+
+    def _get_urllib3_aws_v4_signer_auth(self) -> Urllib3AWSV4SignerAuth:
         def resolve_secret(secret: Optional[Secret]) -> Optional[str]:
             return secret.resolve_value() if secret else None
 

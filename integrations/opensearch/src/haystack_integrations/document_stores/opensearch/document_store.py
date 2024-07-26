@@ -45,7 +45,6 @@ class OpenSearchDocumentStore:
         mappings: Optional[Dict[str, Any]] = None,
         settings: Optional[Dict[str, Any]] = DEFAULT_SETTINGS,
         create_index: bool = True,
-        aws_auth: Optional[AWSAuth] = None,
         http_auth: Any = None,
         use_ssl: Optional[bool] = None,
         verify_certs: Optional[bool] = None,
@@ -75,12 +74,12 @@ class OpenSearchDocumentStore:
         :param settings: The settings of the index to be created. Please see the [official OpenSearch docs](https://opensearch.org/docs/latest/search-plugins/knn/knn-index/#index-settings)
             for more information. Defaults to {"index.knn": True}
         :param create_index: Whether to create the index if it doesn't exist. Defaults to True
-        :param aws_auth: AWS authentication credentials. Defaults to None
         :param http_auth: http_auth param passed to the underying connection class.
             For basic authentication with default connection class `Urllib3HttpConnection` this can be
             - a tuple of (username, password)
             - a list of [username, password]
             - a string of "username:password"
+            For AWS authentication with `Urllib3HttpConnection` pass an instance of `AWSAuth`.
             Defaults to None
         :param use_ssl: Whether to use SSL. Defaults to None
         :param verify_certs: Whether to verify certificates. Defaults to None
@@ -98,7 +97,6 @@ class OpenSearchDocumentStore:
         self._mappings = mappings or self._get_default_mappings()
         self._settings = settings
         self._create_index = create_index
-        self._aws_auth = aws_auth
         self._http_auth = http_auth
         self._use_ssl = use_ssl
         self._verify_certs = verify_certs
@@ -127,13 +125,9 @@ class OpenSearchDocumentStore:
     @property
     def client(self) -> OpenSearch:
         if not self._client:
-            http_auth = self._http_auth
-            if self._aws_auth:
-                http_auth = self._aws_auth.get_urlib3_aws_v4_signer_auth()
-
             self._client = OpenSearch(
                 hosts=self._hosts,
-                http_auth=http_auth,
+                http_auth=self._http_auth,
                 use_ssl=self._use_ssl,
                 verify_certs=self._verify_certs,
                 timeout=self._timeout,
@@ -200,8 +194,7 @@ class OpenSearchDocumentStore:
             settings=self._settings,
             create_index=self._create_index,
             return_embedding=self._return_embedding,
-            aws_auth=self._aws_auth.to_dict() if self._aws_auth else None,
-            http_auth=self._http_auth,
+            http_auth=self._http_auth.to_dict() if isinstance(self._http_auth, AWSAuth) else self._http_auth,
             use_ssl=self._use_ssl,
             verify_certs=self._verify_certs,
             timeout=self._timeout,
@@ -219,8 +212,9 @@ class OpenSearchDocumentStore:
         :returns:
             Deserialized component.
         """
-        if aws_auth := data.get("init_parameters", {}).get("aws_auth"):
-            data["init_parameters"]["aws_auth"] = AWSAuth.from_dict(aws_auth)
+        if http_auth := data.get("init_parameters", {}).get("http_auth"):
+            if isinstance(http_auth, dict):
+                data["init_parameters"]["http_auth"] = AWSAuth.from_dict(http_auth)
 
         return default_from_dict(cls, data)
 

@@ -54,7 +54,6 @@ def test_to_dict(_mock_opensearch_client):
                     "settings": {"index.knn": True},
                     "return_embedding": False,
                     "create_index": True,
-                    "aws_auth": None,
                     "http_auth": None,
                     "use_ssl": None,
                     "verify_certs": None,
