@@ -1,8 +1,11 @@
 from typing import Optional
 
-import boto3
-from botocore.exceptions import BotoCoreError
+from haystack.lazy_imports import LazyImport
 from haystack_integrations.common.opensearch.errors import AWSConfigurationError
+
+with LazyImport("Run 'pip install \"boto3\"' to install boto3.") as boto3_import:
+    import boto3
+    from botocore.exceptions import BotoCoreError
 
 AWS_CONFIGURATION_KEYS = [
     "aws_access_key_id",
@@ -35,6 +38,7 @@ def get_aws_session(
     :raises AWSConfigurationError: If the provided AWS credentials are invalid.
     :returns: The created AWS session.
     """
+    boto3_import.check()
     try:
         return boto3.Session(
             aws_access_key_id=aws_access_key_id,
