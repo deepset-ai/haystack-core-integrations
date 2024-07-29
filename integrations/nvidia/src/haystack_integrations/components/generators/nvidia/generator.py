@@ -5,6 +5,7 @@ from typing import Any, Dict, List, Optional
 
 from haystack import component, default_from_dict, default_to_dict
 from haystack.utils.auth import Secret, deserialize_secrets_inplace
+from haystack_integrations.utils.nvidia import url_validation
 
 from ._nim_backend import NimBackend
 from .backend import GeneratorBackend
@@ -63,7 +64,7 @@ class NvidiaGenerator:
             to know the supported arguments.
         """
         self._model = model
-        self._api_url = api_url
+        self._api_url = url_validation(api_url, _DEFAULT_API_URL, ["v1/chat/completions"])
         self._api_key = api_key
         self._model_arguments = model_arguments or {}
 
