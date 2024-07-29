@@ -29,7 +29,7 @@ def url_validation(api_url: str, default_api_url: str, allowed_paths: List[str])
         if normalized_path == "v1":
             pass
         elif normalized_path in allowed_paths:
-            warn_msg = f"{expected_format} Rest is ingnored."
+            warn_msg = f"{expected_format} Rest is ignored."
             warnings.warn(warn_msg, stacklevel=2)
         else:
             err_msg = f"Base URL path is not recognized. {expected_format}"
