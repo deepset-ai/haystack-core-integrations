@@ -13,10 +13,8 @@ def url_validation(api_url: str, default_api_url: str, allowed_paths: List[str])
         The default API URL for comparison.
     :param allowed_paths:
         A list of allowed base paths that are valid if present in the URL.
-
-    :return:
+    :returns:
         A normalized version of the API URL with '/v1' path appended, if needed.
-
     :raises ValueError:
         If the base URL path is not recognized or does not match expected format.
     """
