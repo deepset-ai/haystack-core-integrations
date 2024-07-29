@@ -51,7 +51,7 @@ class EmbedderBackend(ABC):
         Invoke the backend to get available models.
 
         :return:
-            Models available
+            Available models
         """
         pass
 
@@ -88,6 +88,6 @@ class GeneratorBackend(ABC):
         Invoke the backend to get available models.
 
         :return:
-            Models available
+            Available models
         """
         pass

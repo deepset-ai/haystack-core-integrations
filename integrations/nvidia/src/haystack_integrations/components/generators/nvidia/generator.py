@@ -69,11 +69,6 @@ class NvidiaGenerator:
 
         self._backend: Optional[GeneratorBackend] = None
 
-        self.is_hosted = urlparse(api_url).netloc in [
-            "integrate.api.nvidia.com",
-            "ai.api.nvidia.com",
-        ]
-
     def default_model(self):
         """Set default model in local NIM mode."""
         valid_models = [
@@ -100,6 +95,11 @@ class NvidiaGenerator:
         if self._backend is not None:
             return
 
+        is_hosted = urlparse(self.api_url).netloc in [
+            "integrate.api.nvidia.com",
+            "ai.api.nvidia.com",
+        ]
+
         if self._api_url == _DEFAULT_API_URL and self._api_key is None:
             msg = "API key is required for hosted NVIDIA NIMs."
             raise ValueError(msg)
@@ -110,7 +110,7 @@ class NvidiaGenerator:
             model_kwargs=self._model_arguments,
         )
 
-        if not self.is_hosted and not self._model:
+        if not is_hosted and not self._model:
             self.default_model()
 
     def to_dict(self) -> Dict[str, Any]:
