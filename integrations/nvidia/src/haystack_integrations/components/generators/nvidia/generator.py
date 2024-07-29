@@ -7,9 +7,7 @@ from urllib.parse import urlparse
 
 from haystack import component, default_from_dict, default_to_dict
 from haystack.utils.auth import Secret, deserialize_secrets_inplace
-
-from ._nim_backend import NimBackend
-from .backend import GeneratorBackend
+from haystack_integrations.util.nvidia import GeneratorBackend, NimBackend
 
 _DEFAULT_API_URL = "https://integrate.api.nvidia.com/v1"
 

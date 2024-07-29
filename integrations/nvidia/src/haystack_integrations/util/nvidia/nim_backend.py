@@ -3,12 +3,12 @@ from typing import Any, Dict, List, Optional, Tuple
 import requests
 from haystack.utils import Secret
 
-from .backend import GeneratorBackend, Model
+from .backend import EmbedderBackend, GeneratorBackend, Model
 
 REQUEST_TIMEOUT = 60
 
 
-class NimBackend(GeneratorBackend):
+class NimBackend(GeneratorBackend, EmbedderBackend):
     def __init__(
         self,
         model: str,
@@ -30,6 +30,26 @@ class NimBackend(GeneratorBackend):
         self.model = model
         self.api_url = api_url
         self.model_kwargs = model_kwargs or {}
+
+    def embed(self, texts: List[str]) -> Tuple[List[List[float]], Dict[str, Any]]:
+        url = f"{self.api_url}/embeddings"
+
+        res = self.session.post(
+            url,
+            json={
+                "model": self.model,
+                "input": texts,
+                **self.model_kwargs,
+            },
+            timeout=REQUEST_TIMEOUT,
+        )
+        res.raise_for_status()
+
+        data = res.json()
+        # Sort the embeddings by index, we don't know whether they're out of order or not
+        embeddings = [e["embedding"] for e in sorted(data["data"], key=lambda e: e["index"])]
+
+        return embeddings, {"usage": data["usage"]}
 
     def generate(self, prompt: str) -> Tuple[List[str], List[Dict[str, Any]]]:
         # We're using the chat completion endpoint as the NIM API doesn't support

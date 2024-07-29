@@ -4,10 +4,9 @@ from urllib.parse import urlparse
 
 from haystack import Document, component, default_from_dict, default_to_dict
 from haystack.utils import Secret, deserialize_secrets_inplace
+from haystack_integrations.util.nvidia import EmbedderBackend, NimBackend
 from tqdm import tqdm
 
-from ._nim_backend import NimBackend
-from .backend import EmbedderBackend
 from .truncate import EmbeddingTruncateMode
 
 
