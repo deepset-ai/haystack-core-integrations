@@ -1,10 +1,10 @@
 from abc import ABC, abstractmethod
+from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple
 
-from pydantic import BaseModel, ConfigDict
 
-
-class Model(BaseModel):
+@dataclass
+class Model:
     """
     Model information.
 
@@ -15,8 +15,7 @@ class Model(BaseModel):
     """
 
     id: str
-    model_config = ConfigDict(from_attributes=True, protected_namespaces=())
-    aliases: Optional[list] = None
+    aliases: Optional[List[str]] = field(default_factory=list)
     base_model: Optional[str] = None
 
 
