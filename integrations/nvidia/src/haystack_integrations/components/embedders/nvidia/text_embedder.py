@@ -45,6 +45,8 @@ class NvidiaTextEmbedder:
 
         :param model:
             Embedding model to use.
+            If no specific model along with locally hosted API URL is provided,
+            the system defaults to the available model found using /models API.
         :param api_key:
             API key for the NVIDIA NIM.
         :param api_url:
@@ -70,6 +72,17 @@ class NvidiaTextEmbedder:
 
         self.backend: Optional[EmbedderBackend] = None
         self._initialized = False
+
+        if (
+            urlparse(self.api_url).netloc
+            in [
+                "integrate.api.nvidia.com",
+                "ai.api.nvidia.com",
+            ]
+            and not self.model
+        ):
+            # manually set default model
+            self.model = "NV-Embed-QA"
 
     def default_model(self):
         """Set default model in local NIM mode."""
@@ -97,11 +110,6 @@ class NvidiaTextEmbedder:
         if self._initialized:
             return
 
-        is_hosted = urlparse(self.api_url).netloc in [
-            "integrate.api.nvidia.com",
-            "ai.api.nvidia.com",
-        ]
-
         model_kwargs = {"input_type": "query"}
         if self.truncate is not None:
             model_kwargs["truncate"] = str(self.truncate)
@@ -113,10 +121,8 @@ class NvidiaTextEmbedder:
         )
 
         self._initialized = True
-        if is_hosted and not self.model:
-            # manually set default model
-            self.model = "NV-Embed-QA"
-        elif not is_hosted and not self.model:
+
+        if not self.model:
             self.default_model()
 
     def to_dict(self) -> Dict[str, Any]:

@@ -109,9 +109,8 @@ class NimBackend(GeneratorBackend, EmbedderBackend):
         res.raise_for_status()
 
         data = res.json()["data"]
-        models = []
-        for element in data:
-            assert "id" in element, f"No id found in {element}"
-            models.append(Model(id=element["id"]))
-
+        models = [Model(element["id"]) for element in data if "id" in element]
+        if not models:
+            msg = "No valid hosted model found."
+            raise ValueError(msg)
         return models

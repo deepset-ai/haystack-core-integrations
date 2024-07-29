@@ -53,6 +53,8 @@ class NvidiaGenerator:
             Name of the model to use for text generation.
             See the [NVIDIA NIMs](https://ai.nvidia.com)
             for more information on the supported models.
+            `Note`: If no specific model along with locally hosted API URL is provided,
+            the system defaults to the available model found using /models API.
         :param api_key:
             API key for the NVIDIA NIM.
         :param api_url:
@@ -68,6 +70,11 @@ class NvidiaGenerator:
         self._model_arguments = model_arguments or {}
 
         self._backend: Optional[GeneratorBackend] = None
+
+        self.is_hosted = urlparse(api_url).netloc in [
+            "integrate.api.nvidia.com",
+            "ai.api.nvidia.com",
+        ]
 
     def default_model(self):
         """Set default model in local NIM mode."""
@@ -95,11 +102,6 @@ class NvidiaGenerator:
         if self._backend is not None:
             return
 
-        is_hosted = urlparse(self.api_url).netloc in [
-            "integrate.api.nvidia.com",
-            "ai.api.nvidia.com",
-        ]
-
         if self._api_url == _DEFAULT_API_URL and self._api_key is None:
             msg = "API key is required for hosted NVIDIA NIMs."
             raise ValueError(msg)
@@ -110,7 +112,7 @@ class NvidiaGenerator:
             model_kwargs=self._model_arguments,
         )
 
-        if not is_hosted and not self._model:
+        if not self.is_hosted and not self._model:
             self.default_model()
 
     def to_dict(self) -> Dict[str, Any]:

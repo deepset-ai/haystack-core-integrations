@@ -4,7 +4,7 @@ import pytest
 from haystack import Document
 from haystack.utils import Secret
 from haystack_integrations.components.embedders.nvidia import EmbeddingTruncateMode, NvidiaDocumentEmbedder
-from haystack_integrations.components.embedders.nvidia.backend import EmbedderBackend, Model
+from haystack_integrations.util.nvidia import EmbedderBackend, Model
 
 
 class MockBackend(EmbedderBackend):
@@ -228,7 +228,6 @@ class TestNvidiaDocumentEmbedder:
             embedder.warm_up()
         assert len(record) == 1
         assert "Default model is set as:" in str(record[0].message)
-        assert not embedder.is_hosted
         assert embedder.model == "model1"
 
         embedder.backend = MockBackend("aa", None)
