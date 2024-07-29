@@ -2,10 +2,13 @@ from typing import Any, Dict, List, Optional, Union
 
 from haystack import component, default_from_dict, default_to_dict
 from haystack.utils import Secret, deserialize_secrets_inplace
+from haystack_integrations.utils.nvidia import url_validation
 
 from ._nim_backend import NimBackend
 from .backend import EmbedderBackend
 from .truncate import EmbeddingTruncateMode
+
+_DEFAULT_API_URL = "https://ai.api.nvidia.com/v1/retrieval/nvidia"
 
 
 @component
@@ -34,7 +37,7 @@ class NvidiaTextEmbedder:
         self,
         model: str = "NV-Embed-QA",
         api_key: Optional[Secret] = Secret.from_env_var("NVIDIA_API_KEY"),
-        api_url: str = "https://ai.api.nvidia.com/v1/retrieval/nvidia",
+        api_url: str = _DEFAULT_API_URL,
         prefix: str = "",
         suffix: str = "",
         truncate: Optional[Union[EmbeddingTruncateMode, str]] = None,
@@ -48,6 +51,7 @@ class NvidiaTextEmbedder:
             API key for the NVIDIA NIM.
         :param api_url:
             Custom API URL for the NVIDIA NIM.
+            Format for API URL is http://host:port
         :param prefix:
             A string to add to the beginning of each text.
         :param suffix:
@@ -59,7 +63,7 @@ class NvidiaTextEmbedder:
 
         self.api_key = api_key
         self.model = model
-        self.api_url = api_url
+        self.api_url = url_validation(api_url, _DEFAULT_API_URL, ["v1/embeddings"])
         self.prefix = prefix
         self.suffix = suffix
 
