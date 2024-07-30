@@ -66,7 +66,6 @@ class ElasticsearchDocumentStore:
         custom_mapping: Optional[Dict[str, Any]] = None,
         index: str = "default",
         embedding_similarity_function: Literal["cosine", "dot_product", "l2_norm", "max_inner_product"] = "cosine",
-        julias_param: str = "hallo",
         **kwargs,
     ):
         """
