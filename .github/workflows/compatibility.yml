@@ -1,0 +1,34 @@
+name: Install and Test Integrations
+
+on: [push, pull_request]
+
+jobs:
+  test-integrations:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: '3.8'
+
+      - name: Install dependencies
+        run: |
+          for dir in integrations/*; do
+            if [ -f "$dir/pyproject.toml" ]; then
+              echo "Installing $dir"
+              pip install -e $dir
+            fi
+          done
+
+      - name: Verify installations
+        run: |
+          for dir in integrations/*; do
+            if [ -f "$dir/pyproject.toml" ]; then
+              package_name=$(awk -F'[ ="]+' '$1 == "name" {print $2}' $dir/pyproject.toml)
+              python -c "import $package_name" || exit 1
+            fi
+          done
