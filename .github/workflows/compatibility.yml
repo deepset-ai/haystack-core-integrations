@@ -6,7 +6,6 @@ jobs:
   test-integrations:
     name: Install all packages
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v2
@@ -16,14 +15,34 @@ jobs:
         with:
           python-version: '3.8'
 
-      - name: Install dependencies
+      - name: Create a combined requirements file
         run: |
+          echo "Creating combined requirements file"
+          touch combined-requirements.txt
           for dir in integrations/*; do
             if [ -f "$dir/pyproject.toml" ]; then
-              echo "Installing $dir"
-              pip install -e $dir
-            fi
-          done
+              echo "Processing $dir/pyproject.toml"
+              pip install tomli
+              python -c "
+                import tomli
+                with open('$dir/pyproject.toml', 'rb') as f:
+                    data = tomli.load(f)
+                if 'dependencies' in data['project']:
+                    deps = data['project']['dependencies']
+                    with open('combined-requirements.txt', 'a') as req_file:
+                        for dep in deps:
+                            req_file.write(dep + '\n')
+                            "
+                            fi
+                        done
+                        
+      - name: Display combined requirements
+        run: cat combined-requirements.txt
+
+      - name: Install dependencies
+        run: |
+          echo "Installing combined dependencies"
+          pip install -r combined-requirements.txt
 
       - name: Verify installations
         run: |
