@@ -1,9 +1,10 @@
-name: Install and Test Integrations
+name: Check Compatibility
 
 on: [push, pull_request]
 
 jobs:
   test-integrations:
+    name: Install all packages
     runs-on: ubuntu-latest
 
     steps:
