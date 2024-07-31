@@ -9,7 +9,7 @@ import pytest
 import requests
 
 from haystack import Pipeline
-from haystack.components.builders import DynamicChatPromptBuilder
+from haystack.components.builders import ChatPromptBuilder
 from haystack.components.generators.chat import OpenAIChatGenerator
 from haystack.dataclasses import ChatMessage
 from requests.auth import HTTPBasicAuth
@@ -26,7 +26,7 @@ def test_tracing_integration():
 
     pipe = Pipeline()
     pipe.add_component("tracer", LangfuseConnector(name="Chat example", public=True))  # public so anyone can verify run
-    pipe.add_component("prompt_builder", DynamicChatPromptBuilder())
+    pipe.add_component("prompt_builder", ChatPromptBuilder())
     pipe.add_component("llm", OpenAIChatGenerator(model="gpt-3.5-turbo"))
 
     pipe.connect("prompt_builder.prompt", "llm.messages")
@@ -36,9 +36,7 @@ def test_tracing_integration():
         ChatMessage.from_user("Tell me about {{location}}"),
     ]
 
-    response = pipe.run(
-        data={"prompt_builder": {"template_variables": {"location": "Berlin"}, "prompt_source": messages}}
-    )
+    response = pipe.run(data={"prompt_builder": {"template_variables": {"location": "Berlin"}, "template": messages}})
     assert "Berlin" in response["llm"]["replies"][0].content
     assert response["tracer"]["trace_url"]
     url = "https://cloud.langfuse.com/api/public/traces/"
