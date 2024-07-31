@@ -93,7 +93,7 @@ Add other components and connect them as desired. Then run your pipeline:
 
 ## Warnings about indexing
 
-When creating an Astra DB vector store, you may see a warning similar to the following:
+When creating an Astra DB document store, you may see a warning similar to the following:
 
 > Astra DB collection '...' is detected as having indexing turned on for all fields (either created manually or by older versions of this plugin). This implies stricter limitations on the amount of text each string in a document can store. Consider indexing anew on a fresh collection to be able to store longer texts.
 
@@ -110,7 +110,7 @@ Typically there are two reasons why you may encounter the warning:
 2. you have created the collection with an older version of the plugin.
 
 Keep in mind that this is a warning and your application will continue running just fine, as long as you don't store very long texts.
-However, should you need to add to the vector store, for example, a document with a very long textual content, you will get an indexing error from the database.
+However, should you need to add to the document store, for example, a document with a very long textual content, you will get an indexing error from the database.
 
 ### Remediation
 
