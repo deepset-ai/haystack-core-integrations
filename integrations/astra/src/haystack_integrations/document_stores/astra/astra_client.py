@@ -117,33 +117,32 @@ class AstraClient:
                     self._astra_db_collection = self._astra_db.collection(
                         collection_name=collection_name,
                     )
+                elif pre_col_options["indexing"] != indexing_options["indexing"]:
+                    detected_options_json = json.dumps(pre_col_options["indexing"])
+                    indexing_options_json = json.dumps(indexing_options["indexing"])
+                    warn(
+                        (
+                            f"Astra DB collection '{collection_name}' is "
+                            "detected as having the following indexing policy: "
+                            f"{detected_options_json}. This does not match the requested "
+                            f"indexing policy for this object: {indexing_options_json}. "
+                            "In particular, there may be stricter "
+                            "limitations on the amount of text each string in a "
+                            "document can store. Consider indexing anew on a "
+                            "fresh collection to be able to store longer texts. "
+                            "See https://github.com/deepset-ai/haystack-core-"
+                            "integrations/blob/main/integrations/astra/README"
+                            ".md#warnings-about-indexing for more details."
+                        ),
+                        UserWarning,
+                        stacklevel=2,
+                    )
+                    self._astra_db_collection = self._astra_db.collection(
+                        collection_name=collection_name,
+                    )
                 else:
-                    if pre_col_options["indexing"] != indexing_options["indexing"]:
-                        detected_options_json = json.dumps(pre_col_options["indexing"])
-                        indexing_options_json = json.dumps(indexing_options["indexing"])
-                        warn(
-                            (
-                                f"Astra DB collection '{collection_name}' is "
-                                "detected as having the following indexing policy: "
-                                f"{detected_options_json}. This does not match the requested "
-                                f"indexing policy for this object: {indexing_options_json}. "
-                                "In particular, there may be stricter "
-                                "limitations on the amount of text each string in a "
-                                "document can store. Consider indexing anew on a "
-                                "fresh collection to be able to store longer texts. "
-                                "See https://github.com/deepset-ai/haystack-core-"
-                                "integrations/blob/main/integrations/astra/README"
-                                ".md#warnings-about-indexing for more details."
-                            ),
-                            UserWarning,
-                            stacklevel=2,
-                        )
-                        self._astra_db_collection = self._astra_db.collection(
-                            collection_name=collection_name,
-                        )
-                    else:
-                        # the collection mismatch lies elsewhere than the indexing
-                        raise
+                    # the collection mismatch lies elsewhere than the indexing
+                    raise
             else:
                 # other exception
                 raise
