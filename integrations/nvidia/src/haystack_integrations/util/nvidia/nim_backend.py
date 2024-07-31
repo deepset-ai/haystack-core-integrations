@@ -111,6 +111,6 @@ class NimBackend(GeneratorBackend, EmbedderBackend):
         data = res.json()["data"]
         models = [Model(element["id"]) for element in data if "id" in element]
         if not models:
-            msg = "No valid hosted model found."
+            msg = f"No hosted model were found at URL '{url}'."
             raise ValueError(msg)
         return models
