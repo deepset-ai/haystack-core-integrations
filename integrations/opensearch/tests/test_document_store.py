@@ -1,7 +1,6 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
-# ruff: noqa: B018
 import random
 from typing import List
 from unittest.mock import patch
@@ -120,24 +119,27 @@ class TestAuth:
 
     @patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
     def test_init_with_basic_auth(self, _mock_opensearch_client):
-        OpenSearchDocumentStore(hosts="testhost", http_auth=("user", "pw")).client
+        document_store = OpenSearchDocumentStore(hosts="testhost", http_auth=("user", "pw"))
+        assert document_store.client
         _mock_opensearch_client.assert_called_once()
         assert _mock_opensearch_client.call_args[1]["http_auth"] == ("user", "pw")
 
     @patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
     def test_init_without_auth(self, _mock_opensearch_client):
-        OpenSearchDocumentStore(hosts="testhost").client
+        document_store = OpenSearchDocumentStore(hosts="testhost")
+        assert document_store.client
         _mock_opensearch_client.assert_called_once()
         assert _mock_opensearch_client.call_args[1]["http_auth"] is None
 
     @patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
     def test_init_aws_auth(self, _mock_opensearch_client):
-        OpenSearchDocumentStore(
+        document_store = OpenSearchDocumentStore(
             hosts="testhost",
             http_auth=AWSAuth(aws_region_name=Secret.from_token("dummy-region")),
             use_ssl=True,
             verify_certs=True,
-        ).client
+        )
+        assert document_store.client
         _mock_opensearch_client.assert_called_once()
         assert isinstance(_mock_opensearch_client.call_args[1]["http_auth"], AWSAuth)
         assert _mock_opensearch_client.call_args[1]["use_ssl"] is True
@@ -145,7 +147,7 @@ class TestAuth:
 
     @patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
     def test_from_dict_basic_auth(self, _mock_opensearch_client):
-        OpenSearchDocumentStore.from_dict(
+        document_store = OpenSearchDocumentStore.from_dict(
             {
                 "type": "haystack_integrations.document_stores.opensearch.document_store.OpenSearchDocumentStore",
                 "init_parameters": {
@@ -155,14 +157,15 @@ class TestAuth:
                     "verify_certs": True,
                 },
             }
-        ).client
+        )
+        assert document_store.client
         _mock_opensearch_client.assert_called_once()
         assert _mock_opensearch_client.call_args[1]["http_auth"] == ["user", "pw"]
 
     @patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
     def test_from_dict_aws_auth(self, _mock_opensearch_client, monkeypatch: pytest.MonkeyPatch):
         monkeypatch.setenv("AWS_DEFAULT_REGION", "dummy-region")
-        OpenSearchDocumentStore.from_dict(
+        document_store = OpenSearchDocumentStore.from_dict(
             {
                 "type": "haystack_integrations.document_stores.opensearch.document_store.OpenSearchDocumentStore",
                 "init_parameters": {
@@ -175,7 +178,8 @@ class TestAuth:
                     "verify_certs": True,
                 },
             }
-        ).client
+        )
+        assert document_store.client
         _mock_opensearch_client.assert_called_once()
         assert isinstance(_mock_opensearch_client.call_args[1]["http_auth"], AWSAuth)
         assert _mock_opensearch_client.call_args[1]["use_ssl"] is True
