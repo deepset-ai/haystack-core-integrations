@@ -36,9 +36,7 @@ def test_tracing_integration():
         ChatMessage.from_user("Tell me about {{location}}"),
     ]
 
-    response = pipe.run(
-        data={"prompt_builder": {"template_variables": {"location": "Berlin"}, "template": messages}}
-    )
+    response = pipe.run(data={"prompt_builder": {"template_variables": {"location": "Berlin"}, "template": messages}})
     assert "Berlin" in response["llm"]["replies"][0].content
     assert response["tracer"]["trace_url"]
     url = "https://cloud.langfuse.com/api/public/traces/"
