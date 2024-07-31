@@ -3,11 +3,11 @@
 # SPDX-License-Identifier: Apache-2.0
 import warnings
 from typing import Any, Dict, List, Optional
-from urllib.parse import urlparse
 
 from haystack import component, default_from_dict, default_to_dict
 from haystack.utils.auth import Secret, deserialize_secrets_inplace
 from haystack_integrations.util.nvidia import GeneratorBackend, NimBackend
+from haystack_integrations.util.nvidia.util import is_hosted
 
 _DEFAULT_API_URL = "https://integrate.api.nvidia.com/v1"
 
@@ -71,10 +71,7 @@ class NvidiaGenerator:
 
         self._backend: Optional[GeneratorBackend] = None
 
-        self.is_hosted = urlparse(api_url).netloc in [
-            "integrate.api.nvidia.com",
-            "ai.api.nvidia.com",
-        ]
+        self.is_hosted = is_hosted(api_url)
 
     def default_model(self):
         """Set default model in local NIM mode."""
