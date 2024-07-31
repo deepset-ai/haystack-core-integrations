@@ -109,7 +109,6 @@ class AstraClient:
                             "See https://github.com/deepset-ai/haystack-core-"
                             "integrations/blob/main/integrations/astra/README"
                             ".md#warnings-about-indexing for more details."
-
                         ),
                         UserWarning,
                         stacklevel=2,
