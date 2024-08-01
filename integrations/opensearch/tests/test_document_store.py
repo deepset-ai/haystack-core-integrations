@@ -10,7 +10,9 @@ from haystack.dataclasses.document import Document
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
 from haystack.testing.document_store import DocumentStoreBaseTests
+from haystack.utils.auth import Secret
 from haystack_integrations.document_stores.opensearch import OpenSearchDocumentStore
+from haystack_integrations.document_stores.opensearch.auth import AWSAuth
 from haystack_integrations.document_stores.opensearch.document_store import DEFAULT_MAX_CHUNK_BYTES
 from opensearchpy.exceptions import RequestError
 
@@ -37,6 +39,10 @@ def test_to_dict(_mock_opensearch_client):
             "settings": {"index.knn": True},
             "return_embedding": False,
             "create_index": True,
+            "http_auth": None,
+            "use_ssl": None,
+            "verify_certs": None,
+            "timeout": None,
         },
     }
 
@@ -52,6 +58,11 @@ def test_from_dict(_mock_opensearch_client):
             "embedding_dim": 1536,
             "create_index": False,
             "return_embedding": True,
+            "aws_service": "es",
+            "http_auth": ("admin", "admin"),
+            "use_ssl": True,
+            "verify_certs": True,
+            "timeout": 60,
         },
     }
     document_store = OpenSearchDocumentStore.from_dict(data)
@@ -77,6 +88,10 @@ def test_from_dict(_mock_opensearch_client):
     assert document_store._settings == {"index.knn": True}
     assert document_store._return_embedding is True
     assert document_store._create_index is False
+    assert document_store._http_auth == ("admin", "admin")
+    assert document_store._use_ssl is True
+    assert document_store._verify_certs is True
+    assert document_store._timeout == 60
 
 
 @patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
@@ -94,6 +109,158 @@ def test_get_default_mappings(_mock_opensearch_client):
         "dimension": 1536,
         "method": {"name": "hnsw"},
     }
+
+
+class TestAuth:
+    @pytest.fixture(autouse=True)
+    def mock_boto3_session(self):
+        with patch("boto3.Session") as mock_client:
+            yield mock_client
+
+    @patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
+    def test_init_with_basic_auth(self, _mock_opensearch_client):
+        document_store = OpenSearchDocumentStore(hosts="testhost", http_auth=("user", "pw"))
+        assert document_store.client
+        _mock_opensearch_client.assert_called_once()
+        assert _mock_opensearch_client.call_args[1]["http_auth"] == ("user", "pw")
+
+    @patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
+    def test_init_without_auth(self, _mock_opensearch_client):
+        document_store = OpenSearchDocumentStore(hosts="testhost")
+        assert document_store.client
+        _mock_opensearch_client.assert_called_once()
+        assert _mock_opensearch_client.call_args[1]["http_auth"] is None
+
+    @patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
+    def test_init_aws_auth(self, _mock_opensearch_client):
+        document_store = OpenSearchDocumentStore(
+            hosts="testhost",
+            http_auth=AWSAuth(aws_region_name=Secret.from_token("dummy-region")),
+            use_ssl=True,
+            verify_certs=True,
+        )
+        assert document_store.client
+        _mock_opensearch_client.assert_called_once()
+        assert isinstance(_mock_opensearch_client.call_args[1]["http_auth"], AWSAuth)
+        assert _mock_opensearch_client.call_args[1]["use_ssl"] is True
+        assert _mock_opensearch_client.call_args[1]["verify_certs"] is True
+
+    @patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
+    def test_from_dict_basic_auth(self, _mock_opensearch_client):
+        document_store = OpenSearchDocumentStore.from_dict(
+            {
+                "type": "haystack_integrations.document_stores.opensearch.document_store.OpenSearchDocumentStore",
+                "init_parameters": {
+                    "hosts": "testhost",
+                    "http_auth": ["user", "pw"],
+                    "use_ssl": True,
+                    "verify_certs": True,
+                },
+            }
+        )
+        assert document_store.client
+        _mock_opensearch_client.assert_called_once()
+        assert _mock_opensearch_client.call_args[1]["http_auth"] == ["user", "pw"]
+
+    @patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
+    def test_from_dict_aws_auth(self, _mock_opensearch_client, monkeypatch: pytest.MonkeyPatch):
+        monkeypatch.setenv("AWS_DEFAULT_REGION", "dummy-region")
+        document_store = OpenSearchDocumentStore.from_dict(
+            {
+                "type": "haystack_integrations.document_stores.opensearch.document_store.OpenSearchDocumentStore",
+                "init_parameters": {
+                    "hosts": "testhost",
+                    "http_auth": {
+                        "type": "haystack_integrations.document_stores.opensearch.auth.AWSAuth",
+                        "init_parameters": {},
+                    },
+                    "use_ssl": True,
+                    "verify_certs": True,
+                },
+            }
+        )
+        assert document_store.client
+        _mock_opensearch_client.assert_called_once()
+        assert isinstance(_mock_opensearch_client.call_args[1]["http_auth"], AWSAuth)
+        assert _mock_opensearch_client.call_args[1]["use_ssl"] is True
+        assert _mock_opensearch_client.call_args[1]["verify_certs"] is True
+
+    @patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
+    def test_to_dict_basic_auth(self, _mock_opensearch_client):
+        document_store = OpenSearchDocumentStore(hosts="some hosts", http_auth=("user", "pw"))
+        res = document_store.to_dict()
+        assert res == {
+            "type": "haystack_integrations.document_stores.opensearch.document_store.OpenSearchDocumentStore",
+            "init_parameters": {
+                "embedding_dim": 768,
+                "hosts": "some hosts",
+                "index": "default",
+                "mappings": {
+                    "dynamic_templates": [
+                        {"strings": {"mapping": {"type": "keyword"}, "match_mapping_type": "string"}}
+                    ],
+                    "properties": {
+                        "content": {"type": "text"},
+                        "embedding": {"dimension": 768, "index": True, "type": "knn_vector"},
+                    },
+                },
+                "max_chunk_bytes": DEFAULT_MAX_CHUNK_BYTES,
+                "method": None,
+                "settings": {"index.knn": True},
+                "return_embedding": False,
+                "create_index": True,
+                "http_auth": ("user", "pw"),
+                "use_ssl": None,
+                "verify_certs": None,
+                "timeout": None,
+            },
+        }
+
+    @patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
+    def test_to_dict_aws_auth(self, _mock_opensearch_client, monkeypatch: pytest.MonkeyPatch):
+        monkeypatch.setenv("AWS_DEFAULT_REGION", "dummy-region")
+        document_store = OpenSearchDocumentStore(hosts="some hosts", http_auth=AWSAuth())
+        res = document_store.to_dict()
+        assert res == {
+            "type": "haystack_integrations.document_stores.opensearch.document_store.OpenSearchDocumentStore",
+            "init_parameters": {
+                "embedding_dim": 768,
+                "hosts": "some hosts",
+                "index": "default",
+                "mappings": {
+                    "dynamic_templates": [
+                        {"strings": {"mapping": {"type": "keyword"}, "match_mapping_type": "string"}}
+                    ],
+                    "properties": {
+                        "content": {"type": "text"},
+                        "embedding": {"dimension": 768, "index": True, "type": "knn_vector"},
+                    },
+                },
+                "max_chunk_bytes": DEFAULT_MAX_CHUNK_BYTES,
+                "method": None,
+                "settings": {"index.knn": True},
+                "return_embedding": False,
+                "create_index": True,
+                "http_auth": {
+                    "type": "haystack_integrations.document_stores.opensearch.auth.AWSAuth",
+                    "init_parameters": {
+                        "aws_access_key_id": {"type": "env_var", "env_vars": ["AWS_ACCESS_KEY_ID"], "strict": False},
+                        "aws_secret_access_key": {
+                            "type": "env_var",
+                            "env_vars": ["AWS_SECRET_ACCESS_KEY"],
+                            "strict": False,
+                        },
+                        "aws_session_token": {"type": "env_var", "env_vars": ["AWS_SESSION_TOKEN"], "strict": False},
+                        "aws_region_name": {"type": "env_var", "env_vars": ["AWS_DEFAULT_REGION"], "strict": False},
+                        "aws_profile_name": {"type": "env_var", "env_vars": ["AWS_PROFILE"], "strict": False},
+                        "aws_service": "es",
+                    },
+                },
+                "use_ssl": None,
+                "verify_certs": None,
+                "timeout": None,
+            },
+        }
 
 
 @pytest.mark.integration
