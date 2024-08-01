@@ -10,6 +10,7 @@ from haystack.dataclasses import Document
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
 from haystack.utils.filters import convert
+from haystack_integrations.document_stores.opensearch.auth import AWSAuth
 from haystack_integrations.document_stores.opensearch.filters import normalize_filters
 from opensearchpy import OpenSearch
 from opensearchpy.helpers import bulk
@@ -44,6 +45,10 @@ class OpenSearchDocumentStore:
         mappings: Optional[Dict[str, Any]] = None,
         settings: Optional[Dict[str, Any]] = DEFAULT_SETTINGS,
         create_index: bool = True,
+        http_auth: Any = None,
+        use_ssl: Optional[bool] = None,
+        verify_certs: Optional[bool] = None,
+        timeout: Optional[int] = None,
         **kwargs,
     ):
         """
@@ -69,6 +74,16 @@ class OpenSearchDocumentStore:
         :param settings: The settings of the index to be created. Please see the [official OpenSearch docs](https://opensearch.org/docs/latest/search-plugins/knn/knn-index/#index-settings)
             for more information. Defaults to {"index.knn": True}
         :param create_index: Whether to create the index if it doesn't exist. Defaults to True
+        :param http_auth: http_auth param passed to the underying connection class.
+            For basic authentication with default connection class `Urllib3HttpConnection` this can be
+            - a tuple of (username, password)
+            - a list of [username, password]
+            - a string of "username:password"
+            For AWS authentication with `Urllib3HttpConnection` pass an instance of `AWSAuth`.
+            Defaults to None
+        :param use_ssl: Whether to use SSL. Defaults to None
+        :param verify_certs: Whether to verify certificates. Defaults to None
+        :param timeout: Timeout in seconds. Defaults to None
         :param **kwargs: Optional arguments that ``OpenSearch`` takes. For the full list of supported kwargs,
             see the [official OpenSearch reference](https://opensearch-project.github.io/opensearch-py/api-ref/clients/opensearch_client.html)
         """
@@ -82,6 +97,10 @@ class OpenSearchDocumentStore:
         self._mappings = mappings or self._get_default_mappings()
         self._settings = settings
         self._create_index = create_index
+        self._http_auth = http_auth
+        self._use_ssl = use_ssl
+        self._verify_certs = verify_certs
+        self._timeout = timeout
         self._kwargs = kwargs
 
     def _get_default_mappings(self) -> Dict[str, Any]:
@@ -106,9 +125,14 @@ class OpenSearchDocumentStore:
     @property
     def client(self) -> OpenSearch:
         if not self._client:
-            self._client = OpenSearch(self._hosts, **self._kwargs)
-            # Check client connection, this will raise if not connected
-            self._client.info()  # type:ignore
+            self._client = OpenSearch(
+                hosts=self._hosts,
+                http_auth=self._http_auth,
+                use_ssl=self._use_ssl,
+                verify_certs=self._verify_certs,
+                timeout=self._timeout,
+                **self._kwargs,
+            )
 
         if self._client.indices.exists(index=self._index):  # type:ignore
             logger.debug(
@@ -170,6 +194,10 @@ class OpenSearchDocumentStore:
             settings=self._settings,
             create_index=self._create_index,
             return_embedding=self._return_embedding,
+            http_auth=self._http_auth.to_dict() if isinstance(self._http_auth, AWSAuth) else self._http_auth,
+            use_ssl=self._use_ssl,
+            verify_certs=self._verify_certs,
+            timeout=self._timeout,
             **self._kwargs,
         )
 
@@ -184,6 +212,10 @@ class OpenSearchDocumentStore:
         :returns:
             Deserialized component.
         """
+        if http_auth := data.get("init_parameters", {}).get("http_auth"):
+            if isinstance(http_auth, dict):
+                data["init_parameters"]["http_auth"] = AWSAuth.from_dict(http_auth)
+
         return default_from_dict(cls, data)
 
     def count_documents(self) -> int:
