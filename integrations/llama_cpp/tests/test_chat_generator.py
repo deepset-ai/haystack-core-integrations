@@ -6,7 +6,7 @@ from unittest.mock import MagicMock
 
 import pytest
 from haystack import Document, Pipeline
-from haystack.components.builders.dynamic_chat_prompt_builder import DynamicChatPromptBuilder
+from haystack.components.builders import ChatPromptBuilder
 from haystack.components.retrievers.in_memory import InMemoryBM25Retriever
 from haystack.dataclasses import ChatMessage, ChatRole
 from haystack.document_stores.in_memory import InMemoryDocumentStore
@@ -214,7 +214,7 @@ class TestLlamaCppChatGenerator:
             name="retriever",
         )
         pipeline.add_component(
-            instance=DynamicChatPromptBuilder(runtime_variables=["query", "documents"]), name="prompt_builder"
+            instance=ChatPromptBuilder(variables=["query", "documents"]), name="prompt_builder"
         )
         pipeline.add_component(instance=generator, name="llm")
         pipeline.connect("retriever.documents", "prompt_builder.documents")
@@ -245,7 +245,7 @@ class TestLlamaCppChatGenerator:
                 "retriever": {"query": question},
                 "prompt_builder": {
                     "template_variables": {"location": location},
-                    "prompt_source": messages,
+                    "template": messages,
                     "query": question,
                 },
             }
