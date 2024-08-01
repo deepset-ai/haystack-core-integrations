@@ -2,7 +2,7 @@
 # This example streams chat replies to the console.
 
 from haystack import Pipeline
-from haystack.components.builders import DynamicChatPromptBuilder
+from haystack.components.builders import ChatPromptBuilder
 from haystack.components.converters import HTMLToDocument
 from haystack.components.fetchers import LinkContentFetcher
 from haystack.components.generators.utils import print_streaming_chunk
@@ -39,7 +39,7 @@ indexing.run(data={"fetcher": {"urls": ["https://mistral.ai/news/la-plateforme/"
 
 text_embedder = MistralTextEmbedder()
 retriever = InMemoryEmbeddingRetriever(document_store=document_store)
-prompt_builder = DynamicChatPromptBuilder(runtime_variables=["documents"])
+prompt_builder = ChatPromptBuilder(runtime_variables=["documents"])
 llm = MistralChatGenerator(streaming_callback=print_streaming_chunk)
 
 messages = [ChatMessage.from_user("Here are some the documents: {{documents}} \\n Answer: {{query}}")]
