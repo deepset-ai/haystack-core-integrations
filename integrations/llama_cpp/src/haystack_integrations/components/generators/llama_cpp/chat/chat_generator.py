@@ -9,6 +9,21 @@ from llama_cpp.llama_tokenizer import LlamaHFTokenizer
 logger = logging.getLogger(__name__)
 
 
+def _convert_message_to_llamacpp_format(message: ChatMessage) -> Dict[str, str]:
+    """
+    Convert a message to the format expected by Llama.cpp.
+    :returns: A dictionary with the following keys:
+        - `role`
+        - `content`
+        - `name` (optional)
+    """
+    formatted_msg = {"role": message.role.value, "content": message.content}
+    if message.name:
+        formatted_msg["name"] = message.name
+
+    return formatted_msg
+
+
 @component
 class LlamaCppChatGenerator:
     """
@@ -96,7 +111,7 @@ class LlamaCppChatGenerator:
             return {"replies": []}
 
         updated_generation_kwargs = {**self.generation_kwargs, **(generation_kwargs or {})}
-        formatted_messages = [msg.to_openai_format() for msg in messages]
+        formatted_messages = [_convert_message_to_llamacpp_format(msg) for msg in messages]
 
         response = self.model.create_chat_completion(messages=formatted_messages, **updated_generation_kwargs)
         replies = [
