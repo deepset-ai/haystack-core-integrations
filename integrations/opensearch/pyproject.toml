@@ -47,6 +47,7 @@ dependencies = [
   "pytest-rerunfailures",
   "pytest-xdist",
   "haystack-pydoc-tools",
+  "boto3",
 ]
 [tool.hatch.envs.default.scripts]
 test = "pytest --reruns 3 --reruns-delay 30 -x {args:tests}"
@@ -61,7 +62,7 @@ python = ["3.8", "3.9", "3.10", "3.11"]
 
 [tool.hatch.envs.lint]
 detached = true
-dependencies = ["black>=23.1.0", "mypy>=1.0.0", "ruff>=0.0.243"]
+dependencies = ["black>=23.1.0", "mypy>=1.0.0", "ruff>=0.0.243", "boto3"]
 [tool.hatch.envs.lint.scripts]
 typing = "mypy --install-types --non-interactive --explicit-package-bases {args:src/ tests}"
 style = ["ruff check {args:.}", "black --check --diff {args:.}"]
@@ -154,5 +155,5 @@ minversion = "6.0"
 markers = ["unit: unit tests", "integration: integration tests"]
 
 [[tool.mypy.overrides]]
-module = ["haystack.*", "haystack_integrations.*", "pytest.*", "opensearchpy.*"]
+module = ["botocore.*", "boto3.*", "haystack.*", "haystack_integrations.*", "pytest.*", "opensearchpy.*"]
 ignore_missing_imports = true
