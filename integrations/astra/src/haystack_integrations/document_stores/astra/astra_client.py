@@ -74,12 +74,13 @@ class AstraClient:
             caller_version=integration_version,
         )
 
+        indexing_options = {"indexing": {"deny": NON_INDEXED_FIELDS}}
         try:
             # Create and connect to the newly created collection
             self._astra_db_collection = self._astra_db.create_collection(
                 collection_name=collection_name,
                 dimension=embedding_dimension,
-                options={"indexing": {"deny": NON_INDEXED_FIELDS}},
+                options=indexing_options,
             )
         except APIRequestError:
             # possibly the collection is preexisting and has legacy
@@ -98,11 +99,39 @@ class AstraClient:
                 if "indexing" not in pre_col_options:
                     warn(
                         (
-                            f"Collection '{collection_name}' is detected as legacy"
-                            " and has indexing turned on for all fields. This"
-                            " implies stricter limitations on the amount of text"
-                            " each entry can store. Consider reindexing anew on a"
-                            " fresh collection to be able to store longer texts."
+                            f"Astra DB collection '{collection_name}' is "
+                            "detected as having indexing turned on for all "
+                            "fields (either created manually or by older "
+                            "versions of this plugin). This implies stricter "
+                            "limitations on the amount of text each string in a "
+                            "document can store. Consider indexing anew on a "
+                            "fresh collection to be able to store longer texts. "
+                            "See https://github.com/deepset-ai/haystack-core-"
+                            "integrations/blob/main/integrations/astra/README"
+                            ".md#warnings-about-indexing for more details."
+                        ),
+                        UserWarning,
+                        stacklevel=2,
+                    )
+                    self._astra_db_collection = self._astra_db.collection(
+                        collection_name=collection_name,
+                    )
+                elif pre_col_options["indexing"] != indexing_options["indexing"]:
+                    detected_options_json = json.dumps(pre_col_options["indexing"])
+                    indexing_options_json = json.dumps(indexing_options["indexing"])
+                    warn(
+                        (
+                            f"Astra DB collection '{collection_name}' is "
+                            "detected as having the following indexing policy: "
+                            f"{detected_options_json}. This does not match the requested "
+                            f"indexing policy for this object: {indexing_options_json}. "
+                            "In particular, there may be stricter "
+                            "limitations on the amount of text each string in a "
+                            "document can store. Consider indexing anew on a "
+                            "fresh collection to be able to store longer texts. "
+                            "See https://github.com/deepset-ai/haystack-core-"
+                            "integrations/blob/main/integrations/astra/README"
+                            ".md#warnings-about-indexing for more details."
                         ),
                         UserWarning,
                         stacklevel=2,
@@ -111,22 +140,8 @@ class AstraClient:
                         collection_name=collection_name,
                     )
                 else:
-                    options_json = json.dumps(pre_col_options["indexing"])
-                    warn(
-                        (
-                            f"Collection '{collection_name}' has unexpected 'indexing'"
-                            f" settings (options.indexing = {options_json})."
-                            " This can result in odd behaviour when running "
-                            " metadata filtering and/or unwarranted limitations"
-                            " on storing long texts. Consider reindexing anew on a"
-                            " fresh collection."
-                        ),
-                        UserWarning,
-                        stacklevel=2,
-                    )
-                    self._astra_db_collection = self._astra_db.collection(
-                        collection_name=collection_name,
-                    )
+                    # the collection mismatch lies elsewhere than the indexing
+                    raise
             else:
                 # other exception
                 raise
