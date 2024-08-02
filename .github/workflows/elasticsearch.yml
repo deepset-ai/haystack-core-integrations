@@ -48,7 +48,7 @@ jobs:
         run: hatch run lint:all
 
       - name: Run ElasticSearch container
-        run: docker-compose up -d
+        run: docker compose up -d
 
       - name: Generate docs
         if: matrix.python-version == '3.9' && runner.os == 'Linux'
