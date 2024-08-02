@@ -213,9 +213,7 @@ class TestLlamaCppChatGenerator:
             instance=InMemoryBM25Retriever(document_store=document_store, top_k=1),
             name="retriever",
         )
-        pipeline.add_component(
-            instance=ChatPromptBuilder(variables=["query", "documents"]), name="prompt_builder"
-        )
+        pipeline.add_component(instance=ChatPromptBuilder(variables=["query", "documents"]), name="prompt_builder")
         pipeline.add_component(instance=generator, name="llm")
         pipeline.connect("retriever.documents", "prompt_builder.documents")
         pipeline.connect("prompt_builder.prompt", "llm.messages")
@@ -412,7 +410,6 @@ class TestLlamaCppChatGeneratorFunctionary:
             messages.append(function_message)
 
         second_response = generator.run(messages=messages)
-        print(second_response)
         assert "replies" in second_response
         assert len(second_response["replies"]) > 0
         assert any("San Francisco" in reply.content for reply in second_response["replies"])

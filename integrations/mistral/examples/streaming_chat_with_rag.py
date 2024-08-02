@@ -39,7 +39,7 @@ indexing.run(data={"fetcher": {"urls": ["https://mistral.ai/news/la-plateforme/"
 
 text_embedder = MistralTextEmbedder()
 retriever = InMemoryEmbeddingRetriever(document_store=document_store)
-prompt_builder = ChatPromptBuilder(runtime_variables=["documents"])
+prompt_builder = ChatPromptBuilder(variables=["documents"])
 llm = MistralChatGenerator(streaming_callback=print_streaming_chunk)
 
 messages = [ChatMessage.from_user("Here are some the documents: {{documents}} \\n Answer: {{query}}")]
@@ -60,7 +60,7 @@ question = "What are the available models?"
 result = rag_pipeline.run(
     {
         "text_embedder": {"text": question},
-        "prompt_builder": {"template_variables": {"query": question}, "prompt_source": messages},
+        "prompt_builder": {"template_variables": {"query": question}, "template": messages},
         "llm": {"generation_kwargs": {"max_tokens": 165}},
     }
 )
