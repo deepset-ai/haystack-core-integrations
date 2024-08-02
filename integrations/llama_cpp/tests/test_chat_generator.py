@@ -6,7 +6,7 @@ from unittest.mock import MagicMock
 
 import pytest
 from haystack import Document, Pipeline
-from haystack.components.builders.dynamic_chat_prompt_builder import DynamicChatPromptBuilder
+from haystack.components.builders import ChatPromptBuilder
 from haystack.components.retrievers.in_memory import InMemoryBM25Retriever
 from haystack.dataclasses import ChatMessage, ChatRole
 from haystack.document_stores.in_memory import InMemoryDocumentStore
@@ -213,9 +213,7 @@ class TestLlamaCppChatGenerator:
             instance=InMemoryBM25Retriever(document_store=document_store, top_k=1),
             name="retriever",
         )
-        pipeline.add_component(
-            instance=DynamicChatPromptBuilder(runtime_variables=["query", "documents"]), name="prompt_builder"
-        )
+        pipeline.add_component(instance=ChatPromptBuilder(variables=["query", "documents"]), name="prompt_builder")
         pipeline.add_component(instance=generator, name="llm")
         pipeline.connect("retriever.documents", "prompt_builder.documents")
         pipeline.connect("prompt_builder.prompt", "llm.messages")
@@ -245,7 +243,7 @@ class TestLlamaCppChatGenerator:
                 "retriever": {"query": question},
                 "prompt_builder": {
                     "template_variables": {"location": location},
-                    "prompt_source": messages,
+                    "template": messages,
                     "query": question,
                 },
             }
@@ -412,7 +410,6 @@ class TestLlamaCppChatGeneratorFunctionary:
             messages.append(function_message)
 
         second_response = generator.run(messages=messages)
-        print(second_response)
         assert "replies" in second_response
         assert len(second_response["replies"]) > 0
         assert any("San Francisco" in reply.content for reply in second_response["replies"])

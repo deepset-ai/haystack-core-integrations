@@ -1,7 +1,7 @@
 # To run this example, you will need to set a `ANTHROPIC_API_KEY` environment variable.
 
 from haystack import Pipeline
-from haystack.components.builders import DynamicChatPromptBuilder
+from haystack.components.builders import ChatPromptBuilder
 from haystack.components.converters import HTMLToDocument
 from haystack.components.fetchers import LinkContentFetcher
 from haystack.components.generators.utils import print_streaming_chunk
@@ -18,7 +18,7 @@ messages = [
 rag_pipeline = Pipeline()
 rag_pipeline.add_component("fetcher", LinkContentFetcher())
 rag_pipeline.add_component("converter", HTMLToDocument())
-rag_pipeline.add_component("prompt_builder", DynamicChatPromptBuilder(runtime_variables=["documents"]))
+rag_pipeline.add_component("prompt_builder", ChatPromptBuilder())
 rag_pipeline.add_component(
     "llm",
     AnthropicChatGenerator(
@@ -30,12 +30,12 @@ rag_pipeline.add_component(
 
 rag_pipeline.connect("fetcher", "converter")
 rag_pipeline.connect("converter", "prompt_builder")
-rag_pipeline.connect("prompt_builder", "llm")
+rag_pipeline.connect("prompt_builder.prompt", "llm.messages")
 
 question = "What are the best practices in prompt engineering?"
 rag_pipeline.run(
     data={
         "fetcher": {"urls": ["https://docs.anthropic.com/claude/docs/prompt-engineering"]},
-        "prompt_builder": {"template_variables": {"query": question}, "prompt_source": messages},
+        "prompt_builder": {"template_variables": {"query": question}, "template": messages},
     }
 )
