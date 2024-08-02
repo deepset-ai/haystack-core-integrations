@@ -10,7 +10,10 @@ from haystack.components.builders import ChatPromptBuilder
 from haystack.components.retrievers.in_memory import InMemoryBM25Retriever
 from haystack.dataclasses import ChatMessage, ChatRole
 from haystack.document_stores.in_memory import InMemoryDocumentStore
-from haystack_integrations.components.generators.llama_cpp import LlamaCppChatGenerator
+from haystack_integrations.components.generators.llama_cpp.chat.chat_generator import (
+    LlamaCppChatGenerator,
+    _convert_message_to_llamacpp_format,
+)
 
 
 @pytest.fixture
@@ -27,6 +30,21 @@ def download_file(file_link, filename, capsys):
     else:
         with capsys.disabled():
             print("\nModel file already exists.")
+
+
+def test_convert_message_to_llamacpp_format():
+    message = ChatMessage.from_system("You are good assistant")
+    assert _convert_message_to_llamacpp_format(message) == {"role": "system", "content": "You are good assistant"}
+
+    message = ChatMessage.from_user("I have a question")
+    assert _convert_message_to_llamacpp_format(message) == {"role": "user", "content": "I have a question"}
+
+    message = ChatMessage.from_function("Function call", "function_name")
+    assert _convert_message_to_llamacpp_format(message) == {
+        "role": "function",
+        "content": "Function call",
+        "name": "function_name",
+    }
 
 
 class TestLlamaCppChatGenerator:
