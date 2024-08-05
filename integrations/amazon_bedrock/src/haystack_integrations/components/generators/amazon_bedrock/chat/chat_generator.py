@@ -55,9 +55,7 @@ class AmazonBedrockChatGenerator:
     If the AWS environment is not configured, set `aws_access_key_id`, `aws_secret_access_key`,
       and `aws_region_name` as environment variables or pass them as
      [Secret](https://docs.haystack.deepset.ai/v2.0/docs/secret-management) arguments. Make sure the region you set
-     supports Amazon Bedrock.
-
-    
+    supports Amazon Bedrock.
     """
 
     SUPPORTED_MODEL_PATTERNS: ClassVar[Dict[str, Type[BedrockModelChatAdapter]]] = {
@@ -98,11 +96,13 @@ class AmazonBedrockChatGenerator:
         :param aws_region_name: AWS region name. Make sure the region you set supports Amazon Bedrock.
         :param aws_profile_name: AWS profile name.
         :param generation_kwargs: Keyword arguments sent to the model. These
-        parameters are specific to a model. You can find them in the model's documentation. For example, you can find the
+        parameters are specific to a model. You can find them in the model's documentation.
+          For example, you can find the
         Anthropic Claude generation parameters in [Anthropic documentation](https://docs.anthropic.com/claude/reference/complete_post).
         :param stop_words: A list of stop words that stop the model from generating more text
           when encountered. You can provide them using
-        this parameter or using the model's `generation_kwargs` under a model's specific key for stop words. For example, you can provide
+        this parameter or using the model's `generation_kwargs` under a model's specific key for stop words.
+          For example, you can provide
         stop words for Anthropic Claude in the `stop_sequences` key.
         :param streaming_callback: A callback function called when a new token is received from the stream.
         By default, the model is not set up for streaming. To enable streaming, set this parameter to a callback
