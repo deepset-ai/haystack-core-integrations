@@ -36,12 +36,14 @@ class OpenSearchEmbeddingRetriever:
 
         :param document_store: An instance of OpenSearchDocumentStore to use with the Retriever.
         :param filters: Filters applied when fetching documents from the document store.
-            Filters are applied during the approximate kNN search to ensure the Retriever returns `top_k` matching documents.
+            Filters are applied during the approximate kNN search to ensure the Retriever returns
+              `top_k` matching documents.
         :param top_k: Maximum number of documents to return.
         :param filter_policy: Policy to determine how filters are applied. Possible options:
         - `merge`: Runtime filters are merged with initialization filters.
         - `replace`: Runtime filters replace initialization filters. Use this policy to change the filtering scope.
-        :param custom_query: The custom OpenSearch query containing a mandatory `$query_embedding` and an optional `$filters` placeholder.
+        :param custom_query: The custom OpenSearch query containing a mandatory `$query_embedding` and
+          an optional `$filters` placeholder.
 
             **An example custom_query:**
 
@@ -141,10 +143,12 @@ class OpenSearchEmbeddingRetriever:
 
         :param query_embedding: Embedding of the query.
         :param filters: Filters applied when fetching documents from the document store.
-            Filters are applied during the approximate kNN search to ensure the Retriever returns `top_k` matching documents.
+            Filters are applied during the approximate kNN search to ensure the Retriever
+              returns `top_k` matching documents.
             The way runtime filters are applied depends on the `filter_policy` selected when initializing the Retriever.
         :param top_k: Maximum number of documents to return.
-        :param custom_query: A custom OpenSearch query containing a mandatory `$query_embedding` and an optional `$filters` placeholder.
+        :param custom_query: A custom OpenSearch query containing a mandatory `$query_embedding` and an
+          optional `$filters` placeholder.
 
             **An example custom_query:**
 
