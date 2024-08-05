@@ -15,6 +15,12 @@ logger = logging.getLogger(__name__)
 
 @component
 class OpenSearchBM25Retriever:
+    """
+    Fetches documents from OpenSearchDocumentStore using the keyword-based BM25 algorithm.
+
+    BM25 computes a weighted word overlap between the query string and a document to 
+    determine its similarity. 
+    """
     def __init__(
         self,
         *,
