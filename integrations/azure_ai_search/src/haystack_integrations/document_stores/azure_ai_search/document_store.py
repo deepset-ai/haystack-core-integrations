@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 import logging, os
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional
 from dataclasses import asdict
 from haystack import default_from_dict, default_to_dict
 from haystack.dataclasses import Document
@@ -20,6 +20,8 @@ from azure.search.documents.indexes.models import (
         HnswAlgorithmConfiguration,
         VectorSearch,
         VectorSearchProfile,
+        HnswParameters,
+        VectorSearchAlgorithmMetric
         
 )
 from azure.core.exceptions import ResourceNotFoundError
@@ -33,6 +35,13 @@ type_mapping = {
 
 MAX_UPLOAD_BATCH_SIZE = 1000
 
+DEFAULT_VECTOR_SEARCH = VectorSearch(
+            profiles=[VectorSearchProfile(name="default-vector-config", algorithm_configuration_name="cosine-algorithm-config")],
+            algorithms=[HnswAlgorithmConfiguration(name="cosine-algorithm-config", parameters=HnswParameters(
+                    metric=VectorSearchAlgorithmMetric.COSINE,
+                ))],
+        )
+
 logger = logging.getLogger(__name__)
 
 class AzureAISearchDocumentStore:
@@ -44,6 +53,7 @@ class AzureAISearchDocumentStore:
         index_name: str = "default",
         embedding_dimension: int = 768,
         metadata_fields: Optional[Dict[str, type]] = None,
+        vector_search_configuration: VectorSearch = None,
         create_index: bool = True,
         **kwargs,
     ):
@@ -55,6 +65,8 @@ class AzureAISearchDocumentStore:
         :param index_name: Name of index in Azure AI Search, if it doesn't exist it will be created.
         :param embedding_dimension: Dimension of the embeddings. 
         :param metadata_fields: A dictionary of metatada keys and their types to create additional fields in index schema. 
+        :param vector_search_configuration: Configuration option related to vector search. Default configuration uses the HNSW algorithm with cosine similarity to handle vector searches.
+
         :param kwargs: Optional keyword parameters for Azure AI Search.
         Some of the supported parameters:
             - `api_version`: The Search API version to use for requests.
@@ -67,7 +79,7 @@ class AzureAISearchDocumentStore:
         if not azure_endpoint:
             raise ValueError("Please provide an Azure endpoint or set the environment variable AZURE_OPENAI_ENDPOINT.")
         api_key = api_key or os.environ.get("AZURE_SEARCH_API_KEY")
-        if api_key is None :
+        if not api_key:
             raise ValueError("Please provide an API key or an Azure Active Directory token.")
         
         self._client = None
@@ -78,6 +90,7 @@ class AzureAISearchDocumentStore:
         self._index_name = index_name
         self._embedding_dimension = embedding_dimension
         self._metadata_fields = metadata_fields
+        self._vector_search_configuration = vector_search_configuration or DEFAULT_VECTOR_SEARCH
         self._create_index = create_index
         self._kwargs = kwargs
     
@@ -101,40 +114,31 @@ class AzureAISearchDocumentStore:
     def create_index(
         self,
         index_name: str,
-        fields: Optional[List[SearchField]] = None,
         **kwargs
     ) -> None:
         """
         Creates a new search index.
-
         :param index_name: Name of the index to create. If None, the index name from the constructor is used.
-        :param fields: Custom list of SearchFields to be added in the index schema.
         :param kwargs: Optional keyword parameters.
 
         """
+        
+        
         # default fields to create index based on Haystack Document
         
         default_fields = [
             SimpleField(name="id", type=SearchFieldDataType.String, key=True, filterable=True),
             SearchableField(name="content", type=SearchFieldDataType.String),
-            SearchableField(name="dataframe", type=SearchFieldDataType.String),  
-            SimpleField(name="blob", type=SearchFieldDataType.String),  
-            SimpleField(name="meta", type=SearchFieldDataType.String),
-            SimpleField(name="score", type=SearchFieldDataType.Double, filterable=True, sortable=True),
-            SearchField(name="embedding", type=SearchFieldDataType.Collection(SearchFieldDataType.Single), searchable=True, vector_search_dimensions=self._embedding_dimension, vector_search_profile_name="my-vector-config"),  
-            SearchableField(name="sparse_embedding", type=SearchFieldDataType.String)  
+            SearchField(name="embedding", type=SearchFieldDataType.Collection(SearchFieldDataType.Single), searchable=True, vector_search_dimensions=self._embedding_dimension, vector_search_profile_name="default-vector-config"),  
         ]
 
-        vector_search = VectorSearch(
-            profiles=[VectorSearchProfile(name="my-vector-config", algorithm_configuration_name="my-algorithms-config")],
-            algorithms=[HnswAlgorithmConfiguration(name="my-algorithms-config")],
-    )
         if not index_name:
             index_name = self._index_name
-        fields = fields or default_fields
+        fields = default_fields
         if self._metadata_fields:
             fields.extend(self._create_metadata_index_fields(self._metadata_fields))
-        index = SearchIndex(name=index_name, fields=fields, vector_search= vector_search, **kwargs)
+        self._index_fields = fields
+        index = SearchIndex(name=index_name, fields=fields, vector_search= self._vector_search_configuration, **kwargs)
         self._index_client.create_index(index)
 
     def to_dict(self) -> Dict[str, Any]:
@@ -149,10 +153,12 @@ class AzureAISearchDocumentStore:
         """
         return default_to_dict(
             self,
-            azure_endpoint = self._azure_endpoint,
+            azure_endpoint = self._azure_endpoint.to_dict(),
+            api_key=self._api_key.to_dict() if self.api_key is not None else None,
             index_name = self._index_name,
             embedding_dimension = self._embedding_dimension,
-            metadata_fields = self._metadata_fields
+            metadata_fields = self._metadata_fields,
+            vector_search_configuration = self._vector_search_configuration,
             **self._kwargs,
         )
 
@@ -167,6 +173,8 @@ class AzureAISearchDocumentStore:
         :returns:
             Deserialized component.
         """
+
+        deserialize_secrets_inplace(data["init_parameters"], keys=["api_key"])
         return default_from_dict(cls, data)
 
     def count_documents(self, **kwargs: Any) -> int:
@@ -179,14 +187,12 @@ class AzureAISearchDocumentStore:
         """
         Writes Documents to the index.
         """
-
         if len(documents) > 0:
             if not isinstance(documents[0], Document):
                 msg = "param 'documents' must contain a list of objects of type Document"
                 raise ValueError(msg)
-            
-        def _convert_input_document(document: Document):
-            document_dict = asdict(document)
+        def _convert_input_document(documents: Document):
+            document_dict = asdict(documents)
             if not isinstance(document_dict["id"], str):
                 msg = (
                     f"Document id {document_dict['id']} is not a string, "
@@ -199,6 +205,26 @@ class AzureAISearchDocumentStore:
         print (documents_to_write)
         self.client.merge_or_upload_documents(documents_to_write)
 
+    def delete_documents(self, document_ids: List[str]) -> None:
+        """
+        Deletes all documents with a matching document_ids from the document store.
+
+        :param document_ids: ids of the documents to be deleted.
+        """
+        documents = self.get_documents(document_ids)
+        self.client.delete_documents(documents)
+    
+    def get_documents(self, document_ids: List[str], selected_fields: Optional[List[SearchField]]):
+        """
+        Retrieves all documents with a matching document_ids from the document store.
+
+        :param document_ids: ids of the documents to be retrieved.
+        """
+        documents = []
+        for id in document_ids:
+            documents.append(self.client.get_document(id))
+        return documents
+    
     def index_exists(self, index_name: Optional[str]) -> None:
         if self._index_client and index_name:
             return index_name in self._index_client.list_index_names()
@@ -206,51 +232,35 @@ class AzureAISearchDocumentStore:
     def _default_index_mapping(
         self, document: Dict[str, Any]
     ) -> Dict[str, Any]:
-        index_document: Dict[str, Any] = {}
+        keys_to_remove = ['dataframe', 'blob', 'sparse_embedding', "score"]
+        index_document = {k: v for k, v in document.items() if k not in keys_to_remove}
 
-        metadata = document.pop("meta", None)
-        
+        metadata = index_document.pop("meta", None)
         for key, value in metadata.items():
-            document[key] = value
+            index_document[key] = value
+        return index_document
 
-        #metadata_to_field = self._create_metadata_index_fields(metadata)
-        #print (metadata_to_field)
-        return document
 
-    # method to map meatdata field types to Edm
-    def map_metadata_field_type(self, metadata: Dict[str, Any]):
-        metadata_field_mapping = {}
-
-        for key, value in metadata.items():
-            field_type = type(value)
-            index_field_type = type_mapping.get(field_type, None)
-            if not index_field_type:
-                raise ValueError(f"Unsupported field type: {field_type}")
-            metadata_field_mapping[key] = tuple(value, index_field_type)
-
-        return metadata_field_mapping
-
-    def _create_metadata_index_fields(self, metadata: Dict[str, Any]) -> List[Any]:
+    def _create_metadata_index_fields(self, metadata: Dict[str, Any]) -> List[SimpleField]:
         """Create a list of index fields for storing metadata values."""
-
+        
         index_fields = []
-        metadata_to_index_mapping = self.map_metadata_field_type_list(metadata)
-        # create search fields
-        for key, v in metadata_to_index_mapping.items():
-            field_name, field_type = v
-            field = SimpleField(name=key, type=field_type, filterable=True)
-            index_fields.append(field)
-
+        metadata_field_mapping = self._map_metadata_field_types(metadata)
+        
+        for key, field_type in metadata_field_mapping.items():
+            index_fields.append(SimpleField(name=key, type=field_type, filterable=True))
+        
         return index_fields
-    
-    def map_metadata_field_type_list(self, metadata):
-        metadata_field_mapping = {}
 
-        for key, value in metadata.items():
-            index_field_type = type_mapping.get(value, None)
-            if not index_field_type:
-                raise ValueError(f"Unsupported field type: {value}")
-            print (index_field_type)
-            metadata_field_mapping[key] = tuple((value, index_field_type))
-        print (metadata_field_mapping)
+    def _map_metadata_field_types(self, metadata: Dict[str, type]) -> Dict[str, str]:
+        """Map metadata field types to Azure Search field types."""
+        metadata_field_mapping = {}
+        
+        for key, value_type in metadata.items():
+            field_type = type_mapping.get(value_type)
+            if not field_type:
+                raise ValueError(f"Unsupported field type for key '{key}': {value_type}")
+            metadata_field_mapping[key] = field_type
+        
         return metadata_field_mapping
+    
