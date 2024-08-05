@@ -35,7 +35,7 @@ class OpenSearchEmbeddingRetriever:
         Create the OpenSearchEmbeddingRetriever component.
 
         :param document_store: An instance of OpenSearchDocumentStore to use with the Retriever.
-        :param filters: Filters applied when fetching documents from the document store.
+        :param filters: Filters applied when fetching documents from the Document Store.
             Filters are applied during the approximate kNN search to ensure the Retriever returns
               `top_k` matching documents.
         :param top_k: Maximum number of documents to return.
@@ -142,7 +142,7 @@ class OpenSearchEmbeddingRetriever:
         Retrieve documents using a vector similarity metric.
 
         :param query_embedding: Embedding of the query.
-        :param filters: Filters applied when fetching documents from the document store.
+        :param filters: Filters applied when fetching documents from the Document Store.
             Filters are applied during the approximate kNN search to ensure the Retriever
               returns `top_k` matching documents.
             The way runtime filters are applied depends on the `filter_policy` selected when initializing the Retriever.
