@@ -2,10 +2,7 @@ import os
 
 import pytest
 from haystack.utils import Secret
-from haystack_integrations.components.embedders.nvidia import (
-    EmbeddingTruncateMode,
-    NvidiaTextEmbedder,
-)
+from haystack_integrations.components.embedders.nvidia import EmbeddingTruncateMode, NvidiaTextEmbedder
 from haystack_integrations.components.embedders.nvidia.backend import EmbedderBackend
 
 
@@ -41,9 +38,7 @@ class TestNvidiaTextEmbedder:
             )
             assert embedder.api_key == Secret.from_token("fake-api-key")
             assert embedder.model == "nvolveqa_40k"
-            assert (
-                embedder.api_url == "https://ai.api.nvidia.com/v1/retrieval/nvidia/test"
-            )
+            assert embedder.api_url == "https://ai.api.nvidia.com/v1/retrieval/nvidia/test"
             assert embedder.prefix == "prefix"
             assert embedder.suffix == "suffix"
 
@@ -60,11 +55,7 @@ class TestNvidiaTextEmbedder:
         assert data == {
             "type": "haystack_integrations.components.embedders.nvidia.text_embedder.NvidiaTextEmbedder",
             "init_parameters": {
-                "api_key": {
-                    "env_vars": ["NVIDIA_API_KEY"],
-                    "strict": True,
-                    "type": "env_var",
-                },
+                "api_key": {"env_vars": ["NVIDIA_API_KEY"], "strict": True, "type": "env_var"},
                 "api_url": "https://ai.api.nvidia.com/v1/retrieval/nvidia",
                 "model": "nvolveqa_40k",
                 "prefix": "",
@@ -86,11 +77,7 @@ class TestNvidiaTextEmbedder:
         assert data == {
             "type": "haystack_integrations.components.embedders.nvidia.text_embedder.NvidiaTextEmbedder",
             "init_parameters": {
-                "api_key": {
-                    "env_vars": ["NVIDIA_API_KEY"],
-                    "strict": True,
-                    "type": "env_var",
-                },
+                "api_key": {"env_vars": ["NVIDIA_API_KEY"], "strict": True, "type": "env_var"},
                 "api_url": "https://example.com/v1",
                 "model": "nvolveqa_40k",
                 "prefix": "prefix",
@@ -104,11 +91,7 @@ class TestNvidiaTextEmbedder:
         data = {
             "type": "haystack_integrations.components.embedders.nvidia.text_embedder.NvidiaTextEmbedder",
             "init_parameters": {
-                "api_key": {
-                    "env_vars": ["NVIDIA_API_KEY"],
-                    "strict": True,
-                    "type": "env_var",
-                },
+                "api_key": {"env_vars": ["NVIDIA_API_KEY"], "strict": True, "type": "env_var"},
                 "api_url": "https://example.com",
                 "model": "nvolveqa_40k",
                 "prefix": "prefix",
@@ -125,10 +108,7 @@ class TestNvidiaTextEmbedder:
 
     def test_run(self):
         embedder = NvidiaTextEmbedder(
-            "playground_nvolveqa_40k",
-            api_key=Secret.from_token("fake-api-key"),
-            prefix="prefix ",
-            suffix=" suffix",
+            "playground_nvolveqa_40k", api_key=Secret.from_token("fake-api-key"), prefix="prefix ", suffix=" suffix"
         )
 
         embedder.warm_up()
@@ -143,22 +123,17 @@ class TestNvidiaTextEmbedder:
         }
 
     def test_run_wrong_input_format(self):
-        embedder = NvidiaTextEmbedder(
-            "playground_nvolveqa_40k", api_key=Secret.from_token("fake-api-key")
-        )
+        embedder = NvidiaTextEmbedder("playground_nvolveqa_40k", api_key=Secret.from_token("fake-api-key"))
         embedder.warm_up()
         embedder.backend = MockBackend("aa", None)
 
         list_integers_input = [1, 2, 3]
 
-        with pytest.raises(
-            TypeError, match="NvidiaTextEmbedder expects a string as an input"
-        ):
+        with pytest.raises(TypeError, match="NvidiaTextEmbedder expects a string as an input"):
             embedder.run(text=list_integers_input)
 
     @pytest.mark.skipif(
-        not os.environ.get("NVIDIA_NIM_EMBEDDER_MODEL", None)
-        or not os.environ.get("NVIDIA_NIM_ENDPOINT_URL", None),
+        not os.environ.get("NVIDIA_NIM_EMBEDDER_MODEL", None) or not os.environ.get("NVIDIA_NIM_ENDPOINT_URL", None),
         reason="Export an env var called NVIDIA_NIM_EMBEDDER_MODEL containing the hosted model name and "
         "NVIDIA_NIM_ENDPOINT_URL containing the local URL to call.",
     )

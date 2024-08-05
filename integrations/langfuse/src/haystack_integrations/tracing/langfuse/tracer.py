@@ -19,10 +19,7 @@ class LangfuseSpan(Span):
     Internal class representing a bridge between the Haystack span tracing API and Langfuse.
     """
 
-    def __init__(
-        self,
-        span: "Union[langfuse.client.StatefulSpanClient, langfuse.client.StatefulTraceClient]",
-    ) -> None:
+    def __init__(self, span: "Union[langfuse.client.StatefulSpanClient, langfuse.client.StatefulTraceClient]") -> None:
         """
         Initialize a LangfuseSpan instance.
 
@@ -87,9 +84,7 @@ class LangfuseTracer(Tracer):
     Internal class representing a bridge between the Haystack tracer and Langfuse.
     """
 
-    def __init__(
-        self, tracer: "langfuse.Langfuse", name: str = "Haystack", public: bool = False
-    ) -> None:
+    def __init__(self, tracer: "langfuse.Langfuse", name: str = "Haystack", public: bool = False) -> None:
         """
         Initialize a LangfuseTracer instance.
 
@@ -104,14 +99,10 @@ class LangfuseTracer(Tracer):
         self._context: list[LangfuseSpan] = []
         self._name = name
         self._public = public
-        self.enforce_flush = (
-            os.getenv(HAYSTACK_LANGFUSE_ENFORCE_FLUSH_ENV_VAR, "true").lower() == "true"
-        )
+        self.enforce_flush = os.getenv(HAYSTACK_LANGFUSE_ENFORCE_FLUSH_ENV_VAR, "true").lower() == "true"
 
     @contextlib.contextmanager
-    def trace(
-        self, operation_name: str, tags: Optional[Dict[str, Any]] = None
-    ) -> Iterator[Span]:
+    def trace(self, operation_name: str, tags: Optional[Dict[str, Any]] = None) -> Iterator[Span]:
         """
         Start and manage a new trace span.
         :param operation_name: The name of the operation.
@@ -122,9 +113,7 @@ class LangfuseTracer(Tracer):
         span_name = tags.get("haystack.component.name", operation_name)
 
         if tags.get("haystack.component.type") in _ALL_SUPPORTED_GENERATORS:
-            span = LangfuseSpan(
-                self.current_span().raw_span().generation(name=span_name)
-            )
+            span = LangfuseSpan(self.current_span().raw_span().generation(name=span_name))
         else:
             span = LangfuseSpan(self.current_span().raw_span().span(name=span_name))
 
@@ -144,9 +133,7 @@ class LangfuseTracer(Tracer):
             replies = span._data.get("haystack.component.output", {}).get("replies")
             if replies:
                 meta = replies[0].meta
-                span._span.update(
-                    usage=meta.get("usage") or None, model=meta.get("model")
-                )
+                span._span.update(usage=meta.get("usage") or None, model=meta.get("model"))
 
         pipeline_input = tags.get("haystack.pipeline.input_data", None)
         if pipeline_input:
@@ -176,9 +163,7 @@ class LangfuseTracer(Tracer):
         """
         if not self._context:
             # The root span has to be a trace
-            self._context.append(
-                LangfuseSpan(self._tracer.trace(name=self._name, public=self._public))
-            )
+            self._context.append(LangfuseSpan(self._tracer.trace(name=self._name, public=self._public)))
         return self._context[-1]
 
     def get_trace_url(self) -> str:

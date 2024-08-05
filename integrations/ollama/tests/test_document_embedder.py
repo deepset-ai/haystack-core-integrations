@@ -47,7 +47,5 @@ class TestOllamaDocumentEmbedder:
         reply = embedder.run(list_of_docs)
 
         assert isinstance(reply, dict)
-        assert all(
-            isinstance(element, float) for element in reply["documents"][0].embedding
-        )
+        assert all(isinstance(element, float) for element in reply["documents"][0].embedding)
         assert reply["meta"]["model"] == "nomic-embed-text"

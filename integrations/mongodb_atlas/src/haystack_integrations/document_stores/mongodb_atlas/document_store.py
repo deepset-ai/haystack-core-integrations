@@ -10,9 +10,7 @@ from haystack.dataclasses.document import Document
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
 from haystack.utils import Secret, deserialize_secrets_inplace
-from haystack_integrations.document_stores.mongodb_atlas.filters import (
-    _normalize_filters,
-)
+from haystack_integrations.document_stores.mongodb_atlas.filters import _normalize_filters
 from pymongo import InsertOne, MongoClient, ReplaceOne, UpdateOne
 from pymongo.collection import Collection
 from pymongo.driver_info import DriverInfo
@@ -58,9 +56,7 @@ class MongoDBAtlasDocumentStore:
     def __init__(
         self,
         *,
-        mongo_connection_string: Secret = Secret.from_env_var(
-            "MONGO_CONNECTION_STRING"
-        ),  # noqa: B008
+        mongo_connection_string: Secret = Secret.from_env_var("MONGO_CONNECTION_STRING"),  # noqa: B008
         database_name: str,
         collection_name: str,
         vector_search_index: str,
@@ -82,9 +78,7 @@ class MongoDBAtlasDocumentStore:
 
         :raises ValueError: If the collection name contains invalid characters.
         """
-        if collection_name and not bool(
-            re.match(r"^[a-zA-Z0-9\-_]+$", collection_name)
-        ):
+        if collection_name and not bool(re.match(r"^[a-zA-Z0-9\-_]+$", collection_name)):
             msg = f'Invalid collection name: "{collection_name}". It can only contain letters, numbers, -, or _.'
             raise ValueError(msg)
 
@@ -100,8 +94,7 @@ class MongoDBAtlasDocumentStore:
     def connection(self) -> MongoClient:
         if self._connection is None:
             self._connection = MongoClient(
-                self.mongo_connection_string.resolve_value(),
-                driver=DriverInfo(name="MongoDBAtlasHaystackIntegration"),
+                self.mongo_connection_string.resolve_value(), driver=DriverInfo(name="MongoDBAtlasHaystackIntegration")
             )
 
         return self._connection
@@ -142,9 +135,7 @@ class MongoDBAtlasDocumentStore:
         :returns:
               Deserialized component.
         """
-        deserialize_secrets_inplace(
-            data["init_parameters"], keys=["mongo_connection_string"]
-        )
+        deserialize_secrets_inplace(data["init_parameters"], keys=["mongo_connection_string"])
         return default_from_dict(cls, data)
 
     def count_documents(self) -> int:
@@ -155,9 +146,7 @@ class MongoDBAtlasDocumentStore:
         """
         return self.collection.count_documents({})
 
-    def filter_documents(
-        self, filters: Optional[Dict[str, Any]] = None
-    ) -> List[Document]:
+    def filter_documents(self, filters: Optional[Dict[str, Any]] = None) -> List[Document]:
         """
         Returns the documents that match the filters provided.
 
@@ -170,14 +159,10 @@ class MongoDBAtlasDocumentStore:
         filters = _normalize_filters(filters) if filters else None
         documents = list(self.collection.find(filters))
         for doc in documents:
-            doc.pop(
-                "_id", None
-            )  # MongoDB's internal id doesn't belong into a Haystack document, so we remove it.
+            doc.pop("_id", None)  # MongoDB's internal id doesn't belong into a Haystack document, so we remove it.
         return [Document.from_dict(doc) for doc in documents]
 
-    def write_documents(
-        self, documents: List[Document], policy: DuplicatePolicy = DuplicatePolicy.NONE
-    ) -> int:
+    def write_documents(self, documents: List[Document], policy: DuplicatePolicy = DuplicatePolicy.NONE) -> int:
         """
         Writes documents into the MongoDB Atlas collection.
 
@@ -191,9 +176,7 @@ class MongoDBAtlasDocumentStore:
 
         if len(documents) > 0:
             if not isinstance(documents[0], Document):
-                msg = (
-                    "param 'documents' must contain a list of objects of type Document"
-                )
+                msg = "param 'documents' must contain a list of objects of type Document"
                 raise ValueError(msg)
 
         if policy == DuplicatePolicy.NONE:
@@ -216,21 +199,13 @@ class MongoDBAtlasDocumentStore:
         written_docs = len(documents)
 
         if policy == DuplicatePolicy.SKIP:
-            operations = [
-                UpdateOne({"id": doc["id"]}, {"$setOnInsert": doc}, upsert=True)
-                for doc in mongo_documents
-            ]
-            existing_documents = self.collection.count_documents(
-                {"id": {"$in": [doc.id for doc in documents]}}
-            )
+            operations = [UpdateOne({"id": doc["id"]}, {"$setOnInsert": doc}, upsert=True) for doc in mongo_documents]
+            existing_documents = self.collection.count_documents({"id": {"$in": [doc.id for doc in documents]}})
             written_docs -= existing_documents
         elif policy == DuplicatePolicy.FAIL:
             operations = [InsertOne(doc) for doc in mongo_documents]
         else:
-            operations = [
-                ReplaceOne({"id": doc["id"]}, upsert=True, replacement=doc)
-                for doc in mongo_documents
-            ]
+            operations = [ReplaceOne({"id": doc["id"]}, upsert=True, replacement=doc) for doc in mongo_documents]
 
         try:
             self.collection.bulk_write(operations)

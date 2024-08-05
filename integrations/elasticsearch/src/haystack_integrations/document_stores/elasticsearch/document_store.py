@@ -65,9 +65,7 @@ class ElasticsearchDocumentStore:
         hosts: Optional[Hosts] = None,
         custom_mapping: Optional[Dict[str, Any]] = None,
         index: str = "default",
-        embedding_similarity_function: Literal[
-            "cosine", "dot_product", "l2_norm", "max_inner_product"
-        ] = "cosine",
+        embedding_similarity_function: Literal["cosine", "dot_product", "l2_norm", "max_inner_product"] = "cosine",
         **kwargs,
     ):
         """
@@ -207,9 +205,7 @@ class ElasticsearchDocumentStore:
                 **kwargs,
             )
 
-            documents.extend(
-                self._deserialize_document(hit) for hit in res["hits"]["hits"]
-            )
+            documents.extend(self._deserialize_document(hit) for hit in res["hits"]["hits"])
             from_ = len(documents)
 
             if top_k is not None and from_ >= top_k:
@@ -218,9 +214,7 @@ class ElasticsearchDocumentStore:
                 break
         return documents
 
-    def filter_documents(
-        self, filters: Optional[Dict[str, Any]] = None
-    ) -> List[Document]:
+    def filter_documents(self, filters: Optional[Dict[str, Any]] = None) -> List[Document]:
         """
         The main query method for the document store. It retrieves all documents that match the filters.
 
@@ -236,9 +230,7 @@ class ElasticsearchDocumentStore:
         documents = self._search_documents(query=query)
         return documents
 
-    def write_documents(
-        self, documents: List[Document], policy: DuplicatePolicy = DuplicatePolicy.NONE
-    ) -> int:
+    def write_documents(self, documents: List[Document], policy: DuplicatePolicy = DuplicatePolicy.NONE) -> int:
         """
         Writes `Document`s to Elasticsearch.
 
@@ -252,9 +244,7 @@ class ElasticsearchDocumentStore:
         """
         if len(documents) > 0:
             if not isinstance(documents[0], Document):
-                msg = (
-                    "param 'documents' must contain a list of objects of type Document"
-                )
+                msg = "param 'documents' must contain a list of objects of type Document"
                 raise ValueError(msg)
 
         if policy == DuplicatePolicy.NONE:
@@ -295,15 +285,9 @@ class ElasticsearchDocumentStore:
             other_errors = []
             for e in errors:
                 error_type = e["create"]["error"]["type"]
-                if (
-                    policy == DuplicatePolicy.FAIL
-                    and error_type == "version_conflict_engine_exception"
-                ):
+                if policy == DuplicatePolicy.FAIL and error_type == "version_conflict_engine_exception":
                     duplicate_errors_ids.append(e["create"]["_id"])
-                elif (
-                    policy == DuplicatePolicy.SKIP
-                    and error_type == "version_conflict_engine_exception"
-                ):
+                elif policy == DuplicatePolicy.SKIP and error_type == "version_conflict_engine_exception":
                     # when the policy is skip, duplication errors are OK and we should not raise an exception
                     continue
                 else:
@@ -412,9 +396,7 @@ class ElasticsearchDocumentStore:
 
         if scale_score:
             for doc in documents:
-                doc.score = float(
-                    1 / (1 + np.exp(-np.asarray(doc.score / BM25_SCALING_FACTOR)))
-                )
+                doc.score = float(1 / (1 + np.exp(-np.asarray(doc.score / BM25_SCALING_FACTOR))))
 
         return documents
 

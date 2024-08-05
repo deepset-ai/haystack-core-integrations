@@ -2,12 +2,7 @@ from typing import Any, Callable, ClassVar, Dict, List, Optional, Union
 
 from haystack import component, default_from_dict, default_to_dict, logging
 from haystack.dataclasses import StreamingChunk
-from haystack.utils import (
-    Secret,
-    deserialize_callable,
-    deserialize_secrets_inplace,
-    serialize_callable,
-)
+from haystack.utils import Secret, deserialize_callable, deserialize_secrets_inplace, serialize_callable
 
 from anthropic import Anthropic, Stream
 from anthropic.types import (
@@ -94,11 +89,7 @@ class AnthropicGenerator:
         :returns:
             The serialized component as a dictionary.
         """
-        callback_name = (
-            serialize_callable(self.streaming_callback)
-            if self.streaming_callback
-            else None
-        )
+        callback_name = serialize_callable(self.streaming_callback) if self.streaming_callback else None
         return default_to_dict(
             self,
             model=self.model,
@@ -121,9 +112,7 @@ class AnthropicGenerator:
         init_params = data.get("init_parameters", {})
         serialized_callback_handler = init_params.get("streaming_callback")
         if serialized_callback_handler:
-            data["init_parameters"]["streaming_callback"] = deserialize_callable(
-                serialized_callback_handler
-            )
+            data["init_parameters"]["streaming_callback"] = deserialize_callable(serialized_callback_handler)
         return default_from_dict(cls, data)
 
     @component.output_types(replies=List[str], meta=List[Dict[str, Any]])
@@ -139,9 +128,7 @@ class AnthropicGenerator:
         """
         # update generation kwargs by merging with the generation kwargs passed to the run method
         generation_kwargs = {**self.generation_kwargs, **(generation_kwargs or {})}
-        filtered_generation_kwargs = {
-            k: v for k, v in generation_kwargs.items() if k in self.ALLOWED_PARAMS
-        }
+        filtered_generation_kwargs = {k: v for k, v in generation_kwargs.items() if k in self.ALLOWED_PARAMS}
         disallowed_params = set(generation_kwargs) - set(self.ALLOWED_PARAMS)
         if disallowed_params:
             logger.warning(
@@ -149,13 +136,9 @@ class AnthropicGenerator:
                 f"Allowed parameters are {self.ALLOWED_PARAMS}."
             )
 
-        response: Union[
-            Message, Stream[MessageStreamEvent]
-        ] = self.client.messages.create(
+        response: Union[Message, Stream[MessageStreamEvent]] = self.client.messages.create(
             max_tokens=filtered_generation_kwargs.pop("max_tokens", 512),
-            system=self.system_prompt
-            if self.system_prompt
-            else filtered_generation_kwargs.pop("system", ""),
+            system=self.system_prompt if self.system_prompt else filtered_generation_kwargs.pop("system", ""),
             model=self.model,
             messages=[MessageParam(content=prompt, role="user")],
             stream=self.streaming_callback is not None,
@@ -173,14 +156,10 @@ class AnthropicGenerator:
                     # capture start message to count input tokens
                     start_event = stream_event
                 if isinstance(stream_event, ContentBlockDeltaEvent):
-                    chunk_delta: StreamingChunk = StreamingChunk(
-                        content=stream_event.delta.text
-                    )
+                    chunk_delta: StreamingChunk = StreamingChunk(content=stream_event.delta.text)
                     chunks.append(chunk_delta)
                     if self.streaming_callback:
-                        self.streaming_callback(
-                            chunk_delta
-                        )  # invoke callback with the chunk_delta
+                        self.streaming_callback(chunk_delta)  # invoke callback with the chunk_delta
                 if isinstance(stream_event, MessageDeltaEvent):
                     # capture stop reason and stop sequence
                     delta = stream_event
@@ -190,9 +169,7 @@ class AnthropicGenerator:
                     "model": self.model,
                     "index": 0,
                     "finish_reason": delta.delta.stop_reason if delta else "end_turn",
-                    "usage": {**dict(start_event.message.usage, **dict(delta.usage))}
-                    if delta and start_event
-                    else {},
+                    "usage": {**dict(start_event.message.usage, **dict(delta.usage))} if delta and start_event else {},
                 }
             )
         # if streaming is disabled, the response is an Anthropic Message

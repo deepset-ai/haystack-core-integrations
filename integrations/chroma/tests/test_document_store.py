@@ -26,16 +26,12 @@ class _TestEmbeddingFunction(EmbeddingFunction):
     vectors in unit tests.
     """
 
-    def __call__(
-        self, input: Documents
-    ) -> Embeddings:  # noqa - chroma will inspect the signature, it must match
+    def __call__(self, input: Documents) -> Embeddings:  # noqa - chroma will inspect the signature, it must match
         # embed the documents somehow
         return [np.random.default_rng().uniform(-1, 1, 768).tolist()]
 
 
-class TestDocumentStore(
-    CountDocumentsTest, DeleteDocumentsTest, LegacyFilterDocumentsTest
-):
+class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, LegacyFilterDocumentsTest):
     """
     Common test cases will be provided by `DocumentStoreBaseTests` but
     you can add more to this class.
@@ -51,13 +47,9 @@ class TestDocumentStore(
             "haystack_integrations.document_stores.chroma.document_store.get_embedding_function"
         ) as get_func:
             get_func.return_value = _TestEmbeddingFunction()
-            return ChromaDocumentStore(
-                embedding_function="test_function", collection_name=str(uuid.uuid1())
-            )
+            return ChromaDocumentStore(embedding_function="test_function", collection_name=str(uuid.uuid1()))
 
-    def assert_documents_are_equal(
-        self, received: List[Document], expected: List[Document]
-    ):
+    def assert_documents_are_equal(self, received: List[Document], expected: List[Document]):
         """
         Assert that two lists of Documents are equal.
         This is used in every test, if a Document Store implementation has a different behaviour
@@ -73,9 +65,7 @@ class TestDocumentStore(
             assert doc_received.content == doc_expected.content
             assert doc_received.meta == doc_expected.meta
 
-    def test_ne_filter(
-        self, document_store: ChromaDocumentStore, filterable_docs: List[Document]
-    ):
+    def test_ne_filter(self, document_store: ChromaDocumentStore, filterable_docs: List[Document]):
         """
         We customize this test because Chroma consider "not equal" true when
         a field is missing
@@ -83,8 +73,7 @@ class TestDocumentStore(
         document_store.write_documents(filterable_docs)
         result = document_store.filter_documents(filters={"page": {"$ne": "100"}})
         self.assert_documents_are_equal(
-            result,
-            [doc for doc in filterable_docs if doc.meta.get("page", "100") != "100"],
+            result, [doc for doc in filterable_docs if doc.meta.get("page", "100") != "100"]
         )
 
     def test_delete_empty(self, document_store: ChromaDocumentStore):
@@ -118,9 +107,7 @@ class TestDocumentStore(
         assert len(result) == 1
         assert result[0][0].content == "Third document"
 
-    def test_write_documents_unsupported_meta_values(
-        self, document_store: ChromaDocumentStore
-    ):
+    def test_write_documents_unsupported_meta_values(self, document_store: ChromaDocumentStore):
         """
         Unsupported meta values should be removed from the documents before writing them to the database
         """
@@ -145,9 +132,7 @@ class TestDocumentStore(
     @pytest.mark.integration
     def test_to_json(self, request):
         ds = ChromaDocumentStore(
-            collection_name=request.node.name,
-            embedding_function="HuggingFaceEmbeddingFunction",
-            api_key="1234567890",
+            collection_name=request.node.name, embedding_function="HuggingFaceEmbeddingFunction", api_key="1234567890"
         )
         ds_dict = ds.to_dict()
         assert ds_dict == {
@@ -244,69 +229,43 @@ class TestDocumentStore(
         assert new_store._collection.metadata["hnsw:space"] == "ip"
 
     @pytest.mark.skip(reason="Filter on dataframe contents is not supported.")
-    def test_filter_document_dataframe(
-        self, document_store: ChromaDocumentStore, filterable_docs: List[Document]
-    ):
+    def test_filter_document_dataframe(self, document_store: ChromaDocumentStore, filterable_docs: List[Document]):
         pass
 
     @pytest.mark.skip(reason="Filter on table contents is not supported.")
-    def test_eq_filter_table(
-        self, document_store: ChromaDocumentStore, filterable_docs: List[Document]
-    ):
+    def test_eq_filter_table(self, document_store: ChromaDocumentStore, filterable_docs: List[Document]):
         pass
 
     @pytest.mark.skip(reason="Filter on embedding value is not supported.")
-    def test_eq_filter_embedding(
-        self, document_store: ChromaDocumentStore, filterable_docs: List[Document]
-    ):
+    def test_eq_filter_embedding(self, document_store: ChromaDocumentStore, filterable_docs: List[Document]):
         pass
 
-    @pytest.mark.skip(
-        reason="$in operator is not supported. Filter on table contents is not supported."
-    )
-    def test_in_filter_table(
-        self, document_store: ChromaDocumentStore, filterable_docs: List[Document]
-    ):
+    @pytest.mark.skip(reason="$in operator is not supported. Filter on table contents is not supported.")
+    def test_in_filter_table(self, document_store: ChromaDocumentStore, filterable_docs: List[Document]):
         pass
 
     @pytest.mark.skip(reason="$in operator is not supported.")
-    def test_in_filter_embedding(
-        self, document_store: ChromaDocumentStore, filterable_docs: List[Document]
-    ):
+    def test_in_filter_embedding(self, document_store: ChromaDocumentStore, filterable_docs: List[Document]):
         pass
 
     @pytest.mark.skip(reason="Filter on table contents is not supported.")
-    def test_ne_filter_table(
-        self, document_store: ChromaDocumentStore, filterable_docs: List[Document]
-    ):
+    def test_ne_filter_table(self, document_store: ChromaDocumentStore, filterable_docs: List[Document]):
         pass
 
     @pytest.mark.skip(reason="Filter on embedding value is not supported.")
-    def test_ne_filter_embedding(
-        self, document_store: ChromaDocumentStore, filterable_docs: List[Document]
-    ):
+    def test_ne_filter_embedding(self, document_store: ChromaDocumentStore, filterable_docs: List[Document]):
         pass
 
-    @pytest.mark.skip(
-        reason="$nin operator is not supported. Filter on table contents is not supported."
-    )
-    def test_nin_filter_table(
-        self, document_store: ChromaDocumentStore, filterable_docs: List[Document]
-    ):
+    @pytest.mark.skip(reason="$nin operator is not supported. Filter on table contents is not supported.")
+    def test_nin_filter_table(self, document_store: ChromaDocumentStore, filterable_docs: List[Document]):
         pass
 
-    @pytest.mark.skip(
-        reason="$nin operator is not supported. Filter on embedding value is not supported."
-    )
-    def test_nin_filter_embedding(
-        self, document_store: ChromaDocumentStore, filterable_docs: List[Document]
-    ):
+    @pytest.mark.skip(reason="$nin operator is not supported. Filter on embedding value is not supported.")
+    def test_nin_filter_embedding(self, document_store: ChromaDocumentStore, filterable_docs: List[Document]):
         pass
 
     @pytest.mark.skip(reason="$nin operator is not supported.")
-    def test_nin_filter(
-        self, document_store: ChromaDocumentStore, filterable_docs: List[Document]
-    ):
+    def test_nin_filter(self, document_store: ChromaDocumentStore, filterable_docs: List[Document]):
         pass
 
     @pytest.mark.skip(reason="Filter syntax not supported.")
@@ -322,45 +281,31 @@ class TestDocumentStore(
         pass
 
     @pytest.mark.skip(reason="Filter syntax not supported.")
-    def test_filter_simple_implicit_and(
-        self, document_store: ChromaDocumentStore, filterable_docs: List[Document]
-    ):
+    def test_filter_simple_implicit_and(self, document_store: ChromaDocumentStore, filterable_docs: List[Document]):
         pass
 
     @pytest.mark.skip(reason="Filter syntax not supported.")
-    def test_filter_nested_implicit_and(
-        self, document_store: ChromaDocumentStore, filterable_docs: List[Document]
-    ):
+    def test_filter_nested_implicit_and(self, document_store: ChromaDocumentStore, filterable_docs: List[Document]):
         pass
 
     @pytest.mark.skip(reason="Filter syntax not supported.")
-    def test_filter_simple_or(
-        self, document_store: ChromaDocumentStore, filterable_docs: List[Document]
-    ):
+    def test_filter_simple_or(self, document_store: ChromaDocumentStore, filterable_docs: List[Document]):
         pass
 
     @pytest.mark.skip(reason="Filter syntax not supported.")
-    def test_filter_nested_or(
-        self, document_store: ChromaDocumentStore, filterable_docs: List[Document]
-    ):
+    def test_filter_nested_or(self, document_store: ChromaDocumentStore, filterable_docs: List[Document]):
         pass
 
     @pytest.mark.skip(reason="Filter on table contents is not supported.")
-    def test_filter_nested_and_or_explicit(
-        self, document_store: ChromaDocumentStore, filterable_docs: List[Document]
-    ):
+    def test_filter_nested_and_or_explicit(self, document_store: ChromaDocumentStore, filterable_docs: List[Document]):
         pass
 
     @pytest.mark.skip(reason="Filter syntax not supported.")
-    def test_filter_nested_and_or_implicit(
-        self, document_store: ChromaDocumentStore, filterable_docs: List[Document]
-    ):
+    def test_filter_nested_and_or_implicit(self, document_store: ChromaDocumentStore, filterable_docs: List[Document]):
         pass
 
     @pytest.mark.skip(reason="Filter syntax not supported.")
-    def test_filter_nested_or_and(
-        self, document_store: ChromaDocumentStore, filterable_docs: List[Document]
-    ):
+    def test_filter_nested_or_and(self, document_store: ChromaDocumentStore, filterable_docs: List[Document]):
         pass
 
     @pytest.mark.skip(reason="Filter syntax not supported.")

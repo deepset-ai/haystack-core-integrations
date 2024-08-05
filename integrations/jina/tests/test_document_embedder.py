@@ -16,17 +16,9 @@ def mock_session_post_response(*args, **kwargs):  # noqa: ARG001
     model = kwargs["json"]["model"]
     mock_response = requests.Response()
     mock_response.status_code = 200
-    data = [
-        {"object": "embedding", "index": i, "embedding": [0.1, 0.2, 0.3]}
-        for i in range(len(inputs))
-    ]
+    data = [{"object": "embedding", "index": i, "embedding": [0.1, 0.2, 0.3]} for i in range(len(inputs))]
     mock_response._content = json.dumps(
-        {
-            "model": model,
-            "object": "list",
-            "usage": {"total_tokens": 4, "prompt_tokens": 4},
-            "data": data,
-        }
+        {"model": model, "object": "list", "usage": {"total_tokens": 4, "prompt_tokens": 4}, "data": data}
     ).encode()
 
     return mock_response
@@ -79,11 +71,7 @@ class TestJinaDocumentEmbedder:
         assert data == {
             "type": "haystack_integrations.components.embedders.jina.document_embedder.JinaDocumentEmbedder",
             "init_parameters": {
-                "api_key": {
-                    "env_vars": ["JINA_API_KEY"],
-                    "strict": True,
-                    "type": "env_var",
-                },
+                "api_key": {"env_vars": ["JINA_API_KEY"], "strict": True, "type": "env_var"},
                 "model": "jina-embeddings-v2-base-en",
                 "prefix": "",
                 "suffix": "",
@@ -109,11 +97,7 @@ class TestJinaDocumentEmbedder:
         assert data == {
             "type": "haystack_integrations.components.embedders.jina.document_embedder.JinaDocumentEmbedder",
             "init_parameters": {
-                "api_key": {
-                    "env_vars": ["JINA_API_KEY"],
-                    "strict": True,
-                    "type": "env_var",
-                },
+                "api_key": {"env_vars": ["JINA_API_KEY"], "strict": True, "type": "env_var"},
                 "model": "model",
                 "prefix": "prefix",
                 "suffix": "suffix",
@@ -126,17 +110,11 @@ class TestJinaDocumentEmbedder:
 
     def test_prepare_texts_to_embed_w_metadata(self):
         documents = [
-            Document(
-                content=f"document number {i}:\ncontent",
-                meta={"meta_field": f"meta_value {i}"},
-            )
-            for i in range(5)
+            Document(content=f"document number {i}:\ncontent", meta={"meta_field": f"meta_value {i}"}) for i in range(5)
         ]
 
         embedder = JinaDocumentEmbedder(
-            api_key=Secret.from_token("fake-api-key"),
-            meta_fields_to_embed=["meta_field"],
-            embedding_separator=" | ",
+            api_key=Secret.from_token("fake-api-key"), meta_fields_to_embed=["meta_field"], embedding_separator=" | "
         )
 
         prepared_texts = embedder._prepare_texts_to_embed(documents)
@@ -154,9 +132,7 @@ class TestJinaDocumentEmbedder:
         documents = [Document(content=f"document number {i}") for i in range(5)]
 
         embedder = JinaDocumentEmbedder(
-            api_key=Secret.from_token("fake-api-key"),
-            prefix="my_prefix ",
-            suffix=" my_suffix",
+            api_key=Secret.from_token("fake-api-key"), prefix="my_prefix ", suffix=" my_suffix"
         )
 
         prepared_texts = embedder._prepare_texts_to_embed(documents)
@@ -172,16 +148,10 @@ class TestJinaDocumentEmbedder:
     def test_embed_batch(self):
         texts = ["text 1", "text 2", "text 3", "text 4", "text 5"]
 
-        with patch(
-            "requests.sessions.Session.post", side_effect=mock_session_post_response
-        ):
-            embedder = JinaDocumentEmbedder(
-                api_key=Secret.from_token("fake-api-key"), model="model"
-            )
+        with patch("requests.sessions.Session.post", side_effect=mock_session_post_response):
+            embedder = JinaDocumentEmbedder(api_key=Secret.from_token("fake-api-key"), model="model")
 
-            embeddings, metadata = embedder._embed_batch(
-                texts_to_embed=texts, batch_size=2
-            )
+            embeddings, metadata = embedder._embed_batch(texts_to_embed=texts, batch_size=2)
 
         assert isinstance(embeddings, list)
         assert len(embeddings) == len(texts)
@@ -190,24 +160,16 @@ class TestJinaDocumentEmbedder:
             assert len(embedding) == 3
             assert all(isinstance(x, float) for x in embedding)
 
-        assert metadata == {
-            "model": "model",
-            "usage": {"prompt_tokens": 3 * 4, "total_tokens": 3 * 4},
-        }
+        assert metadata == {"model": "model", "usage": {"prompt_tokens": 3 * 4, "total_tokens": 3 * 4}}
 
     def test_run(self):
         docs = [
             Document(content="I love cheese", meta={"topic": "Cuisine"}),
-            Document(
-                content="A transformer is a deep learning architecture",
-                meta={"topic": "ML"},
-            ),
+            Document(content="A transformer is a deep learning architecture", meta={"topic": "ML"}),
         ]
 
         model = "jina-embeddings-v2-base-en"
-        with patch(
-            "requests.sessions.Session.post", side_effect=mock_session_post_response
-        ):
+        with patch("requests.sessions.Session.post", side_effect=mock_session_post_response):
             embedder = JinaDocumentEmbedder(
                 api_key=Secret.from_token("fake-api-key"),
                 model=model,
@@ -229,23 +191,15 @@ class TestJinaDocumentEmbedder:
             assert isinstance(doc.embedding, list)
             assert len(doc.embedding) == 3
             assert all(isinstance(x, float) for x in doc.embedding)
-        assert metadata == {
-            "model": model,
-            "usage": {"prompt_tokens": 4, "total_tokens": 4},
-        }
+        assert metadata == {"model": model, "usage": {"prompt_tokens": 4, "total_tokens": 4}}
 
     def test_run_custom_batch_size(self):
         docs = [
             Document(content="I love cheese", meta={"topic": "Cuisine"}),
-            Document(
-                content="A transformer is a deep learning architecture",
-                meta={"topic": "ML"},
-            ),
+            Document(content="A transformer is a deep learning architecture", meta={"topic": "ML"}),
         ]
         model = "jina-embeddings-v2-base-en"
-        with patch(
-            "requests.sessions.Session.post", side_effect=mock_session_post_response
-        ):
+        with patch("requests.sessions.Session.post", side_effect=mock_session_post_response):
             embedder = JinaDocumentEmbedder(
                 api_key=Secret.from_token("fake-api-key"),
                 model=model,
@@ -269,10 +223,7 @@ class TestJinaDocumentEmbedder:
             assert len(doc.embedding) == 3
             assert all(isinstance(x, float) for x in doc.embedding)
 
-        assert metadata == {
-            "model": model,
-            "usage": {"prompt_tokens": 2 * 4, "total_tokens": 2 * 4},
-        }
+        assert metadata == {"model": model, "usage": {"prompt_tokens": 2 * 4, "total_tokens": 2 * 4}}
 
     def test_run_wrong_input_format(self):
         embedder = JinaDocumentEmbedder(api_key=Secret.from_token("fake-api-key"))
@@ -280,14 +231,10 @@ class TestJinaDocumentEmbedder:
         string_input = "text"
         list_integers_input = [1, 2, 3]
 
-        with pytest.raises(
-            TypeError, match="JinaDocumentEmbedder expects a list of Documents as input"
-        ):
+        with pytest.raises(TypeError, match="JinaDocumentEmbedder expects a list of Documents as input"):
             embedder.run(documents=string_input)
 
-        with pytest.raises(
-            TypeError, match="JinaDocumentEmbedder expects a list of Documents as input"
-        ):
+        with pytest.raises(TypeError, match="JinaDocumentEmbedder expects a list of Documents as input"):
             embedder.run(documents=list_integers_input)
 
     def test_run_on_empty_list(self):

@@ -67,21 +67,13 @@ class AmazonBedrockGenerator:
     def __init__(
         self,
         model: str,
-        aws_access_key_id: Optional[Secret] = Secret.from_env_var(
-            "AWS_ACCESS_KEY_ID", strict=False
-        ),  # noqa: B008
+        aws_access_key_id: Optional[Secret] = Secret.from_env_var("AWS_ACCESS_KEY_ID", strict=False),  # noqa: B008
         aws_secret_access_key: Optional[Secret] = Secret.from_env_var(  # noqa: B008
             "AWS_SECRET_ACCESS_KEY", strict=False
         ),
-        aws_session_token: Optional[Secret] = Secret.from_env_var(
-            "AWS_SESSION_TOKEN", strict=False
-        ),  # noqa: B008
-        aws_region_name: Optional[Secret] = Secret.from_env_var(
-            "AWS_DEFAULT_REGION", strict=False
-        ),  # noqa: B008
-        aws_profile_name: Optional[Secret] = Secret.from_env_var(
-            "AWS_PROFILE", strict=False
-        ),  # noqa: B008
+        aws_session_token: Optional[Secret] = Secret.from_env_var("AWS_SESSION_TOKEN", strict=False),  # noqa: B008
+        aws_region_name: Optional[Secret] = Secret.from_env_var("AWS_DEFAULT_REGION", strict=False),  # noqa: B008
+        aws_profile_name: Optional[Secret] = Secret.from_env_var("AWS_PROFILE", strict=False),  # noqa: B008
         max_length: Optional[int] = 100,
         truncate: Optional[bool] = True,
         **kwargs,
@@ -152,13 +144,9 @@ class AmazonBedrockGenerator:
         if not model_adapter_cls:
             msg = f"AmazonBedrockGenerator doesn't support the model {model}."
             raise AmazonBedrockConfigurationError(msg)
-        self.model_adapter = model_adapter_cls(
-            model_kwargs=model_input_kwargs, max_length=self.max_length
-        )
+        self.model_adapter = model_adapter_cls(model_kwargs=model_input_kwargs, max_length=self.max_length)
 
-    def _ensure_token_limit(
-        self, prompt: Union[str, List[Dict[str, str]]]
-    ) -> Union[str, List[Dict[str, str]]]:
+    def _ensure_token_limit(self, prompt: Union[str, List[Dict[str, str]]]) -> Union[str, List[Dict[str, str]]]:
         """
         Ensures that the prompt and answer token lengths together are within the model_max_length specified during
         the initialization of the component.
@@ -197,9 +185,7 @@ class AmazonBedrockGenerator:
         """
         kwargs = kwargs.copy()
         prompt: str = kwargs.pop("prompt", None)
-        stream: bool = kwargs.get(
-            "stream", self.model_adapter.model_kwargs.get("stream", False)
-        )
+        stream: bool = kwargs.get("stream", self.model_adapter.model_kwargs.get("stream", False))
 
         if not prompt or not isinstance(prompt, (str, list)):
             msg = (
@@ -223,13 +209,9 @@ class AmazonBedrockGenerator:
                 response_stream = response["body"]
                 handler: TokenStreamingHandler = kwargs.get(
                     "stream_handler",
-                    self.model_adapter.model_kwargs.get(
-                        "stream_handler", DefaultTokenStreamingHandler()
-                    ),
+                    self.model_adapter.model_kwargs.get("stream_handler", DefaultTokenStreamingHandler()),
                 )
-                responses = self.model_adapter.get_stream_responses(
-                    stream=response_stream, stream_handler=handler
-                )
+                responses = self.model_adapter.get_stream_responses(stream=response_stream, stream_handler=handler)
             else:
                 response = self.client.invoke_model(
                     body=json.dumps(body),
@@ -238,9 +220,7 @@ class AmazonBedrockGenerator:
                     contentType="application/json",
                 )
                 response_body = json.loads(response.get("body").read().decode("utf-8"))
-                responses = self.model_adapter.get_responses(
-                    response_body=response_body
-                )
+                responses = self.model_adapter.get_responses(response_body=response_body)
         except ClientError as exception:
             msg = (
                 f"Could not connect to Amazon Bedrock model {self.model}. "
@@ -287,21 +267,11 @@ class AmazonBedrockGenerator:
         """
         return default_to_dict(
             self,
-            aws_access_key_id=self.aws_access_key_id.to_dict()
-            if self.aws_access_key_id
-            else None,
-            aws_secret_access_key=self.aws_secret_access_key.to_dict()
-            if self.aws_secret_access_key
-            else None,
-            aws_session_token=self.aws_session_token.to_dict()
-            if self.aws_session_token
-            else None,
-            aws_region_name=self.aws_region_name.to_dict()
-            if self.aws_region_name
-            else None,
-            aws_profile_name=self.aws_profile_name.to_dict()
-            if self.aws_profile_name
-            else None,
+            aws_access_key_id=self.aws_access_key_id.to_dict() if self.aws_access_key_id else None,
+            aws_secret_access_key=self.aws_secret_access_key.to_dict() if self.aws_secret_access_key else None,
+            aws_session_token=self.aws_session_token.to_dict() if self.aws_session_token else None,
+            aws_region_name=self.aws_region_name.to_dict() if self.aws_region_name else None,
+            aws_profile_name=self.aws_profile_name.to_dict() if self.aws_profile_name else None,
             model=self.model,
             max_length=self.max_length,
             truncate=self.truncate,
@@ -320,12 +290,6 @@ class AmazonBedrockGenerator:
         """
         deserialize_secrets_inplace(
             data["init_parameters"],
-            [
-                "aws_access_key_id",
-                "aws_secret_access_key",
-                "aws_session_token",
-                "aws_region_name",
-                "aws_profile_name",
-            ],
+            ["aws_access_key_id", "aws_secret_access_key", "aws_session_token", "aws_region_name", "aws_profile_name"],
         )
         return default_from_dict(cls, data)

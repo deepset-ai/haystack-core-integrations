@@ -70,9 +70,7 @@ class LlamaCppChatGenerator:
         generation_kwargs = generation_kwargs or {}
 
         if "hf_tokenizer_path" in model_kwargs:
-            tokenizer = LlamaHFTokenizer.from_pretrained(
-                model_kwargs["hf_tokenizer_path"]
-            )
+            tokenizer = LlamaHFTokenizer.from_pretrained(model_kwargs["hf_tokenizer_path"])
             model_kwargs["tokenizer"] = tokenizer
 
         # check if the model_kwargs contain the essential parameters
@@ -93,11 +91,7 @@ class LlamaCppChatGenerator:
             self.model = Llama(**self.model_kwargs)
 
     @component.output_types(replies=List[ChatMessage])
-    def run(
-        self,
-        messages: List[ChatMessage],
-        generation_kwargs: Optional[Dict[str, Any]] = None,
-    ):
+    def run(self, messages: List[ChatMessage], generation_kwargs: Optional[Dict[str, Any]] = None):
         """
         Run the text generation model on the given list of ChatMessages.
 
@@ -110,25 +104,16 @@ class LlamaCppChatGenerator:
             - `replies`: The responses from the model
         """
         if self.model is None:
-            error_msg = (
-                "The model has not been loaded. Please call warm_up() before running."
-            )
+            error_msg = "The model has not been loaded. Please call warm_up() before running."
             raise RuntimeError(error_msg)
 
         if not messages:
             return {"replies": []}
 
-        updated_generation_kwargs = {
-            **self.generation_kwargs,
-            **(generation_kwargs or {}),
-        }
-        formatted_messages = [
-            _convert_message_to_llamacpp_format(msg) for msg in messages
-        ]
+        updated_generation_kwargs = {**self.generation_kwargs, **(generation_kwargs or {})}
+        formatted_messages = [_convert_message_to_llamacpp_format(msg) for msg in messages]
 
-        response = self.model.create_chat_completion(
-            messages=formatted_messages, **updated_generation_kwargs
-        )
+        response = self.model.create_chat_completion(messages=formatted_messages, **updated_generation_kwargs)
         replies = [
             ChatMessage(
                 content=choice["message"]["content"],

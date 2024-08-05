@@ -59,17 +59,11 @@ class OllamaDocumentEmbedder:
         self.suffix = suffix
         self.prefix = prefix
 
-    def _create_json_payload(
-        self, text: str, generation_kwargs: Optional[Dict[str, Any]]
-    ) -> Dict[str, Any]:
+    def _create_json_payload(self, text: str, generation_kwargs: Optional[Dict[str, Any]]) -> Dict[str, Any]:
         """
         Returns A dictionary of JSON arguments for a POST request to an Ollama service
         """
-        return {
-            "model": self.model,
-            "prompt": text,
-            "options": {**self.generation_kwargs, **(generation_kwargs or {})},
-        }
+        return {"model": self.model, "prompt": text, "options": {**self.generation_kwargs, **(generation_kwargs or {})}}
 
     def _prepare_texts_to_embed(self, documents: List[Document]) -> List[str]:
         """
@@ -87,21 +81,14 @@ class OllamaDocumentEmbedder:
                 meta_values_to_embed = []
 
             text_to_embed = (
-                self.prefix
-                + self.embedding_separator.join(
-                    [*meta_values_to_embed, doc.content or ""]
-                )
-                + self.suffix
+                self.prefix + self.embedding_separator.join([*meta_values_to_embed, doc.content or ""]) + self.suffix
             ).replace("\n", " ")
 
             texts_to_embed.append(text_to_embed)
         return texts_to_embed
 
     def _embed_batch(
-        self,
-        texts_to_embed: List[str],
-        batch_size: int,
-        generation_kwargs: Optional[Dict[str, Any]] = None,
+        self, texts_to_embed: List[str], batch_size: int, generation_kwargs: Optional[Dict[str, Any]] = None
     ):
         """
         Ollama Embedding only allows single uploads, not batching. Currently the batch size is set to 1.
@@ -113,9 +100,7 @@ class OllamaDocumentEmbedder:
         meta: Dict[str, Any] = {"model": ""}
 
         for i in tqdm(
-            range(0, len(texts_to_embed), batch_size),
-            disable=not self.progress_bar,
-            desc="Calculating embeddings",
+            range(0, len(texts_to_embed), batch_size), disable=not self.progress_bar, desc="Calculating embeddings"
         ):
             batch = texts_to_embed[i]  # Single batch only
             payload = self._create_json_payload(batch, generation_kwargs)
@@ -129,11 +114,7 @@ class OllamaDocumentEmbedder:
         return all_embeddings, meta
 
     @component.output_types(documents=List[Document], meta=Dict[str, Any])
-    def run(
-        self,
-        documents: List[Document],
-        generation_kwargs: Optional[Dict[str, Any]] = None,
-    ):
+    def run(self, documents: List[Document], generation_kwargs: Optional[Dict[str, Any]] = None):
         """
         Runs an Ollama Model to compute embeddings of the provided documents.
 
@@ -147,11 +128,7 @@ class OllamaDocumentEmbedder:
             - `documents`: Documents with embedding information attached
             - `meta`: The metadata collected during the embedding process
         """
-        if (
-            not isinstance(documents, list)
-            or documents
-            and not isinstance(documents[0], Document)
-        ):
+        if not isinstance(documents, list) or documents and not isinstance(documents[0], Document):
             msg = (
                 "OllamaDocumentEmbedder expects a list of Documents as input."
                 "In case you want to embed a list of strings, please use the OllamaTextEmbedder."
@@ -160,9 +137,7 @@ class OllamaDocumentEmbedder:
 
         texts_to_embed = self._prepare_texts_to_embed(documents=documents)
         embeddings, meta = self._embed_batch(
-            texts_to_embed=texts_to_embed,
-            batch_size=self.batch_size,
-            generation_kwargs=generation_kwargs,
+            texts_to_embed=texts_to_embed, batch_size=self.batch_size, generation_kwargs=generation_kwargs
         )
 
         for doc, emb in zip(documents, embeddings):

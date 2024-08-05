@@ -6,10 +6,7 @@ from typing import Any, Dict, List, Optional
 
 from haystack import Document, component, default_from_dict, default_to_dict
 from haystack.utils import Secret, deserialize_secrets_inplace
-from haystack_integrations.components.embedders.cohere.utils import (
-    get_async_response,
-    get_response,
-)
+from haystack_integrations.components.embedders.cohere.utils import get_async_response, get_response
 
 from cohere import AsyncClient, Client
 
@@ -132,14 +129,10 @@ class CohereDocumentEmbedder:
         texts_to_embed: List[str] = []
         for doc in documents:
             meta_values_to_embed = [
-                str(doc.meta[key])
-                for key in self.meta_fields_to_embed
-                if doc.meta.get(key) is not None
+                str(doc.meta[key]) for key in self.meta_fields_to_embed if doc.meta.get(key) is not None
             ]
 
-            text_to_embed = self.embedding_separator.join(
-                meta_values_to_embed + [doc.content or ""]
-            )  # noqa: RUF005
+            text_to_embed = self.embedding_separator.join(meta_values_to_embed + [doc.content or ""])  # noqa: RUF005
             texts_to_embed.append(text_to_embed)
         return texts_to_embed
 
@@ -153,11 +146,7 @@ class CohereDocumentEmbedder:
             - `meta`: metadata about the embedding process.
         :raises TypeError: if the input is not a list of `Documents`.
         """
-        if (
-            not isinstance(documents, list)
-            or documents
-            and not isinstance(documents[0], Document)
-        ):
+        if not isinstance(documents, list) or documents and not isinstance(documents[0], Document):
             msg = (
                 "CohereDocumentEmbedder expects a list of Documents as input."
                 "In case you want to embed a string, please use the CohereTextEmbedder."
@@ -181,13 +170,7 @@ class CohereDocumentEmbedder:
                 client_name="haystack",
             )
             all_embeddings, metadata = asyncio.run(
-                get_async_response(
-                    cohere_client,
-                    texts_to_embed,
-                    self.model,
-                    self.input_type,
-                    self.truncate,
-                )
+                get_async_response(cohere_client, texts_to_embed, self.model, self.input_type, self.truncate)
             )
         else:
             cohere_client = Client(

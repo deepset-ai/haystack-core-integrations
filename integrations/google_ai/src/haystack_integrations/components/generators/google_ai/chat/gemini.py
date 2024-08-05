@@ -132,9 +132,7 @@ class GoogleAIGeminiChatGenerator:
         self._tools = tools
         self._model = GenerativeModel(self._model_name, tools=self._tools)
 
-    def _generation_config_to_dict(
-        self, config: Union[GenerationConfig, Dict[str, Any]]
-    ) -> Dict[str, Any]:
+    def _generation_config_to_dict(self, config: Union[GenerationConfig, Dict[str, Any]]) -> Dict[str, Any]:
         if isinstance(config, dict):
             return config
         return {
@@ -170,18 +168,10 @@ class GoogleAIGeminiChatGenerator:
                     # can't be easily serializated to a dict. We need to convert it to a protobuf class first.
                     tool = tool.to_proto()  # noqa: PLW2901
                 data["init_parameters"]["tools"].append(ToolProto.serialize(tool))
-        if (
-            generation_config := data["init_parameters"].get("generation_config")
-        ) is not None:
-            data["init_parameters"][
-                "generation_config"
-            ] = self._generation_config_to_dict(generation_config)
-        if (
-            safety_settings := data["init_parameters"].get("safety_settings")
-        ) is not None:
-            data["init_parameters"]["safety_settings"] = {
-                k.value: v.value for k, v in safety_settings.items()
-            }
+        if (generation_config := data["init_parameters"].get("generation_config")) is not None:
+            data["init_parameters"]["generation_config"] = self._generation_config_to_dict(generation_config)
+        if (safety_settings := data["init_parameters"].get("safety_settings")) is not None:
+            data["init_parameters"]["safety_settings"] = {k.value: v.value for k, v in safety_settings.items()}
         return data
 
     @classmethod
@@ -203,24 +193,14 @@ class GoogleAIGeminiChatGenerator:
                 # to be able to convert them to the Python class.
                 proto = ToolProto.deserialize(tool)
                 deserialized_tools.append(
-                    Tool(
-                        function_declarations=proto.function_declarations,
-                        code_execution=proto.code_execution,
-                    )
+                    Tool(function_declarations=proto.function_declarations, code_execution=proto.code_execution)
                 )
             data["init_parameters"]["tools"] = deserialized_tools
-        if (
-            generation_config := data["init_parameters"].get("generation_config")
-        ) is not None:
-            data["init_parameters"]["generation_config"] = GenerationConfig(
-                **generation_config
-            )
-        if (
-            safety_settings := data["init_parameters"].get("safety_settings")
-        ) is not None:
+        if (generation_config := data["init_parameters"].get("generation_config")) is not None:
+            data["init_parameters"]["generation_config"] = GenerationConfig(**generation_config)
+        if (safety_settings := data["init_parameters"].get("safety_settings")) is not None:
             data["init_parameters"]["safety_settings"] = {
-                HarmCategory(k): HarmBlockThreshold(v)
-                for k, v in safety_settings.items()
+                HarmCategory(k): HarmBlockThreshold(v) for k, v in safety_settings.items()
             }
         return default_from_dict(cls, data)
 

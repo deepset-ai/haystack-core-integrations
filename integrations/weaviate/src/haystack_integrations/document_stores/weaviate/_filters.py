@@ -132,9 +132,7 @@ def _greater_than(field: str, value: Any) -> FilterReturn:
     if type(value) in [list, DataFrame]:
         msg = f"Filter value can't be of type {type(value)} using operators '>', '>=', '<', '<='"
         raise FilterError(msg)
-    return weaviate.classes.query.Filter.by_property(field).greater_than(
-        _handle_date(value)
-    )
+    return weaviate.classes.query.Filter.by_property(field).greater_than(_handle_date(value))
 
 
 def _greater_than_equal(field: str, value: Any) -> FilterReturn:
@@ -156,9 +154,7 @@ def _greater_than_equal(field: str, value: Any) -> FilterReturn:
     if type(value) in [list, DataFrame]:
         msg = f"Filter value can't be of type {type(value)} using operators '>', '>=', '<', '<='"
         raise FilterError(msg)
-    return weaviate.classes.query.Filter.by_property(field).greater_or_equal(
-        _handle_date(value)
-    )
+    return weaviate.classes.query.Filter.by_property(field).greater_or_equal(_handle_date(value))
 
 
 def _less_than(field: str, value: Any) -> FilterReturn:
@@ -180,9 +176,7 @@ def _less_than(field: str, value: Any) -> FilterReturn:
     if type(value) in [list, DataFrame]:
         msg = f"Filter value can't be of type {type(value)} using operators '>', '>=', '<', '<='"
         raise FilterError(msg)
-    return weaviate.classes.query.Filter.by_property(field).less_than(
-        _handle_date(value)
-    )
+    return weaviate.classes.query.Filter.by_property(field).less_than(_handle_date(value))
 
 
 def _less_than_equal(field: str, value: Any) -> FilterReturn:
@@ -204,9 +198,7 @@ def _less_than_equal(field: str, value: Any) -> FilterReturn:
     if type(value) in [list, DataFrame]:
         msg = f"Filter value can't be of type {type(value)} using operators '>', '>=', '<', '<='"
         raise FilterError(msg)
-    return weaviate.classes.query.Filter.by_property(field).less_or_equal(
-        _handle_date(value)
-    )
+    return weaviate.classes.query.Filter.by_property(field).less_or_equal(_handle_date(value))
 
 
 def _in(field: str, value: Any) -> FilterReturn:
@@ -221,9 +213,7 @@ def _not_in(field: str, value: Any) -> FilterReturn:
     if not isinstance(value, list):
         msg = f"{field}'s value must be a list when using 'in' or 'not in' comparators"
         raise FilterError(msg)
-    operands = [
-        weaviate.classes.query.Filter.by_property(field).not_equal(v) for v in value
-    ]
+    operands = [weaviate.classes.query.Filter.by_property(field).not_equal(v) for v in value]
     return Filter.all_of(operands)
 
 
@@ -270,8 +260,5 @@ def _match_no_document(field: str) -> FilterReturn:
     between different Document Stores.
     """
 
-    operands = [
-        weaviate.classes.query.Filter.by_property(field).is_none(val)
-        for val in [False, True]
-    ]
+    operands = [weaviate.classes.query.Filter.by_property(field).is_none(val) for val in [False, True]]
     return Filter.all_of(operands)

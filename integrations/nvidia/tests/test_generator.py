@@ -55,11 +55,7 @@ class TestNvidiaGenerator:
             "type": "haystack_integrations.components.generators.nvidia.generator.NvidiaGenerator",
             "init_parameters": {
                 "api_url": "https://integrate.api.nvidia.com/v1",
-                "api_key": {
-                    "env_vars": ["NVIDIA_API_KEY"],
-                    "strict": True,
-                    "type": "env_var",
-                },
+                "api_key": {"env_vars": ["NVIDIA_API_KEY"], "strict": True, "type": "env_var"},
                 "model": "playground_nemotron_steerlm_8b",
                 "model_arguments": {},
             },
@@ -83,11 +79,7 @@ class TestNvidiaGenerator:
         assert data == {
             "type": "haystack_integrations.components.generators.nvidia.generator.NvidiaGenerator",
             "init_parameters": {
-                "api_key": {
-                    "env_vars": ["NVIDIA_API_KEY"],
-                    "strict": True,
-                    "type": "env_var",
-                },
+                "api_key": {"env_vars": ["NVIDIA_API_KEY"], "strict": True, "type": "env_var"},
                 "api_url": "https://my.url.com/v1",
                 "model": "playground_nemotron_steerlm_8b",
                 "model_arguments": {
@@ -102,8 +94,7 @@ class TestNvidiaGenerator:
         }
 
     @pytest.mark.skipif(
-        not os.environ.get("NVIDIA_NIM_GENERATOR_MODEL", None)
-        or not os.environ.get("NVIDIA_NIM_ENDPOINT_URL", None),
+        not os.environ.get("NVIDIA_NIM_GENERATOR_MODEL", None) or not os.environ.get("NVIDIA_NIM_ENDPOINT_URL", None),
         reason="Export an env var called NVIDIA_NIM_GENERATOR_MODEL containing the hosted model name and "
         "NVIDIA_NIM_ENDPOINT_URL containing the local URL to call.",
     )

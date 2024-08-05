@@ -42,18 +42,14 @@ from weaviate.embedded import (
 )
 
 
-@patch(
-    "haystack_integrations.document_stores.weaviate.document_store.weaviate.WeaviateClient"
-)
+@patch("haystack_integrations.document_stores.weaviate.document_store.weaviate.WeaviateClient")
 def test_init_is_lazy(_mock_client):
     _ = WeaviateDocumentStore()
     _mock_client.assert_not_called()
 
 
 @pytest.mark.integration
-class TestWeaviateDocumentStore(
-    CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsTest, FilterDocumentsTest
-):
+class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsTest, FilterDocumentsTest):
     @pytest.fixture
     def document_store(self, request) -> WeaviateDocumentStore:
         # Use a different index for each test so we can run them in parallel
@@ -125,35 +121,19 @@ class TestWeaviateDocumentStore(
             documents.append(
                 Document(
                     content=f"Document {i} without embedding",
-                    meta={
-                        "name": f"name_{i}",
-                        "no_embedding": True,
-                        "chapter": "conclusion",
-                    },
+                    meta={"name": f"name_{i}", "no_embedding": True, "chapter": "conclusion"},
                 )
             )
+            documents.append(Document(dataframe=DataFrame([i]), meta={"name": f"table_doc_{i}"}))
             documents.append(
-                Document(dataframe=DataFrame([i]), meta={"name": f"table_doc_{i}"})
+                Document(content=f"Doc {i} with zeros emb", meta={"name": "zeros_doc"}, embedding=TEST_EMBEDDING_1)
             )
             documents.append(
-                Document(
-                    content=f"Doc {i} with zeros emb",
-                    meta={"name": "zeros_doc"},
-                    embedding=TEST_EMBEDDING_1,
-                )
-            )
-            documents.append(
-                Document(
-                    content=f"Doc {i} with ones emb",
-                    meta={"name": "ones_doc"},
-                    embedding=TEST_EMBEDDING_2,
-                )
+                Document(content=f"Doc {i} with ones emb", meta={"name": "ones_doc"}, embedding=TEST_EMBEDDING_2)
             )
         return documents
 
-    def assert_documents_are_equal(
-        self, received: List[Document], expected: List[Document]
-    ):
+    def assert_documents_are_equal(self, received: List[Document], expected: List[Document]):
         assert len(received) == len(expected)
         received = sorted(received, key=lambda doc: doc.id)
         expected = sorted(expected, key=lambda doc: doc.id)
@@ -179,9 +159,7 @@ class TestWeaviateDocumentStore(
             for key in meta_keys:
                 assert received_meta.get(key) == expected_meta.get(key)
 
-    @patch(
-        "haystack_integrations.document_stores.weaviate.document_store.weaviate.WeaviateClient"
-    )
+    @patch("haystack_integrations.document_stores.weaviate.document_store.weaviate.WeaviateClient")
     def test_connection(self, mock_weaviate_client_class, monkeypatch):
         mock_client = MagicMock()
         mock_client.collections.exists.return_value = False
@@ -268,11 +246,7 @@ class TestWeaviateDocumentStore(
                 "auth_client_secret": {
                     "type": "api_key",
                     "init_parameters": {
-                        "api_key": {
-                            "env_vars": ["WEAVIATE_API_KEY"],
-                            "strict": True,
-                            "type": "env_var",
-                        }
+                        "api_key": {"env_vars": ["WEAVIATE_API_KEY"], "strict": True, "type": "env_var"}
                     },
                 },
                 "additional_headers": {"X-HuggingFace-Api-Key": "MY_HUGGINGFACE_KEY"},
@@ -291,11 +265,7 @@ class TestWeaviateDocumentStore(
                         "session_pool_maxsize": 100,
                         "session_pool_max_retries": 3,
                     },
-                    "proxies": {
-                        "http": "http://proxy:1234",
-                        "https": None,
-                        "grpc": None,
-                    },
+                    "proxies": {"http": "http://proxy:1234", "https": None, "grpc": None},
                     "timeout": [30, 90],
                     "trust_env": False,
                 },
@@ -314,16 +284,10 @@ class TestWeaviateDocumentStore(
                     "auth_client_secret": {
                         "type": "api_key",
                         "init_parameters": {
-                            "api_key": {
-                                "env_vars": ["WEAVIATE_API_KEY"],
-                                "strict": True,
-                                "type": "env_var",
-                            }
+                            "api_key": {"env_vars": ["WEAVIATE_API_KEY"], "strict": True, "type": "env_var"}
                         },
                     },
-                    "additional_headers": {
-                        "X-HuggingFace-Api-Key": "MY_HUGGINGFACE_KEY"
-                    },
+                    "additional_headers": {"X-HuggingFace-Api-Key": "MY_HUGGINGFACE_KEY"},
                     "embedded_options": {
                         "persistence_data_path": DEFAULT_PERSISTENCE_DATA_PATH,
                         "binary_path": DEFAULT_BINARY_PATH,
@@ -361,26 +325,17 @@ class TestWeaviateDocumentStore(
         }
         assert document_store._auth_client_secret == AuthApiKey()
         assert document_store._additional_config.timeout == Timeout(query=10, insert=60)
-        assert document_store._additional_config.proxies == Proxies(
-            http="http://proxy:1234", https=None, grpc=None
-        )
+        assert document_store._additional_config.proxies == Proxies(http="http://proxy:1234", https=None, grpc=None)
         assert not document_store._additional_config.trust_env
-        assert document_store._additional_headers == {
-            "X-HuggingFace-Api-Key": "MY_HUGGINGFACE_KEY"
-        }
-        assert (
-            document_store._embedded_options.persistence_data_path
-            == DEFAULT_PERSISTENCE_DATA_PATH
-        )
+        assert document_store._additional_headers == {"X-HuggingFace-Api-Key": "MY_HUGGINGFACE_KEY"}
+        assert document_store._embedded_options.persistence_data_path == DEFAULT_PERSISTENCE_DATA_PATH
         assert document_store._embedded_options.binary_path == DEFAULT_BINARY_PATH
         assert document_store._embedded_options.version == "1.23.0"
         assert document_store._embedded_options.port == DEFAULT_PORT
         assert document_store._embedded_options.hostname == "127.0.0.1"
         assert document_store._embedded_options.additional_env_vars is None
         assert document_store._embedded_options.grpc_port == DEFAULT_GRPC_PORT
-        assert (
-            document_store._additional_config.connection.session_pool_connections == 20
-        )
+        assert document_store._additional_config.connection.session_pool_connections == 20
         assert document_store._additional_config.connection.session_pool_maxsize == 20
 
     def test_to_data_object(self, document_store, test_files_path):
@@ -393,9 +348,7 @@ class TestWeaviateDocumentStore(
             "score": None,
         }
 
-        image = ByteStream.from_file_path(
-            test_files_path / "robot1.jpg", mime_type="image/jpeg"
-        )
+        image = ByteStream.from_file_path(test_files_path / "robot1.jpg", mime_type="image/jpeg")
         doc = Document(
             content="test doc",
             blob=image,
@@ -414,9 +367,7 @@ class TestWeaviateDocumentStore(
         }
 
     def test_to_document(self, document_store, test_files_path):
-        image = ByteStream.from_file_path(
-            test_files_path / "robot1.jpg", mime_type="image/jpeg"
-        )
+        image = ByteStream.from_file_path(test_files_path / "robot1.jpg", mime_type="image/jpeg")
         data = DataObject(
             properties={
                 "_original_id": "123",
@@ -451,16 +402,12 @@ class TestWeaviateDocumentStore(
         assert document_store.count_documents() == 1
 
     def test_write_documents_with_blob_data(self, document_store, test_files_path):
-        image = ByteStream.from_file_path(
-            test_files_path / "robot1.jpg", mime_type="image/jpeg"
-        )
+        image = ByteStream.from_file_path(test_files_path / "robot1.jpg", mime_type="image/jpeg")
         doc = Document(content="test doc", blob=image)
         assert document_store.write_documents([doc]) == 1
 
     def test_filter_documents_with_blob_data(self, document_store, test_files_path):
-        image = ByteStream.from_file_path(
-            test_files_path / "robot1.jpg", mime_type="image/jpeg"
-        )
+        image = ByteStream.from_file_path(test_files_path / "robot1.jpg", mime_type="image/jpeg")
         doc = Document(content="test doc", blob=image)
         assert document_store.write_documents([doc]) == 1
 
@@ -469,9 +416,7 @@ class TestWeaviateDocumentStore(
         assert len(docs) == 1
         assert docs[0].blob == image
 
-    def test_comparison_greater_than_with_iso_date(
-        self, document_store, filterable_docs
-    ):
+    def test_comparison_greater_than_with_iso_date(self, document_store, filterable_docs):
         """
         This test has been copied from haystack/testing/document_store.py and modified to
         use a different date format.
@@ -488,14 +433,11 @@ class TestWeaviateDocumentStore(
                 d
                 for d in filterable_docs
                 if d.meta.get("date") is not None
-                and parser.isoparse(d.meta["date"])
-                > parser.isoparse("1972-12-11T19:54:58Z")
+                and parser.isoparse(d.meta["date"]) > parser.isoparse("1972-12-11T19:54:58Z")
             ],
         )
 
-    def test_comparison_greater_than_equal_with_iso_date(
-        self, document_store, filterable_docs
-    ):
+    def test_comparison_greater_than_equal_with_iso_date(self, document_store, filterable_docs):
         """
         This test has been copied from haystack/testing/document_store.py and modified to
         use a different date format.
@@ -512,8 +454,7 @@ class TestWeaviateDocumentStore(
                 d
                 for d in filterable_docs
                 if d.meta.get("date") is not None
-                and parser.isoparse(d.meta["date"])
-                >= parser.isoparse("1969-07-21T20:17:40Z")
+                and parser.isoparse(d.meta["date"]) >= parser.isoparse("1969-07-21T20:17:40Z")
             ],
         )
 
@@ -534,14 +475,11 @@ class TestWeaviateDocumentStore(
                 d
                 for d in filterable_docs
                 if d.meta.get("date") is not None
-                and parser.isoparse(d.meta["date"])
-                < parser.isoparse("1969-07-21T20:17:40Z")
+                and parser.isoparse(d.meta["date"]) < parser.isoparse("1969-07-21T20:17:40Z")
             ],
         )
 
-    def test_comparison_less_than_equal_with_iso_date(
-        self, document_store, filterable_docs
-    ):
+    def test_comparison_less_than_equal_with_iso_date(self, document_store, filterable_docs):
         """
         This test has been copied from haystack/testing/document_store.py and modified to
         use a different date format.
@@ -558,16 +496,13 @@ class TestWeaviateDocumentStore(
                 d
                 for d in filterable_docs
                 if d.meta.get("date") is not None
-                and parser.isoparse(d.meta["date"])
-                <= parser.isoparse("1969-07-21T20:17:40Z")
+                and parser.isoparse(d.meta["date"]) <= parser.isoparse("1969-07-21T20:17:40Z")
             ],
         )
 
     @pytest.mark.skip(reason="Weaviate for some reason is not returning what we expect")
     def test_comparison_not_equal_with_dataframe(self, document_store, filterable_docs):
-        return super().test_comparison_not_equal_with_dataframe(
-            document_store, filterable_docs
-        )
+        return super().test_comparison_not_equal_with_dataframe(document_store, filterable_docs)
 
     def test_bm25_retrieval(self, document_store):
         document_store.write_documents(
@@ -656,9 +591,7 @@ class TestWeaviateDocumentStore(
                 Document(content="Another document", embedding=[0.8, 0.8, 0.8, 1.0]),
             ]
         )
-        result = document_store._embedding_retrieval(
-            query_embedding=[1.0, 1.0, 1.0, 1.0]
-        )
+        result = document_store._embedding_retrieval(query_embedding=[1.0, 1.0, 1.0, 1.0])
         assert len(result) == 3
         assert "The document" == result[0].content
         assert result[0].score > 0.0
@@ -679,9 +612,7 @@ class TestWeaviateDocumentStore(
             ]
         )
         filters = {"field": "content", "operator": "==", "value": "The document I want"}
-        result = document_store._embedding_retrieval(
-            query_embedding=[1.0, 1.0, 1.0, 1.0], filters=filters
-        )
+        result = document_store._embedding_retrieval(query_embedding=[1.0, 1.0, 1.0, 1.0], filters=filters)
         assert len(result) == 1
         assert "The document I want" == result[0].content
         assert result[0].score > 0.0
@@ -690,15 +621,10 @@ class TestWeaviateDocumentStore(
         docs = [
             Document(content="The document", embedding=[1.0, 1.0, 1.0, 1.0]),
             Document(content="Another document", embedding=[0.8, 0.8, 0.8, 1.0]),
-            Document(
-                content="Yet another document",
-                embedding=[0.00001, 0.00001, 0.00001, 0.00002],
-            ),
+            Document(content="Yet another document", embedding=[0.00001, 0.00001, 0.00001, 0.00002]),
         ]
         document_store.write_documents(docs)
-        results = document_store._embedding_retrieval(
-            query_embedding=[1.0, 1.0, 1.0, 1.0], top_k=2
-        )
+        results = document_store._embedding_retrieval(query_embedding=[1.0, 1.0, 1.0, 1.0], top_k=2)
         assert len(results) == 2
         assert results[0].content == "The document"
         assert results[0].score > 0.0
@@ -709,15 +635,10 @@ class TestWeaviateDocumentStore(
         docs = [
             Document(content="The document", embedding=[1.0, 1.0, 1.0, 1.0]),
             Document(content="Another document", embedding=[0.8, 0.8, 0.8, 1.0]),
-            Document(
-                content="Yet another document",
-                embedding=[0.00001, 0.00001, 0.00001, 0.00002],
-            ),
+            Document(content="Yet another document", embedding=[0.00001, 0.00001, 0.00001, 0.00002]),
         ]
         document_store.write_documents(docs)
-        results = document_store._embedding_retrieval(
-            query_embedding=[1.0, 1.0, 1.0, 1.0], distance=0.0
-        )
+        results = document_store._embedding_retrieval(query_embedding=[1.0, 1.0, 1.0, 1.0], distance=0.0)
         assert len(results) == 1
         assert results[0].content == "The document"
         assert results[0].score > 0.0
@@ -726,33 +647,24 @@ class TestWeaviateDocumentStore(
         docs = [
             Document(content="The document", embedding=[1.0, 1.0, 1.0, 1.0]),
             Document(content="Another document", embedding=[0.8, 0.8, 0.8, 1.0]),
-            Document(
-                content="Yet another document",
-                embedding=[0.00001, 0.00001, 0.00001, 0.00002],
-            ),
+            Document(content="Yet another document", embedding=[0.00001, 0.00001, 0.00001, 0.00002]),
         ]
         document_store.write_documents(docs)
-        results = document_store._embedding_retrieval(
-            query_embedding=[0.8, 0.8, 0.8, 1.0], certainty=1.0
-        )
+        results = document_store._embedding_retrieval(query_embedding=[0.8, 0.8, 0.8, 1.0], certainty=1.0)
         assert len(results) == 1
         assert results[0].content == "Another document"
         assert results[0].score > 0.0
 
     def test_embedding_retrieval_with_distance_and_certainty(self, document_store):
         with pytest.raises(ValueError):
-            document_store._embedding_retrieval(
-                query_embedding=[], distance=0.1, certainty=0.1
-            )
+            document_store._embedding_retrieval(query_embedding=[], distance=0.1, certainty=0.1)
 
     def test_filter_documents_with_legacy_filters(self, document_store):
         docs = []
         for index in range(10):
             docs.append(Document(content="This is some content", meta={"index": index}))
         document_store.write_documents(docs)
-        result = document_store.filter_documents(
-            {"content": {"$eq": "This is some content"}}
-        )
+        result = document_store.filter_documents({"content": {"$eq": "This is some content"}})
 
         assert len(result) == 10
 
@@ -773,9 +685,7 @@ class TestWeaviateDocumentStore(
             docs.append(Document(content="This is some content", meta={"index": index}))
         document_store.write_documents(docs)
         with pytest.raises(DocumentStoreError):
-            document_store.filter_documents(
-                {"field": "content", "operator": "==", "value": "This is some content"}
-            )
+            document_store.filter_documents({"field": "content", "operator": "==", "value": "This is some content"})
 
     def test_schema_class_name_conversion_preserves_pascal_case(self):
         collection_settings = {"class": "CaseDocument"}
@@ -793,16 +703,13 @@ class TestWeaviateDocumentStore(
         assert doc_score._collection_settings["class"] == "Lower_case_name"
 
     @pytest.mark.skipif(
-        not os.environ.get("WEAVIATE_API_KEY", None)
-        and not os.environ.get("WEAVIATE_CLOUD_CLUSTER_URL", None),
+        not os.environ.get("WEAVIATE_API_KEY", None) and not os.environ.get("WEAVIATE_CLOUD_CLUSTER_URL", None),
         reason="Both WEAVIATE_API_KEY and WEAVIATE_CLOUD_CLUSTER_URL are not set. Skipping test.",
     )
     def test_connect_to_weaviate_cloud(self):
         document_store = WeaviateDocumentStore(
             url=os.environ.get("WEAVIATE_CLOUD_CLUSTER_URL"),
-            auth_client_secret=AuthApiKey(
-                api_key=Secret.from_env_var("WEAVIATE_API_KEY")
-            ),
+            auth_client_secret=AuthApiKey(api_key=Secret.from_env_var("WEAVIATE_API_KEY")),
         )
         assert document_store.client
 

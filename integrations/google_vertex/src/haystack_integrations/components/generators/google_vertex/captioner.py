@@ -41,14 +41,7 @@ class VertexAIImageCaptioner:
     ```
     """
 
-    def __init__(
-        self,
-        *,
-        model: str = "imagetext",
-        project_id: str,
-        location: Optional[str] = None,
-        **kwargs
-    ):
+    def __init__(self, *, model: str = "imagetext", project_id: str, location: Optional[str] = None, **kwargs):
         """
         Generate image captions using a Google Vertex AI model.
 
@@ -81,11 +74,7 @@ class VertexAIImageCaptioner:
             Dictionary with serialized data.
         """
         return default_to_dict(
-            self,
-            model=self._model_name,
-            project_id=self._project_id,
-            location=self._location,
-            **self._kwargs
+            self, model=self._model_name, project_id=self._project_id, location=self._location, **self._kwargs
         )
 
     @classmethod

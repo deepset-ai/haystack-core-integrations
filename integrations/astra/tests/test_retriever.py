@@ -12,44 +12,30 @@ from haystack_integrations.document_stores.astra import AstraDocumentStore
 
 @patch.dict(
     "os.environ",
-    {
-        "ASTRA_DB_APPLICATION_TOKEN": "fake-token",
-        "ASTRA_DB_API_ENDPOINT": "http://fake-url.apps.astra.datastax.com",
-    },
+    {"ASTRA_DB_APPLICATION_TOKEN": "fake-token", "ASTRA_DB_API_ENDPOINT": "http://fake-url.apps.astra.datastax.com"},
 )
 @patch("haystack_integrations.document_stores.astra.document_store.AstraClient")
 def test_retriever_init(*_):
     ds = AstraDocumentStore()
-    retriever = AstraEmbeddingRetriever(
-        ds, filters={"foo": "bar"}, top_k=99, filter_policy="replace"
-    )
+    retriever = AstraEmbeddingRetriever(ds, filters={"foo": "bar"}, top_k=99, filter_policy="replace")
     assert retriever.filters == {"foo": "bar"}
     assert retriever.top_k == 99
     assert retriever.document_store == ds
     assert retriever.filter_policy == FilterPolicy.REPLACE
 
-    retriever = AstraEmbeddingRetriever(
-        ds, filters={"foo": "bar"}, top_k=99, filter_policy=FilterPolicy.MERGE
-    )
+    retriever = AstraEmbeddingRetriever(ds, filters={"foo": "bar"}, top_k=99, filter_policy=FilterPolicy.MERGE)
     assert retriever.filter_policy == FilterPolicy.MERGE
 
     with pytest.raises(ValueError):
-        AstraEmbeddingRetriever(
-            ds, filters={"foo": "bar"}, top_k=99, filter_policy="unknown"
-        )
+        AstraEmbeddingRetriever(ds, filters={"foo": "bar"}, top_k=99, filter_policy="unknown")
 
     with pytest.raises(ValueError):
-        AstraEmbeddingRetriever(
-            ds, filters={"foo": "bar"}, top_k=99, filter_policy=None
-        )
+        AstraEmbeddingRetriever(ds, filters={"foo": "bar"}, top_k=99, filter_policy=None)
 
 
 @patch.dict(
     "os.environ",
-    {
-        "ASTRA_DB_APPLICATION_TOKEN": "fake-token",
-        "ASTRA_DB_API_ENDPOINT": "http://fake-url.apps.astra.datastax.com",
-    },
+    {"ASTRA_DB_APPLICATION_TOKEN": "fake-token", "ASTRA_DB_API_ENDPOINT": "http://fake-url.apps.astra.datastax.com"},
 )
 @patch("haystack_integrations.document_stores.astra.document_store.AstraClient")
 def test_retriever_to_json(*_):
@@ -65,16 +51,8 @@ def test_retriever_to_json(*_):
             "document_store": {
                 "type": "haystack_integrations.document_stores.astra.document_store.AstraDocumentStore",
                 "init_parameters": {
-                    "api_endpoint": {
-                        "type": "env_var",
-                        "env_vars": ["ASTRA_DB_API_ENDPOINT"],
-                        "strict": True,
-                    },
-                    "token": {
-                        "type": "env_var",
-                        "env_vars": ["ASTRA_DB_APPLICATION_TOKEN"],
-                        "strict": True,
-                    },
+                    "api_endpoint": {"type": "env_var", "env_vars": ["ASTRA_DB_API_ENDPOINT"], "strict": True},
+                    "token": {"type": "env_var", "env_vars": ["ASTRA_DB_APPLICATION_TOKEN"], "strict": True},
                     "collection_name": "documents",
                     "embedding_dimension": 768,
                     "duplicates_policy": "NONE",
@@ -88,10 +66,7 @@ def test_retriever_to_json(*_):
 
 @patch.dict(
     "os.environ",
-    {
-        "ASTRA_DB_APPLICATION_TOKEN": "fake-token",
-        "ASTRA_DB_API_ENDPOINT": "http://fake-url.apps.astra.datastax.com",
-    },
+    {"ASTRA_DB_APPLICATION_TOKEN": "fake-token", "ASTRA_DB_API_ENDPOINT": "http://fake-url.apps.astra.datastax.com"},
 )
 @patch("haystack_integrations.document_stores.astra.document_store.AstraClient")
 def test_retriever_from_json(*_):
@@ -104,16 +79,8 @@ def test_retriever_from_json(*_):
             "document_store": {
                 "type": "haystack_integrations.document_stores.astra.document_store.AstraDocumentStore",
                 "init_parameters": {
-                    "api_endpoint": {
-                        "type": "env_var",
-                        "env_vars": ["ASTRA_DB_API_ENDPOINT"],
-                        "strict": True,
-                    },
-                    "token": {
-                        "type": "env_var",
-                        "env_vars": ["ASTRA_DB_APPLICATION_TOKEN"],
-                        "strict": True,
-                    },
+                    "api_endpoint": {"type": "env_var", "env_vars": ["ASTRA_DB_API_ENDPOINT"], "strict": True},
+                    "token": {"type": "env_var", "env_vars": ["ASTRA_DB_APPLICATION_TOKEN"], "strict": True},
                     "collection_name": "documents",
                     "embedding_dimension": 768,
                     "duplicates_policy": "NONE",
@@ -129,10 +96,7 @@ def test_retriever_from_json(*_):
 
 @patch.dict(
     "os.environ",
-    {
-        "ASTRA_DB_APPLICATION_TOKEN": "fake-token",
-        "ASTRA_DB_API_ENDPOINT": "http://fake-url.apps.astra.datastax.com",
-    },
+    {"ASTRA_DB_APPLICATION_TOKEN": "fake-token", "ASTRA_DB_API_ENDPOINT": "http://fake-url.apps.astra.datastax.com"},
 )
 @patch("haystack_integrations.document_stores.astra.document_store.AstraClient")
 def test_retriever_from_json_no_filter_policy(*_):
@@ -144,16 +108,8 @@ def test_retriever_from_json_no_filter_policy(*_):
             "document_store": {
                 "type": "haystack_integrations.document_stores.astra.document_store.AstraDocumentStore",
                 "init_parameters": {
-                    "api_endpoint": {
-                        "type": "env_var",
-                        "env_vars": ["ASTRA_DB_API_ENDPOINT"],
-                        "strict": True,
-                    },
-                    "token": {
-                        "type": "env_var",
-                        "env_vars": ["ASTRA_DB_APPLICATION_TOKEN"],
-                        "strict": True,
-                    },
+                    "api_endpoint": {"type": "env_var", "env_vars": ["ASTRA_DB_API_ENDPOINT"], "strict": True},
+                    "token": {"type": "env_var", "env_vars": ["ASTRA_DB_APPLICATION_TOKEN"], "strict": True},
                     "collection_name": "documents",
                     "embedding_dimension": 768,
                     "duplicates_policy": "NONE",

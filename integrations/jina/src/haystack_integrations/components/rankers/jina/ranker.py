@@ -170,7 +170,4 @@ class JinaRanker:
             else:
                 break
 
-        return {
-            "documents": ranked_docs,
-            "meta": {"model": resp["model"], "usage": resp["usage"]},
-        }
+        return {"documents": ranked_docs, "meta": {"model": resp["model"], "usage": resp["usage"]}}

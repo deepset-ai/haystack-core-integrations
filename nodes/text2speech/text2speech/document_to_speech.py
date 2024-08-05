@@ -50,10 +50,7 @@ class DocumentToSpeech(BaseComponent):
         :param transformers_params: The parameters to pass over to the `Text2Speech.from_pretrained()` call.
         """
         super().__init__()
-        self.converter = TextToSpeech(
-            model_name_or_path=model_name_or_path,
-            transformers_params=transformers_params,
-        )
+        self.converter = TextToSpeech(model_name_or_path=model_name_or_path, transformers_params=transformers_params)
         self.generated_audio_dir = generated_audio_dir
         self.params: Dict[str, Any] = audio_params or {}
 
@@ -61,9 +58,7 @@ class DocumentToSpeech(BaseComponent):
         audio_documents = []
         for doc in tqdm(documents):
             content_audio = self.converter.text_to_audio_file(
-                text=doc.content,
-                generated_audio_dir=self.generated_audio_dir,
-                **self.params
+                text=doc.content, generated_audio_dir=self.generated_audio_dir, **self.params
             )
             audio_document = Document.from_dict(doc.to_dict())
             audio_document.content = str(content_audio)
@@ -71,9 +66,7 @@ class DocumentToSpeech(BaseComponent):
             audio_document.meta.update(
                 {
                     "content_text": doc.content,
-                    "audio_format": self.params.get(
-                        "audio_format", content_audio.suffix.replace(".", "")
-                    ),
+                    "audio_format": self.params.get("audio_format", content_audio.suffix.replace(".", "")),
                     "sample_rate": self.converter.model.fs,
                 }
             )

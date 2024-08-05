@@ -5,11 +5,7 @@ from unittest.mock import patch
 import numpy as np
 import pytest
 from haystack import Document
-from haystack.testing.document_store import (
-    CountDocumentsTest,
-    DeleteDocumentsTest,
-    WriteDocumentsTest,
-)
+from haystack.testing.document_store import CountDocumentsTest, DeleteDocumentsTest, WriteDocumentsTest
 from haystack.utils import Secret
 from pinecone import Pinecone, PodSpec, ServerlessSpec
 
@@ -24,9 +20,7 @@ def test_init_is_lazy(_mock_client):
 
 @patch("haystack_integrations.document_stores.pinecone.document_store.Pinecone")
 def test_init(mock_pinecone):
-    mock_pinecone.return_value.Index.return_value.describe_index_stats.return_value = {
-        "dimension": 60
-    }
+    mock_pinecone.return_value.Index.return_value.describe_index_stats.return_value = {"dimension": 60}
 
     document_store = PineconeDocumentStore(
         api_key=Secret.from_token("fake-api-key"),
@@ -69,9 +63,7 @@ def test_init_api_key_in_environment_variable(mock_pinecone, monkeypatch):
 
 @patch("haystack_integrations.document_stores.pinecone.document_store.Pinecone")
 def test_to_from_dict(mock_pinecone, monkeypatch):
-    mock_pinecone.return_value.Index.return_value.describe_index_stats.return_value = {
-        "dimension": 60
-    }
+    mock_pinecone.return_value.Index.return_value.describe_index_stats.return_value = {"dimension": 60}
     monkeypatch.setenv("PINECONE_API_KEY", "env-api-key")
     document_store = PineconeDocumentStore(
         index="my_index",
@@ -105,17 +97,13 @@ def test_to_from_dict(mock_pinecone, monkeypatch):
     assert document_store.to_dict() == dict_output
 
     document_store = PineconeDocumentStore.from_dict(dict_output)
-    assert document_store.api_key == Secret.from_env_var(
-        "PINECONE_API_KEY", strict=True
-    )
+    assert document_store.api_key == Secret.from_env_var("PINECONE_API_KEY", strict=True)
     assert document_store.index_name == "my_index"
     assert document_store.namespace == "test"
     assert document_store.batch_size == 50
     assert document_store.dimension == 60
     assert document_store.metric == "euclidean"
-    assert document_store.spec == {
-        "serverless": {"region": "us-east-1", "cloud": "aws"}
-    }
+    assert document_store.spec == {"serverless": {"region": "us-east-1", "cloud": "aws"}}
 
 
 def test_init_fails_wo_api_key(monkeypatch):
@@ -128,27 +116,15 @@ def test_init_fails_wo_api_key(monkeypatch):
 
 def test_convert_dict_spec_to_pinecone_object_serverless():
     dict_spec = {"serverless": {"region": "us-east-1", "cloud": "aws"}}
-    pinecone_object = PineconeDocumentStore._convert_dict_spec_to_pinecone_object(
-        dict_spec
-    )
+    pinecone_object = PineconeDocumentStore._convert_dict_spec_to_pinecone_object(dict_spec)
     assert isinstance(pinecone_object, ServerlessSpec)
     assert pinecone_object.region == "us-east-1"
     assert pinecone_object.cloud == "aws"
 
 
 def test_convert_dict_spec_to_pinecone_object_pod():
-    dict_spec = {
-        "pod": {
-            "replicas": 1,
-            "shards": 1,
-            "pods": 1,
-            "pod_type": "p1.x1",
-            "environment": "us-west1-gcp",
-        }
-    }
-    pinecone_object = PineconeDocumentStore._convert_dict_spec_to_pinecone_object(
-        dict_spec
-    )
+    dict_spec = {"pod": {"replicas": 1, "shards": 1, "pods": 1, "pod_type": "p1.x1", "environment": "us-west1-gcp"}}
+    pinecone_object = PineconeDocumentStore._convert_dict_spec_to_pinecone_object(dict_spec)
 
     assert isinstance(pinecone_object, PodSpec)
     assert pinecone_object.replicas == 1
@@ -160,22 +136,14 @@ def test_convert_dict_spec_to_pinecone_object_pod():
 
 def test_convert_dict_spec_to_pinecone_object_fail():
     dict_spec = {
-        "strange_key": {
-            "replicas": 1,
-            "shards": 1,
-            "pods": 1,
-            "pod_type": "p1.x1",
-            "environment": "us-west1-gcp",
-        }
+        "strange_key": {"replicas": 1, "shards": 1, "pods": 1, "pod_type": "p1.x1", "environment": "us-west1-gcp"}
     }
     with pytest.raises(ValueError):
         PineconeDocumentStore._convert_dict_spec_to_pinecone_object(dict_spec)
 
 
 @pytest.mark.integration
-@pytest.mark.skipif(
-    "PINECONE_API_KEY" not in os.environ, reason="PINECONE_API_KEY not set"
-)
+@pytest.mark.skipif("PINECONE_API_KEY" not in os.environ, reason="PINECONE_API_KEY not set")
 def test_serverless_index_creation_from_scratch(sleep_time):
     # we use a fixed index name to avoid hitting the limit of Pinecone's free tier (max 5 indexes)
     # the index name is defined in the test matrix of the GitHub Actions workflow
@@ -215,42 +183,25 @@ def test_serverless_index_creation_from_scratch(sleep_time):
 
 
 @pytest.mark.integration
-@pytest.mark.skipif(
-    "PINECONE_API_KEY" not in os.environ, reason="PINECONE_API_KEY not set"
-)
+@pytest.mark.skipif("PINECONE_API_KEY" not in os.environ, reason="PINECONE_API_KEY not set")
 class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, WriteDocumentsTest):
     def test_write_documents(self, document_store: PineconeDocumentStore):
         docs = [Document(id="1")]
         assert document_store.write_documents(docs) == 1
 
     @pytest.mark.xfail(
-        run=True,
-        reason="Pinecone supports overwriting by default, but it takes a while for it to take effect",
+        run=True, reason="Pinecone supports overwriting by default, but it takes a while for it to take effect"
     )
-    def test_write_documents_duplicate_overwrite(
-        self, document_store: PineconeDocumentStore
-    ):
-        ...
+    def test_write_documents_duplicate_overwrite(self, document_store: PineconeDocumentStore): ...
 
     @pytest.mark.skip(reason="Pinecone only supports UPSERT operations")
-    def test_write_documents_duplicate_fail(
-        self, document_store: PineconeDocumentStore
-    ):
-        ...
+    def test_write_documents_duplicate_fail(self, document_store: PineconeDocumentStore): ...
 
     @pytest.mark.skip(reason="Pinecone only supports UPSERT operations")
-    def test_write_documents_duplicate_skip(
-        self, document_store: PineconeDocumentStore
-    ):
-        ...
+    def test_write_documents_duplicate_skip(self, document_store: PineconeDocumentStore): ...
 
-    @pytest.mark.skip(
-        reason="Pinecone creates a namespace only when the first document is written"
-    )
-    def test_delete_documents_empty_document_store(
-        self, document_store: PineconeDocumentStore
-    ):
-        ...
+    @pytest.mark.skip(reason="Pinecone creates a namespace only when the first document is written")
+    def test_delete_documents_empty_document_store(self, document_store: PineconeDocumentStore): ...
 
     def test_embedding_retrieval(self, document_store: PineconeDocumentStore):
         query_embedding = [0.1] * 768
@@ -266,9 +217,7 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, WriteDocumentsT
 
         document_store.write_documents(docs)
 
-        results = document_store._embedding_retrieval(
-            query_embedding=query_embedding, top_k=2, filters={}
-        )
+        results = document_store._embedding_retrieval(query_embedding=query_embedding, top_k=2, filters={})
         assert len(results) == 2
         assert results[0].content == "Most similar document"
         assert results[1].content == "2nd best document"

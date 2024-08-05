@@ -25,13 +25,7 @@ class TestAuthApiKey:
         credentials = AuthApiKey()
         assert credentials.to_dict() == {
             "type": "api_key",
-            "init_parameters": {
-                "api_key": {
-                    "env_vars": ["WEAVIATE_API_KEY"],
-                    "strict": True,
-                    "type": "env_var",
-                }
-            },
+            "init_parameters": {"api_key": {"env_vars": ["WEAVIATE_API_KEY"], "strict": True, "type": "env_var"}},
         }
 
     def test_from_dict(self, monkeypatch):
@@ -39,13 +33,7 @@ class TestAuthApiKey:
         credentials = AuthCredentials.from_dict(
             {
                 "type": "api_key",
-                "init_parameters": {
-                    "api_key": {
-                        "env_vars": ["WEAVIATE_API_KEY"],
-                        "strict": True,
-                        "type": "env_var",
-                    }
-                },
+                "init_parameters": {"api_key": {"env_vars": ["WEAVIATE_API_KEY"], "strict": True, "type": "env_var"}},
             }
         )
         assert isinstance(credentials, AuthApiKey)
@@ -74,17 +62,9 @@ class TestAuthBearerToken:
         assert credentials.to_dict() == {
             "type": "bearer",
             "init_parameters": {
-                "access_token": {
-                    "env_vars": ["WEAVIATE_ACCESS_TOKEN"],
-                    "strict": True,
-                    "type": "env_var",
-                },
+                "access_token": {"env_vars": ["WEAVIATE_ACCESS_TOKEN"], "strict": True, "type": "env_var"},
                 "expires_in": 60,
-                "refresh_token": {
-                    "env_vars": ["WEAVIATE_REFRESH_TOKEN"],
-                    "strict": False,
-                    "type": "env_var",
-                },
+                "refresh_token": {"env_vars": ["WEAVIATE_REFRESH_TOKEN"], "strict": False, "type": "env_var"},
             },
         }
 
@@ -93,17 +73,9 @@ class TestAuthBearerToken:
             {
                 "type": "bearer",
                 "init_parameters": {
-                    "access_token": {
-                        "env_vars": ["WEAVIATE_ACCESS_TOKEN"],
-                        "strict": True,
-                        "type": "env_var",
-                    },
+                    "access_token": {"env_vars": ["WEAVIATE_ACCESS_TOKEN"], "strict": True, "type": "env_var"},
                     "expires_in": 10,
-                    "refresh_token": {
-                        "env_vars": ["WEAVIATE_REFRESH_TOKEN"],
-                        "strict": False,
-                        "type": "env_var",
-                    },
+                    "refresh_token": {"env_vars": ["WEAVIATE_REFRESH_TOKEN"], "strict": False, "type": "env_var"},
                 },
             }
         )
@@ -137,16 +109,8 @@ class TestAuthClientCredentials:
         assert credentials.to_dict() == {
             "type": "client_credentials",
             "init_parameters": {
-                "client_secret": {
-                    "env_vars": ["WEAVIATE_CLIENT_SECRET"],
-                    "strict": True,
-                    "type": "env_var",
-                },
-                "scope": {
-                    "env_vars": ["WEAVIATE_SCOPE"],
-                    "strict": False,
-                    "type": "env_var",
-                },
+                "client_secret": {"env_vars": ["WEAVIATE_CLIENT_SECRET"], "strict": True, "type": "env_var"},
+                "scope": {"env_vars": ["WEAVIATE_SCOPE"], "strict": False, "type": "env_var"},
             },
         }
 
@@ -155,16 +119,8 @@ class TestAuthClientCredentials:
             {
                 "type": "client_credentials",
                 "init_parameters": {
-                    "client_secret": {
-                        "env_vars": ["WEAVIATE_CLIENT_SECRET"],
-                        "strict": True,
-                        "type": "env_var",
-                    },
-                    "scope": {
-                        "env_vars": ["WEAVIATE_SCOPE"],
-                        "strict": False,
-                        "type": "env_var",
-                    },
+                    "client_secret": {"env_vars": ["WEAVIATE_CLIENT_SECRET"], "strict": True, "type": "env_var"},
+                    "scope": {"env_vars": ["WEAVIATE_SCOPE"], "strict": False, "type": "env_var"},
                 },
             }
         )
@@ -198,21 +154,9 @@ class TestAuthClientPassword:
         assert credentials.to_dict() == {
             "type": "client_password",
             "init_parameters": {
-                "username": {
-                    "env_vars": ["WEAVIATE_USERNAME"],
-                    "strict": True,
-                    "type": "env_var",
-                },
-                "password": {
-                    "env_vars": ["WEAVIATE_PASSWORD"],
-                    "strict": True,
-                    "type": "env_var",
-                },
-                "scope": {
-                    "env_vars": ["WEAVIATE_SCOPE"],
-                    "strict": False,
-                    "type": "env_var",
-                },
+                "username": {"env_vars": ["WEAVIATE_USERNAME"], "strict": True, "type": "env_var"},
+                "password": {"env_vars": ["WEAVIATE_PASSWORD"], "strict": True, "type": "env_var"},
+                "scope": {"env_vars": ["WEAVIATE_SCOPE"], "strict": False, "type": "env_var"},
             },
         }
 
@@ -221,21 +165,9 @@ class TestAuthClientPassword:
             {
                 "type": "client_password",
                 "init_parameters": {
-                    "username": {
-                        "env_vars": ["WEAVIATE_USERNAME"],
-                        "strict": True,
-                        "type": "env_var",
-                    },
-                    "password": {
-                        "env_vars": ["WEAVIATE_PASSWORD"],
-                        "strict": True,
-                        "type": "env_var",
-                    },
-                    "scope": {
-                        "env_vars": ["WEAVIATE_SCOPE"],
-                        "strict": False,
-                        "type": "env_var",
-                    },
+                    "username": {"env_vars": ["WEAVIATE_USERNAME"], "strict": True, "type": "env_var"},
+                    "password": {"env_vars": ["WEAVIATE_PASSWORD"], "strict": True, "type": "env_var"},
+                    "scope": {"env_vars": ["WEAVIATE_SCOPE"], "strict": False, "type": "env_var"},
                 },
             }
         )

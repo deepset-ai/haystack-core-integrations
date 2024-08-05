@@ -103,10 +103,7 @@ class TestOllamaGenerator:
                 "model": "llama2",
                 "url": "going_to_51_pegasi_b_for_weekend",
                 "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
-                "generation_kwargs": {
-                    "max_tokens": 10,
-                    "some_test_param": "test-params",
-                },
+                "generation_kwargs": {"max_tokens": 10, "some_test_param": "test-params"},
             },
         }
 
@@ -121,20 +118,14 @@ class TestOllamaGenerator:
                 "model": "llama2",
                 "url": "going_to_51_pegasi_b_for_weekend",
                 "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
-                "generation_kwargs": {
-                    "max_tokens": 10,
-                    "some_test_param": "test-params",
-                },
+                "generation_kwargs": {"max_tokens": 10, "some_test_param": "test-params"},
             },
         }
         component = OllamaGenerator.from_dict(data)
         assert component.model == "llama2"
         assert component.streaming_callback is print_streaming_chunk
         assert component.url == "going_to_51_pegasi_b_for_weekend"
-        assert component.generation_kwargs == {
-            "max_tokens": 10,
-            "some_test_param": "test-params",
-        }
+        assert component.generation_kwargs == {"max_tokens": 10, "some_test_param": "test-params"}
 
     @pytest.mark.parametrize(
         "configuration",

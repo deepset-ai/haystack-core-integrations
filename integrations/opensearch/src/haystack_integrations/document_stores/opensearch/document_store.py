@@ -106,11 +106,7 @@ class OpenSearchDocumentStore:
     def _get_default_mappings(self) -> Dict[str, Any]:
         default_mappings: Dict[str, Any] = {
             "properties": {
-                "embedding": {
-                    "type": "knn_vector",
-                    "index": True,
-                    "dimension": self._embedding_dim,
-                },
+                "embedding": {"type": "knn_vector", "index": True, "dimension": self._embedding_dim},
                 "content": {"type": "text"},
             },
             "dynamic_templates": [
@@ -175,9 +171,7 @@ class OpenSearchDocumentStore:
             settings = self._settings
 
         if not self.client.indices.exists(index=index):
-            self.client.indices.create(
-                index=index, body={"mappings": mappings, "settings": settings}
-            )
+            self.client.indices.create(index=index, body={"mappings": mappings, "settings": settings})
 
     def to_dict(self) -> Dict[str, Any]:
         # This is not the best solution to serialise this class but is the fastest to implement.
@@ -200,9 +194,7 @@ class OpenSearchDocumentStore:
             settings=self._settings,
             create_index=self._create_index,
             return_embedding=self._return_embedding,
-            http_auth=self._http_auth.to_dict()
-            if isinstance(self._http_auth, AWSAuth)
-            else self._http_auth,
+            http_auth=self._http_auth.to_dict() if isinstance(self._http_auth, AWSAuth) else self._http_auth,
             use_ssl=self._use_ssl,
             verify_certs=self._verify_certs,
             timeout=self._timeout,
@@ -240,14 +232,10 @@ class OpenSearchDocumentStore:
             index=self._index,
             body=kwargs,
         )
-        documents: List[Document] = [
-            self._deserialize_document(hit) for hit in res["hits"]["hits"]
-        ]
+        documents: List[Document] = [self._deserialize_document(hit) for hit in res["hits"]["hits"]]
         return documents
 
-    def filter_documents(
-        self, filters: Optional[Dict[str, Any]] = None
-    ) -> List[Document]:
+    def filter_documents(self, filters: Optional[Dict[str, Any]] = None) -> List[Document]:
         if filters and "operator" not in filters and "conditions" not in filters:
             filters = convert(filters)
 
@@ -259,9 +247,7 @@ class OpenSearchDocumentStore:
 
         return documents
 
-    def write_documents(
-        self, documents: List[Document], policy: DuplicatePolicy = DuplicatePolicy.NONE
-    ) -> int:
+    def write_documents(self, documents: List[Document], policy: DuplicatePolicy = DuplicatePolicy.NONE) -> int:
         """
         Writes Documents to OpenSearch.
         If policy is not specified or set to DuplicatePolicy.NONE, it will raise an exception if a document with the
@@ -269,9 +255,7 @@ class OpenSearchDocumentStore:
         """
         if len(documents) > 0:
             if not isinstance(documents[0], Document):
-                msg = (
-                    "param 'documents' must contain a list of objects of type Document"
-                )
+                msg = "param 'documents' must contain a list of objects of type Document"
                 raise ValueError(msg)
 
         if policy == DuplicatePolicy.NONE:
@@ -304,15 +288,9 @@ class OpenSearchDocumentStore:
                     other_errors.append(e)
                     continue
                 error_type = e["create"]["error"]["type"]
-                if (
-                    policy == DuplicatePolicy.FAIL
-                    and error_type == "version_conflict_engine_exception"
-                ):
+                if policy == DuplicatePolicy.FAIL and error_type == "version_conflict_engine_exception":
                     duplicate_errors_ids.append(e["create"]["_id"])
-                elif (
-                    policy == DuplicatePolicy.SKIP
-                    and error_type == "version_conflict_engine_exception"
-                ):
+                elif policy == DuplicatePolicy.SKIP and error_type == "version_conflict_engine_exception":
                     # when the policy is skip, duplication errors are OK and we should not raise an exception
                     continue
                 else:
@@ -323,9 +301,7 @@ class OpenSearchDocumentStore:
                 raise DuplicateDocumentError(msg)
 
             if len(other_errors) > 0:
-                msg = (
-                    f"Failed to write documents to OpenSearch. Errors:\n{other_errors}"
-                )
+                msg = f"Failed to write documents to OpenSearch. Errors:\n{other_errors}"
                 raise DocumentStoreError(msg)
 
         return documents_written
@@ -415,9 +391,7 @@ class OpenSearchDocumentStore:
                 body["query"]["bool"]["filter"] = normalize_filters(filters)
 
         if isinstance(custom_query, dict):
-            body = self._render_custom_query(
-                custom_query, {"$query": query, "$filters": normalize_filters(filters)}
-            )
+            body = self._render_custom_query(custom_query, {"$query": query, "$filters": normalize_filters(filters)})
 
         else:
             operator = "AND" if all_terms_must_match else "OR"
@@ -452,9 +426,7 @@ class OpenSearchDocumentStore:
 
         if scale_score:
             for doc in documents:
-                doc.score = float(
-                    1 / (1 + np.exp(-np.asarray(doc.score / BM25_SCALING_FACTOR)))
-                )  # type:ignore
+                doc.score = float(1 / (1 + np.exp(-np.asarray(doc.score / BM25_SCALING_FACTOR))))  # type:ignore
 
         return documents
 
@@ -513,11 +485,7 @@ class OpenSearchDocumentStore:
 
         if isinstance(custom_query, dict):
             body = self._render_custom_query(
-                custom_query,
-                {
-                    "$query_embedding": query_embedding,
-                    "$filters": normalize_filters(filters),
-                },
+                custom_query, {"$query_embedding": query_embedding, "$filters": normalize_filters(filters)}
             )
 
         else:
@@ -551,9 +519,7 @@ class OpenSearchDocumentStore:
         docs = self._search_documents(**body)
         return docs
 
-    def _render_custom_query(
-        self, custom_query: Any, substitutions: Dict[str, Any]
-    ) -> Any:
+    def _render_custom_query(self, custom_query: Any, substitutions: Dict[str, Any]) -> Any:
         """
         Recursively replaces the placeholders in the custom_query with the actual values.
 
@@ -562,15 +528,9 @@ class OpenSearchDocumentStore:
         :returns: The custom query with the placeholders replaced.
         """
         if isinstance(custom_query, dict):
-            return {
-                key: self._render_custom_query(value, substitutions)
-                for key, value in custom_query.items()
-            }
+            return {key: self._render_custom_query(value, substitutions) for key, value in custom_query.items()}
         elif isinstance(custom_query, list):
-            return [
-                self._render_custom_query(entry, substitutions)
-                for entry in custom_query
-            ]
+            return [self._render_custom_query(entry, substitutions) for entry in custom_query]
         elif isinstance(custom_query, str):
             return substitutions.get(custom_query, custom_query)
 

@@ -21,11 +21,7 @@ def mock_session_post_response(*args, **kwargs):  # noqa: ARG001
         for i, doc in enumerate(documents)
     ]
     mock_response._content = json.dumps(
-        {
-            "model": model,
-            "usage": {"total_tokens": 4, "prompt_tokens": 4},
-            "results": results,
-        }
+        {"model": model, "usage": {"total_tokens": 4, "prompt_tokens": 4}, "results": results}
     ).encode()
 
     return mock_response
@@ -40,12 +36,7 @@ class TestJinaRanker:
         assert embedder.model == "jina-reranker-v1-base-en"
 
     def test_init_with_parameters(self):
-        embedder = JinaRanker(
-            api_key=Secret.from_token("fake-api-key"),
-            model="model",
-            top_k=64,
-            score_threshold=0.5,
-        )
+        embedder = JinaRanker(api_key=Secret.from_token("fake-api-key"), model="model", top_k=64, score_threshold=0.5)
 
         assert embedder.api_key == Secret.from_token("fake-api-key")
         assert embedder.model == "model"
@@ -64,11 +55,7 @@ class TestJinaRanker:
         assert data == {
             "type": "haystack_integrations.components.rankers.jina.ranker.JinaRanker",
             "init_parameters": {
-                "api_key": {
-                    "env_vars": ["JINA_API_KEY"],
-                    "strict": True,
-                    "type": "env_var",
-                },
+                "api_key": {"env_vars": ["JINA_API_KEY"], "strict": True, "type": "env_var"},
                 "model": "jina-reranker-v1-base-en",
                 "top_k": None,
                 "score_threshold": None,
@@ -82,11 +69,7 @@ class TestJinaRanker:
         assert data == {
             "type": "haystack_integrations.components.rankers.jina.ranker.JinaRanker",
             "init_parameters": {
-                "api_key": {
-                    "env_vars": ["JINA_API_KEY"],
-                    "strict": True,
-                    "type": "env_var",
-                },
+                "api_key": {"env_vars": ["JINA_API_KEY"], "strict": True, "type": "env_var"},
                 "model": "model",
                 "top_k": 64,
                 "score_threshold": 0.5,
@@ -103,9 +86,7 @@ class TestJinaRanker:
         query = "What is a transformer?"
 
         model = "jina-ranker"
-        with patch(
-            "requests.sessions.Session.post", side_effect=mock_session_post_response
-        ):
+        with patch("requests.sessions.Session.post", side_effect=mock_session_post_response):
             ranker = JinaRanker(
                 api_key=Secret.from_token("fake-api-key"),
                 model=model,
@@ -121,10 +102,7 @@ class TestJinaRanker:
         for i, doc in enumerate(ranked_documents):
             assert isinstance(doc, Document)
             assert doc.score == len(ranked_documents) - i
-        assert metadata == {
-            "model": model,
-            "usage": {"prompt_tokens": 4, "total_tokens": 4},
-        }
+        assert metadata == {"model": model, "usage": {"prompt_tokens": 4, "total_tokens": 4}}
 
     def test_run_wrong_input_format(self):
         ranker = JinaRanker(api_key=Secret.from_token("fake-api-key"))

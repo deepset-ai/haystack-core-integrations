@@ -54,11 +54,7 @@ def test_from_dict():
         {
             "type": "haystack_integrations.document_stores.qdrant.document_store.QdrantDocumentStore",
             "init_parameters": {
-                "api_key": {
-                    "env_vars": ["ENV_VAR"],
-                    "strict": False,
-                    "type": "env_var",
-                },
+                "api_key": {"env_vars": ["ENV_VAR"], "strict": False, "type": "env_var"},
                 "location": ":memory:",
                 "index": "test",
                 "embedding_dim": 768,

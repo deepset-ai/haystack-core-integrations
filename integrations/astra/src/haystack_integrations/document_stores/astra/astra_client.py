@@ -85,17 +85,11 @@ class AstraClient:
         except APIRequestError:
             # possibly the collection is preexisting and has legacy
             # indexing settings: verify
-            get_coll_response = self._astra_db.get_collections(
-                options={"explain": True}
-            )
+            get_coll_response = self._astra_db.get_collections(options={"explain": True})
 
             collections = (get_coll_response["status"] or {}).get("collections") or []
 
-            preexisting = [
-                collection
-                for collection in collections
-                if collection["name"] == collection_name
-            ]
+            preexisting = [collection for collection in collections if collection["name"] == collection_name]
 
             if preexisting:
                 pre_collection = preexisting[0]
@@ -155,9 +149,7 @@ class AstraClient:
     def query(
         self,
         vector: Optional[List[float]] = None,
-        query_filter: Optional[
-            Dict[str, Union[str, float, int, bool, List, dict]]
-        ] = None,
+        query_filter: Optional[Dict[str, Union[str, float, int, bool, List, dict]]] = None,
         top_k: Optional[int] = None,
         include_metadata: Optional[bool] = None,
         include_values: Optional[bool] = None,
@@ -183,9 +175,7 @@ class AstraClient:
 
         # include_metadata means return all columns in the table (including text that got embedded)
         # include_values means return the vector of the embedding for the searched items
-        formatted_response = self._format_query_response(
-            responses, include_metadata, include_values
-        )
+        formatted_response = self._format_query_response(responses, include_metadata, include_values)
 
         return formatted_response
 
@@ -206,19 +196,14 @@ class AstraClient:
             score = response.pop("$similarity", None)
             text = response.pop("content", None)
             values = response.pop("$vector", None) if include_values else []
-            metadata = (
-                response if include_metadata else {}
-            )  # Add all remaining fields to the metadata
+            metadata = response if include_metadata else {}  # Add all remaining fields to the metadata
             rsp = Response(_id, text, values, metadata, score)
             final_res.append(rsp)
 
         return QueryResponse(final_res)
 
     def _query(self, vector, top_k, filters=None):
-        query = {
-            "sort": {"$vector": vector},
-            "options": {"limit": top_k, "includeSimilarity": True},
-        }
+        query = {"sort": {"$vector": vector}, "options": {"limit": top_k, "includeSimilarity": True}}
 
         if filters is not None:
             query["filter"] = filters
@@ -267,9 +252,7 @@ class AstraClient:
             if docs:
                 document_batch.extend(docs)
 
-        formatted_docs = self._format_query_response(
-            document_batch, include_metadata=True, include_values=True
-        )
+        formatted_docs = self._format_query_response(document_batch, include_metadata=True, include_values=True)
 
         return formatted_docs
 
@@ -312,14 +295,8 @@ class AstraClient:
         document[id_key] = document_id
 
         if "status" in response_dict and "errors" not in response_dict:
-            if (
-                "matchedCount" in response_dict["status"]
-                and "modifiedCount" in response_dict["status"]
-            ):
-                if (
-                    response_dict["status"]["matchedCount"] == 1
-                    and response_dict["status"]["modifiedCount"] == 1
-                ):
+            if "matchedCount" in response_dict["status"] and "modifiedCount" in response_dict["status"]:
+                if response_dict["status"]["matchedCount"] == 1 and response_dict["status"]["modifiedCount"] == 1:
                     return True
 
         logger.warning(f"Documents {document_id} not updated in Astra DB.")

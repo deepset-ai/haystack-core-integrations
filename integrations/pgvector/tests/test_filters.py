@@ -17,9 +17,7 @@ from psycopg.types.json import Jsonb
 
 @pytest.mark.integration
 class TestFilters(FilterDocumentsTest):
-    def assert_documents_are_equal(
-        self, received: List[Document], expected: List[Document]
-    ):
+    def assert_documents_are_equal(self, received: List[Document], expected: List[Document]):
         """
         This overrides the default assert_documents_are_equal from FilterDocumentsTest.
         It is needed because the embeddings are not exactly the same when they are retrieved from Postgres.
@@ -39,8 +37,7 @@ class TestFilters(FilterDocumentsTest):
             assert received_doc == expected_doc
 
     @pytest.mark.skip(reason="NOT operator is not supported in PgvectorDocumentStore")
-    def test_not_operator(self, document_store, filterable_docs):
-        ...
+    def test_not_operator(self, document_store, filterable_docs): ...
 
     def test_complex_filter(self, document_store, filterable_docs):
         document_store.write_documents(filterable_docs)
@@ -58,11 +55,7 @@ class TestFilters(FilterDocumentsTest):
                     "operator": "AND",
                     "conditions": [
                         {"field": "meta.page", "operator": "==", "value": "90"},
-                        {
-                            "field": "meta.chapter",
-                            "operator": "==",
-                            "value": "conclusion",
-                        },
+                        {"field": "meta.chapter", "operator": "==", "value": "conclusion"},
                     ],
                 },
             ],
@@ -76,43 +69,23 @@ class TestFilters(FilterDocumentsTest):
                 d
                 for d in filterable_docs
                 if (d.meta.get("number") == 100 and d.meta.get("chapter") == "intro")
-                or (
-                    d.meta.get("page") == "90" and d.meta.get("chapter") == "conclusion"
-                )
+                or (d.meta.get("page") == "90" and d.meta.get("chapter") == "conclusion")
             ],
         )
 
 
 def test_treat_meta_field():
-    assert (
-        _treat_meta_field(field="meta.number", value=9) == "(meta->>'number')::integer"
-    )
-    assert (
-        _treat_meta_field(field="meta.number", value=[1, 2, 3])
-        == "(meta->>'number')::integer"
-    )
+    assert _treat_meta_field(field="meta.number", value=9) == "(meta->>'number')::integer"
+    assert _treat_meta_field(field="meta.number", value=[1, 2, 3]) == "(meta->>'number')::integer"
     assert _treat_meta_field(field="meta.name", value="my_name") == "meta->>'name'"
     assert _treat_meta_field(field="meta.name", value=["my_name"]) == "meta->>'name'"
-    assert (
-        _treat_meta_field(field="meta.number", value=1.1) == "(meta->>'number')::real"
-    )
-    assert (
-        _treat_meta_field(field="meta.number", value=[1.1, 2.2, 3.3])
-        == "(meta->>'number')::real"
-    )
-    assert (
-        _treat_meta_field(field="meta.bool", value=True) == "(meta->>'bool')::boolean"
-    )
-    assert (
-        _treat_meta_field(field="meta.bool", value=[True, False, True])
-        == "(meta->>'bool')::boolean"
-    )
+    assert _treat_meta_field(field="meta.number", value=1.1) == "(meta->>'number')::real"
+    assert _treat_meta_field(field="meta.number", value=[1.1, 2.2, 3.3]) == "(meta->>'number')::real"
+    assert _treat_meta_field(field="meta.bool", value=True) == "(meta->>'bool')::boolean"
+    assert _treat_meta_field(field="meta.bool", value=[True, False, True]) == "(meta->>'bool')::boolean"
 
     # do not cast the field if its value is not one of the known types, an empty list or None
-    assert (
-        _treat_meta_field(field="meta.other", value={"a": 3, "b": "example"})
-        == "meta->>'other'"
-    )
+    assert _treat_meta_field(field="meta.other", value={"a": 3, "b": "example"}) == "meta->>'other'"
     assert _treat_meta_field(field="meta.empty_list", value=[]) == "meta->>'empty_list'"
     assert _treat_meta_field(field="meta.name", value=None) == "meta->>'name'"
 
@@ -172,22 +145,14 @@ def test_logical_condition_nested():
                 "operator": "OR",
                 "conditions": [
                     {"field": "meta.domain", "operator": "!=", "value": "science"},
-                    {
-                        "field": "meta.chapter",
-                        "operator": "in",
-                        "value": ["intro", "conclusion"],
-                    },
+                    {"field": "meta.chapter", "operator": "in", "value": ["intro", "conclusion"]},
                 ],
             },
             {
                 "operator": "OR",
                 "conditions": [
                     {"field": "meta.number", "operator": ">=", "value": 90},
-                    {
-                        "field": "meta.author",
-                        "operator": "not in",
-                        "value": ["John", "Jane"],
-                    },
+                    {"field": "meta.author", "operator": "not in", "value": ["John", "Jane"]},
                 ],
             },
         ],
@@ -209,9 +174,7 @@ def test_convert_filters_to_where_clause_and_params():
         ],
     }
     where_clause, params = _convert_filters_to_where_clause_and_params(filters)
-    assert where_clause == SQL(" WHERE ") + SQL(
-        "((meta->>'number')::integer = %s AND meta->>'chapter' = %s)"
-    )
+    assert where_clause == SQL(" WHERE ") + SQL("((meta->>'number')::integer = %s AND meta->>'chapter' = %s)")
     assert params == (100, "intro")
 
 
@@ -224,7 +187,5 @@ def test_convert_filters_to_where_clause_and_params_handle_null():
         ],
     }
     where_clause, params = _convert_filters_to_where_clause_and_params(filters)
-    assert where_clause == SQL(" WHERE ") + SQL(
-        "(meta->>'number' IS NULL AND meta->>'chapter' = %s)"
-    )
+    assert where_clause == SQL(" WHERE ") + SQL("(meta->>'number' IS NULL AND meta->>'chapter' = %s)")
     assert params == ("intro",)

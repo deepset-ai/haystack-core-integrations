@@ -17,9 +17,7 @@ def _normalize_filters(filters: Dict[str, Any]) -> Dict[str, Any]:
     return _parse_logical_condition(filters)
 
 
-def _convert_filters(
-    filters: Optional[Dict[str, Any]] = None
-) -> Optional[Dict[str, Any]]:
+def _convert_filters(filters: Optional[Dict[str, Any]] = None) -> Optional[Dict[str, Any]]:
     """
     Convert haystack filters to astra filter string capturing all boolean operators
     """
@@ -121,9 +119,7 @@ def _normalize_ranges(conditions: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     ]
     ```
     """
-    range_conditions = [
-        next(iter(c["range"].items())) for c in conditions if "range" in c
-    ]
+    range_conditions = [next(iter(c["range"].items())) for c in conditions if "range" in c]
     if range_conditions:
         conditions = [c for c in conditions if "range" not in c]
         range_conditions_dict: Dict[str, Any] = {}

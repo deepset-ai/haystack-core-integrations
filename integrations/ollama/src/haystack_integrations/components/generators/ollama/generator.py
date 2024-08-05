@@ -4,10 +4,7 @@ from typing import Any, Callable, Dict, List, Optional
 import requests
 from haystack import component, default_from_dict, default_to_dict
 from haystack.dataclasses import StreamingChunk
-from haystack.utils.callable_serialization import (
-    deserialize_callable,
-    serialize_callable,
-)
+from haystack.utils.callable_serialization import deserialize_callable, serialize_callable
 from requests import Response
 
 
@@ -80,11 +77,7 @@ class OllamaGenerator:
         :returns:
               Dictionary with serialized data.
         """
-        callback_name = (
-            serialize_callable(self.streaming_callback)
-            if self.streaming_callback
-            else None
-        )
+        callback_name = serialize_callable(self.streaming_callback) if self.streaming_callback else None
         return default_to_dict(
             self,
             timeout=self.timeout,
@@ -110,14 +103,10 @@ class OllamaGenerator:
         init_params = data.get("init_parameters", {})
         serialized_callback_handler = init_params.get("streaming_callback")
         if serialized_callback_handler:
-            data["init_parameters"]["streaming_callback"] = deserialize_callable(
-                serialized_callback_handler
-            )
+            data["init_parameters"]["streaming_callback"] = deserialize_callable(serialized_callback_handler)
         return default_from_dict(cls, data)
 
-    def _create_json_payload(
-        self, prompt: str, stream: bool, generation_kwargs=None
-    ) -> Dict[str, Any]:
+    def _create_json_payload(self, prompt: str, stream: bool, generation_kwargs=None) -> Dict[str, Any]:
         """
         Returns a dictionary of JSON arguments for a POST request to an Ollama service.
         """
@@ -144,17 +133,13 @@ class OllamaGenerator:
 
         return {"replies": replies, "meta": [meta]}
 
-    def _convert_to_streaming_response(
-        self, chunks: List[StreamingChunk]
-    ) -> Dict[str, List[Any]]:
+    def _convert_to_streaming_response(self, chunks: List[StreamingChunk]) -> Dict[str, List[Any]]:
         """
         Converts a list of chunks response required Haystack format.
         """
 
         replies = ["".join([c.content for c in chunks])]
-        meta = {
-            key: value for key, value in chunks[0].meta.items() if key != "response"
-        }
+        meta = {key: value for key, value in chunks[0].meta.items() if key != "response"}
 
         return {"replies": replies, "meta": [meta]}
 
@@ -207,9 +192,7 @@ class OllamaGenerator:
 
         json_payload = self._create_json_payload(prompt, stream, generation_kwargs)
 
-        response = requests.post(
-            url=self.url, json=json_payload, timeout=self.timeout, stream=stream
-        )
+        response = requests.post(url=self.url, json=json_payload, timeout=self.timeout, stream=stream)
 
         # throw error on unsuccessful response
         response.raise_for_status()

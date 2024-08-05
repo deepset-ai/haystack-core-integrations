@@ -8,9 +8,7 @@ from haystack.dataclasses import Document
 from haystack.document_stores.types import FilterPolicy
 from haystack.document_stores.types.filter_policy import apply_filter_policy
 from haystack_integrations.document_stores.pgvector import PgvectorDocumentStore
-from haystack_integrations.document_stores.pgvector.document_store import (
-    VALID_VECTOR_FUNCTIONS,
-)
+from haystack_integrations.document_stores.pgvector.document_store import VALID_VECTOR_FUNCTIONS
 
 
 @component
@@ -65,9 +63,7 @@ class PgvectorEmbeddingRetriever:
         document_store: PgvectorDocumentStore,
         filters: Optional[Dict[str, Any]] = None,
         top_k: int = 10,
-        vector_function: Optional[
-            Literal["cosine_similarity", "inner_product", "l2_distance"]
-        ] = None,
+        vector_function: Optional[Literal["cosine_similarity", "inner_product", "l2_distance"]] = None,
         filter_policy: Union[str, FilterPolicy] = FilterPolicy.REPLACE,
     ):
         """
@@ -99,9 +95,7 @@ class PgvectorEmbeddingRetriever:
         self.top_k = top_k
         self.vector_function = vector_function or document_store.vector_function
         self.filter_policy = (
-            filter_policy
-            if isinstance(filter_policy, FilterPolicy)
-            else FilterPolicy.from_str(filter_policy)
+            filter_policy if isinstance(filter_policy, FilterPolicy) else FilterPolicy.from_str(filter_policy)
         )
 
     def to_dict(self) -> Dict[str, Any]:
@@ -131,15 +125,11 @@ class PgvectorEmbeddingRetriever:
             Deserialized component.
         """
         doc_store_params = data["init_parameters"]["document_store"]
-        data["init_parameters"]["document_store"] = PgvectorDocumentStore.from_dict(
-            doc_store_params
-        )
+        data["init_parameters"]["document_store"] = PgvectorDocumentStore.from_dict(doc_store_params)
         # Pipelines serialized with old versions of the component might not
         # have the filter_policy field.
         if filter_policy := data["init_parameters"].get("filter_policy"):
-            data["init_parameters"]["filter_policy"] = FilterPolicy.from_str(
-                filter_policy
-            )
+            data["init_parameters"]["filter_policy"] = FilterPolicy.from_str(filter_policy)
         return default_from_dict(cls, data)
 
     @component.output_types(documents=List[Document])
@@ -148,9 +138,7 @@ class PgvectorEmbeddingRetriever:
         query_embedding: List[float],
         filters: Optional[Dict[str, Any]] = None,
         top_k: Optional[int] = None,
-        vector_function: Optional[
-            Literal["cosine_similarity", "inner_product", "l2_distance"]
-        ] = None,
+        vector_function: Optional[Literal["cosine_similarity", "inner_product", "l2_distance"]] = None,
     ):
         """
         Retrieve documents from the `PgvectorDocumentStore`, based on their embeddings.

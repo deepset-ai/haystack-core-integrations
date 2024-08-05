@@ -99,14 +99,10 @@ class VertexAIGeminiChatGenerator:
 
     def _tool_to_dict(self, tool: Tool) -> Dict[str, Any]:
         return {
-            "function_declarations": [
-                self._function_to_dict(f) for f in tool._raw_tool.function_declarations
-            ],
+            "function_declarations": [self._function_to_dict(f) for f in tool._raw_tool.function_declarations],
         }
 
-    def _generation_config_to_dict(
-        self, config: Union[GenerationConfig, Dict[str, Any]]
-    ) -> Dict[str, Any]:
+    def _generation_config_to_dict(self, config: Union[GenerationConfig, Dict[str, Any]]) -> Dict[str, Any]:
         if isinstance(config, dict):
             return config
         return {
@@ -136,12 +132,8 @@ class VertexAIGeminiChatGenerator:
         )
         if (tools := data["init_parameters"].get("tools")) is not None:
             data["init_parameters"]["tools"] = [self._tool_to_dict(t) for t in tools]
-        if (
-            generation_config := data["init_parameters"].get("generation_config")
-        ) is not None:
-            data["init_parameters"][
-                "generation_config"
-            ] = self._generation_config_to_dict(generation_config)
+        if (generation_config := data["init_parameters"].get("generation_config")) is not None:
+            data["init_parameters"]["generation_config"] = self._generation_config_to_dict(generation_config)
         return data
 
     @classmethod
@@ -156,12 +148,8 @@ class VertexAIGeminiChatGenerator:
         """
         if (tools := data["init_parameters"].get("tools")) is not None:
             data["init_parameters"]["tools"] = [Tool.from_dict(t) for t in tools]
-        if (
-            generation_config := data["init_parameters"].get("generation_config")
-        ) is not None:
-            data["init_parameters"]["generation_config"] = GenerationConfig.from_dict(
-                generation_config
-            )
+        if (generation_config := data["init_parameters"].get("generation_config")) is not None:
+            data["init_parameters"]["generation_config"] = GenerationConfig.from_dict(generation_config)
 
         return default_from_dict(cls, data)
 
@@ -185,9 +173,7 @@ class VertexAIGeminiChatGenerator:
         elif message.role == ChatRole.SYSTEM:
             return Part.from_text(message.content)
         elif message.role == ChatRole.FUNCTION:
-            return Part.from_function_response(
-                name=message.name, response=message.content
-            )
+            return Part.from_function_response(name=message.name, response=message.content)
         elif message.role == ChatRole.USER:
             return self._convert_part(message.content)
 
@@ -199,9 +185,7 @@ class VertexAIGeminiChatGenerator:
         elif message.role == ChatRole.SYSTEM:
             part = Part.from_text(message.content)
         elif message.role == ChatRole.FUNCTION:
-            part = Part.from_function_response(
-                name=message.name, response=message.content
-            )
+            part = Part.from_function_response(name=message.name, response=message.content)
         elif message.role == ChatRole.USER:
             part = self._convert_part(message.content)
         else:

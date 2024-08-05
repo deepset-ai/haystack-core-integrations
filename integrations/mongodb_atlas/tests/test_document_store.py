@@ -11,9 +11,7 @@ from haystack.document_stores.errors import DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
 from haystack.testing.document_store import DocumentStoreBaseTests
 from haystack.utils import Secret
-from haystack_integrations.document_stores.mongodb_atlas import (
-    MongoDBAtlasDocumentStore,
-)
+from haystack_integrations.document_stores.mongodb_atlas import MongoDBAtlasDocumentStore
 from pandas import DataFrame
 from pymongo import MongoClient
 from pymongo.driver_info import DriverInfo
@@ -42,8 +40,7 @@ class TestDocumentStore(DocumentStoreBaseTests):
         collection_name = "test_collection_" + str(uuid4())
 
         connection: MongoClient = MongoClient(
-            os.environ["MONGO_CONNECTION_STRING"],
-            driver=DriverInfo(name="MongoDBAtlasHaystackIntegration"),
+            os.environ["MONGO_CONNECTION_STRING"], driver=DriverInfo(name="MongoDBAtlasHaystackIntegration")
         )
         database = connection[database_name]
         if collection_name in database.list_collection_names():
@@ -66,9 +63,7 @@ class TestDocumentStore(DocumentStoreBaseTests):
             document_store.write_documents(docs, DuplicatePolicy.FAIL)
 
     def test_write_blob(self, document_store: MongoDBAtlasDocumentStore):
-        bytestream = ByteStream(
-            b"test", meta={"meta_key": "meta_value"}, mime_type="mime_type"
-        )
+        bytestream = ByteStream(b"test", meta={"meta_key": "meta_value"}, mime_type="mime_type")
         docs = [Document(blob=bytestream)]
         document_store.write_documents(docs)
         retrieved_docs = document_store.filter_documents()
@@ -83,11 +78,7 @@ class TestDocumentStore(DocumentStoreBaseTests):
 
     def test_to_dict(self, document_store):
         serialized_store = document_store.to_dict()
-        assert (
-            serialized_store["init_parameters"]
-            .pop("collection_name")
-            .startswith("test_collection_")
-        )
+        assert serialized_store["init_parameters"].pop("collection_name").startswith("test_collection_")
         assert serialized_store == {
             "type": "haystack_integrations.document_stores.mongodb_atlas.document_store.MongoDBAtlasDocumentStore",
             "init_parameters": {
@@ -121,9 +112,7 @@ class TestDocumentStore(DocumentStoreBaseTests):
                 },
             }
         )
-        assert docstore.mongo_connection_string == Secret.from_env_var(
-            "MONGO_CONNECTION_STRING"
-        )
+        assert docstore.mongo_connection_string == Secret.from_env_var("MONGO_CONNECTION_STRING")
         assert docstore.database_name == "haystack_integration_test"
         assert docstore.collection_name == "test_embeddings_collection"
         assert docstore.vector_search_index == "cosine_index"
@@ -144,11 +133,7 @@ class TestDocumentStore(DocumentStoreBaseTests):
                     "operator": "AND",
                     "conditions": [
                         {"field": "meta.page", "operator": "==", "value": "90"},
-                        {
-                            "field": "meta.chapter",
-                            "operator": "==",
-                            "value": "conclusion",
-                        },
+                        {"field": "meta.chapter", "operator": "==", "value": "conclusion"},
                     ],
                 },
             ],
@@ -162,8 +147,6 @@ class TestDocumentStore(DocumentStoreBaseTests):
                 d
                 for d in filterable_docs
                 if (d.meta.get("number") == 100 and d.meta.get("chapter") == "intro")
-                or (
-                    d.meta.get("page") == "90" and d.meta.get("chapter") == "conclusion"
-                )
+                or (d.meta.get("page") == "90" and d.meta.get("chapter") == "conclusion")
             ],
         )

@@ -45,14 +45,7 @@ class VertexAITextGenerator:
     ```
     """
 
-    def __init__(
-        self,
-        *,
-        model: str = "text-bison",
-        project_id: str,
-        location: Optional[str] = None,
-        **kwargs,
-    ):
+    def __init__(self, *, model: str = "text-bison", project_id: str, location: Optional[str] = None, **kwargs):
         """
         Generate text using a Google Vertex AI model.
 
@@ -84,25 +77,13 @@ class VertexAITextGenerator:
             Dictionary with serialized data.
         """
         data = default_to_dict(
-            self,
-            model=self._model_name,
-            project_id=self._project_id,
-            location=self._location,
-            **self._kwargs,
+            self, model=self._model_name, project_id=self._project_id, location=self._location, **self._kwargs
         )
 
-        if (
-            grounding_source := data["init_parameters"].get("grounding_source")
-        ) is not None:
+        if (grounding_source := data["init_parameters"].get("grounding_source")) is not None:
             # Handle the grounding source dataclasses
-            class_type = (
-                f"{grounding_source.__module__}.{grounding_source.__class__.__name__}"
-            )
-            init_fields = {
-                f.name: getattr(grounding_source, f.name)
-                for f in fields(grounding_source)
-                if f.init
-            }
+            class_type = f"{grounding_source.__module__}.{grounding_source.__class__.__name__}"
+            init_fields = {f.name: getattr(grounding_source, f.name) for f in fields(grounding_source) if f.init}
             data["init_parameters"]["grounding_source"] = {
                 "type": class_type,
                 "init_parameters": init_fields,
@@ -120,9 +101,7 @@ class VertexAITextGenerator:
         :returns:
            Deserialized component.
         """
-        if (
-            grounding_source := data["init_parameters"].get("grounding_source")
-        ) is not None:
+        if (grounding_source := data["init_parameters"].get("grounding_source")) is not None:
             module_name, class_name = grounding_source["type"].rsplit(".", 1)
             module = importlib.import_module(module_name)
             data["init_parameters"]["grounding_source"] = getattr(module, class_name)(
@@ -130,11 +109,7 @@ class VertexAITextGenerator:
             )
         return default_from_dict(cls, data)
 
-    @component.output_types(
-        replies=List[str],
-        safety_attributes=Dict[str, float],
-        citations=List[Dict[str, Any]],
-    )
+    @component.output_types(replies=List[str], safety_attributes=Dict[str, float], citations=List[Dict[str, Any]])
     def run(self, prompt: str):
         """Prompts the model to generate text.
 
@@ -156,8 +131,4 @@ class VertexAITextGenerator:
             safety_attributes.append(prediction["safetyAttributes"])
             citations.append(prediction["citationMetadata"]["citations"])
 
-        return {
-            "replies": replies,
-            "safety_attributes": safety_attributes,
-            "citations": citations,
-        }
+        return {"replies": replies, "safety_attributes": safety_attributes, "citations": citations}

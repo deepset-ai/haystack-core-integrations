@@ -63,9 +63,7 @@ class InstructorDocumentEmbedder:
         self,
         model: str = "hkunlp/instructor-base",
         device: Optional[ComponentDevice] = None,
-        token: Optional[Secret] = Secret.from_env_var(
-            "HF_API_TOKEN", strict=False
-        ),  # noqa: B008
+        token: Optional[Secret] = Secret.from_env_var("HF_API_TOKEN", strict=False),  # noqa: B008
         instruction: str = "Represent the document",
         batch_size: int = 32,
         progress_bar: bool = True,
@@ -149,12 +147,8 @@ class InstructorDocumentEmbedder:
         Initializes the component.
         """
         if not hasattr(self, "embedding_backend"):
-            self.embedding_backend = (
-                _InstructorEmbeddingBackendFactory.get_embedding_backend(
-                    model=self.model,
-                    device=self.device.to_torch_str(),
-                    token=self.token,
-                )
+            self.embedding_backend = _InstructorEmbeddingBackendFactory.get_embedding_backend(
+                model=self.model, device=self.device.to_torch_str(), token=self.token
             )
 
     @component.output_types(documents=List[Document])
@@ -164,11 +158,7 @@ class InstructorDocumentEmbedder:
 
         param documents: A list of Documents to embed.
         """
-        if (
-            not isinstance(documents, list)
-            or documents
-            and not isinstance(documents[0], Document)
-        ):
+        if not isinstance(documents, list) or documents and not isinstance(documents[0], Document):
             msg = (
                 "InstructorDocumentEmbedder expects a list of Documents as input. "
                 "In case you want to embed a list of strings, please use the InstructorTextEmbedder."
@@ -182,15 +172,11 @@ class InstructorDocumentEmbedder:
         texts_to_embed = []
         for doc in documents:
             meta_values_to_embed = [
-                str(doc.meta[key])
-                for key in self.meta_fields_to_embed
-                if key in doc.meta and doc.meta[key] is not None
+                str(doc.meta[key]) for key in self.meta_fields_to_embed if key in doc.meta and doc.meta[key] is not None
             ]
             text_to_embed = [
                 self.instruction,
-                self.embedding_separator.join(
-                    [*meta_values_to_embed, doc.content or ""]
-                ),
+                self.embedding_separator.join([*meta_values_to_embed, doc.content or ""]),
             ]
             texts_to_embed.append(text_to_embed)
 

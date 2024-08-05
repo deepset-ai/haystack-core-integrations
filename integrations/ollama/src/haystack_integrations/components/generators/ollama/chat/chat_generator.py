@@ -69,9 +69,7 @@ class OllamaChatGenerator:
     def _message_to_dict(self, message: ChatMessage) -> Dict[str, str]:
         return {"role": message.role.value, "content": message.content}
 
-    def _create_json_payload(
-        self, messages: List[ChatMessage], stream=False, generation_kwargs=None
-    ) -> Dict[str, Any]:
+    def _create_json_payload(self, messages: List[ChatMessage], stream=False, generation_kwargs=None) -> Dict[str, Any]:
         """
         Returns A dictionary of JSON arguments for a POST request to an Ollama service
         """
@@ -84,22 +82,16 @@ class OllamaChatGenerator:
             "options": generation_kwargs,
         }
 
-    def _build_message_from_ollama_response(
-        self, ollama_response: Response
-    ) -> ChatMessage:
+    def _build_message_from_ollama_response(self, ollama_response: Response) -> ChatMessage:
         """
         Converts the non-streaming response from the Ollama API to a ChatMessage.
         """
         json_content = ollama_response.json()
         message = ChatMessage.from_assistant(content=json_content["message"]["content"])
-        message.meta.update(
-            {key: value for key, value in json_content.items() if key != "message"}
-        )
+        message.meta.update({key: value for key, value in json_content.items() if key != "message"})
         return message
 
-    def _convert_to_streaming_response(
-        self, chunks: List[StreamingChunk]
-    ) -> Dict[str, List[Any]]:
+    def _convert_to_streaming_response(self, chunks: List[StreamingChunk]) -> Dict[str, List[Any]]:
         """
         Converts a list of chunks response required Haystack format.
         """
@@ -160,9 +152,7 @@ class OllamaChatGenerator:
 
         json_payload = self._create_json_payload(messages, stream, generation_kwargs)
 
-        response = requests.post(
-            url=self.url, json=json_payload, timeout=self.timeout, stream=stream
-        )
+        response = requests.post(url=self.url, json=json_payload, timeout=self.timeout, stream=stream)
 
         # throw error on unsuccessful response
         response.raise_for_status()

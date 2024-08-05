@@ -1,8 +1,5 @@
 import pytest
-from haystack_integrations.components.embedders.nvidia import (
-    NvidiaDocumentEmbedder,
-    NvidiaTextEmbedder,
-)
+from haystack_integrations.components.embedders.nvidia import NvidiaDocumentEmbedder, NvidiaTextEmbedder
 from haystack_integrations.components.generators.nvidia import NvidiaGenerator
 
 

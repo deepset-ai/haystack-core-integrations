@@ -6,12 +6,8 @@ from unittest.mock import Mock, patch
 import pytest
 from haystack.dataclasses import Document
 from haystack.document_stores.types import FilterPolicy
-from haystack_integrations.components.retrievers.elasticsearch import (
-    ElasticsearchBM25Retriever,
-)
-from haystack_integrations.document_stores.elasticsearch import (
-    ElasticsearchDocumentStore,
-)
+from haystack_integrations.components.retrievers.elasticsearch import ElasticsearchBM25Retriever
+from haystack_integrations.document_stores.elasticsearch import ElasticsearchDocumentStore
 
 
 def test_init_default():
@@ -23,18 +19,14 @@ def test_init_default():
     assert retriever._filter_policy == FilterPolicy.REPLACE
     assert not retriever._scale_score
 
-    retriever = ElasticsearchBM25Retriever(
-        document_store=mock_store, filter_policy="replace"
-    )
+    retriever = ElasticsearchBM25Retriever(document_store=mock_store, filter_policy="replace")
     assert retriever._filter_policy == FilterPolicy.REPLACE
 
     with pytest.raises(ValueError):
         ElasticsearchBM25Retriever(document_store=mock_store, filter_policy="keep")
 
 
-@patch(
-    "haystack_integrations.document_stores.elasticsearch.document_store.Elasticsearch"
-)
+@patch("haystack_integrations.document_stores.elasticsearch.document_store.Elasticsearch")
 def test_to_dict(_mock_elasticsearch_client):
     document_store = ElasticsearchDocumentStore(hosts="some fake host")
     retriever = ElasticsearchBM25Retriever(document_store=document_store)
@@ -60,9 +52,7 @@ def test_to_dict(_mock_elasticsearch_client):
     }
 
 
-@patch(
-    "haystack_integrations.document_stores.elasticsearch.document_store.Elasticsearch"
-)
+@patch("haystack_integrations.document_stores.elasticsearch.document_store.Elasticsearch")
 def test_from_dict(_mock_elasticsearch_client):
     data = {
         "type": "haystack_integrations.components.retrievers.elasticsearch.bm25_retriever.ElasticsearchBM25Retriever",
@@ -87,9 +77,7 @@ def test_from_dict(_mock_elasticsearch_client):
     assert retriever._filter_policy == FilterPolicy.REPLACE
 
 
-@patch(
-    "haystack_integrations.document_stores.elasticsearch.document_store.Elasticsearch"
-)
+@patch("haystack_integrations.document_stores.elasticsearch.document_store.Elasticsearch")
 def test_from_dict_no_filter_policy(_mock_elasticsearch_client):
     data = {
         "type": "haystack_integrations.components.retrievers.elasticsearch.bm25_retriever.ElasticsearchBM25Retriever",

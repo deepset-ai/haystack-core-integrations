@@ -190,10 +190,7 @@ class TestFastembedDocumentEmbedder:
         mocked_factory.get_embedding_backend.assert_not_called()
         embedder.warm_up()
         mocked_factory.get_embedding_backend.assert_called_once_with(
-            model_name="BAAI/bge-small-en-v1.5",
-            cache_dir=None,
-            threads=None,
-            local_files_only=False,
+            model_name="BAAI/bge-small-en-v1.5", cache_dir=None, threads=None, local_files_only=False
         )
 
     @patch(
@@ -215,9 +212,7 @@ class TestFastembedDocumentEmbedder:
         """
         embedder = FastembedDocumentEmbedder(model="BAAI/bge-base-en-v1.5")
         embedder.embedding_backend = MagicMock()
-        embedder.embedding_backend.embed = lambda x, **kwargs: np.random.rand(
-            len(x), 16
-        ).tolist()  # noqa: ARG005
+        embedder.embedding_backend.embed = lambda x, **kwargs: np.random.rand(len(x), 16).tolist()  # noqa: ARG005
 
         documents = [Document(content=f"Sample-document text {i}") for i in range(5)]
 
@@ -263,12 +258,7 @@ class TestFastembedDocumentEmbedder:
         )
         embedder.embedding_backend = MagicMock()
 
-        documents = [
-            Document(
-                content=f"document-number {i}", meta={"meta_field": f"meta_value {i}"}
-            )
-            for i in range(5)
-        ]
+        documents = [Document(content=f"document-number {i}", meta={"meta_field": f"meta_value {i}"}) for i in range(5)]
 
         embedder.run(documents=documents)
 

@@ -5,10 +5,7 @@ from dataclasses import dataclass
 import pytest
 from datasets import Dataset
 from haystack import DeserializationError
-from haystack_integrations.components.evaluators.ragas import (
-    RagasEvaluator,
-    RagasMetric,
-)
+from haystack_integrations.components.evaluators.ragas import RagasEvaluator, RagasMetric
 from ragas.evaluation import Result
 from ragas.metrics.base import Metric
 
@@ -47,30 +44,14 @@ class MockBackend:
 
     def evaluate(self, _, metric: Metric, **kwargs):
         output_map = {
-            RagasMetric.ANSWER_CORRECTNESS: Result(
-                scores=Dataset.from_list([{"answer_correctness": 0.5}])
-            ),
-            RagasMetric.FAITHFULNESS: Result(
-                scores=Dataset.from_list([{"faithfulness": 1.0}])
-            ),
-            RagasMetric.ANSWER_SIMILARITY: Result(
-                scores=Dataset.from_list([{"answer_similarity": 1.0}])
-            ),
-            RagasMetric.CONTEXT_PRECISION: Result(
-                scores=Dataset.from_list([{"context_precision": 0.5}])
-            ),
-            RagasMetric.CONTEXT_UTILIZATION: Result(
-                scores=Dataset.from_list([{"context_utilization": 1.0}])
-            ),
-            RagasMetric.CONTEXT_RECALL: Result(
-                scores=Dataset.from_list([{"context_recall": 0.9}])
-            ),
-            RagasMetric.ASPECT_CRITIQUE: Result(
-                scores=Dataset.from_list([{"harmfulness": 1.0}])
-            ),
-            RagasMetric.ANSWER_RELEVANCY: Result(
-                scores=Dataset.from_list([{"answer_relevancy": 0.4}])
-            ),
+            RagasMetric.ANSWER_CORRECTNESS: Result(scores=Dataset.from_list([{"answer_correctness": 0.5}])),
+            RagasMetric.FAITHFULNESS: Result(scores=Dataset.from_list([{"faithfulness": 1.0}])),
+            RagasMetric.ANSWER_SIMILARITY: Result(scores=Dataset.from_list([{"answer_similarity": 1.0}])),
+            RagasMetric.CONTEXT_PRECISION: Result(scores=Dataset.from_list([{"context_precision": 0.5}])),
+            RagasMetric.CONTEXT_UTILIZATION: Result(scores=Dataset.from_list([{"context_utilization": 1.0}])),
+            RagasMetric.CONTEXT_RECALL: Result(scores=Dataset.from_list([{"context_recall": 0.9}])),
+            RagasMetric.ASPECT_CRITIQUE: Result(scores=Dataset.from_list([{"harmfulness": 1.0}])),
+            RagasMetric.ANSWER_RELEVANCY: Result(scores=Dataset.from_list([{"answer_relevancy": 0.4}])),
         }
         assert isinstance(metric, Metric)
         return output_map[self.metric]
@@ -147,9 +128,7 @@ def test_evaluator_serde():
     assert eval.metric == new_eval.metric
     assert eval.metric_params == new_eval.metric_params
 
-    with pytest.raises(
-        DeserializationError, match=r"cannot serialize the metric parameters"
-    ):
+    with pytest.raises(DeserializationError, match=r"cannot serialize the metric parameters"):
         init_params3 = copy.deepcopy(init_params)
         init_params3["metric_params"]["name"] = Unserializable("")
         eval = RagasEvaluator(**init_params3)
@@ -164,31 +143,11 @@ def test_evaluator_serde():
             {"questions": [], "responses": [], "ground_truths": []},
             {"weights": [0.5, 0.5]},
         ),
-        (
-            RagasMetric.FAITHFULNESS,
-            {"questions": [], "contexts": [], "responses": []},
-            None,
-        ),
-        (
-            RagasMetric.ANSWER_SIMILARITY,
-            {"responses": [], "ground_truths": []},
-            {"threshold": 0.5},
-        ),
-        (
-            RagasMetric.CONTEXT_PRECISION,
-            {"questions": [], "contexts": [], "ground_truths": []},
-            None,
-        ),
-        (
-            RagasMetric.CONTEXT_UTILIZATION,
-            {"questions": [], "contexts": [], "responses": []},
-            None,
-        ),
-        (
-            RagasMetric.CONTEXT_RECALL,
-            {"questions": [], "contexts": [], "ground_truths": []},
-            None,
-        ),
+        (RagasMetric.FAITHFULNESS, {"questions": [], "contexts": [], "responses": []}, None),
+        (RagasMetric.ANSWER_SIMILARITY, {"responses": [], "ground_truths": []}, {"threshold": 0.5}),
+        (RagasMetric.CONTEXT_PRECISION, {"questions": [], "contexts": [], "ground_truths": []}, None),
+        (RagasMetric.CONTEXT_UTILIZATION, {"questions": [], "contexts": [], "responses": []}, None),
+        (RagasMetric.CONTEXT_RECALL, {"questions": [], "contexts": [], "ground_truths": []}, None),
         (
             RagasMetric.ASPECT_CRITIQUE,
             {"questions": [], "contexts": [], "responses": []},
@@ -199,11 +158,7 @@ def test_evaluator_serde():
                 "large?",
             },
         ),
-        (
-            RagasMetric.ANSWER_RELEVANCY,
-            {"questions": [], "contexts": [], "responses": []},
-            {"strictness": 2},
-        ),
+        (RagasMetric.ANSWER_RELEVANCY, {"questions": [], "contexts": [], "responses": []}, {"strictness": 2}),
     ],
 )
 def test_evaluator_valid_inputs(current_metric, inputs, params):
@@ -212,9 +167,7 @@ def test_evaluator_valid_inputs(current_metric, inputs, params):
         "metric_params": params,
     }
     eval = RagasEvaluator(**init_params)
-    eval._backend_callable = lambda dataset, metric: MockBackend(
-        current_metric
-    ).evaluate(dataset, metric)
+    eval._backend_callable = lambda dataset, metric: MockBackend(current_metric).evaluate(dataset, metric)
     output = eval.run(**inputs)
 
 
@@ -233,12 +186,7 @@ def test_evaluator_valid_inputs(current_metric, inputs, params):
             "Mismatching counts ",
             {"strictness": 2},
         ),
-        (
-            RagasMetric.ANSWER_RELEVANCY,
-            {"responses": []},
-            "expected input parameter ",
-            {"strictness": 2},
-        ),
+        (RagasMetric.ANSWER_RELEVANCY, {"responses": []}, "expected input parameter ", {"strictness": 2}),
     ],
 )
 def test_evaluator_invalid_inputs(current_metric, inputs, error_string, params):
@@ -248,9 +196,7 @@ def test_evaluator_invalid_inputs(current_metric, inputs, error_string, params):
             "metric_params": params,
         }
         eval = RagasEvaluator(**init_params)
-        eval._backend_callable = lambda dataset, metric: MockBackend(
-            current_metric
-        ).evaluate(dataset, metric)
+        eval._backend_callable = lambda dataset, metric: MockBackend(current_metric).evaluate(dataset, metric)
         output = eval.run(**inputs)
 
 
@@ -320,9 +266,7 @@ def test_evaluator_outputs(current_metric, inputs, expected_outputs, metric_para
         "metric_params": metric_params,
     }
     eval = RagasEvaluator(**init_params)
-    eval._backend_callable = lambda dataset, metric: MockBackend(
-        current_metric
-    ).evaluate(dataset, metric)
+    eval._backend_callable = lambda dataset, metric: MockBackend(current_metric).evaluate(dataset, metric)
     results = eval.run(**inputs)["results"]
 
     assert type(results) == type(expected_outputs)
@@ -331,10 +275,7 @@ def test_evaluator_outputs(current_metric, inputs, expected_outputs, metric_para
     for r, o in zip(results, expected_outputs):
         assert len(r) == len(o)
 
-        expected = {
-            (name if name is not None else str(current_metric), score)
-            for name, score in o
-        }
+        expected = {(name if name is not None else str(current_metric), score) for name, score in o}
         got = {(x["name"], x["score"]) for x in r}
         assert got == expected
 
@@ -349,20 +290,12 @@ def test_evaluator_outputs(current_metric, inputs, expected_outputs, metric_para
     [
         (
             RagasMetric.ANSWER_CORRECTNESS,
-            {
-                "questions": DEFAULT_QUESTIONS,
-                "responses": DEFAULT_RESPONSES,
-                "ground_truths": DEFAULT_GROUND_TRUTHS,
-            },
+            {"questions": DEFAULT_QUESTIONS, "responses": DEFAULT_RESPONSES, "ground_truths": DEFAULT_GROUND_TRUTHS},
             {"weights": [0.5, 0.5]},
         ),
         (
             RagasMetric.FAITHFULNESS,
-            {
-                "questions": DEFAULT_QUESTIONS,
-                "contexts": DEFAULT_CONTEXTS,
-                "responses": DEFAULT_RESPONSES,
-            },
+            {"questions": DEFAULT_QUESTIONS, "contexts": DEFAULT_CONTEXTS, "responses": DEFAULT_RESPONSES},
             None,
         ),
         (
@@ -372,38 +305,22 @@ def test_evaluator_outputs(current_metric, inputs, expected_outputs, metric_para
         ),
         (
             RagasMetric.CONTEXT_PRECISION,
-            {
-                "questions": DEFAULT_QUESTIONS,
-                "contexts": DEFAULT_CONTEXTS,
-                "ground_truths": DEFAULT_GROUND_TRUTHS,
-            },
+            {"questions": DEFAULT_QUESTIONS, "contexts": DEFAULT_CONTEXTS, "ground_truths": DEFAULT_GROUND_TRUTHS},
             None,
         ),
         (
             RagasMetric.CONTEXT_UTILIZATION,
-            {
-                "questions": DEFAULT_QUESTIONS,
-                "contexts": DEFAULT_CONTEXTS,
-                "responses": DEFAULT_RESPONSES,
-            },
+            {"questions": DEFAULT_QUESTIONS, "contexts": DEFAULT_CONTEXTS, "responses": DEFAULT_RESPONSES},
             None,
         ),
         (
             RagasMetric.CONTEXT_RECALL,
-            {
-                "questions": DEFAULT_QUESTIONS,
-                "contexts": DEFAULT_CONTEXTS,
-                "ground_truths": DEFAULT_GROUND_TRUTHS,
-            },
+            {"questions": DEFAULT_QUESTIONS, "contexts": DEFAULT_CONTEXTS, "ground_truths": DEFAULT_GROUND_TRUTHS},
             None,
         ),
         (
             RagasMetric.ASPECT_CRITIQUE,
-            {
-                "questions": DEFAULT_QUESTIONS,
-                "contexts": DEFAULT_CONTEXTS,
-                "responses": DEFAULT_RESPONSES,
-            },
+            {"questions": DEFAULT_QUESTIONS, "contexts": DEFAULT_CONTEXTS, "responses": DEFAULT_RESPONSES},
             {
                 "name": "harmfulness",
                 "definition": "Does the submission causes or has the potential to "
@@ -413,11 +330,7 @@ def test_evaluator_outputs(current_metric, inputs, expected_outputs, metric_para
         ),
         (
             RagasMetric.ANSWER_RELEVANCY,
-            {
-                "questions": DEFAULT_QUESTIONS,
-                "contexts": DEFAULT_CONTEXTS,
-                "responses": DEFAULT_RESPONSES,
-            },
+            {"questions": DEFAULT_QUESTIONS, "contexts": DEFAULT_CONTEXTS, "responses": DEFAULT_RESPONSES},
             {"strictness": 2},
         ),
     ],

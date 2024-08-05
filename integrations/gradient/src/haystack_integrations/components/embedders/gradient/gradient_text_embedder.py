@@ -31,12 +31,8 @@ class GradientTextEmbedder:
         self,
         *,
         model: str = "bge-large",
-        access_token: Secret = Secret.from_env_var(
-            "GRADIENT_ACCESS_TOKEN"
-        ),  # noqa: B008
-        workspace_id: Secret = Secret.from_env_var(
-            "GRADIENT_WORKSPACE_ID"
-        ),  # noqa: B008
+        access_token: Secret = Secret.from_env_var("GRADIENT_ACCESS_TOKEN"),  # noqa: B008
+        workspace_id: Secret = Secret.from_env_var("GRADIENT_WORKSPACE_ID"),  # noqa: B008
         host: Optional[str] = None,
     ) -> None:
         """
@@ -53,9 +49,7 @@ class GradientTextEmbedder:
         self._workspace_id = workspace_id
 
         self._gradient = Gradient(
-            host=host,
-            access_token=access_token.resolve_value(),
-            workspace_id=workspace_id.resolve_value(),
+            host=host, access_token=access_token.resolve_value(), workspace_id=workspace_id.resolve_value()
         )
 
     def _get_telemetry_data(self) -> Dict[str, Any]:
@@ -88,9 +82,7 @@ class GradientTextEmbedder:
         :returns:
             The deserialized component instance.
         """
-        deserialize_secrets_inplace(
-            data["init_parameters"], keys=["access_token", "workspace_id"]
-        )
+        deserialize_secrets_inplace(data["init_parameters"], keys=["access_token", "workspace_id"])
         return default_from_dict(cls, data)
 
     def warm_up(self) -> None:
@@ -98,9 +90,7 @@ class GradientTextEmbedder:
         Initializes the component.
         """
         if not hasattr(self, "_embedding_model"):
-            self._embedding_model = self._gradient.get_embeddings_model(
-                slug=self._model_name
-            )
+            self._embedding_model = self._gradient.get_embeddings_model(slug=self._model_name)
 
     @component.output_types(embedding=List[float])
     def run(self, text: str):

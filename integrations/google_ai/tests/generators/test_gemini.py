@@ -6,9 +6,7 @@ from google.ai.generativelanguage import FunctionDeclaration, Tool
 from google.generativeai import GenerationConfig, GenerativeModel
 from google.generativeai.types import HarmBlockThreshold, HarmCategory
 
-from haystack_integrations.components.generators.google_ai import (
-    GoogleAIGeminiGenerator,
-)
+from haystack_integrations.components.generators.google_ai import GoogleAIGeminiGenerator
 
 
 def test_init(monkeypatch):
@@ -22,19 +20,14 @@ def test_init(monkeypatch):
         top_p=0.5,
         top_k=0.5,
     )
-    safety_settings = {
-        HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_ONLY_HIGH
-    }
+    safety_settings = {HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_ONLY_HIGH}
     get_current_weather_func = FunctionDeclaration(
         name="get_current_weather",
         description="Get the current weather in a given location",
         parameters={
             "type_": "OBJECT",
             "properties": {
-                "location": {
-                    "type_": "STRING",
-                    "description": "The city and state, e.g. San Francisco, CA",
-                },
+                "location": {"type_": "STRING", "description": "The city and state, e.g. San Francisco, CA"},
                 "unit": {
                     "type_": "STRING",
                     "enum": [
@@ -48,9 +41,7 @@ def test_init(monkeypatch):
     )
 
     tool = Tool(function_declarations=[get_current_weather_func])
-    with patch(
-        "haystack_integrations.components.generators.google_ai.gemini.genai.configure"
-    ) as mock_genai_configure:
+    with patch("haystack_integrations.components.generators.google_ai.gemini.genai.configure") as mock_genai_configure:
         gemini = GoogleAIGeminiGenerator(
             generation_config=generation_config,
             safety_settings=safety_settings,
@@ -75,19 +66,14 @@ def test_to_dict(monkeypatch):
         top_p=0.5,
         top_k=2,
     )
-    safety_settings = {
-        HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_ONLY_HIGH
-    }
+    safety_settings = {HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_ONLY_HIGH}
     get_current_weather_func = FunctionDeclaration(
         name="get_current_weather",
         description="Get the current weather in a given location",
         parameters={
             "type_": "OBJECT",
             "properties": {
-                "location": {
-                    "type_": "STRING",
-                    "description": "The city and state, e.g. San Francisco, CA",
-                },
+                "location": {"type_": "STRING", "description": "The city and state, e.g. San Francisco, CA"},
                 "unit": {
                     "type_": "STRING",
                     "enum": [
@@ -102,9 +88,7 @@ def test_to_dict(monkeypatch):
 
     tool = Tool(function_declarations=[get_current_weather_func])
 
-    with patch(
-        "haystack_integrations.components.generators.google_ai.gemini.genai.configure"
-    ):
+    with patch("haystack_integrations.components.generators.google_ai.gemini.genai.configure"):
         gemini = GoogleAIGeminiGenerator(
             generation_config=generation_config,
             safety_settings=safety_settings,
@@ -114,11 +98,7 @@ def test_to_dict(monkeypatch):
         "type": "haystack_integrations.components.generators.google_ai.gemini.GoogleAIGeminiGenerator",
         "init_parameters": {
             "model": "gemini-pro-vision",
-            "api_key": {
-                "env_vars": ["GOOGLE_API_KEY"],
-                "strict": True,
-                "type": "env_var",
-            },
+            "api_key": {"env_vars": ["GOOGLE_API_KEY"], "strict": True, "type": "env_var"},
             "generation_config": {
                 "temperature": 0.5,
                 "top_p": 0.5,
@@ -140,9 +120,7 @@ def test_to_dict(monkeypatch):
 def test_from_dict(monkeypatch):
     monkeypatch.setenv("GOOGLE_API_KEY", "test")
 
-    with patch(
-        "haystack_integrations.components.generators.google_ai.gemini.genai.configure"
-    ):
+    with patch("haystack_integrations.components.generators.google_ai.gemini.genai.configure"):
         gemini = GoogleAIGeminiGenerator.from_dict(
             {
                 "type": "haystack_integrations.components.generators.google_ai.gemini.GoogleAIGeminiGenerator",
@@ -175,9 +153,7 @@ def test_from_dict(monkeypatch):
         top_p=0.5,
         top_k=0.5,
     )
-    assert gemini._safety_settings == {
-        HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_ONLY_HIGH
-    }
+    assert gemini._safety_settings == {HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_ONLY_HIGH}
     assert gemini._tools == [
         Tool(
             function_declarations=[
@@ -208,9 +184,7 @@ def test_from_dict(monkeypatch):
     assert isinstance(gemini._model, GenerativeModel)
 
 
-@pytest.mark.skipif(
-    not os.environ.get("GOOGLE_API_KEY", None), reason="GOOGLE_API_KEY env var not set"
-)
+@pytest.mark.skipif(not os.environ.get("GOOGLE_API_KEY", None), reason="GOOGLE_API_KEY env var not set")
 def test_run():
     gemini = GoogleAIGeminiGenerator(model="gemini-pro")
     res = gemini.run("Tell me something cool")

@@ -29,10 +29,7 @@ person_schema = {
     "properties": {
         "first_name": {"type": "string", "pattern": "^[A-Z][a-z]+$"},
         "last_name": {"type": "string", "pattern": "^[A-Z][a-z]+$"},
-        "nationality": {
-            "type": "string",
-            "enum": ["Italian", "Portuguese", "American"],
-        },
+        "nationality": {"type": "string", "enum": ["Italian", "Portuguese", "American"]},
     },
     "required": ["first_name", "last_name", "nationality"],
 }
@@ -51,12 +48,6 @@ pipe.connect("joiner", "fc_llm")
 pipe.connect("fc_llm.replies", "validator.messages")
 pipe.connect("validator.validation_error", "joiner")
 
-result = pipe.run(
-    data={
-        "adapter": {
-            "chat_message": [ChatMessage.from_user("Create json from Peter Parker")]
-        }
-    }
-)
+result = pipe.run(data={"adapter": {"chat_message": [ChatMessage.from_user("Create json from Peter Parker")]}})
 
 print(result["validator"]["validated"])  # noqa: T201

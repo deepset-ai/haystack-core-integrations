@@ -43,9 +43,7 @@ class CohereGenerator(CohereChatGenerator):
         """
 
         # Note we have to call super() like this because of the way components are dynamically built with the decorator
-        super(CohereGenerator, self).__init__(
-            api_key, model, streaming_callback, api_base_url, None, **kwargs
-        )  # noqa
+        super(CohereGenerator, self).__init__(api_key, model, streaming_callback, api_base_url, None, **kwargs)  # noqa
 
     @component.output_types(replies=List[str], meta=List[Dict[str, Any]])
     def run(self, prompt: str):
@@ -60,7 +58,4 @@ class CohereGenerator(CohereChatGenerator):
         chat_message = ChatMessage(content=prompt, role=ChatRole.USER, name="", meta={})
         # Note we have to call super() like this because of the way components are dynamically built with the decorator
         results = super(CohereGenerator, self).run([chat_message])  # noqa
-        return {
-            "replies": [results["replies"][0].content],
-            "meta": [results["replies"][0].meta],
-        }
+        return {"replies": [results["replies"][0].content], "meta": [results["replies"][0].meta]}

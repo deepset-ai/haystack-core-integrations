@@ -45,9 +45,7 @@ def get_aws_session(
             profile_name=aws_profile_name,
         )
     except BotoCoreError as e:
-        provided_aws_config = {
-            k: v for k, v in kwargs.items() if k in AWS_CONFIGURATION_KEYS
-        }
+        provided_aws_config = {k: v for k, v in kwargs.items() if k in AWS_CONFIGURATION_KEYS}
         msg = f"Failed to initialize the session with provided AWS credentials {provided_aws_config}"
         raise AWSConfigurationError(msg) from e
 

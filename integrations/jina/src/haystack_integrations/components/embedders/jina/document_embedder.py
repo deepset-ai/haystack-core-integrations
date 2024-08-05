@@ -122,24 +122,16 @@ class JinaDocumentEmbedder:
         texts_to_embed = []
         for doc in documents:
             meta_values_to_embed = [
-                str(doc.meta[key])
-                for key in self.meta_fields_to_embed
-                if key in doc.meta and doc.meta[key] is not None
+                str(doc.meta[key]) for key in self.meta_fields_to_embed if key in doc.meta and doc.meta[key] is not None
             ]
             text_to_embed = (
-                self.prefix
-                + self.embedding_separator.join(
-                    [*meta_values_to_embed, doc.content or ""]
-                )
-                + self.suffix
+                self.prefix + self.embedding_separator.join([*meta_values_to_embed, doc.content or ""]) + self.suffix
             )
 
             texts_to_embed.append(text_to_embed)
         return texts_to_embed
 
-    def _embed_batch(
-        self, texts_to_embed: List[str], batch_size: int
-    ) -> Tuple[List[List[float]], Dict[str, Any]]:
+    def _embed_batch(self, texts_to_embed: List[str], batch_size: int) -> Tuple[List[List[float]], Dict[str, Any]]:
         """
         Embed a list of texts in batches.
         """
@@ -147,14 +139,10 @@ class JinaDocumentEmbedder:
         all_embeddings = []
         metadata = {}
         for i in tqdm(
-            range(0, len(texts_to_embed), batch_size),
-            disable=not self.progress_bar,
-            desc="Calculating embeddings",
+            range(0, len(texts_to_embed), batch_size), disable=not self.progress_bar, desc="Calculating embeddings"
         ):
             batch = texts_to_embed[i : i + batch_size]
-            response = self._session.post(
-                JINA_API_URL, json={"input": batch, "model": self.model_name}
-            ).json()
+            response = self._session.post(JINA_API_URL, json={"input": batch, "model": self.model_name}).json()
             if "data" not in response:
                 raise RuntimeError(response["detail"])
 
@@ -183,11 +171,7 @@ class JinaDocumentEmbedder:
             - `meta`: A dictionary with metadata including the model name and usage statistics.
         :raises TypeError: If the input is not a list of Documents.
         """
-        if (
-            not isinstance(documents, list)
-            or documents
-            and not isinstance(documents[0], Document)
-        ):
+        if not isinstance(documents, list) or documents and not isinstance(documents[0], Document):
             msg = (
                 "JinaDocumentEmbedder expects a list of Documents as input."
                 "In case you want to embed a string, please use the JinaTextEmbedder."
@@ -196,9 +180,7 @@ class JinaDocumentEmbedder:
 
         texts_to_embed = self._prepare_texts_to_embed(documents=documents)
 
-        embeddings, metadata = self._embed_batch(
-            texts_to_embed=texts_to_embed, batch_size=self.batch_size
-        )
+        embeddings, metadata = self._embed_batch(texts_to_embed=texts_to_embed, batch_size=self.batch_size)
 
         for doc, emb in zip(documents, embeddings):
             doc.embedding = emb

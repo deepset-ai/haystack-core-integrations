@@ -110,14 +110,10 @@ class VertexAIGeminiGenerator:
 
     def _tool_to_dict(self, tool: Tool) -> Dict[str, Any]:
         return {
-            "function_declarations": [
-                self._function_to_dict(f) for f in tool._raw_tool.function_declarations
-            ],
+            "function_declarations": [self._function_to_dict(f) for f in tool._raw_tool.function_declarations],
         }
 
-    def _generation_config_to_dict(
-        self, config: Union[GenerationConfig, Dict[str, Any]]
-    ) -> Dict[str, Any]:
+    def _generation_config_to_dict(self, config: Union[GenerationConfig, Dict[str, Any]]) -> Dict[str, Any]:
         if isinstance(config, dict):
             return config
         return {
@@ -147,12 +143,8 @@ class VertexAIGeminiGenerator:
         )
         if (tools := data["init_parameters"].get("tools")) is not None:
             data["init_parameters"]["tools"] = [self._tool_to_dict(t) for t in tools]
-        if (
-            generation_config := data["init_parameters"].get("generation_config")
-        ) is not None:
-            data["init_parameters"][
-                "generation_config"
-            ] = self._generation_config_to_dict(generation_config)
+        if (generation_config := data["init_parameters"].get("generation_config")) is not None:
+            data["init_parameters"]["generation_config"] = self._generation_config_to_dict(generation_config)
         return data
 
     @classmethod
@@ -167,12 +159,8 @@ class VertexAIGeminiGenerator:
         """
         if (tools := data["init_parameters"].get("tools")) is not None:
             data["init_parameters"]["tools"] = [Tool.from_dict(t) for t in tools]
-        if (
-            generation_config := data["init_parameters"].get("generation_config")
-        ) is not None:
-            data["init_parameters"]["generation_config"] = GenerationConfig.from_dict(
-                generation_config
-            )
+        if (generation_config := data["init_parameters"].get("generation_config")) is not None:
+            data["init_parameters"]["generation_config"] = GenerationConfig.from_dict(generation_config)
 
         return default_from_dict(cls, data)
 

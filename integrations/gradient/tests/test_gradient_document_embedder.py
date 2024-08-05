@@ -2,9 +2,7 @@ from unittest.mock import MagicMock, NonCallableMagicMock
 
 import numpy as np
 import pytest
-from gradientai.openapi.client.models.generate_embedding_success import (
-    GenerateEmbeddingSuccess,
-)
+from gradientai.openapi.client.models.generate_embedding_success import GenerateEmbeddingSuccess
 from haystack import Document
 from haystack.utils import Secret
 
@@ -23,6 +21,7 @@ def tokens_from_env(monkeypatch):
 
 class TestGradientDocumentEmbedder:
     def test_init_from_env(self, tokens_from_env):
+
         embedder = GradientDocumentEmbedder()
         assert embedder is not None
         assert embedder._gradient.workspace_id == workspace_id
@@ -42,8 +41,7 @@ class TestGradientDocumentEmbedder:
 
     def test_init_from_params(self):
         embedder = GradientDocumentEmbedder(
-            access_token=Secret.from_token(access_token),
-            workspace_id=Secret.from_token(workspace_id),
+            access_token=Secret.from_token(access_token), workspace_id=Secret.from_token(workspace_id)
         )
         assert embedder is not None
         assert embedder._gradient.workspace_id == workspace_id
@@ -54,8 +52,7 @@ class TestGradientDocumentEmbedder:
         monkeypatch.setenv("GRADIENT_WORKSPACE_ID", "env_workspace_id")
 
         embedder = GradientDocumentEmbedder(
-            access_token=Secret.from_token(access_token),
-            workspace_id=Secret.from_token(workspace_id),
+            access_token=Secret.from_token(access_token), workspace_id=Secret.from_token(workspace_id)
         )
         assert embedder is not None
         assert embedder._gradient.workspace_id == workspace_id
@@ -68,20 +65,12 @@ class TestGradientDocumentEmbedder:
         assert data == {
             "type": t,
             "init_parameters": {
-                "access_token": {
-                    "env_vars": ["GRADIENT_ACCESS_TOKEN"],
-                    "strict": True,
-                    "type": "env_var",
-                },
+                "access_token": {"env_vars": ["GRADIENT_ACCESS_TOKEN"], "strict": True, "type": "env_var"},
                 "batch_size": 32768,
                 "host": None,
                 "model": "bge-large",
                 "progress_bar": True,
-                "workspace_id": {
-                    "env_vars": ["GRADIENT_WORKSPACE_ID"],
-                    "strict": True,
-                    "type": "env_var",
-                },
+                "workspace_id": {"env_vars": ["GRADIENT_WORKSPACE_ID"], "strict": True, "type": "env_var"},
             },
         }
 
@@ -89,37 +78,26 @@ class TestGradientDocumentEmbedder:
         embedder = GradientDocumentEmbedder()
         embedder._gradient.get_embeddings_model = MagicMock()
         embedder.warm_up()
-        embedder._gradient.get_embeddings_model.assert_called_once_with(
-            slug="bge-large"
-        )
+        embedder._gradient.get_embeddings_model.assert_called_once_with(slug="bge-large")
 
     def test_warmup_doesnt_reload(self, tokens_from_env):
         embedder = GradientDocumentEmbedder()
-        embedder._gradient.get_embeddings_model = MagicMock(
-            default_return_value="fake model"
-        )
+        embedder._gradient.get_embeddings_model = MagicMock(default_return_value="fake model")
         embedder.warm_up()
         embedder.warm_up()
-        embedder._gradient.get_embeddings_model.assert_called_once_with(
-            slug="bge-large"
-        )
+        embedder._gradient.get_embeddings_model.assert_called_once_with(slug="bge-large")
 
     def test_run_fail_if_not_warmed_up(self, tokens_from_env):
         embedder = GradientDocumentEmbedder()
 
         with pytest.raises(RuntimeError, match="warm_up()"):
-            embedder.run(
-                documents=[Document(content=f"document number {i}") for i in range(5)]
-            )
+            embedder.run(documents=[Document(content=f"document number {i}") for i in range(5)])
 
     def test_run(self, tokens_from_env):
         embedder = GradientDocumentEmbedder()
         embedder._embedding_model = NonCallableMagicMock()
         embedder._embedding_model.embed.return_value = GenerateEmbeddingSuccess(
-            embeddings=[
-                {"embedding": np.random.rand(1024).tolist(), "index": i}
-                for i in range(5)
-            ]
+            embeddings=[{"embedding": np.random.rand(1024).tolist(), "index": i} for i in range(5)]
         )
 
         documents = [Document(content=f"document number {i}") for i in range(5)]
@@ -139,10 +117,7 @@ class TestGradientDocumentEmbedder:
         embedder._embedding_model = NonCallableMagicMock()
 
         embedder._embedding_model.embed.return_value = GenerateEmbeddingSuccess(
-            embeddings=[
-                {"embedding": np.random.rand(1024).tolist(), "index": i}
-                for i in range(110)
-            ]
+            embeddings=[{"embedding": np.random.rand(1024).tolist(), "index": i} for i in range(110)]
         )
 
         documents = [Document(content=f"document number {i}") for i in range(110)]
@@ -163,15 +138,10 @@ class TestGradientDocumentEmbedder:
 
         document_count = 101
         embedder._embedding_model.embed.return_value = GenerateEmbeddingSuccess(
-            embeddings=[
-                {"embedding": np.random.rand(1024).tolist(), "index": i}
-                for i in range(document_count)
-            ]
+            embeddings=[{"embedding": np.random.rand(1024).tolist(), "index": i} for i in range(document_count)]
         )
 
-        documents = [
-            Document(content=f"document number {i}") for i in range(document_count)
-        ]
+        documents = [Document(content=f"document number {i}") for i in range(document_count)]
 
         result = embedder.run(documents=documents)
 

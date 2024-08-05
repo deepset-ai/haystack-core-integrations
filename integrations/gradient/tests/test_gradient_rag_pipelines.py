@@ -9,17 +9,13 @@ from haystack.components.retrievers.in_memory import InMemoryEmbeddingRetriever
 from haystack.components.writers import DocumentWriter
 from haystack.document_stores.in_memory import InMemoryDocumentStore
 
-from haystack_integrations.components.embedders.gradient import (
-    GradientDocumentEmbedder,
-    GradientTextEmbedder,
-)
+from haystack_integrations.components.embedders.gradient import GradientDocumentEmbedder, GradientTextEmbedder
 from haystack_integrations.components.generators.gradient import GradientGenerator
 
 
 @pytest.mark.integration
 @pytest.mark.skipif(
-    not os.environ.get("GRADIENT_ACCESS_TOKEN", None)
-    or not os.environ.get("GRADIENT_WORKSPACE_ID", None),
+    not os.environ.get("GRADIENT_ACCESS_TOKEN", None) or not os.environ.get("GRADIENT_WORKSPACE_ID", None),
     reason="Export env variables called GRADIENT_ACCESS_TOKEN and GRADIENT_WORKSPACE_ID \
             containing the Gradient configuration settings to run this test.",
 )
@@ -38,15 +34,10 @@ def test_gradient_embedding_retrieval_rag_pipeline(tmp_path):
     embedder = GradientTextEmbedder()
     rag_pipeline.add_component(instance=embedder, name="text_embedder")
     rag_pipeline.add_component(
-        instance=InMemoryEmbeddingRetriever(document_store=InMemoryDocumentStore()),
-        name="retriever",
+        instance=InMemoryEmbeddingRetriever(document_store=InMemoryDocumentStore()), name="retriever"
     )
-    rag_pipeline.add_component(
-        instance=PromptBuilder(template=prompt_template), name="prompt_builder"
-    )
-    rag_pipeline.add_component(
-        instance=GradientGenerator(base_model_slug="llama2-7b-chat"), name="llm"
-    )
+    rag_pipeline.add_component(instance=PromptBuilder(template=prompt_template), name="prompt_builder")
+    rag_pipeline.add_component(instance=GradientGenerator(base_model_slug="llama2-7b-chat"), name="llm")
     rag_pipeline.add_component(instance=AnswerBuilder(), name="answer_builder")
     rag_pipeline.connect("text_embedder", "retriever")
     rag_pipeline.connect("retriever", "prompt_builder.documents")
@@ -73,12 +64,8 @@ def test_gradient_embedding_retrieval_rag_pipeline(tmp_path):
     ]
     document_store = rag_pipeline.get_component("retriever").document_store
     indexing_pipeline = Pipeline()
-    indexing_pipeline.add_component(
-        instance=GradientDocumentEmbedder(), name="document_embedder"
-    )
-    indexing_pipeline.add_component(
-        instance=DocumentWriter(document_store=document_store), name="document_writer"
-    )
+    indexing_pipeline.add_component(instance=GradientDocumentEmbedder(), name="document_embedder")
+    indexing_pipeline.add_component(instance=DocumentWriter(document_store=document_store), name="document_writer")
     indexing_pipeline.connect("document_embedder", "document_writer")
     indexing_pipeline.run({"document_embedder": {"documents": documents}})
 

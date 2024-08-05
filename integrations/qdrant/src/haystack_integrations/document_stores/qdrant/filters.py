@@ -9,8 +9,7 @@ LOGICAL_OPERATORS = LOGICAL_OPERATORS.keys()
 
 
 def convert_filters_to_qdrant(
-    filter_term: Optional[Union[List[dict], dict, models.Filter]] = None,
-    is_parent_call: bool = True,
+    filter_term: Optional[Union[List[dict], dict, models.Filter]] = None, is_parent_call: bool = True
 ) -> Optional[Union[models.Filter, List[models.Filter], List[models.Condition]]]:
     """Converts Haystack filters to the format used by Qdrant.
 
@@ -50,9 +49,7 @@ def convert_filters_to_qdrant(
         operator = item.get("operator")
 
         # Check for repeated similar operators on each level
-        same_operator_flag = (
-            operator in current_level_operators and operator in LOGICAL_OPERATORS
-        )
+        same_operator_flag = operator in current_level_operators and operator in LOGICAL_OPERATORS
         if not same_operator_flag:
             current_level_operators.append(operator)
 
@@ -66,32 +63,19 @@ def convert_filters_to_qdrant(
 
         if operator in LOGICAL_OPERATORS:
             # Recursively process nested conditions
-            current_filter = (
-                convert_filters_to_qdrant(
-                    item.get("conditions", []), is_parent_call=False
-                )
-                or []
-            )
+            current_filter = convert_filters_to_qdrant(item.get("conditions", []), is_parent_call=False) or []
 
             # When same_operator_flag is set to True,
             # ensure each clause is appended as an independent list to avoid merging distinct clauses.
             if operator == "AND":
-                must_clauses = (
-                    [must_clauses, current_filter]
-                    if same_operator_flag
-                    else must_clauses + current_filter
-                )
+                must_clauses = [must_clauses, current_filter] if same_operator_flag else must_clauses + current_filter
             elif operator == "OR":
                 should_clauses = (
-                    [should_clauses, current_filter]
-                    if same_operator_flag
-                    else should_clauses + current_filter
+                    [should_clauses, current_filter] if same_operator_flag else should_clauses + current_filter
                 )
             elif operator == "NOT":
                 must_not_clauses = (
-                    [must_not_clauses, current_filter]
-                    if same_operator_flag
-                    else must_not_clauses + current_filter
+                    [must_not_clauses, current_filter] if same_operator_flag else must_not_clauses + current_filter
                 )
 
         elif operator in COMPARISON_OPERATORS:
@@ -101,9 +85,7 @@ def convert_filters_to_qdrant(
                 msg = f"'field' or 'value' not found for '{operator}'"
                 raise FilterError(msg)
 
-            parsed_conditions = _parse_comparison_operation(
-                comparison_operation=operator, key=field, value=value
-            )
+            parsed_conditions = _parse_comparison_operation(comparison_operation=operator, key=field, value=value)
 
             # check if the parsed_conditions are models.Filter or models.Condition
             for condition in parsed_conditions:
@@ -238,9 +220,7 @@ def _build_eq_condition(key: str, value: models.ValueVariants) -> models.Conditi
     return models.FieldCondition(key=key, match=models.MatchValue(value=value))
 
 
-def _build_in_condition(
-    key: str, value: List[models.ValueVariants]
-) -> models.Condition:
+def _build_in_condition(key: str, value: List[models.ValueVariants]) -> models.Condition:
     if not isinstance(value, list):
         msg = f"Value {value} is not a list"
         raise FilterError(msg)
@@ -262,17 +242,13 @@ def _build_ne_condition(key: str, value: models.ValueVariants) -> models.Conditi
             (
                 models.FieldCondition(key=key, match=models.MatchText(text=value))
                 if isinstance(value, str) and " " not in value
-                else models.FieldCondition(
-                    key=key, match=models.MatchValue(value=value)
-                )
+                else models.FieldCondition(key=key, match=models.MatchValue(value=value))
             )
         ]
     )
 
 
-def _build_nin_condition(
-    key: str, value: List[models.ValueVariants]
-) -> models.Condition:
+def _build_nin_condition(key: str, value: List[models.ValueVariants]) -> models.Condition:
     if not isinstance(value, list):
         msg = f"Value {value} is not a list"
         raise FilterError(msg)

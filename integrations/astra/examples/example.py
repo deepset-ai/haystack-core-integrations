@@ -4,10 +4,7 @@ from pathlib import Path
 
 from haystack import Pipeline
 from haystack.components.converters import TextFileToDocument
-from haystack.components.embedders import (
-    SentenceTransformersDocumentEmbedder,
-    SentenceTransformersTextEmbedder,
-)
+from haystack.components.embedders import SentenceTransformersDocumentEmbedder, SentenceTransformersTextEmbedder
 from haystack.components.preprocessors import DocumentCleaner, DocumentSplitter
 from haystack.components.routers import FileTypeRouter
 from haystack.components.writers import DocumentWriter
@@ -21,10 +18,7 @@ logging.basicConfig(level=logging.INFO)
 
 
 HERE = Path(__file__).resolve().parent
-file_paths = [
-    HERE / "data" / Path(name)
-    for name in os.listdir("integrations/astra/examples/data")
-]
+file_paths = [HERE / "data" / Path(name) for name in os.listdir("integrations/astra/examples/data")]
 logger.info(file_paths)
 
 collection_name = os.getenv("COLLECTION_NAME", "haystack_vector_search")
@@ -41,26 +35,15 @@ document_store = AstraDocumentStore(
 # Create components and an indexing pipeline that converts txt files to documents,
 # cleans and splits them, and indexes them
 p = Pipeline()
-p.add_component(
-    instance=FileTypeRouter(mime_types=["text/plain", "application/pdf"]),
-    name="file_type_router",
-)
+p.add_component(instance=FileTypeRouter(mime_types=["text/plain", "application/pdf"]), name="file_type_router")
 p.add_component(instance=TextFileToDocument(), name="text_file_converter")
 p.add_component(instance=DocumentCleaner(), name="cleaner")
+p.add_component(instance=DocumentSplitter(split_by="word", split_length=150, split_overlap=30), name="splitter")
 p.add_component(
-    instance=DocumentSplitter(split_by="word", split_length=150, split_overlap=30),
-    name="splitter",
-)
-p.add_component(
-    instance=SentenceTransformersDocumentEmbedder(
-        model="sentence-transformers/all-MiniLM-L6-v2"
-    ),
+    instance=SentenceTransformersDocumentEmbedder(model="sentence-transformers/all-MiniLM-L6-v2"),
     name="embedder",
 )
-p.add_component(
-    instance=DocumentWriter(document_store=document_store, policy=DuplicatePolicy.SKIP),
-    name="writer",
-)
+p.add_component(instance=DocumentWriter(document_store=document_store, policy=DuplicatePolicy.SKIP), name="writer")
 
 p.connect("file_type_router.text/plain", "text_file_converter.sources")
 p.connect("text_file_converter.documents", "cleaner.documents")
@@ -73,9 +56,7 @@ p.run({"file_type_router": {"sources": file_paths}})
 # Create a querying pipeline on the indexed data
 q = Pipeline()
 q.add_component(
-    instance=SentenceTransformersTextEmbedder(
-        model="sentence-transformers/all-MiniLM-L6-v2"
-    ),
+    instance=SentenceTransformersTextEmbedder(model="sentence-transformers/all-MiniLM-L6-v2"),
     name="embedder",
 )
 q.add_component("retriever", AstraEmbeddingRetriever(document_store))
@@ -122,9 +103,7 @@ logger.info(
     )}"""
 )
 
-document_store.delete_documents(
-    ["92ef055fbae55b2b0fc79d34cbf8a80b0ad7700ca526053223b0cc6d1351df10"]
-)
+document_store.delete_documents(["92ef055fbae55b2b0fc79d34cbf8a80b0ad7700ca526053223b0cc6d1351df10"])
 
 documents_count = document_store.count_documents()
 logger.info(f"count: {document_store.count_documents()}")

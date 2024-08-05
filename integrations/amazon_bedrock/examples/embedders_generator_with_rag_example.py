@@ -12,9 +12,7 @@ from haystack_integrations.components.embedders.amazon_bedrock import (
     AmazonBedrockDocumentEmbedder,
     AmazonBedrockTextEmbedder,
 )
-from haystack_integrations.components.generators.amazon_bedrock import (
-    AmazonBedrockGenerator,
-)
+from haystack_integrations.components.generators.amazon_bedrock import AmazonBedrockGenerator
 
 generator_model_name = "amazon.titan-text-lite-v1"
 embedder_model_name = "amazon.titan-embed-text-v1"

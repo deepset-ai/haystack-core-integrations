@@ -36,31 +36,15 @@ class TestAWSAuth:
         assert res == {
             "type": "haystack_integrations.document_stores.opensearch.auth.AWSAuth",
             "init_parameters": {
-                "aws_access_key_id": {
-                    "type": "env_var",
-                    "env_vars": ["AWS_ACCESS_KEY_ID"],
-                    "strict": False,
-                },
+                "aws_access_key_id": {"type": "env_var", "env_vars": ["AWS_ACCESS_KEY_ID"], "strict": False},
                 "aws_secret_access_key": {
                     "type": "env_var",
                     "env_vars": ["AWS_SECRET_ACCESS_KEY"],
                     "strict": False,
                 },
-                "aws_session_token": {
-                    "type": "env_var",
-                    "env_vars": ["AWS_SESSION_TOKEN"],
-                    "strict": False,
-                },
-                "aws_region_name": {
-                    "type": "env_var",
-                    "env_vars": ["AWS_DEFAULT_REGION"],
-                    "strict": False,
-                },
-                "aws_profile_name": {
-                    "type": "env_var",
-                    "env_vars": ["AWS_PROFILE"],
-                    "strict": False,
-                },
+                "aws_session_token": {"type": "env_var", "env_vars": ["AWS_SESSION_TOKEN"], "strict": False},
+                "aws_region_name": {"type": "env_var", "env_vars": ["AWS_DEFAULT_REGION"], "strict": False},
+                "aws_profile_name": {"type": "env_var", "env_vars": ["AWS_PROFILE"], "strict": False},
                 "aws_service": "es",
             },
         }
@@ -69,31 +53,15 @@ class TestAWSAuth:
         data = {
             "type": "haystack_integrations.document_stores.opensearch.auth.AWSAuth",
             "init_parameters": {
-                "aws_access_key_id": {
-                    "type": "env_var",
-                    "env_vars": ["AWS_ACCESS_KEY_ID"],
-                    "strict": False,
-                },
+                "aws_access_key_id": {"type": "env_var", "env_vars": ["AWS_ACCESS_KEY_ID"], "strict": False},
                 "aws_secret_access_key": {
                     "type": "env_var",
                     "env_vars": ["AWS_SECRET_ACCESS_KEY"],
                     "strict": False,
                 },
-                "aws_session_token": {
-                    "type": "env_var",
-                    "env_vars": ["AWS_SESSION_TOKEN"],
-                    "strict": False,
-                },
-                "aws_region_name": {
-                    "type": "env_var",
-                    "env_vars": ["AWS_DEFAULT_REGION"],
-                    "strict": False,
-                },
-                "aws_profile_name": {
-                    "type": "env_var",
-                    "env_vars": ["AWS_PROFILE"],
-                    "strict": False,
-                },
+                "aws_session_token": {"type": "env_var", "env_vars": ["AWS_SESSION_TOKEN"], "strict": False},
+                "aws_region_name": {"type": "env_var", "env_vars": ["AWS_DEFAULT_REGION"], "strict": False},
+                "aws_profile_name": {"type": "env_var", "env_vars": ["AWS_PROFILE"], "strict": False},
                 "aws_service": "es",
             },
         }
@@ -136,9 +104,7 @@ class TestAWSAuth:
         assert aws_auth.aws_service == "aoss"
         assert isinstance(aws_auth._urllib3_aws_v4_signer_auth, Urllib3AWSV4SignerAuth)
 
-    @patch(
-        "haystack_integrations.document_stores.opensearch.auth.AWSAuth._get_urllib3_aws_v4_signer_auth"
-    )
+    @patch("haystack_integrations.document_stores.opensearch.auth.AWSAuth._get_urllib3_aws_v4_signer_auth")
     def test_call(self, _get_urllib3_aws_v4_signer_auth_mock):
         signer_auth_mock = Mock(spec=Urllib3AWSV4SignerAuth)
         _get_urllib3_aws_v4_signer_auth_mock.return_value = signer_auth_mock

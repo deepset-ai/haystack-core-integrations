@@ -40,9 +40,7 @@ class WhisperHelper:
         )
         data = np.frombuffer(output, np.int16).flatten().astype(np.float32) / 32768.0
 
-        features = self._processor(
-            data, sampling_rate=16000, return_tensors="pt"
-        ).input_features
+        features = self._processor(data, sampling_rate=16000, return_tensors="pt").input_features
         tokens = self._model.generate(features)
 
         return self._processor.batch_decode(tokens, skip_special_tokens=True)
@@ -82,9 +80,7 @@ class TestTextToSpeech:
             transformers_params={"seed": 4535, "always_fix_seed": True},
         )
 
-        audio_file = text2speech.text_to_audio_file(
-            text="answer", generated_audio_dir=tmp_path / "test_audio"
-        )
+        audio_file = text2speech.text_to_audio_file(text="answer", generated_audio_dir=tmp_path / "test_audio")
         assert os.path.exists(audio_file)
 
         expected_doc = whisper_helper.transcribe(str(SAMPLES_PATH / "answer.wav"))
@@ -93,18 +89,14 @@ class TestTextToSpeech:
         assert expected_doc[0] in generated_doc[0]
 
     @pytest.mark.xfail(reason="known issue converting to MP3")
-    def test_text_to_speech_compress_audio(
-        self, tmp_path, whisper_helper: WhisperHelper
-    ):
+    def test_text_to_speech_compress_audio(self, tmp_path, whisper_helper: WhisperHelper):
         text2speech = TextToSpeech(
             model_name_or_path="espnet/kan-bayashi_ljspeech_vits",
             transformers_params={"seed": 4535, "always_fix_seed": True},
         )
         expected_audio_file = SAMPLES_PATH / "answer.wav"
         audio_file = text2speech.text_to_audio_file(
-            text="answer",
-            generated_audio_dir=tmp_path / "test_audio",
-            audio_format="mp3",
+            text="answer", generated_audio_dir=tmp_path / "test_audio", audio_format="mp3"
         )
         assert os.path.exists(audio_file)
         assert audio_file.suffix == ".mp3"
@@ -114,18 +106,14 @@ class TestTextToSpeech:
 
         assert expected_doc[0] in generated_doc[0]
 
-    def test_text_to_speech_naming_function(
-        self, tmp_path, whisper_helper: WhisperHelper
-    ):
+    def test_text_to_speech_naming_function(self, tmp_path, whisper_helper: WhisperHelper):
         text2speech = TextToSpeech(
             model_name_or_path="espnet/kan-bayashi_ljspeech_vits",
             transformers_params={"seed": 4535, "always_fix_seed": True},
         )
         expected_audio_file = SAMPLES_PATH / "answer.wav"
         audio_file = text2speech.text_to_audio_file(
-            text="answer",
-            generated_audio_dir=tmp_path / "test_audio",
-            audio_naming_function=lambda text: text,
+            text="answer", generated_audio_dir=tmp_path / "test_audio", audio_naming_function=lambda text: text
         )
         assert os.path.exists(audio_file)
         assert audio_file.name == expected_audio_file.name
@@ -148,9 +136,7 @@ class TestAnswerToSpeech:
             meta={"some_meta": "some_value"},
         )
         expected_audio_answer = SAMPLES_PATH / "answer.wav"
-        expected_audio_context = (
-            SAMPLES_PATH / "the context for this answer is here.wav"
-        )
+        expected_audio_context = SAMPLES_PATH / "the context for this answer is here.wav"
 
         answer2speech = AnswerToSpeech(
             generated_audio_dir=tmp_path / "test_audio",
@@ -161,20 +147,12 @@ class TestAnswerToSpeech:
 
         audio_answer: Answer = results["answers"][0]
         assert isinstance(audio_answer, Answer)
-        assert (
-            audio_answer.answer.split(os.path.sep)[-1]
-            == str(expected_audio_answer).split(os.path.sep)[-1]
-        )
-        assert (
-            audio_answer.context.split(os.path.sep)[-1]
-            == str(expected_audio_context).split(os.path.sep)[-1]
-        )
+        assert audio_answer.answer.split(os.path.sep)[-1] == str(expected_audio_answer).split(os.path.sep)[-1]
+        assert audio_answer.context.split(os.path.sep)[-1] == str(expected_audio_context).split(os.path.sep)[-1]
         assert audio_answer.offsets_in_document == [Span(31, 37)]
         assert audio_answer.offsets_in_context == [Span(21, 27)]
         assert audio_answer.meta["answer_text"] == "answer"
-        assert (
-            audio_answer.meta["context_text"] == "the context for this answer is here"
-        )
+        assert audio_answer.meta["context_text"] == "the context for this answer is here"
         assert audio_answer.meta["some_meta"] == "some_value"
         assert audio_answer.meta["audio_format"] == "wav"
 
@@ -188,13 +166,9 @@ class TestAnswerToSpeech:
 class TestDocumentToSpeech:
     def test_document_to_speech(self, tmp_path, whisper_helper: WhisperHelper):
         text_doc = Document(
-            content="this is the content of the document",
-            content_type="text",
-            meta={"name": "test_document.txt"},
+            content="this is the content of the document", content_type="text", meta={"name": "test_document.txt"}
         )
-        expected_audio_content = (
-            SAMPLES_PATH / "this is the content of the document.wav"
-        )
+        expected_audio_content = SAMPLES_PATH / "this is the content of the document.wav"
 
         doc2speech = DocumentToSpeech(
             generated_audio_dir=tmp_path / "test_audio",
@@ -207,10 +181,7 @@ class TestDocumentToSpeech:
         audio_doc: Document = results["documents"][0]
         assert isinstance(audio_doc, Document)
         assert audio_doc.content_type == "audio"
-        assert (
-            audio_doc.content.split(os.path.sep)[-1]
-            == str(expected_audio_content).split(os.path.sep)[-1]
-        )
+        assert audio_doc.content.split(os.path.sep)[-1] == str(expected_audio_content).split(os.path.sep)[-1]
         assert audio_doc.meta["content_text"] == "this is the content of the document"
         assert audio_doc.meta["name"] == "test_document.txt"
         assert audio_doc.meta["audio_format"] == "wav"

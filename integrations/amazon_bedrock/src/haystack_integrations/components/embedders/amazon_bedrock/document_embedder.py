@@ -62,21 +62,13 @@ class AmazonBedrockDocumentEmbedder:
             "cohere.embed-multilingual-v3",
             "amazon.titan-embed-text-v2:0",
         ],
-        aws_access_key_id: Optional[Secret] = Secret.from_env_var(
-            "AWS_ACCESS_KEY_ID", strict=False
-        ),  # noqa: B008
+        aws_access_key_id: Optional[Secret] = Secret.from_env_var("AWS_ACCESS_KEY_ID", strict=False),  # noqa: B008
         aws_secret_access_key: Optional[Secret] = Secret.from_env_var(  # noqa: B008
             "AWS_SECRET_ACCESS_KEY", strict=False
         ),
-        aws_session_token: Optional[Secret] = Secret.from_env_var(
-            "AWS_SESSION_TOKEN", strict=False
-        ),  # noqa: B008
-        aws_region_name: Optional[Secret] = Secret.from_env_var(
-            "AWS_DEFAULT_REGION", strict=False
-        ),  # noqa: B008
-        aws_profile_name: Optional[Secret] = Secret.from_env_var(
-            "AWS_PROFILE", strict=False
-        ),  # noqa: B008
+        aws_session_token: Optional[Secret] = Secret.from_env_var("AWS_SESSION_TOKEN", strict=False),  # noqa: B008
+        aws_region_name: Optional[Secret] = Secret.from_env_var("AWS_DEFAULT_REGION", strict=False),  # noqa: B008
+        aws_profile_name: Optional[Secret] = Secret.from_env_var("AWS_PROFILE", strict=False),  # noqa: B008
         batch_size: int = 32,
         progress_bar: bool = True,
         meta_fields_to_embed: Optional[List[str]] = None,
@@ -113,9 +105,8 @@ class AmazonBedrockDocumentEmbedder:
         """
 
         if not model or model not in SUPPORTED_EMBEDDING_MODELS:
-            msg = (
-                "Please provide a valid model from the list of supported models: "
-                + ", ".join(SUPPORTED_EMBEDDING_MODELS)
+            msg = "Please provide a valid model from the list of supported models: " + ", ".join(
+                SUPPORTED_EMBEDDING_MODELS
             )
             raise ValueError(msg)
 
@@ -156,15 +147,9 @@ class AmazonBedrockDocumentEmbedder:
         """
         texts_to_embed = []
         for doc in documents:
-            meta_values_to_embed = [
-                str(doc.meta[key])
-                for key in self.meta_fields_to_embed
-                if doc.meta.get(key)
-            ]
+            meta_values_to_embed = [str(doc.meta[key]) for key in self.meta_fields_to_embed if doc.meta.get(key)]
 
-            text_to_embed = self.embedding_separator.join(
-                [*meta_values_to_embed, doc.content or ""]
-            )
+            text_to_embed = self.embedding_separator.join([*meta_values_to_embed, doc.content or ""])
 
             texts_to_embed.append(text_to_embed)
         return texts_to_embed
@@ -178,28 +163,21 @@ class AmazonBedrockDocumentEmbedder:
         texts_to_embed = self._prepare_texts_to_embed(documents=documents)
 
         cohere_body = {
-            "input_type": self.kwargs.get(
-                "input_type", "search_document"
-            ),  # mandatory parameter for Cohere models
+            "input_type": self.kwargs.get("input_type", "search_document"),  # mandatory parameter for Cohere models
         }
         if truncate := self.kwargs.get("truncate"):
             cohere_body["truncate"] = truncate  # optional parameter for Cohere models
 
         all_embeddings = []
         for i in tqdm(
-            range(0, len(texts_to_embed), self.batch_size),
-            disable=not self.progress_bar,
-            desc="Creating embeddings",
+            range(0, len(texts_to_embed), self.batch_size), disable=not self.progress_bar, desc="Creating embeddings"
         ):
             batch = texts_to_embed[i : i + self.batch_size]
             body = {"texts": batch, **cohere_body}
 
             try:
                 response = self._client.invoke_model(
-                    body=json.dumps(body),
-                    modelId=self.model,
-                    accept="*/*",
-                    contentType="application/json",
+                    body=json.dumps(body), modelId=self.model, accept="*/*", contentType="application/json"
                 )
             except ClientError as exception:
                 msg = (
@@ -226,16 +204,11 @@ class AmazonBedrockDocumentEmbedder:
         texts_to_embed = self._prepare_texts_to_embed(documents=documents)
 
         all_embeddings = []
-        for text in tqdm(
-            texts_to_embed, disable=not self.progress_bar, desc="Creating embeddings"
-        ):
+        for text in tqdm(texts_to_embed, disable=not self.progress_bar, desc="Creating embeddings"):
             body = {"inputText": text}
             try:
                 response = self._client.invoke_model(
-                    body=json.dumps(body),
-                    modelId=self.model,
-                    accept="*/*",
-                    contentType="application/json",
+                    body=json.dumps(body), modelId=self.model, accept="*/*", contentType="application/json"
                 )
             except ClientError as exception:
                 msg = (
@@ -263,11 +236,7 @@ class AmazonBedrockDocumentEmbedder:
             - `documents`: The `Document`s with the `embedding` field populated.
         :raises AmazonBedrockInferenceError: If the inference fails.
         """
-        if (
-            not isinstance(documents, list)
-            or documents
-            and not isinstance(documents[0], Document)
-        ):
+        if not isinstance(documents, list) or documents and not isinstance(documents[0], Document):
             msg = (
                 "AmazonBedrockDocumentEmbedder expects a list of Documents as input."
                 "In case you want to embed a string, please use the AmazonBedrockTextEmbedder."
@@ -290,21 +259,11 @@ class AmazonBedrockDocumentEmbedder:
         """
         return default_to_dict(
             self,
-            aws_access_key_id=self.aws_access_key_id.to_dict()
-            if self.aws_access_key_id
-            else None,
-            aws_secret_access_key=self.aws_secret_access_key.to_dict()
-            if self.aws_secret_access_key
-            else None,
-            aws_session_token=self.aws_session_token.to_dict()
-            if self.aws_session_token
-            else None,
-            aws_region_name=self.aws_region_name.to_dict()
-            if self.aws_region_name
-            else None,
-            aws_profile_name=self.aws_profile_name.to_dict()
-            if self.aws_profile_name
-            else None,
+            aws_access_key_id=self.aws_access_key_id.to_dict() if self.aws_access_key_id else None,
+            aws_secret_access_key=self.aws_secret_access_key.to_dict() if self.aws_secret_access_key else None,
+            aws_session_token=self.aws_session_token.to_dict() if self.aws_session_token else None,
+            aws_region_name=self.aws_region_name.to_dict() if self.aws_region_name else None,
+            aws_profile_name=self.aws_profile_name.to_dict() if self.aws_profile_name else None,
             model=self.model,
             batch_size=self.batch_size,
             progress_bar=self.progress_bar,
@@ -325,12 +284,6 @@ class AmazonBedrockDocumentEmbedder:
         """
         deserialize_secrets_inplace(
             data["init_parameters"],
-            [
-                "aws_access_key_id",
-                "aws_secret_access_key",
-                "aws_session_token",
-                "aws_region_name",
-                "aws_profile_name",
-            ],
+            ["aws_access_key_id", "aws_secret_access_key", "aws_session_token", "aws_region_name", "aws_profile_name"],
         )
         return default_from_dict(cls, data)

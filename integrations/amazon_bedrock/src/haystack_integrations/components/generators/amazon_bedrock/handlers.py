@@ -1,12 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import Dict, Union
 
-from transformers import (
-    AutoTokenizer,
-    PreTrainedTokenizer,
-    PreTrainedTokenizerBase,
-    PreTrainedTokenizerFast,
-)
+from transformers import AutoTokenizer, PreTrainedTokenizer, PreTrainedTokenizerBase, PreTrainedTokenizerFast
 
 
 class DefaultPromptHandler:
@@ -15,12 +10,7 @@ class DefaultPromptHandler:
     are within the model_max_length.
     """
 
-    def __init__(
-        self,
-        tokenizer: Union[str, PreTrainedTokenizerBase],
-        model_max_length: int,
-        max_length: int = 100,
-    ):
+    def __init__(self, tokenizer: Union[str, PreTrainedTokenizerBase], model_max_length: int, max_length: int = 100):
         """
         :param tokenizer: The tokenizer to be used to tokenize the prompt.
         :param model_max_length: The maximum length of the prompt and answer tokens combined.
@@ -62,9 +52,7 @@ class DefaultPromptHandler:
                 resized_prompt = self.tokenizer.convert_tokens_to_string(
                     tokenized_prompt[: self.model_max_length - self.max_length]
                 )
-                new_prompt_length = len(
-                    tokenized_prompt[: self.model_max_length - self.max_length]
-                )
+                new_prompt_length = len(tokenized_prompt[: self.model_max_length - self.max_length])
 
         return {
             "resized_prompt": resized_prompt,

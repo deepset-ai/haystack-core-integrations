@@ -129,29 +129,21 @@ class FastembedDocumentEmbedder:
         Initializes the component.
         """
         if not hasattr(self, "embedding_backend"):
-            self.embedding_backend = (
-                _FastembedEmbeddingBackendFactory.get_embedding_backend(
-                    model_name=self.model_name,
-                    cache_dir=self.cache_dir,
-                    threads=self.threads,
-                    local_files_only=self.local_files_only,
-                )
+            self.embedding_backend = _FastembedEmbeddingBackendFactory.get_embedding_backend(
+                model_name=self.model_name,
+                cache_dir=self.cache_dir,
+                threads=self.threads,
+                local_files_only=self.local_files_only,
             )
 
     def _prepare_texts_to_embed(self, documents: List[Document]) -> List[str]:
         texts_to_embed = []
         for doc in documents:
             meta_values_to_embed = [
-                str(doc.meta[key])
-                for key in self.meta_fields_to_embed
-                if key in doc.meta and doc.meta[key] is not None
+                str(doc.meta[key]) for key in self.meta_fields_to_embed if key in doc.meta and doc.meta[key] is not None
             ]
             text_to_embed = (
-                self.prefix
-                + self.embedding_separator.join(
-                    [*meta_values_to_embed, doc.content or ""]
-                )
-                + self.suffix
+                self.prefix + self.embedding_separator.join([*meta_values_to_embed, doc.content or ""]) + self.suffix
             )
 
             texts_to_embed.append(text_to_embed)
@@ -166,11 +158,7 @@ class FastembedDocumentEmbedder:
         :returns: A dictionary with the following keys:
             - `documents`: List of Documents with each Document's `embedding` field set to the computed embeddings.
         """
-        if (
-            not isinstance(documents, list)
-            or documents
-            and not isinstance(documents[0], Document)
-        ):
+        if not isinstance(documents, list) or documents and not isinstance(documents[0], Document):
             msg = (
                 "FastembedDocumentEmbedder expects a list of Documents as input. "
                 "In case you want to embed a list of strings, please use the FastembedTextEmbedder."

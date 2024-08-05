@@ -6,13 +6,9 @@ from unittest.mock import Mock, patch
 import pytest
 from haystack.dataclasses import Document
 from haystack.document_stores.types import FilterPolicy
-from haystack_integrations.components.retrievers.opensearch import (
-    OpenSearchBM25Retriever,
-)
+from haystack_integrations.components.retrievers.opensearch import OpenSearchBM25Retriever
 from haystack_integrations.document_stores.opensearch import OpenSearchDocumentStore
-from haystack_integrations.document_stores.opensearch.document_store import (
-    DEFAULT_MAX_CHUNK_BYTES,
-)
+from haystack_integrations.document_stores.opensearch.document_store import DEFAULT_MAX_CHUNK_BYTES
 
 
 def test_init_default():
@@ -24,9 +20,7 @@ def test_init_default():
     assert not retriever._scale_score
     assert retriever._filter_policy == FilterPolicy.REPLACE
 
-    retriever = OpenSearchBM25Retriever(
-        document_store=mock_store, filter_policy="replace"
-    )
+    retriever = OpenSearchBM25Retriever(document_store=mock_store, filter_policy="replace")
     assert retriever._filter_policy == FilterPolicy.REPLACE
 
     with pytest.raises(ValueError):
@@ -36,9 +30,7 @@ def test_init_default():
 @patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
 def test_to_dict(_mock_opensearch_client):
     document_store = OpenSearchDocumentStore(hosts="some fake host")
-    retriever = OpenSearchBM25Retriever(
-        document_store=document_store, custom_query={"some": "custom query"}
-    )
+    retriever = OpenSearchBM25Retriever(document_store=document_store, custom_query={"some": "custom query"})
     res = retriever.to_dict()
     assert res == {
         "type": "haystack_integrations.components.retrievers.opensearch.bm25_retriever.OpenSearchBM25Retriever",
@@ -50,20 +42,11 @@ def test_to_dict(_mock_opensearch_client):
                     "index": "default",
                     "mappings": {
                         "dynamic_templates": [
-                            {
-                                "strings": {
-                                    "mapping": {"type": "keyword"},
-                                    "match_mapping_type": "string",
-                                }
-                            }
+                            {"strings": {"mapping": {"type": "keyword"}, "match_mapping_type": "string"}}
                         ],
                         "properties": {
                             "content": {"type": "text"},
-                            "embedding": {
-                                "dimension": 768,
-                                "index": True,
-                                "type": "knn_vector",
-                            },
+                            "embedding": {"dimension": 768, "index": True, "type": "knn_vector"},
                         },
                     },
                     "max_chunk_bytes": DEFAULT_MAX_CHUNK_BYTES,
@@ -219,9 +202,7 @@ def test_run_time_params():
 def test_run_ignore_errors(caplog):
     mock_store = Mock(spec=OpenSearchDocumentStore)
     mock_store._bm25_retrieval.side_effect = Exception("Some error")
-    retriever = OpenSearchBM25Retriever(
-        document_store=mock_store, raise_on_failure=False
-    )
+    retriever = OpenSearchBM25Retriever(document_store=mock_store, raise_on_failure=False)
     res = retriever.run(query="some query")
     assert len(res) == 1
     assert res["documents"] == []

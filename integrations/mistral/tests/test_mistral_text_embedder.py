@@ -5,9 +5,7 @@ import os
 
 import pytest
 from haystack.utils import Secret
-from haystack_integrations.components.embedders.mistral.text_embedder import (
-    MistralTextEmbedder,
-)
+from haystack_integrations.components.embedders.mistral.text_embedder import MistralTextEmbedder
 
 pytestmark = pytest.mark.embedders
 
@@ -44,11 +42,7 @@ class TestMistralTextEmbedder:
         assert component_dict == {
             "type": "haystack_integrations.components.embedders.mistral.text_embedder.MistralTextEmbedder",
             "init_parameters": {
-                "api_key": {
-                    "env_vars": ["MISTRAL_API_KEY"],
-                    "strict": True,
-                    "type": "env_var",
-                },
+                "api_key": {"env_vars": ["MISTRAL_API_KEY"], "strict": True, "type": "env_var"},
                 "model": "mistral-embed",
                 "api_base_url": "https://api.mistral.ai/v1",
                 "dimensions": None,
@@ -71,11 +65,7 @@ class TestMistralTextEmbedder:
         assert component_dict == {
             "type": "haystack_integrations.components.embedders.mistral.text_embedder.MistralTextEmbedder",
             "init_parameters": {
-                "api_key": {
-                    "env_vars": ["ENV_VAR"],
-                    "strict": False,
-                    "type": "env_var",
-                },
+                "api_key": {"env_vars": ["ENV_VAR"], "strict": False, "type": "env_var"},
                 "model": "mistral-embed-v2",
                 "api_base_url": "https://custom-api-base-url.com",
                 "dimensions": None,

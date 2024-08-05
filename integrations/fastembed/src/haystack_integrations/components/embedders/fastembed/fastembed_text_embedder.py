@@ -88,13 +88,11 @@ class FastembedTextEmbedder:
         Initializes the component.
         """
         if not hasattr(self, "embedding_backend"):
-            self.embedding_backend = (
-                _FastembedEmbeddingBackendFactory.get_embedding_backend(
-                    model_name=self.model_name,
-                    cache_dir=self.cache_dir,
-                    threads=self.threads,
-                    local_files_only=self.local_files_only,
-                )
+            self.embedding_backend = _FastembedEmbeddingBackendFactory.get_embedding_backend(
+                model_name=self.model_name,
+                cache_dir=self.cache_dir,
+                threads=self.threads,
+                local_files_only=self.local_files_only,
             )
 
     @component.output_types(embedding=List[float])

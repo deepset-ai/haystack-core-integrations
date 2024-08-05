@@ -6,12 +6,8 @@ from unittest.mock import Mock, patch
 import pytest
 from haystack.dataclasses import Document
 from haystack.document_stores.types import FilterPolicy
-from haystack_integrations.components.retrievers.elasticsearch import (
-    ElasticsearchEmbeddingRetriever,
-)
-from haystack_integrations.document_stores.elasticsearch import (
-    ElasticsearchDocumentStore,
-)
+from haystack_integrations.components.retrievers.elasticsearch import ElasticsearchEmbeddingRetriever
+from haystack_integrations.document_stores.elasticsearch import ElasticsearchDocumentStore
 
 
 def test_init_default():
@@ -22,18 +18,14 @@ def test_init_default():
     assert retriever._top_k == 10
     assert retriever._num_candidates is None
 
-    retriever = ElasticsearchEmbeddingRetriever(
-        document_store=mock_store, filter_policy="replace"
-    )
+    retriever = ElasticsearchEmbeddingRetriever(document_store=mock_store, filter_policy="replace")
     assert retriever._filter_policy == FilterPolicy.REPLACE
 
     with pytest.raises(ValueError):
         ElasticsearchEmbeddingRetriever(document_store=mock_store, filter_policy="keep")
 
 
-@patch(
-    "haystack_integrations.document_stores.elasticsearch.document_store.Elasticsearch"
-)
+@patch("haystack_integrations.document_stores.elasticsearch.document_store.Elasticsearch")
 def test_to_dict(_mock_elasticsearch_client):
     document_store = ElasticsearchDocumentStore(hosts="some fake host")
     retriever = ElasticsearchEmbeddingRetriever(document_store=document_store)
@@ -59,9 +51,7 @@ def test_to_dict(_mock_elasticsearch_client):
     }
 
 
-@patch(
-    "haystack_integrations.document_stores.elasticsearch.document_store.Elasticsearch"
-)
+@patch("haystack_integrations.document_stores.elasticsearch.document_store.Elasticsearch")
 def test_from_dict(_mock_elasticsearch_client):
     t = "haystack_integrations.components.retrievers.elasticsearch.embedding_retriever.ElasticsearchEmbeddingRetriever"
     data = {
@@ -84,9 +74,7 @@ def test_from_dict(_mock_elasticsearch_client):
     assert retriever._num_candidates is None
 
 
-@patch(
-    "haystack_integrations.document_stores.elasticsearch.document_store.Elasticsearch"
-)
+@patch("haystack_integrations.document_stores.elasticsearch.document_store.Elasticsearch")
 def test_from_dict_no_filter_policy(_mock_elasticsearch_client):
     t = "haystack_integrations.components.retrievers.elasticsearch.embedding_retriever.ElasticsearchEmbeddingRetriever"
     data = {
@@ -111,9 +99,7 @@ def test_from_dict_no_filter_policy(_mock_elasticsearch_client):
 
 def test_run():
     mock_store = Mock(spec=ElasticsearchDocumentStore)
-    mock_store._embedding_retrieval.return_value = [
-        Document(content="Test doc", embedding=[0.1, 0.2])
-    ]
+    mock_store._embedding_retrieval.return_value = [Document(content="Test doc", embedding=[0.1, 0.2])]
     retriever = ElasticsearchEmbeddingRetriever(document_store=mock_store)
     res = retriever.run(query_embedding=[0.5, 0.7])
     mock_store._embedding_retrieval.assert_called_once_with(

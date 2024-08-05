@@ -7,12 +7,7 @@ from typing import Any, Dict, List, Literal, Optional, Tuple
 
 import chromadb
 import numpy as np
-from chromadb.api.types import (
-    GetResult,
-    QueryResult,
-    validate_where,
-    validate_where_document,
-)
+from chromadb.api.types import GetResult, QueryResult, validate_where, validate_where_document
 from haystack import default_from_dict, default_to_dict
 from haystack.dataclasses import Document
 from haystack.document_stores.types import DuplicatePolicy
@@ -90,18 +85,14 @@ class ChromaDocumentStore:
         else:
             self._chroma_client = chromadb.PersistentClient(path=persist_path)
 
-        embedding_func = get_embedding_function(
-            embedding_function, **embedding_function_params
-        )
+        embedding_func = get_embedding_function(embedding_function, **embedding_function_params)
 
         metadata = metadata or {}
         if "hnsw:space" not in metadata:
             metadata["hnsw:space"] = distance_function
 
         if collection_name in [c.name for c in self._chroma_client.list_collections()]:
-            self._collection = self._chroma_client.get_collection(
-                collection_name, embedding_function=embedding_func
-            )
+            self._collection = self._chroma_client.get_collection(collection_name, embedding_function=embedding_func)
 
             if metadata != self._collection.metadata:
                 logger.warning(
@@ -122,9 +113,7 @@ class ChromaDocumentStore:
         """
         return self._collection.count()
 
-    def filter_documents(
-        self, filters: Optional[Dict[str, Any]] = None
-    ) -> List[Document]:
+    def filter_documents(self, filters: Optional[Dict[str, Any]] = None) -> List[Document]:
         """
         Returns the documents that match the filters provided.
 
@@ -210,9 +199,7 @@ class ChromaDocumentStore:
 
         return self._get_result_to_documents(result)
 
-    def write_documents(
-        self, documents: List[Document], policy: DuplicatePolicy = DuplicatePolicy.FAIL
-    ) -> int:
+    def write_documents(self, documents: List[Document], policy: DuplicatePolicy = DuplicatePolicy.FAIL) -> int:
         """
         Writes (or overwrites) documents into the store.
 
@@ -229,9 +216,7 @@ class ChromaDocumentStore:
         """
         for doc in documents:
             if not isinstance(doc, Document):
-                msg = (
-                    "param 'documents' must contain a list of objects of type Document"
-                )
+                msg = "param 'documents' must contain a list of objects of type Document"
                 raise ValueError(msg)
 
             if doc.content is None:
@@ -257,9 +242,7 @@ class ChromaDocumentStore:
                         "These items will be discarded. Supported types are: %s.",
                         doc.id,
                         ", ".join(discarded_keys),
-                        ", ".join(
-                            [t.__name__ for t in SUPPORTED_TYPES_FOR_METADATA_VALUES]
-                        ),
+                        ", ".join([t.__name__ for t in SUPPORTED_TYPES_FOR_METADATA_VALUES]),
                     )
 
                 if valid_meta:
@@ -288,9 +271,7 @@ class ChromaDocumentStore:
         """
         self._collection.delete(ids=document_ids)
 
-    def search(
-        self, queries: List[str], top_k: int, filters: Optional[Dict[str, Any]] = None
-    ) -> List[List[Document]]:
+    def search(self, queries: List[str], top_k: int, filters: Optional[Dict[str, Any]] = None) -> List[List[Document]]:
         """Search the documents in the store using the provided text queries.
 
         :param queries: the list of queries to search for.
@@ -317,10 +298,7 @@ class ChromaDocumentStore:
         return self._query_result_to_documents(results)
 
     def search_embeddings(
-        self,
-        query_embeddings: List[List[float]],
-        top_k: int,
-        filters: Optional[Dict[str, Any]] = None,
+        self, query_embeddings: List[List[float]], top_k: int, filters: Optional[Dict[str, Any]] = None
     ) -> List[List[Document]]:
         """
         Perform vector search on the stored document, pass the embeddings of the queries instead of their text.
@@ -379,9 +357,7 @@ class ChromaDocumentStore:
         )
 
     @staticmethod
-    def _normalize_filters(
-        filters: Dict[str, Any]
-    ) -> Tuple[List[str], Dict[str, Any], Dict[str, Any]]:
+    def _normalize_filters(filters: Dict[str, Any]) -> Tuple[List[str], Dict[str, Any], Dict[str, Any]]:
         """
         Translate Haystack filters to Chroma filters. It returns three dictionaries, to be
         passed to `ids`, `where` and `where_document` respectively.

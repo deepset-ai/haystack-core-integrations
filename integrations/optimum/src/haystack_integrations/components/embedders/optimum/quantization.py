@@ -66,21 +66,13 @@ class OptimumEmbedderQuantizationConfig:
             Optimum configuration.
         """
         if self.mode == OptimumEmbedderQuantizationMode.ARM64:
-            return AutoQuantizationConfig.arm64(
-                is_static=False, per_channel=self.per_channel
-            )
+            return AutoQuantizationConfig.arm64(is_static=False, per_channel=self.per_channel)
         elif self.mode == OptimumEmbedderQuantizationMode.AVX2:
-            return AutoQuantizationConfig.avx2(
-                is_static=False, per_channel=self.per_channel
-            )
+            return AutoQuantizationConfig.avx2(is_static=False, per_channel=self.per_channel)
         elif self.mode == OptimumEmbedderQuantizationMode.AVX512:
-            return AutoQuantizationConfig.avx512(
-                is_static=False, per_channel=self.per_channel
-            )
+            return AutoQuantizationConfig.avx512(is_static=False, per_channel=self.per_channel)
         elif self.mode == OptimumEmbedderQuantizationMode.AVX512_VNNI:
-            return AutoQuantizationConfig.avx512_vnni(
-                is_static=False, per_channel=self.per_channel
-            )
+            return AutoQuantizationConfig.avx512_vnni(is_static=False, per_channel=self.per_channel)
         else:
             msg = f"Unknown quantization mode '{self.mode}'"
             raise ValueError(msg)

@@ -7,12 +7,8 @@
 from haystack import Document, Pipeline
 from haystack.components.retrievers.in_memory import InMemoryEmbeddingRetriever
 from haystack.document_stores.in_memory import InMemoryDocumentStore
-from haystack_integrations.components.embedders.ollama.document_embedder import (
-    OllamaDocumentEmbedder,
-)
-from haystack_integrations.components.embedders.ollama.text_embedder import (
-    OllamaTextEmbedder,
-)
+from haystack_integrations.components.embedders.ollama.document_embedder import OllamaDocumentEmbedder
+from haystack_integrations.components.embedders.ollama.text_embedder import OllamaTextEmbedder
 
 document_store = InMemoryDocumentStore(embedding_similarity_function="cosine")
 
@@ -28,9 +24,7 @@ document_store.write_documents(documents_with_embeddings)
 
 query_pipeline = Pipeline()
 query_pipeline.add_component("text_embedder", OllamaTextEmbedder())
-query_pipeline.add_component(
-    "retriever", InMemoryEmbeddingRetriever(document_store=document_store)
-)
+query_pipeline.add_component("retriever", InMemoryEmbeddingRetriever(document_store=document_store))
 query_pipeline.connect("text_embedder.embedding", "retriever.query_embedding")
 
 query = "Who lives in Berlin?"

@@ -58,9 +58,7 @@ class TextToSpeech:
         """
         super().__init__()
 
-        resolved_devices, _ = initialize_device_settings(
-            devices=devices, use_cuda=use_gpu, multi_gpu=False
-        )
+        resolved_devices, _ = initialize_device_settings(devices=devices, use_cuda=use_gpu, multi_gpu=False)
         if len(resolved_devices) > 1:
             logger.warning(
                 "Multiple devices are not supported in %s inference, using the first device %s.",
@@ -69,9 +67,7 @@ class TextToSpeech:
             )
 
         self.model = _Text2SpeechModel.from_pretrained(
-            str(model_name_or_path),
-            device=resolved_devices[0].type,
-            **(transformers_params or {}),
+            str(model_name_or_path), device=resolved_devices[0].type, **(transformers_params or {})
         )
 
     def text_to_audio_file(
@@ -84,9 +80,7 @@ class TextToSpeech:
         channels_count: int = 1,
         bitrate: str = "320k",
         normalized=True,
-        audio_naming_function: Callable = lambda text: hashlib.md5(
-            text.encode("utf-8")
-        ).hexdigest(),
+        audio_naming_function: Callable = lambda text: hashlib.md5(text.encode("utf-8")).hexdigest(),
     ) -> Path:
         """
         Convert an input string into an audio file containing the same string read out loud.
@@ -124,11 +118,7 @@ class TextToSpeech:
             audio_data = self.text_to_audio_data(text)
             if audio_format.upper() in sf.available_formats().keys():
                 sf.write(
-                    data=audio_data,
-                    file=file_path,
-                    format=audio_format,
-                    subtype=subtype,
-                    samplerate=self.model.fs,
+                    data=audio_data, file=file_path, format=audio_format, subtype=subtype, samplerate=self.model.fs
                 )
             else:
                 self.compress_audio(
@@ -191,10 +181,5 @@ class TextToSpeech:
         :param normalized: Normalizes the audio before compression (range 2^15) or leaves it untouched.
         """
         data = np.int16((data * 2**15) if normalized else data)
-        audio = AudioSegment(
-            data.tobytes(),
-            frame_rate=sample_rate,
-            sample_width=sample_width,
-            channels=channels_count,
-        )
+        audio = AudioSegment(data.tobytes(), frame_rate=sample_rate, sample_width=sample_width, channels=channels_count)
         audio.export(path, format=audio_format, bitrate=bitrate)

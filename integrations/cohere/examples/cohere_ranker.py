@@ -24,7 +24,5 @@ document_ranker_pipeline.add_component(instance=ranker, name="ranker")
 document_ranker_pipeline.connect("retriever.documents", "ranker.documents")
 
 query = "Cities in France"
-res = document_ranker_pipeline.run(
-    data={"retriever": {"query": query}, "ranker": {"query": query, "top_k": 2}}
-)
+res = document_ranker_pipeline.run(data={"retriever": {"query": query}, "ranker": {"query": query, "top_k": 2}})
 print(res["ranker"]["documents"])  # noqa: T201

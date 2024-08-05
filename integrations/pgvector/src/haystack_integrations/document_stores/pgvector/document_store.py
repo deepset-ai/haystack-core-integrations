@@ -82,13 +82,9 @@ class PgvectorDocumentStore:
         table_name: str = "haystack_documents",
         language: str = "english",
         embedding_dimension: int = 768,
-        vector_function: Literal[
-            "cosine_similarity", "inner_product", "l2_distance"
-        ] = "cosine_similarity",
+        vector_function: Literal["cosine_similarity", "inner_product", "l2_distance"] = "cosine_similarity",
         recreate_table: bool = False,
-        search_strategy: Literal[
-            "exact_nearest_neighbor", "hnsw"
-        ] = "exact_nearest_neighbor",
+        search_strategy: Literal["exact_nearest_neighbor", "hnsw"] = "exact_nearest_neighbor",
         hnsw_recreate_index_if_exists: bool = False,
         hnsw_index_creation_kwargs: Optional[Dict[str, int]] = None,
         hnsw_index_name: str = "haystack_hnsw_index",
@@ -181,9 +177,7 @@ class PgvectorDocumentStore:
         connection = connect(conn_str)
         connection.autocommit = True
         connection.execute("CREATE EXTENSION IF NOT EXISTS vector")
-        register_vector(
-            connection
-        )  # Note: this must be called before creating the cursors.
+        register_vector(connection)  # Note: this must be called before creating the cursors.
 
         self._connection = connection
         self._cursor = self._connection.cursor()
@@ -237,11 +231,7 @@ class PgvectorDocumentStore:
         return default_from_dict(cls, data)
 
     def _execute_sql(
-        self,
-        sql_query: Query,
-        params: Optional[tuple] = None,
-        error_msg: str = "",
-        cursor: Optional[Cursor] = None,
+        self, sql_query: Query, params: Optional[tuple] = None, error_msg: str = "", cursor: Optional[Cursor] = None
     ):
         """
         Internal method to execute SQL statements and handle exceptions.
@@ -255,9 +245,7 @@ class PgvectorDocumentStore:
         params = params or ()
         cursor = cursor or self.cursor
 
-        sql_query_str = (
-            sql_query.as_string(cursor) if not isinstance(sql_query, str) else sql_query
-        )
+        sql_query_str = sql_query.as_string(cursor) if not isinstance(sql_query, str) else sql_query
         logger.debug("SQL query: %s\nParameters: %s", sql_query_str, params)
 
         try:
@@ -275,13 +263,10 @@ class PgvectorDocumentStore:
         """
 
         create_sql = SQL(CREATE_TABLE_STATEMENT).format(
-            table_name=Identifier(self.table_name),
-            embedding_dimension=SQLLiteral(self.embedding_dimension),
+            table_name=Identifier(self.table_name), embedding_dimension=SQLLiteral(self.embedding_dimension)
         )
 
-        self._execute_sql(
-            create_sql, error_msg="Could not create table in PgvectorDocumentStore"
-        )
+        self._execute_sql(create_sql, error_msg="Could not create table in PgvectorDocumentStore")
 
     def delete_table(self):
         """
@@ -289,14 +274,9 @@ class PgvectorDocumentStore:
         The name of the table (`table_name`) is defined when initializing the `PgvectorDocumentStore`.
         """
 
-        delete_sql = SQL("DROP TABLE IF EXISTS {table_name}").format(
-            table_name=Identifier(self.table_name)
-        )
+        delete_sql = SQL("DROP TABLE IF EXISTS {table_name}").format(table_name=Identifier(self.table_name))
 
-        self._execute_sql(
-            delete_sql,
-            error_msg=f"Could not delete table {self.table_name} in PgvectorDocumentStore",
-        )
+        self._execute_sql(delete_sql, error_msg=f"Could not delete table {self.table_name} in PgvectorDocumentStore")
 
     def _create_keyword_index_if_not_exists(self):
         """
@@ -319,9 +299,7 @@ class PgvectorDocumentStore:
         )
 
         if not index_exists:
-            self._execute_sql(
-                sql_create_index, error_msg="Could not create keyword index on table"
-            )
+            self._execute_sql(sql_create_index, error_msg="Could not create keyword index on table")
 
     def _handle_hnsw(self):
         """
@@ -330,12 +308,10 @@ class PgvectorDocumentStore:
         """
 
         if self.hnsw_ef_search:
-            sql_set_hnsw_ef_search = SQL(
-                "SET hnsw.ef_search = {hnsw_ef_search}"
-            ).format(hnsw_ef_search=SQLLiteral(self.hnsw_ef_search))
-            self._execute_sql(
-                sql_set_hnsw_ef_search, error_msg="Could not set hnsw.ef_search"
+            sql_set_hnsw_ef_search = SQL("SET hnsw.ef_search = {hnsw_ef_search}").format(
+                hnsw_ef_search=SQLLiteral(self.hnsw_ef_search)
             )
+            self._execute_sql(sql_set_hnsw_ef_search, error_msg="Could not set hnsw.ef_search")
 
         index_exists = bool(
             self._execute_sql(
@@ -353,9 +329,7 @@ class PgvectorDocumentStore:
             )
             return
 
-        sql_drop_index = SQL("DROP INDEX IF EXISTS {index_name}").format(
-            index_name=Identifier(self.hnsw_index_name)
-        )
+        sql_drop_index = SQL("DROP INDEX IF EXISTS {index_name}").format(index_name=Identifier(self.hnsw_index_name))
         self._execute_sql(sql_drop_index, error_msg="Could not drop HNSW index")
 
         self._create_hnsw_index()
@@ -372,18 +346,13 @@ class PgvectorDocumentStore:
             if key in HNSW_INDEX_CREATION_VALID_KWARGS
         }
 
-        sql_create_index = SQL(
-            "CREATE INDEX {index_name} ON {table_name} USING hnsw (embedding {ops}) "
-        ).format(
-            index_name=Identifier(self.hnsw_index_name),
-            table_name=Identifier(self.table_name),
-            ops=SQL(pg_ops),
+        sql_create_index = SQL("CREATE INDEX {index_name} ON {table_name} USING hnsw (embedding {ops}) ").format(
+            index_name=Identifier(self.hnsw_index_name), table_name=Identifier(self.table_name), ops=SQL(pg_ops)
         )
 
         if actual_hnsw_index_creation_kwargs:
             actual_hnsw_index_creation_kwargs_str = ", ".join(
-                f"{key} = {value}"
-                for key, value in actual_hnsw_index_creation_kwargs.items()
+                f"{key} = {value}" for key, value in actual_hnsw_index_creation_kwargs.items()
             )
             sql_add_creation_kwargs = SQL("WITH ({creation_kwargs_str})").format(
                 creation_kwargs_str=SQL(actual_hnsw_index_creation_kwargs_str)
@@ -397,18 +366,14 @@ class PgvectorDocumentStore:
         Returns how many documents are present in the document store.
         """
 
-        sql_count = SQL("SELECT COUNT(*) FROM {table_name}").format(
-            table_name=Identifier(self.table_name)
-        )
+        sql_count = SQL("SELECT COUNT(*) FROM {table_name}").format(table_name=Identifier(self.table_name))
 
-        count = self._execute_sql(
-            sql_count, error_msg="Could not count documents in PgvectorDocumentStore"
-        ).fetchone()[0]
+        count = self._execute_sql(sql_count, error_msg="Could not count documents in PgvectorDocumentStore").fetchone()[
+            0
+        ]
         return count
 
-    def filter_documents(
-        self, filters: Optional[Dict[str, Any]] = None
-    ) -> List[Document]:
+    def filter_documents(self, filters: Optional[Dict[str, Any]] = None) -> List[Document]:
         """
         Returns the documents that match the filters provided.
 
@@ -426,15 +391,11 @@ class PgvectorDocumentStore:
             if "operator" not in filters and "conditions" not in filters:
                 filters = convert(filters)
 
-        sql_filter = SQL("SELECT * FROM {table_name}").format(
-            table_name=Identifier(self.table_name)
-        )
+        sql_filter = SQL("SELECT * FROM {table_name}").format(table_name=Identifier(self.table_name))
 
         params = ()
         if filters:
-            sql_where_clause, params = _convert_filters_to_where_clause_and_params(
-                filters
-            )
+            sql_where_clause, params = _convert_filters_to_where_clause_and_params(filters)
             sql_filter += sql_where_clause
 
         result = self._execute_sql(
@@ -448,9 +409,7 @@ class PgvectorDocumentStore:
         docs = self._from_pg_to_haystack_documents(records)
         return docs
 
-    def write_documents(
-        self, documents: List[Document], policy: DuplicatePolicy = DuplicatePolicy.NONE
-    ) -> int:
+    def write_documents(self, documents: List[Document], policy: DuplicatePolicy = DuplicatePolicy.NONE) -> int:
         """
         Writes documents to the document store.
 
@@ -463,9 +422,7 @@ class PgvectorDocumentStore:
 
         if len(documents) > 0:
             if not isinstance(documents[0], Document):
-                msg = (
-                    "param 'documents' must contain a list of objects of type Document"
-                )
+                msg = "param 'documents' must contain a list of objects of type Document"
                 raise ValueError(msg)
 
         if policy == DuplicatePolicy.NONE:
@@ -473,9 +430,7 @@ class PgvectorDocumentStore:
 
         db_documents = self._from_haystack_to_pg_documents(documents)
 
-        sql_insert = SQL(INSERT_STATEMENT).format(
-            table_name=Identifier(self.table_name)
-        )
+        sql_insert = SQL(INSERT_STATEMENT).format(table_name=Identifier(self.table_name))
 
         if policy == DuplicatePolicy.OVERWRITE:
             sql_insert += SQL(UPDATE_STATEMENT)
@@ -484,11 +439,7 @@ class PgvectorDocumentStore:
 
         sql_insert += SQL(" RETURNING id")
 
-        sql_query_str = (
-            sql_insert.as_string(self.cursor)
-            if not isinstance(sql_insert, str)
-            else sql_insert
-        )
+        sql_query_str = sql_insert.as_string(self.cursor) if not isinstance(sql_insert, str) else sql_insert
         logger.debug("SQL query: %s\nParameters: %s", sql_query_str, db_documents)
 
         try:
@@ -516,9 +467,7 @@ class PgvectorDocumentStore:
         return written_docs
 
     @staticmethod
-    def _from_haystack_to_pg_documents(
-        documents: List[Document],
-    ) -> List[Dict[str, Any]]:
+    def _from_haystack_to_pg_documents(documents: List[Document]) -> List[Dict[str, Any]]:
         """
         Internal method to convert a list of Haystack Documents to a list of dictionaries that can be used to insert
         documents into the PgvectorDocumentStore.
@@ -526,22 +475,14 @@ class PgvectorDocumentStore:
 
         db_documents = []
         for document in documents:
-            db_document = {
-                k: v
-                for k, v in document.to_dict(flatten=False).items()
-                if k not in ["score", "blob"]
-            }
+            db_document = {k: v for k, v in document.to_dict(flatten=False).items() if k not in ["score", "blob"]}
 
             blob = document.blob
             db_document["blob_data"] = blob.data if blob else None
             db_document["blob_meta"] = Jsonb(blob.meta) if blob and blob.meta else None
-            db_document["blob_mime_type"] = (
-                blob.mime_type if blob and blob.mime_type else None
-            )
+            db_document["blob_mime_type"] = blob.mime_type if blob and blob.mime_type else None
 
-            db_document["dataframe"] = (
-                Jsonb(db_document["dataframe"]) if db_document["dataframe"] else None
-            )
+            db_document["dataframe"] = Jsonb(db_document["dataframe"]) if db_document["dataframe"] else None
             db_document["meta"] = Jsonb(db_document["meta"])
 
             if "sparse_embedding" in db_document:
@@ -559,9 +500,7 @@ class PgvectorDocumentStore:
         return db_documents
 
     @staticmethod
-    def _from_pg_to_haystack_documents(
-        documents: List[Dict[str, Any]]
-    ) -> List[Document]:
+    def _from_pg_to_haystack_documents(documents: List[Dict[str, Any]]) -> List[Document]:
         """
         Internal method to convert a list of dictionaries from pgvector to a list of Haystack Documents.
         """
@@ -581,9 +520,7 @@ class PgvectorDocumentStore:
             haystack_document = Document.from_dict(haystack_dict)
 
             if blob_data:
-                blob = ByteStream(
-                    data=blob_data, meta=blob_meta, mime_type=blob_mime_type
-                )
+                blob = ByteStream(data=blob_data, meta=blob_meta, mime_type=blob_mime_type)
                 haystack_document.blob = blob
 
             haystack_documents.append(haystack_document)
@@ -602,17 +539,11 @@ class PgvectorDocumentStore:
 
         document_ids_str = ", ".join(f"'{document_id}'" for document_id in document_ids)
 
-        delete_sql = SQL(
-            "DELETE FROM {table_name} WHERE id IN ({document_ids_str})"
-        ).format(
-            table_name=Identifier(self.table_name),
-            document_ids_str=SQL(document_ids_str),
+        delete_sql = SQL("DELETE FROM {table_name} WHERE id IN ({document_ids_str})").format(
+            table_name=Identifier(self.table_name), document_ids_str=SQL(document_ids_str)
         )
 
-        self._execute_sql(
-            delete_sql,
-            error_msg="Could not delete documents from PgvectorDocumentStore",
-        )
+        self._execute_sql(delete_sql, error_msg="Could not delete documents from PgvectorDocumentStore")
 
     def _keyword_retrieval(
         self,
@@ -643,16 +574,11 @@ class PgvectorDocumentStore:
         where_params = ()
         sql_where_clause = SQL("")
         if filters:
-            (
-                sql_where_clause,
-                where_params,
-            ) = _convert_filters_to_where_clause_and_params(
+            sql_where_clause, where_params = _convert_filters_to_where_clause_and_params(
                 filters=filters, operator="AND"
             )
 
-        sql_sort = SQL(" ORDER BY score DESC LIMIT {top_k}").format(
-            top_k=SQLLiteral(top_k)
-        )
+        sql_sort = SQL(" ORDER BY score DESC LIMIT {top_k}").format(top_k=SQLLiteral(top_k))
 
         sql_query = sql_select + sql_where_clause + sql_sort
 
@@ -673,9 +599,7 @@ class PgvectorDocumentStore:
         *,
         filters: Optional[Dict[str, Any]] = None,
         top_k: int = 10,
-        vector_function: Optional[
-            Literal["cosine_similarity", "inner_product", "l2_distance"]
-        ] = None,
+        vector_function: Optional[Literal["cosine_similarity", "inner_product", "l2_distance"]] = None,
     ) -> List[Document]:
         """
         Retrieves documents that are most similar to the query embedding using a vector similarity metric.
@@ -703,21 +627,15 @@ class PgvectorDocumentStore:
             raise ValueError(msg)
 
         # the vector must be a string with this format: "'[3,1,2]'"
-        query_embedding_for_postgres = (
-            f"'[{','.join(str(el) for el in query_embedding)}]'"
-        )
+        query_embedding_for_postgres = f"'[{','.join(str(el) for el in query_embedding)}]'"
 
         # to compute the scores, we use the approach described in pgvector README:
         # https://github.com/pgvector/pgvector?tab=readme-ov-file#distances
         # cosine_similarity and inner_product are modified from the result of the operator
         if vector_function == "cosine_similarity":
-            score_definition = (
-                f"1 - (embedding <=> {query_embedding_for_postgres}) AS score"
-            )
+            score_definition = f"1 - (embedding <=> {query_embedding_for_postgres}) AS score"
         elif vector_function == "inner_product":
-            score_definition = (
-                f"(embedding <#> {query_embedding_for_postgres}) * -1 AS score"
-            )
+            score_definition = f"(embedding <#> {query_embedding_for_postgres}) * -1 AS score"
         elif vector_function == "l2_distance":
             score_definition = f"embedding <-> {query_embedding_for_postgres} AS score"
 
@@ -729,9 +647,7 @@ class PgvectorDocumentStore:
         sql_where_clause = SQL("")
         params = ()
         if filters:
-            sql_where_clause, params = _convert_filters_to_where_clause_and_params(
-                filters
-            )
+            sql_where_clause, params = _convert_filters_to_where_clause_and_params(filters)
 
         # we always want to return the most similar documents first
         # so when using l2_distance, the sort order must be ASC

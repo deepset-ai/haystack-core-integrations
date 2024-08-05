@@ -79,11 +79,7 @@ class JinaTextEmbedder:
             Dictionary with serialized data.
         """
         return default_to_dict(
-            self,
-            api_key=self.api_key.to_dict(),
-            model=self.model_name,
-            prefix=self.prefix,
-            suffix=self.suffix,
+            self, api_key=self.api_key.to_dict(), model=self.model_name, prefix=self.prefix, suffix=self.suffix
         )
 
     @classmethod
@@ -118,9 +114,7 @@ class JinaTextEmbedder:
 
         text_to_embed = self.prefix + text + self.suffix
 
-        resp = self._session.post(
-            JINA_API_URL, json={"input": [text_to_embed], "model": self.model_name}
-        ).json()
+        resp = self._session.post(JINA_API_URL, json={"input": [text_to_embed], "model": self.model_name}).json()
         if "data" not in resp:
             raise RuntimeError(resp["detail"])
 

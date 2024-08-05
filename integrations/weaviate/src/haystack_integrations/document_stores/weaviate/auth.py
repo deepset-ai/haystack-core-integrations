@@ -58,10 +58,7 @@ class AuthCredentials(ABC):
             else:
                 _fields[_field.name] = getattr(self, _field.name)
 
-        return {
-            "type": str(SupportedAuthTypes.from_class(self.__class__)),
-            "init_parameters": _fields,
-        }
+        return {"type": str(SupportedAuthTypes.from_class(self.__class__)), "init_parameters": _fields}
 
     @staticmethod
     def from_dict(data: Dict[str, Any]) -> "AuthCredentials":
@@ -104,9 +101,7 @@ class AuthApiKey(AuthCredentials):
     By default it will load `api_key` from the environment variable `WEAVIATE_API_KEY`.
     """
 
-    api_key: Secret = field(
-        default_factory=lambda: Secret.from_env_var(["WEAVIATE_API_KEY"])
-    )
+    api_key: Secret = field(default_factory=lambda: Secret.from_env_var(["WEAVIATE_API_KEY"]))
 
     @classmethod
     def _from_dict(cls, data: Dict[str, Any]) -> "AuthApiKey":
@@ -127,21 +122,13 @@ class AuthBearerToken(AuthCredentials):
     `WEAVIATE_REFRESH_TOKEN` environment variable is optional.
     """
 
-    access_token: Secret = field(
-        default_factory=lambda: Secret.from_env_var(["WEAVIATE_ACCESS_TOKEN"])
-    )
+    access_token: Secret = field(default_factory=lambda: Secret.from_env_var(["WEAVIATE_ACCESS_TOKEN"]))
     expires_in: int = field(default=60)
-    refresh_token: Secret = field(
-        default_factory=lambda: Secret.from_env_var(
-            ["WEAVIATE_REFRESH_TOKEN"], strict=False
-        )
-    )
+    refresh_token: Secret = field(default_factory=lambda: Secret.from_env_var(["WEAVIATE_REFRESH_TOKEN"], strict=False))
 
     @classmethod
     def _from_dict(cls, data: Dict[str, Any]) -> "AuthBearerToken":
-        deserialize_secrets_inplace(
-            data["init_parameters"], ["access_token", "refresh_token"]
-        )
+        deserialize_secrets_inplace(data["init_parameters"], ["access_token", "refresh_token"])
         return cls(**data["init_parameters"])
 
     def resolve_value(self) -> WeaviateAuthBearerToken:
@@ -165,12 +152,8 @@ class AuthClientCredentials(AuthCredentials):
     separated strings. e.g "scope1" or "scope1 scope2".
     """
 
-    client_secret: Secret = field(
-        default_factory=lambda: Secret.from_env_var(["WEAVIATE_CLIENT_SECRET"])
-    )
-    scope: Secret = field(
-        default_factory=lambda: Secret.from_env_var(["WEAVIATE_SCOPE"], strict=False)
-    )
+    client_secret: Secret = field(default_factory=lambda: Secret.from_env_var(["WEAVIATE_CLIENT_SECRET"]))
+    scope: Secret = field(default_factory=lambda: Secret.from_env_var(["WEAVIATE_SCOPE"], strict=False))
 
     @classmethod
     def _from_dict(cls, data: Dict[str, Any]) -> "AuthClientCredentials":
@@ -195,21 +178,13 @@ class AuthClientPassword(AuthCredentials):
     separated strings. e.g "scope1" or "scope1 scope2".
     """
 
-    username: Secret = field(
-        default_factory=lambda: Secret.from_env_var(["WEAVIATE_USERNAME"])
-    )
-    password: Secret = field(
-        default_factory=lambda: Secret.from_env_var(["WEAVIATE_PASSWORD"])
-    )
-    scope: Secret = field(
-        default_factory=lambda: Secret.from_env_var(["WEAVIATE_SCOPE"], strict=False)
-    )
+    username: Secret = field(default_factory=lambda: Secret.from_env_var(["WEAVIATE_USERNAME"]))
+    password: Secret = field(default_factory=lambda: Secret.from_env_var(["WEAVIATE_PASSWORD"]))
+    scope: Secret = field(default_factory=lambda: Secret.from_env_var(["WEAVIATE_SCOPE"], strict=False))
 
     @classmethod
     def _from_dict(cls, data: Dict[str, Any]) -> "AuthClientPassword":
-        deserialize_secrets_inplace(
-            data["init_parameters"], ["username", "password", "scope"]
-        )
+        deserialize_secrets_inplace(data["init_parameters"], ["username", "password", "scope"])
         return cls(**data["init_parameters"])
 
     def resolve_value(self) -> WeaviateAuthClientPassword:

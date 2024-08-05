@@ -39,9 +39,7 @@ class BedrockModelAdapter(ABC):
         responses = [completion.lstrip() for completion in completions]
         return responses
 
-    def get_stream_responses(
-        self, stream, stream_handler: TokenStreamingHandler
-    ) -> List[str]:
+    def get_stream_responses(self, stream, stream_handler: TokenStreamingHandler) -> List[str]:
         """
         Extracts the responses from the Amazon Bedrock streaming response.
 
@@ -59,9 +57,7 @@ class BedrockModelAdapter(ABC):
         responses = ["".join(tokens).lstrip()]
         return responses
 
-    def _get_params(
-        self, inference_kwargs: Dict[str, Any], default_params: Dict[str, Any]
-    ) -> Dict[str, Any]:
+    def _get_params(self, inference_kwargs: Dict[str, Any], default_params: Dict[str, Any]) -> Dict[str, Any]:
         """
         Merges the default params with the inference kwargs and model kwargs.
 
@@ -79,9 +75,7 @@ class BedrockModelAdapter(ABC):
         }
 
     @abstractmethod
-    def _extract_completions_from_response(
-        self, response_body: Dict[str, Any]
-    ) -> List[str]:
+    def _extract_completions_from_response(self, response_body: Dict[str, Any]) -> List[str]:
         """
         Extracts the responses from the Amazon Bedrock response.
 
@@ -144,9 +138,7 @@ class AnthropicClaudeAdapter(BedrockModelAdapter):
             body = {"prompt": f"\n\nHuman: {prompt}\n\nAssistant:", **params}
         return body
 
-    def _extract_completions_from_response(
-        self, response_body: Dict[str, Any]
-    ) -> List[str]:
+    def _extract_completions_from_response(self, response_body: Dict[str, Any]) -> List[str]:
         """
         Extracts the responses from the Amazon Bedrock response.
 
@@ -195,14 +187,10 @@ class MistralAdapter(BedrockModelAdapter):
         }
         params = self._get_params(inference_kwargs, default_params)
         # Add the instruction tag to the prompt if it's not already there
-        formatted_prompt = (
-            f"<s>[INST] {prompt} [/INST]" if "INST" not in prompt else prompt
-        )
+        formatted_prompt = f"<s>[INST] {prompt} [/INST]" if "INST" not in prompt else prompt
         return {"prompt": formatted_prompt, **params}
 
-    def _extract_completions_from_response(
-        self, response_body: Dict[str, Any]
-    ) -> List[str]:
+    def _extract_completions_from_response(self, response_body: Dict[str, Any]) -> List[str]:
         """
         Extracts the responses from the Amazon Bedrock response.
 
@@ -256,9 +244,7 @@ class CohereCommandAdapter(BedrockModelAdapter):
         body = {"prompt": prompt, **params}
         return body
 
-    def _extract_completions_from_response(
-        self, response_body: Dict[str, Any]
-    ) -> List[str]:
+    def _extract_completions_from_response(self, response_body: Dict[str, Any]) -> List[str]:
         """
         Extracts the responses from the Cohere Command model response.
 
@@ -317,9 +303,7 @@ class CohereCommandRAdapter(BedrockModelAdapter):
         body = {"message": prompt, **params}
         return body
 
-    def _extract_completions_from_response(
-        self, response_body: Dict[str, Any]
-    ) -> List[str]:
+    def _extract_completions_from_response(self, response_body: Dict[str, Any]) -> List[str]:
         """
         Extracts the responses from the Cohere Command model response.
 
@@ -369,12 +353,8 @@ class AI21LabsJurassic2Adapter(BedrockModelAdapter):
         body = {"prompt": prompt, **params}
         return body
 
-    def _extract_completions_from_response(
-        self, response_body: Dict[str, Any]
-    ) -> List[str]:
-        responses = [
-            completion["data"]["text"] for completion in response_body["completions"]
-        ]
+    def _extract_completions_from_response(self, response_body: Dict[str, Any]) -> List[str]:
+        responses = [completion["data"]["text"] for completion in response_body["completions"]]
         return responses
 
     def _extract_token_from_stream(self, chunk: Dict[str, Any]) -> str:
@@ -408,9 +388,7 @@ class AmazonTitanAdapter(BedrockModelAdapter):
         body = {"inputText": prompt, "textGenerationConfig": params}
         return body
 
-    def _extract_completions_from_response(
-        self, response_body: Dict[str, Any]
-    ) -> List[str]:
+    def _extract_completions_from_response(self, response_body: Dict[str, Any]) -> List[str]:
         """
         Extracts the responses from the Titan model response.
 
@@ -455,9 +433,7 @@ class MetaLlamaAdapter(BedrockModelAdapter):
         body = {"prompt": prompt, **params}
         return body
 
-    def _extract_completions_from_response(
-        self, response_body: Dict[str, Any]
-    ) -> List[str]:
+    def _extract_completions_from_response(self, response_body: Dict[str, Any]) -> List[str]:
         """
         Extracts the responses from the Llama2 model response.
 

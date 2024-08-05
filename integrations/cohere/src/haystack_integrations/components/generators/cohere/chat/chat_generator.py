@@ -5,10 +5,7 @@ from haystack import component, default_from_dict, default_to_dict
 from haystack.dataclasses import ChatMessage, ChatRole, StreamingChunk
 from haystack.lazy_imports import LazyImport
 from haystack.utils import Secret, deserialize_secrets_inplace
-from haystack.utils.callable_serialization import (
-    deserialize_callable,
-    serialize_callable,
-)
+from haystack.utils.callable_serialization import deserialize_callable, serialize_callable
 
 with LazyImport(message="Run 'pip install cohere'") as cohere_import:
     import cohere
@@ -94,9 +91,7 @@ class CohereChatGenerator:
         self.generation_kwargs = generation_kwargs
         self.model_parameters = kwargs
         self.client = cohere.Client(
-            api_key=self.api_key.resolve_value(),
-            base_url=self.api_base_url,
-            client_name="haystack",
+            api_key=self.api_key.resolve_value(), base_url=self.api_base_url, client_name="haystack"
         )
 
     def _get_telemetry_data(self) -> Dict[str, Any]:
@@ -112,11 +107,7 @@ class CohereChatGenerator:
         :returns:
                 Dictionary with serialized data.
         """
-        callback_name = (
-            serialize_callable(self.streaming_callback)
-            if self.streaming_callback
-            else None
-        )
+        callback_name = serialize_callable(self.streaming_callback) if self.streaming_callback else None
         return default_to_dict(
             self,
             model=self.model,
@@ -140,9 +131,7 @@ class CohereChatGenerator:
         deserialize_secrets_inplace(init_params, ["api_key"])
         serialized_callback_handler = init_params.get("streaming_callback")
         if serialized_callback_handler:
-            data["init_parameters"]["streaming_callback"] = deserialize_callable(
-                serialized_callback_handler
-            )
+            data["init_parameters"]["streaming_callback"] = deserialize_callable(serialized_callback_handler)
         return default_from_dict(cls, data)
 
     def _message_to_dict(self, message: ChatMessage) -> Dict[str, str]:
@@ -151,11 +140,7 @@ class CohereChatGenerator:
         return chat_message
 
     @component.output_types(replies=List[ChatMessage])
-    def run(
-        self,
-        messages: List[ChatMessage],
-        generation_kwargs: Optional[Dict[str, Any]] = None,
-    ):
+    def run(self, messages: List[ChatMessage], generation_kwargs: Optional[Dict[str, Any]] = None):
         """
         Invoke the text generation inference based on the provided messages and generation parameters.
 
@@ -220,9 +205,7 @@ class CohereChatGenerator:
         :param choice: The choice returned by the OpenAI API.
         :returns: The StreamingChunk.
         """
-        chat_message = StreamingChunk(
-            content=chunk.text, meta={"event_type": chunk.event_type}
-        )
+        chat_message = StreamingChunk(content=chunk.text, meta={"event_type": chunk.event_type})
         return chat_message
 
     def _build_message(self, cohere_response):
@@ -237,10 +220,7 @@ class CohereChatGenerator:
             message = ChatMessage.from_assistant(cohere_response.tool_calls[0].json())
         elif cohere_response.text:
             message = ChatMessage.from_assistant(content=cohere_response.text)
-        total_tokens = (
-            cohere_response.meta.billed_units.input_tokens
-            + cohere_response.meta.billed_units.output_tokens
-        )
+        total_tokens = cohere_response.meta.billed_units.input_tokens + cohere_response.meta.billed_units.output_tokens
         message.meta.update(
             {
                 "model": self.model,

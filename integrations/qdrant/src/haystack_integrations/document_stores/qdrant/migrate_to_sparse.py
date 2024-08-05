@@ -9,9 +9,7 @@ logger.addHandler(logging.StreamHandler())
 logger.setLevel(logging.INFO)
 
 
-def migrate_to_sparse_embeddings_support(
-    old_document_store: QdrantDocumentStore, new_index: str
-):
+def migrate_to_sparse_embeddings_support(old_document_store: QdrantDocumentStore, new_index: str):
     """
     Utility function to migrate an existing `QdrantDocumentStore` to a new one with support for sparse embeddings.
 
@@ -125,7 +123,5 @@ def migrate_to_sparse_embeddings_support(
     # restore the original indexing threshold (re-enable indexing)
     client.update_collection(
         collection_name=new_index,
-        optimizer_config=models.OptimizersConfigDiff(
-            indexing_threshold=original_indexing_threshold
-        ),
+        optimizer_config=models.OptimizersConfigDiff(indexing_threshold=original_indexing_threshold),
     )

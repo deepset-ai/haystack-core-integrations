@@ -7,9 +7,7 @@ from haystack import component, default_from_dict, default_to_dict
 from haystack.dataclasses import Document
 from haystack.document_stores.types import FilterPolicy
 from haystack.document_stores.types.filter_policy import apply_filter_policy
-from haystack_integrations.document_stores.mongodb_atlas import (
-    MongoDBAtlasDocumentStore,
-)
+from haystack_integrations.document_stores.mongodb_atlas import MongoDBAtlasDocumentStore
 
 
 @component
@@ -69,9 +67,7 @@ class MongoDBAtlasEmbeddingRetriever:
         self.filters = filters or {}
         self.top_k = top_k
         self.filter_policy = (
-            filter_policy
-            if isinstance(filter_policy, FilterPolicy)
-            else FilterPolicy.from_str(filter_policy)
+            filter_policy if isinstance(filter_policy, FilterPolicy) else FilterPolicy.from_str(filter_policy)
         )
 
     def to_dict(self) -> Dict[str, Any]:
@@ -105,9 +101,7 @@ class MongoDBAtlasEmbeddingRetriever:
         # Pipelines serialized with old versions of the component might not
         # have the filter_policy field.
         if filter_policy := data["init_parameters"].get("filter_policy"):
-            data["init_parameters"]["filter_policy"] = FilterPolicy.from_str(
-                filter_policy
-            )
+            data["init_parameters"]["filter_policy"] = FilterPolicy.from_str(filter_policy)
         return default_from_dict(cls, data)
 
     @component.output_types(documents=List[Document])

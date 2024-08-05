@@ -20,9 +20,7 @@ class TestAnthropicGenerator:
 
     def test_init_fail_wo_api_key(self, monkeypatch):
         monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
-        with pytest.raises(
-            ValueError, match="None of the .* environment variables are set"
-        ):
+        with pytest.raises(ValueError, match="None of the .* environment variables are set"):
             AnthropicGenerator()
 
     def test_init_with_parameters(self):
@@ -35,10 +33,7 @@ class TestAnthropicGenerator:
         assert component.client.api_key == "test-api-key"
         assert component.model == "claude-3-sonnet-20240229"
         assert component.streaming_callback is print_streaming_chunk
-        assert component.generation_kwargs == {
-            "max_tokens": 10,
-            "some_test_param": "test-params",
-        }
+        assert component.generation_kwargs == {"max_tokens": 10, "some_test_param": "test-params"}
 
     def test_to_dict_default(self, monkeypatch):
         monkeypatch.setenv("ANTHROPIC_API_KEY", "test-api-key")
@@ -47,11 +42,7 @@ class TestAnthropicGenerator:
         assert data == {
             "type": "haystack_integrations.components.generators.anthropic.generator.AnthropicGenerator",
             "init_parameters": {
-                "api_key": {
-                    "env_vars": ["ANTHROPIC_API_KEY"],
-                    "strict": True,
-                    "type": "env_var",
-                },
+                "api_key": {"env_vars": ["ANTHROPIC_API_KEY"], "strict": True, "type": "env_var"},
                 "model": "claude-3-sonnet-20240229",
                 "streaming_callback": None,
                 "system_prompt": None,
@@ -75,10 +66,7 @@ class TestAnthropicGenerator:
                 "model": "claude-3-sonnet-20240229",
                 "system_prompt": "test-prompt",
                 "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
-                "generation_kwargs": {
-                    "max_tokens": 10,
-                    "some_test_param": "test-params",
-                },
+                "generation_kwargs": {"max_tokens": 10, "some_test_param": "test-params"},
             },
         }
 
@@ -93,18 +81,11 @@ class TestAnthropicGenerator:
         assert data == {
             "type": "haystack_integrations.components.generators.anthropic.generator.AnthropicGenerator",
             "init_parameters": {
-                "api_key": {
-                    "env_vars": ["ANTHROPIC_API_KEY"],
-                    "strict": True,
-                    "type": "env_var",
-                },
+                "api_key": {"env_vars": ["ANTHROPIC_API_KEY"], "strict": True, "type": "env_var"},
                 "model": "claude-3-sonnet-20240229",
                 "streaming_callback": "tests.test_generator.<lambda>",
                 "system_prompt": None,
-                "generation_kwargs": {
-                    "max_tokens": 10,
-                    "some_test_param": "test-params",
-                },
+                "generation_kwargs": {"max_tokens": 10, "some_test_param": "test-params"},
             },
         }
 
@@ -113,28 +94,18 @@ class TestAnthropicGenerator:
         data = {
             "type": "haystack_integrations.components.generators.anthropic.generator.AnthropicGenerator",
             "init_parameters": {
-                "api_key": {
-                    "env_vars": ["ANTHROPIC_API_KEY"],
-                    "strict": True,
-                    "type": "env_var",
-                },
+                "api_key": {"env_vars": ["ANTHROPIC_API_KEY"], "strict": True, "type": "env_var"},
                 "model": "claude-3-sonnet-20240229",
                 "system_prompt": "test-prompt",
                 "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
-                "generation_kwargs": {
-                    "max_tokens": 10,
-                    "some_test_param": "test-params",
-                },
+                "generation_kwargs": {"max_tokens": 10, "some_test_param": "test-params"},
             },
         }
         component = AnthropicGenerator.from_dict(data)
         assert component.model == "claude-3-sonnet-20240229"
         assert component.streaming_callback is print_streaming_chunk
         assert component.system_prompt == "test-prompt"
-        assert component.generation_kwargs == {
-            "max_tokens": 10,
-            "some_test_param": "test-params",
-        }
+        assert component.generation_kwargs == {"max_tokens": 10, "some_test_param": "test-params"}
         assert component.api_key == Secret.from_env_var("ANTHROPIC_API_KEY")
 
     def test_from_dict_fail_wo_env_var(self, monkeypatch):
@@ -142,23 +113,14 @@ class TestAnthropicGenerator:
         data = {
             "type": "haystack_integrations.components.generators.anthropic.generator.AnthropicGenerator",
             "init_parameters": {
-                "api_key": {
-                    "env_vars": ["ANTHROPIC_API_KEY"],
-                    "strict": True,
-                    "type": "env_var",
-                },
+                "api_key": {"env_vars": ["ANTHROPIC_API_KEY"], "strict": True, "type": "env_var"},
                 "model": "claude-3-sonnet-20240229",
                 "system_prompt": "test-prompt",
                 "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
-                "generation_kwargs": {
-                    "max_tokens": 10,
-                    "some_test_param": "test-params",
-                },
+                "generation_kwargs": {"max_tokens": 10, "some_test_param": "test-params"},
             },
         }
-        with pytest.raises(
-            ValueError, match="None of the .* environment variables are set"
-        ):
+        with pytest.raises(ValueError, match="None of the .* environment variables are set"):
             AnthropicGenerator.from_dict(data)
 
     def test_run(self, mock_chat_completion):
@@ -178,8 +140,7 @@ class TestAnthropicGenerator:
 
     def test_run_with_params(self, mock_chat_completion):
         component = AnthropicGenerator(
-            api_key=Secret.from_token("test-api-key"),
-            generation_kwargs={"max_tokens": 10, "temperature": 0.5},
+            api_key=Secret.from_token("test-api-key"), generation_kwargs={"max_tokens": 10, "temperature": 0.5}
         )
         response = component.run("What is the capital of France?")
 
@@ -255,9 +216,7 @@ class TestAnthropicGenerator:
         response = client.run("What is the capital of France?")
 
         assert streaming_callback_called, "Streaming callback was not called"
-        assert (
-            paris_found_in_response
-        ), "The streaming callback response did not contain 'paris'"
+        assert paris_found_in_response, "The streaming callback response did not contain 'paris'"
         replies = response["replies"]
         assert isinstance(replies, list), "Replies is not a list"
         assert len(replies) > 0, "No replies received"

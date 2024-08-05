@@ -38,9 +38,7 @@ class OptimumDocumentEmbedder:
     def __init__(
         self,
         model: str = "sentence-transformers/all-mpnet-base-v2",
-        token: Optional[Secret] = Secret.from_env_var(
-            "HF_API_TOKEN", strict=False
-        ),  # noqa: B008
+        token: Optional[Secret] = Secret.from_env_var("HF_API_TOKEN", strict=False),  # noqa: B008
         prefix: str = "",
         suffix: str = "",
         normalize_embeddings: bool = True,
@@ -180,16 +178,12 @@ class OptimumDocumentEmbedder:
         texts_to_embed = []
         for doc in documents:
             meta_values_to_embed = [
-                str(doc.meta[key])
-                for key in self.meta_fields_to_embed
-                if key in doc.meta and doc.meta[key] is not None
+                str(doc.meta[key]) for key in self.meta_fields_to_embed if key in doc.meta and doc.meta[key] is not None
             ]
 
             text_to_embed = (
                 self._backend.parameters.prefix
-                + self.embedding_separator.join(
-                    [*meta_values_to_embed, doc.content or ""]
-                )
+                + self.embedding_separator.join([*meta_values_to_embed, doc.content or ""])
                 + self._backend.parameters.suffix
             )
 
@@ -214,11 +208,7 @@ class OptimumDocumentEmbedder:
         if not self._initialized:
             msg = "The embedding model has not been loaded. Please call warm_up() before running."
             raise RuntimeError(msg)
-        if (
-            not isinstance(documents, list)
-            or documents
-            and not isinstance(documents[0], Document)
-        ):
+        if not isinstance(documents, list) or documents and not isinstance(documents[0], Document):
             msg = (
                 "OptimumDocumentEmbedder expects a list of Documents as input."
                 " In case you want to embed a string, please use the OptimumTextEmbedder."

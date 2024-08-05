@@ -47,8 +47,6 @@ class NimBackend(EmbedderBackend):
 
         data = res.json()
         # Sort the embeddings by index, we don't know whether they're out of order or not
-        embeddings = [
-            e["embedding"] for e in sorted(data["data"], key=lambda e: e["index"])
-        ]
+        embeddings = [e["embedding"] for e in sorted(data["data"], key=lambda e: e["index"])]
 
         return embeddings, {"usage": data["usage"]}

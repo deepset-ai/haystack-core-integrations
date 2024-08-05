@@ -10,27 +10,19 @@ from haystack_integrations.document_stores.chroma import ChromaDocumentStore
 @pytest.mark.integration
 def test_retriever_init(request):
     ds = ChromaDocumentStore(
-        collection_name=request.node.name,
-        embedding_function="HuggingFaceEmbeddingFunction",
-        api_key="1234567890",
+        collection_name=request.node.name, embedding_function="HuggingFaceEmbeddingFunction", api_key="1234567890"
     )
-    retriever = ChromaQueryTextRetriever(
-        ds, filters={"foo": "bar"}, top_k=99, filter_policy="replace"
-    )
+    retriever = ChromaQueryTextRetriever(ds, filters={"foo": "bar"}, top_k=99, filter_policy="replace")
     assert retriever.filter_policy == FilterPolicy.REPLACE
 
     with pytest.raises(ValueError):
-        ChromaQueryTextRetriever(
-            ds, filters={"foo": "bar"}, top_k=99, filter_policy="unknown"
-        )
+        ChromaQueryTextRetriever(ds, filters={"foo": "bar"}, top_k=99, filter_policy="unknown")
 
 
 @pytest.mark.integration
 def test_retriever_to_json(request):
     ds = ChromaDocumentStore(
-        collection_name=request.node.name,
-        embedding_function="HuggingFaceEmbeddingFunction",
-        api_key="1234567890",
+        collection_name=request.node.name, embedding_function="HuggingFaceEmbeddingFunction", api_key="1234567890"
     )
     retriever = ChromaQueryTextRetriever(ds, filters={"foo": "bar"}, top_k=99)
     assert retriever.to_dict() == {
@@ -75,12 +67,8 @@ def test_retriever_from_json(request):
     }
     retriever = ChromaQueryTextRetriever.from_dict(data)
     assert retriever.document_store._collection_name == request.node.name
-    assert (
-        retriever.document_store._embedding_function == "HuggingFaceEmbeddingFunction"
-    )
-    assert retriever.document_store._embedding_function_params == {
-        "api_key": "1234567890"
-    }
+    assert retriever.document_store._embedding_function == "HuggingFaceEmbeddingFunction"
+    assert retriever.document_store._embedding_function_params == {"api_key": "1234567890"}
     assert retriever.document_store._persist_path == "."
     assert retriever.filters == {"bar": "baz"}
     assert retriever.top_k == 42
@@ -108,15 +96,9 @@ def test_retriever_from_json_no_filter_policy(request):
     }
     retriever = ChromaQueryTextRetriever.from_dict(data)
     assert retriever.document_store._collection_name == request.node.name
-    assert (
-        retriever.document_store._embedding_function == "HuggingFaceEmbeddingFunction"
-    )
-    assert retriever.document_store._embedding_function_params == {
-        "api_key": "1234567890"
-    }
+    assert retriever.document_store._embedding_function == "HuggingFaceEmbeddingFunction"
+    assert retriever.document_store._embedding_function_params == {"api_key": "1234567890"}
     assert retriever.document_store._persist_path == "."
     assert retriever.filters == {"bar": "baz"}
     assert retriever.top_k == 42
-    assert (
-        retriever.filter_policy == FilterPolicy.REPLACE
-    )  # default even if not specified
+    assert retriever.filter_policy == FilterPolicy.REPLACE  # default even if not specified

@@ -7,10 +7,7 @@ from unittest.mock import patch
 import pytest
 from haystack import DeserializationError
 
-from haystack_integrations.components.evaluators.deepeval import (
-    DeepEvalEvaluator,
-    DeepEvalMetric,
-)
+from haystack_integrations.components.evaluators.deepeval import DeepEvalEvaluator, DeepEvalMetric
 from deepeval.evaluate import TestResult, BaseMetric
 
 DEFAULT_QUESTIONS = [
@@ -65,15 +62,7 @@ class MockBackend:
 
         out = []
         for x in test_cases:
-            r = TestResult(
-                False,
-                [],
-                x.input,
-                x.actual_output,
-                x.expected_output,
-                x.context,
-                x.retrieval_context,
-            )
+            r = TestResult(False, [], x.input, x.actual_output, x.expected_output, x.context, x.retrieval_context)
             r.metrics = copy.deepcopy(output_map[self.metric])
             out.append(r)
         return out
@@ -82,15 +71,11 @@ class MockBackend:
 def test_evaluator_metric_init_params(monkeypatch):
     monkeypatch.setenv("OPENAI_API_KEY", "test-api-key")
 
-    eval = DeepEvalEvaluator(
-        DeepEvalMetric.ANSWER_RELEVANCY, metric_params={"model": "gpt-4-32k"}
-    )
+    eval = DeepEvalEvaluator(DeepEvalMetric.ANSWER_RELEVANCY, metric_params={"model": "gpt-4-32k"})
     assert eval._backend_metric.evaluation_model == "gpt-4-32k"
 
     with pytest.raises(ValueError, match="Invalid init parameters"):
-        DeepEvalEvaluator(
-            DeepEvalMetric.FAITHFULNESS, metric_params={"role": "village idiot"}
-        )
+        DeepEvalEvaluator(DeepEvalMetric.FAITHFULNESS, metric_params={"role": "village idiot"})
 
     with pytest.raises(ValueError, match="expected init parameters"):
         DeepEvalEvaluator(DeepEvalMetric.CONTEXTUAL_RECALL)
@@ -111,9 +96,7 @@ def test_evaluator_serde(monkeypatch):
     assert eval.metric_params == new_eval.metric_params
     assert type(new_eval._backend_metric) == type(eval._backend_metric)
 
-    with pytest.raises(
-        DeserializationError, match=r"cannot serialize the metric parameters"
-    ):
+    with pytest.raises(DeserializationError, match=r"cannot serialize the metric parameters"):
         eval.metric_params["model"] = Unserializable("")
         eval.to_dict()
 
@@ -221,21 +204,13 @@ def test_evaluator_invalid_inputs(metric, inputs, error_string, params, monkeypa
     [
         (
             DeepEvalMetric.ANSWER_RELEVANCY,
-            {
-                "questions": DEFAULT_QUESTIONS,
-                "contexts": DEFAULT_CONTEXTS,
-                "responses": DEFAULT_RESPONSES,
-            },
+            {"questions": DEFAULT_QUESTIONS, "contexts": DEFAULT_CONTEXTS, "responses": DEFAULT_RESPONSES},
             [[(None, 0.5, "1")]] * 2,
             {"model": "gpt-4"},
         ),
         (
             DeepEvalMetric.FAITHFULNESS,
-            {
-                "questions": DEFAULT_QUESTIONS,
-                "contexts": DEFAULT_CONTEXTS,
-                "responses": DEFAULT_RESPONSES,
-            },
+            {"questions": DEFAULT_QUESTIONS, "contexts": DEFAULT_CONTEXTS, "responses": DEFAULT_RESPONSES},
             [[(None, 0.1, "2")]] * 2,
             {"model": "gpt-4"},
         ),
@@ -263,19 +238,13 @@ def test_evaluator_invalid_inputs(metric, inputs, error_string, params, monkeypa
         ),
         (
             DeepEvalMetric.CONTEXTUAL_RELEVANCE,
-            {
-                "questions": DEFAULT_QUESTIONS,
-                "contexts": DEFAULT_CONTEXTS,
-                "responses": DEFAULT_RESPONSES,
-            },
+            {"questions": DEFAULT_QUESTIONS, "contexts": DEFAULT_CONTEXTS, "responses": DEFAULT_RESPONSES},
             [[(None, 1.5, "5")]] * 2,
             {"model": "gpt-4"},
         ),
     ],
 )
-def test_evaluator_outputs(
-    metric, inputs, expected_outputs, metric_params, monkeypatch
-):
+def test_evaluator_outputs(metric, inputs, expected_outputs, metric_params, monkeypatch):
     monkeypatch.setenv("OPENAI_API_KEY", "test-api-key")
 
     init_params = {
@@ -283,9 +252,7 @@ def test_evaluator_outputs(
         "metric_params": metric_params,
     }
     eval = DeepEvalEvaluator(**init_params)
-    eval._backend_callable = lambda testcases, metrics: MockBackend(metric).eval(
-        testcases, metrics
-    )
+    eval._backend_callable = lambda testcases, metrics: MockBackend(metric).eval(testcases, metrics)
     results = eval.run(**inputs)["results"]
 
     assert type(results) == type(expected_outputs)
@@ -294,10 +261,7 @@ def test_evaluator_outputs(
     for r, o in zip(results, expected_outputs):
         assert len(r) == len(o)
 
-        expected = {
-            (name if name is not None else str(metric), score, exp)
-            for name, score, exp in o
-        }
+        expected = {(name if name is not None else str(metric), score, exp) for name, score, exp in o}
         got = {(x["name"], x["score"], x["explanation"]) for x in r}
         assert got == expected
 
@@ -312,20 +276,12 @@ def test_evaluator_outputs(
     [
         (
             DeepEvalMetric.ANSWER_RELEVANCY,
-            {
-                "questions": DEFAULT_QUESTIONS,
-                "contexts": DEFAULT_CONTEXTS,
-                "responses": DEFAULT_RESPONSES,
-            },
+            {"questions": DEFAULT_QUESTIONS, "contexts": DEFAULT_CONTEXTS, "responses": DEFAULT_RESPONSES},
             {"model": "gpt-4"},
         ),
         (
             DeepEvalMetric.FAITHFULNESS,
-            {
-                "questions": DEFAULT_QUESTIONS,
-                "contexts": DEFAULT_CONTEXTS,
-                "responses": DEFAULT_RESPONSES,
-            },
+            {"questions": DEFAULT_QUESTIONS, "contexts": DEFAULT_CONTEXTS, "responses": DEFAULT_RESPONSES},
             {"model": "gpt-4"},
         ),
         (
@@ -350,11 +306,7 @@ def test_evaluator_outputs(
         ),
         (
             DeepEvalMetric.CONTEXTUAL_RELEVANCE,
-            {
-                "questions": DEFAULT_QUESTIONS,
-                "contexts": DEFAULT_CONTEXTS,
-                "responses": DEFAULT_RESPONSES,
-            },
+            {"questions": DEFAULT_QUESTIONS, "contexts": DEFAULT_CONTEXTS, "responses": DEFAULT_RESPONSES},
             {"model": "gpt-4"},
         ),
     ],

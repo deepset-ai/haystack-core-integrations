@@ -6,10 +6,7 @@ from typing import Any, Dict, List
 
 from haystack import component, default_from_dict, default_to_dict
 from haystack.utils import Secret, deserialize_secrets_inplace
-from haystack_integrations.components.embedders.cohere.utils import (
-    get_async_response,
-    get_response,
-)
+from haystack_integrations.components.embedders.cohere.utils import get_async_response, get_response
 
 from cohere import AsyncClient, Client
 
@@ -135,9 +132,7 @@ class CohereTextEmbedder:
                 client_name="haystack",
             )
             embedding, metadata = asyncio.run(
-                get_async_response(
-                    cohere_client, [text], self.model, self.input_type, self.truncate
-                )
+                get_async_response(cohere_client, [text], self.model, self.input_type, self.truncate)
             )
         else:
             cohere_client = Client(
@@ -146,8 +141,6 @@ class CohereTextEmbedder:
                 timeout=self.timeout,
                 client_name="haystack",
             )
-            embedding, metadata = get_response(
-                cohere_client, [text], self.model, self.input_type, self.truncate
-            )
+            embedding, metadata = get_response(cohere_client, [text], self.model, self.input_type, self.truncate)
 
         return {"embedding": embedding[0], "meta": metadata}

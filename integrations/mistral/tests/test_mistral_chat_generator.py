@@ -7,9 +7,7 @@ import pytz
 from haystack.components.generators.utils import print_streaming_chunk
 from haystack.dataclasses import ChatMessage, StreamingChunk
 from haystack.utils.auth import Secret
-from haystack_integrations.components.generators.mistral.chat.chat_generator import (
-    MistralChatGenerator,
-)
+from haystack_integrations.components.generators.mistral.chat.chat_generator import MistralChatGenerator
 from openai import OpenAIError
 from openai.types.chat import ChatCompletion, ChatCompletionMessage
 from openai.types.chat.chat_completion import Choice
@@ -28,9 +26,7 @@ def mock_chat_completion():
     """
     Mock the OpenAI API completion response and reuse it for tests
     """
-    with patch(
-        "openai.resources.chat.completions.Completions.create"
-    ) as mock_chat_completion_create:
+    with patch("openai.resources.chat.completions.Completions.create") as mock_chat_completion_create:
         completion = ChatCompletion(
             id="foo",
             model="mistral-tiny",
@@ -40,9 +36,7 @@ def mock_chat_completion():
                     finish_reason="stop",
                     logprobs=None,
                     index=0,
-                    message=ChatCompletionMessage(
-                        content="Hello world!", role="assistant"
-                    ),
+                    message=ChatCompletionMessage(content="Hello world!", role="assistant"),
                 )
             ],
             created=int(datetime.now(tz=pytz.timezone("UTC")).timestamp()),
@@ -65,9 +59,7 @@ class TestMistralChatGenerator:
 
     def test_init_fail_wo_api_key(self, monkeypatch):
         monkeypatch.delenv("MISTRAL_API_KEY", raising=False)
-        with pytest.raises(
-            ValueError, match="None of the .* environment variables are set"
-        ):
+        with pytest.raises(ValueError, match="None of the .* environment variables are set"):
             MistralChatGenerator()
 
     def test_init_with_parameters(self):
@@ -81,10 +73,7 @@ class TestMistralChatGenerator:
         assert component.client.api_key == "test-api-key"
         assert component.model == "mistral-small"
         assert component.streaming_callback is print_streaming_chunk
-        assert component.generation_kwargs == {
-            "max_tokens": 10,
-            "some_test_param": "test-params",
-        }
+        assert component.generation_kwargs == {"max_tokens": 10, "some_test_param": "test-params"}
 
     def test_to_dict_default(self, monkeypatch):
         monkeypatch.setenv("MISTRAL_API_KEY", "test-api-key")
@@ -93,11 +82,7 @@ class TestMistralChatGenerator:
         assert data == {
             "type": "haystack_integrations.components.generators.mistral.chat.chat_generator.MistralChatGenerator",
             "init_parameters": {
-                "api_key": {
-                    "env_vars": ["MISTRAL_API_KEY"],
-                    "strict": True,
-                    "type": "env_var",
-                },
+                "api_key": {"env_vars": ["MISTRAL_API_KEY"], "strict": True, "type": "env_var"},
                 "model": "mistral-tiny",
                 "organization": None,
                 "streaming_callback": None,
@@ -124,10 +109,7 @@ class TestMistralChatGenerator:
                 "api_base_url": "test-base-url",
                 "organization": None,
                 "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
-                "generation_kwargs": {
-                    "max_tokens": 10,
-                    "some_test_param": "test-params",
-                },
+                "generation_kwargs": {"max_tokens": 10, "some_test_param": "test-params"},
             },
         }
 
@@ -136,28 +118,18 @@ class TestMistralChatGenerator:
         data = {
             "type": "haystack_integrations.components.generators.mistral.chat.chat_generator.MistralChatGenerator",
             "init_parameters": {
-                "api_key": {
-                    "env_vars": ["MISTRAL_API_KEY"],
-                    "strict": True,
-                    "type": "env_var",
-                },
+                "api_key": {"env_vars": ["MISTRAL_API_KEY"], "strict": True, "type": "env_var"},
                 "model": "mistral-small",
                 "api_base_url": "test-base-url",
                 "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
-                "generation_kwargs": {
-                    "max_tokens": 10,
-                    "some_test_param": "test-params",
-                },
+                "generation_kwargs": {"max_tokens": 10, "some_test_param": "test-params"},
             },
         }
         component = MistralChatGenerator.from_dict(data)
         assert component.model == "mistral-small"
         assert component.streaming_callback is print_streaming_chunk
         assert component.api_base_url == "test-base-url"
-        assert component.generation_kwargs == {
-            "max_tokens": 10,
-            "some_test_param": "test-params",
-        }
+        assert component.generation_kwargs == {"max_tokens": 10, "some_test_param": "test-params"}
         assert component.api_key == Secret.from_env_var("MISTRAL_API_KEY")
 
     def test_from_dict_fail_wo_env_var(self, monkeypatch):
@@ -165,28 +137,17 @@ class TestMistralChatGenerator:
         data = {
             "type": "haystack_integrations.components.generators.mistral.chat.chat_generator.MistralChatGenerator",
             "init_parameters": {
-                "api_key": {
-                    "env_vars": ["MISTRAL_API_KEY"],
-                    "strict": True,
-                    "type": "env_var",
-                },
+                "api_key": {"env_vars": ["MISTRAL_API_KEY"], "strict": True, "type": "env_var"},
                 "model": "mistral-small",
                 "api_base_url": "test-base-url",
                 "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
-                "generation_kwargs": {
-                    "max_tokens": 10,
-                    "some_test_param": "test-params",
-                },
+                "generation_kwargs": {"max_tokens": 10, "some_test_param": "test-params"},
             },
         }
-        with pytest.raises(
-            ValueError, match="None of the .* environment variables are set"
-        ):
+        with pytest.raises(ValueError, match="None of the .* environment variables are set"):
             MistralChatGenerator.from_dict(data)
 
-    def test_run(
-        self, chat_messages, mock_chat_completion, monkeypatch
-    ):  # noqa: ARG002
+    def test_run(self, chat_messages, mock_chat_completion, monkeypatch):  # noqa: ARG002
         monkeypatch.setenv("MISTRAL_API_KEY", "fake-api-key")
         component = MistralChatGenerator()
         response = component.run(chat_messages)
@@ -200,9 +161,7 @@ class TestMistralChatGenerator:
 
     def test_run_with_params(self, chat_messages, mock_chat_completion, monkeypatch):
         monkeypatch.setenv("MISTRAL_API_KEY", "fake-api-key")
-        component = MistralChatGenerator(
-            generation_kwargs={"max_tokens": 10, "temperature": 0.5}
-        )
+        component = MistralChatGenerator(generation_kwargs={"max_tokens": 10, "temperature": 0.5})
         response = component.run(chat_messages)
 
         # check that the component calls the OpenAI API with the correct parameters
@@ -221,11 +180,7 @@ class TestMistralChatGenerator:
         component = MistralChatGenerator(api_key=Secret.from_token("test-api-key"))
         messages = [
             ChatMessage.from_assistant(
-                "",
-                meta={
-                    "finish_reason": "content_filter" if i % 2 == 0 else "length",
-                    "index": i,
-                },
+                "", meta={"finish_reason": "content_filter" if i % 2 == 0 else "length", "index": i}
             )
             for i, _ in enumerate(range(4))
         ]
@@ -289,9 +244,7 @@ class TestMistralChatGenerator:
 
         callback = Callback()
         component = MistralChatGenerator(streaming_callback=callback)
-        results = component.run(
-            [ChatMessage.from_user("What's the capital of France?")]
-        )
+        results = component.run([ChatMessage.from_user("What's the capital of France?")])
 
         assert len(results["replies"]) == 1
         message: ChatMessage = results["replies"][0]

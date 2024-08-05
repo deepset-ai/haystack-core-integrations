@@ -172,19 +172,13 @@ class WeaviateDocumentStore:
         if self._client:
             return self._client
 
-        if (
-            self._url
-            and self._url.startswith("http")
-            and self._url.endswith(".weaviate.network")
-        ):
+        if self._url and self._url.startswith("http") and self._url.endswith(".weaviate.network"):
             # We use this utility function instead of using WeaviateClient directly like in other cases
             # otherwise we'd have to parse the URL to get some information about the connection.
             # This utility function does all that for us.
             self._client = weaviate.connect_to_wcs(
                 self._url,
-                auth_credentials=self._auth_client_secret.resolve_value()
-                if self._auth_client_secret
-                else None,
+                auth_credentials=self._auth_client_secret.resolve_value() if self._auth_client_secret else None,
                 headers=self._additional_headers,
                 additional_config=self._additional_config,
             )
@@ -194,16 +188,12 @@ class WeaviateDocumentStore:
             self._client = weaviate.WeaviateClient(
                 connection_params=(
                     weaviate.connect.base.ConnectionParams.from_url(
-                        url=self._url,
-                        grpc_port=self._grpc_port,
-                        grpc_secure=self._grpc_secure,
+                        url=self._url, grpc_port=self._grpc_port, grpc_secure=self._grpc_secure
                     )
                     if self._url
                     else None
                 ),
-                auth_client_secret=self._auth_client_secret.resolve_value()
-                if self._auth_client_secret
-                else None,
+                auth_client_secret=self._auth_client_secret.resolve_value() if self._auth_client_secret else None,
                 additional_config=self._additional_config,
                 additional_headers=self._additional_headers,
                 embedded_options=self._embedded_options,
@@ -235,22 +225,16 @@ class WeaviateDocumentStore:
         :returns:
             Dictionary with serialized data.
         """
-        embedded_options = (
-            asdict(self._embedded_options) if self._embedded_options else None
-        )
+        embedded_options = asdict(self._embedded_options) if self._embedded_options else None
         additional_config = (
-            json.loads(self._additional_config.model_dump_json(by_alias=True))
-            if self._additional_config
-            else None
+            json.loads(self._additional_config.model_dump_json(by_alias=True)) if self._additional_config else None
         )
 
         return default_to_dict(
             self,
             url=self._url,
             collection_settings=self._collection_settings,
-            auth_client_secret=self._auth_client_secret.to_dict()
-            if self._auth_client_secret
-            else None,
+            auth_client_secret=self._auth_client_secret.to_dict() if self._auth_client_secret else None,
             additional_headers=self._additional_headers,
             embedded_options=embedded_options,
             additional_config=additional_config,
@@ -266,24 +250,12 @@ class WeaviateDocumentStore:
         :returns:
             The deserialized component.
         """
-        if (
-            auth_client_secret := data["init_parameters"].get("auth_client_secret")
-        ) is not None:
-            data["init_parameters"]["auth_client_secret"] = AuthCredentials.from_dict(
-                auth_client_secret
-            )
-        if (
-            embedded_options := data["init_parameters"].get("embedded_options")
-        ) is not None:
-            data["init_parameters"]["embedded_options"] = EmbeddedOptions(
-                **embedded_options
-            )
-        if (
-            additional_config := data["init_parameters"].get("additional_config")
-        ) is not None:
-            data["init_parameters"]["additional_config"] = AdditionalConfig(
-                **additional_config
-            )
+        if (auth_client_secret := data["init_parameters"].get("auth_client_secret")) is not None:
+            data["init_parameters"]["auth_client_secret"] = AuthCredentials.from_dict(auth_client_secret)
+        if (embedded_options := data["init_parameters"].get("embedded_options")) is not None:
+            data["init_parameters"]["embedded_options"] = EmbeddedOptions(**embedded_options)
+        if (additional_config := data["init_parameters"].get("additional_config")) is not None:
+            data["init_parameters"]["additional_config"] = AdditionalConfig(**additional_config)
         return default_from_dict(
             cls,
             data,
@@ -367,9 +339,7 @@ class WeaviateDocumentStore:
     def _query(self) -> List[Dict[str, Any]]:
         properties = [p.name for p in self.collection.config.get().properties]
         try:
-            result = self.collection.iterator(
-                include_vector=True, return_properties=properties
-            )
+            result = self.collection.iterator(include_vector=True, return_properties=properties)
         except weaviate.exceptions.WeaviateQueryError as e:
             msg = f"Failed to query documents in Weaviate. Error: {e.message}"
             raise DocumentStoreError(msg) from e
@@ -390,9 +360,7 @@ class WeaviateDocumentStore:
         partial_result = None
         result = []
         # Keep querying until we get all documents matching the filters
-        while (
-            partial_result is None or len(partial_result.objects) == DEFAULT_QUERY_LIMIT
-        ):
+        while partial_result is None or len(partial_result.objects) == DEFAULT_QUERY_LIMIT:
             try:
                 partial_result = self.collection.query.fetch_objects(
                     filters=convert_filters(filters),
@@ -408,9 +376,7 @@ class WeaviateDocumentStore:
             offset += DEFAULT_QUERY_LIMIT
         return result
 
-    def filter_documents(
-        self, filters: Optional[Dict[str, Any]] = None
-    ) -> List[Document]:
+    def filter_documents(self, filters: Optional[Dict[str, Any]] = None) -> List[Document]:
         """
         Returns the documents that match the filters provided.
 
@@ -485,9 +451,7 @@ class WeaviateDocumentStore:
                 msg = f"Expected a Document, got '{type(doc)}' instead."
                 raise ValueError(msg)
 
-            if policy == DuplicatePolicy.SKIP and self.collection.data.exists(
-                uuid=generate_uuid5(doc.id)
-            ):
+            if policy == DuplicatePolicy.SKIP and self.collection.data.exists(uuid=generate_uuid5(doc.id)):
                 # This Document already exists, we skip it
                 continue
 
@@ -507,9 +471,7 @@ class WeaviateDocumentStore:
             raise DuplicateDocumentError(msg)
         return written
 
-    def write_documents(
-        self, documents: List[Document], policy: DuplicatePolicy = DuplicatePolicy.NONE
-    ) -> int:
+    def write_documents(self, documents: List[Document], policy: DuplicatePolicy = DuplicatePolicy.NONE) -> int:
         """
         Writes documents to Weaviate using the specified policy.
         We recommend using a OVERWRITE policy as it's faster than other policies for Weaviate since it uses
@@ -530,15 +492,10 @@ class WeaviateDocumentStore:
         :param document_ids: The object_ids to delete.
         """
         weaviate_ids = [generate_uuid5(doc_id) for doc_id in document_ids]
-        self.collection.data.delete_many(
-            where=weaviate.classes.query.Filter.by_id().contains_any(weaviate_ids)
-        )
+        self.collection.data.delete_many(where=weaviate.classes.query.Filter.by_id().contains_any(weaviate_ids))
 
     def _bm25_retrieval(
-        self,
-        query: str,
-        filters: Optional[Dict[str, Any]] = None,
-        top_k: Optional[int] = None,
+        self, query: str, filters: Optional[Dict[str, Any]] = None, top_k: Optional[int] = None
     ) -> List[Document]:
         properties = [p.name for p in self.collection.config.get().properties]
         result = self.collection.query.bm25(

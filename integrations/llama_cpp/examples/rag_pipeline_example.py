@@ -2,10 +2,7 @@ from datasets import load_dataset
 from haystack import Document, Pipeline
 from haystack.components.builders.answer_builder import AnswerBuilder
 from haystack.components.builders.prompt_builder import PromptBuilder
-from haystack.components.embedders import (
-    SentenceTransformersDocumentEmbedder,
-    SentenceTransformersTextEmbedder,
-)
+from haystack.components.embedders import SentenceTransformersDocumentEmbedder, SentenceTransformersTextEmbedder
 from haystack.components.retrievers import InMemoryEmbeddingRetriever
 from haystack.components.writers import DocumentWriter
 from haystack.document_stores import InMemoryDocumentStore
@@ -26,17 +23,13 @@ docs = [
 ]
 
 doc_store = InMemoryDocumentStore(embedding_similarity_function="cosine")
-doc_embedder = SentenceTransformersDocumentEmbedder(
-    model="sentence-transformers/all-MiniLM-L6-v2"
-)
+doc_embedder = SentenceTransformersDocumentEmbedder(model="sentence-transformers/all-MiniLM-L6-v2")
 
 
 # Indexing Pipeline
 indexing_pipeline = Pipeline()
 indexing_pipeline.add_component(instance=doc_embedder, name="doc_embedder")
-indexing_pipeline.add_component(
-    instance=DocumentWriter(document_store=doc_store), name="doc_writer"
-)
+indexing_pipeline.add_component(instance=DocumentWriter(document_store=doc_store), name="doc_writer")
 indexing_pipeline.connect("doc_embedder", "doc_writer")
 
 indexing_pipeline.run({"doc_embedder": {"documents": docs}})
@@ -54,9 +47,7 @@ GPT4 Correct Assistant:
 """
 rag_pipeline = Pipeline()
 
-text_embedder = SentenceTransformersTextEmbedder(
-    model="sentence-transformers/all-MiniLM-L6-v2"
-)
+text_embedder = SentenceTransformersTextEmbedder(model="sentence-transformers/all-MiniLM-L6-v2")
 
 model_path = "openchat-3.5-1210.Q3_K_S.gguf"
 generator = LlamaCppGenerator(model=model_path, n_ctx=4096, n_batch=128)
@@ -65,13 +56,8 @@ rag_pipeline.add_component(
     instance=text_embedder,
     name="text_embedder",
 )
-rag_pipeline.add_component(
-    instance=InMemoryEmbeddingRetriever(document_store=doc_store, top_k=3),
-    name="retriever",
-)
-rag_pipeline.add_component(
-    instance=PromptBuilder(template=prompt_template), name="prompt_builder"
-)
+rag_pipeline.add_component(instance=InMemoryEmbeddingRetriever(document_store=doc_store, top_k=3), name="retriever")
+rag_pipeline.add_component(instance=PromptBuilder(template=prompt_template), name="prompt_builder")
 rag_pipeline.add_component(instance=generator, name="llm")
 rag_pipeline.add_component(instance=AnswerBuilder(), name="answer_builder")
 

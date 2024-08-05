@@ -50,9 +50,7 @@ class AstraEmbeddingRetriever:
         self.top_k = top_k
         self.document_store = document_store
         self.filter_policy = (
-            filter_policy
-            if isinstance(filter_policy, FilterPolicy)
-            else FilterPolicy.from_str(filter_policy)
+            filter_policy if isinstance(filter_policy, FilterPolicy) else FilterPolicy.from_str(filter_policy)
         )
 
         if not isinstance(document_store, AstraDocumentStore):
@@ -60,12 +58,7 @@ class AstraEmbeddingRetriever:
             raise Exception(message)
 
     @component.output_types(documents=List[Document])
-    def run(
-        self,
-        query_embedding: List[float],
-        filters: Optional[Dict[str, Any]] = None,
-        top_k: Optional[int] = None,
-    ):
+    def run(self, query_embedding: List[float], filters: Optional[Dict[str, Any]] = None, top_k: Optional[int] = None):
         """Retrieve documents from the AstraDocumentStore.
 
         :param query_embedding: floats representing the query embedding
@@ -79,11 +72,7 @@ class AstraEmbeddingRetriever:
         filters = apply_filter_policy(self.filter_policy, self.filters, filters)
         top_k = top_k or self.top_k
 
-        return {
-            "documents": self.document_store.search(
-                query_embedding, top_k, filters=filters
-            )
-        }
+        return {"documents": self.document_store.search(query_embedding, top_k, filters=filters)}
 
     def to_dict(self) -> Dict[str, Any]:
         """
@@ -110,14 +99,10 @@ class AstraEmbeddingRetriever:
         :returns:
             Deserialized component.
         """
-        document_store = AstraDocumentStore.from_dict(
-            data["init_parameters"]["document_store"]
-        )
+        document_store = AstraDocumentStore.from_dict(data["init_parameters"]["document_store"])
         data["init_parameters"]["document_store"] = document_store
         # Pipelines serialized with old versions of the component might not
         # have the filter_policy field.
         if filter_policy := data["init_parameters"].get("filter_policy"):
-            data["init_parameters"]["filter_policy"] = FilterPolicy.from_str(
-                filter_policy
-            )
+            data["init_parameters"]["filter_policy"] = FilterPolicy.from_str(filter_policy)
         return default_from_dict(cls, data)

@@ -2,27 +2,16 @@ from unittest.mock import Mock, patch
 
 from vertexai.language_models import TextGenerationResponse
 
-from haystack_integrations.components.generators.google_vertex import (
-    VertexAICodeGenerator,
-)
+from haystack_integrations.components.generators.google_vertex import VertexAICodeGenerator
 
 
-@patch(
-    "haystack_integrations.components.generators.google_vertex.code_generator.vertexai"
-)
-@patch(
-    "haystack_integrations.components.generators.google_vertex.code_generator.CodeGenerationModel"
-)
+@patch("haystack_integrations.components.generators.google_vertex.code_generator.vertexai")
+@patch("haystack_integrations.components.generators.google_vertex.code_generator.CodeGenerationModel")
 def test_init(mock_model_class, mock_vertexai):
     generator = VertexAICodeGenerator(
-        model="code-bison",
-        project_id="myproject-123456",
-        candidate_count=3,
-        temperature=0.5,
+        model="code-bison", project_id="myproject-123456", candidate_count=3, temperature=0.5
     )
-    mock_vertexai.init.assert_called_once_with(
-        project="myproject-123456", location=None
-    )
+    mock_vertexai.init.assert_called_once_with(project="myproject-123456", location=None)
     mock_model_class.from_pretrained.assert_called_once_with("code-bison")
     assert generator._model_name == "code-bison"
     assert generator._project_id == "myproject-123456"
@@ -30,18 +19,11 @@ def test_init(mock_model_class, mock_vertexai):
     assert generator._kwargs == {"candidate_count": 3, "temperature": 0.5}
 
 
-@patch(
-    "haystack_integrations.components.generators.google_vertex.code_generator.vertexai"
-)
-@patch(
-    "haystack_integrations.components.generators.google_vertex.code_generator.CodeGenerationModel"
-)
+@patch("haystack_integrations.components.generators.google_vertex.code_generator.vertexai")
+@patch("haystack_integrations.components.generators.google_vertex.code_generator.CodeGenerationModel")
 def test_to_dict(_mock_model_class, _mock_vertexai):
     generator = VertexAICodeGenerator(
-        model="code-bison",
-        project_id="myproject-123456",
-        candidate_count=3,
-        temperature=0.5,
+        model="code-bison", project_id="myproject-123456", candidate_count=3, temperature=0.5
     )
     assert generator.to_dict() == {
         "type": "haystack_integrations.components.generators.google_vertex.code_generator.VertexAICodeGenerator",
@@ -55,12 +37,8 @@ def test_to_dict(_mock_model_class, _mock_vertexai):
     }
 
 
-@patch(
-    "haystack_integrations.components.generators.google_vertex.code_generator.vertexai"
-)
-@patch(
-    "haystack_integrations.components.generators.google_vertex.code_generator.CodeGenerationModel"
-)
+@patch("haystack_integrations.components.generators.google_vertex.code_generator.vertexai")
+@patch("haystack_integrations.components.generators.google_vertex.code_generator.CodeGenerationModel")
 def test_from_dict(_mock_model_class, _mock_vertexai):
     generator = VertexAICodeGenerator.from_dict(
         {
@@ -80,21 +58,14 @@ def test_from_dict(_mock_model_class, _mock_vertexai):
     assert generator._model is not None
 
 
-@patch(
-    "haystack_integrations.components.generators.google_vertex.code_generator.vertexai"
-)
-@patch(
-    "haystack_integrations.components.generators.google_vertex.code_generator.CodeGenerationModel"
-)
+@patch("haystack_integrations.components.generators.google_vertex.code_generator.vertexai")
+@patch("haystack_integrations.components.generators.google_vertex.code_generator.CodeGenerationModel")
 def test_run_calls_predict(mock_model_class, _mock_vertexai):
     mock_model = Mock()
     mock_model.predict.return_value = TextGenerationResponse("answer", None)
     mock_model_class.from_pretrained.return_value = mock_model
     generator = VertexAICodeGenerator(
-        model="code-bison",
-        project_id="myproject-123456",
-        candidate_count=1,
-        temperature=0.5,
+        model="code-bison", project_id="myproject-123456", candidate_count=1, temperature=0.5
     )
 
     prefix = "def print_json(data):\n"

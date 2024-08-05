@@ -10,12 +10,9 @@ from requests import HTTPError, Response
 @pytest.fixture
 def chat_messages() -> List[ChatMessage]:
     return [
-        ChatMessage.from_user(
-            "Tell me about why Super Mario is the greatest superhero"
-        ),
+        ChatMessage.from_user("Tell me about why Super Mario is the greatest superhero"),
         ChatMessage.from_assistant(
-            "Super Mario has prevented Bowser from destroying the world",
-            {"something": "something"},
+            "Super Mario has prevented Bowser from destroying the world", {"something": "something"}
         ),
     ]
 
@@ -49,14 +46,8 @@ class TestOllamaChatGenerator:
         )
         expected = {
             "messages": [
-                {
-                    "role": "user",
-                    "content": "Tell me about why Super Mario is the greatest superhero",
-                },
-                {
-                    "role": "assistant",
-                    "content": "Super Mario has prevented Bowser from destroying the world",
-                },
+                {"role": "user", "content": "Tell me about why Super Mario is the greatest superhero"},
+                {"role": "assistant", "content": "Super Mario has prevented Bowser from destroying the world"},
             ],
             "model": "some_model",
             "stream": False,
@@ -83,9 +74,7 @@ class TestOllamaChatGenerator:
             "eval_duration": 4799921000,
         }
 
-        observed = OllamaChatGenerator(model=model)._build_message_from_ollama_response(
-            mock_ollama_response
-        )
+        observed = OllamaChatGenerator(model=model)._build_message_from_ollama_response(mock_ollama_response)
 
         assert observed.role == "assistant"
         assert observed.content == "Hello! How are you today?"
@@ -114,31 +103,20 @@ class TestOllamaChatGenerator:
         chat_generator = OllamaChatGenerator()
 
         chat_history = [
-            {
-                "role": "user",
-                "content": "What is the largest city in the United Kingdom by population?",
-            },
-            {
-                "role": "assistant",
-                "content": "London is the largest city in the United Kingdom by population",
-            },
+            {"role": "user", "content": "What is the largest city in the United Kingdom by population?"},
+            {"role": "assistant", "content": "London is the largest city in the United Kingdom by population"},
             {"role": "user", "content": "And what is the second largest?"},
         ]
 
         chat_messages = [
-            ChatMessage(
-                role=ChatRole(message["role"]), content=message["content"], name=None
-            )
+            ChatMessage(role=ChatRole(message["role"]), content=message["content"], name=None)
             for message in chat_history
         ]
         response = chat_generator.run(chat_messages)
 
         assert isinstance(response, dict)
         assert isinstance(response["replies"], list)
-        assert (
-            "Manchester" in response["replies"][-1].content
-            or "Glasgow" in response["replies"][-1].content
-        )
+        assert "Manchester" in response["replies"][-1].content or "Glasgow" in response["replies"][-1].content
 
     @pytest.mark.integration
     def test_run_model_unavailable(self):
@@ -156,21 +134,13 @@ class TestOllamaChatGenerator:
         chat_generator = OllamaChatGenerator(streaming_callback=streaming_callback)
 
         chat_history = [
-            {
-                "role": "user",
-                "content": "What is the largest city in the United Kingdom by population?",
-            },
-            {
-                "role": "assistant",
-                "content": "London is the largest city in the United Kingdom by population",
-            },
+            {"role": "user", "content": "What is the largest city in the United Kingdom by population?"},
+            {"role": "assistant", "content": "London is the largest city in the United Kingdom by population"},
             {"role": "user", "content": "And what is the second largest?"},
         ]
 
         chat_messages = [
-            ChatMessage(
-                role=ChatRole(message["role"]), content=message["content"], name=None
-            )
+            ChatMessage(role=ChatRole(message["role"]), content=message["content"], name=None)
             for message in chat_history
         ]
 
@@ -180,7 +150,4 @@ class TestOllamaChatGenerator:
 
         assert isinstance(response, dict)
         assert isinstance(response["replies"], list)
-        assert (
-            "Manchester" in response["replies"][-1].content
-            or "Glasgow" in response["replies"][-1].content
-        )
+        assert "Manchester" in response["replies"][-1].content or "Glasgow" in response["replies"][-1].content
