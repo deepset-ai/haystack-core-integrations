@@ -29,18 +29,22 @@ class OpenSearchBM25Retriever:
         raise_on_failure: bool = True,
     ):
         """
-        Create the OpenSearchBM25Retriever component.
+        Creates the OpenSearchBM25Retriever component.
 
-        :param document_store: An instance of OpenSearchDocumentStore.
-        :param filters: Filters applied to the retrieved Documents. Defaults to None.
-        :param fuzziness: Fuzziness parameter for full-text queries. Defaults to "AUTO".
-        :param top_k: Maximum number of Documents to return, defaults to 10
-        :param scale_score: Whether to scale the score of retrieved documents between 0 and 1.
-            This is useful when comparing documents across different indexes. Defaults to False.
-        :param all_terms_must_match: If True, all terms in the query string must be present in the retrieved documents.
-            This is useful when searching for short text where even one term can make a difference. Defaults to False.
-        :param filter_policy: Policy to determine how filters are applied.
-        :param custom_query: The query containing a mandatory `$query` and an optional `$filters` placeholder
+        :param document_store: An instance of OpenSearchDocumentStore to use with the Retriever.
+        :param filters: Filters to narrow down the search for documents in the document store. 
+        :param fuzziness: Fuzziness parameter for full-text queries to apply approximate string matching. 
+        For more information, see [OpenSearch fuzzy query](https://opensearch.org/docs/latest/query-dsl/term/fuzzy/).
+        :param top_k: Maximum number of documents to return.
+        :param scale_score: If `True`, scales the score of retrieved documents to a range between 0 and 1.
+            This is useful when comparing documents across different indexes. 
+        :param all_terms_must_match: If `True`, all terms in the query string must be present in the retrieved documents.
+            This is useful when searching for short text where even one term can make a difference. 
+        :param filter_policy: Policy to determine how filters are applied. Possible options:
+            - `replace`: Runtime filters replace initialization filters. Use this policy to change the filtering scope
+            for specific queries. 
+            - `merge`: Runtime filters are merged with initialization filters. 
+        :param custom_query: The query containing a mandatory `$query` and an optional `$filters` placeholder.
 
             **An example custom_query:**
 
@@ -58,7 +62,7 @@ class OpenSearchBM25Retriever:
             }
             ```
 
-        **For this custom_query, a sample `run()` could be:**
+        An example `run()` method for this `custom_query`:
 
         ```python
         retriever.run(query="Why did the revenue increase?",
@@ -140,16 +144,17 @@ class OpenSearchBM25Retriever:
         """
         Retrieve documents using BM25 retrieval.
 
-        :param query: The query string
-        :param filters: Filters applied to the retrieved Documents. The way runtime filters are applied depends on
-                        the `filter_policy` chosen at retriever initialization. See init method docstring for more
-                        details.
-        :param all_terms_must_match: If True, all terms in the query string must be present in the retrieved documents.
-        :param top_k: Maximum number of Documents to return.
-        :param fuzziness: Fuzziness parameter for full-text queries.
-        :param scale_score: Whether to scale the score of retrieved documents between 0 and 1.
-            This is useful when comparing documents across different indexes.
-        :param custom_query: The query containing a mandatory `$query` and an optional `$filters` placeholder
+        :param query: The query string.
+        :param filters: Filters applied to the retrieved documents. The way runtime filters are applied depends on
+                        the `filter_policy` specifies at Retriever's initialization. 
+        :param all_terms_must_match: If `True`, all terms in the query string must be present in the retrieved documents.
+        :param top_k: Maximum number of documents to return.
+        :param fuzziness: Fuzziness parameter for full-text queries to apply approximate string matching. 
+        For more information, see [OpenSearch fuzzy query](https://opensearch.org/docs/latest/query-dsl/term/fuzzy/).
+        :param scale_score: If `True`, scales the score of retrieved documents to a range between 0 and 1.
+            This is useful when comparing documents across different indexes. 
+        :param custom_query: A custom OpenSearch query. It must include a `$query` and may optionally 
+        include a `$filters` placeholder.
 
             **An example custom_query:**
 
