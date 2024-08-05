@@ -9,7 +9,11 @@ import pytest
 from haystack.dataclasses.document import ByteStream, Document
 from haystack.document_stores.errors import DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
-from haystack.testing.document_store import CountDocumentsTest, DeleteDocumentsTest, WriteDocumentsTest
+from haystack.testing.document_store import (
+    CountDocumentsTest,
+    DeleteDocumentsTest,
+    WriteDocumentsTest,
+)
 from haystack.utils import Secret
 from haystack_integrations.document_stores.pgvector import PgvectorDocumentStore
 from pandas import DataFrame
@@ -24,7 +28,9 @@ class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsT
             document_store.write_documents(docs, DuplicatePolicy.FAIL)
 
     def test_write_blob(self, document_store: PgvectorDocumentStore):
-        bytestream = ByteStream(b"test", meta={"meta_key": "meta_value"}, mime_type="mime_type")
+        bytestream = ByteStream(
+            b"test", meta={"meta_key": "meta_value"}, mime_type="mime_type"
+        )
         docs = [Document(id="1", blob=bytestream)]
         document_store.write_documents(docs)
 
@@ -64,7 +70,10 @@ def test_init(monkeypatch):
     assert document_store.recreate_table
     assert document_store.search_strategy == "hnsw"
     assert document_store.hnsw_recreate_index_if_exists
-    assert document_store.hnsw_index_creation_kwargs == {"m": 32, "ef_construction": 128}
+    assert document_store.hnsw_index_creation_kwargs == {
+        "m": 32,
+        "ef_construction": 128,
+    }
     assert document_store.hnsw_index_name == "my_hnsw_index"
     assert document_store.hnsw_ef_search == 50
     assert document_store.keyword_index_name == "my_keyword_index"
@@ -90,7 +99,11 @@ def test_to_dict(monkeypatch):
     assert document_store.to_dict() == {
         "type": "haystack_integrations.document_stores.pgvector.document_store.PgvectorDocumentStore",
         "init_parameters": {
-            "connection_string": {"env_vars": ["PG_CONN_STR"], "strict": True, "type": "env_var"},
+            "connection_string": {
+                "env_vars": ["PG_CONN_STR"],
+                "strict": True,
+                "type": "env_var",
+            },
             "table_name": "my_table",
             "embedding_dimension": 512,
             "vector_function": "l2_distance",
@@ -124,7 +137,11 @@ def test_from_haystack_to_pg_documents():
         ),
         Document(
             id="3",
-            blob=ByteStream(b"test", meta={"blob_meta_key": "blob_meta_value"}, mime_type="mime_type"),
+            blob=ByteStream(
+                b"test",
+                meta={"blob_meta_key": "blob_meta_value"},
+                mime_type="mime_type",
+            ),
             meta={"meta_key": "meta_value"},
             embedding=[0.7, 0.8, 0.9],
             score=0.7,
@@ -151,7 +168,10 @@ def test_from_haystack_to_pg_documents():
 
     assert pg_docs[1]["id"] == "2"
     assert pg_docs[1]["content"] is None
-    assert pg_docs[1]["dataframe"].obj == DataFrame({"col1": [1, 2], "col2": [3, 4]}).to_json()
+    assert (
+        pg_docs[1]["dataframe"].obj
+        == DataFrame({"col1": [1, 2], "col2": [3, 4]}).to_json()
+    )
     assert pg_docs[1]["blob_data"] is None
     assert pg_docs[1]["blob_meta"] is None
     assert pg_docs[1]["blob_mime_type"] is None
@@ -217,7 +237,9 @@ def test_from_pg_to_haystack_documents():
 
     assert haystack_docs[1].id == "2"
     assert haystack_docs[1].content is None
-    assert haystack_docs[1].dataframe.equals(DataFrame({"col1": [1, 2], "col2": [3, 4]}))
+    assert haystack_docs[1].dataframe.equals(
+        DataFrame({"col1": [1, 2], "col2": [3, 4]})
+    )
     assert haystack_docs[1].blob is None
     assert haystack_docs[1].meta == {"meta_key": "meta_value"}
     assert haystack_docs[1].embedding == [0.4, 0.5, 0.6]

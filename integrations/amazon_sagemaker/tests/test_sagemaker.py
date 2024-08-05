@@ -4,8 +4,12 @@ from unittest.mock import Mock
 import pytest
 from botocore.exceptions import BotoCoreError
 from haystack.utils.auth import EnvVarSecret
-from haystack_integrations.components.generators.amazon_sagemaker import SagemakerGenerator
-from haystack_integrations.components.generators.amazon_sagemaker.errors import AWSConfigurationError
+from haystack_integrations.components.generators.amazon_sagemaker import (
+    SagemakerGenerator,
+)
+from haystack_integrations.components.generators.amazon_sagemaker.errors import (
+    AWSConfigurationError,
+)
 
 
 def test_to_dict(set_env_variables, mock_boto3_session):  # noqa: ARG001
@@ -17,11 +21,31 @@ def test_to_dict(set_env_variables, mock_boto3_session):  # noqa: ARG001
         "type": "haystack_integrations.components.generators.amazon_sagemaker.sagemaker.SagemakerGenerator",
         "init_parameters": {
             "model": "model",
-            "aws_access_key_id": {"type": "env_var", "env_vars": ["AWS_ACCESS_KEY_ID"], "strict": False},
-            "aws_secret_access_key": {"type": "env_var", "env_vars": ["AWS_SECRET_ACCESS_KEY"], "strict": False},
-            "aws_session_token": {"type": "env_var", "env_vars": ["AWS_SESSION_TOKEN"], "strict": False},
-            "aws_region_name": {"type": "env_var", "env_vars": ["AWS_DEFAULT_REGION"], "strict": False},
-            "aws_profile_name": {"type": "env_var", "env_vars": ["AWS_PROFILE"], "strict": False},
+            "aws_access_key_id": {
+                "type": "env_var",
+                "env_vars": ["AWS_ACCESS_KEY_ID"],
+                "strict": False,
+            },
+            "aws_secret_access_key": {
+                "type": "env_var",
+                "env_vars": ["AWS_SECRET_ACCESS_KEY"],
+                "strict": False,
+            },
+            "aws_session_token": {
+                "type": "env_var",
+                "env_vars": ["AWS_SESSION_TOKEN"],
+                "strict": False,
+            },
+            "aws_region_name": {
+                "type": "env_var",
+                "env_vars": ["AWS_DEFAULT_REGION"],
+                "strict": False,
+            },
+            "aws_profile_name": {
+                "type": "env_var",
+                "env_vars": ["AWS_PROFILE"],
+                "strict": False,
+            },
             "aws_custom_attributes": {"accept_eula": True},
             "generation_kwargs": {"max_new_tokens": 10},
         },
@@ -44,11 +68,31 @@ def test_from_dict(set_env_variables, mock_boto3_session):  # noqa: ARG001
         "type": "haystack_integrations.components.generators.amazon_sagemaker.sagemaker.SagemakerGenerator",
         "init_parameters": {
             "model": "model",
-            "aws_access_key_id": {"type": "env_var", "env_vars": ["AWS_ACCESS_KEY_ID"], "strict": False},
-            "aws_secret_access_key": {"type": "env_var", "env_vars": ["AWS_SECRET_ACCESS_KEY"], "strict": False},
-            "aws_session_token": {"type": "env_var", "env_vars": ["AWS_SESSION_TOKEN"], "strict": False},
-            "aws_region_name": {"type": "env_var", "env_vars": ["AWS_DEFAULT_REGION"], "strict": False},
-            "aws_profile_name": {"type": "env_var", "env_vars": ["AWS_PROFILE"], "strict": False},
+            "aws_access_key_id": {
+                "type": "env_var",
+                "env_vars": ["AWS_ACCESS_KEY_ID"],
+                "strict": False,
+            },
+            "aws_secret_access_key": {
+                "type": "env_var",
+                "env_vars": ["AWS_SECRET_ACCESS_KEY"],
+                "strict": False,
+            },
+            "aws_session_token": {
+                "type": "env_var",
+                "env_vars": ["AWS_SESSION_TOKEN"],
+                "strict": False,
+            },
+            "aws_region_name": {
+                "type": "env_var",
+                "env_vars": ["AWS_DEFAULT_REGION"],
+                "strict": False,
+            },
+            "aws_profile_name": {
+                "type": "env_var",
+                "env_vars": ["AWS_PROFILE"],
+                "strict": False,
+            },
             "aws_custom_attributes": {"accept_eula": True},
             "generation_kwargs": {"max_new_tokens": 10},
         },
@@ -92,10 +136,14 @@ def test_init_raises_boto_error(set_env_variables, mock_boto3_session):  # noqa:
         SagemakerGenerator(model="test-model")
 
 
-def test_run_with_list_of_dictionaries(set_env_variables, mock_boto3_session):  # noqa: ARG001
+def test_run_with_list_of_dictionaries(
+    set_env_variables, mock_boto3_session
+):  # noqa: ARG001
     client_mock = Mock()
     client_mock.invoke_endpoint.return_value = {
-        "Body": Mock(read=lambda: b'[{"generated_text": "test-reply", "other": "metadata"}]')
+        "Body": Mock(
+            read=lambda: b'[{"generated_text": "test-reply", "other": "metadata"}]'
+        )
     }
     component = SagemakerGenerator(model="test-model")
     component.client = client_mock
@@ -116,7 +164,9 @@ def test_run_with_list_of_dictionaries(set_env_variables, mock_boto3_session):  
     assert response["meta"][0]["other"] == "metadata"
 
 
-def test_run_with_single_dictionary(set_env_variables, mock_boto3_session):  # noqa: ARG001
+def test_run_with_single_dictionary(
+    set_env_variables, mock_boto3_session
+):  # noqa: ARG001
     client_mock = Mock()
     client_mock.invoke_endpoint.return_value = {
         "Body": Mock(read=lambda: b'{"generation": "test-reply", "other": "metadata"}')
@@ -142,7 +192,10 @@ def test_run_with_single_dictionary(set_env_variables, mock_boto3_session):  # n
 
 
 @pytest.mark.skipif(
-    (not os.environ.get("AWS_ACCESS_KEY_ID", None) or not os.environ.get("AWS_SECRET_ACCESS_KEY", None)),
+    (
+        not os.environ.get("AWS_ACCESS_KEY_ID", None)
+        or not os.environ.get("AWS_SECRET_ACCESS_KEY", None)
+    ),
     reason="Export two env vars called AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY to run this test.",
 )
 @pytest.mark.integration
@@ -155,7 +208,9 @@ def test_run_with_single_dictionary(set_env_variables, mock_boto3_session):  # n
     ],
 )
 def test_run(model: str):
-    component = SagemakerGenerator(model=model, generation_kwargs={"max_new_tokens": 10})
+    component = SagemakerGenerator(
+        model=model, generation_kwargs={"max_new_tokens": 10}
+    )
     response = component.run("What's Natural Language Processing?")
 
     # check that the component returns the correct ChatMessage response

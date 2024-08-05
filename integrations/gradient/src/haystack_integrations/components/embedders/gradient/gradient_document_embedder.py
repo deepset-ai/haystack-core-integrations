@@ -57,8 +57,12 @@ class GradientDocumentEmbedder:
         *,
         model: str = "bge-large",
         batch_size: int = 32_768,
-        access_token: Secret = Secret.from_env_var("GRADIENT_ACCESS_TOKEN"),  # noqa: B008
-        workspace_id: Secret = Secret.from_env_var("GRADIENT_WORKSPACE_ID"),  # noqa: B008
+        access_token: Secret = Secret.from_env_var(
+            "GRADIENT_ACCESS_TOKEN"
+        ),  # noqa: B008
+        workspace_id: Secret = Secret.from_env_var(
+            "GRADIENT_WORKSPACE_ID"
+        ),  # noqa: B008
         host: Optional[str] = None,
         progress_bar: bool = True,
     ) -> None:
@@ -80,7 +84,9 @@ class GradientDocumentEmbedder:
         self._workspace_id = workspace_id
 
         self._gradient = Gradient(
-            access_token=access_token.resolve_value(), workspace_id=workspace_id.resolve_value(), host=host
+            access_token=access_token.resolve_value(),
+            workspace_id=workspace_id.resolve_value(),
+            host=host,
         )
 
     def _get_telemetry_data(self) -> Dict[str, Any]:
@@ -116,7 +122,9 @@ class GradientDocumentEmbedder:
         :returns:
             The deserialized component instance.
         """
-        deserialize_secrets_inplace(data["init_parameters"], keys=["access_token", "workspace_id"])
+        deserialize_secrets_inplace(
+            data["init_parameters"], keys=["access_token", "workspace_id"]
+        )
         return default_from_dict(cls, data)
 
     def warm_up(self) -> None:
@@ -124,14 +132,21 @@ class GradientDocumentEmbedder:
         Initializes the component.
         """
         if not hasattr(self, "_embedding_model"):
-            self._embedding_model = self._gradient.get_embeddings_model(slug=self._model_name)
+            self._embedding_model = self._gradient.get_embeddings_model(
+                slug=self._model_name
+            )
 
-    def _generate_embeddings(self, documents: List[Document], batch_size: int) -> List[List[float]]:
+    def _generate_embeddings(
+        self, documents: List[Document], batch_size: int
+    ) -> List[List[float]]:
         """
         Batches the documents and generates the embeddings.
         """
         if self._progress_bar and tqdm_imported:
-            batches = [documents[i : i + batch_size] for i in range(0, len(documents), batch_size)]
+            batches = [
+                documents[i : i + batch_size]
+                for i in range(0, len(documents), batch_size)
+            ]
             progress_bar = tqdm
         else:
             # no progress bar
@@ -140,7 +155,9 @@ class GradientDocumentEmbedder:
 
         embeddings = []
         for batch in progress_bar(batches):
-            response = self._embedding_model.embed(inputs=[{"input": doc.content} for doc in batch])
+            response = self._embedding_model.embed(
+                inputs=[{"input": doc.content} for doc in batch]
+            )
             embeddings.extend([e.embedding for e in response.embeddings])
 
         return embeddings
@@ -158,7 +175,11 @@ class GradientDocumentEmbedder:
             - `documents`: The embedded Documents.
 
         """
-        if not isinstance(documents, list) or documents and any(not isinstance(doc, Document) for doc in documents):
+        if (
+            not isinstance(documents, list)
+            or documents
+            and any(not isinstance(doc, Document) for doc in documents)
+        ):
             msg = "GradientDocumentEmbedder expects a list of Documents as input.\
                   In case you want to embed a list of strings, please use the GradientTextEmbedder."
             raise TypeError(msg)
@@ -167,7 +188,9 @@ class GradientDocumentEmbedder:
             msg = "The embedding model has not been loaded. Please call warm_up() before running."
             raise RuntimeError(msg)
 
-        embeddings = self._generate_embeddings(documents=documents, batch_size=self._batch_size)
+        embeddings = self._generate_embeddings(
+            documents=documents, batch_size=self._batch_size
+        )
         for doc, embedding in zip(documents, embeddings):
             doc.embedding = embedding
 

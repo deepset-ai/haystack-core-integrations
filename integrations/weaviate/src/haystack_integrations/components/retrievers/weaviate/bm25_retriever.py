@@ -49,7 +49,9 @@ class WeaviateBM25Retriever:
         self._filters = filters or {}
         self._top_k = top_k
         self._filter_policy = (
-            filter_policy if isinstance(filter_policy, FilterPolicy) else FilterPolicy.from_str(filter_policy)
+            filter_policy
+            if isinstance(filter_policy, FilterPolicy)
+            else FilterPolicy.from_str(filter_policy)
         )
 
     def to_dict(self) -> Dict[str, Any]:
@@ -83,12 +85,19 @@ class WeaviateBM25Retriever:
         # Pipelines serialized with old versions of the component might not
         # have the filter_policy field.
         if filter_policy := data["init_parameters"].get("filter_policy"):
-            data["init_parameters"]["filter_policy"] = FilterPolicy.from_str(filter_policy)
+            data["init_parameters"]["filter_policy"] = FilterPolicy.from_str(
+                filter_policy
+            )
 
         return default_from_dict(cls, data)
 
     @component.output_types(documents=List[Document])
-    def run(self, query: str, filters: Optional[Dict[str, Any]] = None, top_k: Optional[int] = None):
+    def run(
+        self,
+        query: str,
+        filters: Optional[Dict[str, Any]] = None,
+        top_k: Optional[int] = None,
+    ):
         """
         Retrieves documents from Weaviate using the BM25 algorithm.
 
@@ -103,5 +112,7 @@ class WeaviateBM25Retriever:
         filters = apply_filter_policy(self._filter_policy, self._filters, filters)
 
         top_k = top_k or self._top_k
-        documents = self._document_store._bm25_retrieval(query=query, filters=filters, top_k=top_k)
+        documents = self._document_store._bm25_retrieval(
+            query=query, filters=filters, top_k=top_k
+        )
         return {"documents": documents}

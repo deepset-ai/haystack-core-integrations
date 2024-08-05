@@ -63,7 +63,11 @@ class DeepEvalEvaluator:
             Refer to the `RagasMetric` class for more details
             on required parameters.
         """
-        self.metric = metric if isinstance(metric, DeepEvalMetric) else DeepEvalMetric.from_str(metric)
+        self.metric = (
+            metric
+            if isinstance(metric, DeepEvalMetric)
+            else DeepEvalMetric.from_str(metric)
+        )
         self.metric_params = metric_params
         self.descriptor = METRIC_DESCRIPTORS[self.metric]
 
@@ -89,11 +93,16 @@ class DeepEvalEvaluator:
             - `score` - The score of the metric.
             - `explanation` - An optional explanation of the score.
         """
-        InputConverters.validate_input_parameters(self.metric, self.descriptor.input_parameters, inputs)
+        InputConverters.validate_input_parameters(
+            self.metric, self.descriptor.input_parameters, inputs
+        )
         converted_inputs: List[LLMTestCase] = list(self.descriptor.input_converter(**inputs))  # type: ignore
 
         results = self._backend_callable(converted_inputs, self._backend_metric)
-        converted_results = [[result.to_dict() for result in self.descriptor.output_converter(x)] for x in results]
+        converted_results = [
+            [result.to_dict() for result in self.descriptor.output_converter(x)]
+            for x in results
+        ]
 
         return {"results": converted_results}
 
@@ -137,7 +146,9 @@ class DeepEvalEvaluator:
         return default_from_dict(cls, data)
 
     @staticmethod
-    def _invoke_deepeval(test_cases: List[LLMTestCase], metric: BaseMetric) -> List[TestResult]:
+    def _invoke_deepeval(
+        test_cases: List[LLMTestCase], metric: BaseMetric
+    ) -> List[TestResult]:
         return evaluate(test_cases, [metric])
 
     def _init_backend(self):
@@ -148,14 +159,18 @@ class DeepEvalEvaluator:
             if self.metric_params is None:
                 msg = f"DeepEval metric '{self.metric}' expected init parameters but got none"
                 raise ValueError(msg)
-            elif not all(k in self.descriptor.init_parameters for k in self.metric_params.keys()):
+            elif not all(
+                k in self.descriptor.init_parameters for k in self.metric_params.keys()
+            ):
                 msg = (
                     f"Invalid init parameters for DeepEval metric '{self.metric}'. "
                     f"Expected: {list(self.descriptor.init_parameters.keys())}"
                 )
 
                 raise ValueError(msg)
-        backend_metric_params = dict(self.metric_params) if self.metric_params is not None else {}
+        backend_metric_params = (
+            dict(self.metric_params) if self.metric_params is not None else {}
+        )
 
         # This shouldn't matter at all as we aren't asserting the outputs, but just in case...
         backend_metric_params["threshold"] = 0.0

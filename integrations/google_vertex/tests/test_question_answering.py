@@ -5,15 +5,21 @@ from haystack.dataclasses.byte_stream import ByteStream
 from haystack_integrations.components.generators.google_vertex import VertexAIImageQA
 
 
-@patch("haystack_integrations.components.generators.google_vertex.question_answering.vertexai")
-@patch("haystack_integrations.components.generators.google_vertex.question_answering.ImageTextModel")
+@patch(
+    "haystack_integrations.components.generators.google_vertex.question_answering.vertexai"
+)
+@patch(
+    "haystack_integrations.components.generators.google_vertex.question_answering.ImageTextModel"
+)
 def test_init(mock_model_class, mock_vertexai):
     generator = VertexAIImageQA(
         model="imagetext",
         project_id="myproject-123456",
         number_of_results=3,
     )
-    mock_vertexai.init.assert_called_once_with(project="myproject-123456", location=None)
+    mock_vertexai.init.assert_called_once_with(
+        project="myproject-123456", location=None
+    )
     mock_model_class.from_pretrained.assert_called_once_with("imagetext")
     assert generator._model_name == "imagetext"
     assert generator._project_id == "myproject-123456"
@@ -21,8 +27,12 @@ def test_init(mock_model_class, mock_vertexai):
     assert generator._kwargs == {"number_of_results": 3}
 
 
-@patch("haystack_integrations.components.generators.google_vertex.question_answering.vertexai")
-@patch("haystack_integrations.components.generators.google_vertex.question_answering.ImageTextModel")
+@patch(
+    "haystack_integrations.components.generators.google_vertex.question_answering.vertexai"
+)
+@patch(
+    "haystack_integrations.components.generators.google_vertex.question_answering.ImageTextModel"
+)
 def test_to_dict(_mock_model_class, _mock_vertexai):
     generator = VertexAIImageQA(
         model="imagetext",
@@ -40,8 +50,12 @@ def test_to_dict(_mock_model_class, _mock_vertexai):
     }
 
 
-@patch("haystack_integrations.components.generators.google_vertex.question_answering.vertexai")
-@patch("haystack_integrations.components.generators.google_vertex.question_answering.ImageTextModel")
+@patch(
+    "haystack_integrations.components.generators.google_vertex.question_answering.vertexai"
+)
+@patch(
+    "haystack_integrations.components.generators.google_vertex.question_answering.ImageTextModel"
+)
 def test_from_dict(_mock_model_class, _mock_vertexai):
     generator = VertexAIImageQA.from_dict(
         {
@@ -60,8 +74,12 @@ def test_from_dict(_mock_model_class, _mock_vertexai):
     assert generator._kwargs == {"number_of_results": 3}
 
 
-@patch("haystack_integrations.components.generators.google_vertex.question_answering.vertexai")
-@patch("haystack_integrations.components.generators.google_vertex.question_answering.ImageTextModel")
+@patch(
+    "haystack_integrations.components.generators.google_vertex.question_answering.vertexai"
+)
+@patch(
+    "haystack_integrations.components.generators.google_vertex.question_answering.ImageTextModel"
+)
 def test_run_calls_ask_question(mock_model_class, _mock_vertexai):
     mock_model = Mock()
     mock_model.ask_question.return_value = []

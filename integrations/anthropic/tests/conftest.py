@@ -9,7 +9,9 @@ def mock_chat_completion():
     """
     Mock the OpenAI API completion response and reuse it for tests
     """
-    with patch("anthropic.resources.messages.Messages.create") as mock_chat_completion_create:
+    with patch(
+        "anthropic.resources.messages.Messages.create"
+    ) as mock_chat_completion_create:
         completion = Message(
             id="foo",
             content=[{"type": "text", "text": "Hello, world!"}],

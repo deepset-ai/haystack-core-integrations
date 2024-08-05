@@ -4,7 +4,10 @@ import os
 from haystack import Document, Pipeline
 from haystack.components.builders.answer_builder import AnswerBuilder
 from haystack.components.builders.prompt_builder import PromptBuilder
-from haystack.components.embedders import SentenceTransformersDocumentEmbedder, SentenceTransformersTextEmbedder
+from haystack.components.embedders import (
+    SentenceTransformersDocumentEmbedder,
+    SentenceTransformersTextEmbedder,
+)
 from haystack.components.generators import OpenAIGenerator
 from haystack.components.writers import DocumentWriter
 from haystack.document_stores.types import DuplicatePolicy
@@ -55,10 +58,15 @@ documents = [
 ]
 p = Pipeline()
 p.add_component(
-    instance=SentenceTransformersDocumentEmbedder(model="sentence-transformers/all-MiniLM-L6-v2"),
+    instance=SentenceTransformersDocumentEmbedder(
+        model="sentence-transformers/all-MiniLM-L6-v2"
+    ),
     name="embedder",
 )
-p.add_component(instance=DocumentWriter(document_store=document_store, policy=DuplicatePolicy.SKIP), name="writer")
+p.add_component(
+    instance=DocumentWriter(document_store=document_store, policy=DuplicatePolicy.SKIP),
+    name="writer",
+)
 p.connect("embedder.documents", "writer.documents")
 
 p.run({"embedder": {"documents": documents}})
@@ -67,11 +75,17 @@ p.run({"embedder": {"documents": documents}})
 # Construct rag pipeline
 rag_pipeline = Pipeline()
 rag_pipeline.add_component(
-    instance=SentenceTransformersTextEmbedder(model="sentence-transformers/all-MiniLM-L6-v2"),
+    instance=SentenceTransformersTextEmbedder(
+        model="sentence-transformers/all-MiniLM-L6-v2"
+    ),
     name="embedder",
 )
-rag_pipeline.add_component(instance=AstraEmbeddingRetriever(document_store=document_store), name="retriever")
-rag_pipeline.add_component(instance=PromptBuilder(template=prompt_template), name="prompt_builder")
+rag_pipeline.add_component(
+    instance=AstraEmbeddingRetriever(document_store=document_store), name="retriever"
+)
+rag_pipeline.add_component(
+    instance=PromptBuilder(template=prompt_template), name="prompt_builder"
+)
 rag_pipeline.add_component(instance=OpenAIGenerator(), name="llm")
 rag_pipeline.add_component(instance=AnswerBuilder(), name="answer_builder")
 rag_pipeline.connect("embedder", "retriever")

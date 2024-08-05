@@ -4,7 +4,9 @@ import numpy as np
 import pytest
 from haystack import Document
 from haystack.utils import ComponentDevice, Secret
-from haystack_integrations.components.embedders.instructor_embedders import InstructorDocumentEmbedder
+from haystack_integrations.components.embedders.instructor_embedders import (
+    InstructorDocumentEmbedder,
+)
 
 
 class TestInstructorDocumentEmbedder:
@@ -41,7 +43,10 @@ class TestInstructorDocumentEmbedder:
         assert embedder.model == "hkunlp/instructor-base"
         assert embedder.device == ComponentDevice.from_str("cuda:0")
         assert embedder.token == Secret.from_token("fake-api-token")
-        assert embedder.instruction == "Represent the 'domain' 'text_type' for 'task_objective'"
+        assert (
+            embedder.instruction
+            == "Represent the 'domain' 'text_type' for 'task_objective'"
+        )
         assert embedder.batch_size == 64
         assert embedder.progress_bar is False
         assert embedder.normalize_embeddings is True
@@ -52,14 +57,20 @@ class TestInstructorDocumentEmbedder:
         """
         Test serialization of InstructorDocumentEmbedder to a dictionary, using default initialization parameters.
         """
-        embedder = InstructorDocumentEmbedder(model="hkunlp/instructor-base", device=ComponentDevice.from_str("cpu"))
+        embedder = InstructorDocumentEmbedder(
+            model="hkunlp/instructor-base", device=ComponentDevice.from_str("cpu")
+        )
         embedder_dict = embedder.to_dict()
         assert embedder_dict == {
             "type": "haystack_integrations.components.embedders.instructor_embedders.instructor_document_embedder.InstructorDocumentEmbedder",  #  noqa
             "init_parameters": {
                 "model": "hkunlp/instructor-base",
                 "device": ComponentDevice.from_str("cpu").to_dict(),
-                "token": {"env_vars": ["HF_API_TOKEN"], "strict": False, "type": "env_var"},
+                "token": {
+                    "env_vars": ["HF_API_TOKEN"],
+                    "strict": False,
+                    "type": "env_var",
+                },
                 "instruction": "Represent the document",
                 "batch_size": 32,
                 "progress_bar": True,
@@ -89,7 +100,11 @@ class TestInstructorDocumentEmbedder:
             "init_parameters": {
                 "model": "hkunlp/instructor-base",
                 "device": ComponentDevice.from_str("cuda:0").to_dict(),
-                "token": {"env_vars": ["HF_API_TOKEN"], "strict": False, "type": "env_var"},
+                "token": {
+                    "env_vars": ["HF_API_TOKEN"],
+                    "strict": False,
+                    "type": "env_var",
+                },
                 "instruction": "Represent the financial document for retrieval",
                 "batch_size": 64,
                 "progress_bar": False,
@@ -108,7 +123,11 @@ class TestInstructorDocumentEmbedder:
             "init_parameters": {
                 "model": "hkunlp/instructor-base",
                 "device": ComponentDevice.from_str("cpu").to_dict(),
-                "token": {"env_vars": ["HF_API_TOKEN"], "strict": False, "type": "env_var"},
+                "token": {
+                    "env_vars": ["HF_API_TOKEN"],
+                    "strict": False,
+                    "type": "env_var",
+                },
                 "instruction": "Represent the 'domain' 'text_type' for 'task_objective'",
                 "batch_size": 32,
                 "progress_bar": True,
@@ -121,7 +140,10 @@ class TestInstructorDocumentEmbedder:
         assert embedder.model == "hkunlp/instructor-base"
         assert embedder.device == ComponentDevice.from_str("cpu")
         assert embedder.token == Secret.from_env_var("HF_API_TOKEN", strict=False)
-        assert embedder.instruction == "Represent the 'domain' 'text_type' for 'task_objective'"
+        assert (
+            embedder.instruction
+            == "Represent the 'domain' 'text_type' for 'task_objective'"
+        )
         assert embedder.batch_size == 32
         assert embedder.progress_bar is True
         assert embedder.normalize_embeddings is False
@@ -137,7 +159,11 @@ class TestInstructorDocumentEmbedder:
             "init_parameters": {
                 "model": "hkunlp/instructor-base",
                 "device": ComponentDevice.from_str("cuda:0").to_dict(),
-                "token": {"env_vars": ["HF_API_TOKEN"], "strict": False, "type": "env_var"},
+                "token": {
+                    "env_vars": ["HF_API_TOKEN"],
+                    "strict": False,
+                    "type": "env_var",
+                },
                 "instruction": "Represent the financial document for retrieval",
                 "batch_size": 64,
                 "progress_bar": False,
@@ -164,7 +190,9 @@ class TestInstructorDocumentEmbedder:
         """
         Test for checking embedder instances after warm-up.
         """
-        embedder = InstructorDocumentEmbedder(model="hkunlp/instructor-base", device=ComponentDevice.from_str("cpu"))
+        embedder = InstructorDocumentEmbedder(
+            model="hkunlp/instructor-base", device=ComponentDevice.from_str("cpu")
+        )
         mocked_factory.get_embedding_backend.assert_not_called()
         embedder.warm_up()
         mocked_factory.get_embedding_backend.assert_called_once_with(
@@ -192,7 +220,9 @@ class TestInstructorDocumentEmbedder:
         """
         embedder = InstructorDocumentEmbedder(model="hkunlp/instructor-large")
         embedder.embedding_backend = MagicMock()
-        embedder.embedding_backend.embed = lambda x, **kwargs: np.random.rand(len(x), 16).tolist()  # noqa: ARG005
+        embedder.embedding_backend.embed = lambda x, **kwargs: np.random.rand(
+            len(x), 16
+        ).tolist()  # noqa: ARG005
 
         documents = [Document(content=f"Sample-document text {i}") for i in range(5)]
 
@@ -214,10 +244,16 @@ class TestInstructorDocumentEmbedder:
         string_input = "text"
         list_integers_input = [1, 2, 3]
 
-        with pytest.raises(TypeError, match="InstructorDocumentEmbedder expects a list of Documents as input."):
+        with pytest.raises(
+            TypeError,
+            match="InstructorDocumentEmbedder expects a list of Documents as input.",
+        ):
             embedder.run(documents=string_input)
 
-        with pytest.raises(TypeError, match="InstructorDocumentEmbedder expects a list of Documents as input."):
+        with pytest.raises(
+            TypeError,
+            match="InstructorDocumentEmbedder expects a list of Documents as input.",
+        ):
             embedder.run(documents=list_integers_input)
 
     def test_embed_metadata(self):
@@ -233,17 +269,37 @@ class TestInstructorDocumentEmbedder:
         )
         embedder.embedding_backend = MagicMock()
 
-        documents = [Document(content=f"document-number {i}", meta={"meta_field": f"meta_value {i}"}) for i in range(5)]
+        documents = [
+            Document(
+                content=f"document-number {i}", meta={"meta_field": f"meta_value {i}"}
+            )
+            for i in range(5)
+        ]
 
         embedder.run(documents=documents)
 
         embedder.embedding_backend.embed.assert_called_once_with(
             [
-                ["Represent the financial document for retrieval", "meta_value 0\ndocument-number 0"],
-                ["Represent the financial document for retrieval", "meta_value 1\ndocument-number 1"],
-                ["Represent the financial document for retrieval", "meta_value 2\ndocument-number 2"],
-                ["Represent the financial document for retrieval", "meta_value 3\ndocument-number 3"],
-                ["Represent the financial document for retrieval", "meta_value 4\ndocument-number 4"],
+                [
+                    "Represent the financial document for retrieval",
+                    "meta_value 0\ndocument-number 0",
+                ],
+                [
+                    "Represent the financial document for retrieval",
+                    "meta_value 1\ndocument-number 1",
+                ],
+                [
+                    "Represent the financial document for retrieval",
+                    "meta_value 2\ndocument-number 2",
+                ],
+                [
+                    "Represent the financial document for retrieval",
+                    "meta_value 3\ndocument-number 3",
+                ],
+                [
+                    "Represent the financial document for retrieval",
+                    "meta_value 4\ndocument-number 4",
+                ],
             ],
             batch_size=32,
             show_progress_bar=True,

@@ -7,7 +7,12 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 import numpy as np
 import torch
 from haystack.utils import Secret, deserialize_secrets_inplace
-from haystack.utils.hf import HFModelType, check_valid_model, deserialize_hf_model_kwargs, serialize_hf_model_kwargs
+from haystack.utils.hf import (
+    HFModelType,
+    check_valid_model,
+    deserialize_hf_model_kwargs,
+    serialize_hf_model_kwargs,
+)
 from huggingface_hub import hf_hub_download
 from sentence_transformers.models import Pooling as SentenceTransformerPoolingLayer
 from tqdm import tqdm
@@ -57,8 +62,12 @@ class _EmbedderParams:
         assert isinstance(self.pooling_mode, OptimumEmbedderPooling)
         out["pooling_mode"] = str(self.pooling_mode)
         out["token"] = self.token.to_dict() if self.token else None
-        out["optimizer_settings"] = self.optimizer_settings.to_dict() if self.optimizer_settings else None
-        out["quantizer_settings"] = self.quantizer_settings.to_dict() if self.quantizer_settings else None
+        out["optimizer_settings"] = (
+            self.optimizer_settings.to_dict() if self.optimizer_settings else None
+        )
+        out["quantizer_settings"] = (
+            self.quantizer_settings.to_dict() if self.quantizer_settings else None
+        )
 
         out["model_kwargs"].pop("use_auth_token", None)
         serialize_hf_model_kwargs(out["model_kwargs"])
@@ -68,9 +77,13 @@ class _EmbedderParams:
     def deserialize_inplace(cls, data: Dict[str, Any]) -> Dict[str, Any]:
         data["pooling_mode"] = OptimumEmbedderPooling.from_str(data["pooling_mode"])
         if data["optimizer_settings"] is not None:
-            data["optimizer_settings"] = OptimumEmbedderOptimizationConfig.from_dict(data["optimizer_settings"])
+            data["optimizer_settings"] = OptimumEmbedderOptimizationConfig.from_dict(
+                data["optimizer_settings"]
+            )
         if data["quantizer_settings"] is not None:
-            data["quantizer_settings"] = OptimumEmbedderQuantizationConfig.from_dict(data["quantizer_settings"])
+            data["quantizer_settings"] = OptimumEmbedderQuantizationConfig.from_dict(
+                data["quantizer_settings"]
+            )
 
         deserialize_secrets_inplace(data, keys=["token"])
         deserialize_hf_model_kwargs(data["model_kwargs"])
@@ -85,7 +98,9 @@ class _EmbedderBackend:
         if isinstance(params.pooling_mode, str):
             params.pooling_mode = OptimumEmbedderPooling.from_str(params.pooling_mode)
         elif params.pooling_mode is None:
-            params.pooling_mode = _pooling_from_model_config(params.model, resolved_token)
+            params.pooling_mode = _pooling_from_model_config(
+                params.model, resolved_token
+            )
 
         if params.pooling_mode is None:
             modes = {e.value: e for e in OptimumEmbedderPooling}
@@ -115,7 +130,9 @@ class _EmbedderBackend:
     def warm_up(self):
         assert self.params.model_kwargs
         model_kwargs = copy.deepcopy(self.params.model_kwargs)
-        model = ORTModelForFeatureExtraction.from_pretrained(**model_kwargs, export=True)
+        model = ORTModelForFeatureExtraction.from_pretrained(
+            **model_kwargs, export=True
+        )
 
         # Model ID will be passed explicitly if optimization/quantization is enabled.
         model_kwargs.pop("model_id", None)
@@ -125,9 +142,12 @@ class _EmbedderBackend:
             assert self.params.working_dir
             optimizer = ORTOptimizer.from_pretrained(model)
             save_dir = optimizer.optimize(
-                save_dir=self.params.working_dir, optimization_config=self.params.optimizer_settings.to_optimum_config()
+                save_dir=self.params.working_dir,
+                optimization_config=self.params.optimizer_settings.to_optimum_config(),
             )
-            model = ORTModelForFeatureExtraction.from_pretrained(model_id=save_dir, **model_kwargs)
+            model = ORTModelForFeatureExtraction.from_pretrained(
+                model_id=save_dir, **model_kwargs
+            )
             optimized_model = True
 
         if self.params.quantizer_settings:
@@ -137,17 +157,23 @@ class _EmbedderBackend:
             # since Optimum expects no more than one ONXX model in the working directory. There's
             # a file name parameter, but the optimizer only returns the working directory.
             working_dir = (
-                Path(self.params.working_dir) if not optimized_model else Path(self.params.working_dir) / "quantized"
+                Path(self.params.working_dir)
+                if not optimized_model
+                else Path(self.params.working_dir) / "quantized"
             )
             quantizer = ORTQuantizer.from_pretrained(model)
             save_dir = quantizer.quantize(
-                save_dir=working_dir, quantization_config=self.params.quantizer_settings.to_optimum_config()
+                save_dir=working_dir,
+                quantization_config=self.params.quantizer_settings.to_optimum_config(),
             )
-            model = ORTModelForFeatureExtraction.from_pretrained(model_id=save_dir, **model_kwargs)
+            model = ORTModelForFeatureExtraction.from_pretrained(
+                model_id=save_dir, **model_kwargs
+            )
 
         self.model = model
         self.tokenizer = AutoTokenizer.from_pretrained(
-            self.params.model, token=self.params.token.resolve_value() if self.params.token else None
+            self.params.model,
+            token=self.params.token.resolve_value() if self.params.token else None,
         )
 
         # We need the width of the embeddings to initialize the pooling layer
@@ -158,22 +184,32 @@ class _EmbedderBackend:
 
         self.pooling_layer = SentenceTransformerPoolingLayer(
             width,
-            pooling_mode_cls_token=self.params.pooling_mode == OptimumEmbedderPooling.CLS,
-            pooling_mode_max_tokens=self.params.pooling_mode == OptimumEmbedderPooling.MAX,
-            pooling_mode_mean_tokens=self.params.pooling_mode == OptimumEmbedderPooling.MEAN,
-            pooling_mode_mean_sqrt_len_tokens=self.params.pooling_mode == OptimumEmbedderPooling.MEAN_SQRT_LEN,
-            pooling_mode_weightedmean_tokens=self.params.pooling_mode == OptimumEmbedderPooling.WEIGHTED_MEAN,
-            pooling_mode_lasttoken=self.params.pooling_mode == OptimumEmbedderPooling.LAST_TOKEN,
+            pooling_mode_cls_token=self.params.pooling_mode
+            == OptimumEmbedderPooling.CLS,
+            pooling_mode_max_tokens=self.params.pooling_mode
+            == OptimumEmbedderPooling.MAX,
+            pooling_mode_mean_tokens=self.params.pooling_mode
+            == OptimumEmbedderPooling.MEAN,
+            pooling_mode_mean_sqrt_len_tokens=self.params.pooling_mode
+            == OptimumEmbedderPooling.MEAN_SQRT_LEN,
+            pooling_mode_weightedmean_tokens=self.params.pooling_mode
+            == OptimumEmbedderPooling.WEIGHTED_MEAN,
+            pooling_mode_lasttoken=self.params.pooling_mode
+            == OptimumEmbedderPooling.LAST_TOKEN,
         )
 
-    def _tokenize_and_generate_outputs(self, texts: List[str]) -> Tuple[Dict[str, Any], BaseModelOutput]:
+    def _tokenize_and_generate_outputs(
+        self, texts: List[str]
+    ) -> Tuple[Dict[str, Any], BaseModelOutput]:
         assert self.model is not None
         assert self.tokenizer is not None
 
-        tokenizer_outputs = self.tokenizer(texts, padding=True, truncation=True, return_tensors="pt").to(
-            self.model.device
-        )
-        model_inputs = {k: v for k, v in tokenizer_outputs.items() if k in self.model.input_names}
+        tokenizer_outputs = self.tokenizer(
+            texts, padding=True, truncation=True, return_tensors="pt"
+        ).to(self.model.device)
+        model_inputs = {
+            k: v for k, v in tokenizer_outputs.items() if k in self.model.input_names
+        }
         model_outputs = self.model(**model_inputs)
         return tokenizer_outputs, model_outputs
 
@@ -181,7 +217,9 @@ class _EmbedderBackend:
     def parameters(self) -> _EmbedderParams:
         return self.params
 
-    def pool_embeddings(self, model_output: torch.Tensor, attention_mask: torch.Tensor) -> torch.Tensor:
+    def pool_embeddings(
+        self, model_output: torch.Tensor, attention_mask: torch.Tensor
+    ) -> torch.Tensor:
         assert self.pooling_layer is not None
         features = {"token_embeddings": model_output, "attention_mask": attention_mask}
         pooled_outputs = self.pooling_layer.forward(features)
@@ -213,7 +251,9 @@ class _EmbedderBackend:
         ):
             batch = sentences_sorted[i : i + self.params.batch_size]
             tokenizer_output, model_output = self._tokenize_and_generate_outputs(batch)
-            sentence_embeddings = self.pool_embeddings(model_output[0], tokenizer_output["attention_mask"].to(device))
+            sentence_embeddings = self.pool_embeddings(
+                model_output[0], tokenizer_output["attention_mask"].to(device)
+            )
             all_embeddings.append(sentence_embeddings)
 
         embeddings = torch.cat(all_embeddings, dim=0)
@@ -234,9 +274,13 @@ class _EmbedderBackend:
             return reordered_embeddings
 
 
-def _pooling_from_model_config(model: str, token: Optional[str] = None) -> Optional[OptimumEmbedderPooling]:
+def _pooling_from_model_config(
+    model: str, token: Optional[str] = None
+) -> Optional[OptimumEmbedderPooling]:
     try:
-        pooling_config_path = hf_hub_download(repo_id=model, token=token, filename="1_Pooling/config.json")
+        pooling_config_path = hf_hub_download(
+            repo_id=model, token=token, filename="1_Pooling/config.json"
+        )
     except Exception as e:
         msg = f"An error occurred while downloading the model config: {e}"
         raise ValueError(msg) from e
@@ -245,7 +289,11 @@ def _pooling_from_model_config(model: str, token: Optional[str] = None) -> Optio
         pooling_config = json.load(f)
 
     # Filter only those keys that start with "pooling_mode" and are True
-    true_pooling_modes = [key for key, value in pooling_config.items() if key.startswith("pooling_mode") and value]
+    true_pooling_modes = [
+        key
+        for key, value in pooling_config.items()
+        if key.startswith("pooling_mode") and value
+    ]
 
     # If exactly one True pooling mode is found, return it
     # If no True pooling modes or more than one True pooling mode is found, return None

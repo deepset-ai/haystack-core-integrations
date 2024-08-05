@@ -50,13 +50,21 @@ class SagemakerGenerator:
     def __init__(
         self,
         model: str,
-        aws_access_key_id: Optional[Secret] = Secret.from_env_var(["AWS_ACCESS_KEY_ID"], strict=False),  # noqa: B008
+        aws_access_key_id: Optional[Secret] = Secret.from_env_var(
+            ["AWS_ACCESS_KEY_ID"], strict=False
+        ),  # noqa: B008
         aws_secret_access_key: Optional[Secret] = Secret.from_env_var(  # noqa: B008
             ["AWS_SECRET_ACCESS_KEY"], strict=False
         ),
-        aws_session_token: Optional[Secret] = Secret.from_env_var(["AWS_SESSION_TOKEN"], strict=False),  # noqa: B008
-        aws_region_name: Optional[Secret] = Secret.from_env_var(["AWS_DEFAULT_REGION"], strict=False),  # noqa: B008
-        aws_profile_name: Optional[Secret] = Secret.from_env_var(["AWS_PROFILE"], strict=False),  # noqa: B008
+        aws_session_token: Optional[Secret] = Secret.from_env_var(
+            ["AWS_SESSION_TOKEN"], strict=False
+        ),  # noqa: B008
+        aws_region_name: Optional[Secret] = Secret.from_env_var(
+            ["AWS_DEFAULT_REGION"], strict=False
+        ),  # noqa: B008
+        aws_profile_name: Optional[Secret] = Secret.from_env_var(
+            ["AWS_PROFILE"], strict=False
+        ),  # noqa: B008
         aws_custom_attributes: Optional[Dict[str, Any]] = None,
         generation_kwargs: Optional[Dict[str, Any]] = None,
     ):
@@ -133,11 +141,21 @@ class SagemakerGenerator:
         return default_to_dict(
             self,
             model=self.model,
-            aws_access_key_id=self.aws_access_key_id.to_dict() if self.aws_access_key_id else None,
-            aws_secret_access_key=self.aws_secret_access_key.to_dict() if self.aws_secret_access_key else None,
-            aws_session_token=self.aws_session_token.to_dict() if self.aws_session_token else None,
-            aws_region_name=self.aws_region_name.to_dict() if self.aws_region_name else None,
-            aws_profile_name=self.aws_profile_name.to_dict() if self.aws_profile_name else None,
+            aws_access_key_id=self.aws_access_key_id.to_dict()
+            if self.aws_access_key_id
+            else None,
+            aws_secret_access_key=self.aws_secret_access_key.to_dict()
+            if self.aws_secret_access_key
+            else None,
+            aws_session_token=self.aws_session_token.to_dict()
+            if self.aws_session_token
+            else None,
+            aws_region_name=self.aws_region_name.to_dict()
+            if self.aws_region_name
+            else None,
+            aws_profile_name=self.aws_profile_name.to_dict()
+            if self.aws_profile_name
+            else None,
             aws_custom_attributes=self.aws_custom_attributes,
             generation_kwargs=self.generation_kwargs,
         )
@@ -154,7 +172,13 @@ class SagemakerGenerator:
         """
         deserialize_secrets_inplace(
             data["init_parameters"],
-            ["aws_access_key_id", "aws_secret_access_key", "aws_session_token", "aws_region_name", "aws_profile_name"],
+            [
+                "aws_access_key_id",
+                "aws_secret_access_key",
+                "aws_session_token",
+                "aws_region_name",
+                "aws_profile_name",
+            ],
         )
         return default_from_dict(cls, data)
 
@@ -189,7 +213,9 @@ class SagemakerGenerator:
                 profile_name=aws_profile_name,
             )
         except BotoCoreError as e:
-            msg = f"Failed to initialize the session with provided AWS credentials: {e}."
+            msg = (
+                f"Failed to initialize the session with provided AWS credentials: {e}."
+            )
             raise AWSConfigurationError(msg) from e
 
     @component.output_types(replies=List[str], meta=List[Dict[str, Any]])
@@ -209,7 +235,8 @@ class SagemakerGenerator:
         """
         generation_kwargs = generation_kwargs or self.generation_kwargs
         custom_attributes = ";".join(
-            f"{k}={str(v).lower() if isinstance(v, bool) else str(v)}" for k, v in self.aws_custom_attributes.items()
+            f"{k}={str(v).lower() if isinstance(v, bool) else str(v)}"
+            for k, v in self.aws_custom_attributes.items()
         )
         try:
             body = json.dumps({"inputs": prompt, "parameters": generation_kwargs})

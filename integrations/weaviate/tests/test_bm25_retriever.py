@@ -18,11 +18,15 @@ def test_init_default():
     assert retriever._top_k == 10
     assert retriever._filter_policy == FilterPolicy.REPLACE
 
-    retriever = WeaviateBM25Retriever(document_store=mock_document_store, filter_policy="replace")
+    retriever = WeaviateBM25Retriever(
+        document_store=mock_document_store, filter_policy="replace"
+    )
     assert retriever._filter_policy == FilterPolicy.REPLACE
 
     with pytest.raises(ValueError):
-        WeaviateBM25Retriever(document_store=mock_document_store, filter_policy="keep_all")
+        WeaviateBM25Retriever(
+            document_store=mock_document_store, filter_policy="keep_all"
+        )
 
 
 @patch("haystack_integrations.document_stores.weaviate.document_store.weaviate")
@@ -139,10 +143,14 @@ def test_from_dict_no_filter_policy(_mock_weaviate):
     assert retriever._filter_policy == FilterPolicy.REPLACE
 
 
-@patch("haystack_integrations.components.retrievers.weaviate.bm25_retriever.WeaviateDocumentStore")
+@patch(
+    "haystack_integrations.components.retrievers.weaviate.bm25_retriever.WeaviateDocumentStore"
+)
 def test_run(mock_document_store):
     retriever = WeaviateBM25Retriever(document_store=mock_document_store)
     query = "some query"
     filters = {"field": "content", "operator": "==", "value": "Some text"}
     retriever.run(query=query, filters=filters, top_k=5)
-    mock_document_store._bm25_retrieval.assert_called_once_with(query=query, filters=filters, top_k=5)
+    mock_document_store._bm25_retrieval.assert_called_once_with(
+        query=query, filters=filters, top_k=5
+    )

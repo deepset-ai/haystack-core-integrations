@@ -319,11 +319,19 @@ class QdrantDocumentStore:
         :param filters: The filters to apply to the document list.
         :returns: A list of documents that match the given filters.
         """
-        if filters and not isinstance(filters, dict) and not isinstance(filters, rest.Filter):
+        if (
+            filters
+            and not isinstance(filters, dict)
+            and not isinstance(filters, rest.Filter)
+        ):
             msg = "Filter must be a dictionary or an instance of `qdrant_client.http.models.Filter`"
             raise ValueError(msg)
 
-        if filters and not isinstance(filters, rest.Filter) and "operator" not in filters:
+        if (
+            filters
+            and not isinstance(filters, rest.Filter)
+            and "operator" not in filters
+        ):
             filters = convert_legacy_filters(filters)
         return list(
             self.get_documents_generator(
@@ -354,11 +362,18 @@ class QdrantDocumentStore:
                 msg = f"DocumentStore.write_documents() expects a list of Documents but got an element of {type(doc)}."
                 raise ValueError(msg)
         self._set_up_collection(
-            self.index, self.embedding_dim, False, self.similarity, self.use_sparse_embeddings, self.sparse_idf
+            self.index,
+            self.embedding_dim,
+            False,
+            self.similarity,
+            self.use_sparse_embeddings,
+            self.sparse_idf,
         )
 
         if len(documents) == 0:
-            logger.warning("Calling QdrantDocumentStore.write_documents() with empty list")
+            logger.warning(
+                "Calling QdrantDocumentStore.write_documents() with empty list"
+            )
             return
 
         document_objects = self._handle_duplicate_documents(
@@ -367,8 +382,12 @@ class QdrantDocumentStore:
             policy=policy,
         )
 
-        batched_documents = get_batches_from_generator(document_objects, self.write_batch_size)
-        with tqdm(total=len(document_objects), disable=not self.progress_bar) as progress_bar:
+        batched_documents = get_batches_from_generator(
+            document_objects, self.write_batch_size
+        )
+        with tqdm(
+            total=len(document_objects), disable=not self.progress_bar
+        ) as progress_bar:
             for document_batch in batched_documents:
                 batch = convert_haystack_documents_to_qdrant_points(
                     document_batch,
@@ -458,7 +477,9 @@ class QdrantDocumentStore:
                 with_vectors=True,
             )
             stop_scrolling = next_offset is None or (
-                isinstance(next_offset, grpc.PointId) and next_offset.num == 0 and next_offset.uuid == ""
+                isinstance(next_offset, grpc.PointId)
+                and next_offset.num == 0
+                and next_offset.uuid == ""
             )
 
             for record in records:
@@ -495,7 +516,9 @@ class QdrantDocumentStore:
 
         for record in records:
             documents.append(
-                convert_qdrant_point_to_haystack_document(record, use_sparse_embeddings=self.use_sparse_embeddings)
+                convert_qdrant_point_to_haystack_document(
+                    record, use_sparse_embeddings=self.use_sparse_embeddings
+                )
             )
         return documents
 
@@ -552,7 +575,9 @@ class QdrantDocumentStore:
             score_threshold=score_threshold,
         )
         results = [
-            convert_qdrant_point_to_haystack_document(point, use_sparse_embeddings=self.use_sparse_embeddings)
+            convert_qdrant_point_to_haystack_document(
+                point, use_sparse_embeddings=self.use_sparse_embeddings
+            )
             for point in points
         ]
         if scale_score:
@@ -600,7 +625,9 @@ class QdrantDocumentStore:
             score_threshold=score_threshold,
         )
         results = [
-            convert_qdrant_point_to_haystack_document(point, use_sparse_embeddings=self.use_sparse_embeddings)
+            convert_qdrant_point_to_haystack_document(
+                point, use_sparse_embeddings=self.use_sparse_embeddings
+            )
             for point in points
         ]
         if scale_score:
@@ -690,12 +717,17 @@ class QdrantDocumentStore:
             raise QdrantStoreError(msg) from e
 
         try:
-            points = reciprocal_rank_fusion(responses=[dense_request_response, sparse_request_response], limit=top_k)
+            points = reciprocal_rank_fusion(
+                responses=[dense_request_response, sparse_request_response], limit=top_k
+            )
         except Exception as e:
             msg = "Error while applying Reciprocal Rank Fusion"
             raise QdrantStoreError(msg) from e
 
-        results = [convert_qdrant_point_to_haystack_document(point, use_sparse_embeddings=True) for point in points]
+        results = [
+            convert_qdrant_point_to_haystack_document(point, use_sparse_embeddings=True)
+            for point in points
+        ]
 
         return results
 
@@ -720,7 +752,9 @@ class QdrantDocumentStore:
             )
             raise QdrantStoreError(msg) from ke
 
-    def _create_payload_index(self, collection_name: str, payload_fields_to_index: Optional[List[dict]] = None):
+    def _create_payload_index(
+        self, collection_name: str, payload_fields_to_index: Optional[List[dict]] = None
+    ):
         """
         Create payload index for the collection if payload_fields_to_index is provided
         See: https://qdrant.tech/documentation/concepts/indexing/#payload-index
@@ -775,7 +809,12 @@ class QdrantDocumentStore:
             # There is no need to verify the current configuration of that
             # collection. It might be just recreated again or does not exist yet.
             self.recreate_collection(
-                collection_name, distance, embedding_dim, on_disk, use_sparse_embeddings, sparse_idf
+                collection_name,
+                distance,
+                embedding_dim,
+                on_disk,
+                use_sparse_embeddings,
+                sparse_idf,
             )
             # Create Payload index if payload_fields_to_index is provided
             self._create_payload_index(collection_name, payload_fields_to_index)
@@ -808,8 +847,12 @@ class QdrantDocumentStore:
             raise QdrantStoreError(msg)
 
         if self.use_sparse_embeddings:
-            current_distance = collection_info.config.params.vectors[DENSE_VECTORS_NAME].distance
-            current_vector_size = collection_info.config.params.vectors[DENSE_VECTORS_NAME].size
+            current_distance = collection_info.config.params.vectors[
+                DENSE_VECTORS_NAME
+            ].distance
+            current_vector_size = collection_info.config.params.vectors[
+                DENSE_VECTORS_NAME
+            ].size
         else:
             current_distance = collection_info.config.params.vectors.distance
             current_vector_size = collection_info.config.params.vectors.size
@@ -864,7 +907,9 @@ class QdrantDocumentStore:
             use_sparse_embeddings = self.use_sparse_embeddings
 
         # dense vectors configuration
-        vectors_config = rest.VectorParams(size=embedding_dim, on_disk=on_disk, distance=distance)
+        vectors_config = rest.VectorParams(
+            size=embedding_dim, on_disk=on_disk, distance=distance
+        )
 
         if use_sparse_embeddings:
             # in this case, we need to define named vectors
@@ -885,7 +930,9 @@ class QdrantDocumentStore:
         self.client.create_collection(
             collection_name=collection_name,
             vectors_config=vectors_config,
-            sparse_vectors_config=sparse_vectors_config if use_sparse_embeddings else None,
+            sparse_vectors_config=sparse_vectors_config
+            if use_sparse_embeddings
+            else None,
             shard_number=self.shard_number,
             replication_factor=self.replication_factor,
             write_consistency_factor=self.write_consistency_factor,
@@ -916,18 +963,24 @@ class QdrantDocumentStore:
         index = index or self.index
         if policy in (DuplicatePolicy.SKIP, DuplicatePolicy.FAIL):
             documents = self._drop_duplicate_documents(documents, index)
-            documents_found = self.get_documents_by_id(ids=[doc.id for doc in documents], index=index)
+            documents_found = self.get_documents_by_id(
+                ids=[doc.id for doc in documents], index=index
+            )
             ids_exist_in_db: List[str] = [doc.id for doc in documents_found]
 
             if len(ids_exist_in_db) > 0 and policy == DuplicatePolicy.FAIL:
                 msg = f"Document with ids '{', '.join(ids_exist_in_db)} already exists in index = '{index}'."
                 raise DuplicateDocumentError(msg)
 
-            documents = list(filter(lambda doc: doc.id not in ids_exist_in_db, documents))
+            documents = list(
+                filter(lambda doc: doc.id not in ids_exist_in_db, documents)
+            )
 
         return documents
 
-    def _drop_duplicate_documents(self, documents: List[Document], index: Optional[str] = None) -> List[Document]:
+    def _drop_duplicate_documents(
+        self, documents: List[Document], index: Optional[str] = None
+    ) -> List[Document]:
         """
         Drop duplicate documents based on same hash ID.
 

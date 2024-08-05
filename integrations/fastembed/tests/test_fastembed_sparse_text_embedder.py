@@ -134,7 +134,10 @@ class TestFastembedSparseTextEmbedder:
         mocked_factory.get_embedding_backend.assert_not_called()
         embedder.warm_up()
         mocked_factory.get_embedding_backend.assert_called_once_with(
-            model_name="prithvida/Splade_PP_en_v1", cache_dir=None, threads=None, local_files_only=False
+            model_name="prithvida/Splade_PP_en_v1",
+            cache_dir=None,
+            threads=None,
+            local_files_only=False,
         )
 
     @patch(
@@ -156,7 +159,9 @@ class TestFastembedSparseTextEmbedder:
             random_indice_length = np.random.randint(3, 15)
             data = {
                 "indices": list(range(random_indice_length)),
-                "values": [np.random.random_sample() for _ in range(random_indice_length)],
+                "values": [
+                    np.random.random_sample() for _ in range(random_indice_length)
+                ],
             }
             list_of_sparse_vectors.append(data)
 
@@ -168,8 +173,10 @@ class TestFastembedSparseTextEmbedder:
         """
         embedder = FastembedSparseTextEmbedder(model="BAAI/bge-base-en-v1.5")
         embedder.embedding_backend = MagicMock()
-        embedder.embedding_backend.embed = lambda x, **kwargs: self._generate_mocked_sparse_embedding(  # noqa: ARG005
-            len(x)
+        embedder.embedding_backend.embed = (
+            lambda x, **kwargs: self._generate_mocked_sparse_embedding(  # noqa: ARG005
+                len(x)
+            )
         )
 
         text = "Good text to embed"
@@ -191,7 +198,9 @@ class TestFastembedSparseTextEmbedder:
 
         list_integers_input = [1, 2, 3]
 
-        with pytest.raises(TypeError, match="FastembedSparseTextEmbedder expects a string as input"):
+        with pytest.raises(
+            TypeError, match="FastembedSparseTextEmbedder expects a string as input"
+        ):
             embedder.run(text=list_integers_input)
 
     @pytest.mark.integration

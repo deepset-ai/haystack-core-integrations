@@ -6,7 +6,9 @@
 
 from haystack.dataclasses import ChatMessage
 
-from haystack_integrations.components.generators.amazon_bedrock import AmazonBedrockChatGenerator
+from haystack_integrations.components.generators.amazon_bedrock import (
+    AmazonBedrockChatGenerator,
+)
 
 generator = AmazonBedrockChatGenerator(
     model="anthropic.claude-3-haiku-20240307-v1:0",
@@ -29,7 +31,9 @@ You may use technical terms, jargon, and abbreviations that are common among pra
 # which allows for more portablability of code across generators
 messages = [
     ChatMessage.from_system(system_prompt),
-    ChatMessage.from_user("Which service should I use to train custom Machine Learning models?"),
+    ChatMessage.from_user(
+        "Which service should I use to train custom Machine Learning models?"
+    ),
 ]
 
 results = generator.run(messages)

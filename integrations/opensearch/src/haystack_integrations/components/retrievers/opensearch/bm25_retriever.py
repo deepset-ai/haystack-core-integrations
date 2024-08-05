@@ -20,6 +20,7 @@ class OpenSearchBM25Retriever:
 
     BM25 computes a weighted word overlap between the query string and a document to determine its similarity.
     """
+
     def __init__(
         self,
         *,
@@ -91,7 +92,9 @@ class OpenSearchBM25Retriever:
         self._scale_score = scale_score
         self._all_terms_must_match = all_terms_must_match
         self._filter_policy = (
-            filter_policy if isinstance(filter_policy, FilterPolicy) else FilterPolicy.from_str(filter_policy)
+            filter_policy
+            if isinstance(filter_policy, FilterPolicy)
+            else FilterPolicy.from_str(filter_policy)
         )
         self._custom_query = custom_query
         self._raise_on_failure = raise_on_failure
@@ -133,7 +136,9 @@ class OpenSearchBM25Retriever:
         # Pipelines serialized with old versions of the component might not
         # have the filter_policy field.
         if "filter_policy" in data["init_parameters"]:
-            data["init_parameters"]["filter_policy"] = FilterPolicy.from_str(data["init_parameters"]["filter_policy"])
+            data["init_parameters"]["filter_policy"] = FilterPolicy.from_str(
+                data["init_parameters"]["filter_policy"]
+            )
         return default_from_dict(cls, data)
 
     @component.output_types(documents=List[Document])

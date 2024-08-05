@@ -8,7 +8,6 @@ from haystack_integrations.tracing.langfuse.tracer import LangfuseSpan
 
 
 class TestLangfuseSpan:
-
     #  LangfuseSpan can be initialized with a span object
     def test_initialized_with_span_object(self):
         mock_span = Mock()
@@ -42,19 +41,31 @@ class TestLangfuseSpan:
 
         # test message input
         span = LangfuseSpan(mock_span)
-        span.set_content_tag("key.input", {"messages": [ChatMessage.from_user("message")]})
+        span.set_content_tag(
+            "key.input", {"messages": [ChatMessage.from_user("message")]}
+        )
         assert mock_span.update.call_count == 1
         # check we converted ChatMessage to OpenAI format
-        assert mock_span.update.call_args_list[0][1] == {"input": [{"role": "user", "content": "message"}]}
-        assert span._data["key.input"] == {"messages": [ChatMessage.from_user("message")]}
+        assert mock_span.update.call_args_list[0][1] == {
+            "input": [{"role": "user", "content": "message"}]
+        }
+        assert span._data["key.input"] == {
+            "messages": [ChatMessage.from_user("message")]
+        }
 
         # test replies ChatMessage list
         mock_span.reset_mock()
-        span.set_content_tag("key.output", {"replies": [ChatMessage.from_system("reply")]})
+        span.set_content_tag(
+            "key.output", {"replies": [ChatMessage.from_system("reply")]}
+        )
         assert mock_span.update.call_count == 1
         # check we converted ChatMessage to OpenAI format
-        assert mock_span.update.call_args_list[0][1] == {"output": [{"role": "system", "content": "reply"}]}
-        assert span._data["key.output"] == {"replies": [ChatMessage.from_system("reply")]}
+        assert mock_span.update.call_args_list[0][1] == {
+            "output": [{"role": "system", "content": "reply"}]
+        }
+        assert span._data["key.output"] == {
+            "replies": [ChatMessage.from_system("reply")]
+        }
 
         # test replies string list
         mock_span.reset_mock()

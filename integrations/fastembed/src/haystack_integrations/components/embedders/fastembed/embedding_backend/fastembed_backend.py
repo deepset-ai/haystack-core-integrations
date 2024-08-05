@@ -27,9 +27,14 @@ class _FastembedEmbeddingBackendFactory:
             return _FastembedEmbeddingBackendFactory._instances[embedding_backend_id]
 
         embedding_backend = _FastembedEmbeddingBackend(
-            model_name=model_name, cache_dir=cache_dir, threads=threads, local_files_only=local_files_only
+            model_name=model_name,
+            cache_dir=cache_dir,
+            threads=threads,
+            local_files_only=local_files_only,
         )
-        _FastembedEmbeddingBackendFactory._instances[embedding_backend_id] = embedding_backend
+        _FastembedEmbeddingBackendFactory._instances[
+            embedding_backend_id
+        ] = embedding_backend
         return embedding_backend
 
 
@@ -46,7 +51,10 @@ class _FastembedEmbeddingBackend:
         local_files_only: bool = False,
     ):
         self.model = TextEmbedding(
-            model_name=model_name, cache_dir=cache_dir, threads=threads, local_files_only=local_files_only
+            model_name=model_name,
+            cache_dir=cache_dir,
+            threads=threads,
+            local_files_only=local_files_only,
         )
 
     def embed(self, data: List[str], progress_bar=True, **kwargs) -> List[List[float]]:
@@ -54,7 +62,10 @@ class _FastembedEmbeddingBackend:
         embeddings = []
         embeddings_iterable = self.model.embed(data, **kwargs)
         for np_array in tqdm(
-            embeddings_iterable, disable=not progress_bar, desc="Calculating embeddings", total=len(data)
+            embeddings_iterable,
+            disable=not progress_bar,
+            desc="Calculating embeddings",
+            total=len(data),
         ):
             embeddings.append(np_array.tolist())
         return embeddings
@@ -77,12 +88,19 @@ class _FastembedSparseEmbeddingBackendFactory:
         embedding_backend_id = f"{model_name}{cache_dir}{threads}"
 
         if embedding_backend_id in _FastembedSparseEmbeddingBackendFactory._instances:
-            return _FastembedSparseEmbeddingBackendFactory._instances[embedding_backend_id]
+            return _FastembedSparseEmbeddingBackendFactory._instances[
+                embedding_backend_id
+            ]
 
         embedding_backend = _FastembedSparseEmbeddingBackend(
-            model_name=model_name, cache_dir=cache_dir, threads=threads, local_files_only=local_files_only
+            model_name=model_name,
+            cache_dir=cache_dir,
+            threads=threads,
+            local_files_only=local_files_only,
         )
-        _FastembedSparseEmbeddingBackendFactory._instances[embedding_backend_id] = embedding_backend
+        _FastembedSparseEmbeddingBackendFactory._instances[
+            embedding_backend_id
+        ] = embedding_backend
         return embedding_backend
 
 
@@ -99,10 +117,15 @@ class _FastembedSparseEmbeddingBackend:
         local_files_only: bool = False,
     ):
         self.model = SparseTextEmbedding(
-            model_name=model_name, cache_dir=cache_dir, threads=threads, local_files_only=local_files_only
+            model_name=model_name,
+            cache_dir=cache_dir,
+            threads=threads,
+            local_files_only=local_files_only,
         )
 
-    def embed(self, data: List[List[str]], progress_bar=True, **kwargs) -> List[SparseEmbedding]:
+    def embed(
+        self, data: List[List[str]], progress_bar=True, **kwargs
+    ) -> List[SparseEmbedding]:
         # The embed method returns a Iterable[SparseEmbedding], so we convert to Haystack SparseEmbedding type.
         # Each SparseEmbedding contains an `indices` key containing a list of int and
         # an `values` key containing a list of floats.
@@ -110,10 +133,16 @@ class _FastembedSparseEmbeddingBackend:
         sparse_embeddings = []
         sparse_embeddings_iterable = self.model.embed(data, **kwargs)
         for sparse_embedding in tqdm(
-            sparse_embeddings_iterable, disable=not progress_bar, desc="Calculating sparse embeddings", total=len(data)
+            sparse_embeddings_iterable,
+            disable=not progress_bar,
+            desc="Calculating sparse embeddings",
+            total=len(data),
         ):
             sparse_embeddings.append(
-                SparseEmbedding(indices=sparse_embedding.indices.tolist(), values=sparse_embedding.values.tolist())
+                SparseEmbedding(
+                    indices=sparse_embedding.indices.tolist(),
+                    values=sparse_embedding.values.tolist(),
+                )
             )
 
         return sparse_embeddings

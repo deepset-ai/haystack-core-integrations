@@ -18,7 +18,9 @@ from haystack_integrations.document_stores.qdrant import QdrantDocumentStore
 
 class TestQdrantRetriever(FilterableDocsFixtureMixin):
     def test_init_default(self):
-        document_store = QdrantDocumentStore(location=":memory:", index="test", use_sparse_embeddings=False)
+        document_store = QdrantDocumentStore(
+            location=":memory:", index="test", use_sparse_embeddings=False
+        )
         retriever = QdrantEmbeddingRetriever(document_store=document_store)
         assert retriever._document_store == document_store
         assert retriever._filters is None
@@ -27,14 +29,20 @@ class TestQdrantRetriever(FilterableDocsFixtureMixin):
         assert retriever._return_embedding is False
         assert retriever._score_threshold is None
 
-        retriever = QdrantEmbeddingRetriever(document_store=document_store, filter_policy="replace")
+        retriever = QdrantEmbeddingRetriever(
+            document_store=document_store, filter_policy="replace"
+        )
         assert retriever._filter_policy == FilterPolicy.REPLACE
 
         with pytest.raises(ValueError):
-            QdrantEmbeddingRetriever(document_store=document_store, filter_policy="invalid")
+            QdrantEmbeddingRetriever(
+                document_store=document_store, filter_policy="invalid"
+            )
 
     def test_to_dict(self):
-        document_store = QdrantDocumentStore(location=":memory:", index="test", use_sparse_embeddings=False)
+        document_store = QdrantDocumentStore(
+            location=":memory:", index="test", use_sparse_embeddings=False
+        )
         retriever = QdrantEmbeddingRetriever(document_store=document_store)
         res = retriever.to_dict()
         assert res == {
@@ -116,23 +124,31 @@ class TestQdrantRetriever(FilterableDocsFixtureMixin):
         assert retriever._score_threshold is None
 
     def test_run(self, filterable_docs: List[Document]):
-        document_store = QdrantDocumentStore(location=":memory:", index="Boi", use_sparse_embeddings=False)
+        document_store = QdrantDocumentStore(
+            location=":memory:", index="Boi", use_sparse_embeddings=False
+        )
 
         document_store.write_documents(filterable_docs)
 
         retriever = QdrantEmbeddingRetriever(document_store=document_store)
 
-        results: List[Document] = retriever.run(query_embedding=_random_embeddings(768))["documents"]
+        results: List[Document] = retriever.run(
+            query_embedding=_random_embeddings(768)
+        )["documents"]
         assert len(results) == 10
 
-        results = retriever.run(query_embedding=_random_embeddings(768), top_k=5, return_embedding=False)["documents"]
+        results = retriever.run(
+            query_embedding=_random_embeddings(768), top_k=5, return_embedding=False
+        )["documents"]
         assert len(results) == 5
 
         for document in results:
             assert document.embedding is None
 
     def test_run_filters(self, filterable_docs: List[Document]):
-        document_store = QdrantDocumentStore(location=":memory:", index="Boi", use_sparse_embeddings=False)
+        document_store = QdrantDocumentStore(
+            location=":memory:", index="Boi", use_sparse_embeddings=False
+        )
 
         document_store.write_documents(filterable_docs)
 
@@ -142,7 +158,9 @@ class TestQdrantRetriever(FilterableDocsFixtureMixin):
             filter_policy=FilterPolicy.MERGE,
         )
 
-        results: List[Document] = retriever.run(query_embedding=_random_embeddings(768))["documents"]
+        results: List[Document] = retriever.run(
+            query_embedding=_random_embeddings(768)
+        )["documents"]
         assert len(results) == 3
 
         results = retriever.run(
@@ -158,7 +176,11 @@ class TestQdrantRetriever(FilterableDocsFixtureMixin):
 
     def test_run_with_score_threshold(self):
         document_store = QdrantDocumentStore(
-            embedding_dim=4, location=":memory:", similarity="cosine", index="Boi", use_sparse_embeddings=False
+            embedding_dim=4,
+            location=":memory:",
+            similarity="cosine",
+            index="Boi",
+            use_sparse_embeddings=False,
         )
 
         document_store.write_documents(
@@ -174,22 +196,31 @@ class TestQdrantRetriever(FilterableDocsFixtureMixin):
 
         retriever = QdrantEmbeddingRetriever(document_store=document_store)
         results = retriever.run(
-            query_embedding=[0.9, 0.9, 0.9, 0.9], top_k=5, return_embedding=False, score_threshold=0.5
+            query_embedding=[0.9, 0.9, 0.9, 0.9],
+            top_k=5,
+            return_embedding=False,
+            score_threshold=0.5,
         )["documents"]
         assert len(results) == 2
 
     def test_run_with_sparse_activated(self, filterable_docs: List[Document]):
-        document_store = QdrantDocumentStore(location=":memory:", index="Boi", use_sparse_embeddings=True)
+        document_store = QdrantDocumentStore(
+            location=":memory:", index="Boi", use_sparse_embeddings=True
+        )
 
         document_store.write_documents(filterable_docs)
 
         retriever = QdrantEmbeddingRetriever(document_store=document_store)
 
-        results: List[Document] = retriever.run(query_embedding=_random_embeddings(768))["documents"]
+        results: List[Document] = retriever.run(
+            query_embedding=_random_embeddings(768)
+        )["documents"]
 
         assert len(results) == 10
 
-        results = retriever.run(query_embedding=_random_embeddings(768), top_k=5, return_embedding=False)["documents"]
+        results = retriever.run(
+            query_embedding=_random_embeddings(768), top_k=5, return_embedding=False
+        )["documents"]
 
         assert len(results) == 5
 
@@ -208,11 +239,15 @@ class TestQdrantSparseEmbeddingRetriever(FilterableDocsFixtureMixin):
         assert retriever._return_embedding is False
         assert retriever._score_threshold is None
 
-        retriever = QdrantSparseEmbeddingRetriever(document_store=document_store, filter_policy="replace")
+        retriever = QdrantSparseEmbeddingRetriever(
+            document_store=document_store, filter_policy="replace"
+        )
         assert retriever._filter_policy == FilterPolicy.REPLACE
 
         with pytest.raises(ValueError):
-            QdrantSparseEmbeddingRetriever(document_store=document_store, filter_policy="invalid")
+            QdrantSparseEmbeddingRetriever(
+                document_store=document_store, filter_policy="invalid"
+            )
 
     def test_to_dict(self):
         document_store = QdrantDocumentStore(location=":memory:", index="test")
@@ -322,7 +357,9 @@ class TestQdrantSparseEmbeddingRetriever(FilterableDocsFixtureMixin):
         assert retriever._score_threshold is None
 
     def test_run(self, filterable_docs: List[Document], generate_sparse_embedding):
-        document_store = QdrantDocumentStore(location=":memory:", index="Boi", use_sparse_embeddings=True)
+        document_store = QdrantDocumentStore(
+            location=":memory:", index="Boi", use_sparse_embeddings=True
+        )
 
         # Add fake sparse embedding to documents
         for doc in filterable_docs:
@@ -330,12 +367,18 @@ class TestQdrantSparseEmbeddingRetriever(FilterableDocsFixtureMixin):
 
         document_store.write_documents(filterable_docs)
         retriever = QdrantSparseEmbeddingRetriever(document_store=document_store)
-        sparse_embedding = SparseEmbedding(indices=[0, 1, 2, 3], values=[0.1, 0.8, 0.05, 0.33])
+        sparse_embedding = SparseEmbedding(
+            indices=[0, 1, 2, 3], values=[0.1, 0.8, 0.05, 0.33]
+        )
 
-        results: List[Document] = retriever.run(query_sparse_embedding=sparse_embedding)["documents"]
+        results: List[Document] = retriever.run(
+            query_sparse_embedding=sparse_embedding
+        )["documents"]
         assert len(results) == 10
 
-        results = retriever.run(query_sparse_embedding=sparse_embedding, top_k=5, return_embedding=True)["documents"]
+        results = retriever.run(
+            query_sparse_embedding=sparse_embedding, top_k=5, return_embedding=True
+        )["documents"]
         assert len(results) == 5
 
         for document in results:
@@ -344,7 +387,9 @@ class TestQdrantSparseEmbeddingRetriever(FilterableDocsFixtureMixin):
 
 class TestQdrantHybridRetriever:
     def test_init_default(self):
-        document_store = QdrantDocumentStore(location=":memory:", index="test", use_sparse_embeddings=True)
+        document_store = QdrantDocumentStore(
+            location=":memory:", index="test", use_sparse_embeddings=True
+        )
         retriever = QdrantHybridRetriever(document_store=document_store)
 
         assert retriever._document_store == document_store
@@ -354,15 +399,21 @@ class TestQdrantHybridRetriever:
         assert retriever._return_embedding is False
         assert retriever._score_threshold is None
 
-        retriever = QdrantHybridRetriever(document_store=document_store, filter_policy="replace")
+        retriever = QdrantHybridRetriever(
+            document_store=document_store, filter_policy="replace"
+        )
         assert retriever._filter_policy == FilterPolicy.REPLACE
 
         with pytest.raises(ValueError):
-            QdrantHybridRetriever(document_store=document_store, filter_policy="invalid")
+            QdrantHybridRetriever(
+                document_store=document_store, filter_policy="invalid"
+            )
 
     def test_to_dict(self):
         document_store = QdrantDocumentStore(location=":memory:", index="test")
-        retriever = QdrantHybridRetriever(document_store=document_store, top_k=5, return_embedding=True)
+        retriever = QdrantHybridRetriever(
+            document_store=document_store, top_k=5, return_embedding=True
+        )
         res = retriever.to_dict()
         assert res == {
             "type": "haystack_integrations.components.retrievers.qdrant.retriever.QdrantHybridRetriever",
@@ -464,14 +515,21 @@ class TestQdrantHybridRetriever:
 
     def test_run(self):
         mock_store = Mock(spec=QdrantDocumentStore)
-        sparse_embedding = SparseEmbedding(indices=[0, 1, 2, 3], values=[0.1, 0.8, 0.05, 0.33])
+        sparse_embedding = SparseEmbedding(
+            indices=[0, 1, 2, 3], values=[0.1, 0.8, 0.05, 0.33]
+        )
         mock_store._query_hybrid.return_value = [
-            Document(content="Test doc", embedding=[0.1, 0.2], sparse_embedding=sparse_embedding)
+            Document(
+                content="Test doc",
+                embedding=[0.1, 0.2],
+                sparse_embedding=sparse_embedding,
+            )
         ]
 
         retriever = QdrantHybridRetriever(document_store=mock_store)
         res = retriever.run(
-            query_embedding=[0.5, 0.7], query_sparse_embedding=SparseEmbedding(indices=[0, 5], values=[0.1, 0.7])
+            query_embedding=[0.5, 0.7],
+            query_sparse_embedding=SparseEmbedding(indices=[0, 5], values=[0.1, 0.7]),
         )
 
         call_args = mock_store._query_hybrid.call_args

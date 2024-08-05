@@ -3,7 +3,9 @@ from unittest.mock import MagicMock, patch
 import pytest
 from haystack.utils.auth import Secret
 from haystack_integrations.components.embedders.optimum import OptimumTextEmbedder
-from haystack_integrations.components.embedders.optimum.pooling import OptimumEmbedderPooling
+from haystack_integrations.components.embedders.optimum.pooling import (
+    OptimumEmbedderPooling,
+)
 from haystack_integrations.components.embedders.optimum.optimization import (
     OptimumEmbedderOptimizationConfig,
     OptimumEmbedderOptimizationMode,
@@ -34,16 +36,26 @@ def mock_get_pooling_mode():
 
 
 class TestOptimumTextEmbedder:
-    def test_init_default(self, monkeypatch, mock_check_valid_model, mock_get_pooling_mode):  # noqa: ARG002
+    def test_init_default(
+        self, monkeypatch, mock_check_valid_model, mock_get_pooling_mode
+    ):  # noqa: ARG002
         monkeypatch.setenv("HF_API_TOKEN", "fake-api-token")
         embedder = OptimumTextEmbedder()
 
-        assert embedder._backend.parameters.model == "sentence-transformers/all-mpnet-base-v2"
-        assert embedder._backend.parameters.token == Secret.from_env_var("HF_API_TOKEN", strict=False)
+        assert (
+            embedder._backend.parameters.model
+            == "sentence-transformers/all-mpnet-base-v2"
+        )
+        assert embedder._backend.parameters.token == Secret.from_env_var(
+            "HF_API_TOKEN", strict=False
+        )
         assert embedder._backend.parameters.prefix == ""
         assert embedder._backend.parameters.suffix == ""
         assert embedder._backend.parameters.normalize_embeddings is True
-        assert embedder._backend.parameters.onnx_execution_provider == "CPUExecutionProvider"
+        assert (
+            embedder._backend.parameters.onnx_execution_provider
+            == "CPUExecutionProvider"
+        )
         assert embedder._backend.parameters.pooling_mode == OptimumEmbedderPooling.MEAN
         assert embedder._backend.parameters.model_kwargs == {
             "model_id": "sentence-transformers/all-mpnet-base-v2",
@@ -66,12 +78,18 @@ class TestOptimumTextEmbedder:
             quantizer_settings=None,
         )
 
-        assert embedder._backend.parameters.model == "sentence-transformers/all-minilm-l6-v2"
+        assert (
+            embedder._backend.parameters.model
+            == "sentence-transformers/all-minilm-l6-v2"
+        )
         assert embedder._backend.parameters.token == Secret.from_token("fake-api-token")
         assert embedder._backend.parameters.prefix == "prefix"
         assert embedder._backend.parameters.suffix == "suffix"
         assert embedder._backend.parameters.normalize_embeddings is False
-        assert embedder._backend.parameters.onnx_execution_provider == "CUDAExecutionProvider"
+        assert (
+            embedder._backend.parameters.onnx_execution_provider
+            == "CUDAExecutionProvider"
+        )
         assert embedder._backend.parameters.pooling_mode == OptimumEmbedderPooling.MAX
         assert embedder._backend.parameters.model_kwargs == {
             "trust_remote_code": True,
@@ -83,7 +101,9 @@ class TestOptimumTextEmbedder:
         assert embedder._backend.parameters.optimizer_settings is None
         assert embedder._backend.parameters.quantizer_settings is None
 
-    def test_to_and_from_dict(self, mock_check_valid_model, mock_get_pooling_mode):  # noqa: ARG002
+    def test_to_and_from_dict(
+        self, mock_check_valid_model, mock_get_pooling_mode
+    ):  # noqa: ARG002
         component = OptimumTextEmbedder()
         data = component.to_dict()
 
@@ -91,7 +111,11 @@ class TestOptimumTextEmbedder:
             "type": "haystack_integrations.components.embedders.optimum.optimum_text_embedder.OptimumTextEmbedder",
             "init_parameters": {
                 "model": "sentence-transformers/all-mpnet-base-v2",
-                "token": {"env_vars": ["HF_API_TOKEN"], "strict": False, "type": "env_var"},
+                "token": {
+                    "env_vars": ["HF_API_TOKEN"],
+                    "strict": False,
+                    "type": "env_var",
+                },
                 "prefix": "",
                 "suffix": "",
                 "normalize_embeddings": True,
@@ -108,12 +132,20 @@ class TestOptimumTextEmbedder:
         }
 
         embedder = OptimumTextEmbedder.from_dict(data)
-        assert embedder._backend.parameters.model == "sentence-transformers/all-mpnet-base-v2"
-        assert embedder._backend.parameters.token == Secret.from_env_var("HF_API_TOKEN", strict=False)
+        assert (
+            embedder._backend.parameters.model
+            == "sentence-transformers/all-mpnet-base-v2"
+        )
+        assert embedder._backend.parameters.token == Secret.from_env_var(
+            "HF_API_TOKEN", strict=False
+        )
         assert embedder._backend.parameters.prefix == ""
         assert embedder._backend.parameters.suffix == ""
         assert embedder._backend.parameters.normalize_embeddings is True
-        assert embedder._backend.parameters.onnx_execution_provider == "CPUExecutionProvider"
+        assert (
+            embedder._backend.parameters.onnx_execution_provider
+            == "CPUExecutionProvider"
+        )
         assert embedder._backend.parameters.pooling_mode == OptimumEmbedderPooling.MEAN
         assert embedder._backend.parameters.model_kwargs == {
             "model_id": "sentence-transformers/all-mpnet-base-v2",
@@ -124,7 +156,9 @@ class TestOptimumTextEmbedder:
         assert embedder._backend.parameters.optimizer_settings is None
         assert embedder._backend.parameters.quantizer_settings is None
 
-    def test_to_and_from_dict_with_custom_init_parameters(self, mock_check_valid_model):  # noqa: ARG002
+    def test_to_and_from_dict_with_custom_init_parameters(
+        self, mock_check_valid_model
+    ):  # noqa: ARG002
         component = OptimumTextEmbedder(
             model="sentence-transformers/all-minilm-l6-v2",
             token=Secret.from_env_var("ENV_VAR", strict=False),
@@ -135,7 +169,9 @@ class TestOptimumTextEmbedder:
             pooling_mode="max",
             model_kwargs={"trust_remote_code": True},
             working_dir="working_dir",
-            optimizer_settings=OptimumEmbedderOptimizationConfig(OptimumEmbedderOptimizationMode.O1, for_gpu=True),
+            optimizer_settings=OptimumEmbedderOptimizationConfig(
+                OptimumEmbedderOptimizationMode.O1, for_gpu=True
+            ),
             quantizer_settings=OptimumEmbedderQuantizationConfig(
                 OptimumEmbedderQuantizationMode.ARM64, per_channel=True
             ),
@@ -164,12 +200,20 @@ class TestOptimumTextEmbedder:
         }
 
         embedder = OptimumTextEmbedder.from_dict(data)
-        assert embedder._backend.parameters.model == "sentence-transformers/all-minilm-l6-v2"
-        assert embedder._backend.parameters.token == Secret.from_env_var("ENV_VAR", strict=False)
+        assert (
+            embedder._backend.parameters.model
+            == "sentence-transformers/all-minilm-l6-v2"
+        )
+        assert embedder._backend.parameters.token == Secret.from_env_var(
+            "ENV_VAR", strict=False
+        )
         assert embedder._backend.parameters.prefix == "prefix"
         assert embedder._backend.parameters.suffix == "suffix"
         assert embedder._backend.parameters.normalize_embeddings is False
-        assert embedder._backend.parameters.onnx_execution_provider == "CUDAExecutionProvider"
+        assert (
+            embedder._backend.parameters.onnx_execution_provider
+            == "CUDAExecutionProvider"
+        )
         assert embedder._backend.parameters.pooling_mode == OptimumEmbedderPooling.MAX
         assert embedder._backend.parameters.model_kwargs == {
             "trust_remote_code": True,
@@ -178,11 +222,17 @@ class TestOptimumTextEmbedder:
             "use_auth_token": None,
         }
         assert embedder._backend.parameters.working_dir == "working_dir"
-        assert embedder._backend.parameters.optimizer_settings == OptimumEmbedderOptimizationConfig(
-            OptimumEmbedderOptimizationMode.O1, for_gpu=True
+        assert (
+            embedder._backend.parameters.optimizer_settings
+            == OptimumEmbedderOptimizationConfig(
+                OptimumEmbedderOptimizationMode.O1, for_gpu=True
+            )
         )
-        assert embedder._backend.parameters.quantizer_settings == OptimumEmbedderQuantizationConfig(
-            OptimumEmbedderQuantizationMode.ARM64, per_channel=True
+        assert (
+            embedder._backend.parameters.quantizer_settings
+            == OptimumEmbedderQuantizationConfig(
+                OptimumEmbedderQuantizationMode.ARM64, per_channel=True
+            )
         )
 
     def test_initialize_with_invalid_model(self, mock_check_valid_model):
@@ -190,10 +240,15 @@ class TestOptimumTextEmbedder:
         with pytest.raises(RepositoryNotFoundError):
             OptimumTextEmbedder(model="invalid_model_id", pooling_mode="max")
 
-    def test_initialize_with_invalid_pooling_mode(self, mock_check_valid_model):  # noqa: ARG002
+    def test_initialize_with_invalid_pooling_mode(
+        self, mock_check_valid_model
+    ):  # noqa: ARG002
         mock_get_pooling_mode.side_effect = ValueError("Invalid pooling mode")
         with pytest.raises(ValueError):
-            OptimumTextEmbedder(model="sentence-transformers/all-mpnet-base-v2", pooling_mode="Invalid_pooling_mode")
+            OptimumTextEmbedder(
+                model="sentence-transformers/all-mpnet-base-v2",
+                pooling_mode="Invalid_pooling_mode",
+            )
 
     def test_infer_pooling_mode_from_str(self):
         """
@@ -206,11 +261,16 @@ class TestOptimumTextEmbedder:
                 pooling_mode=pooling_mode.value,
             )
 
-            assert embedder._backend.parameters.model == "sentence-transformers/all-minilm-l6-v2"
+            assert (
+                embedder._backend.parameters.model
+                == "sentence-transformers/all-minilm-l6-v2"
+            )
             assert embedder._backend.parameters.pooling_mode == pooling_mode
 
     @pytest.mark.integration
-    def test_default_pooling_mode_when_config_not_found(self, mock_check_valid_model):  # noqa: ARG002
+    def test_default_pooling_mode_when_config_not_found(
+        self, mock_check_valid_model
+    ):  # noqa: ARG002
         with pytest.raises(ValueError):
             OptimumTextEmbedder(
                 model="embedding_model_finetuned",
@@ -224,7 +284,10 @@ class TestOptimumTextEmbedder:
             pooling_mode=None,
         )
 
-        assert embedder._backend.parameters.model == "sentence-transformers/all-minilm-l6-v2"
+        assert (
+            embedder._backend.parameters.model
+            == "sentence-transformers/all-minilm-l6-v2"
+        )
         assert embedder._backend.parameters.pooling_mode == OptimumEmbedderPooling.MEAN
 
     def test_run_wrong_input_format(self, mock_check_valid_model):  # noqa: ARG002
@@ -237,7 +300,9 @@ class TestOptimumTextEmbedder:
 
         list_integers_input = [1, 2, 3]
 
-        with pytest.raises(TypeError, match="OptimumTextEmbedder expects a string as an input"):
+        with pytest.raises(
+            TypeError, match="OptimumTextEmbedder expects a string as an input"
+        ):
             embedder.run(text=list_integers_input)
 
     @pytest.mark.integration

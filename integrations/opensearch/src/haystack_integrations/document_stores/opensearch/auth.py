@@ -57,7 +57,9 @@ def _get_aws_session(
             profile_name=aws_profile_name,
         )
     except BotoCoreError as e:
-        provided_aws_config = {k: v for k, v in kwargs.items() if k in AWS_CONFIGURATION_KEYS}
+        provided_aws_config = {
+            k: v for k, v in kwargs.items() if k in AWS_CONFIGURATION_KEYS
+        }
         msg = f"Failed to initialize the session with provided AWS credentials {provided_aws_config}"
         raise AWSConfigurationError(msg) from e
 
@@ -76,7 +78,9 @@ class AWSAuth:
         default_factory=lambda: Secret.from_env_var("AWS_ACCESS_KEY_ID", strict=False)
     )
     aws_secret_access_key: Optional[Secret] = field(
-        default_factory=lambda: Secret.from_env_var("AWS_SECRET_ACCESS_KEY", strict=False)
+        default_factory=lambda: Secret.from_env_var(
+            "AWS_SECRET_ACCESS_KEY", strict=False
+        )
     )
     aws_session_token: Optional[Secret] = field(
         default_factory=lambda: Secret.from_env_var("AWS_SESSION_TOKEN", strict=False)
@@ -84,7 +88,9 @@ class AWSAuth:
     aws_region_name: Optional[Secret] = field(
         default_factory=lambda: Secret.from_env_var("AWS_DEFAULT_REGION", strict=False)
     )
-    aws_profile_name: Optional[Secret] = field(default_factory=lambda: Secret.from_env_var("AWS_PROFILE", strict=False))
+    aws_profile_name: Optional[Secret] = field(
+        default_factory=lambda: Secret.from_env_var("AWS_PROFILE", strict=False)
+    )
     aws_service: str = field(default="es")
 
     def __post_init__(self) -> None:
@@ -101,7 +107,9 @@ class AWSAuth:
         for _field in fields(self):
             field_value = getattr(self, _field.name)
             if _field.type == Optional[Secret]:
-                _fields[_field.name] = field_value.to_dict() if field_value is not None else None
+                _fields[_field.name] = (
+                    field_value.to_dict() if field_value is not None else None
+                )
             else:
                 _fields[_field.name] = field_value
 
@@ -115,7 +123,13 @@ class AWSAuth:
         init_parameters = data.get("init_parameters", {})
         deserialize_secrets_inplace(
             init_parameters,
-            ["aws_access_key_id", "aws_secret_access_key", "aws_session_token", "aws_region_name", "aws_profile_name"],
+            [
+                "aws_access_key_id",
+                "aws_secret_access_key",
+                "aws_session_token",
+                "aws_region_name",
+                "aws_profile_name",
+            ],
         )
         return default_from_dict(cls, data)
 

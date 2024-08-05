@@ -3,7 +3,10 @@
 # SPDX-License-Identifier: Apache-2.0
 import pytest
 from haystack.errors import FilterError
-from haystack_integrations.document_stores.opensearch.filters import _normalize_ranges, normalize_filters
+from haystack_integrations.document_stores.opensearch.filters import (
+    _normalize_ranges,
+    normalize_filters,
+)
 
 filters_data = [
     (
@@ -14,8 +17,16 @@ filters_data = [
                 {
                     "operator": "OR",
                     "conditions": [
-                        {"field": "meta.genre", "operator": "in", "value": ["economy", "politics"]},
-                        {"field": "meta.publisher", "operator": "==", "value": "nytimes"},
+                        {
+                            "field": "meta.genre",
+                            "operator": "in",
+                            "value": ["economy", "politics"],
+                        },
+                        {
+                            "field": "meta.publisher",
+                            "operator": "==",
+                            "value": "nytimes",
+                        },
                     ],
                 },
                 {"field": "meta.date", "operator": ">=", "value": "2015-01-01"},
@@ -64,8 +75,22 @@ filters_data = [
         {
             "bool": {
                 "should": [
-                    {"bool": {"must": [{"term": {"Type": "News Paper"}}, {"range": {"Date": {"lt": "2020-01-01"}}}]}},
-                    {"bool": {"must": [{"term": {"Type": "Blog Post"}}, {"range": {"Date": {"gte": "2019-01-01"}}}]}},
+                    {
+                        "bool": {
+                            "must": [
+                                {"term": {"Type": "News Paper"}},
+                                {"range": {"Date": {"lt": "2020-01-01"}}},
+                            ]
+                        }
+                    },
+                    {
+                        "bool": {
+                            "must": [
+                                {"term": {"Type": "Blog Post"}},
+                                {"range": {"Date": {"gte": "2019-01-01"}}},
+                            ]
+                        }
+                    },
                 ]
             }
         },
@@ -81,8 +106,16 @@ filters_data = [
                 {
                     "operator": "OR",
                     "conditions": [
-                        {"field": "meta.genre", "operator": "in", "value": ["economy", "politics"]},
-                        {"field": "meta.publisher", "operator": "==", "value": "nytimes"},
+                        {
+                            "field": "meta.genre",
+                            "operator": "in",
+                            "value": ["economy", "politics"],
+                        },
+                        {
+                            "field": "meta.publisher",
+                            "operator": "==",
+                            "value": "nytimes",
+                        },
                     ],
                 },
             ],
@@ -106,8 +139,26 @@ filters_data = [
         },
     ),
     (
-        {"operator": "AND", "conditions": [{"field": "text", "operator": "==", "value": "A Foo Document 1"}]},
-        {"bool": {"must": [{"match": {"text": {"query": "A Foo Document 1", "minimum_should_match": "100%"}}}]}},
+        {
+            "operator": "AND",
+            "conditions": [
+                {"field": "text", "operator": "==", "value": "A Foo Document 1"}
+            ],
+        },
+        {
+            "bool": {
+                "must": [
+                    {
+                        "match": {
+                            "text": {
+                                "query": "A Foo Document 1",
+                                "minimum_should_match": "100%",
+                            }
+                        }
+                    }
+                ]
+            }
+        },
     ),
     (
         {
@@ -126,7 +177,14 @@ filters_data = [
         {
             "bool": {
                 "should": [
-                    {"bool": {"should": [{"term": {"name": "name_0"}}, {"term": {"name": "name_1"}}]}},
+                    {
+                        "bool": {
+                            "should": [
+                                {"term": {"name": "name_0"}},
+                                {"term": {"name": "name_1"}},
+                            ]
+                        }
+                    },
                     {"range": {"number": {"lt": 1.0}}},
                 ]
             }
@@ -141,7 +199,14 @@ filters_data = [
                 {"field": "meta.name", "operator": "in", "value": ["name_0", "name_1"]},
             ],
         },
-        {"bool": {"must": [{"terms": {"name": ["name_0", "name_1"]}}, {"range": {"number": {"lte": 2, "gte": 0}}}]}},
+        {
+            "bool": {
+                "must": [
+                    {"terms": {"name": ["name_0", "name_1"]}},
+                    {"range": {"number": {"lte": 2, "gte": 0}}},
+                ]
+            }
+        },
     ),
     (
         {
@@ -161,7 +226,11 @@ filters_data = [
                 {"field": "meta.name", "operator": "==", "value": "name_1"},
             ],
         },
-        {"bool": {"should": [{"term": {"name": "name_0"}}, {"term": {"name": "name_1"}}]}},
+        {
+            "bool": {
+                "should": [{"term": {"name": "name_0"}}, {"term": {"name": "name_1"}}]
+            }
+        },
     ),
     (
         {
@@ -171,7 +240,20 @@ filters_data = [
                 {"field": "meta.name", "operator": "==", "value": "name_0"},
             ],
         },
-        {"bool": {"must_not": [{"bool": {"must": [{"term": {"number": 100}}, {"term": {"name": "name_0"}}]}}]}},
+        {
+            "bool": {
+                "must_not": [
+                    {
+                        "bool": {
+                            "must": [
+                                {"term": {"number": 100}},
+                                {"term": {"name": "name_0"}},
+                            ]
+                        }
+                    }
+                ]
+            }
+        },
     ),
 ]
 
@@ -198,15 +280,27 @@ def test_normalize_filters_malformed():
 
     # Missing comparison field
     with pytest.raises(FilterError):
-        normalize_filters({"operator": "AND", "conditions": [{"operator": "==", "value": "article"}]})
+        normalize_filters(
+            {"operator": "AND", "conditions": [{"operator": "==", "value": "article"}]}
+        )
 
     # Missing comparison operator
     with pytest.raises(FilterError):
-        normalize_filters({"operator": "AND", "conditions": [{"field": "meta.type", "operator": "=="}]})
+        normalize_filters(
+            {
+                "operator": "AND",
+                "conditions": [{"field": "meta.type", "operator": "=="}],
+            }
+        )
 
     # Missing comparison value
     with pytest.raises(FilterError):
-        normalize_filters({"operator": "AND", "conditions": [{"field": "meta.type", "value": "article"}]})
+        normalize_filters(
+            {
+                "operator": "AND",
+                "conditions": [{"field": "meta.type", "value": "article"}],
+            }
+        )
 
 
 def test_normalize_ranges():

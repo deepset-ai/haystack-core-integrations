@@ -29,7 +29,9 @@ def document_store(request):
 
 @pytest.fixture
 def patches_for_unit_tests():
-    with patch("haystack_integrations.document_stores.pgvector.document_store.connect") as mock_connect, patch(
+    with patch(
+        "haystack_integrations.document_stores.pgvector.document_store.connect"
+    ) as mock_connect, patch(
         "haystack_integrations.document_stores.pgvector.document_store.register_vector"
     ) as mock_register, patch(
         "haystack_integrations.document_stores.pgvector.document_store.PgvectorDocumentStore.delete_table"
@@ -44,7 +46,9 @@ def patches_for_unit_tests():
 
 
 @pytest.fixture
-def mock_store(patches_for_unit_tests, monkeypatch):  # noqa: ARG001  patches are not explicitly called but necessary
+def mock_store(
+    patches_for_unit_tests, monkeypatch
+):  # noqa: ARG001  patches are not explicitly called but necessary
     monkeypatch.setenv("PG_CONN_STR", "some-connection-string")
     table_name = "haystack"
     embedding_dimension = 768

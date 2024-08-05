@@ -11,8 +11,12 @@ from haystack.utils import Secret
 from haystack_integrations.components.generators.anthropic import AnthropicChatGenerator
 
 messages = [
-    ChatMessage.from_system("You are a prompt expert who answers questions based on the given documents."),
-    ChatMessage.from_user("Here are the documents: {{documents}} \\n Answer: {{query}}"),
+    ChatMessage.from_system(
+        "You are a prompt expert who answers questions based on the given documents."
+    ),
+    ChatMessage.from_user(
+        "Here are the documents: {{documents}} \\n Answer: {{query}}"
+    ),
 ]
 
 rag_pipeline = Pipeline()
@@ -35,7 +39,12 @@ rag_pipeline.connect("prompt_builder.prompt", "llm.messages")
 question = "What are the best practices in prompt engineering?"
 rag_pipeline.run(
     data={
-        "fetcher": {"urls": ["https://docs.anthropic.com/claude/docs/prompt-engineering"]},
-        "prompt_builder": {"template_variables": {"query": question}, "template": messages},
+        "fetcher": {
+            "urls": ["https://docs.anthropic.com/claude/docs/prompt-engineering"]
+        },
+        "prompt_builder": {
+            "template_variables": {"query": question},
+            "template": messages,
+        },
     }
 )

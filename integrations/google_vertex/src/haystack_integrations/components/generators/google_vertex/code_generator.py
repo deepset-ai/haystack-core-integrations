@@ -45,7 +45,14 @@ class VertexAICodeGenerator:
     ```
     """
 
-    def __init__(self, *, model: str = "code-bison", project_id: str, location: Optional[str] = None, **kwargs):
+    def __init__(
+        self,
+        *,
+        model: str = "code-bison",
+        project_id: str,
+        location: Optional[str] = None,
+        **kwargs
+    ):
         """
         Generate code using a Google Vertex AI model.
 
@@ -77,7 +84,11 @@ class VertexAICodeGenerator:
             Dictionary with serialized data.
         """
         return default_to_dict(
-            self, model=self._model_name, project_id=self._project_id, location=self._location, **self._kwargs
+            self,
+            model=self._model_name,
+            project_id=self._project_id,
+            location=self._location,
+            **self._kwargs
         )
 
     @classmethod
@@ -104,5 +115,9 @@ class VertexAICodeGenerator:
         """
         res = self._model.predict(prefix=prefix, suffix=suffix, **self._kwargs)
         # Handle the case where the model returns multiple candidates
-        replies = [c.text for c in res.candidates] if hasattr(res, "candidates") else [res.text]
+        replies = (
+            [c.text for c in res.candidates]
+            if hasattr(res, "candidates")
+            else [res.text]
+        )
         return {"replies": replies}

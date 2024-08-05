@@ -6,7 +6,9 @@ import os
 import pytest
 from haystack import Document
 from haystack.utils import Secret
-from haystack_integrations.components.embedders.mistral.document_embedder import MistralDocumentEmbedder
+from haystack_integrations.components.embedders.mistral.document_embedder import (
+    MistralDocumentEmbedder,
+)
 
 pytestmark = pytest.mark.embedders
 
@@ -56,7 +58,11 @@ class TestMistralDocumentEmbedder:
         assert component_dict == {
             "type": "haystack_integrations.components.embedders.mistral.document_embedder.MistralDocumentEmbedder",
             "init_parameters": {
-                "api_key": {"env_vars": ["MISTRAL_API_KEY"], "strict": True, "type": "env_var"},
+                "api_key": {
+                    "env_vars": ["MISTRAL_API_KEY"],
+                    "strict": True,
+                    "type": "env_var",
+                },
                 "model": "mistral-embed",
                 "api_base_url": "https://api.mistral.ai/v1",
                 "dimensions": None,
@@ -87,7 +93,11 @@ class TestMistralDocumentEmbedder:
         assert component_dict == {
             "type": "haystack_integrations.components.embedders.mistral.document_embedder.MistralDocumentEmbedder",
             "init_parameters": {
-                "api_key": {"env_vars": ["ENV_VAR"], "strict": False, "type": "env_var"},
+                "api_key": {
+                    "env_vars": ["ENV_VAR"],
+                    "strict": False,
+                    "type": "env_var",
+                },
                 "model": "mistral-embed-v2",
                 "dimensions": None,
                 "api_base_url": "https://custom-api-base-url.com",
@@ -111,7 +121,10 @@ class TestMistralDocumentEmbedder:
 
         docs = [
             Document(content="I love cheese", meta={"topic": "Cuisine"}),
-            Document(content="A transformer is a deep learning architecture", meta={"topic": "ML"}),
+            Document(
+                content="A transformer is a deep learning architecture",
+                meta={"topic": "ML"},
+            ),
         ]
 
         result = embedder.run(docs)

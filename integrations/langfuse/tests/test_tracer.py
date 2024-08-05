@@ -5,7 +5,6 @@ from haystack_integrations.tracing.langfuse.tracer import LangfuseTracer
 
 
 class TestLangfuseTracer:
-
     #  LangfuseTracer can be initialized with a Langfuse instance, a name and a boolean value for public.
     def test_initialization(self):
         langfuse_instance = Mock()
@@ -22,7 +21,9 @@ class TestLangfuseTracer:
         mock_raw_span.operation_name = "operation_name"
         mock_raw_span.metadata = {"tag1": "value1", "tag2": "value2"}
 
-        with patch("haystack_integrations.tracing.langfuse.tracer.LangfuseSpan") as MockLangfuseSpan:
+        with patch(
+            "haystack_integrations.tracing.langfuse.tracer.LangfuseSpan"
+        ) as MockLangfuseSpan:
             mock_span_instance = MockLangfuseSpan.return_value
             mock_span_instance.raw_span.return_value = mock_raw_span
 
@@ -34,8 +35,12 @@ class TestLangfuseTracer:
 
             tracer = LangfuseTracer(tracer=mock_tracer, name="Haystack", public=False)
 
-            with tracer.trace("operation_name", tags={"tag1": "value1", "tag2": "value2"}) as span:
-                assert len(tracer._context) == 2, "The trace span should have been added to the the root context span"
+            with tracer.trace(
+                "operation_name", tags={"tag1": "value1", "tag2": "value2"}
+            ) as span:
+                assert (
+                    len(tracer._context) == 2
+                ), "The trace span should have been added to the the root context span"
                 assert span.raw_span().operation_name == "operation_name"
                 assert span.raw_span().metadata == {"tag1": "value1", "tag2": "value2"}
 
@@ -46,7 +51,6 @@ class TestLangfuseTracer:
     # check that update method is called on the span instance with the provided key value pairs
     def test_update_span_with_pipeline_input_output_data(self):
         class MockTracer:
-
             def trace(self, name, **kwargs):
                 return MockSpan()
 
@@ -77,17 +81,30 @@ class TestLangfuseTracer:
                 pass
 
         tracer = LangfuseTracer(tracer=MockTracer(), name="Haystack", public=False)
-        with tracer.trace(operation_name="operation_name", tags={"haystack.pipeline.input_data": "hello"}) as span:
-            assert span.raw_span()._data["metadata"] == {"haystack.pipeline.input_data": "hello"}
+        with tracer.trace(
+            operation_name="operation_name",
+            tags={"haystack.pipeline.input_data": "hello"},
+        ) as span:
+            assert span.raw_span()._data["metadata"] == {
+                "haystack.pipeline.input_data": "hello"
+            }
 
-        with tracer.trace(operation_name="operation_name", tags={"haystack.pipeline.output_data": "bye"}) as span:
-            assert span.raw_span()._data["metadata"] == {"haystack.pipeline.output_data": "bye"}
+        with tracer.trace(
+            operation_name="operation_name",
+            tags={"haystack.pipeline.output_data": "bye"},
+        ) as span:
+            assert span.raw_span()._data["metadata"] == {
+                "haystack.pipeline.output_data": "bye"
+            }
 
     def test_update_span_gets_flushed_by_default(self):
         tracer_mock = Mock()
 
         tracer = LangfuseTracer(tracer=tracer_mock, name="Haystack", public=False)
-        with tracer.trace(operation_name="operation_name", tags={"haystack.pipeline.input_data": "hello"}) as span:
+        with tracer.trace(
+            operation_name="operation_name",
+            tags={"haystack.pipeline.input_data": "hello"},
+        ) as span:
             pass
 
         tracer_mock.flush.assert_called_once()
@@ -99,7 +116,10 @@ class TestLangfuseTracer:
         from haystack_integrations.tracing.langfuse.tracer import LangfuseTracer
 
         tracer = LangfuseTracer(tracer=tracer_mock, name="Haystack", public=False)
-        with tracer.trace(operation_name="operation_name", tags={"haystack.pipeline.input_data": "hello"}) as span:
+        with tracer.trace(
+            operation_name="operation_name",
+            tags={"haystack.pipeline.input_data": "hello"},
+        ) as span:
             pass
 
         tracer_mock.flush.assert_not_called()
@@ -108,7 +128,10 @@ class TestLangfuseTracer:
         tracer_mock = Mock()
 
         tracer = LangfuseTracer(tracer=tracer_mock, name="Haystack", public=False)
-        with tracer.trace(operation_name="operation_name", tags={"haystack.pipeline.input_data": "hello"}) as span:
+        with tracer.trace(
+            operation_name="operation_name",
+            tags={"haystack.pipeline.input_data": "hello"},
+        ) as span:
             pass
 
         assert tracer._context == []

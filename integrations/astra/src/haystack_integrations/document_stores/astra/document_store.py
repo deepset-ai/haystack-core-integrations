@@ -49,7 +49,9 @@ class AstraDocumentStore:
 
     def __init__(
         self,
-        api_endpoint: Secret = Secret.from_env_var("ASTRA_DB_API_ENDPOINT"),  # noqa: B008
+        api_endpoint: Secret = Secret.from_env_var(
+            "ASTRA_DB_API_ENDPOINT"
+        ),  # noqa: B008
         token: Secret = Secret.from_env_var("ASTRA_DB_APPLICATION_TOKEN"),  # noqa: B008
         collection_name: str = "documents",
         embedding_dimension: int = 768,
@@ -128,7 +130,9 @@ class AstraDocumentStore:
         :returns:
             Deserialized component.
         """
-        deserialize_secrets_inplace(data["init_parameters"], keys=["api_endpoint", "token"])
+        deserialize_secrets_inplace(
+            data["init_parameters"], keys=["api_endpoint", "token"]
+        )
         return default_from_dict(cls, data)
 
     def to_dict(self) -> Dict[str, Any]:
@@ -173,7 +177,10 @@ class AstraDocumentStore:
         :raises Exception: if the document ID is not a string or if `id` and `_id` are both present in the document.
         """
         if policy is None or policy == DuplicatePolicy.NONE:
-            if self.duplicates_policy is not None and self.duplicates_policy != DuplicatePolicy.NONE:
+            if (
+                self.duplicates_policy is not None
+                and self.duplicates_policy != DuplicatePolicy.NONE
+            ):
                 policy = self.duplicates_policy
             else:
                 policy = DuplicatePolicy.SKIP
@@ -245,7 +252,9 @@ class AstraDocumentStore:
                 for batch in _batches(new_documents, batch_size):
                     inserted_ids = self.index.insert(batch)  # type: ignore
                     insertion_counter += len(inserted_ids)
-                    logger.info(f"write_documents inserted documents with id {inserted_ids}")
+                    logger.info(
+                        f"write_documents inserted documents with id {inserted_ids}"
+                    )
             else:
                 logger.warning("No documents written. Argument policy set to SKIP")
 
@@ -254,7 +263,9 @@ class AstraDocumentStore:
                 for batch in _batches(new_documents, batch_size):
                     inserted_ids = self.index.insert(batch)  # type: ignore
                     insertion_counter += len(inserted_ids)
-                    logger.info(f"write_documents inserted documents with id {inserted_ids}")
+                    logger.info(
+                        f"write_documents inserted documents with id {inserted_ids}"
+                    )
             else:
                 logger.warning("No documents written. Argument policy set to OVERWRITE")
 
@@ -274,7 +285,9 @@ class AstraDocumentStore:
                 for batch in _batches(new_documents, batch_size):
                     inserted_ids = self.index.insert(batch)  # type: ignore
                     insertion_counter = insertion_counter + len(inserted_ids)
-                    logger.info(f"write_documents inserted documents with id {inserted_ids}")
+                    logger.info(
+                        f"write_documents inserted documents with id {inserted_ids}"
+                    )
             else:
                 logger.warning("No documents written. Argument policy set to FAIL")
 
@@ -288,7 +301,9 @@ class AstraDocumentStore:
         """
         return self.index.count_documents()
 
-    def filter_documents(self, filters: Optional[Dict[str, Any]] = None) -> List[Document]:
+    def filter_documents(
+        self, filters: Optional[Dict[str, Any]] = None
+    ) -> List[Document]:
         """
         Returns at most 1000 documents that match the filter.
 
@@ -325,7 +340,11 @@ class AstraDocumentStore:
         else:
             converted_filters = _convert_filters(filters)
             results = self.index.query(
-                vector=vector, query_filter=converted_filters, top_k=1000, include_values=True, include_metadata=True
+                vector=vector,
+                query_filter=converted_filters,
+                top_k=1000,
+                include_values=True,
+                include_metadata=True,
             )
             documents = self._get_result_to_documents(results)
         return documents
@@ -378,7 +397,10 @@ class AstraDocumentStore:
         return ret[0]
 
     def search(
-        self, query_embedding: List[float], top_k: int, filters: Optional[Dict[str, Any]] = None
+        self,
+        query_embedding: List[float],
+        top_k: int,
+        filters: Optional[Dict[str, Any]] = None,
     ) -> List[Document]:
         """
         Perform a search for a list of queries.
@@ -403,7 +425,11 @@ class AstraDocumentStore:
 
         return result
 
-    def delete_documents(self, document_ids: Optional[List[str]] = None, delete_all: Optional[bool] = None) -> None:
+    def delete_documents(
+        self,
+        document_ids: Optional[List[str]] = None,
+        delete_all: Optional[bool] = None,
+    ) -> None:
         """
         Deletes documents from the document store.
 

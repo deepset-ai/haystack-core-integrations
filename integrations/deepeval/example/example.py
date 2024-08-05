@@ -1,7 +1,10 @@
 # A valid OpenAI API key is required to run this example.
 
 from haystack import Pipeline
-from haystack_integrations.components.evaluators.deepeval import DeepEvalEvaluator, DeepEvalMetric
+from haystack_integrations.components.evaluators.deepeval import (
+    DeepEvalEvaluator,
+    DeepEvalMetric,
+)
 
 QUESTIONS = [
     "Which is the most popular global sport?",
@@ -31,7 +34,15 @@ pipeline.add_component("evaluator", evaluator)
 
 # Each metric expects a specific set of parameters as input. Refer to the
 # DeepEvalMetric class' documentation for more details.
-results = pipeline.run({"evaluator": {"questions": QUESTIONS, "contexts": CONTEXTS, "responses": RESPONSES}})
+results = pipeline.run(
+    {
+        "evaluator": {
+            "questions": QUESTIONS,
+            "contexts": CONTEXTS,
+            "responses": RESPONSES,
+        }
+    }
+)
 
 for output in results["evaluator"]["results"]:
     print(output)

@@ -8,7 +8,9 @@ from haystack.dataclasses import Document
 from haystack.document_stores.types import FilterPolicy
 from haystack.utils import Secret
 
-from haystack_integrations.components.retrievers.pinecone import PineconeEmbeddingRetriever
+from haystack_integrations.components.retrievers.pinecone import (
+    PineconeEmbeddingRetriever,
+)
 from haystack_integrations.document_stores.pinecone import PineconeDocumentStore
 
 
@@ -20,7 +22,9 @@ def test_init_default():
     assert retriever.top_k == 10
     assert retriever.filter_policy == FilterPolicy.REPLACE
 
-    retriever = PineconeEmbeddingRetriever(document_store=mock_store, filter_policy="replace")
+    retriever = PineconeEmbeddingRetriever(
+        document_store=mock_store, filter_policy="replace"
+    )
     assert retriever.filter_policy == FilterPolicy.REPLACE
 
     with pytest.raises(ValueError):
@@ -30,7 +34,9 @@ def test_init_default():
 @patch("haystack_integrations.document_stores.pinecone.document_store.Pinecone")
 def test_to_dict(mock_pinecone, monkeypatch):
     monkeypatch.setenv("PINECONE_API_KEY", "env-api-key")
-    mock_pinecone.return_value.Index.return_value.describe_index_stats.return_value = {"dimension": 512}
+    mock_pinecone.return_value.Index.return_value.describe_index_stats.return_value = {
+        "dimension": 512
+    }
     document_store = PineconeDocumentStore(
         index="default",
         namespace="test-namespace",
@@ -96,18 +102,24 @@ def test_from_dict(mock_pinecone, monkeypatch):
         },
     }
 
-    mock_pinecone.return_value.Index.return_value.describe_index_stats.return_value = {"dimension": 512}
+    mock_pinecone.return_value.Index.return_value.describe_index_stats.return_value = {
+        "dimension": 512
+    }
     monkeypatch.setenv("PINECONE_API_KEY", "test-key")
     retriever = PineconeEmbeddingRetriever.from_dict(data)
 
     document_store = retriever.document_store
-    assert document_store.api_key == Secret.from_env_var("PINECONE_API_KEY", strict=True)
+    assert document_store.api_key == Secret.from_env_var(
+        "PINECONE_API_KEY", strict=True
+    )
     assert document_store.index_name == "default"
     assert document_store.namespace == "test-namespace"
     assert document_store.batch_size == 50
     assert document_store.dimension == 512
     assert document_store.metric == "cosine"
-    assert document_store.spec == {"serverless": {"region": "us-east-1", "cloud": "aws"}}
+    assert document_store.spec == {
+        "serverless": {"region": "us-east-1", "cloud": "aws"}
+    }
 
     assert retriever.filters == {}
     assert retriever.top_k == 10
@@ -142,18 +154,24 @@ def test_from_dict_no_filter_policy(mock_pinecone, monkeypatch):
         },
     }
 
-    mock_pinecone.return_value.Index.return_value.describe_index_stats.return_value = {"dimension": 512}
+    mock_pinecone.return_value.Index.return_value.describe_index_stats.return_value = {
+        "dimension": 512
+    }
     monkeypatch.setenv("PINECONE_API_KEY", "test-key")
     retriever = PineconeEmbeddingRetriever.from_dict(data)
 
     document_store = retriever.document_store
-    assert document_store.api_key == Secret.from_env_var("PINECONE_API_KEY", strict=True)
+    assert document_store.api_key == Secret.from_env_var(
+        "PINECONE_API_KEY", strict=True
+    )
     assert document_store.index_name == "default"
     assert document_store.namespace == "test-namespace"
     assert document_store.batch_size == 50
     assert document_store.dimension == 512
     assert document_store.metric == "cosine"
-    assert document_store.spec == {"serverless": {"region": "us-east-1", "cloud": "aws"}}
+    assert document_store.spec == {
+        "serverless": {"region": "us-east-1", "cloud": "aws"}
+    }
 
     assert retriever.filters == {}
     assert retriever.top_k == 10
@@ -162,7 +180,9 @@ def test_from_dict_no_filter_policy(mock_pinecone, monkeypatch):
 
 def test_run():
     mock_store = Mock(spec=PineconeDocumentStore)
-    mock_store._embedding_retrieval.return_value = [Document(content="Test doc", embedding=[0.1, 0.2])]
+    mock_store._embedding_retrieval.return_value = [
+        Document(content="Test doc", embedding=[0.1, 0.2])
+    ]
     retriever = PineconeEmbeddingRetriever(document_store=mock_store)
     res = retriever.run(query_embedding=[0.5, 0.7])
     mock_store._embedding_retrieval.assert_called_once_with(

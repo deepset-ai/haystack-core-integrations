@@ -7,7 +7,9 @@ from haystack import component, default_from_dict, default_to_dict
 from haystack.dataclasses import Document
 from haystack.document_stores.types import FilterPolicy
 from haystack.document_stores.types.filter_policy import apply_filter_policy
-from haystack_integrations.document_stores.elasticsearch.document_store import ElasticsearchDocumentStore
+from haystack_integrations.document_stores.elasticsearch.document_store import (
+    ElasticsearchDocumentStore,
+)
 
 
 @component
@@ -75,7 +77,11 @@ class ElasticsearchEmbeddingRetriever:
         self._filters = filters or {}
         self._top_k = top_k
         self._num_candidates = num_candidates
-        self._filter_policy = FilterPolicy.from_str(filter_policy) if isinstance(filter_policy, str) else filter_policy
+        self._filter_policy = (
+            FilterPolicy.from_str(filter_policy)
+            if isinstance(filter_policy, str)
+            else filter_policy
+        )
 
     def to_dict(self) -> Dict[str, Any]:
         """
@@ -103,17 +109,26 @@ class ElasticsearchEmbeddingRetriever:
         :returns:
             Deserialized component.
         """
-        data["init_parameters"]["document_store"] = ElasticsearchDocumentStore.from_dict(
+        data["init_parameters"][
+            "document_store"
+        ] = ElasticsearchDocumentStore.from_dict(
             data["init_parameters"]["document_store"]
         )
         # Pipelines serialized with old versions of the component might not
         # have the filter_policy field.
         if filter_policy := data["init_parameters"].get("filter_policy"):
-            data["init_parameters"]["filter_policy"] = FilterPolicy.from_str(filter_policy)
+            data["init_parameters"]["filter_policy"] = FilterPolicy.from_str(
+                filter_policy
+            )
         return default_from_dict(cls, data)
 
     @component.output_types(documents=List[Document])
-    def run(self, query_embedding: List[float], filters: Optional[Dict[str, Any]] = None, top_k: Optional[int] = None):
+    def run(
+        self,
+        query_embedding: List[float],
+        filters: Optional[Dict[str, Any]] = None,
+        top_k: Optional[int] = None,
+    ):
         """
         Retrieve documents using a vector similarity metric.
 

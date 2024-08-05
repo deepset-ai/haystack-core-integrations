@@ -7,7 +7,9 @@ import pytest
 from haystack.components.generators.utils import print_streaming_chunk
 from haystack.dataclasses import ChatMessage, ChatRole, StreamingChunk
 
-from haystack_integrations.components.generators.amazon_bedrock import AmazonBedrockChatGenerator
+from haystack_integrations.components.generators.amazon_bedrock import (
+    AmazonBedrockChatGenerator,
+)
 from haystack_integrations.components.generators.amazon_bedrock.chat.adapters import (
     AnthropicClaudeChatAdapter,
     BedrockModelChatAdapter,
@@ -16,7 +18,11 @@ from haystack_integrations.components.generators.amazon_bedrock.chat.adapters im
 )
 
 KLASS = "haystack_integrations.components.generators.amazon_bedrock.chat.chat_generator.AmazonBedrockChatGenerator"
-MODELS_TO_TEST = ["anthropic.claude-3-sonnet-20240229-v1:0", "anthropic.claude-v2:1", "meta.llama2-13b-chat-v1"]
+MODELS_TO_TEST = [
+    "anthropic.claude-3-sonnet-20240229-v1:0",
+    "anthropic.claude-v2:1",
+    "meta.llama2-13b-chat-v1",
+]
 MISTRAL_MODELS = [
     "mistral.mistral-7b-instruct-v0:2",
     "mistral.mixtral-8x7b-instruct-v0:1",
@@ -36,11 +42,31 @@ def test_to_dict(mock_boto3_session):
     expected_dict = {
         "type": KLASS,
         "init_parameters": {
-            "aws_access_key_id": {"type": "env_var", "env_vars": ["AWS_ACCESS_KEY_ID"], "strict": False},
-            "aws_secret_access_key": {"type": "env_var", "env_vars": ["AWS_SECRET_ACCESS_KEY"], "strict": False},
-            "aws_session_token": {"type": "env_var", "env_vars": ["AWS_SESSION_TOKEN"], "strict": False},
-            "aws_region_name": {"type": "env_var", "env_vars": ["AWS_DEFAULT_REGION"], "strict": False},
-            "aws_profile_name": {"type": "env_var", "env_vars": ["AWS_PROFILE"], "strict": False},
+            "aws_access_key_id": {
+                "type": "env_var",
+                "env_vars": ["AWS_ACCESS_KEY_ID"],
+                "strict": False,
+            },
+            "aws_secret_access_key": {
+                "type": "env_var",
+                "env_vars": ["AWS_SECRET_ACCESS_KEY"],
+                "strict": False,
+            },
+            "aws_session_token": {
+                "type": "env_var",
+                "env_vars": ["AWS_SESSION_TOKEN"],
+                "strict": False,
+            },
+            "aws_region_name": {
+                "type": "env_var",
+                "env_vars": ["AWS_DEFAULT_REGION"],
+                "strict": False,
+            },
+            "aws_profile_name": {
+                "type": "env_var",
+                "env_vars": ["AWS_PROFILE"],
+                "strict": False,
+            },
             "model": "anthropic.claude-v2",
             "generation_kwargs": {"temperature": 0.7},
             "stop_words": [],
@@ -59,11 +85,31 @@ def test_from_dict(mock_boto3_session):
         {
             "type": KLASS,
             "init_parameters": {
-                "aws_access_key_id": {"type": "env_var", "env_vars": ["AWS_ACCESS_KEY_ID"], "strict": False},
-                "aws_secret_access_key": {"type": "env_var", "env_vars": ["AWS_SECRET_ACCESS_KEY"], "strict": False},
-                "aws_session_token": {"type": "env_var", "env_vars": ["AWS_SESSION_TOKEN"], "strict": False},
-                "aws_region_name": {"type": "env_var", "env_vars": ["AWS_DEFAULT_REGION"], "strict": False},
-                "aws_profile_name": {"type": "env_var", "env_vars": ["AWS_PROFILE"], "strict": False},
+                "aws_access_key_id": {
+                    "type": "env_var",
+                    "env_vars": ["AWS_ACCESS_KEY_ID"],
+                    "strict": False,
+                },
+                "aws_secret_access_key": {
+                    "type": "env_var",
+                    "env_vars": ["AWS_SECRET_ACCESS_KEY"],
+                    "strict": False,
+                },
+                "aws_session_token": {
+                    "type": "env_var",
+                    "env_vars": ["AWS_SESSION_TOKEN"],
+                    "strict": False,
+                },
+                "aws_region_name": {
+                    "type": "env_var",
+                    "env_vars": ["AWS_DEFAULT_REGION"],
+                    "strict": False,
+                },
+                "aws_profile_name": {
+                    "type": "env_var",
+                    "env_vars": ["AWS_PROFILE"],
+                    "strict": False,
+                },
                 "model": "anthropic.claude-v2",
                 "generation_kwargs": {"temperature": 0.7},
                 "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
@@ -108,7 +154,9 @@ def test_constructor_with_generation_kwargs(mock_boto3_session):
     """
     generation_kwargs = {"temperature": 0.7}
 
-    layer = AmazonBedrockChatGenerator(model="anthropic.claude-v2", generation_kwargs=generation_kwargs)
+    layer = AmazonBedrockChatGenerator(
+        model="anthropic.claude-v2", generation_kwargs=generation_kwargs
+    )
     assert "temperature" in layer.model_adapter.generation_kwargs
     assert layer.model_adapter.generation_kwargs["temperature"] == 0.7
 
@@ -143,7 +191,9 @@ def test_invoke_with_no_kwargs(mock_boto3_session):
         ("unknown_model", None),
     ],
 )
-def test_get_model_adapter(model: str, expected_model_adapter: Optional[Type[BedrockModelChatAdapter]]):
+def test_get_model_adapter(
+    model: str, expected_model_adapter: Optional[Type[BedrockModelChatAdapter]]
+):
     """
     Test that the correct model adapter is returned for a given model
     """
@@ -158,7 +208,12 @@ class TestAnthropicClaudeAdapter:
         expected_body = {
             "anthropic_version": "bedrock-2023-05-31",
             "max_tokens": 512,
-            "messages": [{"content": [{"text": "Hello, how are you?", "type": "text"}], "role": "user"}],
+            "messages": [
+                {
+                    "content": [{"text": "Hello, how are you?", "type": "text"}],
+                    "role": "user",
+                }
+            ],
         }
 
         body = layer.prepare_body([ChatMessage.from_user(prompt)])
@@ -166,12 +221,19 @@ class TestAnthropicClaudeAdapter:
         assert body == expected_body
 
     def test_prepare_body_with_custom_inference_params(self) -> None:
-        layer = AnthropicClaudeChatAdapter(generation_kwargs={"temperature": 0.7, "top_p": 0.8, "top_k": 4})
+        layer = AnthropicClaudeChatAdapter(
+            generation_kwargs={"temperature": 0.7, "top_p": 0.8, "top_k": 4}
+        )
         prompt = "Hello, how are you?"
         expected_body = {
             "anthropic_version": "bedrock-2023-05-31",
             "max_tokens": 512,
-            "messages": [{"content": [{"text": "Hello, how are you?", "type": "text"}], "role": "user"}],
+            "messages": [
+                {
+                    "content": [{"text": "Hello, how are you?", "type": "text"}],
+                    "role": "user",
+                }
+            ],
             "stop_sequences": ["CUSTOM_STOP"],
             "temperature": 0.7,
             "top_k": 5,
@@ -179,7 +241,11 @@ class TestAnthropicClaudeAdapter:
         }
 
         body = layer.prepare_body(
-            [ChatMessage.from_user(prompt)], top_p=0.8, top_k=5, max_tokens_to_sample=69, stop_sequences=["CUSTOM_STOP"]
+            [ChatMessage.from_user(prompt)],
+            top_p=0.8,
+            top_k=5,
+            max_tokens_to_sample=69,
+            stop_sequences=["CUSTOM_STOP"],
         )
 
         assert body == expected_body
@@ -199,7 +265,9 @@ class TestMistralAdapter:
         assert body == expected_body
 
     def test_prepare_body_with_custom_inference_params(self) -> None:
-        layer = MistralChatAdapter(generation_kwargs={"temperature": 0.7, "top_p": 0.8, "top_k": 4})
+        layer = MistralChatAdapter(
+            generation_kwargs={"temperature": 0.7, "top_p": 0.8, "top_k": 4}
+        )
         prompt = "Hello, how are you?"
         expected_body = {
             "prompt": "<s>[INST] Hello, how are you? [/INST]",
@@ -208,19 +276,35 @@ class TestMistralAdapter:
             "top_p": 0.8,
         }
 
-        body = layer.prepare_body([ChatMessage.from_user(prompt)], top_p=0.8, top_k=5, max_tokens_to_sample=69)
+        body = layer.prepare_body(
+            [ChatMessage.from_user(prompt)], top_p=0.8, top_k=5, max_tokens_to_sample=69
+        )
 
         assert body == expected_body
 
     def test_mistral_chat_template_correct_order(self):
         layer = MistralChatAdapter(generation_kwargs={})
-        layer.prepare_body([ChatMessage.from_user("A"), ChatMessage.from_assistant("B"), ChatMessage.from_user("C")])
-        layer.prepare_body([ChatMessage.from_system("A"), ChatMessage.from_user("B"), ChatMessage.from_assistant("C")])
+        layer.prepare_body(
+            [
+                ChatMessage.from_user("A"),
+                ChatMessage.from_assistant("B"),
+                ChatMessage.from_user("C"),
+            ]
+        )
+        layer.prepare_body(
+            [
+                ChatMessage.from_system("A"),
+                ChatMessage.from_user("B"),
+                ChatMessage.from_assistant("C"),
+            ]
+        )
 
     def test_mistral_chat_template_incorrect_order(self):
         layer = MistralChatAdapter(generation_kwargs={})
         try:
-            layer.prepare_body([ChatMessage.from_assistant("B"), ChatMessage.from_assistant("C")])
+            layer.prepare_body(
+                [ChatMessage.from_assistant("B"), ChatMessage.from_assistant("C")]
+            )
             msg = "Expected TemplateError"
             raise AssertionError(msg)
         except Exception as e:
@@ -234,7 +318,9 @@ class TestMistralAdapter:
             assert "Conversation roles must alternate user/assistant/" in str(e)
 
         try:
-            layer.prepare_body([ChatMessage.from_system("A"), ChatMessage.from_system("B")])
+            layer.prepare_body(
+                [ChatMessage.from_system("A"), ChatMessage.from_system("B")]
+            )
             msg = "Expected TemplateError"
             raise AssertionError(msg)
         except Exception as e:
@@ -244,7 +330,9 @@ class TestMistralAdapter:
         monkeypatch.delenv("HF_TOKEN", raising=False)
         with (
             patch("transformers.AutoTokenizer.from_pretrained") as mock_pretrained,
-            patch("haystack_integrations.components.generators.amazon_bedrock.chat.adapters.DefaultPromptHandler"),
+            patch(
+                "haystack_integrations.components.generators.amazon_bedrock.chat.adapters.DefaultPromptHandler"
+            ),
             caplog.at_level(logging.WARNING),
         ):
             MistralChatAdapter(generation_kwargs={})
@@ -255,7 +343,9 @@ class TestMistralAdapter:
         monkeypatch.setenv("HF_TOKEN", "test")
         with (
             patch("transformers.AutoTokenizer.from_pretrained") as mock_pretrained,
-            patch("haystack_integrations.components.generators.amazon_bedrock.chat.adapters.DefaultPromptHandler"),
+            patch(
+                "haystack_integrations.components.generators.amazon_bedrock.chat.adapters.DefaultPromptHandler"
+            ),
         ):
             MistralChatAdapter(generation_kwargs={})
             mock_pretrained.assert_called_with("mistralai/Mistral-7B-Instruct-v0.1")
@@ -279,17 +369,25 @@ class TestMistralAdapter:
         assert len(replies) > 0, "No replies received"
 
         first_reply = replies[0]
-        assert isinstance(first_reply, ChatMessage), "First reply is not a ChatMessage instance"
+        assert isinstance(
+            first_reply, ChatMessage
+        ), "First reply is not a ChatMessage instance"
         assert first_reply.content, "First reply has no content"
-        assert ChatMessage.is_from(first_reply, ChatRole.ASSISTANT), "First reply is not from the assistant"
-        assert "paris" in first_reply.content.lower(), "First reply does not contain 'paris'"
+        assert ChatMessage.is_from(
+            first_reply, ChatRole.ASSISTANT
+        ), "First reply is not from the assistant"
+        assert (
+            "paris" in first_reply.content.lower()
+        ), "First reply does not contain 'paris'"
         assert first_reply.meta, "First reply has no metadata"
 
 
 @pytest.fixture
 def chat_messages():
     messages = [
-        ChatMessage.from_system("\\nYou are a helpful assistant, be super brief in your responses."),
+        ChatMessage.from_system(
+            "\\nYou are a helpful assistant, be super brief in your responses."
+        ),
         ChatMessage.from_user("What's the capital of France?"),
     ]
     return messages
@@ -302,7 +400,10 @@ class TestMetaLlama2ChatAdapter:
         # that way we can ensure prompt chat message formatting
         layer = MetaLlama2ChatAdapter(generation_kwargs={})
         prompt = "Hello, how are you?"
-        expected_body = {"prompt": "<s>[INST] Hello, how are you? [/INST]", "max_gen_len": 512}
+        expected_body = {
+            "prompt": "<s>[INST] Hello, how are you? [/INST]",
+            "max_gen_len": 512,
+        }
 
         body = layer.prepare_body([ChatMessage.from_user(prompt)])
 
@@ -313,7 +414,12 @@ class TestMetaLlama2ChatAdapter:
         # leave this test as integration because we really need only tokenizer from HF
         # that way we can ensure prompt chat message formatting
         layer = MetaLlama2ChatAdapter(
-            generation_kwargs={"temperature": 0.7, "top_p": 0.8, "top_k": 5, "stop_sequences": ["CUSTOM_STOP"]}
+            generation_kwargs={
+                "temperature": 0.7,
+                "top_p": 0.8,
+                "top_k": 5,
+                "stop_sequences": ["CUSTOM_STOP"],
+            }
         )
         prompt = "Hello, how are you?"
 
@@ -351,7 +457,6 @@ class TestMetaLlama2ChatAdapter:
     @pytest.mark.parametrize("model_name", MODELS_TO_TEST)
     @pytest.mark.integration
     def test_default_inference_params(self, model_name, chat_messages):
-
         client = AmazonBedrockChatGenerator(model=model_name)
         response = client.run(chat_messages)
 
@@ -361,10 +466,16 @@ class TestMetaLlama2ChatAdapter:
         assert len(replies) > 0, "No replies received"
 
         first_reply = replies[0]
-        assert isinstance(first_reply, ChatMessage), "First reply is not a ChatMessage instance"
+        assert isinstance(
+            first_reply, ChatMessage
+        ), "First reply is not a ChatMessage instance"
         assert first_reply.content, "First reply has no content"
-        assert ChatMessage.is_from(first_reply, ChatRole.ASSISTANT), "First reply is not from the assistant"
-        assert "paris" in first_reply.content.lower(), "First reply does not contain 'paris'"
+        assert ChatMessage.is_from(
+            first_reply, ChatRole.ASSISTANT
+        ), "First reply is not from the assistant"
+        assert (
+            "paris" in first_reply.content.lower()
+        ), "First reply does not contain 'paris'"
         assert first_reply.meta, "First reply has no metadata"
 
     @pytest.mark.parametrize("model_name", MODELS_TO_TEST)
@@ -381,18 +492,28 @@ class TestMetaLlama2ChatAdapter:
             if not paris_found_in_response:
                 paris_found_in_response = "paris" in chunk.content.lower()
 
-        client = AmazonBedrockChatGenerator(model=model_name, streaming_callback=streaming_callback)
+        client = AmazonBedrockChatGenerator(
+            model=model_name, streaming_callback=streaming_callback
+        )
         response = client.run(chat_messages)
 
         assert streaming_callback_called, "Streaming callback was not called"
-        assert paris_found_in_response, "The streaming callback response did not contain 'paris'"
+        assert (
+            paris_found_in_response
+        ), "The streaming callback response did not contain 'paris'"
         replies = response["replies"]
         assert isinstance(replies, list), "Replies is not a list"
         assert len(replies) > 0, "No replies received"
 
         first_reply = replies[0]
-        assert isinstance(first_reply, ChatMessage), "First reply is not a ChatMessage instance"
+        assert isinstance(
+            first_reply, ChatMessage
+        ), "First reply is not a ChatMessage instance"
         assert first_reply.content, "First reply has no content"
-        assert ChatMessage.is_from(first_reply, ChatRole.ASSISTANT), "First reply is not from the assistant"
-        assert "paris" in first_reply.content.lower(), "First reply does not contain 'paris'"
+        assert ChatMessage.is_from(
+            first_reply, ChatRole.ASSISTANT
+        ), "First reply is not from the assistant"
+        assert (
+            "paris" in first_reply.content.lower()
+        ), "First reply does not contain 'paris'"
         assert first_reply.meta, "First reply has no metadata"

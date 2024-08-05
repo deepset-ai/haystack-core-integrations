@@ -173,7 +173,10 @@ class TestFastembedSparseDocumentEmbedderDoc:
         mocked_factory.get_embedding_backend.assert_not_called()
         embedder.warm_up()
         mocked_factory.get_embedding_backend.assert_called_once_with(
-            model_name="prithvida/Splade_PP_en_v1", cache_dir=None, threads=None, local_files_only=False
+            model_name="prithvida/Splade_PP_en_v1",
+            cache_dir=None,
+            threads=None,
+            local_files_only=False,
         )
 
     @patch(
@@ -195,7 +198,9 @@ class TestFastembedSparseDocumentEmbedderDoc:
             random_indice_length = np.random.randint(3, 15)
             data = {
                 "indices": list(range(random_indice_length)),
-                "values": [np.random.random_sample() for _ in range(random_indice_length)],
+                "values": [
+                    np.random.random_sample() for _ in range(random_indice_length)
+                ],
             }
             list_of_sparse_vectors.append(data)
         return list_of_sparse_vectors
@@ -206,8 +211,10 @@ class TestFastembedSparseDocumentEmbedderDoc:
         """
         embedder = FastembedSparseDocumentEmbedder(model="prithvida/Splade_PP_en_v1")
         embedder.embedding_backend = MagicMock()
-        embedder.embedding_backend.embed = lambda x, **kwargs: self._generate_mocked_sparse_embedding(  # noqa: ARG005
-            len(x)
+        embedder.embedding_backend.embed = (
+            lambda x, **kwargs: self._generate_mocked_sparse_embedding(  # noqa: ARG005
+                len(x)
+            )
         )
 
         documents = [Document(content=f"Sample-document text {i}") for i in range(5)]
@@ -257,7 +264,12 @@ class TestFastembedSparseDocumentEmbedderDoc:
         )
         embedder.embedding_backend = MagicMock()
 
-        documents = [Document(content=f"document-number {i}", meta={"meta_field": f"meta_value {i}"}) for i in range(5)]
+        documents = [
+            Document(
+                content=f"document-number {i}", meta={"meta_field": f"meta_value {i}"}
+            )
+            for i in range(5)
+        ]
 
         embedder.run(documents=documents)
 

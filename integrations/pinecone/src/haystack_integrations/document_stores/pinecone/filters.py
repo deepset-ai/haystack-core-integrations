@@ -141,7 +141,9 @@ def _less_than_equal(field: str, value: Any) -> Dict[str, Any]:
 
 def _not_in(field: str, value: Any) -> Dict[str, Any]:
     if not isinstance(value, list):
-        msg = f"{field}'s value must be a list when using 'not in' comparator in Pinecone"
+        msg = (
+            f"{field}'s value must be a list when using 'not in' comparator in Pinecone"
+        )
         raise FilterError(msg)
 
     supported_types = (int, float, str)

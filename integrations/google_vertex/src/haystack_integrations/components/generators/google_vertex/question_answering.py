@@ -35,7 +35,14 @@ class VertexAIImageQA:
     ```
     """
 
-    def __init__(self, *, model: str = "imagetext", project_id: str, location: Optional[str] = None, **kwargs):
+    def __init__(
+        self,
+        *,
+        model: str = "imagetext",
+        project_id: str,
+        location: Optional[str] = None,
+        **kwargs
+    ):
         """
         Answers questions about an image using a Google Vertex AI model.
 
@@ -67,7 +74,11 @@ class VertexAIImageQA:
             Dictionary with serialized data.
         """
         return default_to_dict(
-            self, model=self._model_name, project_id=self._project_id, location=self._location, **self._kwargs
+            self,
+            model=self._model_name,
+            project_id=self._project_id,
+            location=self._location,
+            **self._kwargs
         )
 
     @classmethod
@@ -91,5 +102,7 @@ class VertexAIImageQA:
         :returns: A dictionary with the following keys:
             - `replies`: A list of answers to the question.
         """
-        replies = self._model.ask_question(image=Image(image.data), question=question, **self._kwargs)
+        replies = self._model.ask_question(
+            image=Image(image.data), question=question, **self._kwargs
+        )
         return {"replies": replies}

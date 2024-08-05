@@ -30,7 +30,14 @@ class VertexAIImageGenerator:
     ```
     """
 
-    def __init__(self, *, model: str = "imagegeneration", project_id: str, location: Optional[str] = None, **kwargs):
+    def __init__(
+        self,
+        *,
+        model: str = "imagegeneration",
+        project_id: str,
+        location: Optional[str] = None,
+        **kwargs
+    ):
         """
         Generates images using a Google Vertex AI model.
 
@@ -62,7 +69,11 @@ class VertexAIImageGenerator:
             Dictionary with serialized data.
         """
         return default_to_dict(
-            self, model=self._model_name, project_id=self._project_id, location=self._location, **self._kwargs
+            self,
+            model=self._model_name,
+            project_id=self._project_id,
+            location=self._location,
+            **self._kwargs
         )
 
     @classmethod
@@ -88,6 +99,11 @@ class VertexAIImageGenerator:
             - `images`: A list of ByteStream objects, each containing an image.
         """
         negative_prompt = negative_prompt or self._kwargs.get("negative_prompt")
-        res = self._model.generate_images(prompt=prompt, negative_prompt=negative_prompt, **self._kwargs)
-        images = [ByteStream(data=i._image_bytes, meta=i.generation_parameters) for i in res.images]
+        res = self._model.generate_images(
+            prompt=prompt, negative_prompt=negative_prompt, **self._kwargs
+        )
+        images = [
+            ByteStream(data=i._image_bytes, meta=i.generation_parameters)
+            for i in res.images
+        ]
         return {"images": images}

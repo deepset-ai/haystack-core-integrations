@@ -31,9 +31,7 @@ def download_file(file_link, filename, capsys):
 class TestLlamaCppGenerator:
     @pytest.fixture
     def generator(self, model_path, capsys):
-        ggml_model_path = (
-            "https://huggingface.co/TheBloke/openchat-3.5-1210-GGUF/resolve/main/openchat-3.5-1210.Q3_K_S.gguf"
-        )
+        ggml_model_path = "https://huggingface.co/TheBloke/openchat-3.5-1210-GGUF/resolve/main/openchat-3.5-1210.Q3_K_S.gguf"
         filename = "openchat-3.5-1210.Q3_K_S.gguf"
 
         # Download GGUF model from HuggingFace
@@ -60,7 +58,11 @@ class TestLlamaCppGenerator:
         assert generator.model_path == "test_model.gguf"
         assert generator.n_ctx == 0
         assert generator.n_batch == 512
-        assert generator.model_kwargs == {"model_path": "test_model.gguf", "n_ctx": 0, "n_batch": 512}
+        assert generator.model_kwargs == {
+            "model_path": "test_model.gguf",
+            "n_ctx": 0,
+            "n_batch": 512,
+        }
         assert generator.generation_kwargs == {}
 
     def test_custom_init(self):
@@ -76,7 +78,11 @@ class TestLlamaCppGenerator:
         assert generator.model_path == "test_model.gguf"
         assert generator.n_ctx == 2048
         assert generator.n_batch == 512
-        assert generator.model_kwargs == {"model_path": "test_model.gguf", "n_ctx": 2048, "n_batch": 512}
+        assert generator.model_kwargs == {
+            "model_path": "test_model.gguf",
+            "n_ctx": 2048,
+            "n_batch": 512,
+        }
         assert generator.generation_kwargs == {}
 
     def test_ignores_model_path_if_specified_in_model_kwargs(self):
@@ -95,14 +101,24 @@ class TestLlamaCppGenerator:
         """
         Test that n_ctx is ignored if already specified in model_kwargs.
         """
-        generator = LlamaCppGenerator(model="test_model.gguf", n_ctx=512, n_batch=512, model_kwargs={"n_ctx": 1024})
+        generator = LlamaCppGenerator(
+            model="test_model.gguf",
+            n_ctx=512,
+            n_batch=512,
+            model_kwargs={"n_ctx": 1024},
+        )
         assert generator.model_kwargs["n_ctx"] == 1024
 
     def test_ignores_n_batch_if_specified_in_model_kwargs(self):
         """
         Test that n_batch is ignored if already specified in model_kwargs.
         """
-        generator = LlamaCppGenerator(model="test_model.gguf", n_ctx=512, n_batch=512, model_kwargs={"n_batch": 1024})
+        generator = LlamaCppGenerator(
+            model="test_model.gguf",
+            n_ctx=512,
+            n_batch=512,
+            model_kwargs={"n_batch": 1024},
+        )
         assert generator.model_kwargs["n_batch"] == 1024
 
     def test_raises_error_without_warm_up(self):
@@ -185,9 +201,14 @@ class TestLlamaCppGenerator:
         """
         rag_pipeline = Pipeline()
         rag_pipeline.add_component(
-            instance=InMemoryBM25Retriever(document_store=InMemoryDocumentStore(), top_k=1), name="retriever"
+            instance=InMemoryBM25Retriever(
+                document_store=InMemoryDocumentStore(), top_k=1
+            ),
+            name="retriever",
         )
-        rag_pipeline.add_component(instance=PromptBuilder(template=prompt_template), name="prompt_builder")
+        rag_pipeline.add_component(
+            instance=PromptBuilder(template=prompt_template), name="prompt_builder"
+        )
         rag_pipeline.add_component(instance=generator, name="llm")
         rag_pipeline.add_component(instance=AnswerBuilder(), name="answer_builder")
         rag_pipeline.connect("retriever", "prompt_builder.documents")
@@ -201,7 +222,9 @@ class TestLlamaCppGenerator:
             Document(content="The capital of Canada is Ottawa."),
             Document(content="The capital of Ghana is Accra."),
         ]
-        rag_pipeline.get_component("retriever").document_store.write_documents(documents)
+        rag_pipeline.get_component("retriever").document_store.write_documents(
+            documents
+        )
 
         # Query and assert
         questions_and_answers = [

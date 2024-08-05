@@ -13,7 +13,9 @@ from haystack.testing.document_store import DocumentStoreBaseTests
 from haystack.utils.auth import Secret
 from haystack_integrations.document_stores.opensearch import OpenSearchDocumentStore
 from haystack_integrations.document_stores.opensearch.auth import AWSAuth
-from haystack_integrations.document_stores.opensearch.document_store import DEFAULT_MAX_CHUNK_BYTES
+from haystack_integrations.document_stores.opensearch.document_store import (
+    DEFAULT_MAX_CHUNK_BYTES,
+)
 from opensearchpy.exceptions import RequestError
 
 
@@ -28,10 +30,21 @@ def test_to_dict(_mock_opensearch_client):
             "hosts": "some hosts",
             "index": "default",
             "mappings": {
-                "dynamic_templates": [{"strings": {"mapping": {"type": "keyword"}, "match_mapping_type": "string"}}],
+                "dynamic_templates": [
+                    {
+                        "strings": {
+                            "mapping": {"type": "keyword"},
+                            "match_mapping_type": "string",
+                        }
+                    }
+                ],
                 "properties": {
                     "content": {"type": "text"},
-                    "embedding": {"dimension": 768, "index": True, "type": "knn_vector"},
+                    "embedding": {
+                        "dimension": 768,
+                        "index": True,
+                        "type": "knn_vector",
+                    },
                 },
             },
             "max_chunk_bytes": DEFAULT_MAX_CHUNK_BYTES,
@@ -102,7 +115,9 @@ def test_init_is_lazy(_mock_opensearch_client):
 
 @patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
 def test_get_default_mappings(_mock_opensearch_client):
-    store = OpenSearchDocumentStore(hosts="testhost", embedding_dim=1536, method={"name": "hnsw"})
+    store = OpenSearchDocumentStore(
+        hosts="testhost", embedding_dim=1536, method={"name": "hnsw"}
+    )
     assert store._mappings["properties"]["embedding"] == {
         "type": "knn_vector",
         "index": True,
@@ -119,7 +134,9 @@ class TestAuth:
 
     @patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
     def test_init_with_basic_auth(self, _mock_opensearch_client):
-        document_store = OpenSearchDocumentStore(hosts="testhost", http_auth=("user", "pw"))
+        document_store = OpenSearchDocumentStore(
+            hosts="testhost", http_auth=("user", "pw")
+        )
         assert document_store.client
         _mock_opensearch_client.assert_called_once()
         assert _mock_opensearch_client.call_args[1]["http_auth"] == ("user", "pw")
@@ -163,7 +180,9 @@ class TestAuth:
         assert _mock_opensearch_client.call_args[1]["http_auth"] == ["user", "pw"]
 
     @patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
-    def test_from_dict_aws_auth(self, _mock_opensearch_client, monkeypatch: pytest.MonkeyPatch):
+    def test_from_dict_aws_auth(
+        self, _mock_opensearch_client, monkeypatch: pytest.MonkeyPatch
+    ):
         monkeypatch.setenv("AWS_DEFAULT_REGION", "dummy-region")
         document_store = OpenSearchDocumentStore.from_dict(
             {
@@ -187,7 +206,9 @@ class TestAuth:
 
     @patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
     def test_to_dict_basic_auth(self, _mock_opensearch_client):
-        document_store = OpenSearchDocumentStore(hosts="some hosts", http_auth=("user", "pw"))
+        document_store = OpenSearchDocumentStore(
+            hosts="some hosts", http_auth=("user", "pw")
+        )
         res = document_store.to_dict()
         assert res == {
             "type": "haystack_integrations.document_stores.opensearch.document_store.OpenSearchDocumentStore",
@@ -197,11 +218,20 @@ class TestAuth:
                 "index": "default",
                 "mappings": {
                     "dynamic_templates": [
-                        {"strings": {"mapping": {"type": "keyword"}, "match_mapping_type": "string"}}
+                        {
+                            "strings": {
+                                "mapping": {"type": "keyword"},
+                                "match_mapping_type": "string",
+                            }
+                        }
                     ],
                     "properties": {
                         "content": {"type": "text"},
-                        "embedding": {"dimension": 768, "index": True, "type": "knn_vector"},
+                        "embedding": {
+                            "dimension": 768,
+                            "index": True,
+                            "type": "knn_vector",
+                        },
                     },
                 },
                 "max_chunk_bytes": DEFAULT_MAX_CHUNK_BYTES,
@@ -217,9 +247,13 @@ class TestAuth:
         }
 
     @patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
-    def test_to_dict_aws_auth(self, _mock_opensearch_client, monkeypatch: pytest.MonkeyPatch):
+    def test_to_dict_aws_auth(
+        self, _mock_opensearch_client, monkeypatch: pytest.MonkeyPatch
+    ):
         monkeypatch.setenv("AWS_DEFAULT_REGION", "dummy-region")
-        document_store = OpenSearchDocumentStore(hosts="some hosts", http_auth=AWSAuth())
+        document_store = OpenSearchDocumentStore(
+            hosts="some hosts", http_auth=AWSAuth()
+        )
         res = document_store.to_dict()
         assert res == {
             "type": "haystack_integrations.document_stores.opensearch.document_store.OpenSearchDocumentStore",
@@ -229,11 +263,20 @@ class TestAuth:
                 "index": "default",
                 "mappings": {
                     "dynamic_templates": [
-                        {"strings": {"mapping": {"type": "keyword"}, "match_mapping_type": "string"}}
+                        {
+                            "strings": {
+                                "mapping": {"type": "keyword"},
+                                "match_mapping_type": "string",
+                            }
+                        }
                     ],
                     "properties": {
                         "content": {"type": "text"},
-                        "embedding": {"dimension": 768, "index": True, "type": "knn_vector"},
+                        "embedding": {
+                            "dimension": 768,
+                            "index": True,
+                            "type": "knn_vector",
+                        },
                     },
                 },
                 "max_chunk_bytes": DEFAULT_MAX_CHUNK_BYTES,
@@ -244,15 +287,31 @@ class TestAuth:
                 "http_auth": {
                     "type": "haystack_integrations.document_stores.opensearch.auth.AWSAuth",
                     "init_parameters": {
-                        "aws_access_key_id": {"type": "env_var", "env_vars": ["AWS_ACCESS_KEY_ID"], "strict": False},
+                        "aws_access_key_id": {
+                            "type": "env_var",
+                            "env_vars": ["AWS_ACCESS_KEY_ID"],
+                            "strict": False,
+                        },
                         "aws_secret_access_key": {
                             "type": "env_var",
                             "env_vars": ["AWS_SECRET_ACCESS_KEY"],
                             "strict": False,
                         },
-                        "aws_session_token": {"type": "env_var", "env_vars": ["AWS_SESSION_TOKEN"], "strict": False},
-                        "aws_region_name": {"type": "env_var", "env_vars": ["AWS_DEFAULT_REGION"], "strict": False},
-                        "aws_profile_name": {"type": "env_var", "env_vars": ["AWS_PROFILE"], "strict": False},
+                        "aws_session_token": {
+                            "type": "env_var",
+                            "env_vars": ["AWS_SESSION_TOKEN"],
+                            "strict": False,
+                        },
+                        "aws_region_name": {
+                            "type": "env_var",
+                            "env_vars": ["AWS_DEFAULT_REGION"],
+                            "strict": False,
+                        },
+                        "aws_profile_name": {
+                            "type": "env_var",
+                            "env_vars": ["AWS_PROFILE"],
+                            "strict": False,
+                        },
                         "aws_service": "es",
                     },
                 },
@@ -310,9 +369,13 @@ class TestDocumentStore(DocumentStoreBaseTests):
             method={"space_type": "cosinesimil", "engine": "nmslib", "name": "hnsw"},
             create_index=False,
         )
-        store.client.cluster.put_settings(body={"transient": {"action.auto_create_index": False}})
+        store.client.cluster.put_settings(
+            body={"transient": {"action.auto_create_index": False}}
+        )
         yield store
-        store.client.cluster.put_settings(body={"transient": {"action.auto_create_index": True}})
+        store.client.cluster.put_settings(
+            body={"transient": {"action.auto_create_index": True}}
+        )
         store.client.indices.delete(index=index, params={"ignore": [400, 404]})
 
     @pytest.fixture
@@ -336,7 +399,9 @@ class TestDocumentStore(DocumentStoreBaseTests):
         yield store
         store.client.indices.delete(index=index, params={"ignore": [400, 404]})
 
-    def assert_documents_are_equal(self, received: List[Document], expected: List[Document]):
+    def assert_documents_are_equal(
+        self, received: List[Document], expected: List[Document]
+    ):
         """
         The OpenSearchDocumentStore.filter_documents() method returns a Documents with their score set.
         We don't want to compare the score, so we set it to None before comparing the documents.
@@ -367,14 +432,18 @@ class TestDocumentStore(DocumentStoreBaseTests):
         with pytest.raises(DuplicateDocumentError):
             document_store.write_documents(docs, DuplicatePolicy.FAIL)
 
-    def test_write_documents_readonly(self, document_store_readonly: OpenSearchDocumentStore):
+    def test_write_documents_readonly(
+        self, document_store_readonly: OpenSearchDocumentStore
+    ):
         docs = [Document(id="1")]
         with pytest.raises(DocumentStoreError, match="index_not_found_exception"):
             document_store_readonly.write_documents(docs)
 
     def test_create_index(self, document_store_readonly: OpenSearchDocumentStore):
         document_store_readonly.create_index()
-        assert document_store_readonly.client.indices.exists(index=document_store_readonly._index)
+        assert document_store_readonly.client.indices.exists(
+            index=document_store_readonly._index
+        )
 
     def test_bm25_retrieval(self, document_store: OpenSearchDocumentStore):
         document_store.write_documents(
@@ -427,7 +496,9 @@ class TestDocumentStore(DocumentStoreBaseTests):
         assert len(res) == 11
         assert all("programming" in doc.content for doc in res)
 
-    def test_bm25_retrieval_all_terms_must_match(self, document_store: OpenSearchDocumentStore):
+    def test_bm25_retrieval_all_terms_must_match(
+        self, document_store: OpenSearchDocumentStore
+    ):
         document_store.write_documents(
             [
                 Document(content="Haskell is a functional programming language"),
@@ -444,11 +515,15 @@ class TestDocumentStore(DocumentStoreBaseTests):
             ]
         )
 
-        res = document_store._bm25_retrieval("functional Haskell", top_k=3, all_terms_must_match=True)
+        res = document_store._bm25_retrieval(
+            "functional Haskell", top_k=3, all_terms_must_match=True
+        )
         assert len(res) == 1
         assert "Haskell is a functional programming language" in res[0].content
 
-    def test_bm25_retrieval_all_terms_must_match_false(self, document_store: OpenSearchDocumentStore):
+    def test_bm25_retrieval_all_terms_must_match_false(
+        self, document_store: OpenSearchDocumentStore
+    ):
         document_store.write_documents(
             [
                 Document(content="Haskell is a functional programming language"),
@@ -465,7 +540,9 @@ class TestDocumentStore(DocumentStoreBaseTests):
             ]
         )
 
-        res = document_store._bm25_retrieval("functional Haskell", top_k=10, all_terms_must_match=False)
+        res = document_store._bm25_retrieval(
+            "functional Haskell", top_k=10, all_terms_must_match=False
+        )
         assert len(res) == 5
         assert "functional" in res[0].content
         assert "functional" in res[1].content
@@ -473,7 +550,9 @@ class TestDocumentStore(DocumentStoreBaseTests):
         assert "functional" in res[3].content
         assert "functional" in res[4].content
 
-    def test_bm25_retrieval_with_fuzziness(self, document_store: OpenSearchDocumentStore):
+    def test_bm25_retrieval_with_fuzziness(
+        self, document_store: OpenSearchDocumentStore
+    ):
         document_store.write_documents(
             [
                 Document(content="Haskell is a functional programming language"),
@@ -573,7 +652,9 @@ class TestDocumentStore(DocumentStoreBaseTests):
         retrieved_ids = sorted([doc.id for doc in res])
         assert retrieved_ids == ["1", "2", "3", "4", "5"]
 
-    def test_bm25_retrieval_with_legacy_filters(self, document_store: OpenSearchDocumentStore):
+    def test_bm25_retrieval_with_legacy_filters(
+        self, document_store: OpenSearchDocumentStore
+    ):
         document_store.write_documents(
             [
                 Document(
@@ -643,7 +724,9 @@ class TestDocumentStore(DocumentStoreBaseTests):
         retrieved_ids = sorted([doc.id for doc in res])
         assert retrieved_ids == ["1", "2", "3", "4", "5"]
 
-    def test_bm25_retrieval_with_custom_query(self, document_store: OpenSearchDocumentStore):
+    def test_bm25_retrieval_with_custom_query(
+        self, document_store: OpenSearchDocumentStore
+    ):
         document_store.write_documents(
             [
                 Document(
@@ -707,8 +790,18 @@ class TestDocumentStore(DocumentStoreBaseTests):
         custom_query = {
             "query": {
                 "function_score": {
-                    "query": {"bool": {"must": {"match": {"content": "$query"}}, "filter": "$filters"}},
-                    "field_value_factor": {"field": "likes", "factor": 0.1, "modifier": "log1p", "missing": 0},
+                    "query": {
+                        "bool": {
+                            "must": {"match": {"content": "$query"}},
+                            "filter": "$filters",
+                        }
+                    },
+                    "field_value_factor": {
+                        "field": "likes",
+                        "factor": 0.1,
+                        "modifier": "log1p",
+                        "missing": 0,
+                    },
                 }
             }
         }
@@ -724,11 +817,15 @@ class TestDocumentStore(DocumentStoreBaseTests):
         assert "2" == res[1].id
         assert "3" == res[2].id
 
-    def test_embedding_retrieval(self, document_store_embedding_dim_4: OpenSearchDocumentStore):
+    def test_embedding_retrieval(
+        self, document_store_embedding_dim_4: OpenSearchDocumentStore
+    ):
         docs = [
             Document(content="Most similar document", embedding=[1.0, 1.0, 1.0, 1.0]),
             Document(content="2nd best document", embedding=[0.8, 0.8, 0.8, 1.0]),
-            Document(content="Not very similar document", embedding=[0.0, 0.8, 0.3, 0.9]),
+            Document(
+                content="Not very similar document", embedding=[0.0, 0.8, 0.3, 0.9]
+            ),
         ]
         document_store_embedding_dim_4.write_documents(docs)
         results = document_store_embedding_dim_4._embedding_retrieval(
@@ -738,7 +835,9 @@ class TestDocumentStore(DocumentStoreBaseTests):
         assert results[0].content == "Most similar document"
         assert results[1].content == "2nd best document"
 
-    def test_embedding_retrieval_with_filters(self, document_store_embedding_dim_4: OpenSearchDocumentStore):
+    def test_embedding_retrieval_with_filters(
+        self, document_store_embedding_dim_4: OpenSearchDocumentStore
+    ):
         docs = [
             Document(content="Most similar document", embedding=[1.0, 1.0, 1.0, 1.0]),
             Document(content="2nd best document", embedding=[0.8, 0.8, 0.8, 1.0]),
@@ -759,7 +858,9 @@ class TestDocumentStore(DocumentStoreBaseTests):
         assert len(results) == 1
         assert results[0].content == "Not very similar document with meta field"
 
-    def test_embedding_retrieval_with_legacy_filters(self, document_store_embedding_dim_4: OpenSearchDocumentStore):
+    def test_embedding_retrieval_with_legacy_filters(
+        self, document_store_embedding_dim_4: OpenSearchDocumentStore
+    ):
         docs = [
             Document(content="Most similar document", embedding=[1.0, 1.0, 1.0, 1.0]),
             Document(content="2nd best document", embedding=[0.8, 0.8, 0.8, 1.0]),
@@ -780,13 +881,17 @@ class TestDocumentStore(DocumentStoreBaseTests):
         assert len(results) == 1
         assert results[0].content == "Not very similar document with meta field"
 
-    def test_embedding_retrieval_pagination(self, document_store_embedding_dim_4: OpenSearchDocumentStore):
+    def test_embedding_retrieval_pagination(
+        self, document_store_embedding_dim_4: OpenSearchDocumentStore
+    ):
         """
         Test that handling of pagination works as expected, when the matching documents are > 10.
         """
 
         docs = [
-            Document(content=f"Document {i}", embedding=[random.random() for _ in range(4)])  # noqa: S311
+            Document(
+                content=f"Document {i}", embedding=[random.random() for _ in range(4)]
+            )  # noqa: S311
             for i in range(20)
         ]
 
@@ -796,7 +901,9 @@ class TestDocumentStore(DocumentStoreBaseTests):
         )
         assert len(results) == 11
 
-    def test_embedding_retrieval_with_custom_query(self, document_store_embedding_dim_4: OpenSearchDocumentStore):
+    def test_embedding_retrieval_with_custom_query(
+        self, document_store_embedding_dim_4: OpenSearchDocumentStore
+    ):
         docs = [
             Document(content="Most similar document", embedding=[1.0, 1.0, 1.0, 1.0]),
             Document(content="2nd best document", embedding=[0.8, 0.8, 0.8, 1.0]),
@@ -810,13 +917,21 @@ class TestDocumentStore(DocumentStoreBaseTests):
 
         custom_query = {
             "query": {
-                "bool": {"must": [{"knn": {"embedding": {"vector": "$query_embedding", "k": 3}}}], "filter": "$filters"}
+                "bool": {
+                    "must": [
+                        {"knn": {"embedding": {"vector": "$query_embedding", "k": 3}}}
+                    ],
+                    "filter": "$filters",
+                }
             }
         }
 
         filters = {"field": "meta_field", "operator": "==", "value": "custom_value"}
         results = document_store_embedding_dim_4._embedding_retrieval(
-            query_embedding=[0.1, 0.1, 0.1, 0.1], top_k=1, filters=filters, custom_query=custom_query
+            query_embedding=[0.1, 0.1, 0.1, 0.1],
+            top_k=1,
+            filters=filters,
+            custom_query=custom_query,
         )
         assert len(results) == 1
         assert results[0].content == "Not very similar document with meta field"
@@ -831,7 +946,9 @@ class TestDocumentStore(DocumentStoreBaseTests):
         document_store_embedding_dim_4.write_documents(docs)
 
         with pytest.raises(RequestError):
-            document_store_embedding_dim_4._embedding_retrieval(query_embedding=[0.1, 0.1])
+            document_store_embedding_dim_4._embedding_retrieval(
+                query_embedding=[0.1, 0.1]
+            )
 
     def test_write_documents_different_embedding_sizes_fail(
         self, document_store_embedding_dim_4: OpenSearchDocumentStore
@@ -848,7 +965,9 @@ class TestDocumentStore(DocumentStoreBaseTests):
             document_store_embedding_dim_4.write_documents(docs)
 
     @patch("haystack_integrations.document_stores.opensearch.document_store.bulk")
-    def test_write_documents_with_badly_formatted_bulk_errors(self, mock_bulk, document_store):
+    def test_write_documents_with_badly_formatted_bulk_errors(
+        self, mock_bulk, document_store
+    ):
         error = {"some_key": "some_value"}
         mock_bulk.return_value = ([], [error])
 
@@ -891,7 +1010,9 @@ class TestDocumentStore(DocumentStoreBaseTests):
         docs = [
             Document(content="Most similar document", embedding=[1.0, 1.0, 1.0, 1.0]),
             Document(content="2nd best document", embedding=[0.8, 0.8, 0.8, 1.0]),
-            Document(content="Not very similar document", embedding=[0.0, 0.8, 0.3, 0.9]),
+            Document(
+                content="Not very similar document", embedding=[0.0, 0.8, 0.3, 0.9]
+            ),
         ]
         document_store_no_embbding_returned.write_documents(docs)
         results = document_store_no_embbding_returned._embedding_retrieval(
@@ -906,9 +1027,13 @@ class TestDocumentStore(DocumentStoreBaseTests):
         docs = [
             Document(content="Most similar document", embedding=[1.0, 1.0, 1.0, 1.0]),
             Document(content="2nd best document", embedding=[0.8, 0.8, 0.8, 1.0]),
-            Document(content="Not very similar document", embedding=[0.0, 0.8, 0.3, 0.9]),
+            Document(
+                content="Not very similar document", embedding=[0.0, 0.8, 0.3, 0.9]
+            ),
         ]
         document_store_no_embbding_returned.write_documents(docs)
-        results = document_store_no_embbding_returned._bm25_retrieval("document", top_k=2)
+        results = document_store_no_embbding_returned._bm25_retrieval(
+            "document", top_k=2
+        )
         assert len(results) == 2
         assert results[0].embedding is None

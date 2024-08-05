@@ -59,7 +59,11 @@ class TestCohereDocumentEmbedder:
         assert component_dict == {
             "type": "haystack_integrations.components.embedders.cohere.document_embedder.CohereDocumentEmbedder",
             "init_parameters": {
-                "api_key": {"env_vars": ["COHERE_API_KEY", "CO_API_KEY"], "strict": True, "type": "env_var"},
+                "api_key": {
+                    "env_vars": ["COHERE_API_KEY", "CO_API_KEY"],
+                    "strict": True,
+                    "type": "env_var",
+                },
                 "model": "embed-english-v2.0",
                 "input_type": "search_document",
                 "api_base_url": COHERE_API_URL,
@@ -91,7 +95,11 @@ class TestCohereDocumentEmbedder:
         assert component_dict == {
             "type": "haystack_integrations.components.embedders.cohere.document_embedder.CohereDocumentEmbedder",
             "init_parameters": {
-                "api_key": {"env_vars": ["ENV_VAR"], "strict": False, "type": "env_var"},
+                "api_key": {
+                    "env_vars": ["ENV_VAR"],
+                    "strict": False,
+                    "type": "env_var",
+                },
                 "model": "embed-multilingual-v2.0",
                 "input_type": "search_query",
                 "api_base_url": "https://custom-api-base-url.com",
@@ -106,7 +114,8 @@ class TestCohereDocumentEmbedder:
         }
 
     @pytest.mark.skipif(
-        not os.environ.get("COHERE_API_KEY", None) and not os.environ.get("CO_API_KEY", None),
+        not os.environ.get("COHERE_API_KEY", None)
+        and not os.environ.get("CO_API_KEY", None),
         reason="Export an env var called COHERE_API_KEY/CO_API_KEY containing the Cohere API key to run this test.",
     )
     @pytest.mark.integration
@@ -115,7 +124,10 @@ class TestCohereDocumentEmbedder:
 
         docs = [
             Document(content="I love cheese", meta={"topic": "Cuisine"}),
-            Document(content="A transformer is a deep learning architecture", meta={"topic": "ML"}),
+            Document(
+                content="A transformer is a deep learning architecture",
+                meta={"topic": "ML"},
+            ),
         ]
 
         result = embedder.run(docs)

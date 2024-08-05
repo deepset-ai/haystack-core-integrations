@@ -42,7 +42,9 @@ class InstructorTextEmbedder:
         self,
         model: str = "hkunlp/instructor-base",
         device: Optional[ComponentDevice] = None,
-        token: Optional[Secret] = Secret.from_env_var("HF_API_TOKEN", strict=False),  # noqa: B008
+        token: Optional[Secret] = Secret.from_env_var(
+            "HF_API_TOKEN", strict=False
+        ),  # noqa: B008
         instruction: str = "Represent the sentence",
         batch_size: int = 32,
         progress_bar: bool = True,
@@ -111,8 +113,12 @@ class InstructorTextEmbedder:
         Load the embedding backend.
         """
         if not hasattr(self, "embedding_backend"):
-            self.embedding_backend = _InstructorEmbeddingBackendFactory.get_embedding_backend(
-                model=self.model, device=self.device.to_torch_str(), token=self.token
+            self.embedding_backend = (
+                _InstructorEmbeddingBackendFactory.get_embedding_backend(
+                    model=self.model,
+                    device=self.device.to_torch_str(),
+                    token=self.token,
+                )
             )
 
     @component.output_types(embedding=List[float])

@@ -3,7 +3,9 @@ from unittest.mock import MagicMock, patch
 import numpy as np
 import pytest
 from haystack.utils import ComponentDevice, Secret
-from haystack_integrations.components.embedders.instructor_embedders import InstructorTextEmbedder
+from haystack_integrations.components.embedders.instructor_embedders import (
+    InstructorTextEmbedder,
+)
 
 
 class TestInstructorTextEmbedder:
@@ -36,7 +38,10 @@ class TestInstructorTextEmbedder:
         assert embedder.model == "hkunlp/instructor-base"
         assert embedder.device == ComponentDevice.from_str("cuda:0")
         assert embedder.token == Secret.from_token("fake-api-token")
-        assert embedder.instruction == "Represent the 'domain' 'text_type' for 'task_objective'"
+        assert (
+            embedder.instruction
+            == "Represent the 'domain' 'text_type' for 'task_objective'"
+        )
         assert embedder.batch_size == 64
         assert embedder.progress_bar is False
         assert embedder.normalize_embeddings is True
@@ -45,14 +50,20 @@ class TestInstructorTextEmbedder:
         """
         Test serialization of InstructorTextEmbedder to a dictionary, using default initialization parameters.
         """
-        embedder = InstructorTextEmbedder(model="hkunlp/instructor-base", device=ComponentDevice.from_str("cpu"))
+        embedder = InstructorTextEmbedder(
+            model="hkunlp/instructor-base", device=ComponentDevice.from_str("cpu")
+        )
         embedder_dict = embedder.to_dict()
         assert embedder_dict == {
             "type": "haystack_integrations.components.embedders.instructor_embedders.instructor_text_embedder.InstructorTextEmbedder",  # noqa
             "init_parameters": {
                 "model": "hkunlp/instructor-base",
                 "device": ComponentDevice.from_str("cpu").to_dict(),
-                "token": {"env_vars": ["HF_API_TOKEN"], "strict": False, "type": "env_var"},
+                "token": {
+                    "env_vars": ["HF_API_TOKEN"],
+                    "strict": False,
+                    "type": "env_var",
+                },
                 "instruction": "Represent the sentence",
                 "batch_size": 32,
                 "progress_bar": True,
@@ -78,7 +89,11 @@ class TestInstructorTextEmbedder:
             "init_parameters": {
                 "model": "hkunlp/instructor-base",
                 "device": ComponentDevice.from_str("cuda:0").to_dict(),
-                "token": {"env_vars": ["HF_API_TOKEN"], "strict": False, "type": "env_var"},
+                "token": {
+                    "env_vars": ["HF_API_TOKEN"],
+                    "strict": False,
+                    "type": "env_var",
+                },
                 "instruction": "Represent the financial document for retrieval",
                 "batch_size": 64,
                 "progress_bar": False,
@@ -95,7 +110,11 @@ class TestInstructorTextEmbedder:
             "init_parameters": {
                 "model": "hkunlp/instructor-base",
                 "device": ComponentDevice.from_str("cpu").to_dict(),
-                "token": {"env_vars": ["HF_API_TOKEN"], "strict": False, "type": "env_var"},
+                "token": {
+                    "env_vars": ["HF_API_TOKEN"],
+                    "strict": False,
+                    "type": "env_var",
+                },
                 "instruction": "Represent the 'domain' 'text_type' for 'task_objective'",
                 "batch_size": 32,
                 "progress_bar": True,
@@ -106,7 +125,10 @@ class TestInstructorTextEmbedder:
         assert embedder.model == "hkunlp/instructor-base"
         assert embedder.device == ComponentDevice.from_str("cpu")
         assert embedder.token == Secret.from_env_var("HF_API_TOKEN", strict=False)
-        assert embedder.instruction == "Represent the 'domain' 'text_type' for 'task_objective'"
+        assert (
+            embedder.instruction
+            == "Represent the 'domain' 'text_type' for 'task_objective'"
+        )
         assert embedder.batch_size == 32
         assert embedder.progress_bar is True
         assert embedder.normalize_embeddings is False
@@ -120,7 +142,11 @@ class TestInstructorTextEmbedder:
             "init_parameters": {
                 "model": "hkunlp/instructor-base",
                 "device": ComponentDevice.from_str("cuda:0").to_dict(),
-                "token": {"env_vars": ["HF_API_TOKEN"], "strict": False, "type": "env_var"},
+                "token": {
+                    "env_vars": ["HF_API_TOKEN"],
+                    "strict": False,
+                    "type": "env_var",
+                },
                 "instruction": "Represent the financial document for retrieval",
                 "batch_size": 64,
                 "progress_bar": False,
@@ -143,7 +169,9 @@ class TestInstructorTextEmbedder:
         """
         Test for checking embedder instances after warm-up.
         """
-        embedder = InstructorTextEmbedder(model="hkunlp/instructor-base", device=ComponentDevice.from_str("cpu"))
+        embedder = InstructorTextEmbedder(
+            model="hkunlp/instructor-base", device=ComponentDevice.from_str("cpu")
+        )
         mocked_factory.get_embedding_backend.assert_not_called()
         embedder.warm_up()
         mocked_factory.get_embedding_backend.assert_called_once_with(
@@ -171,7 +199,9 @@ class TestInstructorTextEmbedder:
         """
         embedder = InstructorTextEmbedder(model="hkunlp/instructor-large")
         embedder.embedding_backend = MagicMock()
-        embedder.embedding_backend.embed = lambda x, **kwargs: np.random.rand(len(x), 16).tolist()  # noqa: ARG005
+        embedder.embedding_backend.embed = lambda x, **kwargs: np.random.rand(
+            len(x), 16
+        ).tolist()  # noqa: ARG005
 
         text = "Good text to embed"
 
@@ -190,7 +220,9 @@ class TestInstructorTextEmbedder:
 
         list_integers_input = [1, 2, 3]
 
-        with pytest.raises(TypeError, match="InstructorTextEmbedder expects a string as input"):
+        with pytest.raises(
+            TypeError, match="InstructorTextEmbedder expects a string as input"
+        ):
             embedder.run(text=list_integers_input)
 
     @pytest.mark.integration

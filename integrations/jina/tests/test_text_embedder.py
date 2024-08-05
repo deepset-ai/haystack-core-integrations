@@ -44,7 +44,11 @@ class TestJinaTextEmbedder:
         assert data == {
             "type": "haystack_integrations.components.embedders.jina.text_embedder.JinaTextEmbedder",
             "init_parameters": {
-                "api_key": {"env_vars": ["JINA_API_KEY"], "strict": True, "type": "env_var"},
+                "api_key": {
+                    "env_vars": ["JINA_API_KEY"],
+                    "strict": True,
+                    "type": "env_var",
+                },
                 "model": "jina-embeddings-v2-base-en",
                 "prefix": "",
                 "suffix": "",
@@ -62,7 +66,11 @@ class TestJinaTextEmbedder:
         assert data == {
             "type": "haystack_integrations.components.embedders.jina.text_embedder.JinaTextEmbedder",
             "init_parameters": {
-                "api_key": {"env_vars": ["JINA_API_KEY"], "strict": True, "type": "env_var"},
+                "api_key": {
+                    "env_vars": ["JINA_API_KEY"],
+                    "strict": True,
+                    "type": "env_var",
+                },
                 "model": "model",
                 "prefix": "prefix",
                 "suffix": "suffix",
@@ -80,14 +88,23 @@ class TestJinaTextEmbedder:
                     "model": "jina-embeddings-v2-base-en",
                     "object": "list",
                     "usage": {"total_tokens": 6, "prompt_tokens": 6},
-                    "data": [{"object": "embedding", "index": 0, "embedding": [0.1, 0.2, 0.3]}],
+                    "data": [
+                        {
+                            "object": "embedding",
+                            "index": 0,
+                            "embedding": [0.1, 0.2, 0.3],
+                        }
+                    ],
                 }
             ).encode()
 
             mock_post.return_value = mock_response
 
             embedder = JinaTextEmbedder(
-                api_key=Secret.from_token("fake-api-key"), model=model, prefix="prefix ", suffix=" suffix"
+                api_key=Secret.from_token("fake-api-key"),
+                model=model,
+                prefix="prefix ",
+                suffix=" suffix",
             )
             result = embedder.run(text="The food was delicious")
 
@@ -103,5 +120,7 @@ class TestJinaTextEmbedder:
 
         list_integers_input = [1, 2, 3]
 
-        with pytest.raises(TypeError, match="JinaTextEmbedder expects a string as an input"):
+        with pytest.raises(
+            TypeError, match="JinaTextEmbedder expects a string as an input"
+        ):
             embedder.run(text=list_integers_input)

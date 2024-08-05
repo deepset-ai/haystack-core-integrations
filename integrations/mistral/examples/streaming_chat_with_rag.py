@@ -11,8 +11,12 @@ from haystack.components.retrievers.in_memory import InMemoryEmbeddingRetriever
 from haystack.components.writers import DocumentWriter
 from haystack.dataclasses import ChatMessage
 from haystack.document_stores.in_memory import InMemoryDocumentStore
-from haystack_integrations.components.embedders.mistral.document_embedder import MistralDocumentEmbedder
-from haystack_integrations.components.embedders.mistral.text_embedder import MistralTextEmbedder
+from haystack_integrations.components.embedders.mistral.document_embedder import (
+    MistralDocumentEmbedder,
+)
+from haystack_integrations.components.embedders.mistral.text_embedder import (
+    MistralTextEmbedder,
+)
 from haystack_integrations.components.generators.mistral import MistralChatGenerator
 
 document_store = InMemoryDocumentStore()
@@ -42,7 +46,11 @@ retriever = InMemoryEmbeddingRetriever(document_store=document_store)
 prompt_builder = ChatPromptBuilder(variables=["documents"])
 llm = MistralChatGenerator(streaming_callback=print_streaming_chunk)
 
-messages = [ChatMessage.from_user("Here are some the documents: {{documents}} \\n Answer: {{query}}")]
+messages = [
+    ChatMessage.from_user(
+        "Here are some the documents: {{documents}} \\n Answer: {{query}}"
+    )
+]
 
 rag_pipeline = Pipeline()
 rag_pipeline.add_component("text_embedder", text_embedder)
@@ -60,7 +68,10 @@ question = "What are the available models?"
 result = rag_pipeline.run(
     {
         "text_embedder": {"text": question},
-        "prompt_builder": {"template_variables": {"query": question}, "template": messages},
+        "prompt_builder": {
+            "template_variables": {"query": question},
+            "template": messages,
+        },
         "llm": {"generation_kwargs": {"max_tokens": 165}},
     }
 )

@@ -99,7 +99,9 @@ class GoogleAIGeminiGenerator:
         self._tools = tools
         self._model = GenerativeModel(self._model_name, tools=self._tools)
 
-    def _generation_config_to_dict(self, config: Union[GenerationConfig, Dict[str, Any]]) -> Dict[str, Any]:
+    def _generation_config_to_dict(
+        self, config: Union[GenerationConfig, Dict[str, Any]]
+    ) -> Dict[str, Any]:
         if isinstance(config, dict):
             return config
         return {
@@ -128,10 +130,18 @@ class GoogleAIGeminiGenerator:
         )
         if (tools := data["init_parameters"].get("tools")) is not None:
             data["init_parameters"]["tools"] = [Tool.serialize(t) for t in tools]
-        if (generation_config := data["init_parameters"].get("generation_config")) is not None:
-            data["init_parameters"]["generation_config"] = self._generation_config_to_dict(generation_config)
-        if (safety_settings := data["init_parameters"].get("safety_settings")) is not None:
-            data["init_parameters"]["safety_settings"] = {k.value: v.value for k, v in safety_settings.items()}
+        if (
+            generation_config := data["init_parameters"].get("generation_config")
+        ) is not None:
+            data["init_parameters"][
+                "generation_config"
+            ] = self._generation_config_to_dict(generation_config)
+        if (
+            safety_settings := data["init_parameters"].get("safety_settings")
+        ) is not None:
+            data["init_parameters"]["safety_settings"] = {
+                k.value: v.value for k, v in safety_settings.items()
+            }
         return data
 
     @classmethod
@@ -148,11 +158,18 @@ class GoogleAIGeminiGenerator:
 
         if (tools := data["init_parameters"].get("tools")) is not None:
             data["init_parameters"]["tools"] = [Tool.deserialize(t) for t in tools]
-        if (generation_config := data["init_parameters"].get("generation_config")) is not None:
-            data["init_parameters"]["generation_config"] = GenerationConfig(**generation_config)
-        if (safety_settings := data["init_parameters"].get("safety_settings")) is not None:
+        if (
+            generation_config := data["init_parameters"].get("generation_config")
+        ) is not None:
+            data["init_parameters"]["generation_config"] = GenerationConfig(
+                **generation_config
+            )
+        if (
+            safety_settings := data["init_parameters"].get("safety_settings")
+        ) is not None:
             data["init_parameters"]["safety_settings"] = {
-                HarmCategory(k): HarmBlockThreshold(v) for k, v in safety_settings.items()
+                HarmCategory(k): HarmBlockThreshold(v)
+                for k, v in safety_settings.items()
             }
 
         return default_from_dict(cls, data)

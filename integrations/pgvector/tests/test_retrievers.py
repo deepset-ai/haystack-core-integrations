@@ -7,7 +7,10 @@ import pytest
 from haystack.dataclasses import Document
 from haystack.document_stores.types import FilterPolicy
 from haystack.utils.auth import EnvVarSecret
-from haystack_integrations.components.retrievers.pgvector import PgvectorEmbeddingRetriever, PgvectorKeywordRetriever
+from haystack_integrations.components.retrievers.pgvector import (
+    PgvectorEmbeddingRetriever,
+    PgvectorKeywordRetriever,
+)
 from haystack_integrations.document_stores.pgvector import PgvectorDocumentStore
 
 
@@ -20,15 +23,22 @@ class TestEmbeddingRetriever:
         assert retriever.filter_policy == FilterPolicy.REPLACE
         assert retriever.vector_function == mock_store.vector_function
 
-        retriever = PgvectorEmbeddingRetriever(document_store=mock_store, filter_policy="merge")
+        retriever = PgvectorEmbeddingRetriever(
+            document_store=mock_store, filter_policy="merge"
+        )
         assert retriever.filter_policy == FilterPolicy.MERGE
 
         with pytest.raises(ValueError):
-            PgvectorEmbeddingRetriever(document_store=mock_store, filter_policy="invalid")
+            PgvectorEmbeddingRetriever(
+                document_store=mock_store, filter_policy="invalid"
+            )
 
     def test_init(self, mock_store):
         retriever = PgvectorEmbeddingRetriever(
-            document_store=mock_store, filters={"field": "value"}, top_k=5, vector_function="l2_distance"
+            document_store=mock_store,
+            filters={"field": "value"},
+            top_k=5,
+            vector_function="l2_distance",
         )
         assert retriever.document_store == mock_store
         assert retriever.filters == {"field": "value"}
@@ -38,7 +48,10 @@ class TestEmbeddingRetriever:
 
     def test_to_dict(self, mock_store):
         retriever = PgvectorEmbeddingRetriever(
-            document_store=mock_store, filters={"field": "value"}, top_k=5, vector_function="l2_distance"
+            document_store=mock_store,
+            filters={"field": "value"},
+            top_k=5,
+            vector_function="l2_distance",
         )
         res = retriever.to_dict()
         t = "haystack_integrations.components.retrievers.pgvector.embedding_retriever.PgvectorEmbeddingRetriever"
@@ -48,7 +61,11 @@ class TestEmbeddingRetriever:
                 "document_store": {
                     "type": "haystack_integrations.document_stores.pgvector.document_store.PgvectorDocumentStore",
                     "init_parameters": {
-                        "connection_string": {"env_vars": ["PG_CONN_STR"], "strict": True, "type": "env_var"},
+                        "connection_string": {
+                            "env_vars": ["PG_CONN_STR"],
+                            "strict": True,
+                            "type": "env_var",
+                        },
                         "table_name": "haystack",
                         "embedding_dimension": 768,
                         "vector_function": "cosine_similarity",
@@ -79,7 +96,11 @@ class TestEmbeddingRetriever:
                 "document_store": {
                     "type": "haystack_integrations.document_stores.pgvector.document_store.PgvectorDocumentStore",
                     "init_parameters": {
-                        "connection_string": {"env_vars": ["PG_CONN_STR"], "strict": True, "type": "env_var"},
+                        "connection_string": {
+                            "env_vars": ["PG_CONN_STR"],
+                            "strict": True,
+                            "type": "env_var",
+                        },
                         "table_name": "haystack_test_to_dict",
                         "embedding_dimension": 768,
                         "vector_function": "cosine_similarity",
@@ -125,11 +146,16 @@ class TestEmbeddingRetriever:
         doc = Document(content="Test doc", embedding=[0.1, 0.2])
         mock_store._embedding_retrieval.return_value = [doc]
 
-        retriever = PgvectorEmbeddingRetriever(document_store=mock_store, vector_function="l2_distance")
+        retriever = PgvectorEmbeddingRetriever(
+            document_store=mock_store, vector_function="l2_distance"
+        )
         res = retriever.run(query_embedding=[0.3, 0.5])
 
         mock_store._embedding_retrieval.assert_called_once_with(
-            query_embedding=[0.3, 0.5], filters={}, top_k=10, vector_function="l2_distance"
+            query_embedding=[0.3, 0.5],
+            filters={},
+            top_k=10,
+            vector_function="l2_distance",
         )
 
         assert res == {"documents": [doc]}
@@ -142,21 +168,28 @@ class TestKeywordRetriever:
         assert retriever.filters == {}
         assert retriever.top_k == 10
 
-        retriever = PgvectorKeywordRetriever(document_store=mock_store, filter_policy="merge")
+        retriever = PgvectorKeywordRetriever(
+            document_store=mock_store, filter_policy="merge"
+        )
         assert retriever.filter_policy == FilterPolicy.MERGE
 
         with pytest.raises(ValueError):
             PgvectorKeywordRetriever(document_store=mock_store, filter_policy="invalid")
 
     def test_init(self, mock_store):
-        retriever = PgvectorKeywordRetriever(document_store=mock_store, filters={"field": "value"}, top_k=5)
+        retriever = PgvectorKeywordRetriever(
+            document_store=mock_store, filters={"field": "value"}, top_k=5
+        )
         assert retriever.document_store == mock_store
         assert retriever.filters == {"field": "value"}
         assert retriever.top_k == 5
 
     def test_init_with_filter_policy(self, mock_store):
         retriever = PgvectorKeywordRetriever(
-            document_store=mock_store, filters={"field": "value"}, top_k=5, filter_policy=FilterPolicy.MERGE
+            document_store=mock_store,
+            filters={"field": "value"},
+            top_k=5,
+            filter_policy=FilterPolicy.MERGE,
         )
         assert retriever.document_store == mock_store
         assert retriever.filters == {"field": "value"}
@@ -164,7 +197,9 @@ class TestKeywordRetriever:
         assert retriever.filter_policy == FilterPolicy.MERGE
 
     def test_to_dict(self, mock_store):
-        retriever = PgvectorKeywordRetriever(document_store=mock_store, filters={"field": "value"}, top_k=5)
+        retriever = PgvectorKeywordRetriever(
+            document_store=mock_store, filters={"field": "value"}, top_k=5
+        )
         res = retriever.to_dict()
         t = "haystack_integrations.components.retrievers.pgvector.keyword_retriever.PgvectorKeywordRetriever"
         assert res == {
@@ -173,7 +208,11 @@ class TestKeywordRetriever:
                 "document_store": {
                     "type": "haystack_integrations.document_stores.pgvector.document_store.PgvectorDocumentStore",
                     "init_parameters": {
-                        "connection_string": {"env_vars": ["PG_CONN_STR"], "strict": True, "type": "env_var"},
+                        "connection_string": {
+                            "env_vars": ["PG_CONN_STR"],
+                            "strict": True,
+                            "type": "env_var",
+                        },
                         "table_name": "haystack",
                         "embedding_dimension": 768,
                         "vector_function": "cosine_similarity",
@@ -203,7 +242,11 @@ class TestKeywordRetriever:
                 "document_store": {
                     "type": "haystack_integrations.document_stores.pgvector.document_store.PgvectorDocumentStore",
                     "init_parameters": {
-                        "connection_string": {"env_vars": ["PG_CONN_STR"], "strict": True, "type": "env_var"},
+                        "connection_string": {
+                            "env_vars": ["PG_CONN_STR"],
+                            "strict": True,
+                            "type": "env_var",
+                        },
                         "table_name": "haystack_test_to_dict",
                         "embedding_dimension": 768,
                         "vector_function": "cosine_similarity",
@@ -251,7 +294,11 @@ class TestKeywordRetriever:
                 "document_store": {
                     "type": "haystack_integrations.document_stores.pgvector.document_store.PgvectorDocumentStore",
                     "init_parameters": {
-                        "connection_string": {"env_vars": ["PG_CONN_STR"], "strict": True, "type": "env_var"},
+                        "connection_string": {
+                            "env_vars": ["PG_CONN_STR"],
+                            "strict": True,
+                            "type": "env_var",
+                        },
                         "table_name": "haystack_test_to_dict",
                         "embedding_dimension": 768,
                         "vector_function": "cosine_similarity",
@@ -297,7 +344,9 @@ class TestKeywordRetriever:
         retriever = PgvectorKeywordRetriever(document_store=mock_store)
         res = retriever.run(query="test query")
 
-        mock_store._keyword_retrieval.assert_called_once_with(query="test query", filters={}, top_k=10)
+        mock_store._keyword_retrieval.assert_called_once_with(
+            query="test query", filters={}, top_k=10
+        )
 
         assert res == {"documents": [doc]}
 
@@ -307,7 +356,9 @@ class TestKeywordRetriever:
         mock_store._keyword_retrieval.return_value = [doc]
 
         retriever = PgvectorKeywordRetriever(
-            document_store=mock_store, filter_policy=FilterPolicy.MERGE, filters={"field": "value"}
+            document_store=mock_store,
+            filter_policy=FilterPolicy.MERGE,
+            filters={"field": "value"},
         )
         res = retriever.run(query="test query", filters={"field2": "value2"})
 

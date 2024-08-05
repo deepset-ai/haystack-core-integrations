@@ -62,7 +62,9 @@ class AnswerToSpeech(BaseComponent):
         """
         super().__init__()
         self.converter = TextToSpeech(
-            model_name_or_path=model_name_or_path, transformers_params=transformers_params, devices=devices
+            model_name_or_path=model_name_or_path,
+            transformers_params=transformers_params,
+            devices=devices,
         )
         self.generated_audio_dir = generated_audio_dir
         self.params: Dict[str, Any] = audio_params or {}
@@ -70,13 +72,19 @@ class AnswerToSpeech(BaseComponent):
 
     def run(self, answers: List[Answer]) -> Tuple[Dict[str, List[Answer]], str]:  # type: ignore
         audio_answers = []
-        for answer in tqdm(answers, disable=not self.progress_bar, desc="Converting answers to audio"):
+        for answer in tqdm(
+            answers, disable=not self.progress_bar, desc="Converting answers to audio"
+        ):
             answer_audio = self.converter.text_to_audio_file(
-                text=answer.answer, generated_audio_dir=self.generated_audio_dir, **self.params
+                text=answer.answer,
+                generated_audio_dir=self.generated_audio_dir,
+                **self.params
             )
             if isinstance(answer.context, str):
                 context_audio = self.converter.text_to_audio_file(
-                    text=answer.context, generated_audio_dir=self.generated_audio_dir, **self.params
+                    text=answer.context,
+                    generated_audio_dir=self.generated_audio_dir,
+                    **self.params
                 )
 
             audio_answer = Answer.from_dict(answer.to_dict())
@@ -86,7 +94,9 @@ class AnswerToSpeech(BaseComponent):
                 {
                     "answer_text": answer.answer,
                     "context_text": answer.context,
-                    "audio_format": self.params.get("audio_format", answer_audio.suffix.replace(".", "")),
+                    "audio_format": self.params.get(
+                        "audio_format", answer_audio.suffix.replace(".", "")
+                    ),
                     "sample_rate": self.converter.model.fs,
                 }
             )

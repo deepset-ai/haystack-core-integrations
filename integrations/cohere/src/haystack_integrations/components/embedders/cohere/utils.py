@@ -8,7 +8,9 @@ from tqdm import tqdm
 from cohere import AsyncClient, Client
 
 
-async def get_async_response(cohere_async_client: AsyncClient, texts: List[str], model_name, input_type, truncate):
+async def get_async_response(
+    cohere_async_client: AsyncClient, texts: List[str], model_name, input_type, truncate
+):
     """Embeds a list of texts asynchronously using the Cohere API.
 
     :param cohere_async_client: the Cohere `AsyncClient`
@@ -25,7 +27,9 @@ async def get_async_response(cohere_async_client: AsyncClient, texts: List[str],
     all_embeddings: List[List[float]] = []
     metadata: Dict[str, Any] = {}
 
-    response = await cohere_async_client.embed(texts=texts, model=model_name, input_type=input_type, truncate=truncate)
+    response = await cohere_async_client.embed(
+        texts=texts, model=model_name, input_type=input_type, truncate=truncate
+    )
     if response.meta is not None:
         metadata = response.meta
     for emb in response.embeddings:
@@ -35,7 +39,13 @@ async def get_async_response(cohere_async_client: AsyncClient, texts: List[str],
 
 
 def get_response(
-    cohere_client: Client, texts: List[str], model_name, input_type, truncate, batch_size=32, progress_bar=False
+    cohere_client: Client,
+    texts: List[str],
+    model_name,
+    input_type,
+    truncate,
+    batch_size=32,
+    progress_bar=False,
 ) -> Tuple[List[List[float]], Dict[str, Any]]:
     """Embeds a list of texts using the Cohere API.
 
@@ -62,7 +72,9 @@ def get_response(
         desc="Calculating embeddings",
     ):
         batch = texts[i : i + batch_size]
-        response = cohere_client.embed(texts=batch, model=model_name, input_type=input_type, truncate=truncate)
+        response = cohere_client.embed(
+            texts=batch, model=model_name, input_type=input_type, truncate=truncate
+        )
         for emb in response.embeddings:
             all_embeddings.append(emb)
         if response.meta is not None:

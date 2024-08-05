@@ -26,7 +26,9 @@ class TestQdrantLegacyFilterDocuments(LegacyFilterDocumentsTest):
             wait_result_from_api=True,
         )
 
-    def assert_documents_are_equal(self, received: List[Document], expected: List[Document]):
+    def assert_documents_are_equal(
+        self, received: List[Document], expected: List[Document]
+    ):
         """
         Assert that two lists of Documents are equal.
         This is used in every test.
@@ -38,56 +40,97 @@ class TestQdrantLegacyFilterDocuments(LegacyFilterDocumentsTest):
         # Check that the sets are equal, meaning the content and IDs match regardless of order
         assert {doc.id for doc in received} == {doc.id for doc in expected}
 
-    def test_filter_simple_metadata_value(self, document_store: DocumentStore, filterable_docs: List[Document]):
+    def test_filter_simple_metadata_value(
+        self, document_store: DocumentStore, filterable_docs: List[Document]
+    ):
         document_store.write_documents(filterable_docs)
         result = document_store.filter_documents(filters={"meta.page": "100"})
-        self.assert_documents_are_equal(result, [doc for doc in filterable_docs if doc.meta.get("page") == "100"])
+        self.assert_documents_are_equal(
+            result, [doc for doc in filterable_docs if doc.meta.get("page") == "100"]
+        )
 
     @pytest.mark.skip(reason="Dataframe filtering is not supported in Qdrant")
-    def test_filter_document_dataframe(self, document_store: DocumentStore, filterable_docs: List[Document]): ...
+    def test_filter_document_dataframe(
+        self, document_store: DocumentStore, filterable_docs: List[Document]
+    ):
+        ...
 
-    def test_eq_filter_explicit(self, document_store: DocumentStore, filterable_docs: List[Document]):
+    def test_eq_filter_explicit(
+        self, document_store: DocumentStore, filterable_docs: List[Document]
+    ):
         document_store.write_documents(filterable_docs)
         result = document_store.filter_documents(filters={"meta.page": {"$eq": "100"}})
-        self.assert_documents_are_equal(result, [doc for doc in filterable_docs if doc.meta.get("page") == "100"])
+        self.assert_documents_are_equal(
+            result, [doc for doc in filterable_docs if doc.meta.get("page") == "100"]
+        )
 
-    def test_eq_filter_implicit(self, document_store: DocumentStore, filterable_docs: List[Document]):
+    def test_eq_filter_implicit(
+        self, document_store: DocumentStore, filterable_docs: List[Document]
+    ):
         document_store.write_documents(filterable_docs)
         result = document_store.filter_documents(filters={"meta.page": "100"})
-        self.assert_documents_are_equal(result, [doc for doc in filterable_docs if doc.meta.get("page") == "100"])
+        self.assert_documents_are_equal(
+            result, [doc for doc in filterable_docs if doc.meta.get("page") == "100"]
+        )
 
     @pytest.mark.skip(reason="Dataframe filtering is not supported in Qdrant")
-    def test_eq_filter_table(self, document_store: DocumentStore, filterable_docs: List[Document]): ...
+    def test_eq_filter_table(
+        self, document_store: DocumentStore, filterable_docs: List[Document]
+    ):
+        ...
 
     @pytest.mark.skip(reason="Embedding filtering is not supported in Qdrant")
-    def test_eq_filter_embedding(self, document_store: DocumentStore, filterable_docs: List[Document]): ...
+    def test_eq_filter_embedding(
+        self, document_store: DocumentStore, filterable_docs: List[Document]
+    ):
+        ...
 
     # LegacyFilterDocumentsNotEqualTest
 
-    def test_ne_filter(self, document_store: DocumentStore, filterable_docs: List[Document]):
+    def test_ne_filter(
+        self, document_store: DocumentStore, filterable_docs: List[Document]
+    ):
         document_store.write_documents(filterable_docs)
         result = document_store.filter_documents(filters={"meta.page": {"$ne": "100"}})
-        self.assert_documents_are_equal(result, [doc for doc in filterable_docs if doc.meta.get("page") != "100"])
+        self.assert_documents_are_equal(
+            result, [doc for doc in filterable_docs if doc.meta.get("page") != "100"]
+        )
 
     @pytest.mark.skip(reason="Dataframe filtering is not supported in Qdrant")
-    def test_ne_filter_table(self, document_store: DocumentStore, filterable_docs: List[Document]): ...
+    def test_ne_filter_table(
+        self, document_store: DocumentStore, filterable_docs: List[Document]
+    ):
+        ...
 
     @pytest.mark.skip(reason="Embedding filtering is not supported in Qdrant")
-    def test_ne_filter_embedding(self, document_store: DocumentStore, filterable_docs: List[Document]): ...
+    def test_ne_filter_embedding(
+        self, document_store: DocumentStore, filterable_docs: List[Document]
+    ):
+        ...
 
     # LegacyFilterDocumentsInTest
 
-    def test_filter_simple_list_single_element(self, document_store: DocumentStore, filterable_docs: List[Document]):
+    def test_filter_simple_list_single_element(
+        self, document_store: DocumentStore, filterable_docs: List[Document]
+    ):
         document_store.write_documents(filterable_docs)
         result = document_store.filter_documents(filters={"meta.page": ["100"]})
-        self.assert_documents_are_equal(result, [doc for doc in filterable_docs if doc.meta.get("page") == "100"])
+        self.assert_documents_are_equal(
+            result, [doc for doc in filterable_docs if doc.meta.get("page") == "100"]
+        )
 
-    def test_filter_simple_list_one_value(self, document_store: DocumentStore, filterable_docs: List[Document]):
+    def test_filter_simple_list_one_value(
+        self, document_store: DocumentStore, filterable_docs: List[Document]
+    ):
         document_store.write_documents(filterable_docs)
         result = document_store.filter_documents(filters={"meta.page": ["100"]})
-        self.assert_documents_are_equal(result, [doc for doc in filterable_docs if doc.meta.get("page") in ["100"]])
+        self.assert_documents_are_equal(
+            result, [doc for doc in filterable_docs if doc.meta.get("page") in ["100"]]
+        )
 
-    def test_filter_simple_list(self, document_store: DocumentStore, filterable_docs: List[Document]):
+    def test_filter_simple_list(
+        self, document_store: DocumentStore, filterable_docs: List[Document]
+    ):
         document_store.write_documents(filterable_docs)
         result = document_store.filter_documents(filters={"meta.page": ["100", "123"]})
         self.assert_documents_are_equal(
@@ -95,136 +138,224 @@ class TestQdrantLegacyFilterDocuments(LegacyFilterDocumentsTest):
             [doc for doc in filterable_docs if doc.meta.get("page") in ["100", "123"]],
         )
 
-    def test_incorrect_filter_value(self, document_store: DocumentStore, filterable_docs: List[Document]):
+    def test_incorrect_filter_value(
+        self, document_store: DocumentStore, filterable_docs: List[Document]
+    ):
         document_store.write_documents(filterable_docs)
         result = document_store.filter_documents(filters={"meta.page": ["nope"]})
         self.assert_documents_are_equal(result, [])
 
-    def test_in_filter_explicit(self, document_store: DocumentStore, filterable_docs: List[Document]):
+    def test_in_filter_explicit(
+        self, document_store: DocumentStore, filterable_docs: List[Document]
+    ):
         document_store.write_documents(filterable_docs)
-        result = document_store.filter_documents(filters={"meta.page": {"$in": ["100", "123", "n.a."]}})
+        result = document_store.filter_documents(
+            filters={"meta.page": {"$in": ["100", "123", "n.a."]}}
+        )
         self.assert_documents_are_equal(
             result,
             [doc for doc in filterable_docs if doc.meta.get("page") in ["100", "123"]],
         )
 
-    def test_in_filter_implicit(self, document_store: DocumentStore, filterable_docs: List[Document]):
+    def test_in_filter_implicit(
+        self, document_store: DocumentStore, filterable_docs: List[Document]
+    ):
         document_store.write_documents(filterable_docs)
-        result = document_store.filter_documents(filters={"meta.page": ["100", "123", "n.a."]})
+        result = document_store.filter_documents(
+            filters={"meta.page": ["100", "123", "n.a."]}
+        )
         self.assert_documents_are_equal(
             result,
             [doc for doc in filterable_docs if doc.meta.get("page") in ["100", "123"]],
         )
 
     @pytest.mark.skip(reason="Dataframe filtering is not supported in Qdrant")
-    def test_in_filter_table(self, document_store: DocumentStore, filterable_docs: List[Document]): ...
+    def test_in_filter_table(
+        self, document_store: DocumentStore, filterable_docs: List[Document]
+    ):
+        ...
 
     @pytest.mark.skip(reason="Embedding filtering is not supported in Qdrant")
-    def test_in_filter_embedding(self, document_store: DocumentStore, filterable_docs: List[Document]): ...
+    def test_in_filter_embedding(
+        self, document_store: DocumentStore, filterable_docs: List[Document]
+    ):
+        ...
 
     # LegacyFilterDocumentsNotInTest
 
     @pytest.mark.skip(reason="Dataframe filtering is not supported in Qdrant")
-    def test_nin_filter_table(self, document_store: DocumentStore, filterable_docs: List[Document]): ...
+    def test_nin_filter_table(
+        self, document_store: DocumentStore, filterable_docs: List[Document]
+    ):
+        ...
 
     @pytest.mark.skip(reason="Embedding filtering is not supported in Qdrant")
-    def test_nin_filter_embedding(self, document_store: DocumentStore, filterable_docs: List[Document]): ...
+    def test_nin_filter_embedding(
+        self, document_store: DocumentStore, filterable_docs: List[Document]
+    ):
+        ...
 
-    def test_nin_filter(self, document_store: DocumentStore, filterable_docs: List[Document]):
+    def test_nin_filter(
+        self, document_store: DocumentStore, filterable_docs: List[Document]
+    ):
         document_store.write_documents(filterable_docs)
-        result = document_store.filter_documents(filters={"meta.page": {"$nin": ["100", "123", "n.a."]}})
+        result = document_store.filter_documents(
+            filters={"meta.page": {"$nin": ["100", "123", "n.a."]}}
+        )
         self.assert_documents_are_equal(
             result,
-            [doc for doc in filterable_docs if doc.meta.get("page") not in ["100", "123"]],
+            [
+                doc
+                for doc in filterable_docs
+                if doc.meta.get("page") not in ["100", "123"]
+            ],
         )
 
     # LegacyFilterDocumentsGreaterThanTest
 
-    def test_gt_filter(self, document_store: DocumentStore, filterable_docs: List[Document]):
+    def test_gt_filter(
+        self, document_store: DocumentStore, filterable_docs: List[Document]
+    ):
         document_store.write_documents(filterable_docs)
         result = document_store.filter_documents(filters={"meta.number": {"$gt": 0.0}})
         self.assert_documents_are_equal(
             result,
-            [doc for doc in filterable_docs if "number" in doc.meta and doc.meta["number"] > 0],
+            [
+                doc
+                for doc in filterable_docs
+                if "number" in doc.meta and doc.meta["number"] > 0
+            ],
         )
 
-    def test_gt_filter_non_numeric(self, document_store: DocumentStore, filterable_docs: List[Document]):
+    def test_gt_filter_non_numeric(
+        self, document_store: DocumentStore, filterable_docs: List[Document]
+    ):
         document_store.write_documents(filterable_docs)
         with pytest.raises(FilterError):
             document_store.filter_documents(filters={"meta.page": {"$gt": "100"}})
 
     @pytest.mark.skip(reason="Dataframe filtering is not supported in Qdrant")
-    def test_gt_filter_table(self, document_store: DocumentStore, filterable_docs: List[Document]): ...
+    def test_gt_filter_table(
+        self, document_store: DocumentStore, filterable_docs: List[Document]
+    ):
+        ...
 
     @pytest.mark.skip(reason="Embedding filtering is not supported in Qdrant")
-    def test_gt_filter_embedding(self, document_store: DocumentStore, filterable_docs: List[Document]): ...
+    def test_gt_filter_embedding(
+        self, document_store: DocumentStore, filterable_docs: List[Document]
+    ):
+        ...
 
     # LegacyFilterDocumentsGreaterThanEqualTest
 
-    def test_gte_filter(self, document_store: DocumentStore, filterable_docs: List[Document]):
+    def test_gte_filter(
+        self, document_store: DocumentStore, filterable_docs: List[Document]
+    ):
         document_store.write_documents(filterable_docs)
         result = document_store.filter_documents(filters={"meta.number": {"$gte": -2}})
         self.assert_documents_are_equal(
             result,
-            [doc for doc in filterable_docs if "number" in doc.meta and doc.meta["number"] >= -2],
+            [
+                doc
+                for doc in filterable_docs
+                if "number" in doc.meta and doc.meta["number"] >= -2
+            ],
         )
 
-    def test_gte_filter_non_numeric(self, document_store: DocumentStore, filterable_docs: List[Document]):
+    def test_gte_filter_non_numeric(
+        self, document_store: DocumentStore, filterable_docs: List[Document]
+    ):
         document_store.write_documents(filterable_docs)
         with pytest.raises(FilterError):
             document_store.filter_documents(filters={"meta.page": {"$gte": "100"}})
 
     @pytest.mark.skip(reason="Dataframe filtering is not supported in Qdrant")
-    def test_gte_filter_table(self, document_store: DocumentStore, filterable_docs: List[Document]): ...
+    def test_gte_filter_table(
+        self, document_store: DocumentStore, filterable_docs: List[Document]
+    ):
+        ...
 
     @pytest.mark.skip(reason="Embedding filtering is not supported in Qdrant")
-    def test_gte_filter_embedding(self, document_store: DocumentStore, filterable_docs: List[Document]): ...
+    def test_gte_filter_embedding(
+        self, document_store: DocumentStore, filterable_docs: List[Document]
+    ):
+        ...
 
     # LegacyFilterDocumentsLessThanTest
 
-    def test_lt_filter(self, document_store: DocumentStore, filterable_docs: List[Document]):
+    def test_lt_filter(
+        self, document_store: DocumentStore, filterable_docs: List[Document]
+    ):
         document_store.write_documents(filterable_docs)
         result = document_store.filter_documents(filters={"meta.number": {"$lt": 0.0}})
         self.assert_documents_are_equal(
             result,
-            [doc for doc in filterable_docs if doc.meta.get("number") is not None and doc.meta["number"] < 0],
+            [
+                doc
+                for doc in filterable_docs
+                if doc.meta.get("number") is not None and doc.meta["number"] < 0
+            ],
         )
 
-    def test_lt_filter_non_numeric(self, document_store: DocumentStore, filterable_docs: List[Document]):
+    def test_lt_filter_non_numeric(
+        self, document_store: DocumentStore, filterable_docs: List[Document]
+    ):
         document_store.write_documents(filterable_docs)
         with pytest.raises(FilterError):
             document_store.filter_documents(filters={"meta.page": {"$lt": "100"}})
 
     @pytest.mark.skip(reason="Dataframe filtering is not supported in Qdrant")
-    def test_lt_filter_table(self, document_store: DocumentStore, filterable_docs: List[Document]): ...
+    def test_lt_filter_table(
+        self, document_store: DocumentStore, filterable_docs: List[Document]
+    ):
+        ...
 
     @pytest.mark.skip(reason="Embedding filtering is not supported in Qdrant")
-    def test_lt_filter_embedding(self, document_store: DocumentStore, filterable_docs: List[Document]): ...
+    def test_lt_filter_embedding(
+        self, document_store: DocumentStore, filterable_docs: List[Document]
+    ):
+        ...
 
     # LegacyFilterDocumentsLessThanEqualTest
 
-    def test_lte_filter(self, document_store: DocumentStore, filterable_docs: List[Document]):
+    def test_lte_filter(
+        self, document_store: DocumentStore, filterable_docs: List[Document]
+    ):
         document_store.write_documents(filterable_docs)
         result = document_store.filter_documents(filters={"meta.number": {"$lte": 2.0}})
         self.assert_documents_are_equal(
             result,
-            [doc for doc in filterable_docs if doc.meta.get("number") is not None and doc.meta["number"] <= 2.0],
+            [
+                doc
+                for doc in filterable_docs
+                if doc.meta.get("number") is not None and doc.meta["number"] <= 2.0
+            ],
         )
 
-    def test_lte_filter_non_numeric(self, document_store: DocumentStore, filterable_docs: List[Document]):
+    def test_lte_filter_non_numeric(
+        self, document_store: DocumentStore, filterable_docs: List[Document]
+    ):
         document_store.write_documents(filterable_docs)
         with pytest.raises(FilterError):
             document_store.filter_documents(filters={"meta.page": {"$lte": "100"}})
 
     @pytest.mark.skip(reason="Dataframe filtering is not supported in Qdrant")
-    def test_lte_filter_table(self, document_store: DocumentStore, filterable_docs: List[Document]): ...
+    def test_lte_filter_table(
+        self, document_store: DocumentStore, filterable_docs: List[Document]
+    ):
+        ...
 
     @pytest.mark.skip(reason="Embedding filtering is not supported in Qdrant")
-    def test_lte_filter_embedding(self, document_store: DocumentStore, filterable_docs: List[Document]): ...
+    def test_lte_filter_embedding(
+        self, document_store: DocumentStore, filterable_docs: List[Document]
+    ):
+        ...
 
     # LegacyFilterDocumentsSimpleLogicalTest
 
-    def test_filter_simple_or(self, document_store: DocumentStore, filterable_docs: List[Document]):
+    def test_filter_simple_or(
+        self, document_store: DocumentStore, filterable_docs: List[Document]
+    ):
         document_store.write_documents(filterable_docs)
         filters = {
             "$or": {
@@ -247,43 +378,61 @@ class TestQdrantLegacyFilterDocuments(LegacyFilterDocumentsTest):
         self, document_store: DocumentStore, filterable_docs: List[Document]
     ):
         document_store.write_documents(filterable_docs)
-        result = document_store.filter_documents(filters={"meta.number": {"$lte": 2.0, "$gte": 0.0}})
+        result = document_store.filter_documents(
+            filters={"meta.number": {"$lte": 2.0, "$gte": 0.0}}
+        )
         self.assert_documents_are_equal(
             result,
             [
                 doc
                 for doc in filterable_docs
-                if "number" in doc.meta and doc.meta["number"] >= 0.0 and doc.meta["number"] <= 2.0
+                if "number" in doc.meta
+                and doc.meta["number"] >= 0.0
+                and doc.meta["number"] <= 2.0
             ],
         )
 
-    def test_filter_simple_explicit_and_with_list(self, document_store: DocumentStore, filterable_docs: List[Document]):
+    def test_filter_simple_explicit_and_with_list(
+        self, document_store: DocumentStore, filterable_docs: List[Document]
+    ):
         document_store.write_documents(filterable_docs)
-        result = document_store.filter_documents(filters={"meta.number": {"$and": [{"$lte": 2}, {"$gte": 0}]}})
+        result = document_store.filter_documents(
+            filters={"meta.number": {"$and": [{"$lte": 2}, {"$gte": 0}]}}
+        )
         self.assert_documents_are_equal(
             result,
             [
                 doc
                 for doc in filterable_docs
-                if "number" in doc.meta and doc.meta["number"] <= 2.0 and doc.meta["number"] >= 0.0
+                if "number" in doc.meta
+                and doc.meta["number"] <= 2.0
+                and doc.meta["number"] >= 0.0
             ],
         )
 
-    def test_filter_simple_implicit_and(self, document_store: DocumentStore, filterable_docs: List[Document]):
+    def test_filter_simple_implicit_and(
+        self, document_store: DocumentStore, filterable_docs: List[Document]
+    ):
         document_store.write_documents(filterable_docs)
-        result = document_store.filter_documents(filters={"meta.number": {"$lte": 2.0, "$gte": 0}})
+        result = document_store.filter_documents(
+            filters={"meta.number": {"$lte": 2.0, "$gte": 0}}
+        )
         self.assert_documents_are_equal(
             result,
             [
                 doc
                 for doc in filterable_docs
-                if "number" in doc.meta and doc.meta["number"] <= 2.0 and doc.meta["number"] >= 0.0
+                if "number" in doc.meta
+                and doc.meta["number"] <= 2.0
+                and doc.meta["number"] >= 0.0
             ],
         )
 
     # LegacyFilterDocumentsNestedLogicalTest(
 
-    def test_filter_nested_implicit_and(self, document_store: DocumentStore, filterable_docs: List[Document]):
+    def test_filter_nested_implicit_and(
+        self, document_store: DocumentStore, filterable_docs: List[Document]
+    ):
         document_store.write_documents(filterable_docs)
         filters_simplified = {
             "meta.number": {"$lte": 2, "$gte": 0},
@@ -304,7 +453,9 @@ class TestQdrantLegacyFilterDocuments(LegacyFilterDocumentsTest):
             ],
         )
 
-    def test_filter_nested_or(self, document_store: DocumentStore, filterable_docs: List[Document]):
+    def test_filter_nested_or(
+        self, document_store: DocumentStore, filterable_docs: List[Document]
+    ):
         document_store.write_documents(filterable_docs)
         filters = {
             "$or": {
@@ -325,7 +476,9 @@ class TestQdrantLegacyFilterDocuments(LegacyFilterDocumentsTest):
             ],
         )
 
-    def test_filter_nested_and_or_explicit(self, document_store: DocumentStore, filterable_docs: List[Document]):
+    def test_filter_nested_and_or_explicit(
+        self, document_store: DocumentStore, filterable_docs: List[Document]
+    ):
         document_store.write_documents(filterable_docs)
         filters_simplified = {
             "$and": {
@@ -352,7 +505,9 @@ class TestQdrantLegacyFilterDocuments(LegacyFilterDocumentsTest):
             ],
         )
 
-    def test_filter_nested_and_or_implicit(self, document_store: DocumentStore, filterable_docs: List[Document]):
+    def test_filter_nested_and_or_implicit(
+        self, document_store: DocumentStore, filterable_docs: List[Document]
+    ):
         document_store.write_documents(filterable_docs)
         filters_simplified = {
             "meta.page": {"$eq": "123"},
@@ -377,7 +532,9 @@ class TestQdrantLegacyFilterDocuments(LegacyFilterDocumentsTest):
             ],
         )
 
-    def test_filter_nested_or_and(self, document_store: DocumentStore, filterable_docs: List[Document]):
+    def test_filter_nested_or_and(
+        self, document_store: DocumentStore, filterable_docs: List[Document]
+    ):
         document_store.write_documents(filterable_docs)
         filters_simplified = {
             "$or": {
@@ -396,7 +553,10 @@ class TestQdrantLegacyFilterDocuments(LegacyFilterDocumentsTest):
                 for doc in filterable_docs
                 if (
                     (doc.meta.get("number") is not None and doc.meta["number"] < 1)
-                    or (doc.meta.get("name") in ["name_0", "name_1"] and (doc.meta.get("chapter") != "intro"))
+                    or (
+                        doc.meta.get("name") in ["name_0", "name_1"]
+                        and (doc.meta.get("chapter") != "intro")
+                    )
                 )
             ],
         )
@@ -428,8 +588,14 @@ class TestQdrantLegacyFilterDocuments(LegacyFilterDocumentsTest):
                 doc
                 for doc in filterable_docs
                 if (
-                    (doc.meta.get("name") in ["name_0", "name_1"] and doc.meta.get("page") == "100")
-                    or (doc.meta.get("chapter") in ["intro", "abstract"] and doc.meta.get("page") == "123")
+                    (
+                        doc.meta.get("name") in ["name_0", "name_1"]
+                        and doc.meta.get("page") == "100"
+                    )
+                    or (
+                        doc.meta.get("chapter") in ["intro", "abstract"]
+                        and doc.meta.get("page") == "123"
+                    )
                 )
             ],
         )
@@ -438,4 +604,6 @@ class TestQdrantLegacyFilterDocuments(LegacyFilterDocumentsTest):
         docs = [Document(content="test doc")]
         document_store.write_documents(docs)
         self.assert_documents_are_equal(document_store.filter_documents(), docs)
-        self.assert_documents_are_equal(document_store.filter_documents(filters={}), docs)
+        self.assert_documents_are_equal(
+            document_store.filter_documents(filters={}), docs
+        )

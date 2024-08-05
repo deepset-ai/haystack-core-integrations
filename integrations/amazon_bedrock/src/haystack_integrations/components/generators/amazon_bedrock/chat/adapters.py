@@ -8,7 +8,9 @@ from botocore.eventstream import EventStream
 from haystack.dataclasses import ChatMessage, ChatRole, StreamingChunk
 from transformers import AutoTokenizer, PreTrainedTokenizer
 
-from haystack_integrations.components.generators.amazon_bedrock.handlers import DefaultPromptHandler
+from haystack_integrations.components.generators.amazon_bedrock.handlers import (
+    DefaultPromptHandler,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +30,9 @@ class BedrockModelChatAdapter(ABC):
         self.generation_kwargs = generation_kwargs
 
     @abstractmethod
-    def prepare_body(self, messages: List[ChatMessage], **inference_kwargs) -> Dict[str, Any]:
+    def prepare_body(
+        self, messages: List[ChatMessage], **inference_kwargs
+    ) -> Dict[str, Any]:
         """
         Prepares the body for the Amazon Bedrock request.
         Subclasses should override this method to package the chat messages into the request.
@@ -57,14 +61,25 @@ class BedrockModelChatAdapter(ABC):
             if chunk:
                 last_decoded_chunk = json.loads(chunk["bytes"].decode("utf-8"))
                 token = self._extract_token_from_stream(last_decoded_chunk)
-                stream_chunk = StreamingChunk(content=token)  # don't extract meta, we care about tokens only
-                stream_handler(stream_chunk)  # callback the stream handler with StreamingChunk
+                stream_chunk = StreamingChunk(
+                    content=token
+                )  # don't extract meta, we care about tokens only
+                stream_handler(
+                    stream_chunk
+                )  # callback the stream handler with StreamingChunk
                 tokens.append(token)
         responses = ["".join(tokens).lstrip()]
-        return [ChatMessage.from_assistant(response, meta=last_decoded_chunk) for response in responses]
+        return [
+            ChatMessage.from_assistant(response, meta=last_decoded_chunk)
+            for response in responses
+        ]
 
     @staticmethod
-    def _update_params(target_dict: Dict[str, Any], updates_dict: Dict[str, Any], allowed_params: List[str]) -> None:
+    def _update_params(
+        target_dict: Dict[str, Any],
+        updates_dict: Dict[str, Any],
+        allowed_params: List[str],
+    ) -> None:
         """
         Updates target_dict with values from updates_dict. Merges lists instead of overriding them.
 
@@ -76,7 +91,11 @@ class BedrockModelChatAdapter(ABC):
             if key not in allowed_params:
                 logger.warning(f"Parameter '{key}' is not allowed and will be ignored.")
                 continue
-            if key in target_dict and isinstance(target_dict[key], list) and isinstance(value, list):
+            if (
+                key in target_dict
+                and isinstance(target_dict[key], list)
+                and isinstance(value, list)
+            ):
                 # Merge lists and remove duplicates
                 target_dict[key] = sorted(set(target_dict[key] + value))
             else:
@@ -84,7 +103,10 @@ class BedrockModelChatAdapter(ABC):
                 target_dict[key] = value
 
     def _get_params(
-        self, inference_kwargs: Dict[str, Any], default_params: Dict[str, Any], allowed_params: List[str]
+        self,
+        inference_kwargs: Dict[str, Any],
+        default_params: Dict[str, Any],
+        allowed_params: List[str],
     ) -> Dict[str, Any]:
         """
         Merges params from inference_kwargs with the default params and self.generation_kwargs.
@@ -133,7 +155,9 @@ class BedrockModelChatAdapter(ABC):
         """
 
     @abstractmethod
-    def _extract_messages_from_response(self, response_body: Dict[str, Any]) -> List[ChatMessage]:
+    def _extract_messages_from_response(
+        self, response_body: Dict[str, Any]
+    ) -> List[ChatMessage]:
         """
         Extracts the messages from the response body.
 
@@ -191,7 +215,9 @@ class AnthropicClaudeChatAdapter(BedrockModelChatAdapter):
             max_length=self.generation_kwargs.get("max_tokens") or 512,
         )
 
-    def prepare_body(self, messages: List[ChatMessage], **inference_kwargs) -> Dict[str, Any]:
+    def prepare_body(
+        self, messages: List[ChatMessage], **inference_kwargs
+    ) -> Dict[str, Any]:
         """
         Prepares the body for the Anthropic Claude request.
 
@@ -200,12 +226,16 @@ class AnthropicClaudeChatAdapter(BedrockModelChatAdapter):
         :returns: The prepared body.
         """
         default_params = {
-            "anthropic_version": self.generation_kwargs.get("anthropic_version") or "bedrock-2023-05-31",
-            "max_tokens": self.generation_kwargs.get("max_tokens") or 512,  # max_tokens is required
+            "anthropic_version": self.generation_kwargs.get("anthropic_version")
+            or "bedrock-2023-05-31",
+            "max_tokens": self.generation_kwargs.get("max_tokens")
+            or 512,  # max_tokens is required
         }
 
         # combine stop words with default stop sequences, remove stop_words as Anthropic does not support it
-        stop_sequences = inference_kwargs.get("stop_sequences", []) + inference_kwargs.pop("stop_words", [])
+        stop_sequences = inference_kwargs.get(
+            "stop_sequences", []
+        ) + inference_kwargs.pop("stop_words", [])
         if stop_sequences:
             inference_kwargs["stop_sequences"] = stop_sequences
         params = self._get_params(inference_kwargs, default_params, self.ALLOWED_PARAMS)
@@ -220,9 +250,15 @@ class AnthropicClaudeChatAdapter(BedrockModelChatAdapter):
         :returns: The prepared chat messages as a string.
         """
         body: Dict[str, Any] = {}
-        system = messages[0].content if messages and messages[0].is_from(ChatRole.SYSTEM) else None
+        system = (
+            messages[0].content
+            if messages and messages[0].is_from(ChatRole.SYSTEM)
+            else None
+        )
         body["messages"] = [
-            self._to_anthropic_message(m) for m in messages if m.is_from(ChatRole.USER) or m.is_from(ChatRole.ASSISTANT)
+            self._to_anthropic_message(m)
+            for m in messages
+            if m.is_from(ChatRole.USER) or m.is_from(ChatRole.ASSISTANT)
         ]
         if system:
             body["system"] = system
@@ -237,7 +273,9 @@ class AnthropicClaudeChatAdapter(BedrockModelChatAdapter):
         """
         return self.prompt_handler(prompt)
 
-    def _extract_messages_from_response(self, response_body: Dict[str, Any]) -> List[ChatMessage]:
+    def _extract_messages_from_response(
+        self, response_body: Dict[str, Any]
+    ) -> List[ChatMessage]:
         """
         Extracts the messages from the response body.
 
@@ -248,8 +286,14 @@ class AnthropicClaudeChatAdapter(BedrockModelChatAdapter):
         if response_body.get("type") == "message":
             for content in response_body["content"]:
                 if content.get("type") == "text":
-                    meta = {k: v for k, v in response_body.items() if k not in ["type", "content", "role"]}
-                    messages.append(ChatMessage.from_assistant(content["text"], meta=meta))
+                    meta = {
+                        k: v
+                        for k, v in response_body.items()
+                        if k not in ["type", "content", "role"]
+                    }
+                    messages.append(
+                        ChatMessage.from_assistant(content["text"], meta=meta)
+                    )
         return messages
 
     def _extract_token_from_stream(self, chunk: Dict[str, Any]) -> str:
@@ -259,7 +303,10 @@ class AnthropicClaudeChatAdapter(BedrockModelChatAdapter):
         :param chunk: The streaming chunk.
         :returns: The extracted token.
         """
-        if chunk.get("type") == "content_block_delta" and chunk.get("delta", {}).get("type") == "text_delta":
+        if (
+            chunk.get("type") == "content_block_delta"
+            and chunk.get("delta", {}).get("type") == "text_delta"
+        ):
             return chunk.get("delta", {}).get("text", "")
         return ""
 
@@ -336,7 +383,9 @@ class MistralChatAdapter(BedrockModelChatAdapter):
         # Mistral models are gated on HF Hub. If no HF_TOKEN is found we use a non-gated alternative tokenizer model.
         tokenizer: PreTrainedTokenizer
         if os.environ.get("HF_TOKEN"):
-            tokenizer = AutoTokenizer.from_pretrained("mistralai/Mistral-7B-Instruct-v0.1")
+            tokenizer = AutoTokenizer.from_pretrained(
+                "mistralai/Mistral-7B-Instruct-v0.1"
+            )
         else:
             tokenizer = AutoTokenizer.from_pretrained("NousResearch/Llama-2-7b-chat-hf")
             logger.warning(
@@ -352,7 +401,9 @@ class MistralChatAdapter(BedrockModelChatAdapter):
             max_length=self.generation_kwargs.get("max_tokens") or 512,
         )
 
-    def prepare_body(self, messages: List[ChatMessage], **inference_kwargs) -> Dict[str, Any]:
+    def prepare_body(
+        self, messages: List[ChatMessage], **inference_kwargs
+    ) -> Dict[str, Any]:
         """
         Prepares the body for the Mistral request.
 
@@ -361,7 +412,8 @@ class MistralChatAdapter(BedrockModelChatAdapter):
         :returns: The prepared body.
         """
         default_params = {
-            "max_tokens": self.generation_kwargs.get("max_tokens") or 512,  # max_tokens is required
+            "max_tokens": self.generation_kwargs.get("max_tokens")
+            or 512,  # max_tokens is required
         }
         # replace stop_words from inference_kwargs with stop, as this is Mistral specific parameter
         stop_words = inference_kwargs.pop("stop_words", [])
@@ -383,7 +435,9 @@ class MistralChatAdapter(BedrockModelChatAdapter):
         # default is https://huggingface.co/mistralai/Mixtral-8x7B-Instruct-v0.1/blob/main/tokenizer_config.json
         # but we'll use our custom chat template
         prepared_prompt: str = self.prompt_handler.tokenizer.apply_chat_template(
-            conversation=[self.to_openai_format(m) for m in messages], tokenize=False, chat_template=self.chat_template
+            conversation=[self.to_openai_format(m) for m in messages],
+            tokenize=False,
+            chat_template=self.chat_template,
         )
         return self._ensure_token_limit(prepared_prompt)
 
@@ -411,7 +465,9 @@ class MistralChatAdapter(BedrockModelChatAdapter):
         """
         return self.prompt_handler(prompt)
 
-    def _extract_messages_from_response(self, response_body: Dict[str, Any]) -> List[ChatMessage]:
+    def _extract_messages_from_response(
+        self, response_body: Dict[str, Any]
+    ) -> List[ChatMessage]:
         """
         Extracts the messages from the response body.
 
@@ -486,7 +542,9 @@ class MetaLlama2ChatAdapter(BedrockModelChatAdapter):
         # Use `google/flan-t5-base` as it's also BPE sentencepiece tokenizer just like llama 2
         # a) we should get good estimates for the prompt length (empirically close to llama 2)
         # b) we can use apply_chat_template with the template above to delineate ChatMessages
-        tokenizer: PreTrainedTokenizer = AutoTokenizer.from_pretrained("google/flan-t5-base")
+        tokenizer: PreTrainedTokenizer = AutoTokenizer.from_pretrained(
+            "google/flan-t5-base"
+        )
         tokenizer.bos_token = "<s>"
         tokenizer.eos_token = "</s>"
         tokenizer.unk_token = "<unk>"
@@ -496,14 +554,18 @@ class MetaLlama2ChatAdapter(BedrockModelChatAdapter):
             max_length=self.generation_kwargs.get("max_gen_len") or 512,
         )
 
-    def prepare_body(self, messages: List[ChatMessage], **inference_kwargs) -> Dict[str, Any]:
+    def prepare_body(
+        self, messages: List[ChatMessage], **inference_kwargs
+    ) -> Dict[str, Any]:
         """
         Prepares the body for the Meta Llama 2 request.
 
         :param messages: The chat messages to package into the request.
         :param inference_kwargs: Additional inference kwargs to use.
         """
-        default_params = {"max_gen_len": self.generation_kwargs.get("max_gen_len") or 512}
+        default_params = {
+            "max_gen_len": self.generation_kwargs.get("max_gen_len") or 512
+        }
 
         # no support for stop words in Meta Llama 2
         params = self._get_params(inference_kwargs, default_params, self.ALLOWED_PARAMS)
@@ -532,7 +594,9 @@ class MetaLlama2ChatAdapter(BedrockModelChatAdapter):
         """
         return self.prompt_handler(prompt)
 
-    def _extract_messages_from_response(self, response_body: Dict[str, Any]) -> List[ChatMessage]:
+    def _extract_messages_from_response(
+        self, response_body: Dict[str, Any]
+    ) -> List[ChatMessage]:
         """
         Extracts the messages from the response body.
 

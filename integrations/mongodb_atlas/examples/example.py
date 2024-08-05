@@ -10,11 +10,18 @@ import glob
 
 from haystack import Pipeline
 from haystack.components.converters import MarkdownToDocument
-from haystack.components.embedders import SentenceTransformersDocumentEmbedder, SentenceTransformersTextEmbedder
+from haystack.components.embedders import (
+    SentenceTransformersDocumentEmbedder,
+    SentenceTransformersTextEmbedder,
+)
 from haystack.components.preprocessors import DocumentSplitter
 from haystack.components.writers import DocumentWriter
-from haystack_integrations.components.retrievers.mongodb_atlas import MongoDBAtlasEmbeddingRetriever
-from haystack_integrations.document_stores.mongodb_atlas import MongoDBAtlasDocumentStore
+from haystack_integrations.components.retrievers.mongodb_atlas import (
+    MongoDBAtlasEmbeddingRetriever,
+)
+from haystack_integrations.document_stores.mongodb_atlas import (
+    MongoDBAtlasDocumentStore,
+)
 
 # To use the MongoDBAtlasDocumentStore, you must have a running MongoDB Atlas database.
 # For details, see https://www.mongodb.com/docs/atlas/getting-started/
@@ -36,7 +43,9 @@ file_paths = glob.glob("neural-search-pills/pills/*.md")
 
 indexing = Pipeline()
 indexing.add_component("converter", MarkdownToDocument())
-indexing.add_component("splitter", DocumentSplitter(split_by="sentence", split_length=2))
+indexing.add_component(
+    "splitter", DocumentSplitter(split_by="sentence", split_length=2)
+)
 indexing.add_component("embedder", SentenceTransformersDocumentEmbedder())
 indexing.add_component("writer", DocumentWriter(document_store))
 indexing.connect("converter", "splitter")
@@ -49,7 +58,9 @@ indexing.run({"converter": {"sources": file_paths}})
 # Create the querying Pipeline and try a query
 querying = Pipeline()
 querying.add_component("embedder", SentenceTransformersTextEmbedder())
-querying.add_component("retriever", MongoDBAtlasEmbeddingRetriever(document_store=document_store, top_k=3))
+querying.add_component(
+    "retriever", MongoDBAtlasEmbeddingRetriever(document_store=document_store, top_k=3)
+)
 querying.connect("embedder", "retriever")
 
 results = querying.run({"embedder": {"text": "What is a cross-encoder?"}})

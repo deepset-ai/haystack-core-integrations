@@ -53,7 +53,9 @@ def _equal(field: str, value: Any) -> Dict[str, Any]:
             "terms_set": {
                 field: {
                     "terms": value,
-                    "minimum_should_match_script": {"source": f"Math.max(params.num_terms, doc['{field}'].size())"},
+                    "minimum_should_match_script": {
+                        "source": f"Math.max(params.num_terms, doc['{field}'].size())"
+                    },
                 }
             }
         }
@@ -71,7 +73,13 @@ def _not_equal(field: str, value: Any) -> Dict[str, Any]:
         return {"bool": {"must_not": {"terms": {field: value}}}}
     if field in ["text", "dataframe"]:
         # We want to fully match the text field.
-        return {"bool": {"must_not": {"match": {field: {"query": value, "minimum_should_match": "100%"}}}}}
+        return {
+            "bool": {
+                "must_not": {
+                    "match": {field: {"query": value, "minimum_should_match": "100%"}}
+                }
+            }
+        }
 
     return {"bool": {"must_not": {"term": {field: value}}}}
 
@@ -82,7 +90,14 @@ def _greater_than(field: str, value: Any) -> Dict[str, Any]:
         # if it has a field set and not set at the same time.
         # This will cause the filter to match no Document.
         # This way we keep the behavior consistent with other Document Stores.
-        return {"bool": {"must": [{"exists": {"field": field}}, {"bool": {"must_not": {"exists": {"field": field}}}}]}}
+        return {
+            "bool": {
+                "must": [
+                    {"exists": {"field": field}},
+                    {"bool": {"must_not": {"exists": {"field": field}}}},
+                ]
+            }
+        }
     if isinstance(value, str):
         try:
             datetime.fromisoformat(value)
@@ -104,7 +119,14 @@ def _greater_than_equal(field: str, value: Any) -> Dict[str, Any]:
         # if it has a field set and not set at the same time.
         # This will cause the filter to match no Document.
         # This way we keep the behavior consistent with other Document Stores.
-        return {"bool": {"must": [{"exists": {"field": field}}, {"bool": {"must_not": {"exists": {"field": field}}}}]}}
+        return {
+            "bool": {
+                "must": [
+                    {"exists": {"field": field}},
+                    {"bool": {"must_not": {"exists": {"field": field}}}},
+                ]
+            }
+        }
     if isinstance(value, str):
         try:
             datetime.fromisoformat(value)
@@ -126,7 +148,14 @@ def _less_than(field: str, value: Any) -> Dict[str, Any]:
         # if it has a field set and not set at the same time.
         # This will cause the filter to match no Document.
         # This way we keep the behavior consistent with other Document Stores.
-        return {"bool": {"must": [{"exists": {"field": field}}, {"bool": {"must_not": {"exists": {"field": field}}}}]}}
+        return {
+            "bool": {
+                "must": [
+                    {"exists": {"field": field}},
+                    {"bool": {"must_not": {"exists": {"field": field}}}},
+                ]
+            }
+        }
     if isinstance(value, str):
         try:
             datetime.fromisoformat(value)
@@ -148,7 +177,14 @@ def _less_than_equal(field: str, value: Any) -> Dict[str, Any]:
         # if it has a field set and not set at the same time.
         # This will cause the filter to match no Document.
         # This way we keep the behavior consistent with other Document Stores.
-        return {"bool": {"must": [{"exists": {"field": field}}, {"bool": {"must_not": {"exists": {"field": field}}}}]}}
+        return {
+            "bool": {
+                "must": [
+                    {"exists": {"field": field}},
+                    {"bool": {"must_not": {"exists": {"field": field}}}},
+                ]
+            }
+        }
     if isinstance(value, str):
         try:
             datetime.fromisoformat(value)
@@ -235,7 +271,9 @@ def _normalize_ranges(conditions: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     ]
     ```
     """
-    range_conditions = [next(iter(c["range"].items())) for c in conditions if "range" in c]
+    range_conditions = [
+        next(iter(c["range"].items())) for c in conditions if "range" in c
+    ]
     if range_conditions:
         conditions = [c for c in conditions if "range" not in c]
         range_conditions_dict: Dict[str, Any] = {}

@@ -44,11 +44,17 @@ class OllamaTextEmbedder:
         self.url = url
         self.model = model
 
-    def _create_json_payload(self, text: str, generation_kwargs: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    def _create_json_payload(
+        self, text: str, generation_kwargs: Optional[Dict[str, Any]]
+    ) -> Dict[str, Any]:
         """
         Returns A dictionary of JSON arguments for a POST request to an Ollama service
         """
-        return {"model": self.model, "prompt": text, "options": {**self.generation_kwargs, **(generation_kwargs or {})}}
+        return {
+            "model": self.model,
+            "prompt": text,
+            "options": {**self.generation_kwargs, **(generation_kwargs or {})},
+        }
 
     @component.output_types(embedding=List[float], meta=Dict[str, Any])
     def run(self, text: str, generation_kwargs: Optional[Dict[str, Any]] = None):

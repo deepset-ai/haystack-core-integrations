@@ -12,12 +12,17 @@ import glob
 
 from haystack import Pipeline
 from haystack.components.converters import MarkdownToDocument
-from haystack.components.embedders import SentenceTransformersDocumentEmbedder, SentenceTransformersTextEmbedder
+from haystack.components.embedders import (
+    SentenceTransformersDocumentEmbedder,
+    SentenceTransformersTextEmbedder,
+)
 from haystack.components.preprocessors import DocumentSplitter
 from haystack.components.writers import DocumentWriter
 from haystack.utils import Secret
 
-from haystack_integrations.components.retrievers.pinecone import PineconeEmbeddingRetriever
+from haystack_integrations.components.retrievers.pinecone import (
+    PineconeEmbeddingRetriever,
+)
 from haystack_integrations.document_stores.pinecone import PineconeDocumentStore
 
 file_paths = glob.glob("neural-search-pills/pills/*.md")
@@ -32,7 +37,9 @@ document_store = PineconeDocumentStore(
 
 indexing = Pipeline()
 indexing.add_component("converter", MarkdownToDocument())
-indexing.add_component("splitter", DocumentSplitter(split_by="sentence", split_length=2))
+indexing.add_component(
+    "splitter", DocumentSplitter(split_by="sentence", split_length=2)
+)
 indexing.add_component("embedder", SentenceTransformersDocumentEmbedder())
 indexing.add_component("writer", DocumentWriter(document_store))
 indexing.connect("converter", "splitter")
@@ -46,7 +53,9 @@ indexing.run({"converter": {"sources": file_paths}})
 
 querying = Pipeline()
 querying.add_component("embedder", SentenceTransformersTextEmbedder())
-querying.add_component("retriever", PineconeEmbeddingRetriever(document_store=document_store, top_k=3))
+querying.add_component(
+    "retriever", PineconeEmbeddingRetriever(document_store=document_store, top_k=3)
+)
 querying.connect("embedder", "retriever")
 
 results = querying.run({"embedder": {"text": "What is Question Answering?"}})

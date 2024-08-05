@@ -16,7 +16,9 @@ messages = [
     ),
     ChatMessage.from_user("How do I get started?"),
 ]
-client = OllamaChatGenerator(model="orca-mini", timeout=45, url="http://localhost:11434/api/chat")
+client = OllamaChatGenerator(
+    model="orca-mini", timeout=45, url="http://localhost:11434/api/chat"
+)
 
 response = client.run(messages, generation_kwargs={"temperature": 0.2})
 

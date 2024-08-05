@@ -60,7 +60,9 @@ def convert_id(_id: str) -> str:
 QdrantPoint = Union[rest.ScoredPoint, rest.Record]
 
 
-def convert_qdrant_point_to_haystack_document(point: QdrantPoint, use_sparse_embeddings: bool) -> Document:
+def convert_qdrant_point_to_haystack_document(
+    point: QdrantPoint, use_sparse_embeddings: bool
+) -> Document:
     payload = {**point.payload}
     payload["score"] = point.score if hasattr(point, "score") else None
 

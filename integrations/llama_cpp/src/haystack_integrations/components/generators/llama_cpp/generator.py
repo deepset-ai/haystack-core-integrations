@@ -83,16 +83,23 @@ class LlamaCppGenerator:
             - `meta`: metadata about the request.
         """
         if self.model is None:
-            error_msg = "The model has not been loaded. Please call warm_up() before running."
+            error_msg = (
+                "The model has not been loaded. Please call warm_up() before running."
+            )
             raise RuntimeError(error_msg)
 
         if not prompt:
             return {"replies": []}
 
         # merge generation kwargs from init method with those from run method
-        updated_generation_kwargs = {**self.generation_kwargs, **(generation_kwargs or {})}
+        updated_generation_kwargs = {
+            **self.generation_kwargs,
+            **(generation_kwargs or {}),
+        }
 
-        output = self.model.create_completion(prompt=prompt, **updated_generation_kwargs)
+        output = self.model.create_completion(
+            prompt=prompt, **updated_generation_kwargs
+        )
         replies = [output["choices"][0]["text"]]
 
         return {"replies": replies, "meta": [output]}

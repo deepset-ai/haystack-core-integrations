@@ -147,16 +147,24 @@ class NvidiaDocumentEmbedder:
         texts_to_embed = []
         for doc in documents:
             meta_values_to_embed = [
-                str(doc.meta[key]) for key in self.meta_fields_to_embed if key in doc.meta and doc.meta[key] is not None
+                str(doc.meta[key])
+                for key in self.meta_fields_to_embed
+                if key in doc.meta and doc.meta[key] is not None
             ]
             text_to_embed = (
-                self.prefix + self.embedding_separator.join([*meta_values_to_embed, doc.content or ""]) + self.suffix
+                self.prefix
+                + self.embedding_separator.join(
+                    [*meta_values_to_embed, doc.content or ""]
+                )
+                + self.suffix
             )
             texts_to_embed.append(text_to_embed)
 
         return texts_to_embed
 
-    def _embed_batch(self, texts_to_embed: List[str], batch_size: int) -> Tuple[List[List[float]], Dict[str, Any]]:
+    def _embed_batch(
+        self, texts_to_embed: List[str], batch_size: int
+    ) -> Tuple[List[List[float]], Dict[str, Any]]:
         all_embeddings: List[List[float]] = []
         usage_prompt_tokens = 0
         usage_total_tokens = 0
@@ -164,7 +172,9 @@ class NvidiaDocumentEmbedder:
         assert self.backend is not None
 
         for i in tqdm(
-            range(0, len(texts_to_embed), batch_size), disable=not self.progress_bar, desc="Calculating embeddings"
+            range(0, len(texts_to_embed), batch_size),
+            disable=not self.progress_bar,
+            desc="Calculating embeddings",
         ):
             batch = texts_to_embed[i : i + batch_size]
 
@@ -174,7 +184,12 @@ class NvidiaDocumentEmbedder:
             usage_prompt_tokens += meta.get("usage", {}).get("prompt_tokens", 0)
             usage_total_tokens += meta.get("usage", {}).get("total_tokens", 0)
 
-        return all_embeddings, {"usage": {"prompt_tokens": usage_prompt_tokens, "total_tokens": usage_total_tokens}}
+        return all_embeddings, {
+            "usage": {
+                "prompt_tokens": usage_prompt_tokens,
+                "total_tokens": usage_total_tokens,
+            }
+        }
 
     @component.output_types(documents=List[Document], meta=Dict[str, Any])
     def run(self, documents: List[Document]):
@@ -197,7 +212,11 @@ class NvidiaDocumentEmbedder:
         if not self._initialized:
             msg = "The embedding model has not been loaded. Please call warm_up() before running."
             raise RuntimeError(msg)
-        elif not isinstance(documents, list) or documents and not isinstance(documents[0], Document):
+        elif (
+            not isinstance(documents, list)
+            or documents
+            and not isinstance(documents[0], Document)
+        ):
             msg = (
                 "NvidiaDocumentEmbedder expects a list of Documents as input."
                 "In case you want to embed a string, please use the NvidiaTextEmbedder."

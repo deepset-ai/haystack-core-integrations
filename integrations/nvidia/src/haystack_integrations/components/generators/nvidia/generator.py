@@ -64,7 +64,9 @@ class NvidiaGenerator:
             to know the supported arguments.
         """
         self._model = model
-        self._api_url = url_validation(api_url, _DEFAULT_API_URL, ["v1/chat/completions"])
+        self._api_url = url_validation(
+            api_url, _DEFAULT_API_URL, ["v1/chat/completions"]
+        )
         self._api_key = api_key
         self._model_arguments = model_arguments or {}
 

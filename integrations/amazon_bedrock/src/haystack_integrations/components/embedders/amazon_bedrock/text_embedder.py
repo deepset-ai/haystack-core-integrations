@@ -55,13 +55,21 @@ class AmazonBedrockTextEmbedder:
             "cohere.embed-multilingual-v3",
             "amazon.titan-embed-text-v2:0",
         ],
-        aws_access_key_id: Optional[Secret] = Secret.from_env_var("AWS_ACCESS_KEY_ID", strict=False),  # noqa: B008
+        aws_access_key_id: Optional[Secret] = Secret.from_env_var(
+            "AWS_ACCESS_KEY_ID", strict=False
+        ),  # noqa: B008
         aws_secret_access_key: Optional[Secret] = Secret.from_env_var(  # noqa: B008
             "AWS_SECRET_ACCESS_KEY", strict=False
         ),
-        aws_session_token: Optional[Secret] = Secret.from_env_var("AWS_SESSION_TOKEN", strict=False),  # noqa: B008
-        aws_region_name: Optional[Secret] = Secret.from_env_var("AWS_DEFAULT_REGION", strict=False),  # noqa: B008
-        aws_profile_name: Optional[Secret] = Secret.from_env_var("AWS_PROFILE", strict=False),  # noqa: B008
+        aws_session_token: Optional[Secret] = Secret.from_env_var(
+            "AWS_SESSION_TOKEN", strict=False
+        ),  # noqa: B008
+        aws_region_name: Optional[Secret] = Secret.from_env_var(
+            "AWS_DEFAULT_REGION", strict=False
+        ),  # noqa: B008
+        aws_profile_name: Optional[Secret] = Secret.from_env_var(
+            "AWS_PROFILE", strict=False
+        ),  # noqa: B008
         **kwargs,
     ):
         """
@@ -87,8 +95,9 @@ class AmazonBedrockTextEmbedder:
         :raises AmazonBedrockConfigurationError: If the AWS environment is not configured correctly.
         """
         if not model or model not in SUPPORTED_EMBEDDING_MODELS:
-            msg = "Please provide a valid model from the list of supported models: " + ", ".join(
-                SUPPORTED_EMBEDDING_MODELS
+            msg = (
+                "Please provide a valid model from the list of supported models: "
+                + ", ".join(SUPPORTED_EMBEDDING_MODELS)
             )
             raise ValueError(msg)
 
@@ -139,7 +148,9 @@ class AmazonBedrockTextEmbedder:
         if "cohere" in self.model:
             body = {
                 "texts": [text],
-                "input_type": self.kwargs.get("input_type", "search_query"),  # mandatory parameter for Cohere models
+                "input_type": self.kwargs.get(
+                    "input_type", "search_query"
+                ),  # mandatory parameter for Cohere models
             }
             if truncate := self.kwargs.get("truncate"):
                 body["truncate"] = truncate  # optional parameter for Cohere models
@@ -151,7 +162,10 @@ class AmazonBedrockTextEmbedder:
 
         try:
             response = self._client.invoke_model(
-                body=json.dumps(body), modelId=self.model, accept="*/*", contentType="application/json"
+                body=json.dumps(body),
+                modelId=self.model,
+                accept="*/*",
+                contentType="application/json",
             )
         except ClientError as exception:
             msg = (
@@ -179,11 +193,21 @@ class AmazonBedrockTextEmbedder:
         """
         return default_to_dict(
             self,
-            aws_access_key_id=self.aws_access_key_id.to_dict() if self.aws_access_key_id else None,
-            aws_secret_access_key=self.aws_secret_access_key.to_dict() if self.aws_secret_access_key else None,
-            aws_session_token=self.aws_session_token.to_dict() if self.aws_session_token else None,
-            aws_region_name=self.aws_region_name.to_dict() if self.aws_region_name else None,
-            aws_profile_name=self.aws_profile_name.to_dict() if self.aws_profile_name else None,
+            aws_access_key_id=self.aws_access_key_id.to_dict()
+            if self.aws_access_key_id
+            else None,
+            aws_secret_access_key=self.aws_secret_access_key.to_dict()
+            if self.aws_secret_access_key
+            else None,
+            aws_session_token=self.aws_session_token.to_dict()
+            if self.aws_session_token
+            else None,
+            aws_region_name=self.aws_region_name.to_dict()
+            if self.aws_region_name
+            else None,
+            aws_profile_name=self.aws_profile_name.to_dict()
+            if self.aws_profile_name
+            else None,
             model=self.model,
             **self.kwargs,
         )
@@ -200,6 +224,12 @@ class AmazonBedrockTextEmbedder:
         """
         deserialize_secrets_inplace(
             data["init_parameters"],
-            ["aws_access_key_id", "aws_secret_access_key", "aws_session_token", "aws_region_name", "aws_profile_name"],
+            [
+                "aws_access_key_id",
+                "aws_secret_access_key",
+                "aws_session_token",
+                "aws_region_name",
+                "aws_profile_name",
+            ],
         )
         return default_from_dict(cls, data)

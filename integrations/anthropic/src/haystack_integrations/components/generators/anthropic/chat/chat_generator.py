@@ -5,7 +5,12 @@ from typing import Any, Callable, ClassVar, Dict, List, Optional, Union
 
 from haystack import component, default_from_dict, default_to_dict, logging
 from haystack.dataclasses import ChatMessage, ChatRole, StreamingChunk
-from haystack.utils import Secret, deserialize_callable, deserialize_secrets_inplace, serialize_callable
+from haystack.utils import (
+    Secret,
+    deserialize_callable,
+    deserialize_secrets_inplace,
+    serialize_callable,
+)
 
 from anthropic import Anthropic, Stream
 from anthropic.types import (
@@ -134,7 +139,11 @@ class AnthropicChatGenerator:
         :returns:
             The serialized component as a dictionary.
         """
-        callback_name = serialize_callable(self.streaming_callback) if self.streaming_callback else None
+        callback_name = (
+            serialize_callable(self.streaming_callback)
+            if self.streaming_callback
+            else None
+        )
         return default_to_dict(
             self,
             model=self.model,
@@ -157,11 +166,17 @@ class AnthropicChatGenerator:
         init_params = data.get("init_parameters", {})
         serialized_callback_handler = init_params.get("streaming_callback")
         if serialized_callback_handler:
-            data["init_parameters"]["streaming_callback"] = deserialize_callable(serialized_callback_handler)
+            data["init_parameters"]["streaming_callback"] = deserialize_callable(
+                serialized_callback_handler
+            )
         return default_from_dict(cls, data)
 
     @component.output_types(replies=List[ChatMessage])
-    def run(self, messages: List[ChatMessage], generation_kwargs: Optional[Dict[str, Any]] = None):
+    def run(
+        self,
+        messages: List[ChatMessage],
+        generation_kwargs: Optional[Dict[str, Any]] = None,
+    ):
         """
         Invoke the text generation inference based on the provided messages and generation parameters.
 
@@ -177,7 +192,9 @@ class AnthropicChatGenerator:
 
         # update generation kwargs by merging with the generation kwargs passed to the run method
         generation_kwargs = {**self.generation_kwargs, **(generation_kwargs or {})}
-        filtered_generation_kwargs = {k: v for k, v in generation_kwargs.items() if k in self.ALLOWED_PARAMS}
+        filtered_generation_kwargs = {
+            k: v for k, v in generation_kwargs.items() if k in self.ALLOWED_PARAMS
+        }
         disallowed_params = set(generation_kwargs) - set(self.ALLOWED_PARAMS)
         if disallowed_params:
             logger.warning(
@@ -189,11 +206,17 @@ class AnthropicChatGenerator:
         anthropic_formatted_messages = self._convert_to_anthropic_format(messages)
 
         # system message provided by the user overrides the system message from the self.generation_kwargs
-        system = messages[0].content if messages and messages[0].is_from(ChatRole.SYSTEM) else None
+        system = (
+            messages[0].content
+            if messages and messages[0].is_from(ChatRole.SYSTEM)
+            else None
+        )
         if system:
             anthropic_formatted_messages = anthropic_formatted_messages[1:]
 
-        response: Union[Message, Stream[MessageStreamEvent]] = self.client.messages.create(
+        response: Union[
+            Message, Stream[MessageStreamEvent]
+        ] = self.client.messages.create(
             max_tokens=filtered_generation_kwargs.pop("max_tokens", 512),
             system=system if system else filtered_generation_kwargs.pop("system", ""),
             model=self.model,
@@ -215,21 +238,35 @@ class AnthropicChatGenerator:
                     chunk_delta: StreamingChunk = self._build_chunk(stream_event.delta)
                     chunks.append(chunk_delta)
                     if self.streaming_callback:
-                        self.streaming_callback(chunk_delta)  # invoke callback with the chunk_delta
+                        self.streaming_callback(
+                            chunk_delta
+                        )  # invoke callback with the chunk_delta
                 if isinstance(stream_event, MessageDeltaEvent):
                     # capture stop reason and stop sequence
                     delta = stream_event
             completions = [self._connect_chunks(chunks, start_event, delta)]
         # if streaming is disabled, the response is an Anthropic Message
         elif isinstance(response, Message):
-            has_tools_msgs = any(isinstance(content_block, ToolUseBlock) for content_block in response.content)
+            has_tools_msgs = any(
+                isinstance(content_block, ToolUseBlock)
+                for content_block in response.content
+            )
             if has_tools_msgs and self.ignore_tools_thinking_messages:
-                response.content = [block for block in response.content if isinstance(block, ToolUseBlock)]
-            completions = [self._build_message(content_block, response) for content_block in response.content]
+                response.content = [
+                    block
+                    for block in response.content
+                    if isinstance(block, ToolUseBlock)
+                ]
+            completions = [
+                self._build_message(content_block, response)
+                for content_block in response.content
+            ]
 
         return {"replies": completions}
 
-    def _build_message(self, content_block: Union[TextBlock, ToolUseBlock], message: Message) -> ChatMessage:
+    def _build_message(
+        self, content_block: Union[TextBlock, ToolUseBlock], message: Message
+    ) -> ChatMessage:
         """
         Converts the non-streaming Anthropic Message to a ChatMessage.
         :param content_block: The content block of the message.
@@ -239,7 +276,9 @@ class AnthropicChatGenerator:
         if isinstance(content_block, TextBlock):
             chat_message = ChatMessage.from_assistant(content_block.text)
         else:
-            chat_message = ChatMessage.from_assistant(json.dumps(content_block.model_dump(mode="json")))
+            chat_message = ChatMessage.from_assistant(
+                json.dumps(content_block.model_dump(mode="json"))
+            )
         chat_message.meta.update(
             {
                 "model": message.model,
@@ -250,7 +289,9 @@ class AnthropicChatGenerator:
         )
         return chat_message
 
-    def _convert_to_anthropic_format(self, messages: List[ChatMessage]) -> List[Dict[str, Any]]:
+    def _convert_to_anthropic_format(
+        self, messages: List[ChatMessage]
+    ) -> List[Dict[str, Any]]:
         """
         Converts the list of ChatMessage to the list of messages in the format expected by the Anthropic API.
         :param messages: The list of ChatMessage.
@@ -259,12 +300,17 @@ class AnthropicChatGenerator:
         anthropic_formatted_messages = []
         for m in messages:
             message_dict = dataclasses.asdict(m)
-            filtered_message = {k: v for k, v in message_dict.items() if k in {"role", "content"} and v}
+            filtered_message = {
+                k: v for k, v in message_dict.items() if k in {"role", "content"} and v
+            }
             anthropic_formatted_messages.append(filtered_message)
         return anthropic_formatted_messages
 
     def _connect_chunks(
-        self, chunks: List[StreamingChunk], message_start: MessageStartEvent, delta: MessageDeltaEvent
+        self,
+        chunks: List[StreamingChunk],
+        message_start: MessageStartEvent,
+        delta: MessageDeltaEvent,
     ) -> ChatMessage:
         """
         Connects the streaming chunks into a single ChatMessage.
@@ -273,13 +319,17 @@ class AnthropicChatGenerator:
         :param delta: The MessageDeltaEvent.
         :returns: The complete ChatMessage.
         """
-        complete_response = ChatMessage.from_assistant("".join([chunk.content for chunk in chunks]))
+        complete_response = ChatMessage.from_assistant(
+            "".join([chunk.content for chunk in chunks])
+        )
         complete_response.meta.update(
             {
                 "model": self.model,
                 "index": 0,
                 "finish_reason": delta.delta.stop_reason if delta else "end_turn",
-                "usage": {**dict(message_start.message.usage, **dict(delta.usage))} if delta and message_start else {},
+                "usage": {**dict(message_start.message.usage, **dict(delta.usage))}
+                if delta and message_start
+                else {},
             }
         )
         return complete_response

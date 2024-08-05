@@ -14,11 +14,17 @@ import glob
 
 from haystack import Pipeline
 from haystack.components.converters import MarkdownToDocument
-from haystack.components.embedders import SentenceTransformersDocumentEmbedder, SentenceTransformersTextEmbedder
+from haystack.components.embedders import (
+    SentenceTransformersDocumentEmbedder,
+    SentenceTransformersTextEmbedder,
+)
 from haystack.components.joiners import DocumentJoiner
 from haystack.components.preprocessors import DocumentSplitter
 from haystack.components.writers import DocumentWriter
-from haystack_integrations.components.retrievers.pgvector import PgvectorEmbeddingRetriever, PgvectorKeywordRetriever
+from haystack_integrations.components.retrievers.pgvector import (
+    PgvectorEmbeddingRetriever,
+    PgvectorKeywordRetriever,
+)
 from haystack_integrations.document_stores.pgvector import PgvectorDocumentStore
 
 # Set an environment variable `PG_CONN_STR` with the connection string to your PostgreSQL database.
@@ -39,7 +45,9 @@ file_paths = glob.glob("neural-search-pills/pills/*.md")
 
 indexing = Pipeline()
 indexing.add_component("converter", MarkdownToDocument())
-indexing.add_component("splitter", DocumentSplitter(split_by="sentence", split_length=2))
+indexing.add_component(
+    "splitter", DocumentSplitter(split_by="sentence", split_length=2)
+)
 indexing.add_component("document_embedder", SentenceTransformersDocumentEmbedder())
 indexing.add_component("writer", DocumentWriter(document_store))
 indexing.connect("converter", "splitter")
@@ -51,8 +59,13 @@ indexing.run({"converter": {"sources": file_paths}})
 # Create the querying Pipeline and try a query
 querying = Pipeline()
 querying.add_component("text_embedder", SentenceTransformersTextEmbedder())
-querying.add_component("retriever", PgvectorEmbeddingRetriever(document_store=document_store, top_k=3))
-querying.add_component("keyword_retriever", PgvectorKeywordRetriever(document_store=document_store, top_k=3))
+querying.add_component(
+    "retriever", PgvectorEmbeddingRetriever(document_store=document_store, top_k=3)
+)
+querying.add_component(
+    "keyword_retriever",
+    PgvectorKeywordRetriever(document_store=document_store, top_k=3),
+)
 querying.add_component(
     "joiner",
     DocumentJoiner(join_mode="reciprocal_rank_fusion", top_k=3),
@@ -62,7 +75,9 @@ querying.connect("keyword_retriever", "joiner")
 querying.connect("retriever", "joiner")
 
 query = "cross-encoder"
-results = querying.run({"text_embedder": {"text": query}, "keyword_retriever": {"query": query}})
+results = querying.run(
+    {"text_embedder": {"text": query}, "keyword_retriever": {"query": query}}
+)
 
 for doc in results["joiner"]["documents"]:
     print(doc)

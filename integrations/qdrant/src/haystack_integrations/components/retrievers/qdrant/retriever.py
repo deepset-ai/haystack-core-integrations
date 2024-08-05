@@ -71,7 +71,9 @@ class QdrantEmbeddingRetriever:
         self._scale_score = scale_score
         self._return_embedding = return_embedding
         self._filter_policy = (
-            filter_policy if isinstance(filter_policy, FilterPolicy) else FilterPolicy.from_str(filter_policy)
+            filter_policy
+            if isinstance(filter_policy, FilterPolicy)
+            else FilterPolicy.from_str(filter_policy)
         )
         self._score_threshold = score_threshold
 
@@ -106,12 +108,16 @@ class QdrantEmbeddingRetriever:
         :returns:
             Deserialized component.
         """
-        document_store = QdrantDocumentStore.from_dict(data["init_parameters"]["document_store"])
+        document_store = QdrantDocumentStore.from_dict(
+            data["init_parameters"]["document_store"]
+        )
         data["init_parameters"]["document_store"] = document_store
         # Pipelines serialized with old versions of the component might not
         # have the filter_policy field.
         if filter_policy := data["init_parameters"].get("filter_policy"):
-            data["init_parameters"]["filter_policy"] = FilterPolicy.from_str(filter_policy)
+            data["init_parameters"]["filter_policy"] = FilterPolicy.from_str(
+                filter_policy
+            )
         return default_from_dict(cls, data)
 
     @component.output_types(documents=List[Document])
@@ -215,7 +221,9 @@ class QdrantSparseEmbeddingRetriever:
         self._scale_score = scale_score
         self._return_embedding = return_embedding
         self._filter_policy = (
-            filter_policy if isinstance(filter_policy, FilterPolicy) else FilterPolicy.from_str(filter_policy)
+            filter_policy
+            if isinstance(filter_policy, FilterPolicy)
+            else FilterPolicy.from_str(filter_policy)
         )
         self._score_threshold = score_threshold
 
@@ -250,12 +258,16 @@ class QdrantSparseEmbeddingRetriever:
         :returns:
             Deserialized component.
         """
-        document_store = QdrantDocumentStore.from_dict(data["init_parameters"]["document_store"])
+        document_store = QdrantDocumentStore.from_dict(
+            data["init_parameters"]["document_store"]
+        )
         data["init_parameters"]["document_store"] = document_store
         # Pipelines serialized with old versions of the component might not
         # have the filter_policy field.
         if filter_policy := data["init_parameters"].get("filter_policy"):
-            data["init_parameters"]["filter_policy"] = FilterPolicy.from_str(filter_policy)
+            data["init_parameters"]["filter_policy"] = FilterPolicy.from_str(
+                filter_policy
+            )
         return default_from_dict(cls, data)
 
     @component.output_types(documents=List[Document])
@@ -367,7 +379,9 @@ class QdrantHybridRetriever:
         self._top_k = top_k
         self._return_embedding = return_embedding
         self._filter_policy = (
-            filter_policy if isinstance(filter_policy, FilterPolicy) else FilterPolicy.from_str(filter_policy)
+            filter_policy
+            if isinstance(filter_policy, FilterPolicy)
+            else FilterPolicy.from_str(filter_policy)
         )
         self._score_threshold = score_threshold
 
@@ -398,12 +412,16 @@ class QdrantHybridRetriever:
         :returns:
             Deserialized component.
         """
-        document_store = QdrantDocumentStore.from_dict(data["init_parameters"]["document_store"])
+        document_store = QdrantDocumentStore.from_dict(
+            data["init_parameters"]["document_store"]
+        )
         data["init_parameters"]["document_store"] = document_store
         # Pipelines serialized with old versions of the component might not
         # have the filter_policy field.
         if filter_policy := data["init_parameters"].get("filter_policy"):
-            data["init_parameters"]["filter_policy"] = FilterPolicy.from_str(filter_policy)
+            data["init_parameters"]["filter_policy"] = FilterPolicy.from_str(
+                filter_policy
+            )
         return default_from_dict(cls, data)
 
     @component.output_types(documents=List[Document])

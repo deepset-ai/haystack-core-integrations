@@ -8,7 +8,10 @@ from botocore.exceptions import ClientError
 from haystack import component, default_from_dict, default_to_dict
 from haystack.dataclasses import ChatMessage, StreamingChunk
 from haystack.utils.auth import Secret, deserialize_secrets_inplace
-from haystack.utils.callable_serialization import deserialize_callable, serialize_callable
+from haystack.utils.callable_serialization import (
+    deserialize_callable,
+    serialize_callable,
+)
 
 from haystack_integrations.common.amazon_bedrock.errors import (
     AmazonBedrockConfigurationError,
@@ -16,7 +19,12 @@ from haystack_integrations.common.amazon_bedrock.errors import (
 )
 from haystack_integrations.common.amazon_bedrock.utils import get_aws_session
 
-from .adapters import AnthropicClaudeChatAdapter, BedrockModelChatAdapter, MetaLlama2ChatAdapter, MistralChatAdapter
+from .adapters import (
+    AnthropicClaudeChatAdapter,
+    BedrockModelChatAdapter,
+    MetaLlama2ChatAdapter,
+    MistralChatAdapter,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -57,13 +65,21 @@ class AmazonBedrockChatGenerator:
     def __init__(
         self,
         model: str,
-        aws_access_key_id: Optional[Secret] = Secret.from_env_var(["AWS_ACCESS_KEY_ID"], strict=False),  # noqa: B008
+        aws_access_key_id: Optional[Secret] = Secret.from_env_var(
+            ["AWS_ACCESS_KEY_ID"], strict=False
+        ),  # noqa: B008
         aws_secret_access_key: Optional[Secret] = Secret.from_env_var(  # noqa: B008
             ["AWS_SECRET_ACCESS_KEY"], strict=False
         ),
-        aws_session_token: Optional[Secret] = Secret.from_env_var(["AWS_SESSION_TOKEN"], strict=False),  # noqa: B008
-        aws_region_name: Optional[Secret] = Secret.from_env_var(["AWS_DEFAULT_REGION"], strict=False),  # noqa: B008
-        aws_profile_name: Optional[Secret] = Secret.from_env_var(["AWS_PROFILE"], strict=False),  # noqa: B008
+        aws_session_token: Optional[Secret] = Secret.from_env_var(
+            ["AWS_SESSION_TOKEN"], strict=False
+        ),  # noqa: B008
+        aws_region_name: Optional[Secret] = Secret.from_env_var(
+            ["AWS_DEFAULT_REGION"], strict=False
+        ),  # noqa: B008
+        aws_profile_name: Optional[Secret] = Secret.from_env_var(
+            ["AWS_PROFILE"], strict=False
+        ),  # noqa: B008
         generation_kwargs: Optional[Dict[str, Any]] = None,
         stop_words: Optional[List[str]] = None,
         streaming_callback: Optional[Callable[[StreamingChunk], None]] = None,
@@ -163,11 +179,16 @@ class AmazonBedrockChatGenerator:
             msg = f"The model {self.model} requires a list of ChatMessage objects as a prompt."
             raise ValueError(msg)
 
-        body = self.model_adapter.prepare_body(messages=messages, **{"stop_words": self.stop_words, **kwargs})
+        body = self.model_adapter.prepare_body(
+            messages=messages, **{"stop_words": self.stop_words, **kwargs}
+        )
         try:
             if self.streaming_callback:
                 response = self.client.invoke_model_with_response_stream(
-                    body=json.dumps(body), modelId=self.model, accept="application/json", contentType="application/json"
+                    body=json.dumps(body),
+                    modelId=self.model,
+                    accept="application/json",
+                    contentType="application/json",
                 )
                 response_stream = response["body"]
                 responses = self.model_adapter.get_stream_responses(
@@ -175,10 +196,15 @@ class AmazonBedrockChatGenerator:
                 )
             else:
                 response = self.client.invoke_model(
-                    body=json.dumps(body), modelId=self.model, accept="application/json", contentType="application/json"
+                    body=json.dumps(body),
+                    modelId=self.model,
+                    accept="application/json",
+                    contentType="application/json",
                 )
                 response_body = json.loads(response.get("body").read().decode("utf-8"))
-                responses = self.model_adapter.get_responses(response_body=response_body)
+                responses = self.model_adapter.get_responses(
+                    response_body=response_body
+                )
         except ClientError as exception:
             msg = f"Could not inference Amazon Bedrock model {self.model} due: {exception}"
             raise AmazonBedrockInferenceError(msg) from exception
@@ -186,7 +212,11 @@ class AmazonBedrockChatGenerator:
         return responses
 
     @component.output_types(replies=List[ChatMessage])
-    def run(self, messages: List[ChatMessage], generation_kwargs: Optional[Dict[str, Any]] = None):
+    def run(
+        self,
+        messages: List[ChatMessage],
+        generation_kwargs: Optional[Dict[str, Any]] = None,
+    ):
         """
         Generates a list of `ChatMessage` response to the given messages using the Amazon Bedrock LLM.
 
@@ -217,14 +247,28 @@ class AmazonBedrockChatGenerator:
         :returns:
             Dictionary with serialized data.
         """
-        callback_name = serialize_callable(self.streaming_callback) if self.streaming_callback else None
+        callback_name = (
+            serialize_callable(self.streaming_callback)
+            if self.streaming_callback
+            else None
+        )
         return default_to_dict(
             self,
-            aws_access_key_id=self.aws_access_key_id.to_dict() if self.aws_access_key_id else None,
-            aws_secret_access_key=self.aws_secret_access_key.to_dict() if self.aws_secret_access_key else None,
-            aws_session_token=self.aws_session_token.to_dict() if self.aws_session_token else None,
-            aws_region_name=self.aws_region_name.to_dict() if self.aws_region_name else None,
-            aws_profile_name=self.aws_profile_name.to_dict() if self.aws_profile_name else None,
+            aws_access_key_id=self.aws_access_key_id.to_dict()
+            if self.aws_access_key_id
+            else None,
+            aws_secret_access_key=self.aws_secret_access_key.to_dict()
+            if self.aws_secret_access_key
+            else None,
+            aws_session_token=self.aws_session_token.to_dict()
+            if self.aws_session_token
+            else None,
+            aws_region_name=self.aws_region_name.to_dict()
+            if self.aws_region_name
+            else None,
+            aws_profile_name=self.aws_profile_name.to_dict()
+            if self.aws_profile_name
+            else None,
             model=self.model,
             stop_words=self.stop_words,
             generation_kwargs=self.model_adapter.generation_kwargs,
@@ -244,9 +288,17 @@ class AmazonBedrockChatGenerator:
         init_params = data.get("init_parameters", {})
         serialized_callback_handler = init_params.get("streaming_callback")
         if serialized_callback_handler:
-            data["init_parameters"]["streaming_callback"] = deserialize_callable(serialized_callback_handler)
+            data["init_parameters"]["streaming_callback"] = deserialize_callable(
+                serialized_callback_handler
+            )
         deserialize_secrets_inplace(
             data["init_parameters"],
-            ["aws_access_key_id", "aws_secret_access_key", "aws_session_token", "aws_region_name", "aws_profile_name"],
+            [
+                "aws_access_key_id",
+                "aws_secret_access_key",
+                "aws_session_token",
+                "aws_region_name",
+                "aws_profile_name",
+            ],
         )
         return default_from_dict(cls, data)

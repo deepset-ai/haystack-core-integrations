@@ -46,7 +46,9 @@ class UnstructuredFileConverter:
     def __init__(
         self,
         api_url: str = UNSTRUCTURED_HOSTED_API_URL,
-        api_key: Optional[Secret] = Secret.from_env_var("UNSTRUCTURED_API_KEY", strict=False),  # noqa: B008
+        api_key: Optional[Secret] = Secret.from_env_var(
+            "UNSTRUCTURED_API_KEY", strict=False
+        ),  # noqa: B008
         document_creation_mode: Literal[
             "one-doc-per-file", "one-doc-per-page", "one-doc-per-element"
         ] = "one-doc-per-file",
@@ -146,7 +148,11 @@ class UnstructuredFileConverter:
         paths_obj = [Path(path) for path in paths]
         filepaths = [path for path in paths_obj if path.is_file()]
         filepaths_in_directories = [
-            filepath for path in paths_obj if path.is_dir() for filepath in path.glob("*.*") if filepath.is_file()
+            filepath
+            for path in paths_obj
+            if path.is_dir()
+            for filepath in path.glob("*.*")
+            if filepath.is_file()
         ]
         if filepaths_in_directories and isinstance(meta, list):
             error = """"If providing directories in the `paths` parameter,
@@ -161,7 +167,9 @@ class UnstructuredFileConverter:
         meta_list = normalize_metadata(meta, sources_count=len(all_filepaths))
 
         for filepath, metadata in tqdm(
-            zip(all_filepaths, meta_list), desc="Converting files to Haystack Documents", disable=not self.progress_bar
+            zip(all_filepaths, meta_list),
+            desc="Converting files to Haystack Documents",
+            disable=not self.progress_bar,
         ):
             elements = self._partition_file_into_elements(filepath=filepath)
             docs_for_file = self._create_documents(
@@ -178,7 +186,9 @@ class UnstructuredFileConverter:
     def _create_documents(
         filepath: Path,
         elements: List[Element],
-        document_creation_mode: Literal["one-doc-per-file", "one-doc-per-page", "one-doc-per-element"],
+        document_creation_mode: Literal[
+            "one-doc-per-file", "one-doc-per-page", "one-doc-per-element"
+        ],
         separator: str,
         meta: Dict[str, Any],
     ) -> List[Document]:
@@ -206,7 +216,10 @@ class UnstructuredFileConverter:
                 texts_per_page[page_number] += str(el) + separator
                 meta_per_page[page_number].update(metadata)
 
-            docs = [Document(content=texts_per_page[page], meta=meta_per_page[page]) for page in texts_per_page.keys()]
+            docs = [
+                Document(content=texts_per_page[page], meta=meta_per_page[page])
+                for page in texts_per_page.keys()
+            ]
 
         elif document_creation_mode == "one-doc-per-element":
             for index, el in enumerate(elements):
@@ -234,5 +247,7 @@ class UnstructuredFileConverter:
                 **self.unstructured_kwargs,
             )
         except Exception as e:
-            logger.warning(f"Unstructured could not process file {filepath}. Error: {e}")
+            logger.warning(
+                f"Unstructured could not process file {filepath}. Error: {e}"
+            )
         return elements

@@ -84,9 +84,16 @@ class PineconeDocumentStore:
         client = Pinecone(api_key=self.api_key.resolve_value(), source_tag="haystack")
 
         if self.index_name not in client.list_indexes().names():
-            logger.info(f"Index {self.index_name} does not exist. Creating a new index.")
+            logger.info(
+                f"Index {self.index_name} does not exist. Creating a new index."
+            )
             pinecone_spec = self._convert_dict_spec_to_pinecone_object(self.spec)
-            client.create_index(name=self.index_name, dimension=self.dimension, spec=pinecone_spec, metric=self.metric)
+            client.create_index(
+                name=self.index_name,
+                dimension=self.dimension,
+                spec=pinecone_spec,
+                metric=self.metric,
+            )
         else:
             logger.info(
                 f"Connecting to existing index {self.index_name}. `dimension`, `spec`, and `metric` will be ignored."
@@ -157,12 +164,16 @@ class PineconeDocumentStore:
         Returns how many documents are present in the document store.
         """
         try:
-            count = self.index.describe_index_stats()["namespaces"][self.namespace]["vector_count"]
+            count = self.index.describe_index_stats()["namespaces"][self.namespace][
+                "vector_count"
+            ]
         except KeyError:
             count = 0
         return count
 
-    def write_documents(self, documents: List[Document], policy: DuplicatePolicy = DuplicatePolicy.NONE) -> int:
+    def write_documents(
+        self, documents: List[Document], policy: DuplicatePolicy = DuplicatePolicy.NONE
+    ) -> int:
         """
         Writes Documents to Pinecone.
 
@@ -184,12 +195,18 @@ class PineconeDocumentStore:
 
         documents_for_pinecone = self._convert_documents_to_pinecone_format(documents)
 
-        result = self.index.upsert(vectors=documents_for_pinecone, namespace=self.namespace, batch_size=self.batch_size)
+        result = self.index.upsert(
+            vectors=documents_for_pinecone,
+            namespace=self.namespace,
+            batch_size=self.batch_size,
+        )
 
         written_docs = result["upserted_count"]
         return written_docs
 
-    def filter_documents(self, filters: Optional[Dict[str, Any]] = None) -> List[Document]:
+    def filter_documents(
+        self, filters: Optional[Dict[str, Any]] = None
+    ) -> List[Document]:
         """
         Returns the documents that match the filters provided.
 
@@ -202,7 +219,9 @@ class PineconeDocumentStore:
 
         # Pinecone only performs vector similarity search
         # here we are querying with a dummy vector and the max compatible top_k
-        documents = self._embedding_retrieval(query_embedding=self._dummy_vector, filters=filters, top_k=TOP_K_LIMIT)
+        documents = self._embedding_retrieval(
+            query_embedding=self._dummy_vector, filters=filters, top_k=TOP_K_LIMIT
+        )
 
         # when simply filtering, we don't want to return any scores
         # furthermore, we are querying with a dummy vector, so the scores are meaningless
@@ -266,7 +285,9 @@ class PineconeDocumentStore:
 
         return self._convert_query_result_to_documents(result)
 
-    def _convert_query_result_to_documents(self, query_result: Dict[str, Any]) -> List[Document]:
+    def _convert_query_result_to_documents(
+        self, query_result: Dict[str, Any]
+    ) -> List[Document]:
         pinecone_docs = query_result["matches"]
         documents = []
         for pinecone_doc in pinecone_docs:
@@ -295,7 +316,9 @@ class PineconeDocumentStore:
 
         return documents
 
-    def _convert_documents_to_pinecone_format(self, documents: List[Document]) -> List[Dict[str, Any]]:
+    def _convert_documents_to_pinecone_format(
+        self, documents: List[Document]
+    ) -> List[Dict[str, Any]]:
         documents_for_pinecone = []
         for document in documents:
             embedding = copy(document.embedding)
@@ -305,7 +328,11 @@ class PineconeDocumentStore:
                     "A dummy embedding will be used, but this can affect the search results. "
                 )
                 embedding = self._dummy_vector
-            doc_for_pinecone = {"id": document.id, "values": embedding, "metadata": dict(document.meta)}
+            doc_for_pinecone = {
+                "id": document.id,
+                "values": embedding,
+                "metadata": dict(document.meta),
+            }
 
             # we save content/dataframe as metadata
             if document.content is not None:
@@ -319,7 +346,10 @@ class PineconeDocumentStore:
                     "objects in Pinecone is not supported. "
                     "The content of the `blob` field will be ignored."
                 )
-            if hasattr(document, "sparse_embedding") and document.sparse_embedding is not None:
+            if (
+                hasattr(document, "sparse_embedding")
+                and document.sparse_embedding is not None
+            ):
                 logger.warning(
                     "Document %s has the `sparse_embedding` field set,"
                     "but storing sparse embeddings in Pinecone is not currently supported."

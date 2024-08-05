@@ -34,7 +34,9 @@ class OptimumTextEmbedder:
     def __init__(
         self,
         model: str = "sentence-transformers/all-mpnet-base-v2",
-        token: Optional[Secret] = Secret.from_env_var("HF_API_TOKEN", strict=False),  # noqa: B008
+        token: Optional[Secret] = Secret.from_env_var(
+            "HF_API_TOKEN", strict=False
+        ),  # noqa: B008
         prefix: str = "",
         suffix: str = "",
         normalize_embeddings: bool = True,
@@ -178,6 +180,8 @@ class OptimumTextEmbedder:
             )
             raise TypeError(msg)
 
-        text_to_embed = self._backend.parameters.prefix + text + self._backend.parameters.suffix
+        text_to_embed = (
+            self._backend.parameters.prefix + text + self._backend.parameters.suffix
+        )
         embedding = self._backend.embed_texts(text_to_embed)
         return {"embedding": embedding}

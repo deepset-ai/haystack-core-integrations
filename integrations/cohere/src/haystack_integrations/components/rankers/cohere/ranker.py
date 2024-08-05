@@ -66,7 +66,9 @@ class CohereRanker:
         self.meta_fields_to_embed = meta_fields_to_embed or []
         self.meta_data_separator = meta_data_separator
         self._cohere_client = cohere.Client(
-            api_key=self.api_key.resolve_value(), base_url=self.api_base_url, client_name="haystack"
+            api_key=self.api_key.resolve_value(),
+            base_url=self.api_base_url,
+            client_name="haystack",
         )
 
     def to_dict(self) -> Dict[str, Any]:
@@ -110,9 +112,13 @@ class CohereRanker:
         concatenated_input_list = []
         for doc in documents:
             meta_values_to_embed = [
-                str(doc.meta[key]) for key in self.meta_fields_to_embed if key in doc.meta and doc.meta.get(key)
+                str(doc.meta[key])
+                for key in self.meta_fields_to_embed
+                if key in doc.meta and doc.meta.get(key)
             ]
-            concatenated_input = self.meta_data_separator.join([*meta_values_to_embed, doc.content or ""])
+            concatenated_input = self.meta_data_separator.join(
+                [*meta_values_to_embed, doc.content or ""]
+            )
             concatenated_input_list.append(concatenated_input)
 
         return concatenated_input_list

@@ -73,7 +73,9 @@ class NimBackend(GeneratorBackend):
             if "finish_reason" in choice:
                 choice_meta["finish_reason"] = choice["finish_reason"]
             if "completion_tokens" in completions["usage"]:
-                choice_meta["usage"]["completion_tokens"] = completions["usage"]["completion_tokens"]
+                choice_meta["usage"]["completion_tokens"] = completions["usage"][
+                    "completion_tokens"
+                ]
 
             meta.append(choice_meta)
 

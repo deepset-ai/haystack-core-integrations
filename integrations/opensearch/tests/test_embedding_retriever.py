@@ -6,9 +6,13 @@ from unittest.mock import Mock, patch
 import pytest
 from haystack.dataclasses import Document
 from haystack.document_stores.types import FilterPolicy
-from haystack_integrations.components.retrievers.opensearch import OpenSearchEmbeddingRetriever
+from haystack_integrations.components.retrievers.opensearch import (
+    OpenSearchEmbeddingRetriever,
+)
 from haystack_integrations.document_stores.opensearch import OpenSearchDocumentStore
-from haystack_integrations.document_stores.opensearch.document_store import DEFAULT_MAX_CHUNK_BYTES
+from haystack_integrations.document_stores.opensearch.document_store import (
+    DEFAULT_MAX_CHUNK_BYTES,
+)
 
 
 def test_init_default():
@@ -19,7 +23,9 @@ def test_init_default():
     assert retriever._top_k == 10
     assert retriever._filter_policy == FilterPolicy.REPLACE
 
-    retriever = OpenSearchEmbeddingRetriever(document_store=mock_store, filter_policy="replace")
+    retriever = OpenSearchEmbeddingRetriever(
+        document_store=mock_store, filter_policy="replace"
+    )
     assert retriever._filter_policy == FilterPolicy.REPLACE
 
     with pytest.raises(ValueError):
@@ -29,7 +35,9 @@ def test_init_default():
 @patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
 def test_to_dict(_mock_opensearch_client):
     document_store = OpenSearchDocumentStore(hosts="some fake host")
-    retriever = OpenSearchEmbeddingRetriever(document_store=document_store, custom_query={"some": "custom query"})
+    retriever = OpenSearchEmbeddingRetriever(
+        document_store=document_store, custom_query={"some": "custom query"}
+    )
     res = retriever.to_dict()
     type_s = "haystack_integrations.components.retrievers.opensearch.embedding_retriever.OpenSearchEmbeddingRetriever"
     assert res == {
@@ -130,7 +138,9 @@ def test_from_dict(_mock_opensearch_client):
 
 def test_run():
     mock_store = Mock(spec=OpenSearchDocumentStore)
-    mock_store._embedding_retrieval.return_value = [Document(content="Test doc", embedding=[0.1, 0.2])]
+    mock_store._embedding_retrieval.return_value = [
+        Document(content="Test doc", embedding=[0.1, 0.2])
+    ]
     retriever = OpenSearchEmbeddingRetriever(document_store=mock_store)
     res = retriever.run(query_embedding=[0.5, 0.7])
     mock_store._embedding_retrieval.assert_called_once_with(
@@ -147,9 +157,14 @@ def test_run():
 
 def test_run_init_params():
     mock_store = Mock(spec=OpenSearchDocumentStore)
-    mock_store._embedding_retrieval.return_value = [Document(content="Test doc", embedding=[0.1, 0.2])]
+    mock_store._embedding_retrieval.return_value = [
+        Document(content="Test doc", embedding=[0.1, 0.2])
+    ]
     retriever = OpenSearchEmbeddingRetriever(
-        document_store=mock_store, filters={"from": "init"}, top_k=11, custom_query="custom_query"
+        document_store=mock_store,
+        filters={"from": "init"},
+        top_k=11,
+        custom_query="custom_query",
     )
     res = retriever.run(query_embedding=[0.5, 0.7])
     mock_store._embedding_retrieval.assert_called_once_with(
@@ -166,8 +181,12 @@ def test_run_init_params():
 
 def test_run_time_params():
     mock_store = Mock(spec=OpenSearchDocumentStore)
-    mock_store._embedding_retrieval.return_value = [Document(content="Test doc", embedding=[0.1, 0.2])]
-    retriever = OpenSearchEmbeddingRetriever(document_store=mock_store, filters={"from": "init"}, top_k=11)
+    mock_store._embedding_retrieval.return_value = [
+        Document(content="Test doc", embedding=[0.1, 0.2])
+    ]
+    retriever = OpenSearchEmbeddingRetriever(
+        document_store=mock_store, filters={"from": "init"}, top_k=11
+    )
     res = retriever.run(query_embedding=[0.5, 0.7], filters={"from": "run"}, top_k=9)
     mock_store._embedding_retrieval.assert_called_once_with(
         query_embedding=[0.5, 0.7],
@@ -184,7 +203,9 @@ def test_run_time_params():
 def test_run_ignore_errors(caplog):
     mock_store = Mock(spec=OpenSearchDocumentStore)
     mock_store._embedding_retrieval.side_effect = Exception("Some error")
-    retriever = OpenSearchEmbeddingRetriever(document_store=mock_store, raise_on_failure=False)
+    retriever = OpenSearchEmbeddingRetriever(
+        document_store=mock_store, raise_on_failure=False
+    )
     res = retriever.run(query_embedding=[0.5, 0.7])
     assert len(res) == 1
     assert res["documents"] == []

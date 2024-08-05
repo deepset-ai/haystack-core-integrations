@@ -133,7 +133,10 @@ class MetricDescriptor:
         for name, param in input_converter_signature.parameters.items():
             if name in ("cls", "self"):
                 continue
-            elif param.kind not in (inspect.Parameter.KEYWORD_ONLY, inspect.Parameter.POSITIONAL_OR_KEYWORD):
+            elif param.kind not in (
+                inspect.Parameter.KEYWORD_ONLY,
+                inspect.Parameter.POSITIONAL_OR_KEYWORD,
+            ):
                 continue
             input_parameters[name] = param.annotation
 
@@ -142,7 +145,9 @@ class MetricDescriptor:
             backend=backend,
             input_parameters=input_parameters,
             input_converter=input_converter,
-            output_converter=output_converter if output_converter is not None else OutputConverters.default(metric),
+            output_converter=output_converter
+            if output_converter is not None
+            else OutputConverters.default(metric),
             init_parameters=init_parameters,
         )
 
@@ -165,7 +170,9 @@ class InputConverters:
                     f"got '{type(collection).__name__}' instead"
                 )
                 raise ValueError(msg)
-            elif not all(isinstance(x, str) for x in collection) and not all(isinstance(x, list) for x in collection):
+            elif not all(isinstance(x, str) for x in collection) and not all(
+                isinstance(x, list) for x in collection
+            ):
                 msg = f"DeepEval evaluator expects inputs to be of type 'str' or 'list' in '{k}'"
                 raise ValueError(msg)
 
@@ -175,7 +182,9 @@ class InputConverters:
             raise ValueError(msg)
 
     @staticmethod
-    def validate_input_parameters(metric: DeepEvalMetric, expected: Dict[str, Any], received: Dict[str, Any]):
+    def validate_input_parameters(
+        metric: DeepEvalMetric, expected: Dict[str, Any], received: Dict[str, Any]
+    ):
         for param, _ in expected.items():
             if param not in received:
                 msg = f"DeepEval evaluator expected input parameter '{param}' for metric '{metric}'"
@@ -185,18 +194,27 @@ class InputConverters:
     def question_context_response(
         questions: List[str], contexts: List[List[str]], responses: List[str]
     ) -> Iterable[LLMTestCase]:
-        InputConverters._validate_input_elements(questions=questions, contexts=contexts, responses=responses)
+        InputConverters._validate_input_elements(
+            questions=questions, contexts=contexts, responses=responses
+        )
         for q, c, r in zip(questions, contexts, responses):  # type: ignore
             test_case = LLMTestCase(input=q, actual_output=r, retrieval_context=c)
             yield test_case
 
     @staticmethod
     def question_context_response_ground_truth(
-        questions: List[str], contexts: List[List[str]], responses: List[str], ground_truths: List[str]
+        questions: List[str],
+        contexts: List[List[str]],
+        responses: List[str],
+        ground_truths: List[str],
     ) -> Iterable[LLMTestCase]:
-        InputConverters._validate_input_elements(questions=questions, contexts=contexts, responses=responses)
+        InputConverters._validate_input_elements(
+            questions=questions, contexts=contexts, responses=responses
+        )
         for q, c, r, gt in zip(questions, contexts, responses, ground_truths):  # type: ignore
-            test_case = LLMTestCase(input=q, actual_output=r, retrieval_context=c, expected_output=gt)
+            test_case = LLMTestCase(
+                input=q, actual_output=r, retrieval_context=c, expected_output=gt
+            )
             yield test_case
 
 
@@ -215,7 +233,13 @@ class OutputConverters:
             metric_name = str(metric)
             assert len(output.metrics) == 1
             metric_result = output.metrics[0]
-            out = [MetricResult(name=metric_name, score=metric_result.score, explanation=metric_result.reason)]
+            out = [
+                MetricResult(
+                    name=metric_name,
+                    score=metric_result.score,
+                    explanation=metric_result.reason,
+                )
+            ]
             if metric_result.score_breakdown is not None:
                 for k, v in metric_result.score_breakdown.items():
                     out.append(MetricResult(name=f"{metric_name}_{k}", score=v))

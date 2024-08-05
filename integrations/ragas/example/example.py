@@ -2,7 +2,10 @@
 
 from haystack import Pipeline
 
-from haystack_integrations.components.evaluators.ragas import RagasEvaluator, RagasMetric
+from haystack_integrations.components.evaluators.ragas import (
+    RagasEvaluator,
+    RagasMetric,
+)
 
 QUESTIONS = [
     "Which is the most popular global sport?",
@@ -32,7 +35,11 @@ evaluator_context = RagasEvaluator(
 )
 evaluator_aspect = RagasEvaluator(
     metric=RagasMetric.ASPECT_CRITIQUE,
-    metric_params={"name": "custom", "definition": "Is this answer problematic for children?", "strictness": 3},
+    metric_params={
+        "name": "custom",
+        "definition": "Is this answer problematic for children?",
+        "strictness": 3,
+    },
 )
 pipeline.add_component("evaluator_context", evaluator_context)
 pipeline.add_component("evaluator_aspect", evaluator_aspect)
@@ -41,8 +48,16 @@ pipeline.add_component("evaluator_aspect", evaluator_aspect)
 # Ragas class' documentation for more details.
 results = pipeline.run(
     {
-        "evaluator_context": {"questions": QUESTIONS, "contexts": CONTEXTS, "ground_truths": GROUND_TRUTHS},
-        "evaluator_aspect": {"questions": QUESTIONS, "contexts": CONTEXTS, "responses": RESPONSES},
+        "evaluator_context": {
+            "questions": QUESTIONS,
+            "contexts": CONTEXTS,
+            "ground_truths": GROUND_TRUTHS,
+        },
+        "evaluator_aspect": {
+            "questions": QUESTIONS,
+            "contexts": CONTEXTS,
+            "responses": RESPONSES,
+        },
     }
 )
 
