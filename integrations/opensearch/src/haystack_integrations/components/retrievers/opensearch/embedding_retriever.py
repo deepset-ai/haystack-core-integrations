@@ -16,9 +16,9 @@ logger = logging.getLogger(__name__)
 @component
 class OpenSearchEmbeddingRetriever:
     """
-    Uses a vector similarity metric to retrieve documents from the OpenSearchDocumentStore.
+    Retrieves documents from the OpenSearchDocumentStore using a vector similarity metric.
 
-    Needs to be connected to the OpenSearchDocumentStore to run.
+     Must be connected to the OpenSearchDocumentStore to run.
     """
 
     def __init__(
@@ -34,12 +34,16 @@ class OpenSearchEmbeddingRetriever:
         """
         Create the OpenSearchEmbeddingRetriever component.
 
-        :param document_store: An instance of OpenSearchDocumentStore.
-        :param filters: Filters applied to the retrieved Documents. Defaults to None.
-            Filters are applied during the approximate kNN search to ensure that top_k matching documents are returned.
-        :param top_k: Maximum number of Documents to return, defaults to 10
-        :param filter_policy: Policy to determine how filters are applied.
-        :param custom_query: The query containing a mandatory `$query_embedding` and an optional `$filters` placeholder
+        :param document_store: An instance of OpenSearchDocumentStore to use with the Retriever.
+        :param filters: Filters applied when fetching documents from the Document Store.
+            Filters are applied during the approximate kNN search to ensure the Retriever returns
+              `top_k` matching documents.
+        :param top_k: Maximum number of documents to return.
+        :param filter_policy: Policy to determine how filters are applied. Possible options:
+        - `merge`: Runtime filters are merged with initialization filters.
+        - `replace`: Runtime filters replace initialization filters. Use this policy to change the filtering scope.
+        :param custom_query: The custom OpenSearch query containing a mandatory `$query_embedding` and
+          an optional `$filters` placeholder.
 
             **An example custom_query:**
 
@@ -63,14 +67,15 @@ class OpenSearchEmbeddingRetriever:
             }
             ```
 
-        **For this custom_query, a sample `run()` could be:**
+        For this `custom_query`, an example `run()` could be:
 
         ```python
         retriever.run(query_embedding=embedding,
                         filters={"years": ["2019"], "quarters": ["Q1", "Q2"]})
         ```
         :param raise_on_failure:
-            Whether to raise an exception if the API call fails. Otherwise log a warning and return an empty list.
+            If `True`, raises an exception if the API call fails.
+            If `False`, logs a warning and returns an empty list.
 
         :raises ValueError: If `document_store` is not an instance of OpenSearchDocumentStore.
         """
@@ -137,11 +142,13 @@ class OpenSearchEmbeddingRetriever:
         Retrieve documents using a vector similarity metric.
 
         :param query_embedding: Embedding of the query.
-        :param filters: Filters applied to the retrieved Documents. The way runtime filters are applied depends on
-                        the `filter_policy` chosen at retriever initialization. See init method docstring for more
-                        details.
-        :param top_k: Maximum number of Documents to return.
-        :param custom_query: The query containing a mandatory `$query_embedding` and an optional `$filters` placeholder
+        :param filters: Filters applied when fetching documents from the Document Store.
+            Filters are applied during the approximate kNN search to ensure the Retriever
+              returns `top_k` matching documents.
+            The way runtime filters are applied depends on the `filter_policy` selected when initializing the Retriever.
+        :param top_k: Maximum number of documents to return.
+        :param custom_query: A custom OpenSearch query containing a mandatory `$query_embedding` and an
+          optional `$filters` placeholder.
 
             **An example custom_query:**
 
@@ -165,7 +172,7 @@ class OpenSearchEmbeddingRetriever:
             }
             ```
 
-        **For this custom_query, a sample `run()` could be:**
+        For this `custom_query`, an example `run()` could be:
 
         ```python
         retriever.run(query_embedding=embedding,
