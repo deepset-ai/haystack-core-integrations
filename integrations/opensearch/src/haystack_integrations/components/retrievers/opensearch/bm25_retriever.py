@@ -18,7 +18,7 @@ class OpenSearchBM25Retriever:
     """
     Fetches documents from OpenSearchDocumentStore using the keyword-based BM25 algorithm.
 
-    BM25 computes a weighted word overlap between the query string and a document to determine its similarity. 
+    BM25 computes a weighted word overlap between the query string and a document to determine its similarity.
     """
     def __init__(
         self,
@@ -43,8 +43,8 @@ class OpenSearchBM25Retriever:
         :param top_k: Maximum number of documents to return.
         :param scale_score: If `True`, scales the score of retrieved documents to a range between 0 and 1.
             This is useful when comparing documents across different indexes.
-        :param all_terms_must_match: If `True`, all terms in the query string must be present in the 
-        retrieved documents. This is useful when searching for short text where even one term 
+        :param all_terms_must_match: If `True`, all terms in the query string must be present in the
+        retrieved documents. This is useful when searching for short text where even one term
         can make a difference.
         :param filter_policy: Policy to determine how filters are applied. Possible options:
             - `replace`: Runtime filters replace initialization filters. Use this policy to change the filtering scope
@@ -153,7 +153,7 @@ class OpenSearchBM25Retriever:
         :param query: The query string.
         :param filters: Filters applied to the retrieved documents. The way runtime filters are applied depends on
                         the `filter_policy` specifies at Retriever's initialization.
-        :param all_terms_must_match: If `True`, all terms in the query string must be present in the 
+        :param all_terms_must_match: If `True`, all terms in the query string must be present in the
         retrieved documents.
         :param top_k: Maximum number of documents to return.
         :param fuzziness: Fuzziness parameter for full-text queries to apply approximate string matching.
