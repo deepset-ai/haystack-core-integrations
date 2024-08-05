@@ -20,6 +20,7 @@ class OpenSearchBM25Retriever:
 
     BM25 computes a weighted word overlap between the query string and a document to determine its similarity.
     """
+
     def __init__(
         self,
         *,
