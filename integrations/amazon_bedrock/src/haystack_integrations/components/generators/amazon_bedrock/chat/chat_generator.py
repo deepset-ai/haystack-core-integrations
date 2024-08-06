@@ -88,7 +88,7 @@ class AmazonBedrockChatGenerator:
         constructor. Aside from model, three required parameters are `aws_access_key_id`, `aws_secret_access_key`,
         and `aws_region_name`.
 
-        :param model: The model to use for text generation. The model must be available in Amazon Bedrock and must be
+        :param model: The model to use for text generation. The model must be available in Amazon Bedrock and must
         be specified in the format outlined in the [Amazon Bedrock documentation](https://docs.aws.amazon.com/bedrock/latest/userguide/model-ids-arns.html).
         :param aws_access_key_id: AWS access key ID.
         :param aws_secret_access_key: AWS secret access key.
@@ -207,7 +207,7 @@ class AmazonBedrockChatGenerator:
         :param messages: The messages to generate a response to.
         :param generation_kwargs: Additional generation keyword arguments passed to the model.
         :returns: A dictionary with the following keys:
-            - `replies`: The generated List of `ChatMessage` objects.
+            - `replies`: The generated list of `ChatMessage` objects.
         """
         return {"replies": self.invoke(messages=messages, **(generation_kwargs or {}))}
 
