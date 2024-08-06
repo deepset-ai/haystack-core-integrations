@@ -55,7 +55,7 @@ dependencies = [
 # Pinecone tests are slow (require HTTP requests), so we run them in parallel
 # with pytest-xdist (https://pytest-xdist.readthedocs.io/en/stable/distribution.html)
 test = "pytest -n auto --maxprocesses=2 -x {args:tests}"
-test-cov = "coverage run -m pytest -n auto --maxprocesses=2 -x {args:tests}"
+test-cov = "coverage run -m pytest -n auto --maxprocesses=2 --reruns 3 --reruns-delay 30 -x {args:tests}"
 cov-report = ["- coverage combine", "coverage report"]
 cov = ["test-cov", "cov-report"]
 docs = ["pydoc-markdown pydoc/config.yml"]
