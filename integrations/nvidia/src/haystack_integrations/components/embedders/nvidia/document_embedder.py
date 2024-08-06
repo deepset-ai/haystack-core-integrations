@@ -3,7 +3,7 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 
 from haystack import Document, component, default_from_dict, default_to_dict
 from haystack.utils import Secret, deserialize_secrets_inplace
-from haystack_integrations.util.nvidia import EmbedderBackend, NimBackend
+from haystack_integrations.util.nvidia import NimBackend
 from haystack_integrations.util.nvidia.util import is_hosted
 from tqdm import tqdm
 
@@ -86,7 +86,7 @@ class NvidiaDocumentEmbedder:
             truncate = EmbeddingTruncateMode.from_str(truncate)
         self.truncate = truncate
 
-        self.backend: Optional[EmbedderBackend] = None
+        self.backend: Optional[Any] = None
         self._initialized = False
 
         if is_hosted(api_url) and not self.model:  # manually set default model

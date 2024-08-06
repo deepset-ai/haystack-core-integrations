@@ -3,20 +3,8 @@ import os
 import pytest
 from haystack.utils import Secret
 from haystack_integrations.components.embedders.nvidia import EmbeddingTruncateMode, NvidiaTextEmbedder
-from haystack_integrations.util.nvidia import EmbedderBackend, Model
 
-
-class MockBackend(EmbedderBackend):
-    def __init__(self, model, model_kwargs):
-        super().__init__(model, model_kwargs)
-
-    def embed(self, texts):
-        inputs = texts
-        data = [[0.1, 0.2, 0.3] for i in range(len(inputs))]
-        return data, {"usage": {"total_tokens": 4, "prompt_tokens": 4}}
-
-    def models(self):
-        return [Model(id="a1"), Model(id="a2")]
+from . import MockBackend
 
 
 class TestNvidiaTextEmbedder:
@@ -120,7 +108,7 @@ class TestNvidiaTextEmbedder:
         assert "Default model is set as:" in str(record[0].message)
         assert embedder.model == "model1"
 
-        embedder.backend = MockBackend("aa", None)
+        embedder.backend = MockBackend(embedder.model)
 
         result = embedder.run(text="The food was delicious")
 
@@ -131,12 +119,10 @@ class TestNvidiaTextEmbedder:
         }
 
     def test_run(self):
-        embedder = NvidiaTextEmbedder(
-            "playground_nvolveqa_40k", api_key=Secret.from_token("fake-api-key"), prefix="prefix ", suffix=" suffix"
-        )
+        embedder = NvidiaTextEmbedder("playground_nvolveqa_40k", prefix="prefix ", suffix=" suffix")
 
         embedder.warm_up()
-        embedder.backend = MockBackend("aa", None)
+        embedder.backend = MockBackend("playground_nvolveqa_40k")
 
         result = embedder.run(text="The food was delicious")
 
@@ -149,7 +135,7 @@ class TestNvidiaTextEmbedder:
     def test_run_wrong_input_format(self):
         embedder = NvidiaTextEmbedder("playground_nvolveqa_40k", api_key=Secret.from_token("fake-api-key"))
         embedder.warm_up()
-        embedder.backend = MockBackend("aa", None)
+        embedder.backend = MockBackend("playground_nvolveqa_40k")
 
         list_integers_input = [1, 2, 3]
 

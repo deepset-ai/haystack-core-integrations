@@ -4,20 +4,8 @@ import pytest
 from haystack import Document
 from haystack.utils import Secret
 from haystack_integrations.components.embedders.nvidia import EmbeddingTruncateMode, NvidiaDocumentEmbedder
-from haystack_integrations.util.nvidia import EmbedderBackend, Model
 
-
-class MockBackend(EmbedderBackend):
-    def __init__(self, model, model_kwargs):
-        super().__init__(model, model_kwargs)
-
-    def embed(self, texts):
-        inputs = texts
-        data = [[0.1, 0.2, 0.3] for i in range(len(inputs))]
-        return data, {"usage": {"total_tokens": 4, "prompt_tokens": 4}}
-
-    def models(self):
-        return [Model(id="aa")]
+from . import MockBackend
 
 
 class TestNvidiaDocumentEmbedder:
@@ -187,14 +175,14 @@ class TestNvidiaDocumentEmbedder:
 
     def test_embed_batch(self):
         texts = ["text 1", "text 2", "text 3", "text 4", "text 5"]
-
+        model = "playground_nvolveqa_40k"
         embedder = NvidiaDocumentEmbedder(
-            "playground_nvolveqa_40k",
+            model,
             api_key=Secret.from_token("fake-api-key"),
         )
 
         embedder.warm_up()
-        embedder.backend = MockBackend("aa", None)
+        embedder.backend = MockBackend(model)
 
         embeddings, metadata = embedder._embed_batch(texts_to_embed=texts, batch_size=2)
 
@@ -230,7 +218,7 @@ class TestNvidiaDocumentEmbedder:
         assert "Default model is set as:" in str(record[0].message)
         assert embedder.model == "model1"
 
-        embedder.backend = MockBackend("aa", None)
+        embedder.backend = MockBackend(embedder.model)
 
         result = embedder.run(documents=docs)
 
@@ -263,7 +251,7 @@ class TestNvidiaDocumentEmbedder:
         )
 
         embedder.warm_up()
-        embedder.backend = MockBackend("aa", None)
+        embedder.backend = MockBackend(model)
 
         result = embedder.run(documents=docs)
 
@@ -296,7 +284,7 @@ class TestNvidiaDocumentEmbedder:
         )
 
         embedder.warm_up()
-        embedder.backend = MockBackend("aa", None)
+        embedder.backend = MockBackend(model)
 
         result = embedder.run(documents=docs)
 
@@ -314,10 +302,11 @@ class TestNvidiaDocumentEmbedder:
         assert metadata == {"usage": {"prompt_tokens": 2 * 4, "total_tokens": 2 * 4}}
 
     def test_run_wrong_input_format(self):
-        embedder = NvidiaDocumentEmbedder("playground_nvolveqa_40k", api_key=Secret.from_token("fake-api-key"))
+        model = "playground_nvolveqa_40k"
+        embedder = NvidiaDocumentEmbedder(model, api_key=Secret.from_token("fake-api-key"))
 
         embedder.warm_up()
-        embedder.backend = MockBackend("aa", None)
+        embedder.backend = MockBackend(model)
 
         string_input = "text"
         list_integers_input = [1, 2, 3]
@@ -329,10 +318,11 @@ class TestNvidiaDocumentEmbedder:
             embedder.run(documents=list_integers_input)
 
     def test_run_on_empty_list(self):
-        embedder = NvidiaDocumentEmbedder("playground_nvolveqa_40k", api_key=Secret.from_token("fake-api-key"))
+        model = "playground_nvolveqa_40k"
+        embedder = NvidiaDocumentEmbedder(model, api_key=Secret.from_token("fake-api-key"))
 
         embedder.warm_up()
-        embedder.backend = MockBackend("aa", None)
+        embedder.backend = MockBackend(model, None)
 
         empty_list_input = []
         result = embedder.run(documents=empty_list_input)

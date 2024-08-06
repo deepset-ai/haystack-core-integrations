@@ -1,14 +1,29 @@
+from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple
 
 import requests
 from haystack.utils import Secret
 
-from .backend import EmbedderBackend, GeneratorBackend, Model
-
 REQUEST_TIMEOUT = 60
 
 
-class NimBackend(GeneratorBackend, EmbedderBackend):
+@dataclass
+class Model:
+    """
+    Model information.
+
+    id: unique identifier for the model, passed as model parameter for requests
+    aliases: list of aliases for the model
+    base_model: root model for the model
+    All aliases are deprecated and will trigger a warning when used.
+    """
+
+    id: str
+    aliases: Optional[List[str]] = field(default_factory=list)
+    base_model: Optional[str] = None
+
+
+class NimBackend:
     def __init__(
         self,
         model: str,

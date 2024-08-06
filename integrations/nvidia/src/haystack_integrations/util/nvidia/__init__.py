@@ -1,4 +1,3 @@
-from .backend import EmbedderBackend, GeneratorBackend, Model
-from .nim_backend import NimBackend
+from .nim_backend import Model, NimBackend
 
-__all__ = ["NimBackend", "EmbedderBackend", "GeneratorBackend", "Model"]
+__all__ = ["NimBackend", "Model"]

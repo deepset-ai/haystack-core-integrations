@@ -6,7 +6,7 @@ from typing import Any, Dict, List, Optional
 
 from haystack import component, default_from_dict, default_to_dict
 from haystack.utils.auth import Secret, deserialize_secrets_inplace
-from haystack_integrations.util.nvidia import GeneratorBackend, NimBackend
+from haystack_integrations.util.nvidia import NimBackend
 from haystack_integrations.util.nvidia.util import is_hosted
 
 _DEFAULT_API_URL = "https://integrate.api.nvidia.com/v1"
@@ -69,7 +69,7 @@ class NvidiaGenerator:
         self._api_key = api_key
         self._model_arguments = model_arguments or {}
 
-        self._backend: Optional[GeneratorBackend] = None
+        self._backend: Optional[Any] = None
 
         self.is_hosted = is_hosted(api_url)
 
