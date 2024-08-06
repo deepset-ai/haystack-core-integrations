@@ -27,7 +27,33 @@ To enable tracing in your Haystack pipeline, add the `LangfuseConnector` to your
 You also need to set the `LANGFUSE_SECRET_KEY` and `LANGFUSE_PUBLIC_KEY` environment variables in order to connect to Langfuse account.
 You can get these keys by signing up for an account on the Langfuse website.
 
-Here's an example:
+⚠️ **Important:** To ensure proper tracing, always set environment variables before importing any Haystack components. This is crucial because Haystack initializes its internal tracing components during import.
+
+Here's the correct way to set up your script:
+
+```python
+import os
+
+# Set environment variables first
+os.environ["LANGFUSE_HOST"] = "https://cloud.langfuse.com"
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
+os.environ["HAYSTACK_CONTENT_TRACING_ENABLED"] = "true"
+
+# Then import Haystack components
+from haystack.components.builders import ChatPromptBuilder
+from haystack.components.generators.chat import OpenAIChatGenerator
+from haystack.dataclasses import ChatMessage
+from haystack import Pipeline
+
+from haystack_integrations.components.connectors.langfuse import LangfuseConnector
+
+# Rest of your code...
+```
+
+Alternatively, an even better practice is to set these environment variables in your shell before running the script.
+
+
+Here's a full example:
 
 ```python
 import os
