@@ -121,15 +121,6 @@ def test_constructor_with_empty_model():
         AmazonBedrockChatGenerator(model="")
 
 
-def test_invoke_with_no_kwargs(mock_boto3_session):
-    """
-    Test invoke raises an error if no messages are provided
-    """
-    layer = AmazonBedrockChatGenerator(model="anthropic.claude-v2")
-    with pytest.raises(ValueError, match="The model anthropic.claude-v2 requires"):
-        layer.invoke()
-
-
 @pytest.mark.parametrize(
     "model, expected_model_adapter",
     [

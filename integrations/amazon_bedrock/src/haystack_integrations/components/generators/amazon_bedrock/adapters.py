@@ -1,8 +1,8 @@
 import json
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
-from .handlers import TokenStreamingHandler
+from haystack.dataclasses import StreamingChunk
 
 
 class BedrockModelAdapter(ABC):
@@ -39,22 +39,24 @@ class BedrockModelAdapter(ABC):
         responses = [completion.lstrip() for completion in completions]
         return responses
 
-    def get_stream_responses(self, stream, stream_handler: TokenStreamingHandler) -> List[str]:
+    def get_stream_responses(self, stream, streaming_callback: Callable[[StreamingChunk], None]) -> List[str]:
         """
         Extracts the responses from the Amazon Bedrock streaming response.
 
         :param stream: The streaming response from the Amazon Bedrock request.
-        :param stream_handler: The handler for the streaming response.
+        :param streaming_callback: The handler for the streaming response.
         :returns: A list of string responses.
         """
-        tokens: List[str] = []
+        streaming_chunks: List[StreamingChunk] = []
         for event in stream:
             chunk = event.get("chunk")
             if chunk:
                 decoded_chunk = json.loads(chunk["bytes"].decode("utf-8"))
-                token = self._extract_token_from_stream(decoded_chunk)
-                tokens.append(stream_handler(token, event_data=decoded_chunk))
-        responses = ["".join(tokens).lstrip()]
+                streaming_chunk: StreamingChunk = self._build_streaming_chunk(decoded_chunk)
+                streaming_chunks.append(streaming_chunk)
+                streaming_callback(streaming_chunk)
+
+        responses = ["".join(streaming_chunk.content for streaming_chunk in streaming_chunks).lstrip()]
         return responses
 
     def _get_params(self, inference_kwargs: Dict[str, Any], default_params: Dict[str, Any]) -> Dict[str, Any]:
@@ -84,12 +86,12 @@ class BedrockModelAdapter(ABC):
         """
 
     @abstractmethod
-    def _extract_token_from_stream(self, chunk: Dict[str, Any]) -> str:
+    def _build_streaming_chunk(self, chunk: Dict[str, Any]) -> StreamingChunk:
         """
-        Extracts the token from a streaming chunk.
+        Extracts the content and meta from a streaming chunk.
 
-        :param chunk: The streaming chunk.
-        :returns: A string token.
+        :param chunk: The streaming chunk as dict.
+        :returns: A StreamingChunk object.
         """
 
 
@@ -150,17 +152,17 @@ class AnthropicClaudeAdapter(BedrockModelAdapter):
 
         return [response_body["completion"]]
 
-    def _extract_token_from_stream(self, chunk: Dict[str, Any]) -> str:
+    def _build_streaming_chunk(self, chunk: Dict[str, Any]) -> StreamingChunk:
         """
-        Extracts the token from a streaming chunk.
+        Extracts the content and meta from a streaming chunk.
 
-        :param chunk: The streaming chunk.
-        :returns: A string token.
+        :param chunk: The streaming chunk as dict.
+        :returns: A StreamingChunk object.
         """
         if self.use_messages_api:
-            return chunk.get("delta", {}).get("text", "")
+            return StreamingChunk(content=chunk.get("delta", {}).get("text", ""), meta=chunk)
 
-        return chunk.get("completion", "")
+        return StreamingChunk(content=chunk.get("completion", ""), meta=chunk)
 
 
 class MistralAdapter(BedrockModelAdapter):
@@ -199,17 +201,18 @@ class MistralAdapter(BedrockModelAdapter):
         """
         return [output.get("text", "") for output in response_body.get("outputs", [])]
 
-    def _extract_token_from_stream(self, chunk: Dict[str, Any]) -> str:
+    def _build_streaming_chunk(self, chunk: Dict[str, Any]) -> StreamingChunk:
         """
-        Extracts the token from a streaming chunk.
+        Extracts the content and meta from a streaming chunk.
 
-        :param chunk: The streaming chunk.
-        :returns: A string token.
+        :param chunk: The streaming chunk as dict.
+        :returns: A StreamingChunk object.
         """
+        content = ""
         chunk_list = chunk.get("outputs", [])
         if chunk_list:
-            return chunk_list[0].get("text", "")
-        return ""
+            content = chunk_list[0].get("text", "")
+        return StreamingChunk(content=content, meta=chunk)
 
 
 class CohereCommandAdapter(BedrockModelAdapter):
@@ -254,14 +257,14 @@ class CohereCommandAdapter(BedrockModelAdapter):
         responses = [generation["text"] for generation in response_body["generations"]]
         return responses
 
-    def _extract_token_from_stream(self, chunk: Dict[str, Any]) -> str:
+    def _build_streaming_chunk(self, chunk: Dict[str, Any]) -> StreamingChunk:
         """
-        Extracts the token from a streaming chunk.
+        Extracts the content and meta from a streaming chunk.
 
-        :param chunk: The streaming chunk.
-        :returns: A string token.
+        :param chunk: The streaming chunk as dict.
+        :returns: A StreamingChunk object.
         """
-        return chunk.get("text", "")
+        return StreamingChunk(content=chunk.get("text", ""), meta=chunk)
 
 
 class CohereCommandRAdapter(BedrockModelAdapter):
@@ -313,15 +316,15 @@ class CohereCommandRAdapter(BedrockModelAdapter):
         responses = [response_body["text"]]
         return responses
 
-    def _extract_token_from_stream(self, chunk: Dict[str, Any]) -> str:
+    def _build_streaming_chunk(self, chunk: Dict[str, Any]) -> StreamingChunk:
         """
-        Extracts the token from a streaming chunk.
+        Extracts the content and meta from a streaming chunk.
 
-        :param chunk: The streaming chunk.
-        :returns: A string token.
+        :param chunk: The streaming chunk as dict.
+        :returns: A StreamingChunk object.
         """
         token: str = chunk.get("text", "")
-        return token
+        return StreamingChunk(content=token, meta=chunk)
 
 
 class AI21LabsJurassic2Adapter(BedrockModelAdapter):
@@ -357,7 +360,7 @@ class AI21LabsJurassic2Adapter(BedrockModelAdapter):
         responses = [completion["data"]["text"] for completion in response_body["completions"]]
         return responses
 
-    def _extract_token_from_stream(self, chunk: Dict[str, Any]) -> str:
+    def _build_streaming_chunk(self, chunk: Dict[str, Any]) -> StreamingChunk:
         msg = "Streaming is not supported for AI21 Jurassic 2 models."
         raise NotImplementedError(msg)
 
@@ -398,14 +401,14 @@ class AmazonTitanAdapter(BedrockModelAdapter):
         responses = [result["outputText"] for result in response_body["results"]]
         return responses
 
-    def _extract_token_from_stream(self, chunk: Dict[str, Any]) -> str:
+    def _build_streaming_chunk(self, chunk: Dict[str, Any]) -> StreamingChunk:
         """
-        Extracts the token from a streaming chunk.
+        Extracts the content and meta from a streaming chunk.
 
-        :param chunk: The streaming chunk.
-        :returns: A string token.
+        :param chunk: The streaming chunk as dict.
+        :returns: A StreamingChunk object.
         """
-        return chunk.get("outputText", "")
+        return StreamingChunk(content=chunk.get("outputText", ""), meta=chunk)
 
 
 class MetaLlamaAdapter(BedrockModelAdapter):
@@ -442,11 +445,11 @@ class MetaLlamaAdapter(BedrockModelAdapter):
         """
         return [response_body["generation"]]
 
-    def _extract_token_from_stream(self, chunk: Dict[str, Any]) -> str:
+    def _build_streaming_chunk(self, chunk: Dict[str, Any]) -> StreamingChunk:
         """
-        Extracts the token from a streaming chunk.
+        Extracts the content and meta from a streaming chunk.
 
-        :param chunk: The streaming chunk.
-        :returns: A string token.
+        :param chunk: The streaming chunk as dict.
+        :returns: A StreamingChunk object.
         """
-        return chunk.get("generation", "")
+        return StreamingChunk(content=chunk.get("generation", ""), meta=chunk)

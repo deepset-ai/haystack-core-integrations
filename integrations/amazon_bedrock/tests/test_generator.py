@@ -2,6 +2,7 @@ from typing import Optional, Type
 from unittest.mock import MagicMock, call, patch
 
 import pytest
+from haystack.dataclasses import StreamingChunk
 
 from haystack_integrations.components.generators.amazon_bedrock import AmazonBedrockGenerator
 from haystack_integrations.components.generators.amazon_bedrock.adapters import (
@@ -34,6 +35,7 @@ def test_to_dict(mock_boto3_session):
             "max_length": 99,
             "truncate": False,
             "temperature": 10,
+            "streaming_callback": None,
         },
     }
 
@@ -118,15 +120,6 @@ def test_constructor_with_empty_model():
     """
     with pytest.raises(ValueError, match="cannot be None or empty string"):
         AmazonBedrockGenerator(model="")
-
-
-def test_invoke_with_no_kwargs(mock_boto3_session):
-    """
-    Test invoke raises an error if no prompt is provided
-    """
-    layer = AmazonBedrockGenerator(model="anthropic.claude-v2")
-    with pytest.raises(ValueError, match="The model anthropic.claude-v2 requires a valid prompt."):
-        layer.invoke()
 
 
 def test_short_prompt_is_not_truncated(mock_boto3_session):
@@ -224,13 +217,13 @@ def test_long_prompt_is_not_truncated_when_truncate_false(mock_boto3_session):
             generator.model_adapter.get_responses = MagicMock(return_value=["response"])
 
             # Invoke the generator
-            generator.invoke(prompt=long_prompt_text)
+            generator.run(prompt=long_prompt_text)
 
         # Ensure _ensure_token_limit was not called
         mock_ensure_token_limit.assert_not_called(),
 
         # Check the prompt passed to prepare_body
-        generator.model_adapter.prepare_body.assert_called_with(prompt=long_prompt_text)
+        generator.model_adapter.prepare_body.assert_called_with(prompt=long_prompt_text, stream=False)
 
 
 @pytest.mark.parametrize(
@@ -407,7 +400,7 @@ class TestAnthropicClaudeAdapterMessagesAPI:
 
     def test_get_stream_responses(self) -> None:
         stream_mock = MagicMock()
-        stream_handler_mock = MagicMock()
+        streaming_callback_mock = MagicMock()
 
         stream_mock.__iter__.return_value = [
             {"chunk": {"bytes": b'{"delta": {"text": " This"}}'}},
@@ -417,35 +410,31 @@ class TestAnthropicClaudeAdapterMessagesAPI:
             {"chunk": {"bytes": b'{"delta": {"text": " response."}}'}},
         ]
 
-        stream_handler_mock.side_effect = lambda token_received, **kwargs: token_received
-
         adapter = AnthropicClaudeAdapter(model_kwargs={}, max_length=99)
         expected_responses = ["This is a single response."]
-        assert adapter.get_stream_responses(stream_mock, stream_handler_mock) == expected_responses
+        assert adapter.get_stream_responses(stream_mock, streaming_callback_mock) == expected_responses
 
-        stream_handler_mock.assert_has_calls(
+        streaming_callback_mock.assert_has_calls(
             [
-                call(" This", event_data={"delta": {"text": " This"}}),
-                call(" is", event_data={"delta": {"text": " is"}}),
-                call(" a", event_data={"delta": {"text": " a"}}),
-                call(" single", event_data={"delta": {"text": " single"}}),
-                call(" response.", event_data={"delta": {"text": " response."}}),
+                call(StreamingChunk(content=" This", meta={"delta": {"text": " This"}})),
+                call(StreamingChunk(content=" is", meta={"delta": {"text": " is"}})),
+                call(StreamingChunk(content=" a", meta={"delta": {"text": " a"}})),
+                call(StreamingChunk(content=" single", meta={"delta": {"text": " single"}})),
+                call(StreamingChunk(content=" response.", meta={"delta": {"text": " response."}})),
             ]
         )
 
     def test_get_stream_responses_empty(self) -> None:
         stream_mock = MagicMock()
-        stream_handler_mock = MagicMock()
+        streaming_callback_mock = MagicMock()
 
         stream_mock.__iter__.return_value = []
 
-        stream_handler_mock.side_effect = lambda token_received, **kwargs: token_received
-
         adapter = AnthropicClaudeAdapter(model_kwargs={}, max_length=99)
         expected_responses = [""]
-        assert adapter.get_stream_responses(stream_mock, stream_handler_mock) == expected_responses
+        assert adapter.get_stream_responses(stream_mock, streaming_callback_mock) == expected_responses
 
-        stream_handler_mock.assert_not_called()
+        streaming_callback_mock.assert_not_called()
 
 
 class TestAnthropicClaudeAdapterNoMessagesAPI:
@@ -553,7 +542,7 @@ class TestAnthropicClaudeAdapterNoMessagesAPI:
 
     def test_get_stream_responses(self) -> None:
         stream_mock = MagicMock()
-        stream_handler_mock = MagicMock()
+        streaming_callback_mock = MagicMock()
 
         stream_mock.__iter__.return_value = [
             {"chunk": {"bytes": b'{"completion": " This"}'}},
@@ -563,35 +552,31 @@ class TestAnthropicClaudeAdapterNoMessagesAPI:
             {"chunk": {"bytes": b'{"completion": " response."}'}},
         ]
 
-        stream_handler_mock.side_effect = lambda token_received, **kwargs: token_received
-
         adapter = AnthropicClaudeAdapter(model_kwargs={"use_messages_api": False}, max_length=99)
         expected_responses = ["This is a single response."]
-        assert adapter.get_stream_responses(stream_mock, stream_handler_mock) == expected_responses
+        assert adapter.get_stream_responses(stream_mock, streaming_callback_mock) == expected_responses
 
-        stream_handler_mock.assert_has_calls(
+        streaming_callback_mock.assert_has_calls(
             [
-                call(" This", event_data={"completion": " This"}),
-                call(" is", event_data={"completion": " is"}),
-                call(" a", event_data={"completion": " a"}),
-                call(" single", event_data={"completion": " single"}),
-                call(" response.", event_data={"completion": " response."}),
+                call(StreamingChunk(content=" This", meta={"completion": " This"})),
+                call(StreamingChunk(content=" is", meta={"completion": " is"})),
+                call(StreamingChunk(content=" a", meta={"completion": " a"})),
+                call(StreamingChunk(content=" single", meta={"completion": " single"})),
+                call(StreamingChunk(content=" response.", meta={"completion": " response."})),
             ]
         )
 
     def test_get_stream_responses_empty(self) -> None:
         stream_mock = MagicMock()
-        stream_handler_mock = MagicMock()
+        streaming_callback_mock = MagicMock()
 
         stream_mock.__iter__.return_value = []
 
-        stream_handler_mock.side_effect = lambda token_received, **kwargs: token_received
-
         adapter = AnthropicClaudeAdapter(model_kwargs={"use_messages_api": False}, max_length=99)
         expected_responses = [""]
-        assert adapter.get_stream_responses(stream_mock, stream_handler_mock) == expected_responses
+        assert adapter.get_stream_responses(stream_mock, streaming_callback_mock) == expected_responses
 
-        stream_handler_mock.assert_not_called()
+        streaming_callback_mock.assert_not_called()
 
 
 class TestMistralAdapter:
@@ -686,7 +671,7 @@ class TestMistralAdapter:
 
     def test_get_stream_responses(self) -> None:
         stream_mock = MagicMock()
-        stream_handler_mock = MagicMock()
+        streaming_callback_mock = MagicMock()
 
         stream_mock.__iter__.return_value = [
             {"chunk": {"bytes": b'{"outputs": [{"text": " This"}]}'}},
@@ -696,35 +681,33 @@ class TestMistralAdapter:
             {"chunk": {"bytes": b'{"outputs": [{"text": " response."}]}'}},
         ]
 
-        stream_handler_mock.side_effect = lambda token_received, **kwargs: token_received
-
         adapter = MistralAdapter(model_kwargs={}, max_length=99)
         expected_responses = ["This is a single response."]
-        assert adapter.get_stream_responses(stream_mock, stream_handler_mock) == expected_responses
+        assert adapter.get_stream_responses(stream_mock, streaming_callback_mock) == expected_responses
 
-        stream_handler_mock.assert_has_calls(
+        streaming_callback_mock.assert_has_calls(
             [
-                call(" This", event_data={"outputs": [{"text": " This"}]}),
-                call(" is", event_data={"outputs": [{"text": " is"}]}),
-                call(" a", event_data={"outputs": [{"text": " a"}]}),
-                call(" single", event_data={"outputs": [{"text": " single"}]}),
-                call(" response.", event_data={"outputs": [{"text": " response."}]}),
+                call(StreamingChunk(content=" This", meta={"outputs": [{"text": " This"}]})),
+                call(StreamingChunk(content=" is", meta={"outputs": [{"text": " is"}]})),
+                call(StreamingChunk(content=" a", meta={"outputs": [{"text": " a"}]})),
+                call(StreamingChunk(content=" single", meta={"outputs": [{"text": " single"}]})),
+                call(StreamingChunk(content=" response.", meta={"outputs": [{"text": " response."}]})),
             ]
         )
 
     def test_get_stream_responses_empty(self) -> None:
         stream_mock = MagicMock()
-        stream_handler_mock = MagicMock()
+        streaming_callback_mock = MagicMock()
 
         stream_mock.__iter__.return_value = []
 
-        stream_handler_mock.side_effect = lambda token_received, **kwargs: token_received
+        streaming_callback_mock.side_effect = lambda token_received, **kwargs: token_received
 
         adapter = MistralAdapter(model_kwargs={}, max_length=99)
         expected_responses = [""]
-        assert adapter.get_stream_responses(stream_mock, stream_handler_mock) == expected_responses
+        assert adapter.get_stream_responses(stream_mock, streaming_callback_mock) == expected_responses
 
-        stream_handler_mock.assert_not_called()
+        streaming_callback_mock.assert_not_called()
 
 
 class TestCohereCommandAdapter:
@@ -881,7 +864,7 @@ class TestCohereCommandAdapter:
 
     def test_get_stream_responses(self) -> None:
         stream_mock = MagicMock()
-        stream_handler_mock = MagicMock()
+        streaming_callback_mock = MagicMock()
 
         stream_mock.__iter__.return_value = [
             {"chunk": {"bytes": b'{"text": " This"}'}},
@@ -892,36 +875,32 @@ class TestCohereCommandAdapter:
             {"chunk": {"bytes": b'{"finish_reason": "MAX_TOKENS", "is_finished": true}'}},
         ]
 
-        stream_handler_mock.side_effect = lambda token_received, **kwargs: token_received
-
         adapter = CohereCommandAdapter(model_kwargs={}, max_length=99)
         expected_responses = ["This is a single response."]
-        assert adapter.get_stream_responses(stream_mock, stream_handler_mock) == expected_responses
+        assert adapter.get_stream_responses(stream_mock, streaming_callback_mock) == expected_responses
 
-        stream_handler_mock.assert_has_calls(
+        streaming_callback_mock.assert_has_calls(
             [
-                call(" This", event_data={"text": " This"}),
-                call(" is", event_data={"text": " is"}),
-                call(" a", event_data={"text": " a"}),
-                call(" single", event_data={"text": " single"}),
-                call(" response.", event_data={"text": " response."}),
-                call("", event_data={"finish_reason": "MAX_TOKENS", "is_finished": True}),
+                call(StreamingChunk(content=" This", meta={"text": " This"})),
+                call(StreamingChunk(content=" is", meta={"text": " is"})),
+                call(StreamingChunk(content=" a", meta={"text": " a"})),
+                call(StreamingChunk(content=" single", meta={"text": " single"})),
+                call(StreamingChunk(content=" response.", meta={"text": " response."})),
+                call(StreamingChunk(content="", meta={"finish_reason": "MAX_TOKENS", "is_finished": True})),
             ]
         )
 
     def test_get_stream_responses_empty(self) -> None:
         stream_mock = MagicMock()
-        stream_handler_mock = MagicMock()
+        streaming_callback_mock = MagicMock()
 
         stream_mock.__iter__.return_value = []
 
-        stream_handler_mock.side_effect = lambda token_received, **kwargs: token_received
-
         adapter = CohereCommandAdapter(model_kwargs={}, max_length=99)
         expected_responses = [""]
-        assert adapter.get_stream_responses(stream_mock, stream_handler_mock) == expected_responses
+        assert adapter.get_stream_responses(stream_mock, streaming_callback_mock) == expected_responses
 
-        stream_handler_mock.assert_not_called()
+        streaming_callback_mock.assert_not_called()
 
 
 class TestCohereCommandRAdapter:
@@ -1025,11 +1004,11 @@ class TestCohereCommandRAdapter:
         completions = adapter._extract_completions_from_response(response_body=response_body)
         assert completions == ["response"]
 
-    def test_extract_token_from_stream(self) -> None:
+    def test_build_chunk(self) -> None:
         adapter = CohereCommandRAdapter(model_kwargs={}, max_length=100)
         chunk = {"text": "response_token"}
-        token = adapter._extract_token_from_stream(chunk=chunk)
-        assert token == "response_token"
+        streaming_chunk = adapter._build_streaming_chunk(chunk=chunk)
+        assert streaming_chunk == StreamingChunk(content="response_token", meta=chunk)
 
 
 class TestAI21LabsJurassic2Adapter:
@@ -1288,7 +1267,7 @@ class TestAmazonTitanAdapter:
 
     def test_get_stream_responses(self) -> None:
         stream_mock = MagicMock()
-        stream_handler_mock = MagicMock()
+        streaming_callback_mock = MagicMock()
 
         stream_mock.__iter__.return_value = [
             {"chunk": {"bytes": b'{"outputText": " This"}'}},
@@ -1298,35 +1277,31 @@ class TestAmazonTitanAdapter:
             {"chunk": {"bytes": b'{"outputText": " response."}'}},
         ]
 
-        stream_handler_mock.side_effect = lambda token_received, **kwargs: token_received
-
         adapter = AmazonTitanAdapter(model_kwargs={}, max_length=99)
         expected_responses = ["This is a single response."]
-        assert adapter.get_stream_responses(stream_mock, stream_handler_mock) == expected_responses
+        assert adapter.get_stream_responses(stream_mock, streaming_callback_mock) == expected_responses
 
-        stream_handler_mock.assert_has_calls(
+        streaming_callback_mock.assert_has_calls(
             [
-                call(" This", event_data={"outputText": " This"}),
-                call(" is", event_data={"outputText": " is"}),
-                call(" a", event_data={"outputText": " a"}),
-                call(" single", event_data={"outputText": " single"}),
-                call(" response.", event_data={"outputText": " response."}),
+                call(StreamingChunk(content=" This", meta={"outputText": " This"})),
+                call(StreamingChunk(content=" is", meta={"outputText": " is"})),
+                call(StreamingChunk(content=" a", meta={"outputText": " a"})),
+                call(StreamingChunk(content=" single", meta={"outputText": " single"})),
+                call(StreamingChunk(content=" response.", meta={"outputText": " response."})),
             ]
         )
 
     def test_get_stream_responses_empty(self) -> None:
         stream_mock = MagicMock()
-        stream_handler_mock = MagicMock()
+        streaming_callback_mock = MagicMock()
 
         stream_mock.__iter__.return_value = []
 
-        stream_handler_mock.side_effect = lambda token_received, **kwargs: token_received
-
         adapter = AmazonTitanAdapter(model_kwargs={}, max_length=99)
         expected_responses = [""]
-        assert adapter.get_stream_responses(stream_mock, stream_handler_mock) == expected_responses
+        assert adapter.get_stream_responses(stream_mock, streaming_callback_mock) == expected_responses
 
-        stream_handler_mock.assert_not_called()
+        streaming_callback_mock.assert_not_called()
 
 
 class TestMetaLlamaAdapter:
@@ -1417,7 +1392,7 @@ class TestMetaLlamaAdapter:
 
     def test_get_stream_responses(self) -> None:
         stream_mock = MagicMock()
-        stream_handler_mock = MagicMock()
+        streaming_callback_mock = MagicMock()
 
         stream_mock.__iter__.return_value = [
             {"chunk": {"bytes": b'{"generation": " This"}'}},
@@ -1427,32 +1402,28 @@ class TestMetaLlamaAdapter:
             {"chunk": {"bytes": b'{"generation": " response."}'}},
         ]
 
-        stream_handler_mock.side_effect = lambda token_received, **kwargs: token_received
-
         adapter = MetaLlamaAdapter(model_kwargs={}, max_length=99)
         expected_responses = ["This is a single response."]
-        assert adapter.get_stream_responses(stream_mock, stream_handler_mock) == expected_responses
+        assert adapter.get_stream_responses(stream_mock, streaming_callback_mock) == expected_responses
 
-        stream_handler_mock.assert_has_calls(
+        streaming_callback_mock.assert_has_calls(
             [
-                call(" This", event_data={"generation": " This"}),
-                call(" is", event_data={"generation": " is"}),
-                call(" a", event_data={"generation": " a"}),
-                call(" single", event_data={"generation": " single"}),
-                call(" response.", event_data={"generation": " response."}),
+                call(StreamingChunk(content=" This", meta={"generation": " This"})),
+                call(StreamingChunk(content=" is", meta={"generation": " is"})),
+                call(StreamingChunk(content=" a", meta={"generation": " a"})),
+                call(StreamingChunk(content=" single", meta={"generation": " single"})),
+                call(StreamingChunk(content=" response.", meta={"generation": " response."})),
             ]
         )
 
     def test_get_stream_responses_empty(self) -> None:
         stream_mock = MagicMock()
-        stream_handler_mock = MagicMock()
+        streaming_callback_mock = MagicMock()
 
         stream_mock.__iter__.return_value = []
 
-        stream_handler_mock.side_effect = lambda token_received, **kwargs: token_received
-
         adapter = MetaLlamaAdapter(model_kwargs={}, max_length=99)
         expected_responses = [""]
-        assert adapter.get_stream_responses(stream_mock, stream_handler_mock) == expected_responses
+        assert adapter.get_stream_responses(stream_mock, streaming_callback_mock) == expected_responses
 
-        stream_handler_mock.assert_not_called()
+        streaming_callback_mock.assert_not_called()
