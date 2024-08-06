@@ -38,7 +38,7 @@ class OpenSearchBM25Retriever:
         Creates the OpenSearchBM25Retriever component.
 
         :param document_store: An instance of OpenSearchDocumentStore to use with the Retriever.
-        :param filters: Filters to narrow down the search for documents in the document store.
+        :param filters: Filters to narrow down the search for documents in the Document Store.
         :param fuzziness: Fuzziness parameter for full-text queries to apply approximate string matching.
         For more information, see [OpenSearch fuzzy query](https://opensearch.org/docs/latest/query-dsl/term/fuzzy/).
         :param top_k: Maximum number of documents to return.
