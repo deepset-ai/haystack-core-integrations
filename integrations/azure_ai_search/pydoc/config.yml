@@ -1,0 +1,32 @@
+loaders:
+  - type: haystack_pydoc_tools.loaders.CustomPythonLoader
+    search_path: [../src]
+    modules: [
+      "haystack_integrations.components.retrievers.opensearch.bm25_retriever",
+      "haystack_integrations.components.retrievers.opensearch.embedding_retriever",
+      "haystack_integrations.document_stores.opensearch.document_store",
+      "haystack_integrations.document_stores.opensearch.filters",
+    ]
+    ignore_when_discovered: ["__init__"]
+processors:
+  - type: filter
+    expression:
+    documented_only: true
+    do_not_filter_modules: false
+    skip_empty_modules: true
+  - type: smart
+  - type: crossref
+renderer:
+  type: haystack_pydoc_tools.renderers.ReadmeIntegrationRenderer
+  excerpt: OpenSearch integration for Haystack
+  category_slug: integrations-api
+  title: OpenSearch
+  slug: integrations-opensearch
+  order: 180
+  markdown:
+    descriptive_class_title: false
+    classdef_code_block: false
+    descriptive_module_title: true
+    add_method_class_prefix: true
+    add_member_class_prefix: false
+    filename: _readme_opensearch.md
