@@ -54,9 +54,11 @@ dependencies = [
 ]
 [tool.hatch.envs.default.scripts]
 test = "pytest {args:tests}"
-test-cov = "coverage run -m pytest --reruns 3 --reruns-delay 30 -x {args:tests}"
+test-cov = "coverage run -m pytest {args:tests}"
+test-cov-retry = "test-cov --reruns 3 --reruns-delay 30 -x"
 cov-report = ["- coverage combine", "coverage report"]
 cov = ["test-cov", "cov-report"]
+cov-retry = ["test-cov-retry", "cov-report"]
 docs = ["pydoc-markdown pydoc/config.yml"]
 
 [[tool.hatch.envs.all.matrix]]

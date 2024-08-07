@@ -63,7 +63,7 @@ jobs:
         run: hatch run docs
 
       - name: Run unit tests
-        run: hatch run cov -m "not integration"
+        run: hatch run cov-retry -m "not integration"
 
       # Do not authenticate on pull requests from forks
       - name: AWS authentication
@@ -76,13 +76,13 @@ jobs:
       # Do not run integration tests on pull requests from forks
       - name: Run integration tests
         if: github.event.pull_request.head.repo.full_name == github.repository
-        run: hatch run cov -m "integration"
+        run: hatch run cov-retry -m "integration"
 
       - name: Nightly - run unit tests with Haystack main branch
         if: github.event_name == 'schedule'
         run: |
           hatch run pip install git+https://github.com/deepset-ai/haystack.git
-          hatch run cov -m "not integration"
+          hatch run cov-retry -m "not integration"
 
       - name: Send event to Datadog for nightly failures
         if: failure() && github.event_name == 'schedule'
