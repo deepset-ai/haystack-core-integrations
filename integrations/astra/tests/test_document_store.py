@@ -172,6 +172,34 @@ class TestDocumentStore(DocumentStoreBaseTests):
         # No Document has been deleted
         assert document_store.count_documents() == 0
 
+    def test_filter_documents_nested_filters(self, document_store, filterable_docs):
+        filter_criteria = {
+            "operator": "AND",
+            "conditions": [
+                {"field": "meta.page", "operator": "==", "value": "100"},
+                {
+                    "operator": "OR",
+                    "conditions": [
+                        {"field": "meta.chapter", "operator": "==", "value": "abstract"},
+                        {"field": "meta.chapter", "operator": "==", "value": "intro"},
+                    ],
+                },
+            ],
+        }
+
+        document_store.write_documents(filterable_docs)
+        result = document_store.filter_documents(filters=filter_criteria)
+
+        self.assert_documents_are_equal(
+            result,
+            [
+                d
+                for d in filterable_docs
+                if d.meta.get("page") == "100"
+                and (d.meta.get("chapter") == "abstract" or d.meta.get("chapter") == "intro")
+            ],
+        )
+
     @pytest.mark.skip(reason="Unsupported filter operator not.")
     def test_not_operator(self, document_store, filterable_docs):
         pass

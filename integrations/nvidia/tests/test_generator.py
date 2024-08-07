@@ -109,7 +109,7 @@ class TestNvidiaGenerator:
             "type": "haystack_integrations.components.generators.nvidia.generator.NvidiaGenerator",
             "init_parameters": {
                 "api_key": {"env_vars": ["NVIDIA_API_KEY"], "strict": True, "type": "env_var"},
-                "api_url": "https://my.url.com",
+                "api_url": "https://my.url.com/v1",
                 "model": "playground_nemotron_steerlm_8b",
                 "model_arguments": {
                     "temperature": 0.2,

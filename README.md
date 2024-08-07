@@ -35,7 +35,6 @@ Please check out our [Contribution Guidelines](CONTRIBUTING.md) for all the deta
 | [fastembed-haystack](integrations/fastembed/)                                                                  | Embedder            | [![PyPI - Version](https://img.shields.io/pypi/v/fastembed-haystack.svg)](https://pypi.org/project/fastembed-haystack/)                                  | [![Test / fastembed](https://github.com/deepset-ai/haystack-core-integrations/actions/workflows/fastembed.yml/badge.svg)](https://github.com/deepset-ai/haystack-core-integrations/actions/workflows/fastembed.yml)                                  |
 | [google-ai-haystack](integrations/google_ai/)                                                                  | Generator           | [![PyPI - Version](https://img.shields.io/pypi/v/google-ai-haystack.svg)](https://pypi.org/project/google-ai-haystack)                                   | [![Test / google-ai](https://github.com/deepset-ai/haystack-core-integrations/actions/workflows/google_ai.yml/badge.svg)](https://github.com/deepset-ai/haystack-core-integrations/actions/workflows/google_ai.yml)                                  |
 | [google-vertex-haystack](integrations/google_vertex/)                                                          | Generator           | [![PyPI - Version](https://img.shields.io/pypi/v/google-vertex-haystack.svg)](https://pypi.org/project/google-vertex-haystack)                           | [![Test / google-vertex](https://github.com/deepset-ai/haystack-core-integrations/actions/workflows/google_vertex.yml/badge.svg)](https://github.com/deepset-ai/haystack-core-integrations/actions/workflows/google_vertex.yml)                      |
-| [gradient-haystack](integrations/gradient/)                                                                    | Embedder, Generator | [![PyPI - Version](https://img.shields.io/pypi/v/gradient-haystack.svg)](https://pypi.org/project/gradient-haystack)                                     | [![Test / gradient](https://github.com/deepset-ai/haystack-core-integrations/actions/workflows/gradient.yml/badge.svg)](https://github.com/deepset-ai/haystack-core-integrations/actions/workflows/gradient.yml)                                     |
 | [instructor-embedders-haystack](integrations/instructor_embedders/)                                            | Embedder            | [![PyPI - Version](https://img.shields.io/pypi/v/instructor-embedders-haystack.svg)](https://pypi.org/project/instructor-embedders-haystack)             | [![Test / instructor-embedders](https://github.com/deepset-ai/haystack-core-integrations/actions/workflows/instructor_embedders.yml/badge.svg)](https://github.com/deepset-ai/haystack-core-integrations/actions/workflows/instructor_embedders.yml) |
 | [jina-haystack](integrations/jina/)                                                                            | Embedder, Ranker    | [![PyPI - Version](https://img.shields.io/pypi/v/jina-haystack.svg)](https://pypi.org/project/jina-haystack)                                             | [![Test / jina](https://github.com/deepset-ai/haystack-core-integrations/actions/workflows/jina.yml/badge.svg)](https://github.com/deepset-ai/haystack-core-integrations/actions/workflows/jina.yml)                                                 |
 | [langfuse-haystack](integrations/langfuse/)                                                                    | Tracer              | [![PyPI - Version](https://img.shields.io/pypi/v/langfuse-haystack.svg?color=orange)](https://pypi.org/project/langfuse-haystack)                        | [![Test / langfuse](https://github.com/deepset-ai/haystack-core-integrations/actions/workflows/langfuse.yml/badge.svg)](https://github.com/deepset-ai/haystack-core-integrations/actions/workflows/langfuse.yml)                                     |
@@ -53,3 +52,33 @@ Please check out our [Contribution Guidelines](CONTRIBUTING.md) for all the deta
 | [unstructured-fileconverter-haystack](integrations/unstructured/)                                              | File converter      | [![PyPI - Version](https://img.shields.io/pypi/v/unstructured-fileconverter-haystack.svg)](https://pypi.org/project/unstructured-fileconverter-haystack) | [![Test / unstructured](https://github.com/deepset-ai/haystack-core-integrations/actions/workflows/unstructured.yml/badge.svg)](https://github.com/deepset-ai/haystack-core-integrations/actions/workflows/unstructured.yml)                         |
 | [uptrain-haystack](https://github.com/deepset-ai/haystack-core-integrations/tree/staging/integrations/uptrain) | Evaluator           | [![PyPI - Version](https://img.shields.io/pypi/v/uptrain-haystack.svg)](https://pypi.org/project/uptrain-haystack)                                       | [Staged](https://docs.haystack.deepset.ai/docs/breaking-change-policy#discontinuing-an-integration)                                                                                                                                                                                                                                               |
 | [weaviate-haystack](integrations/weaviate/)                                                                    | Document Store      | [![PyPI - Version](https://img.shields.io/pypi/v/weaviate-haystack.svg)](https://pypi.org/project/weaviate-haystack)                                     | [![Test / weaviate](https://github.com/deepset-ai/haystack-core-integrations/actions/workflows/weaviate.yml/badge.svg)](https://github.com/deepset-ai/haystack-core-integrations/actions/workflows/weaviate.yml)                                     |
+
+## Releasing
+
+> [!NOTE]
+> Only maintainers can release new versions of integrations.
+> If you're a community contributor and want to release a new version of an integration,
+> reach out to a maintainer.
+
+To release a new version of an integration to PyPI tag the commit with the right version number and push the tag to 
+GitHub. The GitHub Actions workflow will take care of the rest.
+
+1. Tag the commit with the right version number
+
+    The tag needs to have the following format:
+
+    ```
+    git tag integrations/<INTEGRATION_FOLDER_NAME>-<version>
+    ```
+
+    For example, if we want to release version 1.0.99 of the google-vertex-haystack integration we'd have to push the tag:
+
+    ```
+    git tag integrations/google_vertex-v1.0.99
+    ```
+2. Push the tag to GitHub
+
+    ```
+    git push --tags origin
+    ```
+3. Wait for the CI to do its magic

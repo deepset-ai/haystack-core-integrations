@@ -1,5 +1,11 @@
 # Changelog
 
+## [integrations/opensearch-v0.9.0] - 2024-08-01
+
+### 🚀 Features
+
+- Support aws authentication with OpenSearchDocumentStore (#920)
+
 ## [integrations/opensearch-v0.8.1] - 2024-07-15
 
 ### 🚀 Features

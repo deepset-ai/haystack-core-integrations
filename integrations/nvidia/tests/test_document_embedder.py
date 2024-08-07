@@ -24,27 +24,28 @@ class TestNvidiaDocumentEmbedder:
         assert embedder.embedding_separator == "\n"
 
     def test_init_with_parameters(self):
-        embedder = NvidiaDocumentEmbedder(
-            api_key=Secret.from_token("fake-api-key"),
-            model="nvolveqa_40k",
-            api_url="https://ai.api.nvidia.com/v1/retrieval/nvidia/test",
-            prefix="prefix",
-            suffix="suffix",
-            batch_size=30,
-            progress_bar=False,
-            meta_fields_to_embed=["test_field"],
-            embedding_separator=" | ",
-        )
+        with pytest.raises(ValueError):
+            embedder = NvidiaDocumentEmbedder(
+                api_key=Secret.from_token("fake-api-key"),
+                model="nvolveqa_40k",
+                api_url="https://ai.api.nvidia.com/v1/retrieval/nvidia/test",
+                prefix="prefix",
+                suffix="suffix",
+                batch_size=30,
+                progress_bar=False,
+                meta_fields_to_embed=["test_field"],
+                embedding_separator=" | ",
+            )
 
-        assert embedder.api_key == Secret.from_token("fake-api-key")
-        assert embedder.model == "nvolveqa_40k"
-        assert embedder.api_url == "https://ai.api.nvidia.com/v1/retrieval/nvidia/test"
-        assert embedder.prefix == "prefix"
-        assert embedder.suffix == "suffix"
-        assert embedder.batch_size == 30
-        assert embedder.progress_bar is False
-        assert embedder.meta_fields_to_embed == ["test_field"]
-        assert embedder.embedding_separator == " | "
+            assert embedder.api_key == Secret.from_token("fake-api-key")
+            assert embedder.model == "nvolveqa_40k"
+            assert embedder.api_url == "https://ai.api.nvidia.com/v1/retrieval/nvidia/test"
+            assert embedder.prefix == "prefix"
+            assert embedder.suffix == "suffix"
+            assert embedder.batch_size == 30
+            assert embedder.progress_bar is False
+            assert embedder.meta_fields_to_embed == ["test_field"]
+            assert embedder.embedding_separator == " | "
 
     def test_init_fail_wo_api_key(self, monkeypatch):
         monkeypatch.delenv("NVIDIA_API_KEY", raising=False)
@@ -90,7 +91,7 @@ class TestNvidiaDocumentEmbedder:
             "type": "haystack_integrations.components.embedders.nvidia.document_embedder.NvidiaDocumentEmbedder",
             "init_parameters": {
                 "api_key": {"env_vars": ["NVIDIA_API_KEY"], "strict": True, "type": "env_var"},
-                "api_url": "https://example.com",
+                "api_url": "https://example.com/v1",
                 "model": "playground_nvolveqa_40k",
                 "prefix": "prefix",
                 "suffix": "suffix",
@@ -121,7 +122,7 @@ class TestNvidiaDocumentEmbedder:
         }
         component = NvidiaDocumentEmbedder.from_dict(data)
         assert component.model == "nvolveqa_40k"
-        assert component.api_url == "https://example.com"
+        assert component.api_url == "https://example.com/v1"
         assert component.prefix == "prefix"
         assert component.suffix == "suffix"
         assert component.batch_size == 32

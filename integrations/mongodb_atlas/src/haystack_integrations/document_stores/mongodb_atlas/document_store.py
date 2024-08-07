@@ -82,7 +82,6 @@ class MongoDBAtlasDocumentStore:
             msg = f'Invalid collection name: "{collection_name}". It can only contain letters, numbers, -, or _.'
             raise ValueError(msg)
 
-        self.resolved_connection_string = mongo_connection_string.resolve_value()
         self.mongo_connection_string = mongo_connection_string
 
         self.database_name = database_name
@@ -95,7 +94,7 @@ class MongoDBAtlasDocumentStore:
     def connection(self) -> MongoClient:
         if self._connection is None:
             self._connection = MongoClient(
-                self.resolved_connection_string, driver=DriverInfo(name="MongoDBAtlasHaystackIntegration")
+                self.mongo_connection_string.resolve_value(), driver=DriverInfo(name="MongoDBAtlasHaystackIntegration")
             )
 
         return self._connection
