@@ -1,7 +1,7 @@
 from typing import Any, Dict, List, Optional, Tuple
 
 import pytest
-from haystack_integrations.util.nvidia import Model, NimBackend
+from haystack_integrations.utils.nvidia import Model, NimBackend
 from requests_mock import Mocker
 
 

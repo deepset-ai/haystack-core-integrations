@@ -3,7 +3,7 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 
 from haystack import Document, component, default_from_dict, default_to_dict
 from haystack.utils import Secret, deserialize_secrets_inplace
-from haystack_integrations.util.nvidia import NimBackend, is_hosted, url_validation
+from haystack_integrations.utils.nvidia import NimBackend, is_hosted, url_validation
 from tqdm import tqdm
 
 from .truncate import EmbeddingTruncateMode
