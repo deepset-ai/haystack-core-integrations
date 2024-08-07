@@ -37,3 +37,11 @@ def url_validation(api_url: str, default_api_url: str, allowed_paths: List[str])
 
     base_url = urlunparse((result.scheme, result.netloc, "v1", "", "", ""))
     return base_url
+
+
+def is_hosted(api_url: str):
+    """"""
+    return urlparse(api_url).netloc in [
+        "integrate.api.nvidia.com",
+        "ai.api.nvidia.com",
+    ]

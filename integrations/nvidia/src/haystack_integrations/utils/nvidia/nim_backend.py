@@ -1,14 +1,29 @@
+from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple
 
 import requests
 from haystack.utils import Secret
 
-from .backend import GeneratorBackend
-
 REQUEST_TIMEOUT = 60
 
 
-class NimBackend(GeneratorBackend):
+@dataclass
+class Model:
+    """
+    Model information.
+
+    id: unique identifier for the model, passed as model parameter for requests
+    aliases: list of aliases for the model
+    base_model: root model for the model
+    All aliases are deprecated and will trigger a warning when used.
+    """
+
+    id: str
+    aliases: Optional[List[str]] = field(default_factory=list)
+    base_model: Optional[str] = None
+
+
+class NimBackend:
     def __init__(
         self,
         model: str,
@@ -30,6 +45,26 @@ class NimBackend(GeneratorBackend):
         self.model = model
         self.api_url = api_url
         self.model_kwargs = model_kwargs or {}
+
+    def embed(self, texts: List[str]) -> Tuple[List[List[float]], Dict[str, Any]]:
+        url = f"{self.api_url}/embeddings"
+
+        res = self.session.post(
+            url,
+            json={
+                "model": self.model,
+                "input": texts,
+                **self.model_kwargs,
+            },
+            timeout=REQUEST_TIMEOUT,
+        )
+        res.raise_for_status()
+
+        data = res.json()
+        # Sort the embeddings by index, we don't know whether they're out of order or not
+        embeddings = [e["embedding"] for e in sorted(data["data"], key=lambda e: e["index"])]
+
+        return embeddings, {"usage": data["usage"]}
 
     def generate(self, prompt: str) -> Tuple[List[str], List[Dict[str, Any]]]:
         # We're using the chat completion endpoint as the NIM API doesn't support
@@ -78,3 +113,19 @@ class NimBackend(GeneratorBackend):
             meta.append(choice_meta)
 
         return replies, meta
+
+    def models(self) -> List[Model]:
+        url = f"{self.api_url}/models"
+
+        res = self.session.get(
+            url,
+            timeout=REQUEST_TIMEOUT,
+        )
+        res.raise_for_status()
+
+        data = res.json()["data"]
+        models = [Model(element["id"]) for element in data if "id" in element]
+        if not models:
+            msg = f"No hosted model were found at URL '{url}'."
+            raise ValueError(msg)
+        return models
