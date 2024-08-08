@@ -20,7 +20,7 @@ class CohereGenerator(CohereChatGenerator):
     NOTE: Cohere discontinued the `generate` API, so this generator is a mere wrapper
     around `CohereChatGenerator` provided for backward compatibility.
 
-    ### Example usage
+    ### Usage example
 
     ```python
     from haystack_integrations.components.generators.cohere import CohereGenerator
