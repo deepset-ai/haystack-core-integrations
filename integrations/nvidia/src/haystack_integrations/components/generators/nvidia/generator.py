@@ -16,10 +16,11 @@ _DEFAULT_API_URL = "https://integrate.api.nvidia.com/v1"
 @component
 class NvidiaGenerator:
     """
-    A component for generating text using generative models provided by
-    [NVIDIA NIMs](https://ai.nvidia.com).
+    Generates text using generative models hosted with
+    [NVIDIA NIM](https://ai.nvidia.com) on on the [NVIDIA API Catalog](https://build.nvidia.com/explore/discover).
 
-    Usage example:
+    ### Usage example
+
     ```python
     from haystack_integrations.components.generators.nvidia import NvidiaGenerator
 
@@ -38,6 +39,8 @@ class NvidiaGenerator:
     print(result["meta"])
     print(result["usage"])
     ```
+
+    You need an NVIDIA API key for this component to work. 
     """
 
     def __init__(
@@ -52,16 +55,17 @@ class NvidiaGenerator:
 
         :param model:
             Name of the model to use for text generation.
-            See the [NVIDIA NIMs](https://ai.nvidia.com)
-            for more information on the supported models.
+            Check supported models at [NVIDIA NIMs](https://ai.nvidia.com).
         :param api_key:
-            API key for the NVIDIA NIM.
+            API key for the NVIDIA NIM. Set it as the `NVIDIA_API_KEY` environment
+            variable or pass it here. 
         :param api_url:
             Custom API URL for the NVIDIA NIM.
         :param model_arguments:
-            Additional arguments to pass to the model provider. Different models accept different arguments.
+            Additional arguments to pass to the model provider. These arguments are
+            specific to a model.
             Search your model in the [NVIDIA NIMs](https://ai.nvidia.com)
-            to know the supported arguments.
+            to find the arguments it accepts.
         """
         self._model = model
         self._api_url = url_validation(api_url, _DEFAULT_API_URL, ["v1/chat/completions"])
