@@ -31,7 +31,7 @@ class GoogleAIGeminiGenerator:
         print(answer)
     ```
 
-    Multimodal usage example:
+    #### Multimodal example
 
     ```python
     import requests
