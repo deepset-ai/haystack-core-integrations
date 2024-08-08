@@ -64,7 +64,7 @@ class NvidiaGenerator:
         :param model_arguments:
             Additional arguments to pass to the model provider. These arguments are
             specific to a model.
-            Search your model in the [NVIDIA NIMs](https://ai.nvidia.com)
+            Search your model in the [NVIDIA NIM](https://ai.nvidia.com)
             to find the arguments it accepts.
         """
         self._model = model
