@@ -55,7 +55,7 @@ class NvidiaGenerator:
 
         :param model:
             Name of the model to use for text generation.
-            Check supported models at [NVIDIA NIMs](https://ai.nvidia.com).
+            Check supported models at [NVIDIA NIM](https://ai.nvidia.com).
         :param api_key:
             API key for the NVIDIA NIM. Set it as the `NVIDIA_API_KEY` environment
             variable or pass it here.
