@@ -43,7 +43,7 @@ class CohereGenerator(CohereChatGenerator):
 
         :param api_key: Cohere API key.
         :param model: Cohere model to use for generation.
-        :param streaming_callback:  callback function that is called when a new token is received from the stream.
+        :param streaming_callback: Callback function that is called when a new token is received from the stream.
             The callback function accepts [StreamingChunk](https://docs.haystack.deepset.ai/docs/data-classes#streamingchunk)
             as an argument.
         :param api_base_url: Cohere base URL.
