@@ -23,7 +23,7 @@ class CohereChatGenerator:
      `cohere.Client.chat` will work here too.
     For details, see [Cohere API](https://docs.cohere.com/reference/chat).
 
-    ## Usaage example
+    ### Usage example
 
     ```python
     from haystack_integrations.components.generators.cohere import CohereChatGenerator
