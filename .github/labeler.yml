@@ -44,11 +44,6 @@ integration:google-vertex:
       - any-glob-to-any-file: "integrations/google_vertex/**/*"
       - any-glob-to-any-file: ".github/workflows/google_vertex.yml"
 
-integration:gradient:
-  - changed-files:
-      - any-glob-to-any-file: "integrations/gradient/**/*"
-      - any-glob-to-any-file: ".github/workflows/gradient.yml"
-
 integration:instructor-embedders:
   - changed-files:
       - any-glob-to-any-file: "integrations/instructor_embedders/**/*"
