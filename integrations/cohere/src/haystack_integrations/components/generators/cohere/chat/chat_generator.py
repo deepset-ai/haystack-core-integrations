@@ -69,7 +69,7 @@ class CohereChatGenerator:
                 When specified, the model's reply is enriched with information found by
                 quering each of the connectors (RAG).
             - 'documents': A list of relevant documents that the model can use to enrich its reply.
-            - 'search_queries_only': Defaults to `false`. When `true`, the response only contains a
+            - 'search_queries_only': Defaults to `False`. When `True`, the response only contains a
                list of generated search queries, but no search takes place, and no reply from the model to the
                user's message is generated.
             - 'citation_quality': Defaults to `accurate`. Dictates the approach taken to generating citations
