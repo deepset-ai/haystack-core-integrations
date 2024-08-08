@@ -1,7 +1,7 @@
 import logging
 import os
 from typing import Optional, Type
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 from haystack.components.generators.utils import print_streaming_chunk
@@ -139,6 +139,107 @@ def test_invoke_with_no_kwargs(mock_boto3_session):
     layer = AmazonBedrockChatGenerator(model="anthropic.claude-v2")
     with pytest.raises(ValueError, match="The model anthropic.claude-v2 requires"):
         layer.invoke()
+
+
+def test_short_prompt_is_not_truncated(mock_boto3_session):
+    """
+    Test that a short prompt is not truncated
+    """
+    # Define a short mock prompt and its tokenized version
+    mock_prompt_text = "I am a tokenized prompt"
+    mock_prompt_tokens = mock_prompt_text.split()
+
+    # Mock the tokenizer so it returns our predefined tokens
+    mock_tokenizer = MagicMock()
+    mock_tokenizer.tokenize.return_value = mock_prompt_tokens
+
+    # We set a small max_length for generated text (3 tokens) and a total model_max_length of 10 tokens
+    # Since our mock prompt is 5 tokens long, it doesn't exceed the
+    # total limit (5 prompt tokens + 3 generated tokens < 10 tokens)
+    max_length_generated_text = 3
+    total_model_max_length = 10
+
+    with patch("transformers.AutoTokenizer.from_pretrained", return_value=mock_tokenizer):
+        layer = AmazonBedrockChatGenerator(
+            "anthropic.claude-v2",
+            generation_kwargs={"model_max_length": total_model_max_length, "max_tokens": max_length_generated_text},
+        )
+        prompt_after_resize = layer.model_adapter._ensure_token_limit(mock_prompt_text)
+
+    # The prompt doesn't exceed the limit, _ensure_token_limit doesn't truncate it
+    assert prompt_after_resize == mock_prompt_text
+
+
+def test_long_prompt_is_truncated(mock_boto3_session):
+    """
+    Test that a long prompt is truncated
+    """
+    # Define a long mock prompt and its tokenized version
+    long_prompt_text = "I am a tokenized prompt of length eight"
+    long_prompt_tokens = long_prompt_text.split()
+
+    # _ensure_token_limit will truncate the prompt to make it fit into the model's max token limit
+    truncated_prompt_text = "I am a tokenized prompt of length"
+
+    # Mock the tokenizer to return our predefined tokens
+    # convert tokens to our predefined truncated text
+    mock_tokenizer = MagicMock()
+    mock_tokenizer.tokenize.return_value = long_prompt_tokens
+    mock_tokenizer.convert_tokens_to_string.return_value = truncated_prompt_text
+
+    # We set a small max_length for generated text (3 tokens) and a total model_max_length of 10 tokens
+    # Our mock prompt is 8 tokens long, so it exceeds the total limit (8 prompt tokens + 3 generated tokens > 10 tokens)
+    max_length_generated_text = 3
+    total_model_max_length = 10
+
+    with patch("transformers.AutoTokenizer.from_pretrained", return_value=mock_tokenizer):
+        layer = AmazonBedrockChatGenerator(
+            "anthropic.claude-v2",
+            generation_kwargs={"model_max_length": total_model_max_length, "max_tokens": max_length_generated_text},
+        )
+        prompt_after_resize = layer.model_adapter._ensure_token_limit(long_prompt_text)
+
+    # The prompt exceeds the limit, _ensure_token_limit truncates it
+    assert prompt_after_resize == truncated_prompt_text
+
+
+def test_long_prompt_is_not_truncated_when_truncate_false(mock_boto3_session):
+    """
+    Test that a long prompt is not truncated and _ensure_token_limit is not called when truncate is set to False
+    """
+    messages = [ChatMessage.from_system("I am a tokenized prompt of length eight")]
+
+    # Our mock prompt is 8 tokens long, so it exceeds the total limit (8 prompt tokens + 3 generated tokens > 10 tokens)
+    max_length_generated_text = 3
+    total_model_max_length = 10
+
+    with patch("transformers.AutoTokenizer.from_pretrained", return_value=MagicMock()):
+        generator = AmazonBedrockChatGenerator(
+            model="anthropic.claude-v2",
+            truncate=False,
+            generation_kwargs={"model_max_length": total_model_max_length, "max_tokens": max_length_generated_text},
+        )
+
+        # Mock the _ensure_token_limit method to track if it is called
+        with patch.object(
+            generator.model_adapter, "_ensure_token_limit", wraps=generator.model_adapter._ensure_token_limit
+        ) as mock_ensure_token_limit:
+            # Mock the model adapter to avoid actual invocation
+            generator.model_adapter.prepare_body = MagicMock(return_value={})
+            generator.client = MagicMock()
+            generator.client.invoke_model = MagicMock(
+                return_value={"body": MagicMock(read=MagicMock(return_value=b'{"generated_text": "response"}'))}
+            )
+            generator.model_adapter.get_responses = MagicMock(return_value=["response"])
+
+            # Invoke the generator
+            generator.invoke(messages=messages)
+
+        # Ensure _ensure_token_limit was not called
+        mock_ensure_token_limit.assert_not_called(),
+
+        # Check the prompt passed to prepare_body
+        generator.model_adapter.prepare_body.assert_called_with(messages=messages, stop_words=[])
 
 
 @pytest.mark.parametrize(
