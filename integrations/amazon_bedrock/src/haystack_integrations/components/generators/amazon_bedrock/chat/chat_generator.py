@@ -110,7 +110,7 @@ class AmazonBedrockChatGenerator:
         function that handles the streaming chunks. The callback function receives a
           [StreamingChunk](https://docs.haystack.deepset.ai/docs/data-classes#streamingchunk) object and
         switches the streaming mode on.
-        :param truncate: Whether to truncate the prompt messages or not. 
+        :param truncate: Whether to truncate the prompt messages or not.
         """
         if not model:
             msg = "'model' cannot be None or empty string"
