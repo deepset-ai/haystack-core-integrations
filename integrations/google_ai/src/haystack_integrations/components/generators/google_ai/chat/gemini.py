@@ -119,7 +119,7 @@ class GoogleAIGeminiChatGenerator:
         * `gemini-ultra`
 
         :param api_key: Google AI Studio API key. To get a key,
-        see [Google AI Studio](https://makersuite.google.com)
+        see [Google AI Studio](https://makersuite.google.com).
         :param model: Name of the model to use. Supported models are:
             - gemini-pro
             - gemini-ultra
