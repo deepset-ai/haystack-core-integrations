@@ -45,7 +45,7 @@ def test_to_dict(mock_boto3_session):
             "generation_kwargs": {"temperature": 0.7},
             "stop_words": [],
             "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
-            "truncate": True
+            "truncate": True,
         },
     }
 
@@ -68,7 +68,7 @@ def test_from_dict(mock_boto3_session):
                 "model": "anthropic.claude-v2",
                 "generation_kwargs": {"temperature": 0.7},
                 "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
-                "truncate": True
+                "truncate": True,
             },
         }
     )
@@ -87,7 +87,7 @@ def test_default_constructor(mock_boto3_session, set_env_variables):
     )
 
     assert layer.model == "anthropic.claude-v2"
-    assert layer.truncate == True
+    assert layer.truncate is True
     assert layer.model_adapter.prompt_handler is not None
     assert layer.model_adapter.prompt_handler.model_max_length == 100000
 
@@ -113,14 +113,15 @@ def test_constructor_with_generation_kwargs(mock_boto3_session):
     layer = AmazonBedrockChatGenerator(model="anthropic.claude-v2", generation_kwargs=generation_kwargs)
     assert "temperature" in layer.model_adapter.generation_kwargs
     assert layer.model_adapter.generation_kwargs["temperature"] == 0.7
-    assert layer.model_adapter.truncate == True
+    assert layer.model_adapter.truncate is True
+
 
 def test_constructor_with_truncate(mock_boto3_session):
     """
     Test that truncate param is correctly set in the model constructor
     """
-    layer = AmazonBedrockChatGenerator(model="anthropic.claude-v2", truncate = False)
-    assert layer.model_adapter.truncate == False
+    layer = AmazonBedrockChatGenerator(model="anthropic.claude-v2", truncate=False)
+    assert layer.model_adapter.truncate is False
 
 
 def test_constructor_with_empty_model():
@@ -163,7 +164,7 @@ def test_get_model_adapter(model: str, expected_model_adapter: Optional[Type[Bed
 
 class TestAnthropicClaudeAdapter:
     def test_prepare_body_with_default_params(self) -> None:
-        layer = AnthropicClaudeChatAdapter(truncate = True, generation_kwargs={})
+        layer = AnthropicClaudeChatAdapter(truncate=True, generation_kwargs={})
         prompt = "Hello, how are you?"
         expected_body = {
             "anthropic_version": "bedrock-2023-05-31",
@@ -176,7 +177,9 @@ class TestAnthropicClaudeAdapter:
         assert body == expected_body
 
     def test_prepare_body_with_custom_inference_params(self) -> None:
-        layer = AnthropicClaudeChatAdapter(truncate=True, generation_kwargs={"temperature": 0.7, "top_p": 0.8, "top_k": 4})
+        layer = AnthropicClaudeChatAdapter(
+            truncate=True, generation_kwargs={"temperature": 0.7, "top_p": 0.8, "top_k": 4}
+        )
         prompt = "Hello, how are you?"
         expected_body = {
             "anthropic_version": "bedrock-2023-05-31",
@@ -197,7 +200,7 @@ class TestAnthropicClaudeAdapter:
 
 class TestMistralAdapter:
     def test_prepare_body_with_default_params(self) -> None:
-        layer = MistralChatAdapter(truncate= True, generation_kwargs={})
+        layer = MistralChatAdapter(truncate=True, generation_kwargs={})
         prompt = "Hello, how are you?"
         expected_body = {
             "max_tokens": 512,
@@ -209,7 +212,7 @@ class TestMistralAdapter:
         assert body == expected_body
 
     def test_prepare_body_with_custom_inference_params(self) -> None:
-        layer = MistralChatAdapter(truncate = True, generation_kwargs={"temperature": 0.7, "top_p": 0.8, "top_k": 4})
+        layer = MistralChatAdapter(truncate=True, generation_kwargs={"temperature": 0.7, "top_p": 0.8, "top_k": 4})
         prompt = "Hello, how are you?"
         expected_body = {
             "prompt": "<s>[INST] Hello, how are you? [/INST]",
@@ -223,12 +226,12 @@ class TestMistralAdapter:
         assert body == expected_body
 
     def test_mistral_chat_template_correct_order(self):
-        layer = MistralChatAdapter(truncate = True, generation_kwargs={})
+        layer = MistralChatAdapter(truncate=True, generation_kwargs={})
         layer.prepare_body([ChatMessage.from_user("A"), ChatMessage.from_assistant("B"), ChatMessage.from_user("C")])
         layer.prepare_body([ChatMessage.from_system("A"), ChatMessage.from_user("B"), ChatMessage.from_assistant("C")])
 
     def test_mistral_chat_template_incorrect_order(self):
-        layer = MistralChatAdapter(truncate = True, generation_kwargs={})
+        layer = MistralChatAdapter(truncate=True, generation_kwargs={})
         try:
             layer.prepare_body([ChatMessage.from_assistant("B"), ChatMessage.from_assistant("C")])
             msg = "Expected TemplateError"
@@ -257,7 +260,7 @@ class TestMistralAdapter:
             patch("haystack_integrations.components.generators.amazon_bedrock.chat.adapters.DefaultPromptHandler"),
             caplog.at_level(logging.WARNING),
         ):
-            MistralChatAdapter(truncate = True, generation_kwargs={})
+            MistralChatAdapter(truncate=True, generation_kwargs={})
             mock_pretrained.assert_called_with("NousResearch/Llama-2-7b-chat-hf")
             assert "no HF_TOKEN was found" in caplog.text
 
@@ -267,7 +270,7 @@ class TestMistralAdapter:
             patch("transformers.AutoTokenizer.from_pretrained") as mock_pretrained,
             patch("haystack_integrations.components.generators.amazon_bedrock.chat.adapters.DefaultPromptHandler"),
         ):
-            MistralChatAdapter(truncate = True, generation_kwargs={})
+            MistralChatAdapter(truncate=True, generation_kwargs={})
             mock_pretrained.assert_called_with("mistralai/Mistral-7B-Instruct-v0.1")
 
     @pytest.mark.skipif(
@@ -310,7 +313,7 @@ class TestMetaLlama2ChatAdapter:
     def test_prepare_body_with_default_params(self) -> None:
         # leave this test as integration because we really need only tokenizer from HF
         # that way we can ensure prompt chat message formatting
-        layer = MetaLlama2ChatAdapter(truncate= True, generation_kwargs={})
+        layer = MetaLlama2ChatAdapter(truncate=True, generation_kwargs={})
         prompt = "Hello, how are you?"
         expected_body = {"prompt": "<s>[INST] Hello, how are you? [/INST]", "max_gen_len": 512}
 
@@ -323,8 +326,8 @@ class TestMetaLlama2ChatAdapter:
         # leave this test as integration because we really need only tokenizer from HF
         # that way we can ensure prompt chat message formatting
         layer = MetaLlama2ChatAdapter(
-            truncate = True,
-            generation_kwargs={"temperature": 0.7, "top_p": 0.8, "top_k": 5, "stop_sequences": ["CUSTOM_STOP"]}
+            truncate=True,
+            generation_kwargs={"temperature": 0.7, "top_p": 0.8, "top_k": 5, "stop_sequences": ["CUSTOM_STOP"]},
         )
         prompt = "Hello, how are you?"
 
@@ -349,7 +352,7 @@ class TestMetaLlama2ChatAdapter:
 
     @pytest.mark.integration
     def test_get_responses(self) -> None:
-        adapter = MetaLlama2ChatAdapter(truncate= True, generation_kwargs={})
+        adapter = MetaLlama2ChatAdapter(truncate=True, generation_kwargs={})
         response_body = {"generation": "This is a single response."}
         expected_response = "This is a single response."
         response_message = adapter.get_responses(response_body)

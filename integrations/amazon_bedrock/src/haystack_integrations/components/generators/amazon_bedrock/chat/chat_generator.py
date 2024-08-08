@@ -77,7 +77,7 @@ class AmazonBedrockChatGenerator:
         generation_kwargs: Optional[Dict[str, Any]] = None,
         stop_words: Optional[List[str]] = None,
         streaming_callback: Optional[Callable[[StreamingChunk], None]] = None,
-        truncate: Optional[bool] = True
+        truncate: Optional[bool] = True,
     ):
         """
         Initializes the `AmazonBedrockChatGenerator` with the provided parameters. The parameters are passed to the
@@ -245,7 +245,7 @@ class AmazonBedrockChatGenerator:
             stop_words=self.stop_words,
             generation_kwargs=self.model_adapter.generation_kwargs,
             streaming_callback=callback_name,
-            truncate=self.truncate
+            truncate=self.truncate,
         )
 
     @classmethod

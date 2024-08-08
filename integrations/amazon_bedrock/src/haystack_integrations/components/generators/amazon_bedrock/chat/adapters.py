@@ -174,7 +174,7 @@ class AnthropicClaudeChatAdapter(BedrockModelChatAdapter):
 
         :param generation_kwargs: The generation kwargs.
         """
-        super().__init__(truncate,generation_kwargs)
+        super().__init__(truncate, generation_kwargs)
 
         # We pop the model_max_length as it is not sent to the model
         # but used to truncate the prompt if needed
