@@ -38,7 +38,7 @@ class AmazonBedrockGenerator:
     Generates text using models hosted on Amazon Bedrock.
 
     For example, to use the Anthropic Claude model, pass 'anthropic.claude-v2' in the `model` parameter.
-    Provide AWS credentials either via local AWS profile or directly via
+    Provide AWS credentials either through the local AWS profile or directly through
     `aws_access_key_id`, `aws_secret_access_key`, `aws_session_token`, and `aws_region_name` parameters.
 
     ### Usage example
