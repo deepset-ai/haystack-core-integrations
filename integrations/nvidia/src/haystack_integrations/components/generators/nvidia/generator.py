@@ -40,7 +40,7 @@ class NvidiaGenerator:
     print(result["usage"])
     ```
 
-    You need an NVIDIA API key for this component to work. 
+    You need an NVIDIA API key for this component to work.
     """
 
     def __init__(
@@ -58,7 +58,7 @@ class NvidiaGenerator:
             Check supported models at [NVIDIA NIMs](https://ai.nvidia.com).
         :param api_key:
             API key for the NVIDIA NIM. Set it as the `NVIDIA_API_KEY` environment
-            variable or pass it here. 
+            variable or pass it here.
         :param api_url:
             Custom API URL for the NVIDIA NIM.
         :param model_arguments:
