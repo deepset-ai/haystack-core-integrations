@@ -1,6 +1,5 @@
 import dataclasses
 import json
-import warnings
 from typing import Any, Callable, ClassVar, Dict, List, Optional, Union
 
 from haystack import component, default_from_dict, default_to_dict, logging
@@ -115,12 +114,6 @@ class AnthropicChatGenerator:
         self.client = Anthropic(api_key=self.api_key.resolve_value())
         self.ignore_tools_thinking_messages = ignore_tools_thinking_messages
 
-        warnings.warn(
-            "The `meta` output of the AnthropicChatGenerator will change in the next release to be inline with "
-            "OpenAI `meta`output keys.",
-            stacklevel=2,
-        )
-
     def _get_telemetry_data(self) -> Dict[str, Any]:
         """
         Data that is sent to Posthog for usage analytics.
@@ -220,12 +213,19 @@ class AnthropicChatGenerator:
                     # capture stop reason and stop sequence
                     delta = stream_event
             completions = [self._connect_chunks(chunks, start_event, delta)]
+
         # if streaming is disabled, the response is an Anthropic Message
         elif isinstance(response, Message):
             has_tools_msgs = any(isinstance(content_block, ToolUseBlock) for content_block in response.content)
             if has_tools_msgs and self.ignore_tools_thinking_messages:
                 response.content = [block for block in response.content if isinstance(block, ToolUseBlock)]
             completions = [self._build_message(content_block, response) for content_block in response.content]
+
+        # rename the meta key to be inline with OpenAI meta output keys
+        for response in completions:
+            if response.meta is not None and "usage" in response.meta:
+                response.meta["usage"]["prompt_tokens"] = response.meta["usage"].pop("input_tokens")
+                response.meta["usage"]["completion_tokens"] = response.meta["usage"].pop("output_tokens")
 
         return {"replies": completions}
 
