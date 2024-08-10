@@ -156,7 +156,6 @@ class AmazonBedrockChatGenerator:
             stacklevel=2,
         )
 
-
     @component.output_types(replies=List[ChatMessage])
     def run(
         self,
