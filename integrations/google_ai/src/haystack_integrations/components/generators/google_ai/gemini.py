@@ -17,9 +17,10 @@ logger = logging.getLogger(__name__)
 @component
 class GoogleAIGeminiGenerator:
     """
-    `GoogleAIGeminiGenerator` is a multimodal generator supporting Gemini via Google AI Studio.
+    Generates text using multimodal Gemini models through Google AI Studio.
 
-    Usage example:
+    ### Usage example
+
     ```python
     from haystack.utils import Secret
     from haystack_integrations.components.generators.google_ai import GoogleAIGeminiGenerator
@@ -30,7 +31,8 @@ class GoogleAIGeminiGenerator:
         print(answer)
     ```
 
-    Multimodal usage example:
+    #### Multimodal example
+
     ```python
     import requests
     from haystack.utils import Secret
@@ -81,9 +83,9 @@ class GoogleAIGeminiGenerator:
 
         :param api_key: Google AI Studio API key.
         :param model: Name of the model to use.
-        :param generation_config: The generation config to use.
-            Can either be a `GenerationConfig` object or a dictionary of parameters.
-            For the available parameters, see
+        :param generation_config: The generation configuration to use.
+            This can either be a `GenerationConfig` object or a dictionary of parameters.
+            For available parameters, see
             [the `GenerationConfig` API reference](https://ai.google.dev/api/python/google/generativeai/GenerationConfig).
         :param safety_settings: The safety settings to use.
             A dictionary with `HarmCategory` as keys and `HarmBlockThreshold` as values.

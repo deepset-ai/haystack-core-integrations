@@ -34,13 +34,14 @@ logger = logging.getLogger(__name__)
 @component
 class AmazonBedrockGenerator:
     """
-    `AmazonBedrockGenerator` enables text generation via Amazon Bedrock hosted LLMs.
+    Generates text using models hosted on Amazon Bedrock.
 
-    For example, to use the Anthropic Claude model, simply initialize the `AmazonBedrockGenerator` with the
-    'anthropic.claude-v2' model name. Provide AWS credentials either via local AWS profile or directly via
+    For example, to use the Anthropic Claude model, pass 'anthropic.claude-v2' in the `model` parameter.
+    Provide AWS credentials either through the local AWS profile or directly through
     `aws_access_key_id`, `aws_secret_access_key`, `aws_session_token`, and `aws_region_name` parameters.
 
-    Usage example:
+    ### Usage example
+
     ```python
     from haystack_integrations.components.generators.amazon_bedrock import AmazonBedrockGenerator
 
@@ -51,6 +52,16 @@ class AmazonBedrockGenerator:
 
     print(generator.run("Who is the best American actor?"))
     ```
+
+    AmazonBedrockGenerator uses AWS for authentication. You can use the AWS CLI to authenticate through your IAM.
+    For more information on setting up an IAM identity-based policy, see [Amazon Bedrock documentation]
+    (https://docs.aws.amazon.com/bedrock/latest/userguide/security_iam_id-based-policy-examples.html).
+    If the AWS environment is configured correctly, the AWS credentials are not required as they're loaded
+    automatically from the environment or the AWS configuration file.
+    If the AWS environment is not configured, set `aws_access_key_id`, `aws_secret_access_key`,
+    `aws_session_token`, and `aws_region_name` as environment variables or pass them as
+     [Secret](https://docs.haystack.deepset.ai/v2.0/docs/secret-management) arguments. Make sure the region you set
+    supports Amazon Bedrock.
     """
 
     SUPPORTED_MODEL_PATTERNS: ClassVar[Dict[str, Type[BedrockModelAdapter]]] = {
@@ -85,13 +96,14 @@ class AmazonBedrockGenerator:
         :param aws_access_key_id: The AWS access key ID.
         :param aws_secret_access_key: The AWS secret access key.
         :param aws_session_token: The AWS session token.
-        :param aws_region_name: The AWS region name.
+        :param aws_region_name: The AWS region name. Make sure the region you set supports Amazon Bedrock.
         :param aws_profile_name: The AWS profile name.
         :param max_length: The maximum length of the generated text.
         :param truncate: Whether to truncate the prompt or not.
         :param streaming_callback: A callback function that is called when a new token is received from the stream.
             The callback function accepts StreamingChunk as an argument.
         :param kwargs: Additional keyword arguments to be passed to the model.
+        These arguments are specific to the model. You can find them in the model's documentation.
         :raises ValueError: If the model name is empty or None.
         :raises AmazonBedrockConfigurationError: If the AWS environment is not configured correctly or the model is
             not supported.
