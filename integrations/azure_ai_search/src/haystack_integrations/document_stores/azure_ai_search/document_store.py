@@ -5,7 +5,7 @@ import logging
 import os
 from dataclasses import asdict
 from typing import Any, Dict, List, Optional
-
+from haystack.components.embedders import AzureOpenAIDocumentEmbedder
 from azure.core.credentials import AzureKeyCredential
 from azure.core.exceptions import ResourceNotFoundError
 from azure.search.documents import SearchClient
@@ -21,12 +21,14 @@ from azure.search.documents.indexes.models import (
     VectorSearch,
     VectorSearchAlgorithmMetric,
     VectorSearchProfile,
+    VectorizedQuery
 )
 from haystack import default_from_dict, default_to_dict
 from haystack.dataclasses import Document
 from haystack.document_stores.errors import DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
 from haystack.utils import Secret, deserialize_secrets_inplace
+from .vectorizer import create_vectorizer, get_document_emebeddings, get_text_embeddings
 
 type_mapping = {str: "Edm.String", bool: "Edm.Boolean", int: "Edm.Int32", float: "Edm.Double"}
 
@@ -44,7 +46,10 @@ DEFAULT_VECTOR_SEARCH = VectorSearch(
             ),
         )
     ],
+    vectorizers=create_vectorizer(embedding_model_name="text-embedding-ada-002")
 )
+
+
 
 logger = logging.getLogger(__name__)
 logging.getLogger("azure").setLevel(logging.ERROR)
@@ -296,6 +301,24 @@ class AzureAISearchDocumentStore:
         documents = self._convert_search_result_to_documents(azure_docs)
         return documents
 
+
+    def search_documents(self, search_text = '*') -> List[Document]:
+        """
+        Calls the Azure AI Search client's search method and handles pagination.
+        :param search_text: The text to search for. If not supplied, all documents will be retrieved.
+        :returns: A list of Documents that match the given filters.
+        """
+
+        # Filters to be implemented with suitable interface for Azure AI Search
+        azure_docs = []
+        result = self.client.search(search_text=search_text, top=self.count_documents())
+        print (type(result))
+        for doc in result:
+            azure_docs.append(doc)
+
+        documents = self._convert_search_result_to_documents(azure_docs)
+        return documents
+
     def _convert_search_result_to_documents(self, azure_docs: List[Dict[str, Any]]) -> List[Document]:
 
         ## UNDER PROGRESS
@@ -357,3 +380,45 @@ class AzureAISearchDocumentStore:
             metadata_field_mapping[key] = field_type
 
         return metadata_field_mapping
+
+
+    def _vector_search(
+        self,
+        query_embedding: List[float],
+        *,
+        filters: Optional[Dict[str, Any]] = None,
+        top_k: int = 10,
+        custom_query: Optional[Dict[str, Any]] = None,
+    ) -> List[Document]:
+        """
+        Retrieves documents that are most similar to the query embedding using a vector similarity metric.
+        It uses the vector configuration of the document store. By default it uses the HNSW algorithm with cosine similarity.
+
+        This method is not meant to be part of the public interface of
+        `AzureAISearchDocumentStore` nor called directly.
+        `AzureAISearchEmbeddingRetriever` uses this method directly and is the public interface for it.
+
+        :param query_embedding: Embedding of the query.
+        :param filters: Filters applied to the retrieved Documents. Defaults to None.
+            Filters are applied during the approximate kNN search to ensure that top_k matching documents are returned.
+        :param top_k: Maximum number of Documents to return, defaults to 10
+        
+        :raises ValueError: If `query_embedding` is an empty list
+        :returns: List of Document that are most similar to `query_embedding`
+        """
+        if filters and "operator" not in filters and "conditions" not in filters:
+            filters = convert(filters)
+
+        if not query_embedding:
+            msg = "query_embedding must be a non-empty list of floats"
+            raise ValueError(msg)
+
+        #embedding = get_embeddings(input=query, model=embedding_model_name, dimensions=self._embedding_dimension)
+
+        vector_query = VectorizedQuery(vector=query_embedding, k_nearest_neighbors=3, fields="contentVector")
+        
+        results = self.client.search(  
+            search_text=None,  
+            vector_queries= [vector_query],
+            select=["title", "content", "category"],
+        )  
