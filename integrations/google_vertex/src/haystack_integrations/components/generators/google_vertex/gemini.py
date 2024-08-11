@@ -60,6 +60,7 @@ class VertexAIGeminiGenerator:
         generation_config: Optional[Union[GenerationConfig, Dict[str, Any]]] = None,
         safety_settings: Optional[Dict[HarmCategory, HarmBlockThreshold]] = None,
         tools: Optional[List[Tool]] = None,
+        stream: Optional[bool] = False
     ):
         """
         Multi-modal generator using Gemini model via Google Vertex AI.
@@ -87,6 +88,7 @@ class VertexAIGeminiGenerator:
         :param tools: List of tools to use when generating content. See the documentation for
             [Tool](https://cloud.google.com/python/docs/reference/aiplatform/latest/vertexai.preview.generative_models.Tool)
             the list of supported arguments.
+        :param stream: Whether to stream the response.
         """
 
         # Login to GCP. This will fail if user has not set up their gcloud SDK
@@ -100,6 +102,7 @@ class VertexAIGeminiGenerator:
         self._generation_config = generation_config
         self._safety_settings = safety_settings
         self._tools = tools
+        self._stream = stream
 
     def _function_to_dict(self, function: FunctionDeclaration) -> Dict[str, Any]:
         return {
@@ -140,6 +143,7 @@ class VertexAIGeminiGenerator:
             generation_config=self._generation_config,
             safety_settings=self._safety_settings,
             tools=self._tools,
+            stream=self._stream
         )
         if (tools := data["init_parameters"].get("tools")) is not None:
             data["init_parameters"]["tools"] = [self._tool_to_dict(t) for t in tools]
@@ -191,7 +195,7 @@ class VertexAIGeminiGenerator:
             contents=contents,
             generation_config=self._generation_config,
             safety_settings=self._safety_settings,
-            tools=self._tools,
+            stream=self._stream,
         )
         self._model.start_chat()
         replies = []

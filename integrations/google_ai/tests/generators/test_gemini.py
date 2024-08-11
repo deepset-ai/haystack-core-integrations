@@ -108,6 +108,7 @@ def test_to_dict(monkeypatch):
                 "stop_sequences": ["stop"],
             },
             "safety_settings": {10: 3},
+            "stream": False,
             "tools": [
                 b"\n\xad\x01\n\x13get_current_weather\x12+Get the current weather in a given location\x1ai"
                 b"\x08\x06:\x1f\n\x04unit\x12\x17\x08\x01*\x07celsius*\nfahrenheit::\n\x08location\x12.\x08"
@@ -140,6 +141,7 @@ def test_from_dict(monkeypatch):
                         b"\x08\x06:\x1f\n\x04unit\x12\x17\x08\x01*\x07celsius*\nfahrenheit::\n\x08location\x12.\x08"
                         b"\x01\x1a*The city and state, e.g. San Francisco, CAB\x08location"
                     ],
+                    "stream": False
                 },
             }
         )

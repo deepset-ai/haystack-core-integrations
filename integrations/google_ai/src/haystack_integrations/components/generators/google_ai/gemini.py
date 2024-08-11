@@ -70,6 +70,7 @@ class GoogleAIGeminiGenerator:
         generation_config: Optional[Union[GenerationConfig, Dict[str, Any]]] = None,
         safety_settings: Optional[Dict[HarmCategory, HarmBlockThreshold]] = None,
         tools: Optional[List[Tool]] = None,
+        stream: Optional[bool] = False,
     ):
         """
         Initializes a `GoogleAIGeminiGenerator` instance.
@@ -90,7 +91,9 @@ class GoogleAIGeminiGenerator:
         :param safety_settings: The safety settings to use.
             A dictionary with `HarmCategory` as keys and `HarmBlockThreshold` as values.
             For more information, see [the API reference](https://ai.google.dev/api)
-        :param tools: A list of Tool objects that can be used for [Function calling](https://ai.google.dev/docs/function_calling).
+        :param tools: A list of Tool objects that can be used for [Function calling](https://ai.google.dev/docs/
+        function_calling).
+        :param stream: Whether to stream the response.
         """
         genai.configure(api_key=api_key.resolve_value())
 
@@ -100,6 +103,7 @@ class GoogleAIGeminiGenerator:
         self._safety_settings = safety_settings
         self._tools = tools
         self._model = GenerativeModel(self._model_name, tools=self._tools)
+        self._stream = stream
 
     def _generation_config_to_dict(self, config: Union[GenerationConfig, Dict[str, Any]]) -> Dict[str, Any]:
         if isinstance(config, dict):
@@ -127,6 +131,7 @@ class GoogleAIGeminiGenerator:
             generation_config=self._generation_config,
             safety_settings=self._safety_settings,
             tools=self._tools,
+            stream=self._stream
         )
         if (tools := data["init_parameters"].get("tools")) is not None:
             data["init_parameters"]["tools"] = [Tool.serialize(t) for t in tools]
@@ -134,6 +139,7 @@ class GoogleAIGeminiGenerator:
             data["init_parameters"]["generation_config"] = self._generation_config_to_dict(generation_config)
         if (safety_settings := data["init_parameters"].get("safety_settings")) is not None:
             data["init_parameters"]["safety_settings"] = {k.value: v.value for k, v in safety_settings.items()}
+
         return data
 
     @classmethod
@@ -194,6 +200,7 @@ class GoogleAIGeminiGenerator:
             contents=contents,
             generation_config=self._generation_config,
             safety_settings=self._safety_settings,
+            stream=self._stream
         )
         self._model.start_chat()
         replies = []
