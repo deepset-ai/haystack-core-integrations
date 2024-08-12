@@ -4,17 +4,8 @@ import pytest
 from haystack import Document
 from haystack.utils import Secret
 from haystack_integrations.components.embedders.nvidia import EmbeddingTruncateMode, NvidiaDocumentEmbedder
-from haystack_integrations.components.embedders.nvidia.backend import EmbedderBackend
 
-
-class MockBackend(EmbedderBackend):
-    def __init__(self, model, model_kwargs):
-        super().__init__(model, model_kwargs)
-
-    def embed(self, texts):
-        inputs = texts
-        data = [[0.1, 0.2, 0.3] for i in range(len(inputs))]
-        return data, {"usage": {"total_tokens": 4, "prompt_tokens": 4}}
+from . import MockBackend
 
 
 class TestNvidiaDocumentEmbedder:
@@ -185,14 +176,18 @@ class TestNvidiaDocumentEmbedder:
 
     def test_embed_batch(self):
         texts = ["text 1", "text 2", "text 3", "text 4", "text 5"]
-
+        model = "playground_nvolveqa_40k"
+        api_key = Secret.from_token("fake-api-key")
         embedder = NvidiaDocumentEmbedder(
-            "playground_nvolveqa_40k",
-            api_key=Secret.from_token("fake-api-key"),
+            model,
+            api_key=api_key,
         )
 
         embedder.warm_up()
-        embedder.backend = MockBackend("aa", None)
+        embedder.backend = MockBackend(
+            model=model,
+            api_key=api_key,
+        )
 
         embeddings, metadata = embedder._embed_batch(texts_to_embed=texts, batch_size=2)
 
@@ -205,15 +200,55 @@ class TestNvidiaDocumentEmbedder:
 
         assert metadata == {"usage": {"prompt_tokens": 3 * 4, "total_tokens": 3 * 4}}
 
+    @pytest.mark.usefixtures("mock_local_models")
+    def test_run_default_model(self):
+        docs = [
+            Document(content="I love cheese", meta={"topic": "Cuisine"}),
+            Document(content="A transformer is a deep learning architecture", meta={"topic": "ML"}),
+        ]
+        api_key = Secret.from_token("fake-api-key")
+
+        embedder = NvidiaDocumentEmbedder(
+            api_key=api_key,
+            model=None,
+            api_url="http://localhost:8080/v1",
+            prefix="prefix ",
+            suffix=" suffix",
+            meta_fields_to_embed=["topic"],
+            embedding_separator=" | ",
+        )
+
+        with pytest.warns(UserWarning) as record:
+            embedder.warm_up()
+        assert len(record) == 1
+        assert "Default model is set as:" in str(record[0].message)
+        assert embedder.model == "model1"
+
+        embedder.backend = MockBackend(model=embedder.model, api_key=api_key)
+
+        result = embedder.run(documents=docs)
+
+        documents_with_embeddings = result["documents"]
+        metadata = result["meta"]
+
+        assert isinstance(documents_with_embeddings, list)
+        assert len(documents_with_embeddings) == len(docs)
+        for doc in documents_with_embeddings:
+            assert isinstance(doc, Document)
+            assert isinstance(doc.embedding, list)
+            assert len(doc.embedding) == 3
+            assert all(isinstance(x, float) for x in doc.embedding)
+        assert metadata == {"usage": {"prompt_tokens": 4, "total_tokens": 4}}
+
     def test_run(self):
         docs = [
             Document(content="I love cheese", meta={"topic": "Cuisine"}),
             Document(content="A transformer is a deep learning architecture", meta={"topic": "ML"}),
         ]
-
+        api_key = Secret.from_token("fake-api-key")
         model = "playground_nvolveqa_40k"
         embedder = NvidiaDocumentEmbedder(
-            api_key=Secret.from_token("fake-api-key"),
+            api_key=api_key,
             model=model,
             prefix="prefix ",
             suffix=" suffix",
@@ -222,7 +257,7 @@ class TestNvidiaDocumentEmbedder:
         )
 
         embedder.warm_up()
-        embedder.backend = MockBackend("aa", None)
+        embedder.backend = MockBackend(model=model, api_key=api_key)
 
         result = embedder.run(documents=docs)
 
@@ -243,9 +278,10 @@ class TestNvidiaDocumentEmbedder:
             Document(content="I love cheese", meta={"topic": "Cuisine"}),
             Document(content="A transformer is a deep learning architecture", meta={"topic": "ML"}),
         ]
+        api_key = Secret.from_token("fake-api-key")
         model = "playground_nvolveqa_40k"
         embedder = NvidiaDocumentEmbedder(
-            api_key=Secret.from_token("fake-api-key"),
+            api_key=api_key,
             model=model,
             prefix="prefix ",
             suffix=" suffix",
@@ -255,7 +291,7 @@ class TestNvidiaDocumentEmbedder:
         )
 
         embedder.warm_up()
-        embedder.backend = MockBackend("aa", None)
+        embedder.backend = MockBackend(model=model, api_key=api_key)
 
         result = embedder.run(documents=docs)
 
@@ -273,10 +309,12 @@ class TestNvidiaDocumentEmbedder:
         assert metadata == {"usage": {"prompt_tokens": 2 * 4, "total_tokens": 2 * 4}}
 
     def test_run_wrong_input_format(self):
-        embedder = NvidiaDocumentEmbedder("playground_nvolveqa_40k", api_key=Secret.from_token("fake-api-key"))
+        model = "playground_nvolveqa_40k"
+        api_key = Secret.from_token("fake-api-key")
+        embedder = NvidiaDocumentEmbedder(model, api_key=api_key)
 
         embedder.warm_up()
-        embedder.backend = MockBackend("aa", None)
+        embedder.backend = MockBackend(model=model, api_key=api_key)
 
         string_input = "text"
         list_integers_input = [1, 2, 3]
@@ -288,10 +326,12 @@ class TestNvidiaDocumentEmbedder:
             embedder.run(documents=list_integers_input)
 
     def test_run_on_empty_list(self):
-        embedder = NvidiaDocumentEmbedder("playground_nvolveqa_40k", api_key=Secret.from_token("fake-api-key"))
+        model = "playground_nvolveqa_40k"
+        api_key = Secret.from_token("fake-api-key")
+        embedder = NvidiaDocumentEmbedder(model, api_key=api_key)
 
         embedder.warm_up()
-        embedder.backend = MockBackend("aa", None)
+        embedder.backend = MockBackend(model=model, api_key=api_key)
 
         empty_list_input = []
         result = embedder.run(documents=empty_list_input)
