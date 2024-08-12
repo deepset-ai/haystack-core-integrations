@@ -18,10 +18,16 @@ logger = logging.getLogger(__name__)
 @component
 class GoogleAIGeminiChatGenerator:
     """
-    `GoogleAIGeminiChatGenerator` is a multimodal generator supporting Gemini via Google AI Studio.
-    It uses the `ChatMessage` dataclass to interact with the model.
+    Completes chats using multimodal Gemini models through Google AI Studio.
 
-    Usage example:
+    It uses the [`ChatMessage`](https://docs.haystack.deepset.ai/docs/data-classes#chatmessage)
+      dataclass to interact with the model. You can use the following models:
+    - gemini-pro
+    - gemini-ultra
+    - gemini-pro-vision
+
+    ### Usage example
+
     ```python
     from haystack.utils import Secret
     from haystack.dataclasses.chat_message import ChatMessage
@@ -42,7 +48,8 @@ class GoogleAIGeminiChatGenerator:
     ```
 
 
-    Usage example with function calling:
+    #### With function calling:
+
     ```python
     from haystack.utils import Secret
     from haystack.dataclasses.chat_message import ChatMessage
@@ -111,11 +118,15 @@ class GoogleAIGeminiChatGenerator:
         * `gemini-pro-vision`
         * `gemini-ultra`
 
-        :param api_key: Google AI Studio API key.
-        :param model: Name of the model to use.
-        :param generation_config: The generation config to use.
-            Can either be a `GenerationConfig` object or a dictionary of parameters.
-            For the available parameters, see
+        :param api_key: Google AI Studio API key. To get a key,
+        see [Google AI Studio](https://makersuite.google.com).
+        :param model: Name of the model to use. Supported models are:
+            - gemini-pro
+            - gemini-ultra
+            - gemini-pro-vision
+        :param generation_config: The generation configuration to use.
+            This can either be a `GenerationConfig` object or a dictionary of parameters.
+            For available parameters, see
             [the `GenerationConfig` API reference](https://ai.google.dev/api/python/google/generativeai/GenerationConfig).
         :param safety_settings: The safety settings to use.
             A dictionary with `HarmCategory` as keys and `HarmBlockThreshold` as values.
