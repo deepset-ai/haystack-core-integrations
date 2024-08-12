@@ -7,7 +7,7 @@ from requests_mock import Mocker
 
 
 class MockBackend(NimBackend):
-    def __init__(self, model: str, api_key: Optional[Secret] = "", model_kwargs: Optional[Dict[str, Any]] = None):
+    def __init__(self, model: str, api_key: Optional[Secret] = None, model_kwargs: Optional[Dict[str, Any]] = None):
         api_key = api_key or Secret.from_env_var("NVIDIA_API_KEY")
         super().__init__(model, api_url="", api_key=api_key, model_kwargs=model_kwargs or {})
 
