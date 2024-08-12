@@ -1,5 +1,15 @@
 # Changelog
 
+## [integrations/amazon_bedrock-v1.0.0] - 2024-08-12
+
+### 🚜 Refactor
+
+- Change meta data fields (#911)
+
+### 🧪 Testing
+
+- Do not retry tests in `hatch run test` command (#954)
+
 ## [integrations/amazon_bedrock-v0.10.0] - 2024-08-12
 
 ### 🐛 Bug Fixes
