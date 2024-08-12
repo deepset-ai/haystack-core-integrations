@@ -1,9 +1,9 @@
 from unittest.mock import Mock, patch
 
 import pytest
+from haystack.components.retrievers import SentenceWindowRetrieval
 from haystack_integrations.document_stores.opensearch.auth import AWSAuth
 from opensearchpy import Urllib3AWSV4SignerAuth
-from haystack.components.retrievers import SentenceWindowRetrieval
 
 
 class TestAWSAuth:
@@ -114,7 +114,7 @@ class TestAWSAuth:
         signer_auth_mock.assert_called_once_with("GET", "http://some.url", "some body")
 
     @patch("haystack_integrations.document_stores.opensearch.auth.AWSAuth._get_urllib3_aws_v4_signer_auth")
-    def test_sentence_window_retriever(self, _get_urllib3_aws_v4_signer_auth_mock, mock_boto3_session):
+    def test_sentence_window_retriever(self, _get_urllib3_aws_v4_signer_auth_mock):
         data = {
             "init_parameters": {
                 "document_store": {
@@ -122,7 +122,7 @@ class TestAWSAuth:
                         "embedding_dim": 1024,
                         "hosts": ["${OPENSEARCH_HOST}:${OPENSEARCH_PORT}"],
                         "http_auth": {"type": "haystack_integrations.document_stores.opensearch.auth.AWSAuth"},
-                        "index": "0a4680f5-f96c-4315-96a0-1c61373077ba-9b24e10f-d5b8-45d4-b844-d848ee3d3fa6-594cdce3-05eb-472a-9ab7-3493242ad463",
+                        "index": "random-test-index",
                         "similarity": "cosine",
                         "use_ssl": True,
                         "verify_certs": False,
