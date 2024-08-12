@@ -177,13 +177,17 @@ class TestNvidiaDocumentEmbedder:
     def test_embed_batch(self):
         texts = ["text 1", "text 2", "text 3", "text 4", "text 5"]
         model = "playground_nvolveqa_40k"
+        api_key = Secret.from_token("fake-api-key")
         embedder = NvidiaDocumentEmbedder(
             model,
-            api_key=Secret.from_token("fake-api-key"),
+            api_key=api_key,
         )
 
         embedder.warm_up()
-        embedder.backend = MockBackend(model)
+        embedder.backend = MockBackend(
+            model=model,
+            api_key=api_key,
+        )
 
         embeddings, metadata = embedder._embed_batch(texts_to_embed=texts, batch_size=2)
 
@@ -202,9 +206,10 @@ class TestNvidiaDocumentEmbedder:
             Document(content="I love cheese", meta={"topic": "Cuisine"}),
             Document(content="A transformer is a deep learning architecture", meta={"topic": "ML"}),
         ]
+        api_key = Secret.from_token("fake-api-key")
 
         embedder = NvidiaDocumentEmbedder(
-            api_key=Secret.from_token("fake-api-key"),
+            api_key=api_key,
             model=None,
             api_url="http://localhost:8080/v1",
             prefix="prefix ",
@@ -219,7 +224,7 @@ class TestNvidiaDocumentEmbedder:
         assert "Default model is set as:" in str(record[0].message)
         assert embedder.model == "model1"
 
-        embedder.backend = MockBackend(embedder.model)
+        embedder.backend = MockBackend(model=embedder.model, api_key=api_key)
 
         result = embedder.run(documents=docs)
 
@@ -240,10 +245,10 @@ class TestNvidiaDocumentEmbedder:
             Document(content="I love cheese", meta={"topic": "Cuisine"}),
             Document(content="A transformer is a deep learning architecture", meta={"topic": "ML"}),
         ]
-
+        api_key = Secret.from_token("fake-api-key")
         model = "playground_nvolveqa_40k"
         embedder = NvidiaDocumentEmbedder(
-            api_key=Secret.from_token("fake-api-key"),
+            api_key=api_key,
             model=model,
             prefix="prefix ",
             suffix=" suffix",
@@ -252,7 +257,7 @@ class TestNvidiaDocumentEmbedder:
         )
 
         embedder.warm_up()
-        embedder.backend = MockBackend(model)
+        embedder.backend = MockBackend(model=model, api_key=api_key)
 
         result = embedder.run(documents=docs)
 
@@ -273,9 +278,10 @@ class TestNvidiaDocumentEmbedder:
             Document(content="I love cheese", meta={"topic": "Cuisine"}),
             Document(content="A transformer is a deep learning architecture", meta={"topic": "ML"}),
         ]
+        api_key = Secret.from_token("fake-api-key")
         model = "playground_nvolveqa_40k"
         embedder = NvidiaDocumentEmbedder(
-            api_key=Secret.from_token("fake-api-key"),
+            api_key=api_key,
             model=model,
             prefix="prefix ",
             suffix=" suffix",
@@ -285,7 +291,7 @@ class TestNvidiaDocumentEmbedder:
         )
 
         embedder.warm_up()
-        embedder.backend = MockBackend(model)
+        embedder.backend = MockBackend(model=model, api_key=api_key)
 
         result = embedder.run(documents=docs)
 
@@ -304,10 +310,11 @@ class TestNvidiaDocumentEmbedder:
 
     def test_run_wrong_input_format(self):
         model = "playground_nvolveqa_40k"
-        embedder = NvidiaDocumentEmbedder(model, api_key=Secret.from_token("fake-api-key"))
+        api_key = Secret.from_token("fake-api-key")
+        embedder = NvidiaDocumentEmbedder(model, api_key=api_key)
 
         embedder.warm_up()
-        embedder.backend = MockBackend(model)
+        embedder.backend = MockBackend(model=model, api_key=api_key)
 
         string_input = "text"
         list_integers_input = [1, 2, 3]
@@ -320,10 +327,11 @@ class TestNvidiaDocumentEmbedder:
 
     def test_run_on_empty_list(self):
         model = "playground_nvolveqa_40k"
-        embedder = NvidiaDocumentEmbedder(model, api_key=Secret.from_token("fake-api-key"))
+        api_key = Secret.from_token("fake-api-key")
+        embedder = NvidiaDocumentEmbedder(model, api_key=api_key)
 
         embedder.warm_up()
-        embedder.backend = MockBackend(model, None)
+        embedder.backend = MockBackend(model=model, api_key=api_key)
 
         empty_list_input = []
         result = embedder.run(documents=empty_list_input)
