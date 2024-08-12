@@ -12,7 +12,6 @@ from ragas.metrics import (  # type: ignore
     AspectCritique,  # type: ignore
     ContextPrecision,  # type: ignore
     ContextRecall,  # type: ignore
-    ContextRelevancy,  # type: ignore
     ContextUtilization,  # type: ignore
     Faithfulness,  # type: ignore
 )
@@ -80,10 +79,6 @@ class RagasMetric(RagasBaseEnum):
     #: Inputs - `questions: List[str], contexts: List[List[str]], responses: List[str]`\
     #: Parameters - `name: str, definition: str, strictness: int`
     ASPECT_CRITIQUE = "aspect_critique"
-
-    #: Context relevancy.\
-    #: Inputs - `questions: List[str], contexts: List[List[str]]`
-    CONTEXT_RELEVANCY = "context_relevancy"
 
     #: Answer relevancy.\
     #: Inputs - `questions: List[str], contexts: List[List[str]], responses: List[str]`\
@@ -328,11 +323,6 @@ METRIC_DESCRIPTORS = {
         InputConverters.question_context_response,  # type: ignore
         OutputConverters.aspect_critique,
         init_parameters=["name", "definition", "strictness"],
-    ),
-    RagasMetric.CONTEXT_RELEVANCY: MetricDescriptor.new(
-        RagasMetric.CONTEXT_RELEVANCY,
-        ContextRelevancy,
-        InputConverters.question_context,  # type: ignore
     ),
     RagasMetric.ANSWER_RELEVANCY: MetricDescriptor.new(
         RagasMetric.ANSWER_RELEVANCY,

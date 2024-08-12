@@ -22,7 +22,7 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
-dependencies = ["haystack-ai", "ragas"]
+dependencies = ["haystack-ai", "ragas>=0.1.11"]
 
 [project.urls]
 Source = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/ragas"
@@ -41,7 +41,7 @@ root = "../.."
 git_describe_command = 'git describe --tags --match="integrations/ragas-v[0-9]*"'
 
 [tool.hatch.envs.default]
-dependencies = ["coverage[toml]>=6.5", "pytest", "pytest-rerunfailures", "haystack-pydoc-tools"]
+dependencies = ["coverage[toml]>=6.5", "pytest", "pytest-rerunfailures", "haystack-pydoc-tools", "pytest-asyncio"]
 [tool.hatch.envs.default.scripts]
 test = "pytest --reruns 3 --reruns-delay 30 -x {args:tests}"
 test-cov = "coverage run -m pytest --reruns 3 --reruns-delay 30 -x {args:tests}"

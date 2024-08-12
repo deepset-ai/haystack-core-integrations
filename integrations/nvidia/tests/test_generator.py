@@ -6,6 +6,35 @@ import os
 import pytest
 from haystack.utils import Secret
 from haystack_integrations.components.generators.nvidia import NvidiaGenerator
+from requests_mock import Mocker
+
+
+@pytest.fixture
+def mock_local_chat_completion(requests_mock: Mocker) -> None:
+    requests_mock.post(
+        "http://localhost:8080/v1/chat/completions",
+        json={
+            "choices": [
+                {
+                    "message": {"content": "Hello!", "role": "system"},
+                    "usage": {"prompt_tokens": 3, "total_tokens": 5, "completion_tokens": 9},
+                    "finish_reason": "stop",
+                    "index": 0,
+                },
+                {
+                    "message": {"content": "How are you?", "role": "system"},
+                    "usage": {"prompt_tokens": 3, "total_tokens": 5, "completion_tokens": 9},
+                    "finish_reason": "stop",
+                    "index": 1,
+                },
+            ],
+            "usage": {
+                "prompt_tokens": 3,
+                "total_tokens": 5,
+                "completion_tokens": 9,
+            },
+        },
+    )
 
 
 class TestNvidiaGenerator:
@@ -80,7 +109,7 @@ class TestNvidiaGenerator:
             "type": "haystack_integrations.components.generators.nvidia.generator.NvidiaGenerator",
             "init_parameters": {
                 "api_key": {"env_vars": ["NVIDIA_API_KEY"], "strict": True, "type": "env_var"},
-                "api_url": "https://my.url.com",
+                "api_url": "https://my.url.com/v1",
                 "model": "playground_nemotron_steerlm_8b",
                 "model_arguments": {
                     "temperature": 0.2,
@@ -111,6 +140,32 @@ class TestNvidiaGenerator:
             },
         )
         generator.warm_up()
+        result = generator.run(prompt="What is the answer?")
+
+        assert result["replies"]
+        assert result["meta"]
+
+    @pytest.mark.integration
+    @pytest.mark.usefixtures("mock_local_models")
+    @pytest.mark.usefixtures("mock_local_chat_completion")
+    def test_run_integration_with_default_model_nim_backend(self):
+        model = None
+        url = "http://localhost:8080/v1"
+        generator = NvidiaGenerator(
+            model=model,
+            api_url=url,
+            api_key=None,
+            model_arguments={
+                "temperature": 0.2,
+            },
+        )
+        with pytest.warns(UserWarning) as record:
+            generator.warm_up()
+        assert len(record) == 1
+        assert "Default model is set as:" in str(record[0].message)
+        assert generator._model == "model1"
+        assert not generator.is_hosted
+
         result = generator.run(prompt="What is the answer?")
 
         assert result["replies"]

@@ -1,11 +1,13 @@
+import warnings
 from typing import Any, Dict, List, Optional, Union
 
 from haystack import component, default_from_dict, default_to_dict
 from haystack.utils import Secret, deserialize_secrets_inplace
+from haystack_integrations.utils.nvidia import NimBackend, is_hosted, url_validation
 
-from ._nim_backend import NimBackend
-from .backend import EmbedderBackend
 from .truncate import EmbeddingTruncateMode
+
+_DEFAULT_API_URL = "https://ai.api.nvidia.com/v1/retrieval/nvidia"
 
 
 @component
@@ -32,9 +34,9 @@ class NvidiaTextEmbedder:
 
     def __init__(
         self,
-        model: str = "NV-Embed-QA",
+        model: Optional[str] = None,
         api_key: Optional[Secret] = Secret.from_env_var("NVIDIA_API_KEY"),
-        api_url: str = "https://ai.api.nvidia.com/v1/retrieval/nvidia",
+        api_url: str = _DEFAULT_API_URL,
         prefix: str = "",
         suffix: str = "",
         truncate: Optional[Union[EmbeddingTruncateMode, str]] = None,
@@ -44,10 +46,13 @@ class NvidiaTextEmbedder:
 
         :param model:
             Embedding model to use.
+            If no specific model along with locally hosted API URL is provided,
+            the system defaults to the available model found using /models API.
         :param api_key:
             API key for the NVIDIA NIM.
         :param api_url:
             Custom API URL for the NVIDIA NIM.
+            Format for API URL is http://host:port
         :param prefix:
             A string to add to the beginning of each text.
         :param suffix:
@@ -59,7 +64,7 @@ class NvidiaTextEmbedder:
 
         self.api_key = api_key
         self.model = model
-        self.api_url = api_url
+        self.api_url = url_validation(api_url, _DEFAULT_API_URL, ["v1/embeddings"])
         self.prefix = prefix
         self.suffix = suffix
 
@@ -67,8 +72,30 @@ class NvidiaTextEmbedder:
             truncate = EmbeddingTruncateMode.from_str(truncate)
         self.truncate = truncate
 
-        self.backend: Optional[EmbedderBackend] = None
+        self.backend: Optional[Any] = None
         self._initialized = False
+
+        if is_hosted(api_url) and not self.model:  # manually set default model
+            self.model = "NV-Embed-QA"
+
+    def default_model(self):
+        """Set default model in local NIM mode."""
+        valid_models = [
+            model.id for model in self.backend.models() if not model.base_model or model.base_model == model.id
+        ]
+        name = next(iter(valid_models), None)
+        if name:
+            warnings.warn(
+                f"Default model is set as: {name}. \n"
+                "Set model using model parameter. \n"
+                "To get available models use available_models property.",
+                UserWarning,
+                stacklevel=2,
+            )
+            self.model = self.backend.model = name
+        else:
+            error_message = "No locally hosted model was found."
+            raise ValueError(error_message)
 
     def warm_up(self):
         """
@@ -88,6 +115,9 @@ class NvidiaTextEmbedder:
         )
 
         self._initialized = True
+
+        if not self.model:
+            self.default_model()
 
     def to_dict(self) -> Dict[str, Any]:
         """
