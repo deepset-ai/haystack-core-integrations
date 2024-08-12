@@ -44,11 +44,11 @@ class TestRetriever:
         mock_store = Mock(spec=MongoDBAtlasDocumentStore)
         retriever = MongoDBAtlasEmbeddingRetriever(
             document_store=mock_store,
-            filters={"field": "value"},
+            filters={"field": "meta.some_field", "operator": "==", "value": "SomeValue"},
             top_k=5,
         )
         assert retriever.document_store == mock_store
-        assert retriever.filters == {"field": "value"}
+        assert retriever.filters == {"field": "meta.some_field", "operator": "==", "value": "SomeValue"}
         assert retriever.top_k == 5
         assert retriever.filter_policy == FilterPolicy.REPLACE
 
@@ -56,12 +56,12 @@ class TestRetriever:
         mock_store = Mock(spec=MongoDBAtlasDocumentStore)
         retriever = MongoDBAtlasEmbeddingRetriever(
             document_store=mock_store,
-            filters={"field": "value"},
+            filters={"field": "meta.some_field", "operator": "==", "value": "SomeValue"},
             top_k=5,
             filter_policy=FilterPolicy.MERGE,
         )
         assert retriever.document_store == mock_store
-        assert retriever.filters == {"field": "value"}
+        assert retriever.filters == {"field": "meta.some_field", "operator": "==", "value": "SomeValue"}
         assert retriever.top_k == 5
         assert retriever.filter_policy == FilterPolicy.MERGE
 
