@@ -198,18 +198,18 @@ class AmazonBedrockChatGenerator:
                     body=json.dumps(body), modelId=self.model, accept="application/json", contentType="application/json"
                 )
                 response_body = json.loads(response.get("body").read().decode("utf-8"))
-                responses = self.model_adapter.get_responses(response_body=response_body)
+                replies = self.model_adapter.get_responses(response_body=response_body)
         except ClientError as exception:
             msg = f"Could not inference Amazon Bedrock model {self.model} due: {exception}"
             raise AmazonBedrockInferenceError(msg) from exception
 
         # rename the meta key to be inline with OpenAI meta output keys
-        for response in responses:
+        for response in replies:
             if response.meta is not None and "usage" in response.meta:
                 response.meta["usage"]["prompt_tokens"] = response.meta["usage"].pop("input_tokens")
                 response.meta["usage"]["completion_tokens"] = response.meta["usage"].pop("output_tokens")
 
-        return responses
+        return {"replies": replies}
 
     @classmethod
     def get_model_adapter(cls, model: str) -> Optional[Type[BedrockModelChatAdapter]]:
