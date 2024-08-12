@@ -1,7 +1,6 @@
 import json
 import logging
 import re
-import warnings
 from typing import Any, Callable, ClassVar, Dict, List, Optional, Type
 
 from botocore.exceptions import ClientError
@@ -150,12 +149,6 @@ class AmazonBedrockChatGenerator:
         self.stop_words = stop_words or []
         self.streaming_callback = streaming_callback
 
-        warnings.warn(
-            "The `meta` output of the AmazonBedrockChatGenerator will change in the next release to be inline with "
-            "OpenAI `meta`output keys.",
-            stacklevel=2,
-        )
-
     @component.output_types(replies=List[ChatMessage])
     def run(
         self,
@@ -209,6 +202,12 @@ class AmazonBedrockChatGenerator:
         except ClientError as exception:
             msg = f"Could not inference Amazon Bedrock model {self.model} due: {exception}"
             raise AmazonBedrockInferenceError(msg) from exception
+
+        # rename the meta key to be inline with OpenAI meta output keys
+        for response in replies:
+            if response.meta is not None and "usage" in response.meta:
+                response.meta["usage"]["prompt_tokens"] = response.meta["usage"].pop("input_tokens")
+                response.meta["usage"]["completion_tokens"] = response.meta["usage"].pop("output_tokens")
 
         return {"replies": replies}
 
