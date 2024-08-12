@@ -189,12 +189,16 @@ class TestRetriever:
         mock_store._embedding_retrieval.return_value = [doc]
 
         retriever = MongoDBAtlasEmbeddingRetriever(
-            document_store=mock_store, filters={"foo": "boo"}, filter_policy=FilterPolicy.MERGE
+            document_store=mock_store, filters={"field": "meta.some_field", "operator": "==", "value": "SomeValue"},
+            filter_policy=FilterPolicy.MERGE
         )
-        res = retriever.run(query_embedding=[0.3, 0.5], filters={"field": "value"})
-
+        res = retriever.run(query_embedding=[0.3, 0.5], filters={"field": "meta.some_field",
+                                                                 "operator": "==", "value": "Test"})
+        # as the both init and run filters are filtering the same field, the run filter takes precedence
         mock_store._embedding_retrieval.assert_called_once_with(
-            query_embedding=[0.3, 0.5], filters={"field": "value", "foo": "boo"}, top_k=10
+            query_embedding=[0.3, 0.5], filters={"field": "meta.some_field",
+                                                 "operator": "==", "value": "Test"},
+            top_k=10
         )
 
         assert res == {"documents": [doc]}
