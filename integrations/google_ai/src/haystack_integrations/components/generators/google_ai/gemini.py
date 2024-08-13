@@ -70,7 +70,7 @@ class GoogleAIGeminiGenerator:
         generation_config: Optional[Union[GenerationConfig, Dict[str, Any]]] = None,
         safety_settings: Optional[Dict[HarmCategory, HarmBlockThreshold]] = None,
         tools: Optional[List[Tool]] = None,
-        stream: Optional[bool] = False,
+        streaming_callback: Optional[bool] = False,
     ):
         """
         Initializes a `GoogleAIGeminiGenerator` instance.
@@ -103,7 +103,7 @@ class GoogleAIGeminiGenerator:
         self._safety_settings = safety_settings
         self._tools = tools
         self._model = GenerativeModel(self._model_name, tools=self._tools)
-        self._stream = stream
+        self._streaming_callback = streaming_callback
 
     def _generation_config_to_dict(self, config: Union[GenerationConfig, Dict[str, Any]]) -> Dict[str, Any]:
         if isinstance(config, dict):
@@ -131,7 +131,7 @@ class GoogleAIGeminiGenerator:
             generation_config=self._generation_config,
             safety_settings=self._safety_settings,
             tools=self._tools,
-            stream=self._stream
+            stream=self._streaming_callback
         )
         if (tools := data["init_parameters"].get("tools")) is not None:
             data["init_parameters"]["tools"] = [Tool.serialize(t) for t in tools]
@@ -182,7 +182,7 @@ class GoogleAIGeminiGenerator:
             raise ValueError(msg)
 
     @component.output_types(replies=List[Union[str, Dict[str, str]]])
-    def run(self, parts: Variadic[Union[str, ByteStream, Part]]):
+    def run(self, parts: Variadic[Union[str, ByteStream, Part]], streaming_callback: Optional[bool]):
         """
         Generates text based on the given input parts.
 
@@ -195,12 +195,13 @@ class GoogleAIGeminiGenerator:
 
         converted_parts = [self._convert_part(p) for p in parts]
 
+        stream = streaming_callback or self._streaming_callback
         contents = [Content(parts=converted_parts, role="user")]
         res = self._model.generate_content(
             contents=contents,
             generation_config=self._generation_config,
             safety_settings=self._safety_settings,
-            stream=self._stream
+            stream=stream
         )
         self._model.start_chat()
         replies = []

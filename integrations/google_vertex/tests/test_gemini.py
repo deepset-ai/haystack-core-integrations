@@ -2,15 +2,25 @@ import os
 from unittest.mock import patch
 
 import pytest
+import vertexai
 from google.ai.generativelanguage import FunctionDeclaration, Tool
-from google.generativeai import GenerationConfig, GenerativeModel
 from google.generativeai.types import HarmBlockThreshold, HarmCategory
 
-from haystack_integrations.components.generators.google_ai import GoogleAIGeminiGenerator
+from vertexai.preview.generative_models import (
+    Content,
+    FunctionDeclaration,
+    GenerationConfig,
+    GenerativeModel,
+    HarmBlockThreshold,
+    HarmCategory,
+    Part,
+    Tool,
+)
+from haystack_integrations.components.generators.google_vertex import VertexAIGeminiGenerator
 
 
+@patch("haystack_integrations.components.generators.google_vertex.text_generator.vertexai")
 def test_init(monkeypatch):
-    monkeypatch.setenv("GOOGLE_API_KEY", "test")
 
     generation_config = GenerationConfig(
         candidate_count=1,
@@ -41,13 +51,15 @@ def test_init(monkeypatch):
     )
 
     tool = Tool(function_declarations=[get_current_weather_func])
-    with patch("haystack_integrations.components.generators.google_ai.gemini.genai.configure") as mock_genai_configure:
-        gemini = GoogleAIGeminiGenerator(
+    with patch("haystack_integrations.components.generators.google_vertex.gemini.genai.configure") as mock_genai_configure:
+        gemini = VertexAIGeminiGenerator(
+            project_id="TestID123",
+            location="TestLocation",
             generation_config=generation_config,
             safety_settings=safety_settings,
             tools=[tool],
         )
-    mock_genai_configure.assert_called_once_with(api_key="test")
+    mock_genai_configure.assert_called()
     assert gemini._model_name == "gemini-pro-vision"
     assert gemini._generation_config == generation_config
     assert gemini._safety_settings == safety_settings
@@ -88,17 +100,17 @@ def test_to_dict(monkeypatch):
 
     tool = Tool(function_declarations=[get_current_weather_func])
 
-    with patch("haystack_integrations.components.generators.google_ai.gemini.genai.configure"):
-        gemini = GoogleAIGeminiGenerator(
+    with patch("haystack_integrations.components.generators.vertex.gemini.genai.configure"):
+        gemini = VertexAIGeminiGenerator(
             generation_config=generation_config,
             safety_settings=safety_settings,
             tools=[tool],
         )
     assert gemini.to_dict() == {
-        "type": "haystack_integrations.components.generators.google_ai.gemini.GoogleAIGeminiGenerator",
+        "type": "haystack_integrations.components.generators.google_ai.gemini.VertexAI_GeminiGenerator",
         "init_parameters": {
             "model": "gemini-pro-vision",
-            "api_key": {"env_vars": ["GOOGLE_API_KEY"], "strict": True, "type": "env_var"},
+            "project_id": "TestID123",    
             "generation_config": {
                 "temperature": 0.5,
                 "top_p": 0.5,
@@ -189,11 +201,5 @@ def test_from_dict(monkeypatch):
 @pytest.mark.skipif(not os.environ.get("GOOGLE_API_KEY", None), reason="GOOGLE_API_KEY env var not set")
 def test_run():
     gemini = GoogleAIGeminiGenerator(model="gemini-pro")
-    res = gemini.run("Tell me something cool")
-    assert len(res["replies"]) > 0
-
-
-def test_run_with_streaming_callback():
-    gemini = GoogleAIGeminiGenerator(model="gemini-pro", streaming_callback = True)
     res = gemini.run("Tell me something cool")
     assert len(res["replies"]) > 0

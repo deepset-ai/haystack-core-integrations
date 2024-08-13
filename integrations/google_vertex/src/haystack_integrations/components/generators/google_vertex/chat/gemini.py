@@ -55,6 +55,7 @@ class VertexAIGeminiChatGenerator:
         generation_config: Optional[Union[GenerationConfig, Dict[str, Any]]] = None,
         safety_settings: Optional[Dict[HarmCategory, HarmBlockThreshold]] = None,
         tools: Optional[List[Tool]] = None,
+        streaming_callback: Optional[bool] = False
     ):
         """
         `VertexAIGeminiChatGenerator` enables chat completion using Google Gemini models.
@@ -89,6 +90,7 @@ class VertexAIGeminiChatGenerator:
         self._generation_config = generation_config
         self._safety_settings = safety_settings
         self._tools = tools
+        self._streaming_callback = streaming_callback
 
     def _function_to_dict(self, function: FunctionDeclaration) -> Dict[str, Any]:
         return {
@@ -129,6 +131,7 @@ class VertexAIGeminiChatGenerator:
             generation_config=self._generation_config,
             safety_settings=self._safety_settings,
             tools=self._tools,
+            streaming_callback=self._streaming_callback
         )
         if (tools := data["init_parameters"].get("tools")) is not None:
             data["init_parameters"]["tools"] = [self._tool_to_dict(t) for t in tools]
@@ -211,6 +214,8 @@ class VertexAIGeminiChatGenerator:
             generation_config=self._generation_config,
             safety_settings=self._safety_settings,
             tools=self._tools,
+            stream=self._streaming_callback
+
         )
 
         replies = []
