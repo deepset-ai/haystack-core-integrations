@@ -358,13 +358,13 @@ class TestMetaLlama2ChatAdapter:
         assert "paris" in first_reply.content.lower(), "First reply does not contain 'paris'"
         assert first_reply.meta, "First reply has no metadata"
 
-        if first_reply.meta and 'usage' in first_reply.meta:
-            assert 'prompt_tokens' in first_reply.meta['usage']
-            assert 'completion_tokens' in first_reply.meta['usage']
+        if first_reply.meta and "usage" in first_reply.meta:
+            assert "prompt_tokens" in first_reply.meta["usage"]
+            assert "completion_tokens" in first_reply.meta["usage"]
 
-        if first_reply.meta and 'usage' not in first_reply.meta:
-            assert 'prompt_tokens' in first_reply.meta
-            assert 'completion_tokens' in first_reply.meta
+        if first_reply.meta and "usage" not in first_reply.meta:
+            assert "prompt_tokens" in first_reply.meta
+            assert "completion_tokens" in first_reply.meta
 
     @pytest.mark.parametrize("model_name", MODELS_TO_TEST)
     @pytest.mark.integration

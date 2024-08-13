@@ -206,16 +206,16 @@ class AmazonBedrockChatGenerator:
         # rename the meta key to be inline with OpenAI meta output keys
         for response in replies:
             if response.meta is not None:
-                if 'usage' not in response.meta:
+                if "usage" not in response.meta:
                     if "prompt_token_count" in response.meta:
                         response.meta["prompt_tokens"] = response.meta.pop("prompt_token_count")
-                    if 'generation_token_count' in response.meta:
+                    if "generation_token_count" in response.meta:
                         response.meta["completion_tokens"] = response.meta.pop("generation_token_count")
                 elif "usage" in response.meta:
-                    if "input_tokens" in response.meta['usage']:
-                        response.meta["usage"]['prompt_tokens'] = response.meta['usage'].pop("input_tokens")
-                    if "output_token" in response.meta['usage']:
-                        response.meta["usage"]['completion_tokens'] = response.meta['usage'].pop("output_token")
+                    if "input_tokens" in response.meta["usage"]:
+                        response.meta["usage"]["prompt_tokens"] = response.meta["usage"].pop("input_tokens")
+                    if "output_token" in response.meta["usage"]:
+                        response.meta["usage"]["completion_tokens"] = response.meta["usage"].pop("output_token")
                 else:
                     print("DEBUG", response.meta)
 
