@@ -49,19 +49,18 @@ class BedrockModelChatAdapter(ABC):
         return self._extract_messages_from_response(response_body)
 
     def get_stream_responses(
-        self, stream: EventStream, stream_handler: Callable[[StreamingChunk], None]
+        self, stream: EventStream, streaming_callback: Callable[[StreamingChunk], None]
     ) -> List[ChatMessage]:
-        tokens: List[str] = []
+        streaming_chunks: List[StreamingChunk] = []
         last_decoded_chunk: Dict[str, Any] = {}
         for event in stream:
             chunk = event.get("chunk")
             if chunk:
                 last_decoded_chunk = json.loads(chunk["bytes"].decode("utf-8"))
-                token = self._extract_token_from_stream(last_decoded_chunk)
-                stream_chunk = StreamingChunk(content=token)  # don't extract meta, we care about tokens only
-                stream_handler(stream_chunk)  # callback the stream handler with StreamingChunk
-                tokens.append(token)
-        responses = ["".join(tokens).lstrip()]
+                streaming_chunk = self._build_streaming_chunk(last_decoded_chunk)
+                streaming_callback(streaming_chunk)  # callback the stream handler with StreamingChunk
+                streaming_chunks.append(streaming_chunk)
+        responses = ["".join(chunk.content for chunk in streaming_chunks).lstrip()]
         return [ChatMessage.from_assistant(response, meta=last_decoded_chunk) for response in responses]
 
     @staticmethod
@@ -143,12 +142,12 @@ class BedrockModelChatAdapter(ABC):
         """
 
     @abstractmethod
-    def _extract_token_from_stream(self, chunk: Dict[str, Any]) -> str:
+    def _build_streaming_chunk(self, chunk: Dict[str, Any]) -> StreamingChunk:
         """
-        Extracts the token from a streaming chunk.
+        Extracts the content and meta from a streaming chunk.
 
-        :param chunk: The streaming chunk.
-        :returns: The extracted token.
+        :param chunk: The streaming chunk as dict.
+        :returns: A StreamingChunk object.
         """
 
 
@@ -259,16 +258,16 @@ class AnthropicClaudeChatAdapter(BedrockModelChatAdapter):
                     messages.append(ChatMessage.from_assistant(content["text"], meta=meta))
         return messages
 
-    def _extract_token_from_stream(self, chunk: Dict[str, Any]) -> str:
+    def _build_streaming_chunk(self, chunk: Dict[str, Any]) -> StreamingChunk:
         """
-        Extracts the token from a streaming chunk.
+        Extracts the content and meta from a streaming chunk.
 
-        :param chunk: The streaming chunk.
-        :returns: The extracted token.
+        :param chunk: The streaming chunk as dict.
+        :returns: A StreamingChunk object.
         """
         if chunk.get("type") == "content_block_delta" and chunk.get("delta", {}).get("type") == "text_delta":
-            return chunk.get("delta", {}).get("text", "")
-        return ""
+            return StreamingChunk(content=chunk.get("delta", {}).get("text", ""), meta=chunk)
+        return StreamingChunk(content="", meta=chunk)
 
     def _to_anthropic_message(self, m: ChatMessage) -> Dict[str, Any]:
         """
@@ -434,17 +433,17 @@ class MistralChatAdapter(BedrockModelChatAdapter):
             messages.append(ChatMessage.from_assistant(response["text"], meta=meta))
         return messages
 
-    def _extract_token_from_stream(self, chunk: Dict[str, Any]) -> str:
+    def _build_streaming_chunk(self, chunk: Dict[str, Any]) -> StreamingChunk:
         """
-        Extracts the token from a streaming chunk.
+        Extracts the content and meta from a streaming chunk.
 
-        :param chunk: The streaming chunk.
-        :returns: The extracted token.
+        :param chunk: The streaming chunk as dict.
+        :returns: A StreamingChunk object.
         """
         response_chunk = chunk.get("outputs", [])
         if response_chunk:
-            return response_chunk[0].get("text", "")
-        return ""
+            return StreamingChunk(content=response_chunk[0].get("text", ""), meta=chunk)
+        return StreamingChunk(content="", meta=chunk)
 
 
 class MetaLlama2ChatAdapter(BedrockModelChatAdapter):
@@ -556,11 +555,11 @@ class MetaLlama2ChatAdapter(BedrockModelChatAdapter):
         metadata = {k: v for (k, v) in response_body.items() if k != message_tag}
         return [ChatMessage.from_assistant(response_body[message_tag], meta=metadata)]
 
-    def _extract_token_from_stream(self, chunk: Dict[str, Any]) -> str:
+    def _build_streaming_chunk(self, chunk: Dict[str, Any]) -> StreamingChunk:
         """
-        Extracts the token from a streaming chunk.
+        Extracts the content and meta from a streaming chunk.
 
-        :param chunk: The streaming chunk.
-        :returns: The extracted token.
+        :param chunk: The streaming chunk as dict.
+        :returns: A StreamingChunk object.
         """
-        return chunk.get("generation", "")
+        return StreamingChunk(content=chunk.get("generation", ""), meta=chunk)

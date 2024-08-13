@@ -132,15 +132,6 @@ def test_constructor_with_empty_model():
         AmazonBedrockChatGenerator(model="")
 
 
-def test_invoke_with_no_kwargs(mock_boto3_session):
-    """
-    Test invoke raises an error if no messages are provided
-    """
-    layer = AmazonBedrockChatGenerator(model="anthropic.claude-v2")
-    with pytest.raises(ValueError, match="The model anthropic.claude-v2 requires"):
-        layer.invoke()
-
-
 def test_short_prompt_is_not_truncated(mock_boto3_session):
     """
     Test that a short prompt is not truncated
@@ -203,11 +194,11 @@ def test_long_prompt_is_truncated(mock_boto3_session):
     assert prompt_after_resize == truncated_prompt_text
 
 
-def test_long_prompt_is_not_truncated_when_truncate_false(mock_boto3_session):
+def test_long_prompt_is_not_truncated_when_truncate_false():
     """
     Test that a long prompt is not truncated and _ensure_token_limit is not called when truncate is set to False
     """
-    messages = [ChatMessage.from_system("I am a tokenized prompt of length eight")]
+    messages = [ChatMessage.from_system("What is the biggest city in United States?")]
 
     # Our mock prompt is 8 tokens long, so it exceeds the total limit (8 prompt tokens + 3 generated tokens > 10 tokens)
     max_length_generated_text = 3
@@ -230,16 +221,32 @@ def test_long_prompt_is_not_truncated_when_truncate_false(mock_boto3_session):
             generator.client.invoke_model = MagicMock(
                 return_value={"body": MagicMock(read=MagicMock(return_value=b'{"generated_text": "response"}'))}
             )
-            generator.model_adapter.get_responses = MagicMock(return_value=["response"])
 
+            generator.model_adapter.get_responses = MagicMock(
+                return_value=[
+                    ChatMessage(
+                        content="Some text",
+                        role=ChatRole.ASSISTANT,
+                        name=None,
+                        meta=[
+                            {
+                                "model": "claude-3-sonnet-20240229",
+                                "index": 0,
+                                "finish_reason": "end_turn",
+                                "usage": {"prompt_tokens": 16, "completion_tokens": 55},
+                            }
+                        ],
+                    )
+                ]
+            )
             # Invoke the generator
-            generator.invoke(messages=messages)
+            generator.run(messages=messages)
 
         # Ensure _ensure_token_limit was not called
         mock_ensure_token_limit.assert_not_called(),
 
         # Check the prompt passed to prepare_body
-        generator.model_adapter.prepare_body.assert_called_with(messages=messages, stop_words=[])
+        generator.model_adapter.prepare_body.assert_called_with(messages=messages, stop_words=[], stream=False)
 
 
 @pytest.mark.parametrize(
