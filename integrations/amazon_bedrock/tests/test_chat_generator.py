@@ -194,7 +194,7 @@ def test_long_prompt_is_truncated(mock_boto3_session):
     assert prompt_after_resize == truncated_prompt_text
 
 
-def test_long_prompt_is_not_truncated_when_truncate_false():
+def test_long_prompt_is_not_truncated_when_truncate_false(mock_boto3_session):
     """
     Test that a long prompt is not truncated and _ensure_token_limit is not called when truncate is set to False
     """
