@@ -217,7 +217,8 @@ class AmazonBedrockChatGenerator:
                     if "output_token" in response.meta["usage"]:
                         response.meta["usage"]["completion_tokens"] = response.meta["usage"].pop("output_token")
                 else:
-                    raise ValueError("The meta key is not in the expected format.")
+                    msg = "The meta key is not in the expected format."
+                    raise ValueError(msg)
 
         return {"replies": replies}
 
