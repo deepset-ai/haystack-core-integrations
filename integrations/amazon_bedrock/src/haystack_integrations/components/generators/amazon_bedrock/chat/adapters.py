@@ -250,6 +250,10 @@ class AnthropicClaudeChatAdapter(BedrockModelChatAdapter):
                 if content.get("type") == "text":
                     meta = {k: v for k, v in response_body.items() if k not in ["type", "content", "role"]}
                     messages.append(ChatMessage.from_assistant(content["text"], meta=meta))
+                if content.get("type") == "tool_use":
+                    meta = {k: v for k, v in response_body.items() if k not in ["type", "content", "role"]}
+                    json_answer = json.dumps(content)
+                    messages.append(ChatMessage.from_assistant(json_answer, meta=meta))
         return messages
 
     def _build_streaming_chunk(self, chunk: Dict[str, Any]) -> StreamingChunk:
