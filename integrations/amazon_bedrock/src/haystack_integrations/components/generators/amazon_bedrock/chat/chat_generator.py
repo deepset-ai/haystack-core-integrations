@@ -76,6 +76,7 @@ class AmazonBedrockChatGenerator:
         generation_kwargs: Optional[Dict[str, Any]] = None,
         stop_words: Optional[List[str]] = None,
         streaming_callback: Optional[Callable[[StreamingChunk], None]] = None,
+        truncate: Optional[bool] = True,
     ):
         """
         Initializes the `AmazonBedrockChatGenerator` with the provided parameters. The parameters are passed to the
@@ -108,6 +109,7 @@ class AmazonBedrockChatGenerator:
         function that handles the streaming chunks. The callback function receives a
           [StreamingChunk](https://docs.haystack.deepset.ai/docs/data-classes#streamingchunk) object and
         switches the streaming mode on.
+        :param truncate: Whether to truncate the prompt messages or not.
         """
         if not model:
             msg = "'model' cannot be None or empty string"
@@ -118,13 +120,14 @@ class AmazonBedrockChatGenerator:
         self.aws_session_token = aws_session_token
         self.aws_region_name = aws_region_name
         self.aws_profile_name = aws_profile_name
+        self.truncate = truncate
 
         # get the model adapter for the given model
         model_adapter_cls = self.get_model_adapter(model=model)
         if not model_adapter_cls:
             msg = f"AmazonBedrockGenerator doesn't support the model {model}."
             raise AmazonBedrockConfigurationError(msg)
-        self.model_adapter = model_adapter_cls(generation_kwargs or {})
+        self.model_adapter = model_adapter_cls(self.truncate, generation_kwargs or {})
 
         # create the AWS session and client
         def resolve_secret(secret: Optional[Secret]) -> Optional[str]:
@@ -243,6 +246,7 @@ class AmazonBedrockChatGenerator:
             stop_words=self.stop_words,
             generation_kwargs=self.model_adapter.generation_kwargs,
             streaming_callback=callback_name,
+            truncate=self.truncate,
         )
 
     @classmethod
