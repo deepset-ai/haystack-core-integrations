@@ -334,7 +334,7 @@ class TestAnthropicClaudeAdapter:
         messages = []
         messages.append(ChatMessage.from_user("What is the most popular song on WZPZ?"))
         client = AmazonBedrockChatGenerator(model=model_name)
-        response = client.run(messages=messages, generation_kwargs={"tools": tools})
+        response = client.run(messages=messages, generation_kwargs={"tools": tools, "tool_choice": {"type": "any"}})
         replies = response["replies"]
         assert isinstance(replies, list), "Replies is not a list"
         assert len(replies) > 0, "No replies received"

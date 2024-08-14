@@ -166,6 +166,7 @@ class AnthropicClaudeChatAdapter(BedrockModelChatAdapter):
         "top_k",
         "system",
         "tools",
+        "tool_choice",
     ]
 
     def __init__(self, truncate: Optional[bool], generation_kwargs: Dict[str, Any]):
