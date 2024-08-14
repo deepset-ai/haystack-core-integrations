@@ -15,15 +15,15 @@ from haystack_integrations.common.amazon_bedrock.errors import (
 )
 from haystack_integrations.common.amazon_bedrock.utils import get_aws_session
 
-from .adapters import AnthropicClaudeChatAdapter, BedrockModelConverseAdapter, MetaLlama2ChatAdapter, MistralChatAdapter
 
 logger = logging.getLogger(__name__)
 
 
 @component
-class AmazonBedrockChatGenerator:
+class AmazonBedrockConverseGenerator:
     """
-    Completes chats using LLMs hosted on Amazon Bedrock.
+    Completes chats using LLMs hosted on Amazon Bedrock using the converse api.
+    References: https://docs.aws.amazon.com/bedrock/latest/userguide/conversation-inference.html
 
     For example, to use the Anthropic Claude 3 Sonnet model, initialize this component with the
     'anthropic.claude-3-sonnet-20240229-v1:0' model name.
@@ -57,11 +57,11 @@ class AmazonBedrockChatGenerator:
     supports Amazon Bedrock.
     """
 
-    SUPPORTED_MODEL_PATTERNS: ClassVar[Dict[str, Type[BedrockModelChatAdapter]]] = {
-        r"anthropic.claude.*": AnthropicClaudeChatAdapter,
-        r"meta.llama2.*": MetaLlama2ChatAdapter,
-        r"mistral.*": MistralChatAdapter,
-    }
+    SUPPORTED_TOOL_MODEL_PATTERNS: ClassVar[List[str]] = [
+        r"anthropic.claude-3.*",
+        r"cohere.command-r.*",
+        r"mistral.mistral-large.*",
+    ]
 
     def __init__(
         self,
@@ -79,7 +79,7 @@ class AmazonBedrockChatGenerator:
         truncate: Optional[bool] = True,
     ):
         """
-        Initializes the `AmazonBedrockChatGenerator` with the provided parameters. The parameters are passed to the
+        Initializes the `AmazonBedrockConverseGenerator` with the provided parameters. The parameters are passed to the
         Amazon Bedrock client.
 
         Note that the AWS credentials are not required if the AWS environment is configured correctly. These are loaded
@@ -121,13 +121,6 @@ class AmazonBedrockChatGenerator:
         self.aws_region_name = aws_region_name
         self.aws_profile_name = aws_profile_name
         self.truncate = truncate
-
-        # get the model adapter for the given model
-        model_adapter_cls = self.get_model_adapter(model=model)
-        if not model_adapter_cls:
-            msg = f"AmazonBedrockGenerator doesn't support the model {model}."
-            raise AmazonBedrockConfigurationError(msg)
-        self.model_adapter = model_adapter_cls(self.truncate, generation_kwargs or {})
 
         # create the AWS session and client
         def resolve_secret(secret: Optional[Secret]) -> Optional[str]:
@@ -214,19 +207,6 @@ class AmazonBedrockChatGenerator:
 
         return {"replies": replies}
 
-    @classmethod
-    def get_model_adapter(cls, model: str) -> Optional[Type[BedrockModelChatAdapter]]:
-        """
-        Returns the model adapter for the given model.
-
-        :param model: The model to get the adapter for.
-        :returns: The model adapter for the given model, or None if the model is not supported.
-        """
-        for pattern, adapter in cls.SUPPORTED_MODEL_PATTERNS.items():
-            if re.fullmatch(pattern, model):
-                return adapter
-        return None
-
     def to_dict(self) -> Dict[str, Any]:
         """
         Serializes the component to a dictionary.
@@ -250,7 +230,7 @@ class AmazonBedrockChatGenerator:
         )
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "AmazonBedrockChatGenerator":
+    def from_dict(cls, data: Dict[str, Any]) -> "AmazonBedrockConverseGenerator":
         """
         Deserializes the component from a dictionary.
 
