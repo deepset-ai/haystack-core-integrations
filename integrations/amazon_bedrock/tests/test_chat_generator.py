@@ -1,6 +1,6 @@
+import json
 import logging
 import os
-import json
 from typing import Optional, Type
 from unittest.mock import MagicMock, patch
 
@@ -310,6 +310,9 @@ class TestAnthropicClaudeAdapter:
     @pytest.mark.parametrize("model_name", MODELS_TO_TEST_WITH_TOOLS)
     @pytest.mark.integration
     def test_tools_use(self, model_name):
+        """
+        Test function calling with AWS Bedrock Anthropic adapter
+        """
         # See https://docs.anthropic.com/en/docs/tool-use for more information
         tools = [
             {
@@ -320,13 +323,12 @@ class TestAnthropicClaudeAdapter:
                     "properties": {
                         "sign": {
                             "type": "string",
-                            "description": "The call sign for the radio station for which you want the most popular song. Example calls signs are WZPZ and WKRP."
+                            "description": "The call sign for the radio station for which you want the most popular"
+                            " song. Example calls signs are WZPZ and WKRP.",
                         }
                     },
-                    "required": [
-                        "sign"
-                    ]
-                }
+                    "required": ["sign"],
+                },
             }
         ]
         messages = []
