@@ -2,7 +2,7 @@ import json
 import logging
 import os
 from abc import ABC, abstractmethod
-from typing import Any, Callable, ClassVar, Dict, List
+from typing import Any, Callable, ClassVar, Dict, List, Optional
 
 from botocore.eventstream import EventStream
 from haystack.dataclasses import ChatMessage, ChatRole, StreamingChunk
@@ -21,11 +21,12 @@ class BedrockModelChatAdapter(ABC):
     focusing on preparing the requests and extracting the responses from the Amazon Bedrock hosted chat LLMs.
     """
 
-    def __init__(self, generation_kwargs: Dict[str, Any]) -> None:
+    def __init__(self, truncate: Optional[bool], generation_kwargs: Dict[str, Any]) -> None:
         """
-        Initializes the chat adapter with the generation kwargs.
+        Initializes the chat adapter with the truncate parameter and generation kwargs.
         """
         self.generation_kwargs = generation_kwargs
+        self.truncate = truncate
 
     @abstractmethod
     def prepare_body(self, messages: List[ChatMessage], **inference_kwargs) -> Dict[str, Any]:
@@ -167,13 +168,14 @@ class AnthropicClaudeChatAdapter(BedrockModelChatAdapter):
         "tools",
     ]
 
-    def __init__(self, generation_kwargs: Dict[str, Any]):
+    def __init__(self, truncate: Optional[bool], generation_kwargs: Dict[str, Any]):
         """
         Initializes the Anthropic Claude chat adapter.
 
+        :param truncate: Whether to truncate the prompt if it exceeds the model's max token limit.
         :param generation_kwargs: The generation kwargs.
         """
-        super().__init__(generation_kwargs)
+        super().__init__(truncate, generation_kwargs)
 
         # We pop the model_max_length as it is not sent to the model
         # but used to truncate the prompt if needed
@@ -217,7 +219,7 @@ class AnthropicClaudeChatAdapter(BedrockModelChatAdapter):
         Prepares the chat messages for the Anthropic Claude request.
 
         :param messages: The chat messages to prepare.
-        :returns: The prepared chat messages as a string.
+        :returns: The prepared chat messages as a dictionary.
         """
         body: Dict[str, Any] = {}
         system = messages[0].content if messages and messages[0].is_from(ChatRole.SYSTEM) else None
@@ -226,6 +228,11 @@ class AnthropicClaudeChatAdapter(BedrockModelChatAdapter):
         ]
         if system:
             body["system"] = system
+        # Ensure token limit for each message in the body
+        if self.truncate:
+            for message in body["messages"]:
+                for content in message["content"]:
+                    content["text"] = self._ensure_token_limit(content["text"])
         return body
 
     def check_prompt(self, prompt: str) -> Dict[str, Any]:
@@ -317,13 +324,13 @@ class MistralChatAdapter(BedrockModelChatAdapter):
         "top_p",
     ]
 
-    def __init__(self, generation_kwargs: Dict[str, Any]):
+    def __init__(self, truncate: Optional[bool], generation_kwargs: Dict[str, Any]):
         """
         Initializes the Mistral chat adapter.
-
+        :param truncate: Whether to truncate the prompt if it exceeds the model's max token limit.
         :param generation_kwargs: The generation kwargs.
         """
-        super().__init__(generation_kwargs)
+        super().__init__(truncate, generation_kwargs)
 
         # We pop the model_max_length as it is not sent to the model
         # but used to truncate the prompt if needed
@@ -385,7 +392,9 @@ class MistralChatAdapter(BedrockModelChatAdapter):
         prepared_prompt: str = self.prompt_handler.tokenizer.apply_chat_template(
             conversation=[self.to_openai_format(m) for m in messages], tokenize=False, chat_template=self.chat_template
         )
-        return self._ensure_token_limit(prepared_prompt)
+        if self.truncate:
+            prepared_prompt = self._ensure_token_limit(prepared_prompt)
+        return prepared_prompt
 
     def to_openai_format(self, m: ChatMessage) -> Dict[str, Any]:
         """
@@ -471,12 +480,13 @@ class MetaLlama2ChatAdapter(BedrockModelChatAdapter):
         "{% endfor %}"
     )
 
-    def __init__(self, generation_kwargs: Dict[str, Any]) -> None:
+    def __init__(self, truncate: Optional[bool], generation_kwargs: Dict[str, Any]) -> None:
         """
         Initializes the Meta Llama 2 chat adapter.
+        :param truncate: Whether to truncate the prompt if it exceeds the model's max token limit.
         :param generation_kwargs: The generation kwargs.
         """
-        super().__init__(generation_kwargs)
+        super().__init__(truncate, generation_kwargs)
         # We pop the model_max_length as it is not sent to the model
         # but used to truncate the prompt if needed
         # Llama 2 has context window size of 4096 tokens
@@ -520,7 +530,10 @@ class MetaLlama2ChatAdapter(BedrockModelChatAdapter):
         prepared_prompt: str = self.prompt_handler.tokenizer.apply_chat_template(
             conversation=messages, tokenize=False, chat_template=self.chat_template
         )
-        return self._ensure_token_limit(prepared_prompt)
+
+        if self.truncate:
+            prepared_prompt = self._ensure_token_limit(prepared_prompt)
+        return prepared_prompt
 
     def check_prompt(self, prompt: str) -> Dict[str, Any]:
         """
