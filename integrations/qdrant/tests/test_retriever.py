@@ -151,7 +151,10 @@ class TestQdrantRetriever(FilterableDocsFixtureMixin):
             filters={"field": "meta.chapter", "operator": "==", "value": "abstract"},
             return_embedding=False,
         )["documents"]
-        assert len(results) == 3
+        # we need to combine init filter and run filter as the policy is MERGE
+        # when we combine these filters we use AND logical operator by default
+        # so the result should be 1 as we have only one document that matches both filters
+        assert len(results) == 1
 
         for document in results:
             assert document.embedding is None
