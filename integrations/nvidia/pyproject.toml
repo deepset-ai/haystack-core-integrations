@@ -42,12 +42,14 @@ root = "../.."
 git_describe_command = 'git describe --tags --match="integrations/nvidia-v[0-9]*"'
 
 [tool.hatch.envs.default]
-dependencies = ["coverage[toml]>=6.5", "pytest", "pytest-rerunfailures", "haystack-pydoc-tools"]
+dependencies = ["coverage[toml]>=6.5", "pytest", "pytest-rerunfailures", "haystack-pydoc-tools", "requests_mock"]
 [tool.hatch.envs.default.scripts]
-test = "pytest --reruns 3 --reruns-delay 30 -x {args:tests}"
-test-cov = "coverage run -m pytest --reruns 3 --reruns-delay 30 -x {args:tests}"
+test = "pytest {args:tests}"
+test-cov = "coverage run -m pytest {args:tests}"
+test-cov-retry = "test-cov --reruns 3 --reruns-delay 30 -x"
 cov-report = ["- coverage combine", "coverage report"]
 cov = ["test-cov", "cov-report"]
+cov-retry = ["test-cov-retry", "cov-report"]
 docs = ["pydoc-markdown pydoc/config.yml"]
 
 [[tool.hatch.envs.all.matrix]]
@@ -147,6 +149,8 @@ module = [
   "haystack_integrations.*",
   "pytest.*",
   "numpy.*",
+  "requests_mock.*",
+  "pydantic.*"
 ]
 ignore_missing_imports = true
 
