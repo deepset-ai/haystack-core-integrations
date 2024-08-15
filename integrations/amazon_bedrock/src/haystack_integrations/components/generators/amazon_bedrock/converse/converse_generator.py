@@ -14,10 +14,14 @@ from haystack_integrations.common.amazon_bedrock.errors import (
     AmazonBedrockInferenceError,
 )
 from haystack_integrations.common.amazon_bedrock.utils import get_aws_session
-
+from utils import ContentBlock
 
 logger = logging.getLogger(__name__)
 
+class ConverseMessage:
+    def __init__(self, role: str, content: ContentBlock):
+        self.role = role
+        self.content = content
 
 @component
 class AmazonBedrockConverseGenerator:
@@ -129,6 +133,9 @@ class AmazonBedrockConverseGenerator:
         self.aws_region_name = aws_region_name
         self.aws_profile_name = aws_profile_name
         self.truncate = truncate
+        self.inference_config = inference_config
+        self.additionalModelRequestFields = additionalModelRequestFields
+        self.tool_config = tool_config
 
         # create the AWS session and client
         def resolve_secret(secret: Optional[Secret]) -> Optional[str]:
@@ -150,16 +157,16 @@ class AmazonBedrockConverseGenerator:
             )
             raise AmazonBedrockConfigurationError(msg) from exception
 
-        self.stop_words = stop_words or []
         self.streaming_callback = streaming_callback
 
     @component.output_types(replies=List[ChatMessage])
     def run(
         self,
-        messages: List[ChatMessage],
+        messages: List[ConverseMessage],
         streaming_callback: Optional[Callable[[StreamingChunk], None]] = None,
-        generation_kwargs: Optional[Dict[str, Any]] = None,
-        toolConfig: Optional[Dict[str, Any]] = None,
+        inference_config: Optional[Dict[str, Any]] = None,
+        additionalModelRequestFields: Optional[Dict[str, Any]] = None,
+        tool_config: Optional[Dict[str, Any]] = None,
     ):
         """
         Generates a list of `ChatMessage` response to the given messages using the Amazon Bedrock LLM.
@@ -171,11 +178,10 @@ class AmazonBedrockConverseGenerator:
         :returns: A dictionary with the following keys:
             - `replies`: The generated List of `ChatMessage` objects.
         """
-        generation_kwargs = generation_kwargs or {}
-        generation_kwargs = generation_kwargs.copy()
+        inference_config = inference_config or {}
+        inference_config = inference_config.copy()
 
         streaming_callback = streaming_callback or self.streaming_callback
-        generation_kwargs["stream"] = streaming_callback is not None
 
         # warn and only keep last message if model does not support chat
         if re.match("|".join(self.UNSUPPORTED_CHAT_MODEL_PATTERNS), self.model) and len(messages) > 1:
@@ -193,9 +199,7 @@ class AmazonBedrockConverseGenerator:
             msg = f"The model {self.model} requires a list of ChatMessage objects as a prompt."
             raise ValueError(msg)
 
-        body = self.model_adapter.prepare_body(
-            messages=messages, **{"stop_words": self.stop_words, **generation_kwargs}
-        )
+        body = {"messages":}
         try:
             if streaming_callback:
                 response = self.client.invoke_model_with_response_stream(
@@ -239,8 +243,7 @@ class AmazonBedrockConverseGenerator:
             aws_region_name=self.aws_region_name.to_dict() if self.aws_region_name else None,
             aws_profile_name=self.aws_profile_name.to_dict() if self.aws_profile_name else None,
             model=self.model,
-            stop_words=self.stop_words,
-            generation_kwargs=self.model_adapter.generation_kwargs,
+            inference_config=self.inference_config,
             streaming_callback=callback_name,
             truncate=self.truncate,
         )
