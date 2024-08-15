@@ -2,6 +2,58 @@
 from enum import Enum
 from typing import List, Union, Optional
 
+from dataclasses import dataclass, field
+from typing import List, Dict, Union, Optional
+
+
+@dataclass
+class ToolSpec:
+    name: str
+    description: Optional[str] = None
+    inputSchema: Dict[str, Dict] = field(default_factory=dict)
+
+
+@dataclass
+class Tool:
+    toolSpec: ToolSpec
+
+
+@dataclass
+class ToolChoice:
+    auto: Dict = field(default_factory=dict)
+    any: Dict = field(default_factory=dict)
+    tool: Optional[Dict[str, str]] = None
+
+
+@dataclass
+class ToolConfig:
+    tools: List[Tool]
+    toolChoice: Optional[ToolChoice] = None
+
+    def __post_init__(self):
+        if self.toolChoice and sum(bool(v) for v in vars(self.toolChoice).values()) != 1:
+            raise ValueError("Only one of 'auto', 'any', or 'tool' can be set in toolChoice")
+
+        if self.toolChoice and self.toolChoice.tool:
+            if 'name' not in self.toolChoice.tool:
+                raise ValueError("'name' is required when 'tool' is specified in toolChoice")
+
+    @classmethod
+    def from_dict(cls, config: Dict) -> 'ToolConfig':
+        tools = [Tool(ToolSpec(**tool['toolSpec'])) for tool in config.get('tools', [])]
+
+        tool_choice = None
+        if 'toolChoice' in config:
+            tc = config['toolChoice']
+            if 'auto' in tc:
+                tool_choice = ToolChoice(auto=tc['auto'])
+            elif 'any' in tc:
+                tool_choice = ToolChoice(any=tc['any'])
+            elif 'tool' in tc:
+                tool_choice = ToolChoice(tool={'name': tc['tool']['name']})
+
+        return cls(tools=tools, toolChoice=tool_choice)
+
 
 @dataclass
 class DocumentBlock:
@@ -101,11 +153,33 @@ class ConverseMessage:
     @staticmethod
     def from_user(
         content: List[
-            Union[DocumentBlock, GuardrailConverseContentBlock, ImageBlock, str, ToolResultBlock, ToolUseBlock]
-        ]
+            Union[
+                DocumentBlock,
+                GuardrailConverseContentBlock,
+                ImageBlock,
+                str,
+                ToolUseBlock,
+            ],
+        ],
     ) -> "ConverseMessage":
         return ConverseMessage(
             ConverseRole.USER,
+            ContentBlock(
+                content=content,
+            ),
+        )
+
+    @staticmethod
+    def from_assistant(
+        content: List[
+            Union[
+                str,
+                ToolResultBlock,
+            ],
+        ],
+    ) -> "ConverseMessage":
+        return ConverseMessage(
+            ConverseRole.ASSISTANT,
             ContentBlock(
                 content=content,
             ),

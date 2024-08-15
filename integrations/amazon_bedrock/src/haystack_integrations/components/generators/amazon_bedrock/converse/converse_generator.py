@@ -80,13 +80,7 @@ class AmazonBedrockConverseGenerator:
         aws_session_token: Optional[Secret] = Secret.from_env_var(["AWS_SESSION_TOKEN"], strict=False),  # noqa: B008
         aws_region_name: Optional[Secret] = Secret.from_env_var(["AWS_DEFAULT_REGION"], strict=False),  # noqa: B008
         aws_profile_name: Optional[Secret] = Secret.from_env_var(["AWS_PROFILE"], strict=False),  # noqa: B008
-        # converse parameters
-        # inference_config: maxTokens, stopSequences, temperature,topP
-        inference_config: Optional[Dict[str, Any]] = None,
-        additionalModelRequestFields: Optional[Dict[str, Any]] = None,
-        tool_config: Optional[Dict[str, Any]] = None,
         streaming_callback: Optional[Callable[[StreamingChunk], None]] = None,
-        truncate: Optional[bool] = True,
     ):
         """
         Initializes the `AmazonBedrockConverseGenerator` with the provided parameters. The parameters are passed to the
@@ -128,10 +122,6 @@ class AmazonBedrockConverseGenerator:
         self.aws_session_token = aws_session_token
         self.aws_region_name = aws_region_name
         self.aws_profile_name = aws_profile_name
-        self.truncate = truncate
-        self.inference_config = inference_config
-        self.additionalModelRequestFields = additionalModelRequestFields
-        self.tool_config = tool_config
 
         # create the AWS session and client
         def resolve_secret(secret: Optional[Secret]) -> Optional[str]:
@@ -155,14 +145,14 @@ class AmazonBedrockConverseGenerator:
 
         self.streaming_callback = streaming_callback
 
-    @component.output_types(replies=List[ChatMessage])
+    @component.output_types(output=ConverseMessage)
     def run(
         self,
         messages: List[ConverseMessage],
         streaming_callback: Optional[Callable[[StreamingChunk], None]] = None,
-        inference_config: Optional[Dict[str, Any]] = None,
-        additionalModelRequestFields: Optional[Dict[str, Any]] = None,
-        tool_config: Optional[Dict[str, Any]] = None,
+        inference_config: Dict[str, Any] = {},
+        tool_config: Dict[str, Any] = {},
+        **kwargs,
     ):
         """
         Generates a list of `ChatMessage` response to the given messages using the Amazon Bedrock LLM.
@@ -174,9 +164,6 @@ class AmazonBedrockConverseGenerator:
         :returns: A dictionary with the following keys:
             - `replies`: The generated List of `ChatMessage` objects.
         """
-        inference_config = inference_config or {}
-        inference_config = inference_config.copy()
-
         streaming_callback = streaming_callback or self.streaming_callback
 
         # warn and only keep last message if model does not support chat
@@ -195,20 +182,16 @@ class AmazonBedrockConverseGenerator:
             msg = f"The model {self.model} requires a list of ConverseMessage objects as a prompt."
             raise ValueError(msg)
 
-        body = {"messages": message.to_dict() for message in messages}
         try:
             if streaming_callback:
-                response = self.client.invoke_model_with_response_stream(
-                    body=json.dumps(body), modelId=self.model, accept="application/json", contentType="application/json"
-                )
-                response_stream = response["body"]
-                replies = self.model_adapter.get_stream_responses(
-                    stream=response_stream, streaming_callback=streaming_callback
-                )
+                raise NotImplementedError
             else:
                 response = self.client.converse(
                     modelId=self.model,
+                    inferenceConfig=inference_config,
                     messages=[message.to_dict() for message in messages],
+                    toolConfig=tool_config,
+                    **kwargs,
                 )
                 replies = self.model_adapter.get_responses(response_body=response_body)
         except ClientError as exception:
@@ -216,11 +199,6 @@ class AmazonBedrockConverseGenerator:
             raise AmazonBedrockInferenceError(msg) from exception
 
         # rename the meta key to be inline with OpenAI meta output keys
-        for response in replies:
-            if response.meta is not None and "usage" in response.meta:
-                response.meta["usage"]["prompt_tokens"] = response.meta["usage"].pop("input_tokens")
-                response.meta["usage"]["completion_tokens"] = response.meta["usage"].pop("output_tokens")
-
         return {"replies": replies}
 
     def to_dict(self) -> Dict[str, Any]:
