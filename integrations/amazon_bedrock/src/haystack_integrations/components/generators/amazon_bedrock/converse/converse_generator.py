@@ -57,10 +57,17 @@ class AmazonBedrockConverseGenerator:
     supports Amazon Bedrock.
     """
 
+    # according to the list provided in the toolConfig arg: https://docs.aws.amazon.com/bedrock/latest/APIReference/API_runtime_Converse.html#API_runtime_Converse_RequestSyntax
     SUPPORTED_TOOL_MODEL_PATTERNS: ClassVar[List[str]] = [
         r"anthropic.claude-3.*",
         r"cohere.command-r.*",
         r"mistral.mistral-large.*",
+    ]
+
+    UNSUPPORTED_CHAT_MODEL_PATTERNS: ClassVar[List[str]] = [
+        r"cohere.command-text.*",
+        r"cohere.command-light.*",
+        r"ai21.j2.*",
     ]
 
     def __init__(
@@ -73,8 +80,11 @@ class AmazonBedrockConverseGenerator:
         aws_session_token: Optional[Secret] = Secret.from_env_var(["AWS_SESSION_TOKEN"], strict=False),  # noqa: B008
         aws_region_name: Optional[Secret] = Secret.from_env_var(["AWS_DEFAULT_REGION"], strict=False),  # noqa: B008
         aws_profile_name: Optional[Secret] = Secret.from_env_var(["AWS_PROFILE"], strict=False),  # noqa: B008
-        generation_kwargs: Optional[Dict[str, Any]] = None,
-        stop_words: Optional[List[str]] = None,
+        # converse parameters
+        # inference_config: maxTokens, stopSequences, temperature,topP
+        inference_config: Optional[Dict[str, Any]] = None,
+        additionalModelRequestFields: Optional[Dict[str, Any]] = None,
+        tool_config: Optional[Dict[str, Any]] = None,
         streaming_callback: Optional[Callable[[StreamingChunk], None]] = None,
         truncate: Optional[bool] = True,
     ):
@@ -96,9 +106,7 @@ class AmazonBedrockConverseGenerator:
         :param aws_region_name: AWS region name. Make sure the region you set supports Amazon Bedrock.
         :param aws_profile_name: AWS profile name.
         :param generation_kwargs: Keyword arguments sent to the model. These
-        parameters are specific to a model. You can find them in the model's documentation.
-          For example, you can find the
-        Anthropic Claude generation parameters in [Anthropic documentation](https://docs.anthropic.com/claude/reference/complete_post).
+        parameters are specific to a model. You can find them in the [converse documentation]().
         :param stop_words: A list of stop words that stop the model from generating more text
           when encountered. You can provide them using
         this parameter or using the model's `generation_kwargs` under a model's specific key for stop words.
@@ -151,6 +159,7 @@ class AmazonBedrockConverseGenerator:
         messages: List[ChatMessage],
         streaming_callback: Optional[Callable[[StreamingChunk], None]] = None,
         generation_kwargs: Optional[Dict[str, Any]] = None,
+        toolConfig: Optional[Dict[str, Any]] = None,
     ):
         """
         Generates a list of `ChatMessage` response to the given messages using the Amazon Bedrock LLM.
@@ -167,6 +176,13 @@ class AmazonBedrockConverseGenerator:
 
         streaming_callback = streaming_callback or self.streaming_callback
         generation_kwargs["stream"] = streaming_callback is not None
+
+        # warn and only keep last message if model does not support chat
+        if re.match("|".join(self.UNSUPPORTED_CHAT_MODEL_PATTERNS), self.model) and len(messages) > 1:
+            logging.warning(
+                f"The model {self.model} does not support chat. Only the last message " "will be taken into account."
+            )
+            messages = messages[-1:]
 
         # check if the prompt is a list of ChatMessage objects
         if not (
