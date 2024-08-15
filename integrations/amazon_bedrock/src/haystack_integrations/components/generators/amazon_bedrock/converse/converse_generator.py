@@ -14,14 +14,10 @@ from haystack_integrations.common.amazon_bedrock.errors import (
     AmazonBedrockInferenceError,
 )
 from haystack_integrations.common.amazon_bedrock.utils import get_aws_session
-from utils import ContentBlock
+from utils import ConverseMessage
 
 logger = logging.getLogger(__name__)
 
-class ConverseMessage:
-    def __init__(self, role: str, content: ContentBlock):
-        self.role = role
-        self.content = content
 
 @component
 class AmazonBedrockConverseGenerator:
@@ -190,16 +186,16 @@ class AmazonBedrockConverseGenerator:
             )
             messages = messages[-1:]
 
-        # check if the prompt is a list of ChatMessage objects
+        # check if the prompt is a list of ConverseMessage objects
         if not (
             isinstance(messages, list)
             and len(messages) > 0
-            and all(isinstance(message, ChatMessage) for message in messages)
+            and all(isinstance(message, ConverseMessage) for message in messages)
         ):
-            msg = f"The model {self.model} requires a list of ChatMessage objects as a prompt."
+            msg = f"The model {self.model} requires a list of ConverseMessage objects as a prompt."
             raise ValueError(msg)
 
-        body = {"messages":}
+        body = {"messages": message.to_dict() for message in messages}
         try:
             if streaming_callback:
                 response = self.client.invoke_model_with_response_stream(
@@ -210,10 +206,10 @@ class AmazonBedrockConverseGenerator:
                     stream=response_stream, streaming_callback=streaming_callback
                 )
             else:
-                response = self.client.invoke_model(
-                    body=json.dumps(body), modelId=self.model, accept="application/json", contentType="application/json"
+                response = self.client.converse(
+                    modelId=self.model,
+                    messages=[message.to_dict() for message in messages],
                 )
-                response_body = json.loads(response.get("body").read().decode("utf-8"))
                 replies = self.model_adapter.get_responses(response_body=response_body)
         except ClientError as exception:
             msg = f"Could not inference Amazon Bedrock model {self.model} due: {exception}"
