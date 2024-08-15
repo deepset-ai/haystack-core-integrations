@@ -12,13 +12,19 @@ from haystack_integrations.components.generators.anthropic import AnthropicChatG
 
 messages = [
     ChatMessage.from_system("You are a prompt expert who answers questions based on the given documents."),
-    ChatMessage.from_user("Here are the documents: {{documents}} \\n Answer: {{query}}"),
+    ChatMessage.from_user(
+        "Here are the documents:\n"
+        "{% for d in documents %} \n"
+        "    {{d.content}} \n"
+        "{% endfor %}"
+        "\nAnswer: {{query}}"
+    ),
 ]
 
 rag_pipeline = Pipeline()
 rag_pipeline.add_component("fetcher", LinkContentFetcher())
 rag_pipeline.add_component("converter", HTMLToDocument())
-rag_pipeline.add_component("prompt_builder", ChatPromptBuilder())
+rag_pipeline.add_component("prompt_builder", ChatPromptBuilder(variables=["documents"]))
 rag_pipeline.add_component(
     "llm",
     AnthropicChatGenerator(
@@ -32,10 +38,10 @@ rag_pipeline.connect("fetcher", "converter")
 rag_pipeline.connect("converter", "prompt_builder")
 rag_pipeline.connect("prompt_builder.prompt", "llm.messages")
 
-question = "What are the best practices in prompt engineering?"
+question = "When should we use prompt engineering and when should we fine-tune?"
 rag_pipeline.run(
     data={
-        "fetcher": {"urls": ["https://docs.anthropic.com/claude/docs/prompt-engineering"]},
+        "fetcher": {"urls": ["https://docs.anthropic.com/en/docs/build-with-claude/prompt-engineering/overview"]},
         "prompt_builder": {"template_variables": {"query": question}, "template": messages},
     }
 )
