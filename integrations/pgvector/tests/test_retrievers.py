@@ -7,6 +7,7 @@ import pytest
 from haystack.dataclasses import Document
 from haystack.document_stores.types import FilterPolicy
 from haystack.utils.auth import EnvVarSecret
+
 from haystack_integrations.components.retrievers.pgvector import PgvectorEmbeddingRetriever, PgvectorKeywordRetriever
 from haystack_integrations.document_stores.pgvector import PgvectorDocumentStore
 
