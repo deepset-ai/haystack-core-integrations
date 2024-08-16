@@ -1,9 +1,10 @@
 import numpy as np
+from qdrant_client.http import models as rest
+
 from haystack_integrations.document_stores.qdrant.converters import (
     convert_id,
     convert_qdrant_point_to_haystack_document,
 )
-from qdrant_client.http import models as rest
 
 
 def test_convert_id_is_deterministic():
