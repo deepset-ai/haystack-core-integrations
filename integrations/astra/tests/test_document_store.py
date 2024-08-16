@@ -91,6 +91,7 @@ class TestDocumentStore(DocumentStoreBaseTests):
         """
         import operator
 
+        assert len(received) == len(expected)
         received.sort(key=operator.attrgetter("id"))
         expected.sort(key=operator.attrgetter("id"))
         assert received == expected
