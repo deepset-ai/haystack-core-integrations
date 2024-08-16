@@ -1,6 +1,6 @@
 from haystack import component, tracing
-from haystack_integrations.tracing.langfuse import LangfuseTracer
 
+from haystack_integrations.tracing.langfuse import LangfuseTracer
 from langfuse import Langfuse
 
 
