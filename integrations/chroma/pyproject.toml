@@ -70,8 +70,8 @@ dependencies = [
 ]
 [tool.hatch.envs.lint.scripts]
 typing = "mypy --install-types --non-interactive --explicit-package-bases {args:src/ tests}"
-style = ["ruff check {args:.}", "black --check --diff {args:.}"]
-fmt = ["black {args:.}", "ruff --fix {args:.}", "style"]
+style = ["ruff check {args:. --exclude tests}", "black --check --diff {args:.}"]
+fmt = ["black {args:.}", "ruff --fix {args:. --exclude tests}", "style"]
 all = ["style", "typing"]
 
 [tool.hatch.metadata]
