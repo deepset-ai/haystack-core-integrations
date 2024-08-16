@@ -10,10 +10,11 @@ from haystack.dataclasses import Document
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
 from haystack.utils.filters import convert
-from haystack_integrations.document_stores.opensearch.auth import AWSAuth
-from haystack_integrations.document_stores.opensearch.filters import normalize_filters
 from opensearchpy import OpenSearch
 from opensearchpy.helpers import bulk
+
+from haystack_integrations.document_stores.opensearch.auth import AWSAuth
+from haystack_integrations.document_stores.opensearch.filters import normalize_filters
 
 logger = logging.getLogger(__name__)
 
