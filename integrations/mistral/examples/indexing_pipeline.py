@@ -7,6 +7,7 @@ from haystack.components.fetchers import LinkContentFetcher
 from haystack.components.preprocessors import DocumentSplitter
 from haystack.components.writers import DocumentWriter
 from haystack.document_stores.in_memory import InMemoryDocumentStore
+
 from haystack_integrations.components.embedders.mistral.document_embedder import MistralDocumentEmbedder
 
 document_store = InMemoryDocumentStore()
