@@ -13,7 +13,6 @@ from haystack_integrations.document_stores.mongodb_atlas import MongoDBAtlasDocu
 
 
 class TestRetriever:
-
     @pytest.fixture
     def mock_client(self):
         with patch(
@@ -45,11 +44,11 @@ class TestRetriever:
         mock_store = Mock(spec=MongoDBAtlasDocumentStore)
         retriever = MongoDBAtlasEmbeddingRetriever(
             document_store=mock_store,
-            filters={"field": "value"},
+            filters={"field": "meta.some_field", "operator": "==", "value": "SomeValue"},
             top_k=5,
         )
         assert retriever.document_store == mock_store
-        assert retriever.filters == {"field": "value"}
+        assert retriever.filters == {"field": "meta.some_field", "operator": "==", "value": "SomeValue"}
         assert retriever.top_k == 5
         assert retriever.filter_policy == FilterPolicy.REPLACE
 
@@ -57,12 +56,12 @@ class TestRetriever:
         mock_store = Mock(spec=MongoDBAtlasDocumentStore)
         retriever = MongoDBAtlasEmbeddingRetriever(
             document_store=mock_store,
-            filters={"field": "value"},
+            filters={"field": "meta.some_field", "operator": "==", "value": "SomeValue"},
             top_k=5,
             filter_policy=FilterPolicy.MERGE,
         )
         assert retriever.document_store == mock_store
-        assert retriever.filters == {"field": "value"}
+        assert retriever.filters == {"field": "meta.some_field", "operator": "==", "value": "SomeValue"}
         assert retriever.top_k == 5
         assert retriever.filter_policy == FilterPolicy.MERGE
 
@@ -190,12 +189,18 @@ class TestRetriever:
         mock_store._embedding_retrieval.return_value = [doc]
 
         retriever = MongoDBAtlasEmbeddingRetriever(
-            document_store=mock_store, filters={"foo": "boo"}, filter_policy=FilterPolicy.MERGE
+            document_store=mock_store,
+            filters={"field": "meta.some_field", "operator": "==", "value": "SomeValue"},
+            filter_policy=FilterPolicy.MERGE,
         )
-        res = retriever.run(query_embedding=[0.3, 0.5], filters={"field": "value"})
-
+        res = retriever.run(
+            query_embedding=[0.3, 0.5], filters={"field": "meta.some_field", "operator": "==", "value": "Test"}
+        )
+        # as the both init and run filters are filtering the same field, the run filter takes precedence
         mock_store._embedding_retrieval.assert_called_once_with(
-            query_embedding=[0.3, 0.5], filters={"field": "value", "foo": "boo"}, top_k=10
+            query_embedding=[0.3, 0.5],
+            filters={"field": "meta.some_field", "operator": "==", "value": "Test"},
+            top_k=10,
         )
 
         assert res == {"documents": [doc]}
