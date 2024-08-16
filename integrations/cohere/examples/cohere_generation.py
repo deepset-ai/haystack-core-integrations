@@ -20,6 +20,7 @@ from haystack.components.converters import OutputAdapter
 from haystack.components.joiners import BranchJoiner
 from haystack.components.validators import JsonSchemaValidator
 from haystack.dataclasses import ChatMessage
+
 from haystack_integrations.components.generators.cohere import CohereChatGenerator
 
 # Defines a JSON schema for validating a person's data. The schema specifies that a valid object must

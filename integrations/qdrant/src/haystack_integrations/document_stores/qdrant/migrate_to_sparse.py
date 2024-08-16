@@ -1,8 +1,9 @@
 import logging
 import time
 
-from haystack_integrations.document_stores.qdrant import QdrantDocumentStore
 from qdrant_client.http import models
+
+from haystack_integrations.document_stores.qdrant import QdrantDocumentStore
 
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.StreamHandler())

@@ -11,10 +11,11 @@ from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumen
 from haystack.document_stores.types import DuplicatePolicy
 from haystack.testing.document_store import DocumentStoreBaseTests
 from haystack.utils.auth import Secret
+from opensearchpy.exceptions import RequestError
+
 from haystack_integrations.document_stores.opensearch import OpenSearchDocumentStore
 from haystack_integrations.document_stores.opensearch.auth import AWSAuth
 from haystack_integrations.document_stores.opensearch.document_store import DEFAULT_MAX_CHUNK_BYTES
-from opensearchpy.exceptions import RequestError
 
 
 @patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
