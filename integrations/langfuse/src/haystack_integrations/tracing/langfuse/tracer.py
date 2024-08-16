@@ -2,6 +2,7 @@ import contextlib
 import os
 from typing import Any, Dict, Iterator, Optional, Union
 
+from haystack.components.generators.openai_utils import _convert_message_to_openai_format
 from haystack.dataclasses import ChatMessage
 from haystack.tracing import Span, Tracer, tracer
 from haystack.tracing import utils as tracing_utils
@@ -51,14 +52,14 @@ class LangfuseSpan(Span):
             return
         if key.endswith(".input"):
             if "messages" in value:
-                messages = [m.to_openai_format() for m in value["messages"]]
+                messages = [_convert_message_to_openai_format(m) for m in value["messages"]]
                 self._span.update(input=messages)
             else:
                 self._span.update(input=value)
         elif key.endswith(".output"):
             if "replies" in value:
                 if all(isinstance(r, ChatMessage) for r in value["replies"]):
-                    replies = [m.to_openai_format() for m in value["replies"]]
+                    replies = [_convert_message_to_openai_format(m) for m in value["replies"]]
                 else:
                     replies = value["replies"]
                 self._span.update(output=replies)
