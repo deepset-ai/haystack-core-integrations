@@ -22,11 +22,6 @@ from haystack.testing.document_store import (
     WriteDocumentsTest,
 )
 from haystack.utils.auth import Secret
-from haystack_integrations.document_stores.weaviate.auth import AuthApiKey
-from haystack_integrations.document_stores.weaviate.document_store import (
-    DOCUMENT_COLLECTION_PROPERTIES,
-    WeaviateDocumentStore,
-)
 from numpy import array as np_array
 from numpy import array_equal as np_array_equal
 from numpy import float32 as np_float32
@@ -39,6 +34,12 @@ from weaviate.embedded import (
     DEFAULT_PERSISTENCE_DATA_PATH,
     DEFAULT_PORT,
     EmbeddedOptions,
+)
+
+from haystack_integrations.document_stores.weaviate.auth import AuthApiKey
+from haystack_integrations.document_stores.weaviate.document_store import (
+    DOCUMENT_COLLECTION_PROPERTIES,
+    WeaviateDocumentStore,
 )
 
 
