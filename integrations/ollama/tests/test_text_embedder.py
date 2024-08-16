@@ -1,6 +1,7 @@
 import pytest
-from haystack_integrations.components.embedders.ollama import OllamaTextEmbedder
 from requests import HTTPError
+
+from haystack_integrations.components.embedders.ollama import OllamaTextEmbedder
 
 
 class TestOllamaTextEmbedder:
