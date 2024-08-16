@@ -6,6 +6,7 @@ from unittest.mock import Mock, patch
 import pytest
 from haystack.dataclasses import Document
 from haystack.document_stores.types import FilterPolicy
+
 from haystack_integrations.components.retrievers.opensearch import OpenSearchBM25Retriever
 from haystack_integrations.document_stores.opensearch import OpenSearchDocumentStore
 from haystack_integrations.document_stores.opensearch.document_store import DEFAULT_MAX_CHUNK_BYTES
