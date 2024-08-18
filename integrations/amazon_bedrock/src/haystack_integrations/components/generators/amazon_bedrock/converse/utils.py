@@ -1,9 +1,6 @@
-﻿from dataclasses import dataclass
+﻿from dataclasses import asdict, dataclass, field
+from typing import Any, List, Dict, Union, Optional
 from enum import Enum
-from typing import List, Union, Optional
-
-from dataclasses import dataclass, field
-from typing import List, Dict, Union, Optional
 
 
 @dataclass
@@ -56,37 +53,59 @@ class ToolConfig:
 
 
 @dataclass
+class DocumentSource:
+    bytes: bytes
+
+
+@dataclass
 class DocumentBlock:
-    # Placeholder for DocumentBlock attributes
-    pass
+    format: str
+    name: str
+    source: DocumentSource
 
 
 @dataclass
 class GuardrailConverseContentBlock:
-    # Placeholder for GuardrailConverseContentBlock attributes
-    pass
+    text: str
+    qualifiers: List[str] = field(default_factory=list)
+
+
+@dataclass
+class ImageSource:
+    bytes: bytes
 
 
 @dataclass
 class ImageBlock:
-    # Placeholder for ImageBlock attributes
-    pass
+    format: str
+    source: ImageSource
+
+
+@dataclass
+class ToolResultContentBlock:
+    json: Optional[Dict] = None
+    text: Optional[str] = None
+    image: Optional[ImageBlock] = None
+    document: Optional[DocumentBlock] = None
 
 
 @dataclass
 class ToolResultBlock:
-    # Placeholder for ToolResultBlock attributes
-    pass
+    toolUseId: str
+    content: List[ToolResultContentBlock]
+    status: Optional[str] = None
 
 
 @dataclass
 class ToolUseBlock:
-    # Placeholder for ToolUseBlock attributes
-    pass
+    toolUseId: str
+    name: str
+    input: Dict
 
 
-from dataclasses import dataclass, asdict
-from typing import Union, Optional
+class ConverseRole(str, Enum):
+    USER = "user"
+    ASSISTANT = "assistant"
 
 
 @dataclass
@@ -111,44 +130,25 @@ class ContentBlock:
         for item in self.content:
             if isinstance(item, str):
                 res.append({"text": item})
+            elif isinstance(item, DocumentBlock):
+                res.append({"document": asdict(item)})
+            elif isinstance(item, GuardrailConverseContentBlock):
+                res.append({"guardContent": asdict(item)})
+            elif isinstance(item, ImageBlock):
+                res.append({"image": asdict(item)})
+            elif isinstance(item, ToolResultBlock):
+                res.append({"toolResult": asdict(item)})
+            elif isinstance(item, ToolUseBlock):
+                res.append({"toolUse": asdict(item)})
             else:
-                raise NotImplementedError
+                raise ValueError(f"Unsupported content type: {type(item)}")
         return res
 
-    @property
-    def document(self) -> Optional[DocumentBlock]:
-        return self.content if isinstance(self.content, DocumentBlock) else None
 
-    @property
-    def guard_content(self) -> Optional[GuardrailConverseContentBlock]:
-        return self.content if isinstance(self.content, GuardrailConverseContentBlock) else None
-
-    @property
-    def image(self) -> Optional[ImageBlock]:
-        return self.content if isinstance(self.content, ImageBlock) else None
-
-    @property
-    def text(self) -> Optional[str]:
-        return self.content if isinstance(self.content, str) else None
-
-    @property
-    def tool_result(self) -> Optional[ToolResultBlock]:
-        return self.content if isinstance(self.content, ToolResultBlock) else None
-
-    @property
-    def tool_use(self) -> Optional[ToolUseBlock]:
-        return self.content if isinstance(self.content, ToolUseBlock) else None
-
-
-class ConverseRole(str, Enum):
-    USER = "user"
-    ASSISTANT = "assistant"
-
-
+@dataclass
 class ConverseMessage:
-    def __init__(self, role: ConverseRole, content: ContentBlock):
-        self.role = role
-        self.content = content
+    role: ConverseRole
+    content: ContentBlock
 
     @staticmethod
     def from_user(
@@ -170,20 +170,27 @@ class ConverseMessage:
         )
 
     @staticmethod
-    def from_assistant(
-        content: List[
-            Union[
-                str,
-                ToolResultBlock,
-            ],
-        ],
-    ) -> "ConverseMessage":
-        return ConverseMessage(
-            ConverseRole.ASSISTANT,
-            ContentBlock(
-                content=content,
-            ),
-        )
+    def from_dict(data: Dict[str, Any]) -> "ConverseMessage":
+        role = ConverseRole(data['role'])
+        content_blocks = []
+
+        for item in data['content']:
+            if 'text' in item:
+                content_blocks.append(item['text'])
+            elif 'image' in item:
+                content_blocks.append(ImageBlock(**item['image']))
+            elif 'document' in item:
+                content_blocks.append(DocumentBlock(**item['document']))
+            elif 'toolUse' in item:
+                content_blocks.append(ToolUseBlock(**item['toolUse']))
+            elif 'toolResult' in item:
+                content_blocks.append(ToolResultBlock(**item['toolResult']))
+            elif 'guardContent' in item:
+                content_blocks.append(GuardrailConverseContentBlock(**item['guardContent']))
+            else:
+                raise ValueError(f"Unknown content type in message: {item}")
+
+        return ConverseMessage(role, ContentBlock(content=content_blocks))
 
     def to_dict(self):
         return {

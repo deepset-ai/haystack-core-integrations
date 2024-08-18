@@ -8,7 +8,6 @@ from haystack import component, default_from_dict, default_to_dict
 from haystack.dataclasses import ChatMessage, StreamingChunk
 from haystack.utils.auth import Secret, deserialize_secrets_inplace
 from haystack.utils.callable_serialization import deserialize_callable, serialize_callable
-
 from haystack_integrations.common.amazon_bedrock.errors import (
     AmazonBedrockConfigurationError,
     AmazonBedrockInferenceError,
@@ -145,13 +144,18 @@ class AmazonBedrockConverseGenerator:
 
         self.streaming_callback = streaming_callback
 
-    @component.output_types(output=ConverseMessage)
+    @component.output_types(
+        message=ConverseMessage,
+        usage=Dict[str, Any],
+        metrics=Dict[str, Any],
+        guardrail_trace=Dict[str, Any],
+        stop_reason=str,
+    )
     def run(
         self,
         messages: List[ConverseMessage],
         streaming_callback: Optional[Callable[[StreamingChunk], None]] = None,
         inference_config: Dict[str, Any] = {},
-        tool_config: Dict[str, Any] = {},
         **kwargs,
     ):
         """
@@ -190,10 +194,22 @@ class AmazonBedrockConverseGenerator:
                     modelId=self.model,
                     inferenceConfig=inference_config,
                     messages=[message.to_dict() for message in messages],
-                    toolConfig=tool_config,
                     **kwargs,
                 )
-                replies = self.model_adapter.get_responses(response_body=response_body)
+                output = response.get("output")
+                if output is None:
+                    raise KeyError
+                message = output.get("message")
+                if message is None:
+                    raise KeyError
+
+                return {
+                    "message": ConverseMessage.from_dict(message),
+                    "usage": response.get("usage"),
+                    "metrics": response.get("metrics"),
+                    "guardrail_trace": response.get("trace"),
+                    "stop_reason": response.get("stopReason"),
+                }
         except ClientError as exception:
             msg = f"Could not inference Amazon Bedrock model {self.model} due: {exception}"
             raise AmazonBedrockInferenceError(msg) from exception
