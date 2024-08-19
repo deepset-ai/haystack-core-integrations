@@ -215,8 +215,8 @@ class AmazonBedrockChatGenerator:
                     if "output_tokens" in response.meta["usage"]:
                         response.meta["usage"]["completion_tokens"] = response.meta["usage"].pop("output_tokens")
                 else:
-                    response.meta["usage"] = {}
                     if "prompt_token_count" in response.meta:
+                        response.meta["usage"] = {}
                         response.meta["usage"]["prompt_tokens"] = response.meta.pop("prompt_token_count")
                     if "generation_token_count" in response.meta:
                         response.meta["usage"]["completion_tokens"] = response.meta.pop("generation_token_count")
