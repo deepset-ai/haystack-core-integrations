@@ -1,5 +1,36 @@
 # Changelog
 
+## [integrations/amazon_bedrock-v1.0.1] - 2024-08-19
+
+### 🚀 Features
+
+- Make truncation optional for bedrock chat generator (#967)
+
+### 🐛 Bug Fixes
+
+- Normalising ChatGenerators output (#973)
+
+## [integrations/amazon_bedrock-v1.0.0] - 2024-08-12
+
+### 🚜 Refactor
+
+- Change meta data fields (#911)
+
+### 🧪 Testing
+
+- Do not retry tests in `hatch run test` command (#954)
+
+## [integrations/amazon_bedrock-v0.10.0] - 2024-08-12
+
+### 🐛 Bug Fixes
+
+- Support streaming_callback param in amazon bedrock generators (#927)
+
+### Docs
+
+- Update AmazonBedrockChatGenerator docstrings (#949)
+- Update AmazonBedrockGenerator docstrings (#956)
+
 ## [integrations/amazon_bedrock-v0.9.3] - 2024-07-17
 
 ### 🚀 Features

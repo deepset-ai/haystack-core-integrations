@@ -4,6 +4,7 @@ import numpy as np
 import pytest
 from haystack import Document
 from haystack.utils import ComponentDevice, Secret
+
 from haystack_integrations.components.embedders.instructor_embedders import InstructorDocumentEmbedder
 
 

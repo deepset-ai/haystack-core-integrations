@@ -6,6 +6,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 from haystack.document_stores.types import FilterPolicy
+
 from haystack_integrations.components.retrievers.weaviate import WeaviateEmbeddingRetriever
 from haystack_integrations.document_stores.weaviate import WeaviateDocumentStore
 

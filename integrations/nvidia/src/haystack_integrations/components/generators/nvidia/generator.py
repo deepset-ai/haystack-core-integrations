@@ -6,6 +6,7 @@ from typing import Any, Dict, List, Optional
 
 from haystack import component, default_from_dict, default_to_dict
 from haystack.utils.auth import Secret, deserialize_secrets_inplace
+
 from haystack_integrations.utils.nvidia import NimBackend, is_hosted, url_validation
 
 _DEFAULT_API_URL = "https://integrate.api.nvidia.com/v1"
