@@ -341,7 +341,7 @@ class MistralChatAdapter(BedrockModelChatAdapter):
         # b) we can use apply_chat_template with the template above to delineate ChatMessages
         # Mistral models are gated on HF Hub. If no HF_TOKEN is found we use a non-gated alternative tokenizer model.
         tokenizer: PreTrainedTokenizer
-        if os.environ.get("HF_TOKEN"):
+        if os.environ.get("HF_TOKEN") or os.environ.get("HF_API_TOKEN"):
             tokenizer = AutoTokenizer.from_pretrained("mistralai/Mistral-7B-Instruct-v0.1")
         else:
             tokenizer = AutoTokenizer.from_pretrained("NousResearch/Llama-2-7b-chat-hf")
