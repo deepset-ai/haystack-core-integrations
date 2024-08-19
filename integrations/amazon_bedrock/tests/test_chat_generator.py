@@ -229,11 +229,11 @@ def test_long_prompt_is_not_truncated_when_truncate_false(mock_boto3_session):
                         role=ChatRole.ASSISTANT,
                         name=None,
                         meta={
-                                "model": "claude-3-sonnet-20240229",
-                                "index": 0,
-                                "finish_reason": "end_turn",
-                                "usage": {"prompt_tokens": 16, "completion_tokens": 55},
-                        }
+                            "model": "claude-3-sonnet-20240229",
+                            "index": 0,
+                            "finish_reason": "end_turn",
+                            "usage": {"prompt_tokens": 16, "completion_tokens": 55},
+                        },
                     )
                 ]
             )
