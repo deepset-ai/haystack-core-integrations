@@ -72,6 +72,7 @@ class AnthropicChatGenerator:
         "temperature",
         "top_p",
         "top_k",
+        "extra_headers",
     ]
 
     def __init__(
@@ -101,6 +102,7 @@ class AnthropicChatGenerator:
             - `temperature`: The temperature to use for sampling.
             - `top_p`: The top_p value to use for nucleus sampling.
             - `top_k`: The top_k value to use for top-k sampling.
+            - `extra_headers`: A dictionary of extra headers to be passed to the model (i.e. for beta features).
         :param ignore_tools_thinking_messages: Anthropic's approach to tools (function calling) resolution involves a
             "chain of thought" messages before returning the actual function names and parameters in a message. If
             `ignore_tools_thinking_messages` is `True`, the generator will drop so-called thinking messages when tool
@@ -260,6 +262,7 @@ class AnthropicChatGenerator:
         for m in messages:
             message_dict = dataclasses.asdict(m)
             filtered_message = {k: v for k, v in message_dict.items() if k in {"role", "content"} and v}
+            filtered_message.update(m.meta or {})
             anthropic_formatted_messages.append(filtered_message)
         return anthropic_formatted_messages
 
