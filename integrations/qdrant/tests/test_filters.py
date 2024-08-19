@@ -4,8 +4,9 @@ import pytest
 from haystack import Document
 from haystack.testing.document_store import FilterDocumentsTest
 from haystack.utils.filters import FilterError
-from haystack_integrations.document_stores.qdrant import QdrantDocumentStore
 from qdrant_client.http import models
+
+from haystack_integrations.document_stores.qdrant import QdrantDocumentStore
 
 
 class TestQdrantStoreBaseTests(FilterDocumentsTest):

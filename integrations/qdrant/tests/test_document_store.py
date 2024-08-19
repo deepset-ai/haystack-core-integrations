@@ -12,12 +12,13 @@ from haystack.testing.document_store import (
     WriteDocumentsTest,
     _random_embeddings,
 )
+from qdrant_client.http import models as rest
+
 from haystack_integrations.document_stores.qdrant.document_store import (
     SPARSE_VECTORS_NAME,
     QdrantDocumentStore,
     QdrantStoreError,
 )
-from qdrant_client.http import models as rest
 
 
 class TestQdrantDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsTest):

@@ -7,6 +7,7 @@ from unittest.mock import patch
 import pytest
 import requests
 from haystack.utils import Secret
+
 from haystack_integrations.components.embedders.jina import JinaTextEmbedder
 
 

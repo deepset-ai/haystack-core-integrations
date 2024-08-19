@@ -5,6 +5,7 @@ from abc import ABC, abstractmethod
 from typing import Any, Callable, ClassVar, Dict, List, Optional
 
 from botocore.eventstream import EventStream
+from haystack.components.generators.openai_utils import _convert_message_to_openai_format
 from haystack.dataclasses import ChatMessage, ChatRole, StreamingChunk
 from transformers import AutoTokenizer, PreTrainedTokenizer
 
@@ -351,7 +352,7 @@ class MistralChatAdapter(BedrockModelChatAdapter):
         # b) we can use apply_chat_template with the template above to delineate ChatMessages
         # Mistral models are gated on HF Hub. If no HF_TOKEN is found we use a non-gated alternative tokenizer model.
         tokenizer: PreTrainedTokenizer
-        if os.environ.get("HF_TOKEN"):
+        if os.environ.get("HF_TOKEN") or os.environ.get("HF_API_TOKEN"):
             tokenizer = AutoTokenizer.from_pretrained("mistralai/Mistral-7B-Instruct-v0.1")
         else:
             tokenizer = AutoTokenizer.from_pretrained("NousResearch/Llama-2-7b-chat-hf")
@@ -399,26 +400,13 @@ class MistralChatAdapter(BedrockModelChatAdapter):
         # default is https://huggingface.co/mistralai/Mixtral-8x7B-Instruct-v0.1/blob/main/tokenizer_config.json
         # but we'll use our custom chat template
         prepared_prompt: str = self.prompt_handler.tokenizer.apply_chat_template(
-            conversation=[self.to_openai_format(m) for m in messages], tokenize=False, chat_template=self.chat_template
+            conversation=[_convert_message_to_openai_format(m) for m in messages],
+            tokenize=False,
+            chat_template=self.chat_template,
         )
         if self.truncate:
             prepared_prompt = self._ensure_token_limit(prepared_prompt)
         return prepared_prompt
-
-    def to_openai_format(self, m: ChatMessage) -> Dict[str, Any]:
-        """
-        Convert the message to the format expected by OpenAI's Chat API.
-        See the [API reference](https://platform.openai.com/docs/api-reference/chat/create) for details.
-
-        :returns: A dictionary with the following key:
-            - `role`
-            - `content`
-            - `name` (optional)
-        """
-        msg = {"role": m.role.value, "content": m.content}
-        if m.name:
-            msg["name"] = m.name
-        return msg
 
     def check_prompt(self, prompt: str) -> Dict[str, Any]:
         """

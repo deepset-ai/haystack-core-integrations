@@ -230,14 +230,12 @@ def test_long_prompt_is_not_truncated_when_truncate_false(mock_boto3_session):
                         content="Some text",
                         role=ChatRole.ASSISTANT,
                         name=None,
-                        meta=[
-                            {
-                                "model": "claude-3-sonnet-20240229",
-                                "index": 0,
-                                "finish_reason": "end_turn",
-                                "usage": {"prompt_tokens": 16, "completion_tokens": 55},
-                            }
-                        ],
+                        meta={
+                            "model": "claude-3-sonnet-20240229",
+                            "index": 0,
+                            "finish_reason": "end_turn",
+                            "usage": {"prompt_tokens": 16, "completion_tokens": 55},
+                        },
                     )
                 ]
             )
@@ -532,6 +530,10 @@ class TestMetaLlama2ChatAdapter:
         assert ChatMessage.is_from(first_reply, ChatRole.ASSISTANT), "First reply is not from the assistant"
         assert "paris" in first_reply.content.lower(), "First reply does not contain 'paris'"
         assert first_reply.meta, "First reply has no metadata"
+
+        if first_reply.meta and "usage" in first_reply.meta:
+            assert "prompt_tokens" in first_reply.meta["usage"]
+            assert "completion_tokens" in first_reply.meta["usage"]
 
     @pytest.mark.parametrize("model_name", MODELS_TO_TEST)
     @pytest.mark.integration

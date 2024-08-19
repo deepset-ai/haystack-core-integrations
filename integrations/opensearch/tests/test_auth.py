@@ -1,8 +1,9 @@
 from unittest.mock import Mock, patch
 
 import pytest
-from haystack_integrations.document_stores.opensearch.auth import AWSAuth
 from opensearchpy import Urllib3AWSV4SignerAuth
+
+from haystack_integrations.document_stores.opensearch.auth import AWSAuth
 
 
 class TestAWSAuth:

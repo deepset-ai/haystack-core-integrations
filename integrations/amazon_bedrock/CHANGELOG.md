@@ -1,5 +1,15 @@
 # Changelog
 
+## [integrations/amazon_bedrock-v1.0.1] - 2024-08-19
+
+### 🚀 Features
+
+- Make truncation optional for bedrock chat generator (#967)
+
+### 🐛 Bug Fixes
+
+- Normalising ChatGenerators output (#973)
+
 ## [integrations/amazon_bedrock-v1.0.0] - 2024-08-12
 
 ### 🚜 Refactor

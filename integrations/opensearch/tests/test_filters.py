@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 import pytest
 from haystack.errors import FilterError
+
 from haystack_integrations.document_stores.opensearch.filters import _normalize_ranges, normalize_filters
 
 filters_data = [
