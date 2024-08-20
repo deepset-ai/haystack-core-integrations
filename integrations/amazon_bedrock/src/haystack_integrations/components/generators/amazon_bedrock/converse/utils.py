@@ -1,5 +1,6 @@
 ﻿from dataclasses import asdict, dataclass, field
-from typing import Any, List, Dict, Union, Optional
+import inspect
+from typing import Any, Callable, List, Dict, Union, Optional
 from enum import Enum
 
 
@@ -35,6 +36,25 @@ class ToolConfig:
             if 'name' not in self.toolChoice.tool:
                 raise ValueError("'name' is required when 'tool' is specified in toolChoice")
 
+    @staticmethod
+    def from_functions(functions: List[Callable]) -> 'ToolConfig':
+        tools = []
+        for func in functions:
+            tool_spec = ToolSpec(
+                name=func.__name__,
+                description=func.__doc__,
+                inputSchema={
+                    "json": {
+                        "type": "object",
+                        "properties": {param: {"type": "string"} for param in inspect.signature(func).parameters},
+                        "required": list(inspect.signature(func).parameters.keys()),
+                    }
+                },
+            )
+            tools.append(Tool(toolSpec=tool_spec))
+
+        return ToolConfig(tools=tools)
+
     @classmethod
     def from_dict(cls, config: Dict) -> 'ToolConfig':
         tools = [Tool(ToolSpec(**tool['toolSpec'])) for tool in config.get('tools', [])]
@@ -50,6 +70,19 @@ class ToolConfig:
                 tool_choice = ToolChoice(tool={'name': tc['tool']['name']})
 
         return cls(tools=tools, toolChoice=tool_choice)
+
+    def to_dict(self) -> Dict[str, Any]:
+        result = {"tools": [{"toolSpec": asdict(tool.toolSpec)} for tool in self.tools]}
+        if self.toolChoice:
+            tool_choice: Dict[str, Dict[str, Any]] = {}
+            if self.toolChoice.auto:
+                tool_choice["auto"] = self.toolChoice.auto
+            elif self.toolChoice.any:
+                tool_choice["any"] = self.toolChoice.any
+            elif self.toolChoice.tool:
+                tool_choice["tool"] = self.toolChoice.tool
+            result["toolChoice"] = [tool_choice]
+        return result
 
 
 @dataclass
@@ -159,6 +192,7 @@ class ConverseMessage:
                 ImageBlock,
                 str,
                 ToolUseBlock,
+                ToolResultBlock,
             ],
         ],
     ) -> "ConverseMessage":

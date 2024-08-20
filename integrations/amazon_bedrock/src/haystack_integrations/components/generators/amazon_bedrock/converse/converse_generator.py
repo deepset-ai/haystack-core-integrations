@@ -1,4 +1,3 @@
-import json
 import logging
 import re
 from typing import Any, Callable, ClassVar, Dict, List, Optional, Type
@@ -80,6 +79,9 @@ class AmazonBedrockConverseGenerator:
         aws_region_name: Optional[Secret] = Secret.from_env_var(["AWS_DEFAULT_REGION"], strict=False),  # noqa: B008
         aws_profile_name: Optional[Secret] = Secret.from_env_var(["AWS_PROFILE"], strict=False),  # noqa: B008
         streaming_callback: Optional[Callable[[StreamingChunk], None]] = None,
+        # used for pipeline setup
+        inference_config: Optional[Dict[str, Any]] = None,
+        tool_config: Optional[Dict[str, Any]] = None,
     ):
         """
         Initializes the `AmazonBedrockConverseGenerator` with the provided parameters. The parameters are passed to the
@@ -135,6 +137,10 @@ class AmazonBedrockConverseGenerator:
                 aws_profile_name=resolve_secret(aws_profile_name),
             )
             self.client = session.client("bedrock-runtime")
+
+            self.inference_config = inference_config
+            self.tool_config = tool_config
+
         except Exception as exception:
             msg = (
                 "Could not connect to Amazon Bedrock. Make sure the AWS environment is configured correctly. "
@@ -156,7 +162,7 @@ class AmazonBedrockConverseGenerator:
         messages: List[ConverseMessage],
         streaming_callback: Optional[Callable[[StreamingChunk], None]] = None,
         inference_config: Dict[str, Any] = {},
-        **kwargs,
+        tool_config: Optional[Dict[str, Any]] = None,
     ):
         """
         Generates a list of `ChatMessage` response to the given messages using the Amazon Bedrock LLM.
@@ -190,12 +196,19 @@ class AmazonBedrockConverseGenerator:
             if streaming_callback:
                 raise NotImplementedError
             else:
-                response = self.client.converse(
-                    modelId=self.model,
-                    inferenceConfig=inference_config,
-                    messages=[message.to_dict() for message in messages],
-                    **kwargs,
-                )
+                # toolConfig is optionnal, so we can add it only if tool_config is not None
+                request_kwargs = {
+                    "modelId": self.model,
+                    "inferenceConfig": inference_config,
+                    "messages": [message.to_dict() for message in messages],
+                }
+                
+                tool_config = tool_config or self.tool_config
+                if tool_config is not None:
+                    request_kwargs["toolConfig"] = tool_config
+
+                response = self.client.converse(**request_kwargs)
+               
                 output = response.get("output")
                 if output is None:
                     raise KeyError
@@ -214,9 +227,6 @@ class AmazonBedrockConverseGenerator:
             msg = f"Could not inference Amazon Bedrock model {self.model} due: {exception}"
             raise AmazonBedrockInferenceError(msg) from exception
 
-        # rename the meta key to be inline with OpenAI meta output keys
-        return {"replies": replies}
-
     def to_dict(self) -> Dict[str, Any]:
         """
         Serializes the component to a dictionary.
@@ -233,9 +243,7 @@ class AmazonBedrockConverseGenerator:
             aws_region_name=self.aws_region_name.to_dict() if self.aws_region_name else None,
             aws_profile_name=self.aws_profile_name.to_dict() if self.aws_profile_name else None,
             model=self.model,
-            inference_config=self.inference_config,
             streaming_callback=callback_name,
-            truncate=self.truncate,
         )
 
     @classmethod
@@ -254,6 +262,12 @@ class AmazonBedrockConverseGenerator:
             data["init_parameters"]["streaming_callback"] = deserialize_callable(serialized_callback_handler)
         deserialize_secrets_inplace(
             data["init_parameters"],
-            ["aws_access_key_id", "aws_secret_access_key", "aws_session_token", "aws_region_name", "aws_profile_name"],
+            [
+                "aws_access_key_id",
+                "aws_secret_access_key",
+                "aws_session_token",
+                "aws_region_name",
+                "aws_profile_name",
+            ],
         )
         return default_from_dict(cls, data)
