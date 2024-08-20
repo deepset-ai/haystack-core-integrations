@@ -53,11 +53,13 @@ questions = ["Why is Monte-Carlo Tree Search used in LATS",
 # Answer the questions using prompt caching (i.e. the entire document is cached, we run the question against it)
 for question in questions:
     print("Question: " + question)
-    qa_pipeline.run(
+    result = qa_pipeline.run(
         data={
             "llm": {"messages": [final_prompt_msg,
                                  ChatMessage.from_user("Given these documents, answer the question:" + question)]},
         }
     )
+
+    print("\n\nChecking cache usage:", result["llm"]["replies"][0].meta.get("usage"))
     print("\n")
 

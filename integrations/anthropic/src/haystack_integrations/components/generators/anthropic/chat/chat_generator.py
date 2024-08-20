@@ -184,7 +184,7 @@ class AnthropicChatGenerator:
         anthropic_formatted_messages = self._convert_to_anthropic_format(messages)
 
         # system message provided by the user overrides the system message from the self.generation_kwargs
-        system = messages[0].content if messages and messages[0].is_from(ChatRole.SYSTEM) else None
+        system = [anthropic_formatted_messages[0]] if messages and messages[0].is_from(ChatRole.SYSTEM) else None
         if system:
             anthropic_formatted_messages = anthropic_formatted_messages[1:]
 
@@ -262,6 +262,11 @@ class AnthropicChatGenerator:
         for m in messages:
             message_dict = dataclasses.asdict(m)
             filtered_message = {k: v for k, v in message_dict.items() if k in {"role", "content"} and v}
+            if m.is_from(ChatRole.SYSTEM):
+                # system messages need to be in the format expected by the Anthropic API
+                filtered_message.pop("role")
+                filtered_message["type"] = "text"
+                filtered_message["text"] = filtered_message.pop("content")
             filtered_message.update(m.meta or {})
             anthropic_formatted_messages.append(filtered_message)
         return anthropic_formatted_messages
