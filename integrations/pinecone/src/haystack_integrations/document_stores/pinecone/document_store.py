@@ -311,8 +311,10 @@ class PineconeDocumentStore:
                     document.meta[key] = "IGNORED"
 
             if discarded_keys:
-                msg = (f"Document {document.id} has metadata fields with unsupported types: {discarded_keys}. "
-                       f"Only str, int, bool, and List[str] are supported. The values of these fields will be ignored.")
+                msg = (
+                    f"Document {document.id} has metadata fields with unsupported types: {discarded_keys}. "
+                    f"Only str, int, bool, and List[str] are supported. The values of these fields will be ignored."
+                )
                 logger.warning(msg)
 
         return document
