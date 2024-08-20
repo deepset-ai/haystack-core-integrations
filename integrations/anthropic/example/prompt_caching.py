@@ -41,25 +41,33 @@ final_prompt_msg.meta["cache_control"] = {"type": "ephemeral"}
 
 # Build QA pipeline
 qa_pipeline = Pipeline()
-qa_pipeline.add_component("llm", AnthropicChatGenerator(
-    api_key=Secret.from_env_var("ANTHROPIC_API_KEY"),
-    streaming_callback=print_streaming_chunk,
-    generation_kwargs={"extra_headers": {"anthropic-beta": "prompt-caching-2024-07-31"}},
-))
+qa_pipeline.add_component(
+    "llm",
+    AnthropicChatGenerator(
+        api_key=Secret.from_env_var("ANTHROPIC_API_KEY"),
+        streaming_callback=print_streaming_chunk,
+        generation_kwargs={"extra_headers": {"anthropic-beta": "prompt-caching-2024-07-31"}},
+    ),
+)
 
-questions = ["Why is Monte-Carlo Tree Search used in LATS",
-             "Summarize LATS selection, expansion, evaluation, simulation, backpropagation, and reflection"]
+questions = [
+    "Why is Monte-Carlo Tree Search used in LATS",
+    "Summarize LATS selection, expansion, evaluation, simulation, backpropagation, and reflection",
+]
 
 # Answer the questions using prompt caching (i.e. the entire document is cached, we run the question against it)
 for question in questions:
     print("Question: " + question)
     result = qa_pipeline.run(
         data={
-            "llm": {"messages": [final_prompt_msg,
-                                 ChatMessage.from_user("Given these documents, answer the question:" + question)]},
+            "llm": {
+                "messages": [
+                    final_prompt_msg,
+                    ChatMessage.from_user("Given these documents, answer the question:" + question),
+                ]
+            },
         }
     )
 
     print("\n\nChecking cache usage:", result["llm"]["replies"][0].meta.get("usage"))
     print("\n")
-

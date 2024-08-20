@@ -106,6 +106,7 @@ select = [
   "YTT",
 ]
 ignore = [
+  "T201", # print statements
   # Allow non-abstract empty methods in abstract base classes
   "B027",
   # Ignore checks for possible passwords
