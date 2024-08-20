@@ -142,6 +142,42 @@ def test_convert_dict_spec_to_pinecone_object_fail():
         PineconeDocumentStore._convert_dict_spec_to_pinecone_object(dict_spec)
 
 
+def test_check_metadata_invalid():
+    invalid_metadata_doc = Document(
+        content="The moonlight shimmered ",
+        meta={
+            "source_id": "62049ba1d1e1d5ebb1f6230b0b00c5356b8706c56e0b9c36b1dfc86084cd75f0",
+            "page_number": 1,
+            "split_id": 0,
+            "split_idx_start": 0,
+            "_split_overlap": [
+                {"doc_id": "68ed48ba830048c5d7815874ed2de794722e6d10866b6c55349a914fd9a0df65", "range": (0, 20)}
+            ],
+        },
+    )
+    pinecone_doc = PineconeDocumentStore.check_metadata(invalid_metadata_doc)
+
+    assert pinecone_doc.meta["source_id"] == "62049ba1d1e1d5ebb1f6230b0b00c5356b8706c56e0b9c36b1dfc86084cd75f0"
+    assert pinecone_doc.meta["page_number"] == 1
+    assert pinecone_doc.meta["split_id"] == 0
+    assert pinecone_doc.meta["split_idx_start"] == 0
+    assert pinecone_doc.meta["_split_overlap"] == "IGNORED"
+
+
+def test_check_metadata_valid():
+    valid_metadata_doc = Document(
+        content="The moonlight shimmered ",
+        meta={
+            "source_id": "62049ba1d1e1d5ebb1f6230b0b00c5356b8706c56e0b9c36b1dfc86084cd75f0",
+            "page_number": 1,
+        },
+    )
+    pinecone_doc = PineconeDocumentStore.check_metadata(valid_metadata_doc)
+
+    assert pinecone_doc.meta["source_id"] == "62049ba1d1e1d5ebb1f6230b0b00c5356b8706c56e0b9c36b1dfc86084cd75f0"
+    assert pinecone_doc.meta["page_number"] == 1
+
+
 @pytest.mark.integration
 @pytest.mark.skipif("PINECONE_API_KEY" not in os.environ, reason="PINECONE_API_KEY not set")
 def test_serverless_index_creation_from_scratch(sleep_time):

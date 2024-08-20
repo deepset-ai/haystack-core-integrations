@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 import io
 import logging
+import warnings
 from copy import copy
 from typing import Any, Dict, List, Literal, Optional
 
@@ -26,6 +27,7 @@ TOP_K_LIMIT = 1_000
 
 
 DEFAULT_STARTER_PLAN_SPEC = {"serverless": {"region": "us-east-1", "cloud": "aws"}}
+METADATA_SUPPORTED_PRIMITIVE_TYPES = str, int, bool  # List[str] is supported and checked separately
 
 
 class PineconeDocumentStore:
@@ -295,6 +297,28 @@ class PineconeDocumentStore:
 
         return documents
 
+    @staticmethod
+    def check_metadata(document: Document):
+        def valid_type(value: Any):
+            return isinstance(value, METADATA_SUPPORTED_PRIMITIVE_TYPES) or (
+                isinstance(value, list) and all(isinstance(i, str) for i in value)
+            )
+
+        if document.meta:
+            discarded_keys = []
+            for key, value in document.meta.items():
+                if not valid_type(value):
+                    discarded_keys.append(key)
+                    document.meta[key] = "IGNORED"
+
+            if discarded_keys:
+                msg = (f"Document {document.id} has metadata fields with unsupported types: {discarded_keys}. "
+                       f"Only str, int, bool, and List[str] are supported. The values of these fields will be ignored.")
+                logger.warning(msg)
+                warnings.warn(msg, UserWarning)
+
+        return document
+
     def _convert_documents_to_pinecone_format(self, documents: List[Document]) -> List[Dict[str, Any]]:
         documents_for_pinecone = []
         for document in documents:
@@ -305,6 +329,10 @@ class PineconeDocumentStore:
                     "A dummy embedding will be used, but this can affect the search results. "
                 )
                 embedding = self._dummy_vector
+
+            if document.meta:
+                document = self.check_metadata(document)
+
             doc_for_pinecone = {"id": document.id, "values": embedding, "metadata": dict(document.meta)}
 
             # we save content/dataframe as metadata
