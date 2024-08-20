@@ -311,8 +311,10 @@ class PineconeDocumentStore:
                     document.meta[key] = "IGNORED"
 
             if discarded_keys:
-                msg = (f"Document {document.id} has metadata fields with unsupported types: {discarded_keys}. "
-                       f"Only str, int, bool, and List[str] are supported. The values of these fields will be ignored.")
+                msg = (
+                    f"Document {document.id} has metadata fields with unsupported types: {discarded_keys}. "
+                    f"Only str, int, bool, and List[str] are supported. The values of these fields will be ignored."
+                )
                 logger.warning(msg)
 
         return document
@@ -329,7 +331,7 @@ class PineconeDocumentStore:
                 embedding = self._dummy_vector
 
             if document.meta:
-                document = self.check_metadata(document)
+                self.check_metadata(document)
 
             doc_for_pinecone = {"id": document.id, "values": embedding, "metadata": dict(document.meta)}
 
