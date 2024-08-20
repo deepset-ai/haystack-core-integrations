@@ -3,7 +3,6 @@
 # SPDX-License-Identifier: Apache-2.0
 import io
 import logging
-import warnings
 from copy import copy
 from typing import Any, Dict, List, Literal, Optional
 
@@ -27,7 +26,7 @@ TOP_K_LIMIT = 1_000
 
 
 DEFAULT_STARTER_PLAN_SPEC = {"serverless": {"region": "us-east-1", "cloud": "aws"}}
-METADATA_SUPPORTED_PRIMITIVE_TYPES = str, int, bool  # List[str] is supported and checked separately
+METADATA_SUPPORTED_TYPES = str, int, bool  # List[str] is supported and checked separately
 
 
 class PineconeDocumentStore:
@@ -300,7 +299,7 @@ class PineconeDocumentStore:
     @staticmethod
     def check_metadata(document: Document):
         def valid_type(value: Any):
-            return isinstance(value, METADATA_SUPPORTED_PRIMITIVE_TYPES) or (
+            return isinstance(value, METADATA_SUPPORTED_TYPES) or (
                 isinstance(value, list) and all(isinstance(i, str) for i in value)
             )
 
@@ -315,7 +314,6 @@ class PineconeDocumentStore:
                 msg = (f"Document {document.id} has metadata fields with unsupported types: {discarded_keys}. "
                        f"Only str, int, bool, and List[str] are supported. The values of these fields will be ignored.")
                 logger.warning(msg)
-                warnings.warn(msg, UserWarning)
 
         return document
 
