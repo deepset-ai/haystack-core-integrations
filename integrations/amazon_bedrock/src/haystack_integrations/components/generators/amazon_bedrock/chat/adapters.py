@@ -166,6 +166,8 @@ class AnthropicClaudeChatAdapter(BedrockModelChatAdapter):
         "top_p",
         "top_k",
         "system",
+        "tools",
+        "tool_choice",
     ]
 
     def __init__(self, truncate: Optional[bool], generation_kwargs: Dict[str, Any]):
@@ -253,10 +255,18 @@ class AnthropicClaudeChatAdapter(BedrockModelChatAdapter):
         """
         messages: List[ChatMessage] = []
         if response_body.get("type") == "message":
-            for content in response_body["content"]:
-                if content.get("type") == "text":
-                    meta = {k: v for k, v in response_body.items() if k not in ["type", "content", "role"]}
-                    messages.append(ChatMessage.from_assistant(content["text"], meta=meta))
+            if response_body.get("stop_reason") == "tool_use":  # If `tool_use` we only keep the tool_use content
+                for content in response_body["content"]:
+                    if content.get("type") == "tool_use":
+                        meta = {k: v for k, v in response_body.items() if k not in ["type", "content", "role"]}
+                        json_answer = json.dumps(content)
+                        messages.append(ChatMessage.from_assistant(json_answer, meta=meta))
+            else:  # For other stop_reason, return all text content
+                for content in response_body["content"]:
+                    if content.get("type") == "text":
+                        meta = {k: v for k, v in response_body.items() if k not in ["type", "content", "role"]}
+                        messages.append(ChatMessage.from_assistant(content["text"], meta=meta))
+
         return messages
 
     def _build_streaming_chunk(self, chunk: Dict[str, Any]) -> StreamingChunk:
