@@ -1,3 +1,4 @@
+import json
 import logging
 import os
 from typing import Optional, Type
@@ -17,6 +18,7 @@ from haystack_integrations.components.generators.amazon_bedrock.chat.adapters im
 
 KLASS = "haystack_integrations.components.generators.amazon_bedrock.chat.chat_generator.AmazonBedrockChatGenerator"
 MODELS_TO_TEST = ["anthropic.claude-3-sonnet-20240229-v1:0", "anthropic.claude-v2:1", "meta.llama2-13b-chat-v1"]
+MODELS_TO_TEST_WITH_TOOLS = ["anthropic.claude-3-haiku-20240307-v1:0"]
 MISTRAL_MODELS = [
     "mistral.mistral-7b-instruct-v0:2",
     "mistral.mixtral-8x7b-instruct-v0:1",
@@ -302,6 +304,48 @@ class TestAnthropicClaudeAdapter:
         )
 
         assert body == expected_body
+
+    @pytest.mark.parametrize("model_name", MODELS_TO_TEST_WITH_TOOLS)
+    @pytest.mark.integration
+    def test_tools_use(self, model_name):
+        """
+        Test function calling with AWS Bedrock Anthropic adapter
+        """
+        # See https://docs.anthropic.com/en/docs/tool-use for more information
+        tools = [
+            {
+                "name": "top_song",
+                "description": "Get the most popular song played on a radio station.",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {
+                        "sign": {
+                            "type": "string",
+                            "description": "The call sign for the radio station for which you want the most popular"
+                            " song. Example calls signs are WZPZ and WKRP.",
+                        }
+                    },
+                    "required": ["sign"],
+                },
+            }
+        ]
+        messages = []
+        messages.append(ChatMessage.from_user("What is the most popular song on WZPZ?"))
+        client = AmazonBedrockChatGenerator(model=model_name)
+        response = client.run(messages=messages, generation_kwargs={"tools": tools, "tool_choice": {"type": "any"}})
+        replies = response["replies"]
+        assert isinstance(replies, list), "Replies is not a list"
+        assert len(replies) > 0, "No replies received"
+
+        first_reply = replies[0]
+        assert isinstance(first_reply, ChatMessage), "First reply is not a ChatMessage instance"
+        assert first_reply.content, "First reply has no content"
+        assert ChatMessage.is_from(first_reply, ChatRole.ASSISTANT), "First reply is not from the assistant"
+        assert "top_song" in first_reply.content.lower(), "First reply does not contain top_song"
+        assert first_reply.meta, "First reply has no metadata"
+        fc_response = json.loads(first_reply.content)
+        assert "name" in fc_response, "First reply does not contain name of the tool"
+        assert "input" in fc_response, "First reply does not contain input of the tool"
 
 
 class TestMistralAdapter:
