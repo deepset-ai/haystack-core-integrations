@@ -329,7 +329,7 @@ class PineconeDocumentStore:
                 embedding = self._dummy_vector
 
             if document.meta:
-                document = self.check_metadata(document)
+                self.check_metadata(document)
 
             doc_for_pinecone = {"id": document.id, "values": embedding, "metadata": dict(document.meta)}
 
