@@ -198,7 +198,7 @@ class VertexAIGeminiGenerator:
         """
         Extracts the responses from the Vertex AI response.
 
-        :param response_body: The response body from the Amazon Bedrock request.
+        :param response_body: The response body from the Vertex AI request.
 
         :returns: A list of string responses.
         """
