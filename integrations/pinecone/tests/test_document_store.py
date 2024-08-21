@@ -142,7 +142,7 @@ def test_convert_dict_spec_to_pinecone_object_fail():
         PineconeDocumentStore._convert_dict_spec_to_pinecone_object(dict_spec)
 
 
-def test_validate_metadata_invalid():
+def test_discard_invalid_meta_invalid():
     invalid_metadata_doc = Document(
         content="The moonlight shimmered ",
         meta={
@@ -164,7 +164,7 @@ def test_validate_metadata_invalid():
     assert "_split_overlap" not in pinecone_doc.meta
 
 
-def test_validate_metadata_valid():
+def test_discard_invalid_meta_valid():
     valid_metadata_doc = Document(
         content="The moonlight shimmered ",
         meta={
