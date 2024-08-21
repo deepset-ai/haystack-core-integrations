@@ -194,7 +194,7 @@ class VertexAIGeminiGenerator:
 
         return {"replies": replies}
 
-    def get_response(self, response_body: List[str]) -> List[str]:
+    def get_response(self, response_body) -> List[str]:
         """
         Extracts the responses from the Vertex AI response.
 
@@ -215,7 +215,7 @@ class VertexAIGeminiGenerator:
                     replies.append(function_call)
         return replies
 
-    def get_stream_response(self, stream: List[str], streaming_callback: Callable[[StreamingChunk], None]) -> List[str]:
+    def get_stream_response(self, stream, streaming_callback: Callable[[StreamingChunk], None]) -> List[str]:
         """
         Extracts the responses from the Vertex AI streaming response.
 
