@@ -30,9 +30,10 @@ GET_CURRENT_WEATHER_FUNC = FunctionDeclaration(
     },
 )
 
+
 @patch("haystack_integrations.components.generators.google_vertex.gemini.vertexai.init")
 @patch("haystack_integrations.components.generators.google_vertex.gemini.GenerativeModel")
-def test_init(_mock_vertexai_init, mock_generative_model):
+def test_init(mock_vertexai_init, _mock_generative_model):
 
     generation_config = GenerationConfig(
         candidate_count=1,
@@ -53,15 +54,15 @@ def test_init(_mock_vertexai_init, mock_generative_model):
         safety_settings=safety_settings,
         tools=[tool],
     )
-    _mock_vertexai_init.assert_called()
+    mock_vertexai_init.assert_called()
     assert gemini._model_name == "gemini-pro-vision"
     assert gemini._generation_config == generation_config
     assert gemini._safety_settings == safety_settings
     assert gemini._tools == [tool]
 
+
 @patch("haystack_integrations.components.generators.google_vertex.gemini.vertexai")
 @patch("haystack_integrations.components.generators.google_vertex.gemini.GenerativeModel")
-
 def test_to_dict(_mock_vertexai, _mock_generative_model):
     generation_config = GenerationConfig(
         candidate_count=1,
@@ -124,7 +125,6 @@ def test_to_dict(_mock_vertexai, _mock_generative_model):
 
 @patch("haystack_integrations.components.generators.google_vertex.gemini.vertexai")
 @patch("haystack_integrations.components.generators.google_vertex.gemini.GenerativeModel")
-
 def test_from_dict(_mock_vertexai, _mock_generative_model):
     gemini = VertexAIGeminiGenerator.from_dict(
         {
@@ -140,9 +140,7 @@ def test_from_dict(_mock_vertexai, _mock_generative_model):
                     "max_output_tokens": 10,
                     "stop_sequences": ["stop"],
                 },
-                "safety_settings": {
-                    HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_ONLY_HIGH
-                },
+                "safety_settings": {HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_ONLY_HIGH},
                 "tools": [
                     {
                         "function_declarations": [
@@ -205,11 +203,10 @@ def test_run_with_streaming_callback(mock_generative_model):
 
     streaming_callback_called = False
 
-    def streaming_callback(chunk: StreamingChunk) -> None:
+    def streaming_callback(_chunk: StreamingChunk) -> None:
         nonlocal streaming_callback_called
         streaming_callback_called = True
 
     gemini = VertexAIGeminiGenerator(model="gemini-pro", project_id="TestID123", streaming_callback=streaming_callback)
     gemini.run(["Come on, stream!"])
     assert streaming_callback_called
-
