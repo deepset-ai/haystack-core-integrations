@@ -14,7 +14,7 @@ class TestNvidiaDocumentEmbedder:
         embedder = NvidiaDocumentEmbedder()
 
         assert embedder.api_key == Secret.from_env_var("NVIDIA_API_KEY")
-        assert embedder.model == "NV-Embed-QA"
+        assert embedder.model == "nvidia/nv-embedqa-e5-v5"
         assert embedder.api_url == "https://ai.api.nvidia.com/v1/retrieval/nvidia"
         assert embedder.prefix == ""
         assert embedder.suffix == ""
