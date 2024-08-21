@@ -200,7 +200,7 @@ class VertexAIGeminiGenerator:
         )
         self._model.start_chat()
         replies = (
-            self.get_stream_responses(res, self._streaming_callback)
+            self.get_stream_response(res, self._streaming_callback)
             if self._streaming_callback
             else self.get_response(res)
         )
@@ -228,7 +228,7 @@ class VertexAIGeminiGenerator:
                     replies.append(function_call)
         return replies
 
-    def get_stream_responses(self, stream, streaming_callback: Callable[[StreamingChunk], None]) -> List[str]:
+    def get_stream_response(self, stream, streaming_callback: Callable[[StreamingChunk], None]) -> List[str]:
         """
         Extracts the responses from the Vertex AI streaming response.
 

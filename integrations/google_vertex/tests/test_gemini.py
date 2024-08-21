@@ -1,5 +1,6 @@
 from unittest.mock import MagicMock, Mock, patch
 
+from haystack.dataclasses import StreamingChunk
 from vertexai.preview.generative_models import (
     FunctionDeclaration,
     GenerationConfig,
@@ -190,4 +191,25 @@ def test_run(mock_generative_model):
     assert "replies" in response
     assert isinstance(response["replies"], list)
 
+
+@patch("haystack_integrations.components.generators.google_vertex.gemini.GenerativeModel")
+def test_run_with_streaming_callback(mock_generative_model):
+    mock_model = Mock()
+    mock_stream = [
+        MagicMock(text="First part", usage_metadata={}),
+        MagicMock(text="Second part", usage_metadata={}),
+    ]
+
+    mock_model.generate_content.return_value = mock_stream
+    mock_generative_model.return_value = mock_model
+
+    streaming_callback_called = False
+
+    def streaming_callback(chunk: StreamingChunk) -> None:
+        nonlocal streaming_callback_called
+        streaming_callback_called = True
+
+    gemini = VertexAIGeminiGenerator(model="gemini-pro", project_id="TestID123", streaming_callback=streaming_callback)
+    gemini.run(["Come on, stream!"])
+    assert streaming_callback_called
 
