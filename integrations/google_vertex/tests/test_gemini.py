@@ -171,7 +171,7 @@ def test_from_dict(_mock_vertexai, _mock_generative_model):
     assert gemini._project_id == "TestID123"
     assert gemini._safety_settings == {HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_ONLY_HIGH}
 
-    #assert gemini._tools == [Tool(function_declarations=[GET_CURRENT_WEATHER_FUNC])]
+    # assert gemini._tools == [Tool(function_declarations=[GET_CURRENT_WEATHER_FUNC])]
     assert isinstance(gemini._generation_config, GenerationConfig)
 
 
