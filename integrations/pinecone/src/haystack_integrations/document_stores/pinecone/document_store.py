@@ -26,6 +26,7 @@ TOP_K_LIMIT = 1_000
 
 
 DEFAULT_STARTER_PLAN_SPEC = {"serverless": {"region": "us-east-1", "cloud": "aws"}}
+METADATA_SUPPORTED_TYPES = str, int, bool, float  # List[str] is supported and checked separately
 
 
 class PineconeDocumentStore:
@@ -295,6 +296,37 @@ class PineconeDocumentStore:
 
         return documents
 
+    @staticmethod
+    def _discard_invalid_meta(document: Document):
+        """
+        Remove metadata fields with unsupported types from the document.
+        """
+
+        def valid_type(value: Any):
+            return isinstance(value, METADATA_SUPPORTED_TYPES) or (
+                isinstance(value, list) and all(isinstance(i, str) for i in value)
+            )
+
+        if document.meta:
+            discarded_keys = []
+            new_meta = {}
+            for key, value in document.meta.items():
+                if not valid_type(value):
+                    discarded_keys.append(key)
+                else:
+                    new_meta[key] = value
+
+            if discarded_keys:
+                msg = (
+                    f"Document {document.id} has metadata fields with unsupported types: {discarded_keys}. "
+                    f"Only str, int, bool, and List[str] are supported. The values of these fields will be discarded."
+                )
+                logger.warning(msg)
+
+            document.meta = new_meta
+
+        return document
+
     def _convert_documents_to_pinecone_format(self, documents: List[Document]) -> List[Dict[str, Any]]:
         documents_for_pinecone = []
         for document in documents:
@@ -305,6 +337,10 @@ class PineconeDocumentStore:
                     "A dummy embedding will be used, but this can affect the search results. "
                 )
                 embedding = self._dummy_vector
+
+            if document.meta:
+                self._discard_invalid_meta(document)
+
             doc_for_pinecone = {"id": document.id, "values": embedding, "metadata": dict(document.meta)}
 
             # we save content/dataframe as metadata
