@@ -26,7 +26,7 @@ TOP_K_LIMIT = 1_000
 
 
 DEFAULT_STARTER_PLAN_SPEC = {"serverless": {"region": "us-east-1", "cloud": "aws"}}
-METADATA_SUPPORTED_TYPES = str, int, bool  # List[str] is supported and checked separately
+METADATA_SUPPORTED_TYPES = str, int, bool, float  # List[str] is supported and checked separately
 
 
 class PineconeDocumentStore:
@@ -297,7 +297,11 @@ class PineconeDocumentStore:
         return documents
 
     @staticmethod
-    def check_metadata(document: Document):
+    def _discard_invalid_meta(document: Document):
+        """
+        Remove metadata fields with unsupported types from the document.
+        """
+
         def valid_type(value: Any):
             return isinstance(value, METADATA_SUPPORTED_TYPES) or (
                 isinstance(value, list) and all(isinstance(i, str) for i in value)
@@ -305,10 +309,12 @@ class PineconeDocumentStore:
 
         if document.meta:
             discarded_keys = []
+            new_meta = {}
             for key, value in document.meta.items():
                 if not valid_type(value):
                     discarded_keys.append(key)
-                    document.meta[key] = "IGNORED"
+                else:
+                    new_meta[key] = value
 
             if discarded_keys:
                 msg = (
@@ -316,6 +322,8 @@ class PineconeDocumentStore:
                     f"Only str, int, bool, and List[str] are supported. The values of these fields will be ignored."
                 )
                 logger.warning(msg)
+
+            document.meta = new_meta
 
         return document
 
@@ -331,7 +339,7 @@ class PineconeDocumentStore:
                 embedding = self._dummy_vector
 
             if document.meta:
-                self.check_metadata(document)
+                self._discard_invalid_meta(document)
 
             doc_for_pinecone = {"id": document.id, "values": embedding, "metadata": dict(document.meta)}
 

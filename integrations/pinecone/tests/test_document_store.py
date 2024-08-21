@@ -142,7 +142,7 @@ def test_convert_dict_spec_to_pinecone_object_fail():
         PineconeDocumentStore._convert_dict_spec_to_pinecone_object(dict_spec)
 
 
-def test_check_metadata_invalid():
+def test_validate_metadata_invalid():
     invalid_metadata_doc = Document(
         content="The moonlight shimmered ",
         meta={
@@ -155,16 +155,16 @@ def test_check_metadata_invalid():
             ],
         },
     )
-    pinecone_doc = PineconeDocumentStore.check_metadata(invalid_metadata_doc)
+    pinecone_doc = PineconeDocumentStore._discard_invalid_meta(invalid_metadata_doc)
 
     assert pinecone_doc.meta["source_id"] == "62049ba1d1e1d5ebb1f6230b0b00c5356b8706c56e0b9c36b1dfc86084cd75f0"
     assert pinecone_doc.meta["page_number"] == 1
     assert pinecone_doc.meta["split_id"] == 0
     assert pinecone_doc.meta["split_idx_start"] == 0
-    assert pinecone_doc.meta["_split_overlap"] == "IGNORED"
+    assert "_split_overlap" not in pinecone_doc.meta
 
 
-def test_check_metadata_valid():
+def test_validate_metadata_valid():
     valid_metadata_doc = Document(
         content="The moonlight shimmered ",
         meta={
@@ -172,7 +172,7 @@ def test_check_metadata_valid():
             "page_number": 1,
         },
     )
-    pinecone_doc = PineconeDocumentStore.check_metadata(valid_metadata_doc)
+    pinecone_doc = PineconeDocumentStore._discard_invalid_meta(valid_metadata_doc)
 
     assert pinecone_doc.meta["source_id"] == "62049ba1d1e1d5ebb1f6230b0b00c5356b8706c56e0b9c36b1dfc86084cd75f0"
     assert pinecone_doc.meta["page_number"] == 1
