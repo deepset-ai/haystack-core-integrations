@@ -8,7 +8,6 @@ from haystack.core.serialization import default_from_dict, default_to_dict
 from haystack.dataclasses import ByteStream, StreamingChunk
 from vertexai.preview.generative_models import (
     Content,
-    FunctionDeclaration,
     GenerationConfig,
     GenerativeModel,
     HarmBlockThreshold,
@@ -105,18 +104,6 @@ class VertexAIGeminiGenerator:
         self._tools = tools
         self._streaming_callback = streaming_callback
 
-    def _function_to_dict(self, function: FunctionDeclaration) -> Dict[str, Any]:
-        return {
-            "name": function._raw_function_declaration.name,
-            "parameters": function._raw_function_declaration.parameters,
-            "description": function._raw_function_declaration.description,
-        }
-
-    def _tool_to_dict(self, tool: Tool) -> Dict[str, Any]:
-        return {
-            "function_declarations": [self._function_to_dict(f) for f in tool._raw_tool.function_declarations],
-        }
-
     def _generation_config_to_dict(self, config: Union[GenerationConfig, Dict[str, Any]]) -> Dict[str, Any]:
         if isinstance(config, dict):
             return config
@@ -207,7 +194,7 @@ class VertexAIGeminiGenerator:
 
         return {"replies": replies}
 
-    def get_response(self, response_body) -> List[str]:
+    def get_response(self, response_body: List[str]) -> List[str]:
         """
         Extracts the responses from the Vertex AI response.
 
@@ -228,7 +215,7 @@ class VertexAIGeminiGenerator:
                     replies.append(function_call)
         return replies
 
-    def get_stream_response(self, stream, streaming_callback: Callable[[StreamingChunk], None]) -> List[str]:
+    def get_stream_response(self, stream: List[str], streaming_callback: Callable[[StreamingChunk], None]) -> List[str]:
         """
         Extracts the responses from the Vertex AI streaming response.
 
