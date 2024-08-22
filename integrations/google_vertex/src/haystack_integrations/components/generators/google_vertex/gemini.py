@@ -6,6 +6,7 @@ from haystack.core.component import component
 from haystack.core.component.types import Variadic
 from haystack.core.serialization import default_from_dict, default_to_dict
 from haystack.dataclasses import ByteStream, StreamingChunk
+from haystack.utils import deserialize_callable, serialize_callable
 from vertexai.preview.generative_models import (
     Content,
     GenerationConfig,
@@ -123,6 +124,8 @@ class VertexAIGeminiGenerator:
         :returns:
             Dictionary with serialized data.
         """
+
+        callback_name = serialize_callable(self._streaming_callback) if self._streaming_callback else None
         data = default_to_dict(
             self,
             model=self._model_name,
@@ -131,7 +134,7 @@ class VertexAIGeminiGenerator:
             generation_config=self._generation_config,
             safety_settings=self._safety_settings,
             tools=self._tools,
-            streaming_callback=self._streaming_callback,
+            streaming_callback=callback_name,
         )
         if (tools := data["init_parameters"].get("tools")) is not None:
             data["init_parameters"]["tools"] = [Tool.to_dict(t) for t in tools]
@@ -153,6 +156,8 @@ class VertexAIGeminiGenerator:
             data["init_parameters"]["tools"] = [Tool.from_dict(t) for t in tools]
         if (generation_config := data["init_parameters"].get("generation_config")) is not None:
             data["init_parameters"]["generation_config"] = GenerationConfig.from_dict(generation_config)
+        if (serialized_callback_handler := data["init_parameters"].get("streaming_callback")) is not None:
+            data["init_parameters"]["streaming_callback"] = deserialize_callable(serialized_callback_handler)
         return default_from_dict(cls, data)
 
     def _convert_part(self, part: Union[str, ByteStream, Part]) -> Part:
@@ -167,14 +172,21 @@ class VertexAIGeminiGenerator:
             raise ValueError(msg)
 
     @component.output_types(replies=List[Union[str, Dict[str, str]]])
-    def run(self, parts: Variadic[Union[str, ByteStream, Part]]):
+    def run(
+        self,
+        parts: Variadic[Union[str, ByteStream, Part]],
+        streaming_callback: Optional[Callable[[StreamingChunk], None]] = None,
+    ):
         """
         Generates content using the Gemini model.
 
         :param parts: Prompt for the model.
+        :param streaming_callback: A callback function that is called when a new token is received from the stream.
         :returns: A dictionary with the following keys:
             - `replies`: A list of generated content.
         """
+        # check if streaming_callback is passed
+        streaming_callback = streaming_callback or self._streaming_callback
         converted_parts = [self._convert_part(p) for p in parts]
 
         contents = [Content(parts=converted_parts, role="user")]
@@ -183,14 +195,10 @@ class VertexAIGeminiGenerator:
             generation_config=self._generation_config,
             safety_settings=self._safety_settings,
             tools=self._tools,
-            stream=self._streaming_callback is not None,
+            stream=streaming_callback is not None,
         )
         self._model.start_chat()
-        replies = (
-            self.get_stream_response(res, self._streaming_callback)
-            if self._streaming_callback
-            else self.get_response(res)
-        )
+        replies = self.get_stream_response(res, streaming_callback) if streaming_callback else self.get_response(res)
 
         return {"replies": replies}
 
