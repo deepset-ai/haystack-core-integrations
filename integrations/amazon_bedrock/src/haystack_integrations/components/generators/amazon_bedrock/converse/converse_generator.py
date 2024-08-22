@@ -12,7 +12,7 @@ from haystack_integrations.common.amazon_bedrock.errors import (
     AmazonBedrockInferenceError,
 )
 from haystack_integrations.common.amazon_bedrock.utils import get_aws_session
-from utils import ConverseMessage
+from utils import ConverseMessage, ConverseStreamingChunk, get_stream_message
 
 logger = logging.getLogger(__name__)
 
@@ -78,10 +78,10 @@ class AmazonBedrockConverseGenerator:
         aws_session_token: Optional[Secret] = Secret.from_env_var(["AWS_SESSION_TOKEN"], strict=False),  # noqa: B008
         aws_region_name: Optional[Secret] = Secret.from_env_var(["AWS_DEFAULT_REGION"], strict=False),  # noqa: B008
         aws_profile_name: Optional[Secret] = Secret.from_env_var(["AWS_PROFILE"], strict=False),  # noqa: B008
-        streaming_callback: Optional[Callable[[StreamingChunk], None]] = None,
         # used for pipeline setup
         inference_config: Optional[Dict[str, Any]] = None,
         tool_config: Optional[Dict[str, Any]] = None,
+        streaming_callback: Optional[Callable[[ConverseStreamingChunk], None]] = None,
     ):
         """
         Initializes the `AmazonBedrockConverseGenerator` with the provided parameters. The parameters are passed to the
@@ -140,6 +140,7 @@ class AmazonBedrockConverseGenerator:
 
             self.inference_config = inference_config
             self.tool_config = tool_config
+            self.streaming_callback = streaming_callback
 
         except Exception as exception:
             msg = (
@@ -147,8 +148,6 @@ class AmazonBedrockConverseGenerator:
                 "See https://boto3.amazonaws.com/v1/documentation/api/latest/guide/quickstart.html#configuration"
             )
             raise AmazonBedrockConfigurationError(msg) from exception
-
-        self.streaming_callback = streaming_callback
 
     @component.output_types(
         message=ConverseMessage,
@@ -160,7 +159,7 @@ class AmazonBedrockConverseGenerator:
     def run(
         self,
         messages: List[ConverseMessage],
-        streaming_callback: Optional[Callable[[StreamingChunk], None]] = None,
+        streaming_callback: Optional[Callable[[ConverseStreamingChunk], None]] = None,
         inference_config: Dict[str, Any] = {},
         tool_config: Optional[Dict[str, Any]] = None,
     ):
@@ -192,23 +191,35 @@ class AmazonBedrockConverseGenerator:
             msg = f"The model {self.model} requires a list of ConverseMessage objects as a prompt."
             raise ValueError(msg)
 
+        request_kwargs = {
+            "modelId": self.model,
+            "inferenceConfig": inference_config,
+            "messages": [message.to_dict() for message in messages],
+        }
+
+        tool_config = tool_config or self.tool_config
+        if tool_config is not None:
+            request_kwargs["toolConfig"] = tool_config
+
         try:
             if streaming_callback:
-                raise NotImplementedError
-            else:
-                # toolConfig is optionnal, so we can add it only if tool_config is not None
-                request_kwargs = {
-                    "modelId": self.model,
-                    "inferenceConfig": inference_config,
-                    "messages": [message.to_dict() for message in messages],
+                response = self.client.converse_stream(**request_kwargs)
+                response_stream = response.get("stream")
+                message, metadata = get_stream_message(stream=response_stream, streaming_callback=streaming_callback)
+                return {
+                    "message": get_stream_message(
+                        stream=response_stream,
+                        streaming_callback=streaming_callback,
+                    ),
+                    "usage": metadata.get("usage"),
+                    "metrics": metadata.get("metrics"),
+                    "guardrail_trace": metadata.get("trace"),
+                    "stop_reason": metadata.get("stopReason"),
                 }
-                
-                tool_config = tool_config or self.tool_config
-                if tool_config is not None:
-                    request_kwargs["toolConfig"] = tool_config
-
+            else:
+                # toolConfig is optionnal but the converse api will fail if it is empty, so we can add it only if tool_config is not None
                 response = self.client.converse(**request_kwargs)
-               
+
                 output = response.get("output")
                 if output is None:
                     raise KeyError

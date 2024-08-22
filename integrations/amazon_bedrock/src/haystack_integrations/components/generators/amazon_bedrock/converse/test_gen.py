@@ -19,7 +19,10 @@ def get_current_time(timezone: str) -> str:
 
 
 def main():
-    g = AmazonBedrockConverseGenerator(model="anthropic.claude-3-haiku-20240307-v1:0")
+    g = AmazonBedrockConverseGenerator(
+        model="anthropic.claude-3-haiku-20240307-v1:0",
+        streaming_callback=print,
+    )
 
     # Create ToolConfig from functions
     tool_config = ToolConfig.from_functions([get_current_weather, get_current_time])

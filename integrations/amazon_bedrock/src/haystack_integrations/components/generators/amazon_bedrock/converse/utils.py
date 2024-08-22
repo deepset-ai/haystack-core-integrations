@@ -1,7 +1,9 @@
 ﻿from dataclasses import asdict, dataclass, field
 import inspect
-from typing import Any, Callable, List, Dict, Union, Optional
+import json
+from typing import Any, Callable, List, Dict, Tuple, Union, Optional
 from enum import Enum
+from botocore.eventstream import EventStream
 
 
 @dataclass
@@ -231,3 +233,69 @@ class ConverseMessage:
             "role": self.role.value,
             "content": self.content.to_dict(),
         }
+
+
+@dataclass
+class ConverseStreamingChunk:
+    content: Union[str, ToolUseBlock]
+    metadata: Dict[str, Any]
+    index: int = 0
+
+
+def get_stream_message(
+    stream: EventStream,
+    streaming_callback: Callable[[ConverseStreamingChunk], None],
+) -> Tuple[ConverseMessage, Dict[str, Any]]:
+    streaming_chunks: List[ConverseStreamingChunk] = []
+    tool_use_dict = {}
+    str_message = ""
+    latest_metadata = {}
+    content_index = 0  # used to keep track of the current str/tool use alternance
+    current_tool_use_str = ""
+    for event in stream:
+        if "contentBlockStart" in event:
+            if len(current_tool_use_str) > 0 and content_index != event["contentBlockStart"].get("contentBlockIndex"):
+                tool_use_dict["input"] = current_tool_use_str
+                current_tool_use_str = ""
+                
+            start = event["contentBlockStart"].get("start")
+            content_index = event["contentBlockStart"].get("contentBlockIndex", content_index)
+
+            if start:
+                tool_use_dict["toolUseId"] = start["toolUse"]["toolUseId"]
+                tool_use_dict["name"] = start["toolUse"]["name"]
+
+        if "contentBlockDelta" in event:
+            delta = event["contentBlockDelta"].get("delta")
+
+            if "text" in delta:
+                str_message += delta["text"]
+            if "toolUse" in delta:
+                current_tool_use_str += delta["toolUse"]["input"]
+
+        if "contentBlockStop" in event:
+            content_index += 1 # start a new str/tool use alternation
+
+        if "messageStop" in event:
+            stop_reason = event["messageStop"].get("stopReason")
+            latest_metadata["stopReason"] = stop_reason
+
+        latest_metadata.update(event.get("metadata", {}))
+
+        block_content = ToolUseBlock(**tool_use_dict) if len(tool_use_dict) == 3 else str_message
+
+        streaming_chunk = ConverseStreamingChunk(
+            content=block_content,
+            metadata=event.get("metadata", {}),
+            index=content_index,
+        )
+
+        streaming_callback(streaming_chunk)
+        streaming_chunks.append(streaming_chunk)
+    return (
+        ConverseMessage(
+            role=ConverseRole.ASSISTANT,
+            content=ContentBlock([block_content]),
+        ),
+        latest_metadata,
+    )
