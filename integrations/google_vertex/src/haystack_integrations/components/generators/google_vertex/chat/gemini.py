@@ -7,6 +7,7 @@ from haystack.core.serialization import default_from_dict, default_to_dict
 from haystack.dataclasses import StreamingChunk
 from haystack.dataclasses.byte_stream import ByteStream
 from haystack.dataclasses.chat_message import ChatMessage, ChatRole
+from haystack.utils import deserialize_callable, serialize_callable
 from vertexai.preview.generative_models import (
     Content,
     GenerationConfig,
@@ -114,6 +115,8 @@ class VertexAIGeminiChatGenerator:
         :returns:
             Dictionary with serialized data.
         """
+        callback_name = serialize_callable(self._streaming_callback) if self._streaming_callback else None
+
         data = default_to_dict(
             self,
             model=self._model_name,
@@ -122,7 +125,7 @@ class VertexAIGeminiChatGenerator:
             generation_config=self._generation_config,
             safety_settings=self._safety_settings,
             tools=self._tools,
-            streaming_callback=self._streaming_callback,
+            streaming_callback=callback_name,
         )
         if (tools := data["init_parameters"].get("tools")) is not None:
             data["init_parameters"]["tools"] = [Tool.to_dict(t) for t in tools]
@@ -144,7 +147,8 @@ class VertexAIGeminiChatGenerator:
             data["init_parameters"]["tools"] = [Tool.from_dict(t) for t in tools]
         if (generation_config := data["init_parameters"].get("generation_config")) is not None:
             data["init_parameters"]["generation_config"] = GenerationConfig.from_dict(generation_config)
-
+        if (serialized_callback_handler := data["init_parameters"].get("streaming_callback")) is not None:
+            data["init_parameters"]["streaming_callback"] = deserialize_callable(serialized_callback_handler)
         return default_from_dict(cls, data)
 
     def _convert_part(self, part: Union[str, ByteStream, Part]) -> Part:
@@ -213,14 +217,10 @@ class VertexAIGeminiChatGenerator:
             generation_config=self._generation_config,
             safety_settings=self._safety_settings,
             tools=self._tools,
-            stream=self._streaming_callback is not None,
+            stream=streaming_callback is not None,
         )
 
-        replies = (
-            self.get_stream_response(res, self._streaming_callback)
-            if self._streaming_callback
-            else self.get_response(res)
-        )
+        replies = self.get_stream_response(res, streaming_callback) if streaming_callback else self.get_response(res)
 
         return {"replies": replies}
 
