@@ -1,13 +1,13 @@
 import logging
 from typing import Any, Callable, Dict, List, Optional, Union
 
-from vertexai import init as vertexai_init
 from haystack.core.component import component
 from haystack.core.serialization import default_from_dict, default_to_dict
 from haystack.dataclasses import StreamingChunk
 from haystack.dataclasses.byte_stream import ByteStream
 from haystack.dataclasses.chat_message import ChatMessage, ChatRole
 from haystack.utils import deserialize_callable, serialize_callable
+from vertexai import init as vertexai_init
 from vertexai.preview.generative_models import (
     Content,
     GenerationConfig,
