@@ -28,10 +28,22 @@ jobs:
         with:
           python-version: "${{ env.PYTHON_VERSION }}"
 
-      - name: Get direct dependencies
+      - name: Get changed files
+        id: changed-files
+        uses: tj-actions/changed-files@v45
+        with:
+          files: |
+            integrations/**/pyproject.toml          
+
+      - name: Get direct dependencies from changed pyproject.toml files
+        if: ${{ steps['changed-files'].outputs.any_changed == 'true' }}
         run: |
           pip install toml
-          python .github/utils/pyproject_to_requirements.py pyproject.toml > ${{ env.REQUIREMENTS_FILE }}
+          > ${{ env.REQUIREMENTS_FILE }}  # Empty the requirements file if it exists
+          for file in ${{ steps['changed-files'].outputs.all_changed_files }}; do
+            python .github/utils/pyproject_to_requirements.py $file >> ${{ env.REQUIREMENTS_FILE }}
+            echo "" >> ${{ env.REQUIREMENTS_FILE }}  # Add a newline for separation
+          done
 
       - name: Check Licenses
         id: license_check_report
