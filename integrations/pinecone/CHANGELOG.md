@@ -1,26 +1,5 @@
 # Changelog
 
-## [unreleased]
-
-### 🚀 Features
-
-- Add filter_policy to pinecone integration (#821)
-
-### 🐛 Bug Fixes
-
-- `pinecone` - Fallback to default filter policy when deserializing retrievers without the init parameter (#901)
-- Skip unsupported meta fields in PineconeDB (#1009)
-
-### 🧪 Testing
-
-- Pinecone - fix `test_serverless_index_creation_from_scratch` (#806)
-- Do not retry tests in `hatch run test` command (#954)
-
-### ⚙️ Miscellaneous Tasks
-
-- Retry tests to reduce flakyness (#836)
-- Update ruff invocation to include check parameter (#853)
-
 ## [integrations/pinecone-v1.1.0] - 2024-06-11
 
 ### 🚀 Features
