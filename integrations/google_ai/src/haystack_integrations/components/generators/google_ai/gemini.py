@@ -92,6 +92,8 @@ class GoogleAIGeminiGenerator:
             A dictionary with `HarmCategory` as keys and `HarmBlockThreshold` as values.
             For more information, see [the API reference](https://ai.google.dev/api)
         :param tools: A list of Tool objects that can be used for [Function calling](https://ai.google.dev/docs/function_calling).
+        :param streaming_callback: A callback function that is called when a new token is received from the stream.
+            The callback function accepts StreamingChunk as an argument.
         """
         genai.configure(api_key=api_key.resolve_value())
 
@@ -192,6 +194,7 @@ class GoogleAIGeminiGenerator:
 
         :param parts:
             A heterogeneous list of strings, `ByteStream` or `Part` objects.
+        :param streaming_callback: A callback function that is called when a new token is received from the stream.
         :returns:
             A dictionary containing the following key:
             - `replies`: A list of strings or dictionaries with function calls.
@@ -215,8 +218,8 @@ class GoogleAIGeminiGenerator:
 
     def get_response(self, response_body) -> List[str]:
         """
-        Extracts the responses from the Vertex AI response.
-        :param response_body: The response body from the Vertex AI request.
+        Extracts the responses from the Google AI request.
+        :param response_body: The response body from the Google AI request.
         :returns: A list of string responses.
         """
         replies = []
