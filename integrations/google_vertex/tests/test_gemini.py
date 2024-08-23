@@ -32,7 +32,8 @@ GET_CURRENT_WEATHER_FUNC = FunctionDeclaration(
 
 
 @patch("haystack_integrations.components.generators.google_vertex.gemini.vertexai_init")
-def test_init(mock_vertexai_init):
+@patch("haystack_integrations.components.generators.google_vertex.gemini.GenerativeModel")
+def test_init(mock_vertexai_init, _mock_generative_model):
 
     generation_config = GenerationConfig(
         candidate_count=1,
@@ -61,7 +62,8 @@ def test_init(mock_vertexai_init):
 
 
 @patch("haystack_integrations.components.generators.google_vertex.gemini.vertexai_init")
-def test_to_dict(_mock_vertexai_init):
+@patch("haystack_integrations.components.generators.google_vertex.gemini.GenerativeModel")
+def test_to_dict(_mock_vertexai_init, _mock_generative_model):
 
     gemini = VertexAIGeminiGenerator(
         project_id="TestID123",
@@ -81,7 +83,8 @@ def test_to_dict(_mock_vertexai_init):
 
 
 @patch("haystack_integrations.components.generators.google_vertex.gemini.vertexai_init")
-def test_to_dict_with_params(_mock_vertexai_init):
+@patch("haystack_integrations.components.generators.google_vertex.gemini.GenerativeModel")
+def test_to_dict_with_params(_mock_vertexai_init, _mock_generative_model):
     generation_config = GenerationConfig(
         candidate_count=1,
         stop_sequences=["stop"],
@@ -142,7 +145,8 @@ def test_to_dict_with_params(_mock_vertexai_init):
 
 
 @patch("haystack_integrations.components.generators.google_vertex.gemini.vertexai_init")
-def test_from_dict(_mock_vertexai_init):
+@patch("haystack_integrations.components.generators.google_vertex.gemini.GenerativeModel")
+def test_from_dict(_mock_vertexai_init, _mock_generative_model):
     gemini = VertexAIGeminiGenerator.from_dict(
         {
             "type": "haystack_integrations.components.generators.google_vertex.gemini.VertexAIGeminiGenerator",
@@ -165,7 +169,8 @@ def test_from_dict(_mock_vertexai_init):
 
 
 @patch("haystack_integrations.components.generators.google_vertex.gemini.vertexai_init")
-def test_from_dict_with_param(_mock_vertexai_init):
+@patch("haystack_integrations.components.generators.google_vertex.gemini.GenerativeModel")
+def test_from_dict_with_param(_mock_vertexai_init, _mock_generative_model):
     gemini = VertexAIGeminiGenerator.from_dict(
         {
             "type": "haystack_integrations.components.generators.google_vertex.gemini.VertexAIGeminiGenerator",
