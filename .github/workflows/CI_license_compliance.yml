@@ -1,0 +1,92 @@
+name: Core / License Compliance
+
+on:
+  pull_request:
+    paths:
+    - "integrations/**/pyproject.toml"
+  # Since we test PRs, there is no need to run the workflow at each
+  # merge on `main`. Let's use a cron job instead.
+  schedule:
+    - cron: "0 0 * * *" # every day at midnight
+
+env:
+  # CORE_DATADOG_API_KEY: ${{ secrets.CORE_DATADOG_API_KEY }}
+  PYTHON_VERSION: "3.10"
+
+jobs:
+  license_check_direct:
+    name: Direct dependencies only
+    env:
+      REQUIREMENTS_FILE: requirements_direct.txt
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout the code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "${{ env.PYTHON_VERSION }}"
+
+      - name: Get direct dependencies
+        run: |
+          pip install toml
+          python .github/utils/pyproject_to_requirements.py pyproject.toml > ${{ env.REQUIREMENTS_FILE }}
+
+      - name: Check Licenses
+        id: license_check_report
+        uses: pilosus/action-pip-license-checker@v2
+        with:
+          github-token: ${{ secrets.GH_ACCESS_TOKEN }}
+          requirements: ${{ env.REQUIREMENTS_FILE }}
+          fail: "Copyleft,Other,Error"
+          # Exclusions in the vanilla distribution must be explicitly motivated
+          #
+          # - tqdm is MLP but there are no better alternatives
+          exclude: "(?i)^(tqdm).*"
+
+      # We keep the license inventory on FOSSA
+      - name: Send license report to Fossa
+        uses: fossas/fossa-action@v1.3.3
+        continue-on-error: true # not critical
+        with:
+          api-key: ${{ secrets.FOSSA_LICENSE_SCAN_TOKEN }}
+
+      - name: Print report
+        if: ${{ always() }}
+        run: echo "${{ steps.license_check_report.outputs.report }}"
+
+      # - name: Calculate alert data
+      #   id: calculator
+      #   shell: bash
+      #   if: (success() || failure())
+      #   run: |
+      #     if [ "${{ job.status }}" = "success" ]; then
+      #       echo "alert_type=success" >> "$GITHUB_OUTPUT";
+      #     else
+      #       echo "alert_type=error" >> "$GITHUB_OUTPUT";
+      #     fi
+
+      # - name: Send event to Datadog
+      #   # This step would fail when running in PRs opened from forks since
+      #   # secrets are not accessible.
+      #   # To prevent showing bogus failures in those PRs we skip the step.
+      #   # The workflow will fail in any case if the actual check fails in the previous steps.
+      #   if: (success() || failure()) && env.CORE_DATADOG_API_KEY != ''
+      #   uses: masci/datadog@v1
+      #   with:
+      #     api-key: ${{ env.CORE_DATADOG_API_KEY }}
+      #     api-url: https://api.datadoghq.eu
+      #     events: |
+      #       - title: "${{ github.job }} in ${{ github.workflow }} workflow"
+      #         text: "License compliance check: direct dependencies only."
+      #         alert_type: "${{ steps.calculator.outputs.alert_type }}"
+      #         source_type_name: "Github"
+      #         host: ${{ github.repository_owner }}
+      #         tags:
+      #           - "project:${{ github.repository }}"
+      #           - "job:${{ github.job }}"
+      #           - "run_id:${{ github.run_id }}"
+      #           - "workflow:${{ github.workflow }}"
+      #           - "branch:${{ github.ref_name }}"
+      #           - "url:https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
