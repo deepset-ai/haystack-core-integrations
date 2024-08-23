@@ -3,11 +3,11 @@ import sys
 from pathlib import Path
 import toml
 
-def main(pyproject_path: Path, exclude_optional: bool = False):
+def main(pyproject_path: Path, exclude_optional_dependencies: bool = False):
     content = toml.load(pyproject_path)
     deps = set(content["project"]["dependencies"])
 
-    if not exclude_optional:
+    if not exclude_optional_dependencies:
         optional_deps = content["project"].get("optional-dependencies", {})
         for dep_list in optional_deps.values():
             deps.update(dep_list)
