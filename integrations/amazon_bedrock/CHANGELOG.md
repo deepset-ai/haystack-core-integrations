@@ -1,15 +1,5 @@
 # Changelog
 
-## [unreleased]
-
-### 🐛 Bug Fixes
-
-- *(Bedrock)* Allow tools kwargs for AWS Bedrock Claude model (#976)
-
-### 🚜 Refactor
-
-- Remove usage of deprecated `ChatMessage.to_openai_format` (#1007)
-
 ## [integrations/amazon_bedrock-v1.0.1] - 2024-08-19
 
 ### 🚀 Features
