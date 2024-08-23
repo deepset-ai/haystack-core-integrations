@@ -32,8 +32,12 @@ dependencies = [
   "datasets>=2.2.0",
   #"pyarrow==8.0.0",
   "jsonlines",
+  "numpy",
   "requests>=2.26.0",
+  "scikit_learn>=1.0.2",
+  "scipy",
   "sentence_transformers>=2.2.0,<2.3.0",
+  "tqdm",
   "rich",
 
   "InstructorEmbedding",
