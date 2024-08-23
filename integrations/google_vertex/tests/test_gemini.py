@@ -31,9 +31,8 @@ GET_CURRENT_WEATHER_FUNC = FunctionDeclaration(
 )
 
 
-@patch("haystack_integrations.components.generators.google_vertex.gemini.vertexai.init")
-@patch("haystack_integrations.components.generators.google_vertex.gemini.GenerativeModel")
-def test_init(mock_vertexai_init, _mock_generative_model):
+@patch("haystack_integrations.components.generators.google_vertex.gemini.vertexai_init")
+def test_init(mock_vertexai_init):
 
     generation_config = GenerationConfig(
         candidate_count=1,
@@ -61,9 +60,28 @@ def test_init(mock_vertexai_init, _mock_generative_model):
     assert gemini._tools == [tool]
 
 
-@patch("haystack_integrations.components.generators.google_vertex.gemini.vertexai")
-@patch("haystack_integrations.components.generators.google_vertex.gemini.GenerativeModel")
-def test_to_dict(_mock_vertexai, _mock_generative_model):
+@patch("haystack_integrations.components.generators.google_vertex.gemini.vertexai_init")
+def test_to_dict(_mock_vertexai_init):
+
+    gemini = VertexAIGeminiGenerator(
+        project_id="TestID123",
+    )
+    assert gemini.to_dict() == {
+        "type": "haystack_integrations.components.generators.google_vertex.gemini.VertexAIGeminiGenerator",
+        "init_parameters": {
+            "model": "gemini-pro-vision",
+            "project_id": "TestID123",
+            "location": None,
+            "generation_config": None,
+            "safety_settings": None,
+            "streaming_callback": None,
+            "tools": None,
+        },
+    }
+
+
+@patch("haystack_integrations.components.generators.google_vertex.gemini.vertexai_init")
+def test_to_dict_with_params(_mock_vertexai_init):
     generation_config = GenerationConfig(
         candidate_count=1,
         stop_sequences=["stop"],
@@ -123,9 +141,31 @@ def test_to_dict(_mock_vertexai, _mock_generative_model):
     }
 
 
-@patch("haystack_integrations.components.generators.google_vertex.gemini.vertexai")
-@patch("haystack_integrations.components.generators.google_vertex.gemini.GenerativeModel")
-def test_from_dict(_mock_vertexai, _mock_generative_model):
+@patch("haystack_integrations.components.generators.google_vertex.gemini.vertexai_init")
+def test_from_dict(_mock_vertexai_init):
+    gemini = VertexAIGeminiGenerator.from_dict(
+        {
+            "type": "haystack_integrations.components.generators.google_vertex.gemini.VertexAIGeminiGenerator",
+            "init_parameters": {
+                "project_id": "TestID123",
+                "model": "gemini-pro-vision",
+                "generation_config": None,
+                "safety_settings": None,
+                "tools": None,
+                "streaming_callback": None,
+            },
+        }
+    )
+
+    assert gemini._model_name == "gemini-pro-vision"
+    assert gemini._project_id == "TestID123"
+    assert gemini._safety_settings is None
+    assert gemini._tools is None
+    assert gemini._generation_config is None
+
+
+@patch("haystack_integrations.components.generators.google_vertex.gemini.vertexai_init")
+def test_from_dict_with_param(_mock_vertexai_init):
     gemini = VertexAIGeminiGenerator.from_dict(
         {
             "type": "haystack_integrations.components.generators.google_vertex.gemini.VertexAIGeminiGenerator",

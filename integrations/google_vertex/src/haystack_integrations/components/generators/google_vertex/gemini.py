@@ -1,13 +1,13 @@
 import logging
 from typing import Any, Callable, Dict, List, Optional, Union
 
-import vertexai
 from haystack.core.component import component
 from haystack.core.component.types import Variadic
 from haystack.core.serialization import default_from_dict, default_to_dict
 from haystack.dataclasses import ByteStream, StreamingChunk
 from haystack.utils import deserialize_callable, serialize_callable
-from vertexai.preview.generative_models import (
+from vertexai import init as vertexai_init
+from vertexai.generative_models import (
     Content,
     GenerationConfig,
     GenerativeModel,
@@ -93,7 +93,7 @@ class VertexAIGeminiGenerator:
         """
 
         # Login to GCP. This will fail if user has not set up their gcloud SDK
-        vertexai.init(project=project_id, location=location)
+        vertexai_init(project=project_id, location=location)
 
         self._model_name = model
         self._project_id = project_id
@@ -234,7 +234,7 @@ class VertexAIGeminiGenerator:
         streaming_chunks: List[StreamingChunk] = []
 
         for chunk in stream:
-            streaming_chunk = StreamingChunk(content=chunk.text, meta=chunk.usage_metadata)
+            streaming_chunk = StreamingChunk(content=chunk.text, meta=chunk.to_dict())
             streaming_chunks.append(streaming_chunk)
             streaming_callback(streaming_chunk)
 
