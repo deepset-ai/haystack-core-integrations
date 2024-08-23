@@ -1,7 +1,7 @@
 import logging
 from typing import Any, Callable, Dict, List, Optional, Union
 
-import vertexai
+from vertexai import init as vertexai_init
 from haystack.core.component import component
 from haystack.core.serialization import default_from_dict, default_to_dict
 from haystack.dataclasses import StreamingChunk
@@ -84,7 +84,7 @@ class VertexAIGeminiChatGenerator:
         """
 
         # Login to GCP. This will fail if user has not set up their gcloud SDK
-        vertexai.init(project=project_id, location=location)
+        vertexai_init(project=project_id, location=location)
 
         self._model_name = model
         self._project_id = project_id
@@ -228,7 +228,7 @@ class VertexAIGeminiChatGenerator:
         """
         Extracts the responses from the Vertex AI response.
 
-        :param response_body: The response from VertexAi request.
+        :param response_body: The response from Vertex AI request.
         :returns: The extracted responses.
         """
         replies = []
@@ -256,7 +256,7 @@ class VertexAIGeminiChatGenerator:
         """
         responses = []
         for chunk in stream:
-            streaming_chunk = StreamingChunk(content=chunk.text, meta=chunk.usage_metadata)
+            streaming_chunk = StreamingChunk(content=chunk.text, meta=chunk.to_dict())
             streaming_callback(streaming_chunk)
             responses.append(streaming_chunk.content)
 
