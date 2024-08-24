@@ -1,7 +1,7 @@
 ﻿from dataclasses import asdict, dataclass, field
 import inspect
 import json
-from typing import Any, Callable, List, Dict, Tuple, Union, Optional
+from typing import Any, Callable, List, Dict, Sequence, Tuple, Union, Optional
 from enum import Enum
 from botocore.eventstream import EventStream
 
@@ -135,7 +135,7 @@ class ToolResultBlock:
 class ToolUseBlock:
     toolUseId: str
     name: str
-    input: Dict
+    input: Dict[str, Any]
 
 
 class ConverseRole(str, Enum):
@@ -159,6 +159,10 @@ class ContentBlock:
                     f"Invalid content type: {type(item)}. Each item must be one of DocumentBlock, "
                     "GuardrailConverseContentBlock, ImageBlock, str, ToolResultBlock, or ToolUseBlock"
                 )
+
+    @staticmethod
+    def from_assistant(content: Sequence[Union[str, ToolUseBlock]]) -> 'ContentBlock':
+        return ContentBlock(content=list(content))
 
     def to_dict(self):
         res = []
@@ -233,83 +237,114 @@ class ConverseMessage:
             "role": self.role.value,
             "content": self.content.to_dict(),
         }
-
+    
 
 @dataclass
 class ConverseStreamingChunk:
     content: Union[str, ToolUseBlock]
     metadata: Dict[str, Any]
     index: int = 0
+    type: str = ""
 
 
 def get_stream_message(
     stream: EventStream,
     streaming_callback: Callable[[ConverseStreamingChunk], None],
 ) -> Tuple[ConverseMessage, Dict[str, Any]]:
-    tool_use_dict = {}
-    str_message = ""
-    latest_metadata = {}
-    current_index = 0  # used to keep track of the current str/tool use alternance
 
-    new_tool_use = False
-    current_tool_use_id = ""
-    current_tool_use_input = ""
+    current_block: Union[str, ToolUseBlock] = ""
+    current_tool_use_input_str: str = ""
+    latest_metadata: Dict[str, Any] = {}
+    event_type: str
+    current_index: int = 0  # Start with 0 as the first content block seems to be always text 
+    # which never starts with a content block start for some reason...
 
-    streaming_blocks = []
+    streamed_contents: List[Union[str, ToolUseBlock]] = []
 
     for event in stream:
         if "contentBlockStart" in event:
-            content_index = event["contentBlockStart"].get("contentBlockIndex")
+            event_type = "contentBlockStart"
+            new_index = event["contentBlockStart"].get("contentBlockIndex", current_index + 1)
 
-            # get the start of the tool use
+            # If index changed, we're starting a new block
+            if new_index != current_index:
+                if current_block:
+                    streamed_contents.append(current_block)
+                current_index = new_index
+                current_block = ""
+
             start_of_tool_use = event["contentBlockStart"].get("start")
-            if event["contentBlockStart"].get("start"):
-                tool_use_id = start_of_tool_use["toolUse"]["toolUseId"]
-                tool_use_name = start_of_tool_use["toolUse"]["name"]
-
-                if tool_use_id != current_tool_use_id:
-                    new_tool_use = True
-                    current_tool_use_id = tool_use_id
-                    current_tool_use_input = ""
-                    tool_use_dict = {
-                        "toolUseId": tool_use_id,
-                        "name": tool_use_name,
-                        "input": json.loads(current_tool_use_input),
-                    }
-                else:
-                    new_tool_use = False
+            if start_of_tool_use:
+                current_block = ToolUseBlock(
+                    toolUseId=start_of_tool_use["toolUse"]["toolUseId"],
+                    name=start_of_tool_use["toolUse"]["name"],
+                    input={},
+                )
 
         if "contentBlockDelta" in event:
-            delta = event["contentBlockDelta"].get("delta")
+            event_type = "contentBlockDelta"
+            delta = event["contentBlockDelta"].get("delta", {})
 
             if "text" in delta:
-                str_message += delta["text"]
-            if "toolUse" in delta and not new_tool_use:
-                current_tool_use_str += delta["toolUse"]["input"]
+                if isinstance(current_block, str):
+                    current_block += delta["text"]
+                else:
+                    # If we get text when we expected a tool use, start a new string block
+                    streamed_contents.append(current_block)
+                    current_block = delta["text"]
+                    current_index += 1
+
+            if "toolUse" in delta:
+                if isinstance(current_block, ToolUseBlock):
+                    tool_use_input_delta = delta["toolUse"].get("input")
+                    current_tool_use_input_str += tool_use_input_delta
+                else:
+                    # If we get a tool use when we expected text, start a new ToolUseBlock
+                    streamed_contents.append(current_block)
+                    current_block = ToolUseBlock(
+                        toolUseId=delta["toolUse"]["toolUseId"],
+                        name=delta["toolUse"]["name"],
+                        input=(json.loads(current_tool_use_input_str)),
+                    )
+                    current_index += 1
 
         if "contentBlockStop" in event:
-            new_tool_use = False
-            content_index += 1  # start a new str/tool use alternation
+            event_type = "contentBlockStop"
+            if isinstance(current_block, ToolUseBlock):
+                current_block.input = json.loads(current_tool_use_input_str)
+                current_tool_use_input_str = ""
+            streamed_contents.append(current_block)
+            current_block = ""
+            current_index += 1
 
         if "messageStop" in event:
-            stop_reason = event["messageStop"].get("stopReason")
-            latest_metadata["stopReason"] = stop_reason
+            event_type = "messageStop"
+            latest_metadata["stopReason"] = event["messageStop"].get("stopReason")
+            
+        if "metadata" in event:
+            event_type = "metadata"
+        
+        if "messageStart" in event:
+            event_type = "messageStart"
 
         latest_metadata.update(event.get("metadata", {}))
 
-        block_content = ToolUseBlock(**tool_use_dict) if len(tool_use_dict) == 3 else str_message
-
         streaming_chunk = ConverseStreamingChunk(
-            content=block_content,
-            metadata=event.get("metadata", {}),
-            index=content_index,
+            content=current_block,
+            metadata=latest_metadata,
+            index=current_index,
+            type=event_type,
         )
-
         streaming_callback(streaming_chunk)
+
+    # Add any remaining content
+    if current_block:
+        streamed_contents.append(current_block)
+
     return (
         ConverseMessage(
             role=ConverseRole.ASSISTANT,
-            content=ContentBlock(streaming_blocks),
+            content=ContentBlock.from_assistant(streamed_contents),
         ),
         latest_metadata,
     )

@@ -207,10 +207,7 @@ class AmazonBedrockConverseGenerator:
                 response_stream = response.get("stream")
                 message, metadata = get_stream_message(stream=response_stream, streaming_callback=streaming_callback)
                 return {
-                    "message": get_stream_message(
-                        stream=response_stream,
-                        streaming_callback=streaming_callback,
-                    ),
+                    "message": message,
                     "usage": metadata.get("usage"),
                     "metrics": metadata.get("metrics"),
                     "guardrail_trace": metadata.get("trace"),
