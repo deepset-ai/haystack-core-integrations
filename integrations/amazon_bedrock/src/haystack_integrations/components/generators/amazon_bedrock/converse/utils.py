@@ -2,7 +2,7 @@
 import inspect
 import json
 import logging
-from typing import Any, Callable, List, Dict, Sequence, Tuple, Union, Optional
+from typing import Any, Callable, List, Dict, Literal, Sequence, Tuple, Union, Optional
 from enum import Enum
 from botocore.eventstream import EventStream
 
@@ -95,9 +95,10 @@ class DocumentSource:
 
 @dataclass
 class DocumentBlock:
-    format: str
+    SUPPORTED_FORMATS = Literal['pdf', 'csv', 'doc', 'docx', 'xls', 'xlsx', 'html', 'txt', 'md']
+    format: SUPPORTED_FORMATS
     name: str
-    source: DocumentSource
+    source: bytes
 
 
 @dataclass
