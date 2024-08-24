@@ -246,35 +246,50 @@ def get_stream_message(
     stream: EventStream,
     streaming_callback: Callable[[ConverseStreamingChunk], None],
 ) -> Tuple[ConverseMessage, Dict[str, Any]]:
-    streaming_chunks: List[ConverseStreamingChunk] = []
     tool_use_dict = {}
     str_message = ""
     latest_metadata = {}
-    content_index = 0  # used to keep track of the current str/tool use alternance
-    current_tool_use_str = ""
+    current_index = 0  # used to keep track of the current str/tool use alternance
+
+    new_tool_use = False
+    current_tool_use_id = ""
+    current_tool_use_input = ""
+
+    streaming_blocks = []
+
     for event in stream:
         if "contentBlockStart" in event:
-            if len(current_tool_use_str) > 0 and content_index != event["contentBlockStart"].get("contentBlockIndex"):
-                tool_use_dict["input"] = current_tool_use_str
-                current_tool_use_str = ""
-                
-            start = event["contentBlockStart"].get("start")
-            content_index = event["contentBlockStart"].get("contentBlockIndex", content_index)
+            content_index = event["contentBlockStart"].get("contentBlockIndex")
 
-            if start:
-                tool_use_dict["toolUseId"] = start["toolUse"]["toolUseId"]
-                tool_use_dict["name"] = start["toolUse"]["name"]
+            # get the start of the tool use
+            start_of_tool_use = event["contentBlockStart"].get("start")
+            if event["contentBlockStart"].get("start"):
+                tool_use_id = start_of_tool_use["toolUse"]["toolUseId"]
+                tool_use_name = start_of_tool_use["toolUse"]["name"]
+
+                if tool_use_id != current_tool_use_id:
+                    new_tool_use = True
+                    current_tool_use_id = tool_use_id
+                    current_tool_use_input = ""
+                    tool_use_dict = {
+                        "toolUseId": tool_use_id,
+                        "name": tool_use_name,
+                        "input": json.loads(current_tool_use_input),
+                    }
+                else:
+                    new_tool_use = False
 
         if "contentBlockDelta" in event:
             delta = event["contentBlockDelta"].get("delta")
 
             if "text" in delta:
                 str_message += delta["text"]
-            if "toolUse" in delta:
+            if "toolUse" in delta and not new_tool_use:
                 current_tool_use_str += delta["toolUse"]["input"]
 
         if "contentBlockStop" in event:
-            content_index += 1 # start a new str/tool use alternation
+            new_tool_use = False
+            content_index += 1  # start a new str/tool use alternation
 
         if "messageStop" in event:
             stop_reason = event["messageStop"].get("stopReason")
@@ -291,11 +306,10 @@ def get_stream_message(
         )
 
         streaming_callback(streaming_chunk)
-        streaming_chunks.append(streaming_chunk)
     return (
         ConverseMessage(
             role=ConverseRole.ASSISTANT,
-            content=ContentBlock([block_content]),
+            content=ContentBlock(streaming_blocks),
         ),
         latest_metadata,
     )
