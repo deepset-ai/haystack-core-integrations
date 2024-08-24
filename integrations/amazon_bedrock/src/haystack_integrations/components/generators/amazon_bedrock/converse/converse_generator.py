@@ -1,6 +1,7 @@
+from enum import Enum, auto
 import logging
 import re
-from typing import Any, Callable, ClassVar, Dict, List, Optional, Type
+from typing import Any, Callable, ClassVar, Dict, List, Optional, Set, Type
 
 from botocore.exceptions import ClientError
 from haystack import component, default_from_dict, default_to_dict
@@ -12,7 +13,11 @@ from haystack_integrations.common.amazon_bedrock.errors import (
     AmazonBedrockInferenceError,
 )
 from haystack_integrations.common.amazon_bedrock.utils import get_aws_session
-from utils import ConverseMessage, ConverseStreamingChunk, get_stream_message
+from capabilities import (
+    ModelCapability,
+    MODEL_CAPABILITIES,
+)
+from utils import ConverseMessage, ConverseRole, ConverseStreamingChunk, ImageBlock, ToolConfig, get_stream_message
 
 logger = logging.getLogger(__name__)
 
@@ -56,17 +61,6 @@ class AmazonBedrockConverseGenerator:
     """
 
     # according to the list provided in the toolConfig arg: https://docs.aws.amazon.com/bedrock/latest/APIReference/API_runtime_Converse.html#API_runtime_Converse_RequestSyntax
-    SUPPORTED_TOOL_MODEL_PATTERNS: ClassVar[List[str]] = [
-        r"anthropic.claude-3.*",
-        r"cohere.command-r.*",
-        r"mistral.mistral-large.*",
-    ]
-
-    UNSUPPORTED_CHAT_MODEL_PATTERNS: ClassVar[List[str]] = [
-        r"cohere.command-text.*",
-        r"cohere.command-light.*",
-        r"ai21.j2.*",
-    ]
 
     def __init__(
         self,
@@ -81,6 +75,7 @@ class AmazonBedrockConverseGenerator:
         inference_config: Optional[Dict[str, Any]] = None,
         tool_config: Optional[Dict[str, Any]] = None,
         streaming_callback: Optional[Callable[[ConverseStreamingChunk], None]] = None,
+        system_prompt: Optional[List[Dict[str, Any]]] = None,
     ):
         """
         Initializes the `AmazonBedrockConverseGenerator` with the provided parameters. The parameters are passed to the
@@ -134,6 +129,8 @@ class AmazonBedrockConverseGenerator:
             self.inference_config = inference_config
             self.tool_config = tool_config
             self.streaming_callback = streaming_callback
+            self.system_prompt = system_prompt
+            self.model_capabilities = self._get_model_capabilities(model)
 
         except Exception as exception:
             msg = (
@@ -141,6 +138,12 @@ class AmazonBedrockConverseGenerator:
                 "See https://boto3.amazonaws.com/v1/documentation/api/latest/guide/quickstart.html#configuration"
             )
             raise AmazonBedrockConfigurationError(msg) from exception
+
+    def _get_model_capabilities(self, model: str) -> Set[ModelCapability]:
+        for pattern, capabilities in MODEL_CAPABILITIES.items():
+            if re.match(pattern, model):
+                return capabilities
+        raise ValueError(f"Unsupported model: {model}")
 
     @component.output_types(
         message=ConverseMessage,
@@ -154,35 +157,46 @@ class AmazonBedrockConverseGenerator:
         messages: List[ConverseMessage],
         streaming_callback: Optional[Callable[[ConverseStreamingChunk], None]] = None,
         inference_config: Dict[str, Any] = {},
-        tool_config: Optional[Dict[str, Any]] = None,
+        tool_config: Optional[ToolConfig] = None,
+        system_prompt: Optional[List[Dict[str, Any]]] = None,
     ):
-        """
-        Generates a list of `ChatMessage` response to the given messages using the Amazon Bedrock LLM.
-
-        :param messages: The messages to generate a response to.
-        :param streaming_callback:
-            A callback function that is called when a new token is received from the stream.
-        :param generation_kwargs: Additional generation keyword arguments passed to the model.
-        :returns: A dictionary with the following keys:
-            - `replies`: The generated List of `ChatMessage` objects.
-        """
         streaming_callback = streaming_callback or self.streaming_callback
+        system_prompt = system_prompt or self.system_prompt
 
-        # warn and only keep last message if model does not support chat
-        if re.match("|".join(self.UNSUPPORTED_CHAT_MODEL_PATTERNS), self.model) and len(messages) > 1:
-            logging.warning(
-                f"The model {self.model} does not support chat. Only the last message " "will be taken into account."
-            )
-            messages = messages[-1:]
-
-        # check if the prompt is a list of ConverseMessage objects
         if not (
             isinstance(messages, list)
             and len(messages) > 0
             and all(isinstance(message, ConverseMessage) for message in messages)
         ):
-            msg = f"The model {self.model} requires a list of ConverseMessage objects as a prompt."
+            msg = f"The model {self.model} requires a list of ConverseMessage objects as input."
             raise ValueError(msg)
+
+        # Check and filter messages based on model capabilities
+        if ModelCapability.SYSTEM_PROMPTS not in self.model_capabilities and system_prompt:
+            logger.warning(
+                f"The model {self.model} does not support system prompts. The provided system_prompt will be ignored."
+            )
+            system_prompt = None
+
+        if ModelCapability.VISION not in self.model_capabilities:
+            for msg in messages:
+                msg.content.content = [item for item in msg.content.content if not isinstance(item, ImageBlock)]
+            if any(isinstance(item, ImageBlock) for msg in messages for item in msg.content.content):
+                logger.warning(f"The model {self.model} does not support vision. Image content has been removed.")
+
+        if ModelCapability.DOCUMENT_CHAT not in self.model_capabilities:
+            logger.warning(
+                f"The model {self.model} does not support document chat. This feature will not be available."
+            )
+
+        if ModelCapability.TOOL_USE not in self.model_capabilities and tool_config:
+            logger.warning(f"The model {self.model} does not support tools. The provided tool_config will be ignored.")
+            tool_config = None
+
+        if ModelCapability.STREAMING_TOOL_USE not in self.model_capabilities and streaming_callback and tool_config:
+            logger.warning(
+                f"The model {self.model} does not support streaming tool use. Streaming will be disabled for tool calls."
+            )
 
         request_kwargs = {
             "modelId": self.model,
@@ -190,42 +204,37 @@ class AmazonBedrockConverseGenerator:
             "messages": [message.to_dict() for message in messages],
         }
 
-        tool_config = tool_config or self.tool_config
-        if tool_config is not None:
+        if tool_config:
             request_kwargs["toolConfig"] = tool_config
 
         try:
-            if streaming_callback:
-                
+            if streaming_callback and ModelCapability.CONVERSE_STREAM in self.model_capabilities:
                 response = self.client.converse_stream(**request_kwargs)
                 response_stream = response.get("stream")
                 message, metadata = get_stream_message(stream=response_stream, streaming_callback=streaming_callback)
-                return {
-                    "message": message,
-                    "usage": metadata.get("usage"),
-                    "metrics": metadata.get("metrics"),
-                    "guardrail_trace": metadata.get("trace"),
-                    "stop_reason": metadata.get("stopReason"),
-                }
             else:
                 response = self.client.converse(**request_kwargs)
-
                 output = response.get("output")
                 if output is None:
-                    raise KeyError
+                    raise KeyError("Response does not contain 'output'")
                 message = output.get("message")
                 if message is None:
-                    raise KeyError
+                    raise KeyError("Response 'output' does not contain 'message'")
+                message = ConverseMessage.from_dict(message)
+                metadata = response
 
-                return {
-                    "message": ConverseMessage.from_dict(message),
-                    "usage": response.get("usage"),
-                    "metrics": response.get("metrics"),
-                    "guardrail_trace": response.get("trace"),
-                    "stop_reason": response.get("stopReason"),
-                }
+            return {
+                "message": message,
+                "usage": metadata.get("usage"),
+                "metrics": metadata.get("metrics"),
+                "guardrail_trace": (
+                    metadata.get("trace") if ModelCapability.GUARDRAILS in self.model_capabilities else None
+                ),
+                "stop_reason": metadata.get("stopReason"),
+            }
+
         except ClientError as exception:
-            msg = f"Could not run inference on Amazon Bedrock model {self.model} due: {exception}"
+            msg = f"Could not run inference on Amazon Bedrock model {self.model} due to: {exception}"
             raise AmazonBedrockInferenceError(msg) from exception
 
     def to_dict(self) -> Dict[str, Any]:
@@ -255,7 +264,7 @@ class AmazonBedrockConverseGenerator:
         :param data:
             Dictionary to deserialize from.
         :returns:
-              Deserialized component.
+            Deserialized component.
         """
         init_params = data.get("init_parameters", {})
         serialized_callback_handler = init_params.get("streaming_callback")
