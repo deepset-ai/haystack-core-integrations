@@ -78,7 +78,6 @@ class AmazonBedrockConverseGenerator:
         aws_session_token: Optional[Secret] = Secret.from_env_var(["AWS_SESSION_TOKEN"], strict=False),  # noqa: B008
         aws_region_name: Optional[Secret] = Secret.from_env_var(["AWS_DEFAULT_REGION"], strict=False),  # noqa: B008
         aws_profile_name: Optional[Secret] = Secret.from_env_var(["AWS_PROFILE"], strict=False),  # noqa: B008
-        # used for pipeline setup
         inference_config: Optional[Dict[str, Any]] = None,
         tool_config: Optional[Dict[str, Any]] = None,
         streaming_callback: Optional[Callable[[ConverseStreamingChunk], None]] = None,
@@ -100,19 +99,13 @@ class AmazonBedrockConverseGenerator:
         :param aws_session_token: AWS session token.
         :param aws_region_name: AWS region name. Make sure the region you set supports Amazon Bedrock.
         :param aws_profile_name: AWS profile name.
-        :param generation_kwargs: Keyword arguments sent to the model. These
-        parameters are specific to a model. You can find them in the [converse documentation]().
-        :param stop_words: A list of stop words that stop the model from generating more text
-          when encountered. You can provide them using
-        this parameter or using the model's `generation_kwargs` under a model's specific key for stop words.
-          For example, you can provide
-        stop words for Anthropic Claude in the `stop_sequences` key.
         :param streaming_callback: A callback function called when a new token is received from the stream.
         By default, the model is not set up for streaming. To enable streaming, set this parameter to a callback
         function that handles the streaming chunks. The callback function receives a
           [StreamingChunk](https://docs.haystack.deepset.ai/docs/data-classes#streamingchunk) object and
         switches the streaming mode on.
-        :param truncate: Whether to truncate the prompt messages or not.
+        :param inference_config: A dictionary containing the inference configuration. The default value is None.
+        :param tool_config: A dictionary containing the tool configuration. The default value is None.
         """
         if not model:
             msg = "'model' cannot be None or empty string"

@@ -1,6 +1,7 @@
 ﻿from dataclasses import asdict, dataclass, field
 import inspect
 import json
+import logging
 from typing import Any, Callable, List, Dict, Sequence, Tuple, Union, Optional
 from enum import Enum
 from botocore.eventstream import EventStream
@@ -237,7 +238,7 @@ class ConverseMessage:
             "role": self.role.value,
             "content": self.content.to_dict(),
         }
-    
+
 
 @dataclass
 class ConverseStreamingChunk:
@@ -247,95 +248,103 @@ class ConverseStreamingChunk:
     type: str = ""
 
 
+@dataclass
+class StreamEvent:
+    type: str
+    data: Dict[str, Any]
+
+
+def parse_event(event: Dict[str, Any]) -> StreamEvent:
+    for key in ['contentBlockStart', 'contentBlockDelta', 'contentBlockStop', 'messageStop', 'messageStart']:
+        if key in event:
+            return StreamEvent(type=key, data=event[key])
+    return StreamEvent(type='metadata', data=event.get('metadata', {}))
+
+
+def handle_content_block_start(event: StreamEvent, current_index: int) -> Tuple[int, Union[str, ToolUseBlock]]:
+    new_index = event.data.get('contentBlockIndex', current_index + 1)
+    start_of_tool_use = event.data.get('start')
+    if start_of_tool_use:
+        return new_index, ToolUseBlock(
+            toolUseId=start_of_tool_use['toolUse']['toolUseId'],
+            name=start_of_tool_use['toolUse']['name'],
+            input={},
+        )
+    return new_index, ""
+
+
+def handle_content_block_delta(
+    event: StreamEvent, current_block: Union[str, ToolUseBlock], current_tool_use_input_str: str
+) -> Tuple[Union[str, ToolUseBlock], str]:
+    delta = event.data.get('delta', {})
+    if 'text' in delta:
+        if isinstance(current_block, str):
+            return current_block + delta['text'], current_tool_use_input_str
+        else:
+            return delta['text'], current_tool_use_input_str
+    if 'toolUse' in delta:
+        if isinstance(current_block, ToolUseBlock):
+            return current_block, current_tool_use_input_str + delta['toolUse'].get('input', '')
+        else:
+            return ToolUseBlock(
+                toolUseId=delta['toolUse']['toolUseId'],
+                name=delta['toolUse']['name'],
+                input={},
+            ), delta['toolUse'].get('input', '')
+    return current_block, current_tool_use_input_str
+
+
 def get_stream_message(
     stream: EventStream,
     streaming_callback: Callable[[ConverseStreamingChunk], None],
 ) -> Tuple[ConverseMessage, Dict[str, Any]]:
-
     current_block: Union[str, ToolUseBlock] = ""
     current_tool_use_input_str: str = ""
     latest_metadata: Dict[str, Any] = {}
-    event_type: str
-    current_index: int = 0  # Start with 0 as the first content block seems to be always text 
-    # which never starts with a content block start for some reason...
-
+    current_index: int = 0
     streamed_contents: List[Union[str, ToolUseBlock]] = []
 
-    for event in stream:
-        if "contentBlockStart" in event:
-            event_type = "contentBlockStart"
-            new_index = event["contentBlockStart"].get("contentBlockIndex", current_index + 1)
+    try:
+        for raw_event in stream:
+            event = parse_event(raw_event)
 
-            # If index changed, we're starting a new block
-            if new_index != current_index:
+            if event.type == 'contentBlockStart':
                 if current_block:
                     streamed_contents.append(current_block)
-                current_index = new_index
-                current_block = ""
+                current_index, current_block = handle_content_block_start(event, current_index)
 
-            start_of_tool_use = event["contentBlockStart"].get("start")
-            if start_of_tool_use:
-                current_block = ToolUseBlock(
-                    toolUseId=start_of_tool_use["toolUse"]["toolUseId"],
-                    name=start_of_tool_use["toolUse"]["name"],
-                    input={},
-                )
-
-        if "contentBlockDelta" in event:
-            event_type = "contentBlockDelta"
-            delta = event["contentBlockDelta"].get("delta", {})
-
-            if "text" in delta:
-                if isinstance(current_block, str):
-                    current_block += delta["text"]
-                else:
-                    # If we get text when we expected a tool use, start a new string block
+            elif event.type == 'contentBlockDelta':
+                new_block, new_input_str = handle_content_block_delta(event, current_block, current_tool_use_input_str)
+                if new_block != current_block:
                     streamed_contents.append(current_block)
-                    current_block = delta["text"]
                     current_index += 1
+                current_block, current_tool_use_input_str = new_block, new_input_str
 
-            if "toolUse" in delta:
+            elif event.type == 'contentBlockStop':
                 if isinstance(current_block, ToolUseBlock):
-                    tool_use_input_delta = delta["toolUse"].get("input")
-                    current_tool_use_input_str += tool_use_input_delta
-                else:
-                    # If we get a tool use when we expected text, start a new ToolUseBlock
-                    streamed_contents.append(current_block)
-                    current_block = ToolUseBlock(
-                        toolUseId=delta["toolUse"]["toolUseId"],
-                        name=delta["toolUse"]["name"],
-                        input=(json.loads(current_tool_use_input_str)),
-                    )
-                    current_index += 1
+                    current_block.input = json.loads(current_tool_use_input_str)
+                    current_tool_use_input_str = ""
+                streamed_contents.append(current_block)
+                current_block = ""
+                current_index += 1
 
-        if "contentBlockStop" in event:
-            event_type = "contentBlockStop"
-            if isinstance(current_block, ToolUseBlock):
-                current_block.input = json.loads(current_tool_use_input_str)
-                current_tool_use_input_str = ""
-            streamed_contents.append(current_block)
-            current_block = ""
-            current_index += 1
+            elif event.type == 'messageStop':
+                latest_metadata["stopReason"] = event.data.get("stopReason")
 
-        if "messageStop" in event:
-            event_type = "messageStop"
-            latest_metadata["stopReason"] = event["messageStop"].get("stopReason")
-            
-        if "metadata" in event:
-            event_type = "metadata"
-        
-        if "messageStart" in event:
-            event_type = "messageStart"
+            latest_metadata.update(event.data if event.type == 'metadata' else {})
 
-        latest_metadata.update(event.get("metadata", {}))
+            streaming_chunk = ConverseStreamingChunk(
+                content=current_block,
+                metadata=latest_metadata,
+                index=current_index,
+                type=event.type,
+            )
+            streaming_callback(streaming_chunk)
 
-        streaming_chunk = ConverseStreamingChunk(
-            content=current_block,
-            metadata=latest_metadata,
-            index=current_index,
-            type=event_type,
-        )
-        streaming_callback(streaming_chunk)
+    except Exception as e:
+        # Log the error and re-raise
+        logging.error(f"Error processing stream: {str(e)}")
+        raise
 
     # Add any remaining content
     if current_block:
