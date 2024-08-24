@@ -196,6 +196,7 @@ class AmazonBedrockConverseGenerator:
 
         try:
             if streaming_callback:
+                
                 response = self.client.converse_stream(**request_kwargs)
                 response_stream = response.get("stream")
                 message, metadata = get_stream_message(stream=response_stream, streaming_callback=streaming_callback)
@@ -207,7 +208,6 @@ class AmazonBedrockConverseGenerator:
                     "stop_reason": metadata.get("stopReason"),
                 }
             else:
-                # toolConfig is optionnal but the converse api will fail if it is empty, so we can add it only if tool_config is not None
                 response = self.client.converse(**request_kwargs)
 
                 output = response.get("output")
@@ -225,7 +225,7 @@ class AmazonBedrockConverseGenerator:
                     "stop_reason": response.get("stopReason"),
                 }
         except ClientError as exception:
-            msg = f"Could not inference Amazon Bedrock model {self.model} due: {exception}"
+            msg = f"Could not run inference on Amazon Bedrock model {self.model} due: {exception}"
             raise AmazonBedrockInferenceError(msg) from exception
 
     def to_dict(self) -> Dict[str, Any]:

@@ -310,13 +310,24 @@ def get_stream_message(
 
             if event.type == 'contentBlockStart':
                 if current_block:
-                    streamed_contents.append(current_block)
+                    if isinstance(current_block, str) and streamed_contents and isinstance(streamed_contents[-1], str):
+                        streamed_contents[-1] += current_block
+                    else:
+                        streamed_contents.append(current_block)
                 current_index, current_block = handle_content_block_start(event, current_index)
 
             elif event.type == 'contentBlockDelta':
                 new_block, new_input_str = handle_content_block_delta(event, current_block, current_tool_use_input_str)
-                if new_block != current_block:
-                    streamed_contents.append(current_block)
+                if isinstance(new_block, ToolUseBlock) and new_block != current_block:
+                    if current_block:
+                        if (
+                            isinstance(current_block, str)
+                            and streamed_contents
+                            and isinstance(streamed_contents[-1], str)
+                        ):
+                            streamed_contents[-1] += current_block
+                        else:
+                            streamed_contents.append(current_block)
                     current_index += 1
                 current_block, current_tool_use_input_str = new_block, new_input_str
 
@@ -324,7 +335,12 @@ def get_stream_message(
                 if isinstance(current_block, ToolUseBlock):
                     current_block.input = json.loads(current_tool_use_input_str)
                     current_tool_use_input_str = ""
-                streamed_contents.append(current_block)
+                    streamed_contents.append(current_block)
+                elif isinstance(current_block, str):
+                    if streamed_contents and isinstance(streamed_contents[-1], str):
+                        streamed_contents[-1] += current_block
+                    else:
+                        streamed_contents.append(current_block)
                 current_block = ""
                 current_index += 1
 
@@ -342,13 +358,15 @@ def get_stream_message(
             streaming_callback(streaming_chunk)
 
     except Exception as e:
-        # Log the error and re-raise
         logging.error(f"Error processing stream: {str(e)}")
         raise
 
     # Add any remaining content
     if current_block:
-        streamed_contents.append(current_block)
+        if isinstance(current_block, str) and streamed_contents and isinstance(streamed_contents[-1], str):
+            streamed_contents[-1] += current_block
+        else:
+            streamed_contents.append(current_block)
 
     return (
         ConverseMessage(
