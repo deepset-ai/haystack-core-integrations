@@ -2,17 +2,17 @@ name: Core / License Compliance
 
 on:
   pull_request:
-    # paths:
-    # - "integrations/**/pyproject.toml"
+    paths:
+    - "integrations/**/pyproject.toml"
   # Since we test PRs, there is no need to run the workflow at each
   # merge on `main`. Let's use a cron job instead.
   schedule:
     - cron: "0 0 * * *" # every day at midnight
 
 env:
-  # CORE_DATADOG_API_KEY: ${{ secrets.CORE_DATADOG_API_KEY }}
+  CORE_DATADOG_API_KEY: ${{ secrets.CORE_DATADOG_API_KEY }}
   PYTHON_VERSION: "3.10"
-  EXCLUDE_PACKAGES: "(?i)^(deepeval|cohere|fastembed|ragas|haystack-pydoc-tools|tqdm|psycopg).*"
+  EXCLUDE_PACKAGES: "(?i)^(deepeval|cohere|fastembed|ragas|haystack-pydoc-tools|tqdm).*"
 
   # Exclusions in the vanilla must be explicitly motivated
   #
@@ -52,18 +52,17 @@ jobs:
         run: |
           pip install toml
           > ${{ env.REQUIREMENTS_FILE }}  # Empty the requirements file if it exists
-          # if [ "${{ github.event_name }}" = "schedule" ]; then
-          if true; then
+          if [ "${{ github.event_name }}" = "schedule" ]; then
             echo "Scheduled run: processing all pyproject.toml files..."
             find integrations -type f -name 'pyproject.toml' | while read file; do
               python .github/utils/pyproject_to_requirements.py $file >> ${{ env.REQUIREMENTS_FILE }}
-              echo "" >> ${{ env.REQUIREMENTS_FILE }}  # Add a newline for separation
+              echo "" >> ${{ env.REQUIREMENTS_FILE }}
             done
           else            
             echo "Pull request: processing changed pyproject.toml files..."
             for file in ${{ steps.changed-files.outputs.all_changed_files }}; do
               python .github/utils/pyproject_to_requirements.py $file >> ${{ env.REQUIREMENTS_FILE }}
-              echo "" >> ${{ env.REQUIREMENTS_FILE }}  # Add a newline for separation
+              echo "" >> ${{ env.REQUIREMENTS_FILE }}
             done
           fi
 
@@ -74,9 +73,6 @@ jobs:
           github-token: ${{ secrets.GH_ACCESS_TOKEN }}
           requirements: ${{ env.REQUIREMENTS_FILE }}
           fail: "Copyleft,Other,Error"
-          # Exclusions in the vanilla distribution must be explicitly motivated
-          #
-          # - tqdm is MLP but there are no better alternatives
           exclude: "${{ env.EXCLUDE_PACKAGES }}"
 
       # # We keep the license inventory on FOSSA
@@ -89,6 +85,14 @@ jobs:
       - name: Print report
         if: ${{ always() }}
         run: echo "${{ steps.license_check_report.outputs.report }}"
+
+      - name: Send event to Datadog for nightly failures
+        if: failure() #&& github.event_name == 'schedule'
+        uses: ./.github/actions/send_failure
+        with:
+          title: |
+            Core integrations license compliance nightly failure: ${{ github.workflow }}
+          api-key: ${{ secrets.CORE_DATADOG_API_KEY }}
 
       # - name: Calculate alert data
       #   id: calculator
