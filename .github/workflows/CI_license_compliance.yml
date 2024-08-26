@@ -41,13 +41,14 @@ jobs:
         run: |
           pip install toml
           > ${{ env.REQUIREMENTS_FILE }}  # Empty the requirements file if it exists
-          if [ "${{ github.event_name }}" = "schedule" ]; then
-            echo "Scheduled run: processing all pyproject.toml files..."
-            find integrations -type f -name 'pyproject.toml' | while read file; do
-              python .github/utils/pyproject_to_requirements.py $file >> ${{ env.REQUIREMENTS_FILE }}
-              echo "" >> ${{ env.REQUIREMENTS_FILE }}  # Add a newline for separation
-            done
-          else            
+          # if [ "${{ github.event_name }}" = "schedule" ]; then
+          #   echo "Scheduled run: processing all pyproject.toml files..."
+          #   find integrations -type f -name 'pyproject.toml' | while read file; do
+          #     python .github/utils/pyproject_to_requirements.py $file >> ${{ env.REQUIREMENTS_FILE }}
+          #     echo "" >> ${{ env.REQUIREMENTS_FILE }}  # Add a newline for separation
+          #   done
+          # else
+          if [ true ]; then            
             echo "Pull request: processing changed pyproject.toml files..."
             for file in ${{ steps.changed-files.outputs.all_changed_files }}; do
               python .github/utils/pyproject_to_requirements.py $file >> ${{ env.REQUIREMENTS_FILE }}
