@@ -1,11 +1,9 @@
-from enum import Enum, auto
 import logging
 import re
-from typing import Any, Callable, ClassVar, Dict, List, Optional, Set, Type
+from typing import Any, Callable, Dict, List, Optional, Set
 
 from botocore.exceptions import ClientError
 from haystack import component, default_from_dict, default_to_dict
-from haystack.dataclasses import ChatMessage, StreamingChunk
 from haystack.utils.auth import Secret, deserialize_secrets_inplace
 from haystack.utils.callable_serialization import deserialize_callable, serialize_callable
 from haystack_integrations.common.amazon_bedrock.errors import (

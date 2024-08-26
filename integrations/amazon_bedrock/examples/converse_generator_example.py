@@ -1,7 +1,4 @@
-﻿import sys
-from typing import Dict
-from haystack.dataclasses import ChatMessage
-from converse_generator import AmazonBedrockConverseGenerator
+﻿from haystack_integrations.components.generators.amazon_bedrock import AmazonBedrockConverseGenerator
 from utils import ConverseMessage, ToolConfig
 from haystack.core.pipeline import Pipeline
 
@@ -19,8 +16,8 @@ def get_current_time(timezone: str) -> str:
 
 
 def main():
-    g = AmazonBedrockConverseGenerator(
-        model="anthropic.claude-3-haiku-20240307-v1:0",
+    generator = AmazonBedrockConverseGenerator(
+        model="anthropic.claude-3-5-sonnet-20240620-v1:0",
         streaming_callback=print,
     )
 
@@ -33,11 +30,11 @@ def main():
     print("Tool Config:")
     print(tool_config_dict)
 
-    p = Pipeline()
-    p.add_component("generator", g)
+    pipeline = Pipeline()
+    pipeline.add_component("generator", generator)
 
     print("\nRunning pipeline with tools:")
-    result = p.run(
+    result = pipeline.run(
         data={
             "generator": {
                 "inference_config": {
