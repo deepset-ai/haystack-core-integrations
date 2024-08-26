@@ -28,22 +28,36 @@ jobs:
         with:
           python-version: "${{ env.PYTHON_VERSION }}"
 
-      - name: Get changed files
+      - name: Get changed pyproject files (for pull requests only)
+        if: ${{ github.event_name == 'pull_request' }}
         id: changed-files
         uses: tj-actions/changed-files@v45
         with:
           files: |
-            integrations/**/pyproject.toml          
+            integrations/**/pyproject.toml       
 
-      - name: Get direct dependencies from changed pyproject.toml files
+      - name: Get direct dependencies from pyproject.toml files
         if: ${{ steps['changed-files'].outputs.any_changed == 'true' }}
         run: |
           pip install toml
           > ${{ env.REQUIREMENTS_FILE }}  # Empty the requirements file if it exists
-          for file in ${{ steps['changed-files'].outputs.all_changed_files }}; do
-            python .github/utils/pyproject_to_requirements.py $file >> ${{ env.REQUIREMENTS_FILE }}
-            echo "" >> ${{ env.REQUIREMENTS_FILE }}  # Add a newline for separation
-          done
+          if [ "${{ github.event_name }}" = "schedule" ]; then
+            echo "Scheduled run: processing all pyproject.toml files..."
+            find integrations -type f -name 'pyproject.toml' | while read file; do
+              python .github/utils/pyproject_to_requirements.py $file >> ${{ env.REQUIREMENTS_FILE }}
+              echo "" >> ${{ env.REQUIREMENTS_FILE }}  # Add a newline for separation
+            done
+          else
+            if [ "${{ steps.changed-files.outputs.any_changed }}" = "true" ]; then
+              echo "Pull request: processing changed pyproject.toml files..."
+              for file in ${{ steps.changed-files.outputs.all_changed_files }}; do
+                python .github/utils/pyproject_to_requirements.py $file >> ${{ env.REQUIREMENTS_FILE }}
+                echo "" >> ${{ env.REQUIREMENTS_FILE }}  # Add a newline for separation
+              done
+            else
+              echo "Pull request: no changed pyproject.toml files to process."
+            fi
+          fi
 
       - name: Check Licenses
         id: license_check_report
