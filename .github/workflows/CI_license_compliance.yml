@@ -2,8 +2,8 @@ name: Core / License Compliance
 
 on:
   pull_request:
-    paths:
-    - "integrations/**/pyproject.toml"
+    # paths:
+    # - "integrations/**/pyproject.toml"
   # Since we test PRs, there is no need to run the workflow at each
   # merge on `main`. Let's use a cron job instead.
   schedule:
