@@ -37,7 +37,6 @@ jobs:
             integrations/**/pyproject.toml       
 
       - name: Get direct dependencies from pyproject.toml files
-        if: ${{ steps['changed-files'].outputs.any_changed == 'true' }}
         run: |
           pip install toml
           > ${{ env.REQUIREMENTS_FILE }}  # Empty the requirements file if it exists
