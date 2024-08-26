@@ -27,6 +27,7 @@ GET_CURRENT_WEATHER_FUNC = FunctionDeclaration(
     },
 )
 
+
 def test_init(monkeypatch):
     monkeypatch.setenv("GOOGLE_API_KEY", "test")
 
@@ -89,6 +90,7 @@ def test_to_dict(monkeypatch):
             "tools": None,
         },
     }
+
 
 def test_to_dict_with_param(monkeypatch):
     monkeypatch.setenv("GOOGLE_API_KEY", "test")
@@ -191,11 +193,7 @@ def test_from_dict(monkeypatch):
         top_k=0.5,
     )
     assert gemini._safety_settings == {HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_ONLY_HIGH}
-    assert gemini._tools == [
-        Tool(
-            function_declarations=[GET_CURRENT_WEATHER_FUNC]
-        )
-    ]
+    assert gemini._tools == [Tool(function_declarations=[GET_CURRENT_WEATHER_FUNC])]
     assert isinstance(gemini._model, GenerativeModel)
 
 

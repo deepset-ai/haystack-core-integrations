@@ -4,8 +4,8 @@ from unittest.mock import patch
 import pytest
 from google.generativeai import GenerationConfig, GenerativeModel
 from google.generativeai.types import FunctionDeclaration, HarmBlockThreshold, HarmCategory, Tool
-from haystack.dataclasses.chat_message import ChatMessage
 from haystack.dataclasses import StreamingChunk
+from haystack.dataclasses.chat_message import ChatMessage
 
 from haystack_integrations.components.generators.google_ai import GoogleAIGeminiChatGenerator
 
@@ -27,6 +27,7 @@ GET_CURRENT_WEATHER_FUNC = FunctionDeclaration(
         "required": ["location"],
     },
 )
+
 
 def test_init(monkeypatch):
     monkeypatch.setenv("GOOGLE_API_KEY", "test")
@@ -102,6 +103,7 @@ def test_to_dict(monkeypatch):
         },
     }
 
+
 def test_to_dict_with_param(monkeypatch):
     monkeypatch.setenv("GOOGLE_API_KEY", "test")
 
@@ -143,6 +145,7 @@ def test_from_dict(monkeypatch):
     assert gemini._safety_settings is None
     assert gemini._tools is None
     assert isinstance(gemini._model, GenerativeModel)
+
 
 def test_from_dict_with_param(monkeypatch):
     monkeypatch.setenv("GOOGLE_API_KEY", "test")
@@ -223,6 +226,7 @@ def test_run():
     res = gemini_chat.run(messages=messages)
     assert len(res["replies"]) > 0
 
+
 @pytest.mark.skipif(not os.environ.get("GOOGLE_API_KEY", None), reason="GOOGLE_API_KEY env var not set")
 def test_run_with_streaming_callback():
     streaming_callback_called = False
@@ -231,8 +235,27 @@ def test_run_with_streaming_callback():
         nonlocal streaming_callback_called
         streaming_callback_called = True
 
-    gemini = GoogleAIGeminiChatGenerator(streaming_callback=streaming_callback)
-    res = gemini.run("Tell me something cool")
+    def get_current_weather(location: str, unit: str = "celsius"):  # noqa: ARG001
+        return {"weather": "sunny", "temperature": 21.8, "unit": unit}
+
+    get_current_weather_func = FunctionDeclaration.from_function(
+        get_current_weather,
+        descriptions={
+            "location": "The city and state, e.g. San Francisco, CA",
+            "unit": "The temperature unit of measurement, e.g. celsius or fahrenheit",
+        },
+    )
+
+    tool = Tool(function_declarations=[get_current_weather_func])
+    gemini_chat = GoogleAIGeminiChatGenerator(model="gemini-pro", tools=[tool], streaming_callback=streaming_callback)
+    messages = [ChatMessage.from_user(content="What is the temperature in celsius in Berlin?")]
+    res = gemini_chat.run(messages=messages)
+    assert len(res["replies"]) > 0
+
+    weather = get_current_weather(res["replies"][0].content)
+    messages += res["replies"] + [ChatMessage.from_function(content=weather, name="get_current_weather")]
+
+    res = gemini_chat.run(messages=messages)
     assert len(res["replies"]) > 0
     assert streaming_callback_called
 

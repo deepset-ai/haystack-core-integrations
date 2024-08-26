@@ -1,5 +1,5 @@
 import logging
-from typing import Any, Dict, List, Optional, Union, Callable
+from typing import Any, Callable, Dict, List, Optional, Union
 
 import google.generativeai as genai
 from google.ai.generativelanguage import Content, Part
@@ -10,7 +10,7 @@ from haystack.core.component import component
 from haystack.core.serialization import default_from_dict, default_to_dict
 from haystack.dataclasses import ByteStream, StreamingChunk
 from haystack.dataclasses.chat_message import ChatMessage, ChatRole
-from haystack.utils import Secret, deserialize_secrets_inplace, serialize_callable, deserialize_callable
+from haystack.utils import Secret, deserialize_callable, deserialize_secrets_inplace, serialize_callable
 
 logger = logging.getLogger(__name__)
 
@@ -108,7 +108,6 @@ class GoogleAIGeminiChatGenerator:
         safety_settings: Optional[Dict[HarmCategory, HarmBlockThreshold]] = None,
         tools: Optional[List[Tool]] = None,
         streaming_callback: Optional[Callable[[StreamingChunk], None]] = None,
-
     ):
         """
         Initializes a `GoogleAIGeminiChatGenerator` instance.
@@ -176,7 +175,7 @@ class GoogleAIGeminiChatGenerator:
             generation_config=self._generation_config,
             safety_settings=self._safety_settings,
             tools=self._tools,
-            streaming_callback=callback_name
+            streaming_callback=callback_name,
         )
         if (tools := data["init_parameters"].get("tools")) is not None:
             data["init_parameters"]["tools"] = []
@@ -284,7 +283,11 @@ class GoogleAIGeminiChatGenerator:
         return Content(parts=[part], role=role)
 
     @component.output_types(replies=List[ChatMessage])
-    def run(self, messages: List[ChatMessage], streaming_callback: Optional[Callable[[StreamingChunk], None]] = None,):
+    def run(
+        self,
+        messages: List[ChatMessage],
+        streaming_callback: Optional[Callable[[StreamingChunk], None]] = None,
+    ):
         """
         Generates text based on the provided messages.
 
@@ -294,10 +297,7 @@ class GoogleAIGeminiChatGenerator:
             A dictionary containing the following key:
             - `replies`:  A list containing the generated responses as `ChatMessage` instances.
         """
-
-        # check if streaming_callback is passed
         streaming_callback = streaming_callback or self._streaming_callback
-
         history = [self._message_to_content(m) for m in messages[:-1]]
         session = self._model.start_chat(history=history)
 
@@ -306,8 +306,7 @@ class GoogleAIGeminiChatGenerator:
             content=new_message,
             generation_config=self._generation_config,
             safety_settings=self._safety_settings,
-            tools=self._tools,
-            stream=streaming_callback is not None
+            stream=streaming_callback is not None,
         )
 
         replies = self.get_stream_response(res, streaming_callback) if streaming_callback else self.get_response(res)
@@ -324,7 +323,7 @@ class GoogleAIGeminiChatGenerator:
         replies = []
         for candidate in response_body.candidates:
             for part in candidate.content.parts:
-                if part._raw_part.text != "":
+                if part.text != "":
                     replies.append(ChatMessage.from_system(part.text))
                 elif part.function_call is not None:
                     replies.append(
@@ -335,7 +334,7 @@ class GoogleAIGeminiChatGenerator:
                         )
                     )
         return replies
-    
+
     def get_stream_response(self, stream, streaming_callback: Callable[[StreamingChunk], None]) -> List[ChatMessage]:
         """
         Extracts the responses from the Google AI streaming response.
@@ -346,9 +345,9 @@ class GoogleAIGeminiChatGenerator:
         """
         responses = []
         for chunk in stream:
-            streaming_chunk = StreamingChunk(content=chunk.text, meta=chunk.usage_metadata)
-            streaming_callback(streaming_chunk)
-            responses.append(streaming_chunk.content)
+            content = chunk.text if "text" in chunk.parts else ""
+            streaming_callback(StreamingChunk(content=content, meta=chunk.to_dict()))
+            responses.append(content)
 
         combined_response = "".join(responses).lstrip()
         return [ChatMessage.from_system(content=combined_response)]
