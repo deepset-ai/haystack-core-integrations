@@ -183,28 +183,32 @@ class TestNvidiaRanker:
             NvidiaRanker(api_url=1)
         assert "parameter to be a string" in str(e.value)
 
-    def test_query_typeerror(self) -> None:
+    def test_query_typeerror(self, monkeypatch) -> None:
+        monkeypatch.setenv("NVIDIA_API_KEY", "fake-api-key")
         client = NvidiaRanker()
         client.warm_up()
         with pytest.raises(TypeError) as e:
             client.run(1, [Document(content="doc")])
         assert "parameter to be a string" in str(e.value)
 
-    def test_documents_typeerror(self) -> None:
+    def test_documents_typeerror(self, monkeypatch) -> None:
+        monkeypatch.setenv("NVIDIA_API_KEY", "fake-api-key")
         client = NvidiaRanker()
         client.warm_up()
         with pytest.raises(TypeError) as e:
             client.run("query", "doc")
         assert "parameter to be a list" in str(e.value)
 
-    def test_documents_typeerror2(self) -> None:
+    def test_documents_typeerror2(self, monkeypatch) -> None:
+        monkeypatch.setenv("NVIDIA_API_KEY", "fake-api-key")
         client = NvidiaRanker()
         client.warm_up()
         with pytest.raises(TypeError) as e:
             client.run("query", [1])
         assert "list of Document objects" in str(e.value)
 
-    def test_top_k_typeerror(self) -> None:
+    def test_top_k_typeerror(self, monkeypatch) -> None:
+        monkeypatch.setenv("NVIDIA_API_KEY", "fake-api-key")
         client = NvidiaRanker()
         client.warm_up()
         with pytest.raises(TypeError) as e:
