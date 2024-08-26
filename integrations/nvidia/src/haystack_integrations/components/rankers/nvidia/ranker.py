@@ -236,9 +236,9 @@ class NvidiaRanker:
             query,
             documents,
             endpoint=self._endpoint,
-        )[:top_k]
+        )
         sorted_documents = []
-        for item in sorted_indexes_and_scores:
+        for item in sorted_indexes_and_scores[:top_k]:
             # todo: should we copy or mutate?
             doc = documents[item["index"]]
             doc.score = item["logit"]
