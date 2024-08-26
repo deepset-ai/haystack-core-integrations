@@ -8,6 +8,24 @@ from google.generativeai.types import HarmBlockThreshold, HarmCategory
 
 from haystack_integrations.components.generators.google_ai import GoogleAIGeminiGenerator
 
+GET_CURRENT_WEATHER_FUNC = FunctionDeclaration(
+    name="get_current_weather",
+    description="Get the current weather in a given location",
+    parameters={
+        "type_": "OBJECT",
+        "properties": {
+            "location": {"type_": "STRING", "description": "The city and state, e.g. San Francisco, CA"},
+            "unit": {
+                "type_": "STRING",
+                "enum": [
+                    "celsius",
+                    "fahrenheit",
+                ],
+            },
+        },
+        "required": ["location"],
+    },
+)
 
 def test_init(monkeypatch):
     monkeypatch.setenv("GOOGLE_API_KEY", "test")
@@ -56,6 +74,23 @@ def test_init(monkeypatch):
 
 
 def test_to_dict(monkeypatch):
+    monkeypatch.setenv("GOOGLE_API_KEY", "test")
+
+    with patch("haystack_integrations.components.generators.google_ai.gemini.genai.configure"):
+        gemini = GoogleAIGeminiGenerator()
+    assert gemini.to_dict() == {
+        "type": "haystack_integrations.components.generators.google_ai.gemini.GoogleAIGeminiGenerator",
+        "init_parameters": {
+            "model": "gemini-pro-vision",
+            "api_key": {"env_vars": ["GOOGLE_API_KEY"], "strict": True, "type": "env_var"},
+            "generation_config": None,
+            "safety_settings": None,
+            "streaming_callback": None,
+            "tools": None,
+        },
+    }
+
+def test_to_dict_with_param(monkeypatch):
     monkeypatch.setenv("GOOGLE_API_KEY", "test")
 
     generation_config = GenerationConfig(
@@ -158,29 +193,7 @@ def test_from_dict(monkeypatch):
     assert gemini._safety_settings == {HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_ONLY_HIGH}
     assert gemini._tools == [
         Tool(
-            function_declarations=[
-                FunctionDeclaration(
-                    name="get_current_weather",
-                    description="Get the current weather in a given location",
-                    parameters={
-                        "type_": "OBJECT",
-                        "properties": {
-                            "location": {
-                                "type_": "STRING",
-                                "description": "The city and state, e.g. San Francisco, CA",
-                            },
-                            "unit": {
-                                "type_": "STRING",
-                                "enum": [
-                                    "celsius",
-                                    "fahrenheit",
-                                ],
-                            },
-                        },
-                        "required": ["location"],
-                    },
-                )
-            ]
+            function_declarations=[GET_CURRENT_WEATHER_FUNC]
         )
     ]
     assert isinstance(gemini._model, GenerativeModel)

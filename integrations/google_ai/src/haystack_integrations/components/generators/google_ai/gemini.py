@@ -245,7 +245,7 @@ class GoogleAIGeminiGenerator:
         streaming_chunks: List[StreamingChunk] = []
 
         for chunk in stream:
-            streaming_chunk = StreamingChunk(content=chunk.text, meta=chunk.usage_metadata)
+            streaming_chunk = StreamingChunk(content=chunk.text, meta=chunk)
             streaming_chunks.append(streaming_chunk)
             streaming_callback(streaming_chunk)
 
