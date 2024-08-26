@@ -29,7 +29,6 @@ classifiers = [
 ]
 dependencies = ["haystack-ai", "requests"]
 
-
 [project.urls]
 Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/ollama#readme"
 Issues = "https://github.com/deepset-ai/haystack-core-integrations/issues"
