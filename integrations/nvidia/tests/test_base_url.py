@@ -2,6 +2,7 @@ import pytest
 
 from haystack_integrations.components.embedders.nvidia import NvidiaDocumentEmbedder, NvidiaTextEmbedder
 from haystack_integrations.components.generators.nvidia import NvidiaGenerator
+from haystack_integrations.components.rankers.nvidia import NvidiaRanker
 
 
 @pytest.mark.parametrize(
@@ -15,12 +16,12 @@ from haystack_integrations.components.generators.nvidia import NvidiaGenerator
     ],
 )
 @pytest.mark.parametrize(
-    "embedder",
-    [NvidiaDocumentEmbedder, NvidiaTextEmbedder],
+    "component",
+    [NvidiaDocumentEmbedder, NvidiaTextEmbedder, NvidiaRanker],
 )
-def test_base_url_invalid_not_hosted(base_url: str, embedder) -> None:
+def test_base_url_invalid_not_hosted(base_url: str, component) -> None:
     with pytest.raises(ValueError):
-        embedder(api_url=base_url, model="x")
+        component(api_url=base_url, model="x")
 
 
 @pytest.mark.parametrize(
@@ -60,6 +61,16 @@ def test_base_url_valid_generator(base_url: str) -> None:
         "http://localhost:8888/chat/completions",
     ],
 )
+# todo: add this to test_base_url_invalid_not_hosted
 def test_base_url_invalid_generator(base_url: str) -> None:
     with pytest.raises(ValueError):
         NvidiaGenerator(api_url=base_url, model="x")
+
+
+@pytest.mark.parametrize(
+    "base_url",
+    ["http://localhost:8080/v1/ranking", "http://0.0.0.0:8888/v1/ranking"],
+)
+def test_base_url_valid_ranker(base_url: str) -> None:
+    with pytest.warns(UserWarning):
+        NvidiaRanker(api_url=base_url)
