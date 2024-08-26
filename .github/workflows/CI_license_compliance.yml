@@ -12,7 +12,7 @@ on:
 env:
   CORE_DATADOG_API_KEY: ${{ secrets.CORE_DATADOG_API_KEY }}
   PYTHON_VERSION: "3.10"
-  EXCLUDE_PACKAGES: "(?i)^(deepeval|cohere|fastembed|ragas|haystack-pydoc-tools|tqdm).*"
+  EXCLUDE_PACKAGES: "(?i)^(deepeval|cohere|fastembed|ragas|haystack-pydoc-tools|tqdm|psycopg).*"
 
   # Exclusions must be explicitly motivated
   #
