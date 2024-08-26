@@ -41,7 +41,7 @@ jobs:
           pip install toml
           > ${{ env.REQUIREMENTS_FILE }}  # Empty the requirements file if it exists
           # if [ "${{ github.event_name }}" = "schedule" ]; then
-          if [true]; then
+          if true; then
             echo "Scheduled run: processing all pyproject.toml files..."
             find integrations -type f -name 'pyproject.toml' | while read file; do
               python .github/utils/pyproject_to_requirements.py $file >> ${{ env.REQUIREMENTS_FILE }}
