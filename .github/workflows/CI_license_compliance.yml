@@ -12,7 +12,18 @@ on:
 env:
   # CORE_DATADOG_API_KEY: ${{ secrets.CORE_DATADOG_API_KEY }}
   PYTHON_VERSION: "3.10"
-  EXCLUDE_PACKAGES: "(?i)^(tqdm|deepeval).*"
+  EXCLUDE_PACKAGES: "(?i)^(deepeval|cohere|fastembed|ragas|haystack-pydoc-tools|tqdm|psycopg).*"
+
+  # Exclusions in the vanilla must be explicitly motivated
+  #
+  # - deepeval is Apache 2.0 but the license is not available on PyPI
+  # - cohere is MIT but the license is not available on PyPI
+  # - fastembed is Apache 2.0 but the license on PyPI is unclear ("Other/Proprietary License (Apache License)")
+  # - ragas is Apache 2.0 but the license is not available on PyPI
+
+  # - haystack-pydoc-tools is Apache 2.0 but the license is not available on PyPI
+  # - tqdm is MLP but there are no better alternatives
+  # - psycopg is LGPL-3.0
 
 jobs:
   license_check_direct:
