@@ -47,16 +47,12 @@ jobs:
               python .github/utils/pyproject_to_requirements.py $file >> ${{ env.REQUIREMENTS_FILE }}
               echo "" >> ${{ env.REQUIREMENTS_FILE }}  # Add a newline for separation
             done
-          else
-            if [ "${{ steps.changed-files.outputs.any_changed }}" = "true" ]; then
-              echo "Pull request: processing changed pyproject.toml files..."
-              for file in ${{ steps.changed-files.outputs.all_changed_files }}; do
-                python .github/utils/pyproject_to_requirements.py $file >> ${{ env.REQUIREMENTS_FILE }}
-                echo "" >> ${{ env.REQUIREMENTS_FILE }}  # Add a newline for separation
-              done
-            else
-              echo "Pull request: no changed pyproject.toml files to process."
-            fi
+          else            
+            echo "Pull request: processing changed pyproject.toml files..."
+            for file in ${{ steps.changed-files.outputs.all_changed_files }}; do
+              python .github/utils/pyproject_to_requirements.py $file >> ${{ env.REQUIREMENTS_FILE }}
+              echo "" >> ${{ env.REQUIREMENTS_FILE }}  # Add a newline for separation
+            done
           fi
 
       - name: Check Licenses
