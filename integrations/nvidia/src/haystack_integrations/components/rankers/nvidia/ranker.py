@@ -239,7 +239,7 @@ class NvidiaRanker:
         )
         sorted_documents = []
         for item in sorted_indexes_and_scores[:top_k]:
-            # todo: should we copy or mutate?
+            # mutate (don't copy) the document because we're only updating the score
             doc = documents[item["index"]]
             doc.score = item["logit"]
             sorted_documents.append(doc)
