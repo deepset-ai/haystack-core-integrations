@@ -12,6 +12,10 @@ on:
 env:
   # CORE_DATADOG_API_KEY: ${{ secrets.CORE_DATADOG_API_KEY }}
   PYTHON_VERSION: "3.10"
+  EXCLUDE_PACKAGES: |
+    (?i)^(tqdm).*
+    (?i)^(deepeval).*
+    (?i)^(yet-another-package).*
 
 jobs:
   license_check_direct:
@@ -65,7 +69,7 @@ jobs:
           # Exclusions in the vanilla distribution must be explicitly motivated
           #
           # - tqdm is MLP but there are no better alternatives
-          exclude: "(?i)^(tqdm).*"
+          exclude: "${{ env.EXCLUDE_PACKAGES }}"
 
       # # We keep the license inventory on FOSSA
       # - name: Send license report to Fossa
