@@ -203,7 +203,6 @@ class GoogleAIGeminiGenerator:
         # check if streaming_callback is passed
         streaming_callback = streaming_callback or self._streaming_callback
         converted_parts = [self._convert_part(p) for p in parts]
-
         contents = [Content(parts=converted_parts, role="user")]
         res = self._model.generate_content(
             contents=contents,
@@ -242,12 +241,15 @@ class GoogleAIGeminiGenerator:
         :param streaming_callback: The handler for the streaming response.
         :returns: A list of string responses.
         """
-        streaming_chunks: List[StreamingChunk] = []
 
+        responses = []
         for chunk in stream:
-            streaming_chunk = StreamingChunk(content=chunk.text, meta=chunk)
-            streaming_chunks.append(streaming_chunk)
-            streaming_callback(streaming_chunk)
+            if len(chunk.parts) > 0 and "text" in chunk.parts[0]:
+                content = chunk.text
+            else:
+                content = ""
+            streaming_callback(StreamingChunk(content=content, meta=chunk.to_dict()))
+            responses.append(content)
 
-        responses = ["".join(streaming_chunk.content for streaming_chunk in streaming_chunks).lstrip()]
-        return responses
+        combined_response = ["".join(responses).lstrip()]
+        return combined_response

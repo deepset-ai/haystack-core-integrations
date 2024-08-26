@@ -62,6 +62,24 @@ def test_init(monkeypatch):
 def test_to_dict(monkeypatch):
     monkeypatch.setenv("GOOGLE_API_KEY", "test")
 
+    with patch("haystack_integrations.components.generators.google_ai.chat.gemini.genai.configure"):
+        gemini = GoogleAIGeminiChatGenerator()
+    assert gemini.to_dict() == {
+        "type": "haystack_integrations.components.generators.google_ai.chat.gemini.GoogleAIGeminiChatGenerator",
+        "init_parameters": {
+            "api_key": {"env_vars": ["GOOGLE_API_KEY"], "strict": True, "type": "env_var"},
+            "model": "gemini-pro-vision",
+            "generation_config": None,
+            "safety_settings": None,
+            "streaming_callback": None,
+            "tools": None,
+        },
+    }
+
+
+def test_to_dict_with_param(monkeypatch):
+    monkeypatch.setenv("GOOGLE_API_KEY", "test")
+
     generation_config = GenerationConfig(
         candidate_count=1,
         stop_sequences=["stop"],
@@ -100,24 +118,6 @@ def test_to_dict(monkeypatch):
                 b"\x08\x06:\x1f\n\x04unit\x12\x17\x08\x01*\x07celsius*\nfahrenheit::\n\x08location\x12.\x08"
                 b"\x01\x1a*The city and state, e.g. San Francisco, CAB\x08location"
             ],
-        },
-    }
-
-
-def test_to_dict_with_param(monkeypatch):
-    monkeypatch.setenv("GOOGLE_API_KEY", "test")
-
-    with patch("haystack_integrations.components.generators.google_ai.chat.gemini.genai.configure"):
-        gemini = GoogleAIGeminiChatGenerator()
-    assert gemini.to_dict() == {
-        "type": "haystack_integrations.components.generators.google_ai.chat.gemini.GoogleAIGeminiChatGenerator",
-        "init_parameters": {
-            "api_key": {"env_vars": ["GOOGLE_API_KEY"], "strict": True, "type": "env_var"},
-            "model": "gemini-pro-vision",
-            "generation_config": None,
-            "safety_settings": None,
-            "streaming_callback": None,
-            "tools": None,
         },
     }
 

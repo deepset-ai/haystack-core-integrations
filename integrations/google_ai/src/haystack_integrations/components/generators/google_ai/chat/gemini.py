@@ -345,7 +345,7 @@ class GoogleAIGeminiChatGenerator:
         """
         responses = []
         for chunk in stream:
-            content = chunk.text if "text" in chunk.parts else ""
+            content = chunk.text if len(chunk.parts) > 0 and "text" in chunk.parts[0] else ""
             streaming_callback(StreamingChunk(content=content, meta=chunk.to_dict()))
             responses.append(content)
 

@@ -5,6 +5,7 @@ import pytest
 from google.ai.generativelanguage import FunctionDeclaration, Tool
 from google.generativeai import GenerationConfig, GenerativeModel
 from google.generativeai.types import HarmBlockThreshold, HarmCategory
+from haystack.dataclasses import StreamingChunk
 
 from haystack_integrations.components.generators.google_ai import GoogleAIGeminiGenerator
 
@@ -155,6 +156,48 @@ def test_to_dict_with_param(monkeypatch):
     }
 
 
+def test_from_dict_with_param(monkeypatch):
+    monkeypatch.setenv("GOOGLE_API_KEY", "test")
+
+    with patch("haystack_integrations.components.generators.google_ai.gemini.genai.configure"):
+        gemini = GoogleAIGeminiGenerator.from_dict(
+            {
+                "type": "haystack_integrations.components.generators.google_ai.gemini.GoogleAIGeminiGenerator",
+                "init_parameters": {
+                    "model": "gemini-pro-vision",
+                    "generation_config": {
+                        "temperature": 0.5,
+                        "top_p": 0.5,
+                        "top_k": 0.5,
+                        "candidate_count": 1,
+                        "max_output_tokens": 10,
+                        "stop_sequences": ["stop"],
+                    },
+                    "safety_settings": {10: 3},
+                    "streaming_callback": None,
+                    "tools": [
+                        b"\n\xad\x01\n\x13get_current_weather\x12+Get the current weather in a given location\x1ai"
+                        b"\x08\x06:\x1f\n\x04unit\x12\x17\x08\x01*\x07celsius*\nfahrenheit::\n\x08location\x12.\x08"
+                        b"\x01\x1a*The city and state, e.g. San Francisco, CAB\x08location"
+                    ],
+                },
+            }
+        )
+
+    assert gemini._model_name == "gemini-pro-vision"
+    assert gemini._generation_config == GenerationConfig(
+        candidate_count=1,
+        stop_sequences=["stop"],
+        max_output_tokens=10,
+        temperature=0.5,
+        top_p=0.5,
+        top_k=0.5,
+    )
+    assert gemini._safety_settings == {HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_ONLY_HIGH}
+    assert gemini._tools == [Tool(function_declarations=[GET_CURRENT_WEATHER_FUNC])]
+    assert isinstance(gemini._model, GenerativeModel)
+
+
 def test_from_dict(monkeypatch):
     monkeypatch.setenv("GOOGLE_API_KEY", "test")
 
@@ -208,7 +251,7 @@ def test_run():
 def test_run_with_streaming_callback():
     streaming_callback_called = False
 
-    def streaming_callback(_chunk):
+    def streaming_callback(_chunk: StreamingChunk) -> None:
         nonlocal streaming_callback_called
         streaming_callback_called = True
 
