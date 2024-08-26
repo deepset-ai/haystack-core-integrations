@@ -41,8 +41,7 @@ def test_init(monkeypatch):
         top_k=0.5,
     )
     safety_settings = {HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_ONLY_HIGH}
-    get_current_weather_func = GET_CURRENT_WEATHER_FUNC
-    tool = Tool(function_declarations=[get_current_weather_func])
+    tool = Tool(function_declarations=[GET_CURRENT_WEATHER_FUNC])
     with patch(
         "haystack_integrations.components.generators.google_ai.chat.gemini.genai.configure"
     ) as mock_genai_configure:
@@ -89,8 +88,7 @@ def test_to_dict_with_param(monkeypatch):
         top_k=2,
     )
     safety_settings = {HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_ONLY_HIGH}
-    get_current_weather_func = GET_CURRENT_WEATHER_FUNC
-    tool = Tool(function_declarations=[get_current_weather_func])
+    tool = Tool(function_declarations=[GET_CURRENT_WEATHER_FUNC])
 
     with patch("haystack_integrations.components.generators.google_ai.chat.gemini.genai.configure"):
         gemini = GoogleAIGeminiChatGenerator(

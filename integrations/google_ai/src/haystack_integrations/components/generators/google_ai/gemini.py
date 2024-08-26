@@ -244,10 +244,7 @@ class GoogleAIGeminiGenerator:
 
         responses = []
         for chunk in stream:
-            if len(chunk.parts) > 0 and "text" in chunk.parts[0]:
-                content = chunk.text
-            else:
-                content = ""
+            content = chunk.text if len(chunk.parts) > 0 and "text" in chunk.parts[0] else ""
             streaming_callback(StreamingChunk(content=content, meta=chunk.to_dict()))
             responses.append(content)
 
