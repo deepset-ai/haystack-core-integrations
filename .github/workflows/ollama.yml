@@ -10,7 +10,6 @@ on:
       - "integrations/ollama/**"
       - ".github/workflows/ollama.yml"
 
-
 defaults:
   run:
     working-directory: integrations/ollama
