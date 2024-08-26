@@ -6,52 +6,6 @@ from haystack.utils import Secret, deserialize_secrets_inplace
 
 from haystack_integrations.utils.nvidia import NimBackend, url_validation
 
-#
-# Ranker spec
-# -----------
-#
-# Ranker is a class that ranks a list of items (documents) based on a given text (query).
-#
-# The class should have the following methods:
-#
-# - `__init__(self,
-#             model: Optional[str],
-#             top_k: int = 5,
-#             truncate: Optional[int],
-#             api_url: Optional[str],
-#             api_key: Optional[str])`
-#   Constructor method that initializes the ranker.
-#
-# - `warm_up(self)`
-#   Initializes the ranker.
-#
-# - `to_dict(self) -> Dict[str, Any]`
-#   Serializes the ranker to a dictionary.
-#
-# - `from_dict(cls, data: Dict[str, Any]) -> "Ranker"`
-#   Deserializes the ranker from a dictionary.
-#
-# - `run(self,
-#        query: str,
-#        documents: List[Document],
-#        top_k: Optional[int]) -> List[Document]`
-#   Ranks a list of documents based on a given query.
-#
-# The class should have the following attributes:
-#
-# - `model: str`
-#   The model to use for ranking.
-#
-# - `api_url: str`
-#   The URL of the API.
-#
-# - `api_key: str`
-#   The API key.
-#
-# - `truncate: Optional[Literal["NONE", "END"]]`
-#   The truncation strategy to use.
-#
-
 _DEFAULT_MODEL = "nvidia/nv-rerankqa-mistral-4b-v3"
 
 _MODEL_ENDPOINT_MAP = {
