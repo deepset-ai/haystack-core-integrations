@@ -12,10 +12,7 @@ on:
 env:
   # CORE_DATADOG_API_KEY: ${{ secrets.CORE_DATADOG_API_KEY }}
   PYTHON_VERSION: "3.10"
-  EXCLUDE_PACKAGES: |
-    (?i)^(tqdm).*
-    (?i)^(deepeval).*
-    (?i)^(yet-another-package).*
+  EXCLUDE_PACKAGES: "(?i)^(tqdm|deepeval).*"
 
 jobs:
   license_check_direct:
