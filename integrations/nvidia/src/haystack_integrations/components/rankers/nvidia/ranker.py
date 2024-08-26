@@ -92,7 +92,7 @@ class NvidiaRanker:
         model: Optional[str] = _DEFAULT_MODEL,
         truncate: Optional[Literal["NONE", "END"]] = None,
         api_url: Optional[str] = None,
-        api_key: Optional[Secret] = Secret.from_env_var("NVIDIA_API_KEY"),
+        api_key: Optional[Secret] = None,
         top_k: int = 5,
     ):
         """
@@ -124,6 +124,7 @@ class NvidiaRanker:
 
         self._model = model
         self._truncate = truncate
+        self._api_key = api_key
         # if no api_url is provided, we're using a hosted model and can
         #  - assume the default url will work, because there's only one model
         #  - assume we won't call backend.models()
@@ -136,7 +137,8 @@ class NvidiaRanker:
                 raise ValueError(msg)
             self._api_url = None  # we handle the endpoint
             self._endpoint = _MODEL_ENDPOINT_MAP[self._model]
-        self._api_key = api_key
+            if api_key is None:
+                self._api_key = Secret.from_env_var("NVIDIA_API_KEY")
         self._top_k = top_k
         self._initialized = False
 

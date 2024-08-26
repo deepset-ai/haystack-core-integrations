@@ -158,6 +158,33 @@ class TestNvidiaRanker:
         assert len(response) == 2
         assert {response[0].content, response[1].content} == {documents[0].content, documents[1].content}
 
+    @pytest.mark.skipif(
+        not os.environ.get("NVIDIA_NIM_RANKER_MODEL", None)
+        or not os.environ.get("NVIDIA_NIM_RANKER_ENDPOINT_URL", None),
+        reason="Export an env var called NVIDIA_NIM_RANKER_MODEL containing the hosted model name and "
+        "NVIDIA_NIM_RANKER_ENDPOINT_URL containing the local URL to call.",
+    )
+    @pytest.mark.integration
+    def test_nim_integration(self):
+        query = "What is it?"
+        documents = [
+            Document(content="Nothing really."),
+            Document(content="Maybe something."),
+            Document(content="Not this."),
+        ]
+
+        client = NvidiaRanker(
+            model=os.environ["NVIDIA_NIM_RANKER_MODEL"],
+            api_url=os.environ["NVIDIA_NIM_RANKER_ENDPOINT_URL"],
+            top_k=2,
+        )
+        client.warm_up()
+
+        response = client.run(query=query, documents=documents)["documents"]
+
+        assert len(response) == 2
+        assert {response[0].content, response[1].content} == {documents[0].content, documents[1].content}
+
     def test_top_k_warn(self, monkeypatch) -> None:
         monkeypatch.setenv("NVIDIA_API_KEY", "fake-api-key")
 
