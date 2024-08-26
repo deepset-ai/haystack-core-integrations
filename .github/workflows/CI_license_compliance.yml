@@ -57,12 +57,12 @@ jobs:
           # - tqdm is MLP but there are no better alternatives
           exclude: "(?i)^(tqdm).*"
 
-      # We keep the license inventory on FOSSA
-      - name: Send license report to Fossa
-        uses: fossas/fossa-action@v1.3.3
-        continue-on-error: true # not critical
-        with:
-          api-key: ${{ secrets.FOSSA_LICENSE_SCAN_TOKEN }}
+      # # We keep the license inventory on FOSSA
+      # - name: Send license report to Fossa
+      #   uses: fossas/fossa-action@v1.3.3
+      #   continue-on-error: true # not critical
+      #   with:
+      #     api-key: ${{ secrets.FOSSA_LICENSE_SCAN_TOKEN }}
 
       - name: Print report
         if: ${{ always() }}
