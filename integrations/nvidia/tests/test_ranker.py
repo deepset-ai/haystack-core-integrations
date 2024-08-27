@@ -226,10 +226,6 @@ class TestNvidiaRanker:
             client.run("query", "doc")
         assert "parameter to be a list" in str(e.value)
 
-    def test_documents_typeerror2(self, monkeypatch) -> None:
-        monkeypatch.setenv("NVIDIA_API_KEY", "fake-api-key")
-        client = NvidiaRanker()
-        client.warm_up()
         with pytest.raises(TypeError) as e:
             client.run("query", [1])
         assert "list of Document objects" in str(e.value)
