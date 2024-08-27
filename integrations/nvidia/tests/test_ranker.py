@@ -247,3 +247,10 @@ class TestNvidiaRanker:
         with pytest.raises(ValueError) as e:
             NvidiaRanker(model="unknown-model")
         assert "unknown" in str(e.value)
+
+    def test_warm_up_once(self) -> None:
+        client = NvidiaRanker()
+        client.warm_up()
+        backend = client._backend
+        client.warm_up()
+        assert backend == client._backend

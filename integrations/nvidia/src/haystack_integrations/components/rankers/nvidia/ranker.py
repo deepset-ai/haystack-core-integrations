@@ -132,18 +132,19 @@ class NvidiaRanker:
 
         :raises ValueError: If the API key is required for hosted NVIDIA NIMs.
         """
-        model_kwargs = {}
-        if self._truncate is not None:
-            model_kwargs.update(truncate=str(self._truncate))
-        self._backend = NimBackend(
-            self._model,
-            api_url=self._api_url,
-            api_key=self._api_key,
-            model_kwargs=model_kwargs,
-        )
-        if not self._model:
-            self._model = _DEFAULT_MODEL
-        self._initialized = True
+        if not self._initialized:
+            model_kwargs = {}
+            if self._truncate is not None:
+                model_kwargs.update(truncate=str(self._truncate))
+            self._backend = NimBackend(
+                self._model,
+                api_url=self._api_url,
+                api_key=self._api_key,
+                model_kwargs=model_kwargs,
+            )
+            if not self._model:
+                self._model = _DEFAULT_MODEL
+            self._initialized = True
 
     @component.output_types(documents=List[Document])
     def run(
