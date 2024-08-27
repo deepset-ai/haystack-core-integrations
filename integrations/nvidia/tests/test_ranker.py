@@ -41,7 +41,7 @@ class TestNvidiaRanker:
         client = NvidiaRanker(api_url=url)
         assert client._api_url == url
 
-    def test_warm_up_required(self, requests_mock):
+    def test_warm_up_required(self):
         client = NvidiaRanker()
         with pytest.raises(RuntimeError) as e:
             client.run("query", [Document(content="doc")])
