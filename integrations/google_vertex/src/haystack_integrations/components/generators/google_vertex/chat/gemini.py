@@ -236,7 +236,7 @@ class VertexAIGeminiChatGenerator:
         for candidate in response_body.candidates:
             for part in candidate.content.parts:
                 if part._raw_part.text != "":
-                    replies.append(ChatMessage.from_system(part.text))
+                    replies.append(ChatMessage.from_assistant(part.text))
                 elif part.function_call is not None:
                     replies.append(
                         ChatMessage(
@@ -264,4 +264,4 @@ class VertexAIGeminiChatGenerator:
             responses.append(streaming_chunk.content)
 
         combined_response = "".join(responses).lstrip()
-        return [ChatMessage.from_system(content=combined_response)]
+        return [ChatMessage.from_assistant(content=combined_response)]
