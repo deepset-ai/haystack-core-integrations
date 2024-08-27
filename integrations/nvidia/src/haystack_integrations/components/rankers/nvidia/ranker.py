@@ -22,10 +22,12 @@ class NvidiaRanker:
     Usage example:
     ```python
     from haystack_integrations.components.rankers.nvidia import NvidiaRanker
+    from haystack import Document
+    from haystack.utils import Secret
 
     ranker = NvidiaRanker(
         model="nvidia/nv-rerankqa-mistral-4b-v3",
-        api_key="your-api-key",
+        api_key=Secret.from_env_var("NVIDIA_API_KEY"),
     )
     ranker.warm_up()
 
