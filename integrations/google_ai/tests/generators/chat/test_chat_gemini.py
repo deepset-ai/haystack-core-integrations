@@ -256,8 +256,9 @@ def test_run_with_streaming_callback():
 def test_past_conversation():
     gemini_chat = GoogleAIGeminiChatGenerator(model="gemini-pro")
     messages = [
+        ChatMessage.from_system(content="You are a knowledageable mathematician."),
         ChatMessage.from_user(content="What is 2+2?"),
-        ChatMessage.from_system(content="It's an arithmetic operation."),
+        ChatMessage.from_assistant(content="It's an arithmetic operation."),
         ChatMessage.from_user(content="Yeah, but what's the result?"),
     ]
     res = gemini_chat.run(messages=messages)

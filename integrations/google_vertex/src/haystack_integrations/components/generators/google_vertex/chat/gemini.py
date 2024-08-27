@@ -164,12 +164,12 @@ class VertexAIGeminiChatGenerator:
             raise ValueError(msg)
 
     def _message_to_part(self, message: ChatMessage) -> Part:
-        if message.role == ChatRole.SYSTEM and message.name:
+        if message.role == ChatRole.ASSISTANT and message.name:
             p = Part.from_dict({"function_call": {"name": message.name, "args": {}}})
             for k, v in message.content.items():
                 p.function_call.args[k] = v
             return p
-        elif message.role == ChatRole.SYSTEM:
+        elif message.role in {ChatRole.SYSTEM, ChatRole.ASSISTANT}:
             return Part.from_text(message.content)
         elif message.role == ChatRole.FUNCTION:
             return Part.from_function_response(name=message.name, response=message.content)
@@ -177,11 +177,11 @@ class VertexAIGeminiChatGenerator:
             return self._convert_part(message.content)
 
     def _message_to_content(self, message: ChatMessage) -> Content:
-        if message.role == ChatRole.SYSTEM and message.name:
+        if message.role == ChatRole.ASSISTANT and message.name:
             part = Part.from_dict({"function_call": {"name": message.name, "args": {}}})
             for k, v in message.content.items():
                 part.function_call.args[k] = v
-        elif message.role == ChatRole.SYSTEM:
+        elif message.role in {ChatRole.SYSTEM, ChatRole.ASSISTANT}:
             part = Part.from_text(message.content)
         elif message.role == ChatRole.FUNCTION:
             part = Part.from_function_response(name=message.name, response=message.content)
@@ -241,7 +241,7 @@ class VertexAIGeminiChatGenerator:
                     replies.append(
                         ChatMessage(
                             content=dict(part.function_call.args.items()),
-                            role=ChatRole.SYSTEM,
+                            role=ChatRole.ASSISTANT,
                             name=part.function_call.name,
                         )
                     )

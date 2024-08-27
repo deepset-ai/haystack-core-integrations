@@ -241,14 +241,14 @@ class GoogleAIGeminiChatGenerator:
             raise ValueError(msg)
 
     def _message_to_part(self, message: ChatMessage) -> Part:
-        if message.role == ChatRole.SYSTEM and message.name:
+        if message.role == ChatRole.ASSISTANT and message.name:
             p = Part()
             p.function_call.name = message.name
             p.function_call.args = {}
             for k, v in message.content.items():
                 p.function_call.args[k] = v
             return p
-        elif message.role == ChatRole.SYSTEM:
+        elif message.role in {ChatRole.SYSTEM, ChatRole.ASSISTANT}:
             p = Part()
             p.text = message.content
             return p
@@ -261,13 +261,13 @@ class GoogleAIGeminiChatGenerator:
             return self._convert_part(message.content)
 
     def _message_to_content(self, message: ChatMessage) -> Content:
-        if message.role == ChatRole.SYSTEM and message.name:
+        if message.role == ChatRole.ASSISTANT and message.name:
             part = Part()
             part.function_call.name = message.name
             part.function_call.args = {}
             for k, v in message.content.items():
                 part.function_call.args[k] = v
-        elif message.role == ChatRole.SYSTEM:
+        elif message.role in {ChatRole.SYSTEM, ChatRole.ASSISTANT}:
             part = Part()
             part.text = message.content
         elif message.role == ChatRole.FUNCTION:

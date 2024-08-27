@@ -11,7 +11,7 @@ from haystack_integrations.components.generators.ollama import OllamaChatGenerat
 
 messages = [
     ChatMessage.from_user("What's Natural Language Processing?"),
-    ChatMessage.from_system(
+    ChatMessage.from_assistant(
         "Natural Language Processing (NLP) is a field of computer science and artificial "
         "intelligence concerned with the interaction between computers and human language"
     ),
