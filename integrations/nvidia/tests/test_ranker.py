@@ -248,7 +248,9 @@ class TestNvidiaRanker:
             NvidiaRanker(model="unknown-model")
         assert "unknown" in str(e.value)
 
-    def test_warm_up_once(self) -> None:
+    def test_warm_up_once(self, monkeypatch) -> None:
+        monkeypatch.setenv("NVIDIA_API_KEY", "fake-api-key")
+
         client = NvidiaRanker()
         client.warm_up()
         backend = client._backend
