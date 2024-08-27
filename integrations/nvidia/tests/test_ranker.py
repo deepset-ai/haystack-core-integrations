@@ -1,6 +1,6 @@
 import os
 import re
-from typing import Any, Dict, List, Literal, Optional, Union
+from typing import Any, Dict, List, Optional, Union
 
 import pytest
 from haystack import Document, component, default_from_dict, default_to_dict, logging
@@ -62,7 +62,7 @@ class TestNvidiaRanker:
         self,
         requests_mock,
         monkeypatch,
-        truncate: Optional[Union[RankerTruncateMode, Literal["NONE", "END"]]],
+        truncate: Optional[Union[RankerTruncateMode, str]],
     ) -> None:
         query = "What is it?"
         documents = [

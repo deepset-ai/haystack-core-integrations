@@ -13,3 +13,15 @@ class RankerTruncateMode(str, Enum):
 
     def __str__(self):
         return self.value
+
+    @classmethod
+    def from_str(cls, string: str) -> "RankerTruncateMode":
+        """
+        Create an truncate mode from a string.
+
+        :param string:
+            String to convert.
+        :returns:
+            Truncate mode.
+        """
+        return cls(string)

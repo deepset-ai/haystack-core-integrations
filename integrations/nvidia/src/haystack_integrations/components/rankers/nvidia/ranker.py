@@ -48,7 +48,7 @@ class NvidiaRanker:
     def __init__(
         self,
         model: Optional[str] = None,
-        truncate: Optional[Union[RankerTruncateMode, Literal["NONE", "END"]]] = None,
+        truncate: Optional[Union[RankerTruncateMode, str]] = None,
         api_url: Optional[str] = None,
         api_key: Optional[Secret] = None,
         top_k: int = 5,
@@ -74,7 +74,7 @@ class NvidiaRanker:
             msg = "Ranker expects the `api_url` parameter to be a string."
             raise TypeError(msg)
         if truncate is not None and not isinstance(truncate, RankerTruncateMode):
-            truncate = RankerTruncateMode(truncate)
+            truncate = RankerTruncateMode.from_str(truncate)
         if not isinstance(top_k, int):
             msg = "Ranker expects the `top_k` parameter to be an integer."
             raise TypeError(msg)
