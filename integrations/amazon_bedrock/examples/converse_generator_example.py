@@ -1,6 +1,9 @@
-﻿from haystack_integrations.components.generators.amazon_bedrock import AmazonBedrockConverseGenerator
-from utils import ConverseMessage, ToolConfig
-from haystack.core.pipeline import Pipeline
+
+
+
+from haystack import Pipeline
+from haystack_integrations.components.generators.amazon_bedrock import AmazonBedrockConverseGenerator
+from haystack_integrations.components.generators.amazon_bedrock.converse.utils import ConverseMessage,ToolConfig
 
 
 def get_current_weather(location: str, unit: str = "celsius") -> str:

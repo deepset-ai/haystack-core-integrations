@@ -1,9 +1,10 @@
-﻿import pytest
-from unittest.mock import Mock, patch
+﻿from unittest.mock import Mock, patch
+
+import pytest
+from capabilities import MODEL_CAPABILITIES, ModelCapability
+from converse_generator import AmazonBedrockConfigurationError, AmazonBedrockConverseGenerator
 from haystack.dataclasses import ChatMessage
-from converse_generator import AmazonBedrockConverseGenerator, AmazonBedrockConfigurationError
-from utils import ConverseMessage, ToolConfig, ConverseRole, ContentBlock
-from capabilities import ModelCapability, MODEL_CAPABILITIES
+from utils import ContentBlock, ConverseMessage, ConverseRole, ToolConfig
 
 
 @pytest.fixture
@@ -29,14 +30,14 @@ def test_get_model_capabilities_unsupported_model(generator):
         generator._get_model_capabilities("unsupported_model")
 
 
-@patch('converse_generator.get_aws_session')
+@patch("converse_generator.get_aws_session")
 def test_init_aws_error(mock_get_aws_session):
     mock_get_aws_session.side_effect = Exception("AWS Error")
     with pytest.raises(AmazonBedrockConfigurationError):
         AmazonBedrockConverseGenerator(model="anthropic.claude-3-haiku-20240307-v1:0")
 
 
-@patch.object(AmazonBedrockConverseGenerator, 'client')
+@patch.object(AmazonBedrockConverseGenerator, "client")
 def test_run_streaming(mock_client, generator):
     mock_stream = Mock()
     mock_client.converse_stream.return_value = {"stream": mock_stream}
@@ -54,7 +55,7 @@ def test_run_streaming(mock_client, generator):
     assert "stop_reason" in result
 
 
-@patch.object(AmazonBedrockConverseGenerator, 'client')
+@patch.object(AmazonBedrockConverseGenerator, "client")
 def test_run_non_streaming(mock_client, generator):
     mock_response = {
         "output": {"message": {"role": "assistant", "content": [{"text": "Hello, how can I help you?"}]}},

@@ -11,6 +11,7 @@ class ModelCapability(Enum):
     STREAMING_TOOL_USE = auto()
     GUARDRAILS = auto()
 
+
 # https://docs.aws.amazon.com/bedrock/latest/userguide/conversation-inference.html
 MODEL_CAPABILITIES = {
     "ai21.j2-.*-instruct": {

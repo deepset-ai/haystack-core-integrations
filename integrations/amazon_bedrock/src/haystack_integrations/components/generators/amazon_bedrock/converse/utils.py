@@ -1,9 +1,10 @@
-﻿from dataclasses import asdict, dataclass, field
-import inspect
+﻿import inspect
 import json
 import logging
-from typing import Any, Callable, List, Dict, Literal, Sequence, Tuple, Union, Optional
+from dataclasses import asdict, dataclass, field
 from enum import Enum
+from typing import Any, Callable, Dict, List, Literal, Optional, Sequence, Tuple, Union
+
 from botocore.eventstream import EventStream
 
 
@@ -36,11 +37,11 @@ class ToolConfig:
             raise ValueError("Only one of 'auto', 'any', or 'tool' can be set in toolChoice")
 
         if self.toolChoice and self.toolChoice.tool:
-            if 'name' not in self.toolChoice.tool:
+            if "name" not in self.toolChoice.tool:
                 raise ValueError("'name' is required when 'tool' is specified in toolChoice")
 
     @staticmethod
-    def from_functions(functions: List[Callable]) -> 'ToolConfig':
+    def from_functions(functions: List[Callable]) -> "ToolConfig":
         tools = []
         for func in functions:
             tool_spec = ToolSpec(
@@ -59,18 +60,18 @@ class ToolConfig:
         return ToolConfig(tools=tools)
 
     @classmethod
-    def from_dict(cls, config: Dict) -> 'ToolConfig':
-        tools = [Tool(ToolSpec(**tool['toolSpec'])) for tool in config.get('tools', [])]
+    def from_dict(cls, config: Dict) -> "ToolConfig":
+        tools = [Tool(ToolSpec(**tool["toolSpec"])) for tool in config.get("tools", [])]
 
         tool_choice = None
-        if 'toolChoice' in config:
-            tc = config['toolChoice']
-            if 'auto' in tc:
-                tool_choice = ToolChoice(auto=tc['auto'])
-            elif 'any' in tc:
-                tool_choice = ToolChoice(any=tc['any'])
-            elif 'tool' in tc:
-                tool_choice = ToolChoice(tool={'name': tc['tool']['name']})
+        if "toolChoice" in config:
+            tc = config["toolChoice"]
+            if "auto" in tc:
+                tool_choice = ToolChoice(auto=tc["auto"])
+            elif "any" in tc:
+                tool_choice = ToolChoice(any=tc["any"])
+            elif "tool" in tc:
+                tool_choice = ToolChoice(tool={"name": tc["tool"]["name"]})
 
         return cls(tools=tools, toolChoice=tool_choice)
 
@@ -95,7 +96,7 @@ class DocumentSource:
 
 @dataclass
 class DocumentBlock:
-    SUPPORTED_FORMATS = Literal['pdf', 'csv', 'doc', 'docx', 'xls', 'xlsx', 'html', 'txt', 'md']
+    SUPPORTED_FORMATS = Literal["pdf", "csv", "doc", "docx", "xls", "xlsx", "html", "txt", "md"]
     format: SUPPORTED_FORMATS
     name: str
     source: bytes
@@ -163,7 +164,7 @@ class ContentBlock:
                 )
 
     @staticmethod
-    def from_assistant(content: Sequence[Union[str, ToolUseBlock]]) -> 'ContentBlock':
+    def from_assistant(content: Sequence[Union[str, ToolUseBlock]]) -> "ContentBlock":
         return ContentBlock(content=list(content))
 
     def to_dict(self):
@@ -213,22 +214,22 @@ class ConverseMessage:
 
     @staticmethod
     def from_dict(data: Dict[str, Any]) -> "ConverseMessage":
-        role = ConverseRole(data['role'])
+        role = ConverseRole(data["role"])
         content_blocks = []
 
-        for item in data['content']:
-            if 'text' in item:
-                content_blocks.append(item['text'])
-            elif 'image' in item:
-                content_blocks.append(ImageBlock(**item['image']))
-            elif 'document' in item:
-                content_blocks.append(DocumentBlock(**item['document']))
-            elif 'toolUse' in item:
-                content_blocks.append(ToolUseBlock(**item['toolUse']))
-            elif 'toolResult' in item:
-                content_blocks.append(ToolResultBlock(**item['toolResult']))
-            elif 'guardContent' in item:
-                content_blocks.append(GuardrailConverseContentBlock(**item['guardContent']))
+        for item in data["content"]:
+            if "text" in item:
+                content_blocks.append(item["text"])
+            elif "image" in item:
+                content_blocks.append(ImageBlock(**item["image"]))
+            elif "document" in item:
+                content_blocks.append(DocumentBlock(**item["document"]))
+            elif "toolUse" in item:
+                content_blocks.append(ToolUseBlock(**item["toolUse"]))
+            elif "toolResult" in item:
+                content_blocks.append(ToolResultBlock(**item["toolResult"]))
+            elif "guardContent" in item:
+                content_blocks.append(GuardrailConverseContentBlock(**item["guardContent"]))
             else:
                 raise ValueError(f"Unknown content type in message: {item}")
 
@@ -256,19 +257,19 @@ class StreamEvent:
 
 
 def parse_event(event: Dict[str, Any]) -> StreamEvent:
-    for key in ['contentBlockStart', 'contentBlockDelta', 'contentBlockStop', 'messageStop', 'messageStart']:
+    for key in ["contentBlockStart", "contentBlockDelta", "contentBlockStop", "messageStop", "messageStart"]:
         if key in event:
             return StreamEvent(type=key, data=event[key])
-    return StreamEvent(type='metadata', data=event.get('metadata', {}))
+    return StreamEvent(type="metadata", data=event.get("metadata", {}))
 
 
 def handle_content_block_start(event: StreamEvent, current_index: int) -> Tuple[int, Union[str, ToolUseBlock]]:
-    new_index = event.data.get('contentBlockIndex', current_index + 1)
-    start_of_tool_use = event.data.get('start')
+    new_index = event.data.get("contentBlockIndex", current_index + 1)
+    start_of_tool_use = event.data.get("start")
     if start_of_tool_use:
         return new_index, ToolUseBlock(
-            toolUseId=start_of_tool_use['toolUse']['toolUseId'],
-            name=start_of_tool_use['toolUse']['name'],
+            toolUseId=start_of_tool_use["toolUse"]["toolUseId"],
+            name=start_of_tool_use["toolUse"]["name"],
             input={},
         )
     return new_index, ""
@@ -277,21 +278,21 @@ def handle_content_block_start(event: StreamEvent, current_index: int) -> Tuple[
 def handle_content_block_delta(
     event: StreamEvent, current_block: Union[str, ToolUseBlock], current_tool_use_input_str: str
 ) -> Tuple[Union[str, ToolUseBlock], str]:
-    delta = event.data.get('delta', {})
-    if 'text' in delta:
+    delta = event.data.get("delta", {})
+    if "text" in delta:
         if isinstance(current_block, str):
-            return current_block + delta['text'], current_tool_use_input_str
+            return current_block + delta["text"], current_tool_use_input_str
         else:
-            return delta['text'], current_tool_use_input_str
-    if 'toolUse' in delta:
+            return delta["text"], current_tool_use_input_str
+    if "toolUse" in delta:
         if isinstance(current_block, ToolUseBlock):
-            return current_block, current_tool_use_input_str + delta['toolUse'].get('input', '')
+            return current_block, current_tool_use_input_str + delta["toolUse"].get("input", "")
         else:
             return ToolUseBlock(
-                toolUseId=delta['toolUse']['toolUseId'],
-                name=delta['toolUse']['name'],
+                toolUseId=delta["toolUse"]["toolUseId"],
+                name=delta["toolUse"]["name"],
                 input={},
-            ), delta['toolUse'].get('input', '')
+            ), delta["toolUse"].get("input", "")
     return current_block, current_tool_use_input_str
 
 
@@ -309,7 +310,7 @@ def get_stream_message(
         for raw_event in stream:
             event = parse_event(raw_event)
 
-            if event.type == 'contentBlockStart':
+            if event.type == "contentBlockStart":
                 if current_block:
                     if isinstance(current_block, str) and streamed_contents and isinstance(streamed_contents[-1], str):
                         streamed_contents[-1] += current_block
@@ -317,7 +318,7 @@ def get_stream_message(
                         streamed_contents.append(current_block)
                 current_index, current_block = handle_content_block_start(event, current_index)
 
-            elif event.type == 'contentBlockDelta':
+            elif event.type == "contentBlockDelta":
                 new_block, new_input_str = handle_content_block_delta(event, current_block, current_tool_use_input_str)
                 if isinstance(new_block, ToolUseBlock) and new_block != current_block:
                     if current_block:
@@ -332,7 +333,7 @@ def get_stream_message(
                     current_index += 1
                 current_block, current_tool_use_input_str = new_block, new_input_str
 
-            elif event.type == 'contentBlockStop':
+            elif event.type == "contentBlockStop":
                 if isinstance(current_block, ToolUseBlock):
                     current_block.input = json.loads(current_tool_use_input_str)
                     current_tool_use_input_str = ""
@@ -345,10 +346,10 @@ def get_stream_message(
                 current_block = ""
                 current_index += 1
 
-            elif event.type == 'messageStop':
+            elif event.type == "messageStop":
                 latest_metadata["stopReason"] = event.data.get("stopReason")
 
-            latest_metadata.update(event.data if event.type == 'metadata' else {})
+            latest_metadata.update(event.data if event.type == "metadata" else {})
 
             streaming_chunk = ConverseStreamingChunk(
                 content=current_block,
@@ -359,7 +360,7 @@ def get_stream_message(
             streaming_callback(streaming_chunk)
 
     except Exception as e:
-        logging.error(f"Error processing stream: {str(e)}")
+        logging.error(f"Error processing stream: {e!s}")
         raise
 
     # Add any remaining content

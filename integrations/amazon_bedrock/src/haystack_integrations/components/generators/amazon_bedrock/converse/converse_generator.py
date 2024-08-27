@@ -3,19 +3,20 @@ import re
 from typing import Any, Callable, Dict, List, Optional, Set
 
 from botocore.exceptions import ClientError
+from .capabilities import (
+    MODEL_CAPABILITIES,
+    ModelCapability,
+)
 from haystack import component, default_from_dict, default_to_dict
 from haystack.utils.auth import Secret, deserialize_secrets_inplace
 from haystack.utils.callable_serialization import deserialize_callable, serialize_callable
+from .utils import ConverseMessage, ConverseStreamingChunk, ImageBlock, ToolConfig, get_stream_message
+
 from haystack_integrations.common.amazon_bedrock.errors import (
     AmazonBedrockConfigurationError,
     AmazonBedrockInferenceError,
 )
 from haystack_integrations.common.amazon_bedrock.utils import get_aws_session
-from capabilities import (
-    ModelCapability,
-    MODEL_CAPABILITIES,
-)
-from utils import ConverseMessage, ConverseRole, ConverseStreamingChunk, ImageBlock, ToolConfig, get_stream_message
 
 logger = logging.getLogger(__name__)
 
