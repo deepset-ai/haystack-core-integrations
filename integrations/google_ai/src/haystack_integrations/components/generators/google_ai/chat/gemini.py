@@ -331,7 +331,7 @@ class GoogleAIGeminiChatGenerator:
                     replies.append(
                         ChatMessage(
                             content=dict(part.function_call.args.items()),
-                            role=ChatRole.SYSTEM,
+                            role=ChatRole.ASSISTANT,
                             name=part.function_call.name,
                         )
                     )
