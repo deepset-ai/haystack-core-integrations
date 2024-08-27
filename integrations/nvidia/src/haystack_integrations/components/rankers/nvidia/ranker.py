@@ -103,7 +103,7 @@ class NvidiaRanker:
         """
         Serialize the ranker to a dictionary.
 
-        :return: A dictionary containing the ranker's attributes.
+        :returns: A dictionary containing the ranker's attributes.
         """
         return default_to_dict(
             self,
@@ -120,7 +120,7 @@ class NvidiaRanker:
         Deserialize the ranker from a dictionary.
 
         :param data: A dictionary containing the ranker's attributes.
-        :return: The deserialized ranker.
+        :returns: The deserialized ranker.
         """
         deserialize_secrets_inplace(data, keys=["api_key"])
         return default_from_dict(cls, data)
@@ -157,12 +157,11 @@ class NvidiaRanker:
         :param query: The query to rank the documents against.
         :param documents: The list of documents to rank.
         :param top_k: The number of documents to return.
-        :return: A list of ranked documents
 
         :raises RuntimeError: If the ranker has not been loaded.
         :raises TypeError: If the arguments are of the wrong type.
 
-        :return: A dictionary containing the ranked documents.
+        :returns: A dictionary containing the ranked documents.
         """
         if not self._initialized:
             msg = "The ranker has not been loaded. Please call warm_up() before running."
