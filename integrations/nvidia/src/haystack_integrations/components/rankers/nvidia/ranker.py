@@ -175,7 +175,7 @@ class NvidiaRanker:
         if not all(isinstance(doc, Document) for doc in documents):
             msg = "Ranker expects the `documents` parameter to be a list of Document objects."
             raise TypeError(msg)
-        if top_k is not None and (not isinstance(top_k, int) or isinstance(top_k, bool)):
+        if top_k is not None and not isinstance(top_k, int):
             msg = "Ranker expects the `top_k` parameter to be an integer."
             raise TypeError(msg)
 

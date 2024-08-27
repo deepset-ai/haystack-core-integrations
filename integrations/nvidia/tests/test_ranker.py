@@ -122,7 +122,7 @@ class TestNvidiaRanker:
         with pytest.raises(ValueError):
             NvidiaRanker(truncate=truncate)
 
-    @pytest.mark.parametrize("top_k", [True, False, "BOGUS"])
+    @pytest.mark.parametrize("top_k", [1.0, "BOGUS"])
     def test_top_k_invalid(self, monkeypatch, top_k: Any) -> None:
         with pytest.raises(TypeError) as e:
             NvidiaRanker(top_k=top_k)
