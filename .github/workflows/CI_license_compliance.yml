@@ -1,0 +1,95 @@
+name: Core / License Compliance
+
+on:
+  pull_request:
+    paths:
+    - "integrations/**/pyproject.toml"
+  # Since we test PRs, there is no need to run the workflow at each
+  # merge on `main`. Let's use a cron job instead.
+  schedule:
+    - cron: "0 0 * * *" # every day at midnight
+
+env:
+  CORE_DATADOG_API_KEY: ${{ secrets.CORE_DATADOG_API_KEY }}
+  PYTHON_VERSION: "3.10"
+  EXCLUDE_PACKAGES: "(?i)^(deepeval|cohere|fastembed|ragas|tqdm|psycopg).*"
+
+  # Exclusions must be explicitly motivated
+  #
+  # - deepeval is Apache 2.0 but the license is not available on PyPI
+  # - cohere is MIT but the license is not available on PyPI
+  # - fastembed is Apache 2.0 but the license on PyPI is unclear ("Other/Proprietary License (Apache License)")
+  # - ragas is Apache 2.0 but the license is not available on PyPI
+
+  # - tqdm is MLP but there are no better alternatives
+  # - psycopg is LGPL-3.0 but FOSSA is fine with it
+
+jobs:
+  license_check_direct:
+    name: Direct dependencies only
+    env:
+      REQUIREMENTS_FILE: requirements_direct.txt
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout the code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "${{ env.PYTHON_VERSION }}"
+
+      - name: Get changed pyproject files (for pull requests only)
+        if: ${{ github.event_name == 'pull_request' }}
+        id: changed-files
+        uses: tj-actions/changed-files@v45
+        with:
+          files: |
+            integrations/**/pyproject.toml       
+
+      - name: Get direct dependencies from pyproject.toml files
+        run: |
+          pip install toml
+
+          # Determine the list of pyproject.toml files to process
+          if [ "${{ github.event_name }}" = "schedule" ]; then
+            echo "Scheduled run: processing all pyproject.toml files..."
+            FILES=$(find integrations -type f -name 'pyproject.toml')
+          else
+            echo "Pull request: processing changed pyproject.toml files..."
+            FILES="${{ steps.changed-files.outputs.all_changed_files }}"
+          fi
+
+          for file in $FILES; do
+            python .github/utils/pyproject_to_requirements.py $file >> ${{ env.REQUIREMENTS_FILE }}
+            echo "" >> ${{ env.REQUIREMENTS_FILE }}
+          done
+
+      - name: Check Licenses
+        id: license_check_report
+        uses: pilosus/action-pip-license-checker@v2
+        with:
+          github-token: ${{ secrets.GH_ACCESS_TOKEN }}
+          requirements: ${{ env.REQUIREMENTS_FILE }}
+          fail: "Copyleft,Other,Error"
+          exclude: "${{ env.EXCLUDE_PACKAGES }}"
+
+      # We keep the license inventory on FOSSA
+      - name: Send license report to Fossa
+        uses: fossas/fossa-action@v1.3.3
+        continue-on-error: true # not critical
+        with:
+          api-key: ${{ secrets.FOSSA_LICENSE_SCAN_TOKEN }}
+
+      - name: Print report
+        if: ${{ always() }}
+        run: echo "${{ steps.license_check_report.outputs.report }}"
+
+      - name: Send event to Datadog for nightly failures
+        if: failure() && github.event_name == 'schedule'
+        uses: ./.github/actions/send_failure
+        with:
+          title: |
+            Core integrations license compliance nightly failure: ${{ github.workflow }}
+          api-key: ${{ secrets.CORE_DATADOG_API_KEY }}
+          
