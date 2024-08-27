@@ -15,7 +15,6 @@ from haystack.utils.filters import convert as convert_legacy_filters
 from qdrant_client import grpc
 from qdrant_client.http import models as rest
 from qdrant_client.http.exceptions import UnexpectedResponse
-from qdrant_client.hybrid.fusion import reciprocal_rank_fusion
 from tqdm import tqdm
 
 from .converters import (
@@ -537,20 +536,18 @@ class QdrantDocumentStore:
         qdrant_filters = convert_filters_to_qdrant(filters)
         query_indices = query_sparse_embedding.indices
         query_values = query_sparse_embedding.values
-        points = self.client.search(
+        points = self.client.query_points(
             collection_name=self.index,
-            query_vector=rest.NamedSparseVector(
-                name=SPARSE_VECTORS_NAME,
-                vector=rest.SparseVector(
-                    indices=query_indices,
-                    values=query_values,
-                ),
+            query=rest.SparseVector(
+                indices=query_indices,
+                values=query_values,
             ),
+            using=SPARSE_VECTORS_NAME,
             query_filter=qdrant_filters,
             limit=top_k,
             with_vectors=return_embedding,
             score_threshold=score_threshold,
-        )
+        ).points
         results = [
             convert_qdrant_point_to_haystack_document(point, use_sparse_embeddings=self.use_sparse_embeddings)
             for point in points
@@ -588,17 +585,15 @@ class QdrantDocumentStore:
         """
         qdrant_filters = convert_filters_to_qdrant(filters)
 
-        points = self.client.search(
+        points = self.client.query_points(
             collection_name=self.index,
-            query_vector=rest.NamedVector(
-                name=DENSE_VECTORS_NAME if self.use_sparse_embeddings else "",
-                vector=query_embedding,
-            ),
+            query=query_embedding,
+            using=DENSE_VECTORS_NAME if self.use_sparse_embeddings else None,
             query_filter=qdrant_filters,
             limit=top_k,
             with_vectors=return_embedding,
             score_threshold=score_threshold,
-        )
+        ).points
         results = [
             convert_qdrant_point_to_haystack_document(point, use_sparse_embeddings=self.use_sparse_embeddings)
             for point in points
@@ -655,44 +650,32 @@ class QdrantDocumentStore:
 
         qdrant_filters = convert_filters_to_qdrant(filters)
 
-        sparse_request = rest.SearchRequest(
-            vector=rest.NamedSparseVector(
-                name=SPARSE_VECTORS_NAME,
-                vector=rest.SparseVector(
-                    indices=query_sparse_embedding.indices,
-                    values=query_sparse_embedding.values,
-                ),
-            ),
-            filter=qdrant_filters,
-            limit=top_k,
-            with_payload=True,
-            with_vector=return_embedding,
-            score_threshold=score_threshold,
-        )
-
-        dense_request = rest.SearchRequest(
-            vector=rest.NamedVector(
-                name=DENSE_VECTORS_NAME,
-                vector=query_embedding,
-            ),
-            filter=qdrant_filters,
-            limit=top_k,
-            with_payload=True,
-            with_vector=return_embedding,
-        )
-
         try:
-            dense_request_response, sparse_request_response = self.client.search_batch(
-                collection_name=self.index, requests=[dense_request, sparse_request]
-            )
+            points = self.client.query_points(
+                collection_name=self.index,
+                prefetch=[
+                    rest.Prefetch(
+                        query=rest.SparseVector(
+                            indices=query_sparse_embedding.indices,
+                            values=query_sparse_embedding.values,
+                        ),
+                        using=SPARSE_VECTORS_NAME,
+                        filter=qdrant_filters,
+                    ),
+                    rest.Prefetch(
+                        query=query_embedding,
+                        using=DENSE_VECTORS_NAME,
+                        filter=qdrant_filters,
+                    ),
+                ],
+                query=rest.FusionQuery(fusion=rest.Fusion.RRF),
+                limit=top_k,
+                score_threshold=score_threshold,
+                with_payload=True,
+                with_vectors=return_embedding,
+            ).points
         except Exception as e:
             msg = "Error during hybrid search"
-            raise QdrantStoreError(msg) from e
-
-        try:
-            points = reciprocal_rank_fusion(responses=[dense_request_response, sparse_request_response], limit=top_k)
-        except Exception as e:
-            msg = "Error while applying Reciprocal Rank Fusion"
             raise QdrantStoreError(msg) from e
 
         results = [convert_qdrant_point_to_haystack_document(point, use_sparse_embeddings=True) for point in points]

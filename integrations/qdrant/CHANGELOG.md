@@ -1,5 +1,15 @@
 # Changelog
 
+## [integrations/qdrant-v4.2.0] - 2024-08-27
+
+### 🚜 Refactor
+
+- Qdrant Query API (#1025)
+
+### 🧪 Testing
+
+- Do not retry tests in `hatch run test` command (#954)
+
 ## [integrations/qdrant-v4.1.2] - 2024-07-15
 
 ### 🐛 Bug Fixes
