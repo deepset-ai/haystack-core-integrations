@@ -2,8 +2,8 @@ name: Core / License Compliance
 
 on:
   pull_request:
-    paths:
-    - "integrations/**/pyproject.toml"
+    # paths:
+    # - "integrations/**/pyproject.toml"
   # Since we test PRs, there is no need to run the workflow at each
   # merge on `main`. Let's use a cron job instead.
   schedule:
@@ -52,7 +52,8 @@ jobs:
           pip install toml
 
           # Determine the list of pyproject.toml files to process
-          if [ "${{ github.event_name }}" = "schedule" ]; then
+          # if [ "${{ github.event_name }}" = "schedule" ]; then
+          if true; then
             echo "Scheduled run: processing all pyproject.toml files..."
             FILES=$(find integrations -type f -name 'pyproject.toml')
           else
@@ -92,4 +93,3 @@ jobs:
           title: |
             Core integrations license compliance nightly failure: ${{ github.workflow }}
           api-key: ${{ secrets.CORE_DATADOG_API_KEY }}
-          
