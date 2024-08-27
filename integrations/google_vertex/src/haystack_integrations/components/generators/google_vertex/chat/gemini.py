@@ -1,5 +1,5 @@
 import logging
-from typing import Any, Callable, Dict, List, Optional, Union
+from typing import Any, Callable, Dict, Iterable, List, Optional, Union
 
 from haystack.core.component import component
 from haystack.core.serialization import default_from_dict, default_to_dict
@@ -11,6 +11,7 @@ from vertexai import init as vertexai_init
 from vertexai.preview.generative_models import (
     Content,
     GenerationConfig,
+    GenerationResponse,
     GenerativeModel,
     HarmBlockThreshold,
     HarmCategory,
@@ -220,11 +221,11 @@ class VertexAIGeminiChatGenerator:
             stream=streaming_callback is not None,
         )
 
-        replies = self.get_stream_response(res, streaming_callback) if streaming_callback else self.get_response(res)
+        replies = self._get_stream_response(res, streaming_callback) if streaming_callback else self._get_response(res)
 
         return {"replies": replies}
 
-    def get_response(self, response_body) -> List[ChatMessage]:
+    def _get_response(self, response_body: GenerationResponse) -> List[ChatMessage]:
         """
         Extracts the responses from the Vertex AI response.
 
@@ -246,7 +247,9 @@ class VertexAIGeminiChatGenerator:
                     )
         return replies
 
-    def get_stream_response(self, stream, streaming_callback: Callable[[StreamingChunk], None]) -> List[ChatMessage]:
+    def _get_stream_response(
+        self, stream: Iterable[GenerationResponse], streaming_callback: Callable[[StreamingChunk], None]
+    ) -> List[ChatMessage]:
         """
         Extracts the responses from the Vertex AI streaming response.
 
