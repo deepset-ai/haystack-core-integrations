@@ -144,7 +144,7 @@ class NvidiaRanker:
             self._model = _DEFAULT_MODEL
         self._initialized = True
 
-    @component.output_types(replies=List[Document])
+    @component.output_types(documents=List[Document])
     def run(
         self,
         query: str,
