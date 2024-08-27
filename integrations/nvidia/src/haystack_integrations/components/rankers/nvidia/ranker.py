@@ -74,7 +74,7 @@ class NvidiaRanker:
         if truncate is not None and truncate not in ["NONE", "END"]:
             msg = "Invalid truncate value. Must be 'NONE' or 'END'."
             raise ValueError(msg)
-        if not isinstance(top_k, int) or isinstance(top_k, bool):
+        if not isinstance(top_k, int):
             msg = "Ranker expects the `top_k` parameter to be an integer."
             raise TypeError(msg)
 
