@@ -61,7 +61,6 @@ def test_base_url_valid_generator(base_url: str) -> None:
         "http://localhost:8888/chat/completions",
     ],
 )
-# todo: add this to test_base_url_invalid_not_hosted
 def test_base_url_invalid_generator(base_url: str) -> None:
     with pytest.raises(ValueError):
         NvidiaGenerator(api_url=base_url, model="x")
