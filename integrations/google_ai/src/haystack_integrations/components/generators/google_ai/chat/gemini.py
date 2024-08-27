@@ -5,7 +5,7 @@ import google.generativeai as genai
 from google.ai.generativelanguage import Content, Part
 from google.ai.generativelanguage import Tool as ToolProto
 from google.generativeai import GenerationConfig, GenerativeModel
-from google.generativeai.types import HarmBlockThreshold, HarmCategory, Tool
+from google.generativeai.types import GenerateContentResponse, HarmBlockThreshold, HarmCategory, Tool
 from haystack.core.component import component
 from haystack.core.serialization import default_from_dict, default_to_dict
 from haystack.dataclasses import ByteStream, StreamingChunk
@@ -293,6 +293,8 @@ class GoogleAIGeminiChatGenerator:
 
         :param messages:
             A list of `ChatMessage` instances, representing the input messages.
+        :param streaming_callback:
+            A callback function that is called when a new token is received from the stream.
         :returns:
             A dictionary containing the following key:
             - `replies`:  A list containing the generated responses as `ChatMessage` instances.
@@ -309,11 +311,11 @@ class GoogleAIGeminiChatGenerator:
             stream=streaming_callback is not None,
         )
 
-        replies = self.get_stream_response(res, streaming_callback) if streaming_callback else self.get_response(res)
+        replies = self._get_stream_response(res, streaming_callback) if streaming_callback else self._get_response(res)
 
         return {"replies": replies}
 
-    def get_response(self, response_body) -> List[ChatMessage]:
+    def _get_response(self, response_body: GenerateContentResponse) -> List[ChatMessage]:
         """
         Extracts the responses from the Google AI response.
 
@@ -335,7 +337,9 @@ class GoogleAIGeminiChatGenerator:
                     )
         return replies
 
-    def get_stream_response(self, stream, streaming_callback: Callable[[StreamingChunk], None]) -> List[ChatMessage]:
+    def _get_stream_response(
+        self, stream: GenerateContentResponse, streaming_callback: Callable[[StreamingChunk], None]
+    ) -> List[ChatMessage]:
         """
         Extracts the responses from the Google AI streaming response.
 

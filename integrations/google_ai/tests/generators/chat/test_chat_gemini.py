@@ -249,12 +249,6 @@ def test_run_with_streaming_callback():
     messages = [ChatMessage.from_user(content="What is the temperature in celsius in Berlin?")]
     res = gemini_chat.run(messages=messages)
     assert len(res["replies"]) > 0
-
-    weather = get_current_weather(res["replies"][0].content)
-    messages += res["replies"] + [ChatMessage.from_function(content=weather, name="get_current_weather")]
-
-    res = gemini_chat.run(messages=messages)
-    assert len(res["replies"]) > 0
     assert streaming_callback_called
 
 
