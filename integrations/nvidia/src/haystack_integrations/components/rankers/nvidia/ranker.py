@@ -45,7 +45,7 @@ class NvidiaRanker:
 
     def __init__(
         self,
-        model: Optional[str] = _DEFAULT_MODEL,
+        model: Optional[str] = None,
         truncate: Optional[Literal["NONE", "END"]] = None,
         api_url: Optional[str] = None,
         api_key: Optional[Secret] = None,
@@ -65,7 +65,7 @@ class NvidiaRanker:
         :param top_k:
             Number of documents to return.
         """
-        if not isinstance(model, str):
+        if model is not None and not isinstance(model, str):
             msg = "Ranker expects the `model` parameter to be a string."
             raise TypeError(msg)
         if not isinstance(api_url, (str, type(None))):
@@ -78,7 +78,8 @@ class NvidiaRanker:
             msg = "Ranker expects the `top_k` parameter to be an integer."
             raise TypeError(msg)
 
-        self._model = model
+        # todo: detect default in non-hosted case (when api_url is provided)
+        self._model = model or _DEFAULT_MODEL
         self._truncate = truncate
         self._api_key = api_key
         # if no api_url is provided, we're using a hosted model and can
@@ -88,7 +89,7 @@ class NvidiaRanker:
             self._api_url = url_validation(api_url, None, ["v1/ranking"])
             self._endpoint = None  # we let backend.rank() handle the endpoint
         else:
-            if model not in _MODEL_ENDPOINT_MAP:
+            if self._model not in _MODEL_ENDPOINT_MAP:
                 msg = f"Model '{model}' is unknown. Please provide an api_url to access it."
                 raise ValueError(msg)
             self._api_url = None  # we handle the endpoint
