@@ -1,10 +1,10 @@
 import os
 import re
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Optional, Union
 
 import pytest
-from haystack import Document, component, default_from_dict, default_to_dict, logging
-from haystack.utils import Secret, deserialize_secrets_inplace
+from haystack import Document
+from haystack.utils import Secret
 
 from haystack_integrations.components.rankers.nvidia import NvidiaRanker
 from haystack_integrations.components.rankers.nvidia.ranker import _DEFAULT_MODEL
