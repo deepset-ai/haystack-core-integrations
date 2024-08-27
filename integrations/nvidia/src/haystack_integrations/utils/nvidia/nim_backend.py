@@ -137,7 +137,7 @@ class NimBackend:
         documents: List[Document],
         endpoint: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
-        url = endpoint if endpoint else f"{self.api_url}/ranking"
+        url = endpoint or f"{self.api_url}/ranking"
 
         res = self.session.post(
             url,
