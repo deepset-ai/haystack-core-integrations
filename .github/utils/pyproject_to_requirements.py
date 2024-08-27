@@ -12,7 +12,7 @@ def main(pyproject_path: Path, exclude_optional_dependencies: bool = False):
         for dep_list in optional_deps.values():
             deps.update(dep_list)
 
-    sys.stdout.write("\n".join(sorted(deps)) + "\n")
+    print("\n".join(sorted(deps)))
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
