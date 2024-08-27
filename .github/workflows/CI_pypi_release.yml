@@ -48,7 +48,7 @@ jobs:
         run: hatch publish -y
 
       - name: Generate changelog
-        uses: orhun/git-cliff-action@v3
+        uses: orhun/git-cliff-action@v4
         env:
           OUTPUT: "${{ steps.pathfinder.outputs.project_path }}/CHANGELOG.md"
         with:
