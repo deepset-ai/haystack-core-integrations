@@ -1,6 +1,6 @@
 import os
 import re
-from typing import Any, Dict, List, Literal, Optional
+from typing import Any, Dict, List, Literal, Optional, Union
 
 import pytest
 from haystack import Document, component, default_from_dict, default_to_dict, logging
@@ -8,6 +8,7 @@ from haystack.utils import Secret, deserialize_secrets_inplace
 
 from haystack_integrations.components.rankers.nvidia import NvidiaRanker
 from haystack_integrations.components.rankers.nvidia.ranker import _DEFAULT_MODEL
+from haystack_integrations.components.rankers.nvidia.truncate import RankerTruncateMode
 
 
 class TestNvidiaRanker:
@@ -27,7 +28,7 @@ class TestNvidiaRanker:
         assert client._api_key == Secret.from_token("fake-api-key")
         assert client._model == _DEFAULT_MODEL
         assert client._top_k == 3
-        assert client._truncate == "END"
+        assert client._truncate == RankerTruncateMode.END
 
     def test_init_fail_wo_api_key(self, monkeypatch):
         monkeypatch.delenv("NVIDIA_API_KEY", raising=False)
@@ -52,13 +53,16 @@ class TestNvidiaRanker:
             None,
             "END",
             "NONE",
+            RankerTruncateMode.END,
+            RankerTruncateMode.NONE,
         ],
+        ids=["None", "END-str", "NONE-str", "END-enum", "NONE-enum"],
     )
     def test_mocked(
         self,
         requests_mock,
         monkeypatch,
-        truncate: Optional[Literal["END", "NONE"]],
+        truncate: Optional[Union[RankerTruncateMode, Literal["NONE", "END"]]],
     ) -> None:
         query = "What is it?"
         documents = [
@@ -100,7 +104,7 @@ class TestNvidiaRanker:
             assert "truncate" not in request_payload
         else:
             assert "truncate" in request_payload
-            assert request_payload["truncate"] == truncate
+            assert request_payload["truncate"] == str(truncate)
 
         assert len(response) == 2
         assert response[0].content == documents[1].content
@@ -119,8 +123,9 @@ class TestNvidiaRanker:
 
     @pytest.mark.parametrize("truncate", [True, False, 1, 0, 1.0, "START", "BOGUS"])
     def test_truncate_invalid(self, truncate: Any) -> None:
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError) as e:
             NvidiaRanker(truncate=truncate)
+        assert "not a valid RankerTruncateMode" in str(e.value)
 
     @pytest.mark.parametrize("top_k", [1.0, "BOGUS"])
     def test_top_k_invalid(self, monkeypatch, top_k: Any) -> None:

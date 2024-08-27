@@ -1,10 +1,12 @@
 import warnings
-from typing import Any, Dict, List, Literal, Optional
+from typing import Any, Dict, List, Literal, Optional, Union
 
 from haystack import Document, component, default_from_dict, default_to_dict
 from haystack.utils import Secret, deserialize_secrets_inplace
 
 from haystack_integrations.utils.nvidia import NimBackend, url_validation
+
+from .truncate import RankerTruncateMode
 
 _DEFAULT_MODEL = "nvidia/nv-rerankqa-mistral-4b-v3"
 
@@ -46,7 +48,7 @@ class NvidiaRanker:
     def __init__(
         self,
         model: Optional[str] = None,
-        truncate: Optional[Literal["NONE", "END"]] = None,
+        truncate: Optional[Union[RankerTruncateMode, Literal["NONE", "END"]]] = None,
         api_url: Optional[str] = None,
         api_key: Optional[Secret] = None,
         top_k: int = 5,
@@ -57,7 +59,7 @@ class NvidiaRanker:
         :param model:
             Ranking model to use.
         :param truncate:
-            Truncation strategy to use. Can be "NONE" or "END". Defaults to NIM's default.
+            Truncation strategy to use. Can be "NONE", "END", or RankerTruncateMode. Defaults to NIM's default.
         :param api_key:
             API key for the NVIDIA NIM.
         :param api_url:
@@ -71,9 +73,8 @@ class NvidiaRanker:
         if not isinstance(api_url, (str, type(None))):
             msg = "Ranker expects the `api_url` parameter to be a string."
             raise TypeError(msg)
-        if truncate is not None and truncate not in ["NONE", "END"]:
-            msg = "Invalid truncate value. Must be 'NONE' or 'END'."
-            raise ValueError(msg)
+        if truncate is not None and not isinstance(truncate, RankerTruncateMode):
+            truncate = RankerTruncateMode(truncate)
         if not isinstance(top_k, int):
             msg = "Ranker expects the `top_k` parameter to be an integer."
             raise TypeError(msg)
@@ -133,7 +134,7 @@ class NvidiaRanker:
         """
         model_kwargs = {}
         if self._truncate is not None:
-            model_kwargs.update(truncate=self._truncate)
+            model_kwargs.update(truncate=str(self._truncate))
         self._backend = NimBackend(
             self._model,
             api_url=self._api_url,
