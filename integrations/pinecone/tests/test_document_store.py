@@ -298,10 +298,10 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, WriteDocumentsT
         embedding_retriever = PineconeEmbeddingRetriever(document_store=doc_store)
         retrieved_doc = embedding_retriever.run(query_embedding=query_embedding, top_k=1, filters={})
         sentence_window_retriever = SentenceWindowRetriever(document_store=doc_store, window_size=2)
-        sentence_window_result = sentence_window_retriever.run(retrieved_documents=[retrieved_doc["documents"][0]])
+        result = sentence_window_retriever.run(retrieved_documents=[retrieved_doc["documents"][0]])
 
-        assert len(sentence_window_result["context_windows"]) == 1
-        assert len(sentence_window_result["context_documents"]) == 4
+        assert len(result["context_windows"]) == 1
+        assert len(result["context_documents"][0]) == 4
 
         # clean up
         try:
