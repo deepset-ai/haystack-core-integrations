@@ -2,6 +2,7 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple
 
 import requests
+from haystack import Document
 from haystack.utils import Secret
 
 REQUEST_TIMEOUT = 60
@@ -129,3 +130,28 @@ class NimBackend:
             msg = f"No hosted model were found at URL '{url}'."
             raise ValueError(msg)
         return models
+
+    def rank(
+        self,
+        query: str,
+        documents: List[Document],
+        endpoint: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
+        url = endpoint or f"{self.api_url}/ranking"
+
+        res = self.session.post(
+            url,
+            json={
+                "model": self.model,
+                "query": {"text": query},
+                "passages": [{"text": doc.content} for doc in documents],
+                **self.model_kwargs,
+            },
+            timeout=REQUEST_TIMEOUT,
+        )
+        res.raise_for_status()
+
+        data = res.json()
+        assert "rankings" in data, f"Expected 'rankings' in response, got {data}"
+
+        return data["rankings"]
