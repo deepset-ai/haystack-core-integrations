@@ -300,6 +300,8 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, WriteDocumentsT
             doc.embedding = np.random.rand(25).tolist()
         doc_store.write_documents(docs["documents"])
 
+        time.sleep(sleep_time)
+
         # query
         embedding_retriever = PineconeEmbeddingRetriever(document_store=doc_store)
         query_embedding = [0.1] * 25
