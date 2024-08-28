@@ -75,10 +75,10 @@ class GoogleAIGeminiGenerator:
         """
         Initializes a `GoogleAIGeminiGenerator` instance.
 
-        To get an API key, visit: https://makersuite.google.com.
+        To get an API key, visit: https://makersuite.google.com
 
         :param api_key: Google AI Studio API key.
-        :param model: Name of the model to use. To check the supported models, https://ai.google.dev/gemini-api/docs/models/gemini.
+        :param model: Name of the model to use. For available models, see https://ai.google.dev/gemini-api/docs/models/gemini
         :param generation_config: The generation configuration to use.
             This can either be a `GenerationConfig` object or a dictionary of parameters.
             For available parameters, see
