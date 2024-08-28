@@ -317,4 +317,3 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, WriteDocumentsT
             client.delete_index(name=index_name)
         except Exception:  # noqa S110
             pass
-
