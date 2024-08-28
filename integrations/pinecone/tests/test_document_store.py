@@ -311,3 +311,10 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, WriteDocumentsT
 
         assert len(result["context_windows"]) == 1
         assert len(result["context_documents"][0]) == 5
+
+        # clean up
+        try:
+            client.delete_index(name=index_name)
+        except Exception:  # noqa S110
+            pass
+
