@@ -26,9 +26,6 @@ class VertexAIGeminiGenerator:
     """
     `VertexAIGeminiGenerator` enables text generation using Google Gemini models.
 
-    `VertexAIGeminiGenerator` supports both `gemini-pro` and `gemini-1.5-flash` models.
-    Prompting with images requires `gemini-1.5-flash`. Function calling, instead, requires `gemini-pro`.
-
     Usage example:
     ```python
     from haystack_integrations.components.generators.google_vertex import VertexAIGeminiGenerator
@@ -70,7 +67,7 @@ class VertexAIGeminiGenerator:
         For more information see the official [Google documentation](https://cloud.google.com/docs/authentication/provide-credentials-adc).
 
         :param project_id: ID of the GCP project to use.
-        :param model: Name of the model to use.
+        :param model: Name of the model to use. For available models, see https://cloud.google.com/vertex-ai/generative-ai/docs/learn/models.
         :param location: The default location to use when making API calls, if not set uses us-central-1.
         :param generation_config: The generation config to use.
             Can either be a [`GenerationConfig`](https://cloud.google.com/python/docs/reference/aiplatform/latest/vertexai.preview.generative_models.GenerationConfig)
