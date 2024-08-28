@@ -262,49 +262,50 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, WriteDocumentsT
         assert results[1].content == "2nd best document"
 
     @pytest.mark.skipif("PINECONE_API_KEY" not in os.environ, reason="PINECONE_API_KEY not set")
-    def test_sentence_window_retriever(self):
+    def test_sentence_window_retriever(self, sleep_time):
 
-        index_name = "sentence-window-test"
+        index_name = os.environ.get("INDEX_NAME", "serverless-test-index")
 
-        # start with a clean index
         client = Pinecone(api_key=os.environ["PINECONE_API_KEY"])
         try:
             client.delete_index(name=index_name)
         except Exception:  # noqa S110
             pass
 
+        time.sleep(sleep_time)
+
         doc_store = PineconeDocumentStore(
             index=index_name,
-            namespace="default",
-            dimension=384,
+            namespace="test",
+            dimension=25,
             metric="cosine",
             spec={"serverless": {"region": "us-east-1", "cloud": "aws"}},
         )
+
+        # Trigger the connection
+        _ = doc_store.index
 
         # indexing
         splitter = DocumentSplitter(split_length=10, split_overlap=5, split_by="word")
         text = (
             "Whose woods these are I think I know. His house is in the village though; He will not see me stopping "
-            "here To watch his woods fill up with snow. My little horse must think it queer To stop without a "
-            "farmhouse near Between the woods and frozen lake The darkest evening of the year."
+            "here To watch his woods fill up with snow."
         )
         docs = splitter.run(documents=[Document(content=text)])
-        for doc in docs["documents"]:
-            doc.embedding = np.random.rand(384).tolist()
+
+        for idx, doc in enumerate(docs["documents"]):
+            if idx == 2:
+                doc.embedding = [0.1] * 25
+                continue
+            doc.embedding = np.random.rand(25).tolist()
         doc_store.write_documents(docs["documents"])
 
         # query
-        query_embedding = [0.1] * 384
         embedding_retriever = PineconeEmbeddingRetriever(document_store=doc_store)
+        query_embedding = [0.1] * 25
         retrieved_doc = embedding_retriever.run(query_embedding=query_embedding, top_k=1, filters={})
         sentence_window_retriever = SentenceWindowRetriever(document_store=doc_store, window_size=2)
         result = sentence_window_retriever.run(retrieved_documents=[retrieved_doc["documents"][0]])
 
         assert len(result["context_windows"]) == 1
-        assert len(result["context_documents"][0]) == 4
-
-        # clean up
-        try:
-            client.delete_index(name=index_name)
-        except Exception:  # noqa S110
-            pass
+        assert len(result["context_documents"][0]) == 5
