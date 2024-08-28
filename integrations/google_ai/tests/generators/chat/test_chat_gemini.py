@@ -51,7 +51,7 @@ def test_init(monkeypatch):
             tools=[tool],
         )
     mock_genai_configure.assert_called_once_with(api_key="test")
-    assert gemini._model_name == "gemini-pro-vision"
+    assert gemini._model_name == "gemini-1.5-flash"
     assert gemini._generation_config == generation_config
     assert gemini._safety_settings == safety_settings
     assert gemini._tools == [tool]
@@ -67,7 +67,7 @@ def test_to_dict(monkeypatch):
         "type": "haystack_integrations.components.generators.google_ai.chat.gemini.GoogleAIGeminiChatGenerator",
         "init_parameters": {
             "api_key": {"env_vars": ["GOOGLE_API_KEY"], "strict": True, "type": "env_var"},
-            "model": "gemini-pro-vision",
+            "model": "gemini-1.5-flash",
             "generation_config": None,
             "safety_settings": None,
             "streaming_callback": None,
@@ -100,7 +100,7 @@ def test_to_dict_with_param(monkeypatch):
         "type": "haystack_integrations.components.generators.google_ai.chat.gemini.GoogleAIGeminiChatGenerator",
         "init_parameters": {
             "api_key": {"env_vars": ["GOOGLE_API_KEY"], "strict": True, "type": "env_var"},
-            "model": "gemini-pro-vision",
+            "model": "gemini-1.5-flash",
             "generation_config": {
                 "temperature": 0.5,
                 "top_p": 0.5,
@@ -129,7 +129,7 @@ def test_from_dict(monkeypatch):
                 "type": "haystack_integrations.components.generators.google_ai.chat.gemini.GoogleAIGeminiChatGenerator",
                 "init_parameters": {
                     "api_key": {"env_vars": ["GOOGLE_API_KEY"], "strict": True, "type": "env_var"},
-                    "model": "gemini-pro-vision",
+                    "model": "gemini-1.5-flash",
                     "generation_config": None,
                     "safety_settings": None,
                     "streaming_callback": None,
@@ -138,7 +138,7 @@ def test_from_dict(monkeypatch):
             }
         )
 
-    assert gemini._model_name == "gemini-pro-vision"
+    assert gemini._model_name == "gemini-1.5-flash"
     assert gemini._generation_config is None
     assert gemini._safety_settings is None
     assert gemini._tools is None
@@ -154,7 +154,7 @@ def test_from_dict_with_param(monkeypatch):
                 "type": "haystack_integrations.components.generators.google_ai.chat.gemini.GoogleAIGeminiChatGenerator",
                 "init_parameters": {
                     "api_key": {"env_vars": ["GOOGLE_API_KEY"], "strict": True, "type": "env_var"},
-                    "model": "gemini-pro-vision",
+                    "model": "gemini-1.5-flash",
                     "generation_config": {
                         "temperature": 0.5,
                         "top_p": 0.5,
@@ -174,7 +174,7 @@ def test_from_dict_with_param(monkeypatch):
             }
         )
 
-    assert gemini._model_name == "gemini-pro-vision"
+    assert gemini._model_name == "gemini-1.5-flash"
     assert gemini._generation_config == GenerationConfig(
         candidate_count=1,
         stop_sequences=["stop"],
