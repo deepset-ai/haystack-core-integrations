@@ -4,11 +4,9 @@ from unittest.mock import patch
 
 import numpy as np
 import pytest
-from haystack import Document, Pipeline
-from haystack.components.embedders import SentenceTransformersDocumentEmbedder, SentenceTransformersTextEmbedder
+from haystack import Document
 from haystack.components.preprocessors import DocumentSplitter
 from haystack.components.retrievers import SentenceWindowRetriever
-from haystack.components.writers import DocumentWriter
 from haystack.testing.document_store import CountDocumentsTest, DeleteDocumentsTest, WriteDocumentsTest
 from haystack.utils import Secret
 from pinecone import Pinecone, PodSpec, ServerlessSpec
@@ -265,7 +263,7 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, WriteDocumentsT
 
     @pytest.mark.skipif("PINECONE_API_KEY" not in os.environ, reason="PINECONE_API_KEY not set")
     def test_sentence_window_retriever(self):
-        model = "sentence-transformers/all-MiniLM-L12-v2"
+
         index_name = "sentence-window-test"
 
         # start with a clean index
@@ -284,39 +282,26 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, WriteDocumentsT
         )
 
         # indexing
-        indexing = Pipeline()
-        indexing.add_component(
-            instance=DocumentSplitter(split_length=10, split_overlap=5, split_by="word"), name="splitter"
-        )
-        indexing.add_component(instance=SentenceTransformersDocumentEmbedder(model=model), name="embedder")
-        indexing.add_component(instance=DocumentWriter(document_store=doc_store), name="writer")
-        indexing.connect("splitter.documents", "embedder.documents")
-        indexing.connect("embedder.documents", "writer.documents")
+        splitter = DocumentSplitter(split_length=10, split_overlap=5, split_by="word")
         text = (
             "Whose woods these are I think I know. His house is in the village though; He will not see me stopping "
             "here To watch his woods fill up with snow. My little horse must think it queer To stop without a "
-            "farmhouse near Between the woods and frozen lake The darkest evening of the year. He gives his "
-            "harness bells a shake To ask if there is some mistake. The only other sound's the sweep Of easy "
-            "wind and downy flake. The woods are lovely, dark and deep, But I have promises to keep, And miles "
-            "to go before I sleep, And miles to go before I sleep. Do not go gentle into that good night, "
-            "Old age should burn and rave at close of day; Rage, rage against the dying of the light"
+            "farmhouse near Between the woods and frozen lake The darkest evening of the year."
         )
-        doc = Document(content=text)
-        indexing.run({"splitter": {"documents": [doc]}})
+        docs = splitter.run(documents=[Document(content=text)])
+        for doc in docs["documents"]:
+            doc.embedding = np.random.rand(384).tolist()
+        doc_store.write_documents(docs["documents"])
 
         # query
-        query = Pipeline()
-        query.add_component("embedder", SentenceTransformersTextEmbedder(model=model))
-        query.add_component("retriever", PineconeEmbeddingRetriever(document_store=doc_store))
-        query.add_component(
-            "sentence_window_retriever", SentenceWindowRetriever(document_store=doc_store, window_size=2)
-        )
-        query.connect("embedder", "retriever")
-        query.connect("retriever", "sentence_window_retriever")
-        result = query.run({"embedder": {"text": "village"}})
+        query_embedding = [0.1] * 384
+        embedding_retriever = PineconeEmbeddingRetriever(document_store=doc_store)
+        retrieved_doc = embedding_retriever.run(query_embedding=query_embedding, top_k=1, filters={})
+        sentence_window_retriever = SentenceWindowRetriever(document_store=doc_store, window_size=2)
+        sentence_window_result = sentence_window_retriever.run(retrieved_documents=[retrieved_doc["documents"][0]])
 
-        assert len(result["sentence_window_retriever"]["context_windows"]) != 0
-        assert len(result["sentence_window_retriever"]["context_documents"]) != 0
+        assert len(sentence_window_result["context_windows"]) == 1
+        assert len(sentence_window_result["context_documents"]) == 4
 
         # clean up
         try:
