@@ -280,7 +280,6 @@ class PineconeDocumentStore:
 
         return metadata
 
-
     def _convert_query_result_to_documents(self, query_result: Dict[str, Any]) -> List[Document]:
         pinecone_docs = query_result["matches"]
         documents = []
