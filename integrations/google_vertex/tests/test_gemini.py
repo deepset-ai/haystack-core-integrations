@@ -55,7 +55,7 @@ def test_init(mock_vertexai_init, _mock_generative_model):
         tools=[tool],
     )
     mock_vertexai_init.assert_called()
-    assert gemini._model_name == "gemini-pro-vision"
+    assert gemini._model_name == "gemini-1.5-flash"
     assert gemini._generation_config == generation_config
     assert gemini._safety_settings == safety_settings
     assert gemini._tools == [tool]
@@ -71,7 +71,7 @@ def test_to_dict(_mock_vertexai_init, _mock_generative_model):
     assert gemini.to_dict() == {
         "type": "haystack_integrations.components.generators.google_vertex.gemini.VertexAIGeminiGenerator",
         "init_parameters": {
-            "model": "gemini-pro-vision",
+            "model": "gemini-1.5-flash",
             "project_id": "TestID123",
             "location": None,
             "generation_config": None,
@@ -106,7 +106,7 @@ def test_to_dict_with_params(_mock_vertexai_init, _mock_generative_model):
     assert gemini.to_dict() == {
         "type": "haystack_integrations.components.generators.google_vertex.gemini.VertexAIGeminiGenerator",
         "init_parameters": {
-            "model": "gemini-pro-vision",
+            "model": "gemini-1.5-flash",
             "project_id": "TestID123",
             "location": None,
             "generation_config": {
@@ -152,7 +152,7 @@ def test_from_dict(_mock_vertexai_init, _mock_generative_model):
             "type": "haystack_integrations.components.generators.google_vertex.gemini.VertexAIGeminiGenerator",
             "init_parameters": {
                 "project_id": "TestID123",
-                "model": "gemini-pro-vision",
+                "model": "gemini-1.5-flash",
                 "generation_config": None,
                 "safety_settings": None,
                 "tools": None,
@@ -161,7 +161,7 @@ def test_from_dict(_mock_vertexai_init, _mock_generative_model):
         }
     )
 
-    assert gemini._model_name == "gemini-pro-vision"
+    assert gemini._model_name == "gemini-1.5-flash"
     assert gemini._project_id == "TestID123"
     assert gemini._safety_settings is None
     assert gemini._tools is None
@@ -176,7 +176,7 @@ def test_from_dict_with_param(_mock_vertexai_init, _mock_generative_model):
             "type": "haystack_integrations.components.generators.google_vertex.gemini.VertexAIGeminiGenerator",
             "init_parameters": {
                 "project_id": "TestID123",
-                "model": "gemini-pro-vision",
+                "model": "gemini-1.5-flash",
                 "generation_config": {
                     "temperature": 0.5,
                     "top_p": 0.5,
@@ -212,7 +212,7 @@ def test_from_dict_with_param(_mock_vertexai_init, _mock_generative_model):
         }
     )
 
-    assert gemini._model_name == "gemini-pro-vision"
+    assert gemini._model_name == "gemini-1.5-flash"
     assert gemini._project_id == "TestID123"
     assert gemini._safety_settings == {HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_ONLY_HIGH}
     assert repr(gemini._tools) == repr([Tool(function_declarations=[GET_CURRENT_WEATHER_FUNC])])
