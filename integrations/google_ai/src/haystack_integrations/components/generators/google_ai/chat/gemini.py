@@ -121,7 +121,7 @@ class GoogleAIGeminiChatGenerator:
 
         :param api_key: Google AI Studio API key. To get a key,
         see [Google AI Studio](https://makersuite.google.com).
-        :param model: Name of the model to use. 
+        :param model: Name of the model to use.
         :param generation_config: The generation configuration to use.
             This can either be a `GenerationConfig` object or a dictionary of parameters.
             For available parameters, see
