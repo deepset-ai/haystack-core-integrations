@@ -5,7 +5,10 @@ loaders:
       [
         "haystack_integrations.components.embedders.nvidia.document_embedder",
         "haystack_integrations.components.embedders.nvidia.text_embedder",
+        "haystack_integrations.components.embedders.nvidia.truncate",
         "haystack_integrations.components.generators.nvidia.generator",
+        "haystack_integrations.components.rankers.nvidia.ranker",
+        "haystack_integrations.components.rankers.nvidia.truncate",
       ]
     ignore_when_discovered: ["__init__"]
 processors:
