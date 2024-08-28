@@ -4,12 +4,17 @@ from unittest.mock import patch
 
 import numpy as np
 import pytest
-from haystack import Document
+from haystack import Document, Pipeline
+from haystack.components.embedders import SentenceTransformersDocumentEmbedder, SentenceTransformersTextEmbedder
+from haystack.components.preprocessors import DocumentSplitter
+from haystack.components.retrievers import SentenceWindowRetriever
+from haystack.components.writers import DocumentWriter
 from haystack.testing.document_store import CountDocumentsTest, DeleteDocumentsTest, WriteDocumentsTest
 from haystack.utils import Secret
 from pinecone import Pinecone, PodSpec, ServerlessSpec
 
 from haystack_integrations.document_stores.pinecone import PineconeDocumentStore
+from haystack_integrations.components.retrievers.pinecone import PineconeEmbeddingRetriever
 
 
 @patch("haystack_integrations.document_stores.pinecone.document_store.Pinecone")
@@ -257,3 +262,48 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, WriteDocumentsT
         assert len(results) == 2
         assert results[0].content == "Most similar document"
         assert results[1].content == "2nd best document"
+
+    @pytest.mark.skipif("PINECONE_API_KEY" not in os.environ, reason="PINECONE_API_KEY not set")
+    def test_sentence_window_retriever(self):
+        model ='sentence-transformers/all-MiniLM-L12-v2'
+        index_name = "sentence-window-test"
+
+        # start with a clean index
+        client = Pinecone(api_key=os.environ["PINECONE_API_KEY"])
+        try:
+            client.delete_index(name=index_name)
+        except Exception:  # noqa S110
+            pass
+
+        doc_store = PineconeDocumentStore(
+            index=index_name, namespace="default", dimension=384, metric="cosine",
+            spec={"serverless": {"region": "us-east-1", "cloud": "aws"}}
+        )
+
+        # indexing
+        indexing = Pipeline()
+        indexing.add_component(instance=DocumentSplitter(split_length=10, split_overlap=5, split_by="word"), name="splitter")
+        indexing.add_component(instance=SentenceTransformersDocumentEmbedder(model=model), name="embedder")
+        indexing.add_component(instance=DocumentWriter(document_store=doc_store), name="writer")
+        indexing.connect("splitter.documents", "embedder.documents")
+        indexing.connect("embedder.documents", "writer.documents")
+        doc = Document(content="Whose woods these are I think I know. His house is in the village though; He will not see me stopping here To watch his woods fill up with snow. My little horse must think it queer To stop without a farmhouse near Between the woods and frozen lake The darkest evening of the year. He gives his harness bells a shake To ask if there is some mistake. The only other sound’s the sweep Of easy wind and downy flake. The woods are lovely, dark and deep, But I have promises to keep, And miles to go before I sleep, And miles to go before I sleep. Do not go gentle into that good night, Old age should burn and rave at close of day; Rage, rage against the dying of the light")
+        indexing.run({"splitter": {"documents": [doc]}})
+
+        # query
+        query = Pipeline()
+        query.add_component("embedder", SentenceTransformersTextEmbedder(model=model))
+        query.add_component("retriever", PineconeEmbeddingRetriever(document_store=doc_store))
+        query.add_component("sentence_window_retriever", SentenceWindowRetriever(document_store=doc_store, window_size=2))
+        query.connect("embedder", "retriever")
+        query.connect("retriever", "sentence_window_retriever")
+        result = query.run({"embedder": {"text": "village"}})
+
+        assert len(result['sentence_window_retriever']['context_windows']) != 0
+        assert len(result['sentence_window_retriever']['context_documents']) != 0
+
+        # clean up
+        try:
+            client.delete_index(name=index_name)
+        except Exception:  # noqa S110
+            pass

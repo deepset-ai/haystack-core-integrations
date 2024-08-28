@@ -267,6 +267,20 @@ class PineconeDocumentStore:
 
         return self._convert_query_result_to_documents(result)
 
+    @staticmethod
+    def _convert_to_int(metadata: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Convert metadata original int values back to integers again, since PineCone store numbers as float.
+        """
+        values_to_convert = ["split_id", "split_idx_start", "page_number"]
+
+        for value in values_to_convert:
+            if value in metadata:
+                metadata[value] = int(metadata[value]) if isinstance(metadata[value], float) else metadata[value]
+
+        return metadata
+
+
     def _convert_query_result_to_documents(self, query_result: Dict[str, Any]) -> List[Document]:
         pinecone_docs = query_result["matches"]
         documents = []
@@ -278,8 +292,7 @@ class PineconeDocumentStore:
             if dataframe_string:
                 dataframe = pd.read_json(io.StringIO(dataframe_string))
 
-            # we always store vectors during writing
-            # but we don't want to return them if they are dummy vectors
+            # we always store vectors during writing but we don't want to return them if they are dummy vectors
             embedding = None
             if pinecone_doc["values"] != self._dummy_vector:
                 embedding = pinecone_doc["values"]
@@ -288,7 +301,7 @@ class PineconeDocumentStore:
                 id=pinecone_doc["id"],
                 content=content,
                 dataframe=dataframe,
-                meta=pinecone_doc["metadata"],
+                meta=self._convert_to_int(pinecone_doc["metadata"]),
                 embedding=embedding,
                 score=pinecone_doc["score"],
             )
