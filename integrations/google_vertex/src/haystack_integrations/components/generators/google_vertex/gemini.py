@@ -26,8 +26,8 @@ class VertexAIGeminiGenerator:
     """
     `VertexAIGeminiGenerator` enables text generation using Google Gemini models.
 
-    `VertexAIGeminiGenerator` supports both `gemini-pro` and `gemini-pro-vision` models.
-    Prompting with images requires `gemini-pro-vision`. Function calling, instead, requires `gemini-pro`.
+    `VertexAIGeminiGenerator` supports both `gemini-pro` and `gemini-1.5-flash` models.
+    Prompting with images requires `gemini-1.5-flash`. Function calling, instead, requires `gemini-pro`.
 
     Usage example:
     ```python
@@ -55,7 +55,7 @@ class VertexAIGeminiGenerator:
     def __init__(
         self,
         *,
-        model: str = "gemini-pro-vision",
+        model: str = "gemini-1.5-flash",
         project_id: str,
         location: Optional[str] = None,
         generation_config: Optional[Union[GenerationConfig, Dict[str, Any]]] = None,

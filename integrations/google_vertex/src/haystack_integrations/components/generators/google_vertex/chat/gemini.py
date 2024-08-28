@@ -27,8 +27,8 @@ class VertexAIGeminiChatGenerator:
     """
     `VertexAIGeminiChatGenerator` enables chat completion using Google Gemini models.
 
-    `VertexAIGeminiChatGenerator` supports both `gemini-pro` and `gemini-pro-vision` models.
-    Prompting with images requires `gemini-pro-vision`. Function calling, instead, requires `gemini-pro`.
+    `VertexAIGeminiChatGenerator` supports both `gemini-pro` and `gemini-1.5-flash` models.
+    Prompting with images requires `gemini-1.5-flash`. Function calling, instead, requires `gemini-pro`.
 
     Authenticates using Google Cloud Application Default Credentials (ADCs).
     For more information see the official [Google documentation](https://cloud.google.com/docs/authentication/provide-credentials-adc).
@@ -51,7 +51,7 @@ class VertexAIGeminiChatGenerator:
     def __init__(
         self,
         *,
-        model: str = "gemini-pro",
+        model: str = "gemini-1.5-flash",
         project_id: str,
         location: Optional[str] = None,
         generation_config: Optional[Union[GenerationConfig, Dict[str, Any]]] = None,
@@ -66,7 +66,7 @@ class VertexAIGeminiChatGenerator:
         For more information see the official [Google documentation](https://cloud.google.com/docs/authentication/provide-credentials-adc).
 
         :param project_id: ID of the GCP project to use.
-        :param model: Name of the model to use, defaults to "gemini-pro-vision".
+        :param model: Name of the model to use, defaults to "gemini-1.5-flash".
         :param location: The default location to use when making API calls, if not set uses us-central-1.
             Defaults to None.
         :param generation_config: Configuration for the generation process.

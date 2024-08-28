@@ -23,8 +23,8 @@ class GoogleAIGeminiChatGenerator:
     It uses the [`ChatMessage`](https://docs.haystack.deepset.ai/docs/data-classes#chatmessage)
       dataclass to interact with the model. You can use the following models:
     - gemini-pro
-    - gemini-ultra
-    - gemini-pro-vision
+    - gemini-1.5-pro
+    - gemini-1.5-flash
 
     ### Usage example
 
@@ -103,7 +103,7 @@ class GoogleAIGeminiChatGenerator:
         self,
         *,
         api_key: Secret = Secret.from_env_var("GOOGLE_API_KEY"),  # noqa: B008
-        model: str = "gemini-pro-vision",
+        model: str = "gemini-1.5-flash",
         generation_config: Optional[Union[GenerationConfig, Dict[str, Any]]] = None,
         safety_settings: Optional[Dict[HarmCategory, HarmBlockThreshold]] = None,
         tools: Optional[List[Tool]] = None,
@@ -116,15 +116,12 @@ class GoogleAIGeminiChatGenerator:
 
         It supports the following models:
         * `gemini-pro`
-        * `gemini-pro-vision`
-        * `gemini-ultra`
+        * `gemini-1.5-pro`
+        * `gemini-1.5-flash`
 
         :param api_key: Google AI Studio API key. To get a key,
         see [Google AI Studio](https://makersuite.google.com).
-        :param model: Name of the model to use. Supported models are:
-            - gemini-pro
-            - gemini-ultra
-            - gemini-pro-vision
+        :param model: Name of the model to use. 
         :param generation_config: The generation configuration to use.
             This can either be a `GenerationConfig` object or a dictionary of parameters.
             For available parameters, see

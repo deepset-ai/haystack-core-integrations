@@ -55,7 +55,7 @@ class GoogleAIGeminiGenerator:
         for url in URLS
     ]
 
-    gemini = GoogleAIGeminiGenerator(model="gemini-pro-vision", api_key=Secret.from_token("<MY_API_KEY>"))
+    gemini = GoogleAIGeminiGenerator(model="gemini-1.5-flash", api_key=Secret.from_token("<MY_API_KEY>"))
     result = gemini.run(parts = ["What can you tell me about this robots?", *images])
     for answer in result["replies"]:
         print(answer)
@@ -66,7 +66,7 @@ class GoogleAIGeminiGenerator:
         self,
         *,
         api_key: Secret = Secret.from_env_var("GOOGLE_API_KEY"),  # noqa: B008
-        model: str = "gemini-pro-vision",
+        model: str = "gemini-1.5-flash",
         generation_config: Optional[Union[GenerationConfig, Dict[str, Any]]] = None,
         safety_settings: Optional[Dict[HarmCategory, HarmBlockThreshold]] = None,
         tools: Optional[List[Tool]] = None,
@@ -79,8 +79,8 @@ class GoogleAIGeminiGenerator:
 
         It supports the following models:
         * `gemini-pro`
-        * `gemini-pro-vision`
-        * `gemini-ultra`
+        * `gemini-1.5-pro`
+        * `gemini-1.5-flash`
 
         :param api_key: Google AI Studio API key.
         :param model: Name of the model to use.
