@@ -71,8 +71,16 @@ class OpenSearchEmbeddingRetriever:
         For this `custom_query`, an example `run()` could be:
 
         ```python
-        retriever.run(query_embedding=embedding,
-                        filters={"years": ["2019"], "quarters": ["Q1", "Q2"]})
+        retriever.run(
+            query_embedding=embedding,
+            filters={
+                "operator": "AND",
+                "conditions": [
+                    {"field": "meta.years", "operator": "==", "value": "2019"},
+                    {"field": "meta.quarters", "operator": "in", "value": ["Q1", "Q2"]},
+                ],
+            },
+        )
         ```
         :param raise_on_failure:
             If `True`, raises an exception if the API call fails.
@@ -176,8 +184,16 @@ class OpenSearchEmbeddingRetriever:
         For this `custom_query`, an example `run()` could be:
 
         ```python
-        retriever.run(query_embedding=embedding,
-                        filters={"years": ["2019"], "quarters": ["Q1", "Q2"]})
+        retriever.run(
+            query_embedding=embedding,
+            filters={
+                "operator": "AND",
+                "conditions": [
+                    {"field": "meta.years", "operator": "==", "value": "2019"},
+                    {"field": "meta.quarters", "operator": "in", "value": ["Q1", "Q2"]},
+                ],
+            },
+        )
         ```
 
         :returns:
