@@ -261,7 +261,6 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, WriteDocumentsT
         assert results[0].content == "Most similar document"
         assert results[1].content == "2nd best document"
 
-    @pytest.mark.skipif("PINECONE_API_KEY" not in os.environ, reason="PINECONE_API_KEY not set")
     def test_sentence_window_retriever(self, sleep_time):
 
         index_name = os.environ.get("INDEX_NAME", "serverless-test-index")
