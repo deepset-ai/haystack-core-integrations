@@ -4,6 +4,8 @@ from unittest.mock import patch
 
 import numpy as np
 import pytest
+from sqlalchemy.testing.suite.test_reflection import metadata
+
 from haystack import Document
 from haystack.components.preprocessors import DocumentSplitter
 from haystack.components.retrievers import SentenceWindowRetriever
@@ -261,28 +263,7 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, WriteDocumentsT
         assert results[0].content == "Most similar document"
         assert results[1].content == "2nd best document"
 
-    def test_sentence_window_retriever(self, sleep_time):
-
-        index_name = os.environ.get("INDEX_NAME", "serverless-test-index")
-
-        client = Pinecone(api_key=os.environ["PINECONE_API_KEY"])
-        try:
-            client.delete_index(name=index_name)
-        except Exception:  # noqa S110
-            pass
-
-        time.sleep(sleep_time)
-
-        doc_store = PineconeDocumentStore(
-            index=index_name,
-            namespace="test",
-            dimension=25,
-            metric="cosine",
-            spec={"serverless": {"region": "us-east-1", "cloud": "aws"}},
-        )
-
-        # Trigger the connection
-        _ = doc_store.index
+    def test_sentence_window_retriever(self, sleep_time, document_store: PineconeDocumentStore):
 
         # indexing
         splitter = DocumentSplitter(split_length=10, split_overlap=5, split_by="word")
@@ -294,24 +275,35 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, WriteDocumentsT
 
         for idx, doc in enumerate(docs["documents"]):
             if idx == 2:
-                doc.embedding = [0.1] * 25
+                doc.embedding = [0.1] * 768
                 continue
-            doc.embedding = np.random.rand(25).tolist()
-        doc_store.write_documents(docs["documents"])
+            doc.embedding = np.random.rand(768).tolist()
+        document_store.write_documents(docs["documents"])
 
         time.sleep(sleep_time)
 
         # query
-        embedding_retriever = PineconeEmbeddingRetriever(document_store=doc_store)
-        query_embedding = [0.1] * 25
+        embedding_retriever = PineconeEmbeddingRetriever(document_store=document_store)
+        query_embedding = [0.1] * 768
         retrieved_doc = embedding_retriever.run(query_embedding=query_embedding, top_k=1, filters={})
-        sentence_window_retriever = SentenceWindowRetriever(document_store=doc_store, window_size=2)
+        sentence_window_retriever = SentenceWindowRetriever(document_store=document_store, window_size=2)
         result = sentence_window_retriever.run(retrieved_documents=[retrieved_doc["documents"][0]])
 
         assert len(result["context_windows"]) == 1
 
-        # clean up
-        try:
-            client.delete_index(name=index_name)
-        except Exception:  # noqa S110
-            pass
+    def test_private_function_convert_floats_back_to_int(self):
+        # Test with floats
+        meta_data = {"split_id": 1.0, "split_idx_start": 2.0, "page_number": 3.0}
+        assert PineconeDocumentStore._convert_to_int(meta_data) == {"split_id": 1, "split_idx_start": 2, "page_number": 3}
+
+        # Test with floats and ints
+        meta_data = {"split_id": 1.0, "split_idx_start": 2, "page_number": 3.0}
+        assert PineconeDocumentStore._convert_to_int(meta_data) == {"split_id": 1, "split_idx_start": 2, "page_number": 3}
+
+        # Test with floats and strings
+        meta_data = {"split_id": 1.0, "other": "other_data", "page_number": 3.0}
+        assert PineconeDocumentStore._convert_to_int(meta_data) == {"split_id": 1, "other": "other_data", "page_number": 3}
+
+        # Test with empty dict
+        meta_data = {}
+        assert PineconeDocumentStore._convert_to_int(meta_data) == {}
