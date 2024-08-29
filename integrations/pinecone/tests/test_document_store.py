@@ -4,8 +4,6 @@ from unittest.mock import patch
 
 import numpy as np
 import pytest
-from sqlalchemy.testing.suite.test_reflection import metadata
-
 from haystack import Document
 from haystack.components.preprocessors import DocumentSplitter
 from haystack.components.retrievers import SentenceWindowRetriever
@@ -294,15 +292,18 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, WriteDocumentsT
     def test_private_function_convert_floats_back_to_int(self):
         # Test with floats
         meta_data = {"split_id": 1.0, "split_idx_start": 2.0, "page_number": 3.0}
-        assert PineconeDocumentStore._convert_to_int(meta_data) == {"split_id": 1, "split_idx_start": 2, "page_number": 3}
+        assert (PineconeDocumentStore._convert_to_int(meta_data) ==
+                {"split_id": 1, "split_idx_start": 2, "page_number": 3})
 
         # Test with floats and ints
         meta_data = {"split_id": 1.0, "split_idx_start": 2, "page_number": 3.0}
-        assert PineconeDocumentStore._convert_to_int(meta_data) == {"split_id": 1, "split_idx_start": 2, "page_number": 3}
+        assert (PineconeDocumentStore._convert_to_int(meta_data) ==
+                {"split_id": 1, "split_idx_start": 2, "page_number": 3})
 
         # Test with floats and strings
         meta_data = {"split_id": 1.0, "other": "other_data", "page_number": 3.0}
-        assert PineconeDocumentStore._convert_to_int(meta_data) == {"split_id": 1, "other": "other_data", "page_number": 3}
+        assert (PineconeDocumentStore._convert_to_int(meta_data) ==
+                {"split_id": 1, "other": "other_data", "page_number": 3})
 
         # Test with empty dict
         meta_data = {}
