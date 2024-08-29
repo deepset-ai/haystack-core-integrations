@@ -8,7 +8,7 @@ from haystack.dataclasses.byte_stream import ByteStream
 from haystack.dataclasses.chat_message import ChatMessage, ChatRole
 from haystack.utils import deserialize_callable, serialize_callable
 from vertexai import init as vertexai_init
-from vertexai.preview.generative_models import (
+from vertexai.generative_models import (
     Content,
     GenerationConfig,
     GenerationResponse,
