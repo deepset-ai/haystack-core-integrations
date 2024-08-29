@@ -268,9 +268,10 @@ class PineconeDocumentStore:
         return self._convert_query_result_to_documents(result)
 
     @staticmethod
-    def _convert_to_int(metadata: Dict[str, Any]) -> Dict[str, Any]:
+    def _convert_meta_to_int(metadata: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Convert metadata original int values back to integers again, since Pinecone store metadata numbers as float.
+        Pinecone store numeric metadata values as `float`. Some specific metadata are used in Retrievers components and
+        are expected to be `int`. This method converts them back to integers.
         """
         values_to_convert = ["split_id", "split_idx_start", "page_number"]
 
@@ -300,7 +301,7 @@ class PineconeDocumentStore:
                 id=pinecone_doc["id"],
                 content=content,
                 dataframe=dataframe,
-                meta=self._convert_to_int(pinecone_doc["metadata"]),
+                meta=self._convert_meta_to_int(pinecone_doc["metadata"]),
                 embedding=embedding,
                 score=pinecone_doc["score"],
             )

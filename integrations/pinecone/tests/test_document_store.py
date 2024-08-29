@@ -181,6 +181,36 @@ def test_discard_invalid_meta_valid():
     assert pinecone_doc.meta["page_number"] == 1
 
 
+def test_convert_meta_to_int():
+    # Test with floats
+    meta_data = {"split_id": 1.0, "split_idx_start": 2.0, "page_number": 3.0}
+    assert PineconeDocumentStore._convert_meta_to_int(meta_data) == {
+        "split_id": 1,
+        "split_idx_start": 2,
+        "page_number": 3,
+    }
+
+    # Test with floats and ints
+    meta_data = {"split_id": 1.0, "split_idx_start": 2, "page_number": 3.0}
+    assert PineconeDocumentStore._convert_meta_to_int(meta_data) == {
+        "split_id": 1,
+        "split_idx_start": 2,
+        "page_number": 3,
+    }
+
+    # Test with floats and strings
+    meta_data = {"split_id": 1.0, "other": "other_data", "page_number": 3.0}
+    assert PineconeDocumentStore._convert_meta_to_int(meta_data) == {
+        "split_id": 1,
+        "other": "other_data",
+        "page_number": 3,
+    }
+
+    # Test with empty dict
+    meta_data = {}
+    assert PineconeDocumentStore._convert_meta_to_int(meta_data) == {}
+
+
 @pytest.mark.integration
 @pytest.mark.skipif("PINECONE_API_KEY" not in os.environ, reason="PINECONE_API_KEY not set")
 def test_serverless_index_creation_from_scratch(sleep_time):
@@ -285,32 +315,3 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, WriteDocumentsT
         result = sentence_window_retriever.run(retrieved_documents=[retrieved_doc["documents"][0]])
 
         assert len(result["context_windows"]) == 1
-
-    def test_private_function_convert_floats_back_to_int(self):
-        # Test with floats
-        meta_data = {"split_id": 1.0, "split_idx_start": 2.0, "page_number": 3.0}
-        assert PineconeDocumentStore._convert_to_int(meta_data) == {
-            "split_id": 1,
-            "split_idx_start": 2,
-            "page_number": 3,
-        }
-
-        # Test with floats and ints
-        meta_data = {"split_id": 1.0, "split_idx_start": 2, "page_number": 3.0}
-        assert PineconeDocumentStore._convert_to_int(meta_data) == {
-            "split_id": 1,
-            "split_idx_start": 2,
-            "page_number": 3,
-        }
-
-        # Test with floats and strings
-        meta_data = {"split_id": 1.0, "other": "other_data", "page_number": 3.0}
-        assert PineconeDocumentStore._convert_to_int(meta_data) == {
-            "split_id": 1,
-            "other": "other_data",
-            "page_number": 3,
-        }
-
-        # Test with empty dict
-        meta_data = {}
-        assert PineconeDocumentStore._convert_to_int(meta_data) == {}
