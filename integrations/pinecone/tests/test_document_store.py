@@ -261,7 +261,7 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, WriteDocumentsT
         assert results[0].content == "Most similar document"
         assert results[1].content == "2nd best document"
 
-    def test_sentence_window_retriever(self, sleep_time, document_store: PineconeDocumentStore):
+    def test_sentence_window_retriever(self, document_store: PineconeDocumentStore):
         # indexing
         splitter = DocumentSplitter(split_length=10, split_overlap=5, split_by="word")
         text = (
@@ -276,8 +276,6 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, WriteDocumentsT
                 continue
             doc.embedding = np.random.rand(768).tolist()
         document_store.write_documents(docs["documents"])
-
-        time.sleep(sleep_time)
 
         # query
         embedding_retriever = PineconeEmbeddingRetriever(document_store=document_store)
