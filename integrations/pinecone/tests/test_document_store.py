@@ -231,16 +231,20 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, WriteDocumentsT
     @pytest.mark.xfail(
         run=True, reason="Pinecone supports overwriting by default, but it takes a while for it to take effect"
     )
-    def test_write_documents_duplicate_overwrite(self, document_store: PineconeDocumentStore): ...
+    def test_write_documents_duplicate_overwrite(self, document_store: PineconeDocumentStore):
+        ...
 
     @pytest.mark.skip(reason="Pinecone only supports UPSERT operations")
-    def test_write_documents_duplicate_fail(self, document_store: PineconeDocumentStore): ...
+    def test_write_documents_duplicate_fail(self, document_store: PineconeDocumentStore):
+        ...
 
     @pytest.mark.skip(reason="Pinecone only supports UPSERT operations")
-    def test_write_documents_duplicate_skip(self, document_store: PineconeDocumentStore): ...
+    def test_write_documents_duplicate_skip(self, document_store: PineconeDocumentStore):
+        ...
 
     @pytest.mark.skip(reason="Pinecone creates a namespace only when the first document is written")
-    def test_delete_documents_empty_document_store(self, document_store: PineconeDocumentStore): ...
+    def test_delete_documents_empty_document_store(self, document_store: PineconeDocumentStore):
+        ...
 
     def test_embedding_retrieval(self, document_store: PineconeDocumentStore):
         query_embedding = [0.1] * 768
@@ -262,7 +266,6 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, WriteDocumentsT
         assert results[1].content == "2nd best document"
 
     def test_sentence_window_retriever(self, sleep_time, document_store: PineconeDocumentStore):
-
         # indexing
         splitter = DocumentSplitter(split_length=10, split_overlap=5, split_by="word")
         text = (
@@ -292,18 +295,27 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, WriteDocumentsT
     def test_private_function_convert_floats_back_to_int(self):
         # Test with floats
         meta_data = {"split_id": 1.0, "split_idx_start": 2.0, "page_number": 3.0}
-        assert (PineconeDocumentStore._convert_to_int(meta_data) ==
-                {"split_id": 1, "split_idx_start": 2, "page_number": 3})
+        assert PineconeDocumentStore._convert_to_int(meta_data) == {
+            "split_id": 1,
+            "split_idx_start": 2,
+            "page_number": 3,
+        }
 
         # Test with floats and ints
         meta_data = {"split_id": 1.0, "split_idx_start": 2, "page_number": 3.0}
-        assert (PineconeDocumentStore._convert_to_int(meta_data) ==
-                {"split_id": 1, "split_idx_start": 2, "page_number": 3})
+        assert PineconeDocumentStore._convert_to_int(meta_data) == {
+            "split_id": 1,
+            "split_idx_start": 2,
+            "page_number": 3,
+        }
 
         # Test with floats and strings
         meta_data = {"split_id": 1.0, "other": "other_data", "page_number": 3.0}
-        assert (PineconeDocumentStore._convert_to_int(meta_data) ==
-                {"split_id": 1, "other": "other_data", "page_number": 3})
+        assert PineconeDocumentStore._convert_to_int(meta_data) == {
+            "split_id": 1,
+            "other": "other_data",
+            "page_number": 3,
+        }
 
         # Test with empty dict
         meta_data = {}
