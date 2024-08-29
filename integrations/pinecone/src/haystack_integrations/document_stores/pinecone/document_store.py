@@ -270,7 +270,7 @@ class PineconeDocumentStore:
     @staticmethod
     def _convert_to_int(metadata: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Convert metadata original int values back to integers again, since PineCone store numbers as float.
+        Convert metadata original int values back to integers again, since Pinecone store metadata numbers as float.
         """
         values_to_convert = ["split_id", "split_idx_start", "page_number"]
 
