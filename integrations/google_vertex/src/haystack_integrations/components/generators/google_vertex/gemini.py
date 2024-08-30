@@ -135,10 +135,6 @@ class VertexAIGeminiGenerator:
             streaming_callback=callback_name,
         )
 
-        for t in self._tools:
-            print(Tool.to_dict(t))
-            print ("FUNCTION DECLARATION")
-            print (t._callable_functions)
         if (tools := data["init_parameters"].get("tools")) is not None:
             data["init_parameters"]["tools"] = [Tool.to_dict(t) for t in tools]
         if (generation_config := data["init_parameters"].get("generation_config")) is not None:
