@@ -104,7 +104,6 @@ def test_to_dict_with_params(_mock_vertexai_init, _mock_generative_model):
         tools=[tool],
     )
 
-    print (gemini.to_dict())
     assert gemini.to_dict() == {
         "type": "haystack_integrations.components.generators.google_vertex.gemini.VertexAIGeminiGenerator",
         "init_parameters": {
