@@ -200,7 +200,7 @@ def test_long_prompt_is_not_truncated_when_truncate_false(mock_boto3_session):
     """
     Test that a long prompt is not truncated and _ensure_token_limit is not called when truncate is set to False
     """
-    messages = [ChatMessage.from_system("What is the biggest city in United States?")]
+    messages = [ChatMessage.from_user("What is the biggest city in United States?")]
 
     # Our mock prompt is 8 tokens long, so it exceeds the total limit (8 prompt tokens + 3 generated tokens > 10 tokens)
     max_length_generated_text = 3
