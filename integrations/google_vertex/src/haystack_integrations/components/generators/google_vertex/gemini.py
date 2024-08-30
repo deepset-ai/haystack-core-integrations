@@ -7,7 +7,7 @@ from haystack.core.serialization import default_from_dict, default_to_dict
 from haystack.dataclasses import ByteStream, StreamingChunk
 from haystack.utils import deserialize_callable, serialize_callable
 from vertexai import init as vertexai_init
-from vertexai.preview.generative_models import (
+from vertexai.generative_models import (
     Content,
     GenerationConfig,
     GenerationResponse,
@@ -134,6 +134,11 @@ class VertexAIGeminiGenerator:
             tools=self._tools,
             streaming_callback=callback_name,
         )
+
+        for t in self._tools:
+            print(Tool.to_dict(t))
+            print ("FUNCTION DECLARATION")
+            print (t._callable_functions)
         if (tools := data["init_parameters"].get("tools")) is not None:
             data["init_parameters"]["tools"] = [Tool.to_dict(t) for t in tools]
         if (generation_config := data["init_parameters"].get("generation_config")) is not None:

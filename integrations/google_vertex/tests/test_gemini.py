@@ -1,7 +1,7 @@
 from unittest.mock import MagicMock, Mock, patch
 
 from haystack.dataclasses import StreamingChunk
-from vertexai.preview.generative_models import (
+from vertexai.generative_models import (
     FunctionDeclaration,
     GenerationConfig,
     HarmBlockThreshold,
