@@ -188,6 +188,23 @@ class AnthropicChatGenerator:
             self._convert_to_anthropic_format(non_system_messages) if non_system_messages else []
         )
 
+        extra_headers = filtered_generation_kwargs.get("extra_headers", {})
+        prompt_caching_on = "anthropic-beta" in extra_headers and "prompt-caching" in extra_headers["anthropic-beta"]
+        has_cached_messages = any("cache_control" in m for m in system_messages_formatted) or any(
+            "cache_control" in m for m in messages_formatted
+        )
+        if has_cached_messages and not prompt_caching_on:
+            # this avoids Anthropic errors when prompt caching is not enabled
+            # but user requested individual messages to be cached
+            logger.warn(
+                "Prompt caching is not enabled but you requested individual messages to be cached. "
+                "Messages will be sent to the API without prompt caching."
+            )
+            for m in system_messages_formatted:
+                m.pop("cache_control", None)
+            for m in messages_formatted:
+                m.pop("cache_control", None)
+
         response: Union[Message, Stream[MessageStreamEvent]] = self.client.messages.create(
             max_tokens=filtered_generation_kwargs.pop("max_tokens", 512),
             system=system_messages_formatted or filtered_generation_kwargs.pop("system", ""),
