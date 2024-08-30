@@ -7,7 +7,7 @@ from haystack.core.serialization import default_from_dict, default_to_dict
 from haystack.dataclasses import ByteStream, StreamingChunk
 from haystack.utils import deserialize_callable, serialize_callable
 from vertexai import init as vertexai_init
-from vertexai.generative_models import (
+from vertexai.preview.generative_models import (
     Content,
     GenerationConfig,
     GenerationResponse,
