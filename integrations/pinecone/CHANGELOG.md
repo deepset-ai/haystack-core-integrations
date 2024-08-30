@@ -1,6 +1,6 @@
 # Changelog
 
-## [unreleased]
+## [integrations/pinecone-v1.2.3] - 2024-08-29
 
 ### 🚀 Features
 
@@ -10,6 +10,7 @@
 
 - `pinecone` - Fallback to default filter policy when deserializing retrievers without the init parameter (#901)
 - Skip unsupported meta fields in PineconeDB (#1009)
+- Converting `Pinecone` metadata fields from float back to int (#1034)
 
 ### 🧪 Testing
 
