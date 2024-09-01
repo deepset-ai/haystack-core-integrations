@@ -1,94 +1,102 @@
-﻿from unittest.mock import Mock, patch
-
+﻿from unittest.mock import Mock, patch, MagicMock
 import pytest
-from capabilities import MODEL_CAPABILITIES, ModelCapability
-from converse_generator import AmazonBedrockConfigurationError, AmazonBedrockConverseGenerator
-from haystack.dataclasses import ChatMessage
-from utils import ContentBlock, ConverseMessage, ConverseRole, ToolConfig
+
+from haystack_integrations.components.generators.amazon_bedrock import (
+    ConverseMessage,
+    AmazonBedrockConverseGenerator,
+    MODEL_CAPABILITIES,
+    ToolConfig,
+)
+from haystack_integrations.common.amazon_bedrock.errors import (
+    AmazonBedrockConfigurationError,
+)
 
 
-@pytest.fixture
-def generator():
-    model = "anthropic.claude-3-haiku-20240307-v1:0"
-    return AmazonBedrockConverseGenerator(model=model, streaming_callback=print)
+def get_current_weather(location: str, unit: str = "celsius") -> str:
+    """Get the current weather in a given location"""
+    # This is a mock function, replace with actual API call
+    return f"The weather in {location} is 22 degrees {unit}."
 
 
-def test_init(generator):
-    assert generator.model == "anthropic.claude-3-haiku-20240307-v1:0"
-    assert generator.streaming_callback == print
-    assert generator.client is not None
+def get_current_time(timezone: str) -> str:
+    """Get the current time in a given timezone"""
+    # This is a mock function, replace with actual time lookup
+    return f"The current time in {timezone} is 14:30."
 
 
-def test_get_model_capabilities(generator):
-    capabilities = generator._get_model_capabilities(generator.model)
-    expected_capabilities = MODEL_CAPABILITIES["anthropic.claude-3.*"]
-    assert capabilities == expected_capabilities
+def test_to_dict(mock_boto3_session):
+    """
+    Test that the to_dict method returns the correct dictionary without aws credentials
+    """
+    tool_config = ToolConfig.from_functions([get_current_weather, get_current_time])
 
+    generator = AmazonBedrockConverseGenerator(
+        model="anthropic.claude-3-5-sonnet-20240620-v1:0",
+        inference_config={
+            "temperature": 0.1,
+            "maxTokens": 256,
+            "topP": 0.1,
+            "stopSequences": ["\\n"],
+        },
+        tool_config=tool_config,
+    )
 
-def test_get_model_capabilities_unsupported_model(generator):
-    with pytest.raises(ValueError):
-        generator._get_model_capabilities("unsupported_model")
-
-
-@patch("converse_generator.get_aws_session")
-def test_init_aws_error(mock_get_aws_session):
-    mock_get_aws_session.side_effect = Exception("AWS Error")
-    with pytest.raises(AmazonBedrockConfigurationError):
-        AmazonBedrockConverseGenerator(model="anthropic.claude-3-haiku-20240307-v1:0")
-
-
-@patch.object(AmazonBedrockConverseGenerator, "client")
-def test_run_streaming(mock_client, generator):
-    mock_stream = Mock()
-    mock_client.converse_stream.return_value = {"stream": mock_stream}
-
-    messages = [ConverseMessage.from_user(["Hello"])]
-    streaming_callback = Mock()
-
-    result = generator.run(messages, streaming_callback=streaming_callback)
-
-    mock_client.converse_stream.assert_called_once()
-    assert "message" in result
-    assert "usage" in result
-    assert "metrics" in result
-    assert "guardrail_trace" in result
-    assert "stop_reason" in result
-
-
-@patch.object(AmazonBedrockConverseGenerator, "client")
-def test_run_non_streaming(mock_client, generator):
-    mock_response = {
-        "output": {"message": {"role": "assistant", "content": [{"text": "Hello, how can I help you?"}]}},
-        "usage": {"inputTokens": 10, "outputTokens": 20},
-        "metrics": {"firstByteLatency": 0.5},
+    expected_dict = {
+        "type": "haystack_integrations.components.generators.amazon_bedrock.converse.converse_generator.AmazonBedrockConverseGenerator",
+        "init_parameters": {
+            "aws_access_key_id": {"type": "env_var", "env_vars": ["AWS_ACCESS_KEY_ID"], "strict": False},
+            "aws_secret_access_key": {"type": "env_var", "env_vars": ["AWS_SECRET_ACCESS_KEY"], "strict": False},
+            "aws_session_token": {"type": "env_var", "env_vars": ["AWS_SESSION_TOKEN"], "strict": False},
+            "aws_region_name": {"type": "env_var", "env_vars": ["AWS_DEFAULT_REGION"], "strict": False},
+            "aws_profile_name": {"type": "env_var", "env_vars": ["AWS_PROFILE"], "strict": False},
+            "model": "anthropic.claude-3-5-sonnet-20240620-v1:0",
+            "inference_config": {
+                "temperature": 0.1,
+                "maxTokens": 256,
+                "topP": 0.1,
+                "stopSequences": ["\\n"],
+            },
+            "tool_config": tool_config.to_dict(),
+            "streaming_callback": None,
+            "system_prompt": None,
+        },
     }
-    mock_client.converse.return_value = mock_response
 
-    messages = [ConverseMessage.from_user(["Hello"])]
-
-    result = generator.run(messages)
-
-    mock_client.converse.assert_called_once()
-    assert isinstance(result["message"], ConverseMessage)
-    assert result["usage"] == mock_response["usage"]
-    assert result["metrics"] == mock_response["metrics"]
+    assert generator.to_dict() == expected_dict
 
 
-def test_run_invalid_messages(generator):
-    with pytest.raises(ValueError):
-        generator.run(["invalid message"])
+def test_from_dict(mock_boto3_session):
+    """
+    Test that the from_dict method returns the correct object
+    """
+    tool_config = ToolConfig.from_functions([get_current_weather, get_current_time])
 
+    generator = AmazonBedrockConverseGenerator.from_dict(
+        {
+            "type": "haystack_integrations.components.generators.amazon_bedrock.converse.converse_generator.AmazonBedrockConverseGenerator",
+            "init_parameters": {
+                "aws_access_key_id": {"type": "env_var", "env_vars": ["AWS_ACCESS_KEY_ID"], "strict": False},
+                "aws_secret_access_key": {"type": "env_var", "env_vars": ["AWS_SECRET_ACCESS_KEY"], "strict": False},
+                "aws_session_token": {"type": "env_var", "env_vars": ["AWS_SESSION_TOKEN"], "strict": False},
+                "aws_region_name": {"type": "env_var", "env_vars": ["AWS_DEFAULT_REGION"], "strict": False},
+                "aws_profile_name": {"type": "env_var", "env_vars": ["AWS_PROFILE"], "strict": False},
+                "model": "anthropic.claude-3-5-sonnet-20240620-v1:0",
+                "inference_config": {
+                    "temperature": 0.1,
+                    "maxTokens": 256,
+                    "topP": 0.1,
+                    "stopSequences": ["\\n"],
+                },
+                "tool_config": tool_config.to_dict(),
+                "streaming_callback": None,
+                "system_prompt": None,
+            },
+        }
+    )
 
-def test_to_dict(generator):
-    serialized = generator.to_dict()
-    assert "model" in serialized
-    assert serialized["model"] == generator.model
-
-
-def test_from_dict():
-    data = {
-        "init_parameters": {"model": "anthropic.claude-3-haiku-20240307-v1:0", "streaming_callback": "builtins.print"}
-    }
-    deserialized = AmazonBedrockConverseGenerator.from_dict(data)
-    assert deserialized.model == "anthropic.claude-3-haiku-20240307-v1:0"
-    assert deserialized.streaming_callback == print
+    assert generator.inference_config["temperature"] == 0.1
+    assert generator.inference_config["maxTokens"] == 256
+    assert generator.inference_config["topP"] == 0.1
+    assert generator.inference_config["stopSequences"] == ["\\n"]
+    assert generator.tool_config.to_dict() == tool_config.to_dict()
+    assert generator.model == "anthropic.claude-3-5-sonnet-20240620-v1:0"

@@ -72,7 +72,7 @@ class AmazonBedrockConverseGenerator:
         aws_region_name: Optional[Secret] = Secret.from_env_var(["AWS_DEFAULT_REGION"], strict=False),  # noqa: B008
         aws_profile_name: Optional[Secret] = Secret.from_env_var(["AWS_PROFILE"], strict=False),  # noqa: B008
         inference_config: Optional[Dict[str, Any]] = None,
-        tool_config: Optional[Dict[str, Any]] = None,
+        tool_config: Optional[ToolConfig] = None,
         streaming_callback: Optional[Callable[[ConverseStreamingChunk], None]] = None,
         system_prompt: Optional[List[Dict[str, Any]]] = None,
     ):
@@ -205,6 +205,10 @@ class AmazonBedrockConverseGenerator:
 
         if tool_config:
             request_kwargs["toolConfig"] = tool_config
+        if system_prompt:
+            request_kwargs["system"] = {
+                "text": system_prompt,
+            }
 
         try:
             if streaming_callback and ModelCapability.CONVERSE_STREAM in self.model_capabilities:
@@ -253,6 +257,9 @@ class AmazonBedrockConverseGenerator:
             aws_profile_name=self.aws_profile_name.to_dict() if self.aws_profile_name else None,
             model=self.model,
             streaming_callback=callback_name,
+            system_prompt=self.system_prompt,
+            inference_config=self.inference_config,
+            tool_config=self.tool_config.to_dict() if self.tool_config else None,
         )
 
     @classmethod
