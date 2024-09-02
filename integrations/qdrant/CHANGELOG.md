@@ -1,5 +1,7 @@
 # Changelog
 
+## [integrations/qdrant-v5.0.0] - 2024-09-02
+
 ## [integrations/qdrant-v4.2.0] - 2024-08-27
 
 ### 🚜 Refactor
