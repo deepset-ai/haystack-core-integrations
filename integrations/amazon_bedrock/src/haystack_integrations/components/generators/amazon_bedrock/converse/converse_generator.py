@@ -10,7 +10,7 @@ from .capabilities import (
 from haystack import component, default_from_dict, default_to_dict
 from haystack.utils.auth import Secret, deserialize_secrets_inplace
 from haystack.utils.callable_serialization import deserialize_callable, serialize_callable
-from .utils import ConverseMessage, ConverseStreamingChunk, ImageBlock, ToolConfig, get_stream_message
+from .utils import ContentBlock, ConverseMessage, ConverseStreamingChunk, ImageBlock, ToolConfig, get_stream_message
 
 from haystack_integrations.common.amazon_bedrock.errors import (
     AmazonBedrockConfigurationError,
@@ -111,7 +111,12 @@ class AmazonBedrockConverseGenerator:
         self.aws_region_name = aws_region_name
         self.aws_profile_name = aws_profile_name
 
-        # create the AWS session and client
+        self.inference_config = inference_config
+        self.tool_config = tool_config
+        self.streaming_callback = streaming_callback
+        self.system_prompt = system_prompt
+        self.model_capabilities = self._get_model_capabilities(model)  # create the AWS session and client
+
         def resolve_secret(secret: Optional[Secret]) -> Optional[str]:
             return secret.resolve_value() if secret else None
 
@@ -124,13 +129,6 @@ class AmazonBedrockConverseGenerator:
                 aws_profile_name=resolve_secret(aws_profile_name),
             )
             self.client = session.client("bedrock-runtime")
-
-            self.inference_config = inference_config
-            self.tool_config = tool_config
-            self.streaming_callback = streaming_callback
-            self.system_prompt = system_prompt
-            self.model_capabilities = self._get_model_capabilities(model)
-
         except Exception as exception:
             msg = (
                 "Could not connect to Amazon Bedrock. Make sure the AWS environment is configured correctly. "
@@ -161,6 +159,7 @@ class AmazonBedrockConverseGenerator:
     ):
         streaming_callback = streaming_callback or self.streaming_callback
         system_prompt = system_prompt or self.system_prompt
+        tool_config = tool_config or self.tool_config
 
         if not (
             isinstance(messages, list)
@@ -178,10 +177,15 @@ class AmazonBedrockConverseGenerator:
             system_prompt = None
 
         if ModelCapability.VISION not in self.model_capabilities:
-            for msg in messages:
-                msg.content.content = [item for item in msg.content.content if not isinstance(item, ImageBlock)]
-            if any(isinstance(item, ImageBlock) for msg in messages for item in msg.content.content):
-                logger.warning(f"The model {self.model} does not support vision. Image content has been removed.")
+            messages = [
+                ConverseMessage(
+                    role=msg.role,
+                    content=ContentBlock(
+                        content=[item for item in msg.content.content if not isinstance(item, ImageBlock)]
+                    ),
+                )
+                for msg in messages
+            ]
 
         if ModelCapability.DOCUMENT_CHAT not in self.model_capabilities:
             logger.warning(
@@ -276,6 +280,9 @@ class AmazonBedrockConverseGenerator:
         serialized_callback_handler = init_params.get("streaming_callback")
         if serialized_callback_handler:
             data["init_parameters"]["streaming_callback"] = deserialize_callable(serialized_callback_handler)
+        tool_config = data.get("init_parameters", {}).get("tool_config")
+        if tool_config:
+            data["init_parameters"]["tool_config"] = ToolConfig.from_dict(tool_config)
         deserialize_secrets_inplace(
             data["init_parameters"],
             [

@@ -256,14 +256,14 @@ class StreamEvent:
     data: Dict[str, Any]
 
 
-def parse_event(event: Dict[str, Any]) -> StreamEvent:
+def _parse_event(event: Dict[str, Any]) -> StreamEvent:
     for key in ["contentBlockStart", "contentBlockDelta", "contentBlockStop", "messageStop", "messageStart"]:
         if key in event:
             return StreamEvent(type=key, data=event[key])
     return StreamEvent(type="metadata", data=event.get("metadata", {}))
 
 
-def handle_content_block_start(event: StreamEvent, current_index: int) -> Tuple[int, Union[str, ToolUseBlock]]:
+def _handle_content_block_start(event: StreamEvent, current_index: int) -> Tuple[int, Union[str, ToolUseBlock]]:
     new_index = event.data.get("contentBlockIndex", current_index + 1)
     start_of_tool_use = event.data.get("start")
     if start_of_tool_use:
@@ -275,7 +275,7 @@ def handle_content_block_start(event: StreamEvent, current_index: int) -> Tuple[
     return new_index, ""
 
 
-def handle_content_block_delta(
+def _handle_content_block_delta(
     event: StreamEvent, current_block: Union[str, ToolUseBlock], current_tool_use_input_str: str
 ) -> Tuple[Union[str, ToolUseBlock], str]:
     delta = event.data.get("delta", {})
@@ -300,6 +300,27 @@ def get_stream_message(
     stream: EventStream,
     streaming_callback: Callable[[ConverseStreamingChunk], None],
 ) -> Tuple[ConverseMessage, Dict[str, Any]]:
+    """
+    Processes a stream of messages and returns a ConverseMessage and the associated metadata.
+
+    The stream is expected to contain the following events:
+
+    - contentBlockStart: Indicates the start of a content block.
+    - contentBlockDelta: Indicates a change to the content block.
+    - contentBlockStop: Indicates the end of a content block.
+    - messageStop: Indicates the end of a message.
+    - metadata: Indicates metadata about the message.
+
+    The function processes each event in the stream and returns a ConverseMessage and the associated metadata.
+    The ConverseMessage will contain the content of the message, and the metadata will contain the stop reason and any other metadata from the stream.
+
+    The function will also call the streaming_callback function with a ConverseStreamingChunk for each event in the stream.
+    The ConverseStreamingChunk will contain the content and metadata from the event.
+
+    :param stream: The stream of messages to process.
+    :param streaming_callback: The callback function to call with each ConverseStreamingChunk.
+    :return: A tuple containing the ConverseMessage and the associated metadata.
+    """
     current_block: Union[str, ToolUseBlock] = ""
     current_tool_use_input_str: str = ""
     latest_metadata: Dict[str, Any] = {}
@@ -308,7 +329,7 @@ def get_stream_message(
 
     try:
         for raw_event in stream:
-            event = parse_event(raw_event)
+            event = _parse_event(raw_event)
 
             if event.type == "contentBlockStart":
                 if current_block:
@@ -316,10 +337,10 @@ def get_stream_message(
                         streamed_contents[-1] += current_block
                     else:
                         streamed_contents.append(current_block)
-                current_index, current_block = handle_content_block_start(event, current_index)
+                current_index, current_block = _handle_content_block_start(event, current_index)
 
             elif event.type == "contentBlockDelta":
-                new_block, new_input_str = handle_content_block_delta(event, current_block, current_tool_use_input_str)
+                new_block, new_input_str = _handle_content_block_delta(event, current_block, current_tool_use_input_str)
                 if isinstance(new_block, ToolUseBlock) and new_block != current_block:
                     if current_block:
                         if (
