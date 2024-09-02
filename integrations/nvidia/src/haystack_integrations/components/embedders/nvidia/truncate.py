@@ -17,11 +17,6 @@ class EmbeddingTruncateMode(Enum):
         return self.value
 
     @classmethod
-    def _missing_(cls, value: object):
-        msg = f"Unknown truncate mode '{value}'. Supported modes are: {list(cls.__members__.keys())}"
-        raise ValueError(msg)
-
-    @classmethod
     def from_str(cls, string: str) -> "EmbeddingTruncateMode":
         """
         Create an truncate mode from a string.
@@ -31,4 +26,9 @@ class EmbeddingTruncateMode(Enum):
         :returns:
             Truncate mode.
         """
-        return cls(string)
+        enum_map = {e.value: e for e in EmbeddingTruncateMode}
+        opt_mode = enum_map.get(string)
+        if opt_mode is None:
+            msg = f"Unknown truncate mode '{string}'. Supported modes are: {list(enum_map.keys())}"
+            raise ValueError(msg)
+        return opt_mode
