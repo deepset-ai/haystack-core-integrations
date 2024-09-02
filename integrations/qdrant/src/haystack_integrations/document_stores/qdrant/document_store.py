@@ -334,7 +334,7 @@ class QdrantDocumentStore:
         self,
         documents: List[Document],
         policy: DuplicatePolicy = DuplicatePolicy.FAIL,
-    ):
+    ) -> int:
         """
         Writes documents to Qdrant using the specified policy.
         The QdrantDocumentStore can handle duplicate documents based on the given policy.
@@ -358,7 +358,7 @@ class QdrantDocumentStore:
 
         if len(documents) == 0:
             logger.warning("Calling QdrantDocumentStore.write_documents() with empty list")
-            return
+            return 0
 
         document_objects = self._handle_duplicate_documents(
             documents=documents,
@@ -383,13 +383,13 @@ class QdrantDocumentStore:
                 progress_bar.update(self.write_batch_size)
         return len(document_objects)
 
-    def delete_documents(self, ids: List[str]):
+    def delete_documents(self, document_ids: List[str]) -> None:
         """
         Deletes documents that match the provided `document_ids` from the document store.
 
         :param document_ids: the document ids to delete
         """
-        ids = [convert_id(_id) for _id in ids]
+        ids = [convert_id(_id) for _id in document_ids]
         try:
             self.client.delete(
                 collection_name=self.index,
