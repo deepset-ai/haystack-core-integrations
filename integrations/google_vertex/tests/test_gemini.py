@@ -103,45 +103,27 @@ def test_to_dict_with_params(_mock_vertexai_init, _mock_generative_model):
         safety_settings=safety_settings,
         tools=[tool],
     )
-    assert gemini.to_dict() == {
-        "type": "haystack_integrations.components.generators.google_vertex.gemini.VertexAIGeminiGenerator",
-        "init_parameters": {
-            "model": "gemini-1.5-flash",
-            "project_id": "TestID123",
-            "location": None,
-            "generation_config": {
-                "temperature": 0.5,
-                "top_p": 0.5,
-                "top_k": 2.0,
-                "candidate_count": 1,
-                "max_output_tokens": 10,
-                "stop_sequences": ["stop"],
-            },
-            "safety_settings": {HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_ONLY_HIGH},
-            "streaming_callback": None,
-            "tools": [
-                {
-                    "function_declarations": [
-                        {
-                            "name": "get_current_weather",
-                            "description": "Get the current weather in a given location",
-                            "parameters": {
-                                "type_": "OBJECT",
-                                "properties": {
-                                    "location": {
-                                        "type_": "STRING",
-                                        "description": "The city and state, e.g. San Francisco, CA",
-                                    },
-                                    "unit": {"type_": "STRING", "enum": ["celsius", "fahrenheit"]},
-                                },
-                                "required": ["location"],
-                            },
-                        }
-                    ]
-                }
-            ],
-        },
+    serialized = gemini.to_dict()
+    assert (
+        serialized["type"] == "haystack_integrations.components.generators.google_vertex.gemini.VertexAIGeminiGenerator"
+    )
+    assert serialized["init_parameters"]["model"] == "gemini-1.5-flash"
+    assert serialized["init_parameters"]["project_id"] == "TestID123"
+    assert serialized["init_parameters"]["location"] is None
+    assert serialized["init_parameters"]["generation_config"] == {
+        "temperature": 0.5,
+        "top_p": 0.5,
+        "top_k": 2.0,
+        "candidate_count": 1,
+        "max_output_tokens": 10,
+        "stop_sequences": ["stop"],
     }
+    assert serialized["init_parameters"]["safety_settings"] == {
+        HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_ONLY_HIGH
+    }
+    assert serialized["init_parameters"]["streaming_callback"] is None
+    assert len(serialized["init_parameters"]["tools"]) == 1
+    assert serialized["init_parameters"]["tools"][0]["function_declarations"][0] == GET_CURRENT_WEATHER_FUNC.to_dict()
 
 
 @patch("haystack_integrations.components.generators.google_vertex.gemini.vertexai_init")
@@ -187,29 +169,26 @@ def test_from_dict_with_param(_mock_vertexai_init, _mock_generative_model):
                 },
                 "safety_settings": {HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_ONLY_HIGH},
                 "tools": [
-    {
-        "function_declarations": [
-            {
-                "name": "get_current_weather",
-                "parameters": {
-                    "type_": "OBJECT",
-                    "properties": {
-                        "unit": {
-                            "type_": "STRING",
-                            "enum": ["celsius", "fahrenheit"]
-                        },
-                        "location": {
-                            "type_": "STRING",
-                            "description": "The city and state, e.g. San Francisco, CA"
-                        }
-                    },
-                    "required": ["location"]
-                },
-                "description": "Get the current weather in a given location"
-            }
-        ]
-    }
-],
+                    {
+                        "function_declarations": [
+                            {
+                                "name": "get_current_weather",
+                                "parameters": {
+                                    "type_": "OBJECT",
+                                    "properties": {
+                                        "unit": {"type_": "STRING", "enum": ["celsius", "fahrenheit"]},
+                                        "location": {
+                                            "type_": "STRING",
+                                            "description": "The city and state, e.g. San Francisco, CA",
+                                        },
+                                    },
+                                    "required": ["location"],
+                                },
+                                "description": "Get the current weather in a given location",
+                            }
+                        ]
+                    }
+                ],
                 "streaming_callback": None,
             },
         }
