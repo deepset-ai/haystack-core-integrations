@@ -6,6 +6,8 @@ from haystack.core.component.types import Variadic
 from haystack.core.serialization import default_from_dict, default_to_dict
 from haystack.dataclasses import ByteStream, StreamingChunk
 from haystack.utils import deserialize_callable, serialize_callable
+from openapi_schema_to_json_schema import to_json_schema
+import json
 from vertexai import init as vertexai_init
 from vertexai.generative_models import (
     Content,
@@ -16,6 +18,7 @@ from vertexai.generative_models import (
     HarmCategory,
     Part,
     Tool,
+    FunctionDeclaration,
 )
 
 logger = logging.getLogger(__name__)
@@ -115,6 +118,24 @@ class VertexAIGeminiGenerator:
             "stop_sequences": config._raw_generation_config.stop_sequences,
         }
 
+    def _function_to_dict(self, function: FunctionDeclaration) -> Dict[str, Any]:
+        
+        print (function.parameters)
+        #converted = to_json_schema(function.parameters)
+        #con = json.dumps(converted, indent=2)
+        #print(converted)
+        return {
+            "name": function.name,
+            "parameters": function.parameters,
+            "description": function.description,
+        }
+
+    def _tool_to_dict(self, tool: Tool) -> Dict[str, Any]:
+        for f in tool._raw_tool.function_declarations:
+            print (type(f))
+        return {
+            "function_declarations": [self._function_to_dict(f) for f in tool._raw_tool.function_declarations],
+        }
     def to_dict(self) -> Dict[str, Any]:
         """
         Serializes the component to a dictionary.
@@ -135,7 +156,7 @@ class VertexAIGeminiGenerator:
             streaming_callback=callback_name,
         )
         if (tools := data["init_parameters"].get("tools")) is not None:
-            data["init_parameters"]["tools"] = [Tool.to_dict(t) for t in tools]
+            data["init_parameters"]["tools"] = [self._tool_to_dict(t) for t in tools]
         if (generation_config := data["init_parameters"].get("generation_config")) is not None:
             data["init_parameters"]["generation_config"] = self._generation_config_to_dict(generation_config)
         return data

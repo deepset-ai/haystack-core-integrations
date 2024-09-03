@@ -187,26 +187,29 @@ def test_from_dict_with_param(_mock_vertexai_init, _mock_generative_model):
                 },
                 "safety_settings": {HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_ONLY_HIGH},
                 "tools": [
-                    {
-                        "function_declarations": [
-                            {
-                                "name": "get_current_weather",
-                                "description": "Get the current weather in a given location",
-                                "parameters": {
-                                    "type_": "OBJECT",
-                                    "properties": {
-                                        "location": {
-                                            "type_": "STRING",
-                                            "description": "The city and state, e.g. San Francisco, CA",
-                                        },
-                                        "unit": {"type_": "STRING", "enum": ["celsius", "fahrenheit"]},
-                                    },
-                                    "required": ["location"],
-                                },
-                            }
-                        ]
-                    }
-                ],
+    {
+        "function_declarations": [
+            {
+                "name": "get_current_weather",
+                "parameters": {
+                    "type_": "OBJECT",
+                    "properties": {
+                        "unit": {
+                            "type_": "STRING",
+                            "enum": ["celsius", "fahrenheit"]
+                        },
+                        "location": {
+                            "type_": "STRING",
+                            "description": "The city and state, e.g. San Francisco, CA"
+                        }
+                    },
+                    "required": ["location"]
+                },
+                "description": "Get the current weather in a given location"
+            }
+        ]
+    }
+],
                 "streaming_callback": None,
             },
         }
