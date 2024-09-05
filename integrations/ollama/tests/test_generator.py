@@ -2,8 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Any
-
 import pytest
 from haystack.components.generators.utils import print_streaming_chunk
 from haystack.dataclasses import StreamingChunk
@@ -41,7 +39,7 @@ class TestOllamaGenerator:
     def test_init_default(self):
         component = OllamaGenerator()
         assert component.model == "orca-mini"
-        assert component.url == "http://localhost:11434/api/generate"
+        assert component.url == "http://localhost:11434"
         assert component.generation_kwargs == {}
         assert component.system_prompt is None
         assert component.template is None
@@ -55,14 +53,14 @@ class TestOllamaGenerator:
 
         component = OllamaGenerator(
             model="llama2",
-            url="http://my-custom-endpoint:11434/api/generate",
+            url="http://my-custom-endpoint:11434",
             generation_kwargs={"temperature": 0.5},
             system_prompt="You are Luigi from Super Mario Bros.",
             timeout=5,
             streaming_callback=callback,
         )
         assert component.model == "llama2"
-        assert component.url == "http://my-custom-endpoint:11434/api/generate"
+        assert component.url == "http://my-custom-endpoint:11434"
         assert component.generation_kwargs == {"temperature": 0.5}
         assert component.system_prompt == "You are Luigi from Super Mario Bros."
         assert component.template is None
@@ -80,7 +78,7 @@ class TestOllamaGenerator:
                 "template": None,
                 "system_prompt": None,
                 "model": "orca-mini",
-                "url": "http://localhost:11434/api/generate",
+                "url": "http://localhost:11434",
                 "streaming_callback": None,
                 "generation_kwargs": {},
             },
@@ -127,44 +125,6 @@ class TestOllamaGenerator:
         assert component.streaming_callback is print_streaming_chunk
         assert component.url == "going_to_51_pegasi_b_for_weekend"
         assert component.generation_kwargs == {"max_tokens": 10, "some_test_param": "test-params"}
-
-    @pytest.mark.parametrize(
-        "configuration",
-        [
-            {
-                "model": "some_model",
-                "url": "https://localhost:11434/api/generate",
-                "raw": True,
-                "system_prompt": "You are mario from Super Mario Bros.",
-                "template": None,
-            },
-            {
-                "model": "some_model2",
-                "url": "https://localhost:11434/api/generate",
-                "raw": False,
-                "system_prompt": None,
-                "template": "some template",
-            },
-        ],
-    )
-    @pytest.mark.parametrize("stream", [True, False])
-    def test_create_json_payload(self, configuration: dict[str, Any], stream: bool):
-        prompt = "hello"
-        component = OllamaGenerator(**configuration)
-
-        observed = component._create_json_payload(prompt=prompt, stream=stream)
-
-        expected = {
-            "prompt": prompt,
-            "model": configuration["model"],
-            "stream": stream,
-            "system": configuration["system_prompt"],
-            "raw": configuration["raw"],
-            "template": configuration["template"],
-            "options": {},
-        }
-
-        assert observed == expected
 
     @pytest.mark.integration
     def test_ollama_generator_run_streaming(self):

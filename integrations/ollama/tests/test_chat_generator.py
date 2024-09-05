@@ -3,7 +3,7 @@ from unittest.mock import Mock
 
 import pytest
 from haystack.dataclasses import ChatMessage, ChatRole
-from requests import HTTPError, Response
+from requests import HTTPError
 
 from haystack_integrations.components.generators.ollama import OllamaChatGenerator
 
@@ -22,7 +22,7 @@ class TestOllamaChatGenerator:
     def test_init_default(self):
         component = OllamaChatGenerator()
         assert component.model == "orca-mini"
-        assert component.url == "http://localhost:11434/api/chat"
+        assert component.url == "http://localhost:11434"
         assert component.generation_kwargs == {}
         assert component.template is None
         assert component.timeout == 120
@@ -30,39 +30,21 @@ class TestOllamaChatGenerator:
     def test_init(self):
         component = OllamaChatGenerator(
             model="llama2",
-            url="http://my-custom-endpoint:11434/api/chat",
+            url="http://my-custom-endpoint:11434",
             generation_kwargs={"temperature": 0.5},
             timeout=5,
         )
 
         assert component.model == "llama2"
-        assert component.url == "http://my-custom-endpoint:11434/api/chat"
+        assert component.url == "http://my-custom-endpoint:11434"
         assert component.generation_kwargs == {"temperature": 0.5}
         assert component.template is None
         assert component.timeout == 5
 
-    def test_create_json_payload(self, chat_messages):
-        observed = OllamaChatGenerator(model="some_model")._create_json_payload(
-            chat_messages, False, {"temperature": 0.1}
-        )
-        expected = {
-            "messages": [
-                {"role": "user", "content": "Tell me about why Super Mario is the greatest superhero"},
-                {"role": "assistant", "content": "Super Mario has prevented Bowser from destroying the world"},
-            ],
-            "model": "some_model",
-            "stream": False,
-            "template": None,
-            "options": {"temperature": 0.1},
-        }
-
-        assert observed == expected
-
     def test_build_message_from_ollama_response(self):
         model = "some_model"
 
-        mock_ollama_response = Mock(Response)
-        mock_ollama_response.json.return_value = {
+        ollama_response = {
             "model": model,
             "created_at": "2023-12-12T14:13:43.416799Z",
             "message": {"role": "assistant", "content": "Hello! How are you today?"},
@@ -75,7 +57,7 @@ class TestOllamaChatGenerator:
             "eval_duration": 4799921000,
         }
 
-        observed = OllamaChatGenerator(model=model)._build_message_from_ollama_response(mock_ollama_response)
+        observed = OllamaChatGenerator(model=model)._build_message_from_ollama_response(ollama_response)
 
         assert observed.role == "assistant"
         assert observed.content == "Hello! How are you today?"

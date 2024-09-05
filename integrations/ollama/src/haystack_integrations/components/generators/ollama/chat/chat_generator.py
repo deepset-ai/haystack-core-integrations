@@ -1,10 +1,9 @@
-import json
 from typing import Any, Callable, Dict, List, Optional
 
-import requests
 from haystack import component
 from haystack.dataclasses import ChatMessage, StreamingChunk
-from requests import Response
+
+from ollama import Client
 
 
 @component
@@ -35,7 +34,7 @@ class OllamaChatGenerator:
     def __init__(
         self,
         model: str = "orca-mini",
-        url: str = "http://localhost:11434/api/chat",
+        url: str = "http://localhost:11434",
         generation_kwargs: Optional[Dict[str, Any]] = None,
         template: Optional[str] = None,
         timeout: int = 120,
@@ -66,29 +65,17 @@ class OllamaChatGenerator:
         self.model = model
         self.streaming_callback = streaming_callback
 
+        self.client = Client(host=self.url, timeout=self.timeout)
+
     def _message_to_dict(self, message: ChatMessage) -> Dict[str, str]:
         return {"role": message.role.value, "content": message.content}
 
-    def _create_json_payload(self, messages: List[ChatMessage], stream=False, generation_kwargs=None) -> Dict[str, Any]:
-        """
-        Returns A dictionary of JSON arguments for a POST request to an Ollama service
-        """
-        generation_kwargs = generation_kwargs or {}
-        return {
-            "messages": [self._message_to_dict(message) for message in messages],
-            "model": self.model,
-            "stream": stream,
-            "template": self.template,
-            "options": generation_kwargs,
-        }
-
-    def _build_message_from_ollama_response(self, ollama_response: Response) -> ChatMessage:
+    def _build_message_from_ollama_response(self, ollama_response: Dict[str, Any]) -> ChatMessage:
         """
         Converts the non-streaming response from the Ollama API to a ChatMessage.
         """
-        json_content = ollama_response.json()
-        message = ChatMessage.from_assistant(content=json_content["message"]["content"])
-        message.meta.update({key: value for key, value in json_content.items() if key != "message"})
+        message = ChatMessage.from_assistant(content=ollama_response["message"]["content"])
+        message.meta.update({key: value for key, value in ollama_response.items() if key != "message"})
         return message
 
     def _convert_to_streaming_response(self, chunks: List[StreamingChunk]) -> Dict[str, List[Any]]:
@@ -105,11 +92,9 @@ class OllamaChatGenerator:
         """
         Converts the response from the Ollama API to a StreamingChunk.
         """
-        decoded_chunk = json.loads(chunk_response.decode("utf-8"))
-
-        content = decoded_chunk["message"]["content"]
-        meta = {key: value for key, value in decoded_chunk.items() if key != "message"}
-        meta["role"] = decoded_chunk["message"]["role"]
+        content = chunk_response["message"]["content"]
+        meta = {key: value for key, value in chunk_response.items() if key != "message"}
+        meta["role"] = chunk_response["message"]["role"]
 
         chunk_message = StreamingChunk(content, meta)
         return chunk_message
@@ -119,7 +104,7 @@ class OllamaChatGenerator:
         Handles Streaming response cases
         """
         chunks: List[StreamingChunk] = []
-        for chunk in response.iter_lines():
+        for chunk in response:
             chunk_delta: StreamingChunk = self._build_chunk(chunk)
             chunks.append(chunk_delta)
             if self.streaming_callback is not None:
@@ -149,16 +134,12 @@ class OllamaChatGenerator:
         generation_kwargs = {**self.generation_kwargs, **(generation_kwargs or {})}
 
         stream = self.streaming_callback is not None
-
-        json_payload = self._create_json_payload(messages, stream, generation_kwargs)
-
-        response = requests.post(url=self.url, json=json_payload, timeout=self.timeout, stream=stream)
-
-        # throw error on unsuccessful response
-        response.raise_for_status()
+        messages = [self._message_to_dict(message) for message in messages]
+        response = self.client.chat(model=self.model, messages=messages, stream=stream, options=generation_kwargs)
 
         if stream:
             chunks: List[StreamingChunk] = self._handle_streaming_response(response)
             return self._convert_to_streaming_response(chunks)
+
 
         return {"replies": [self._build_message_from_ollama_response(response)]}

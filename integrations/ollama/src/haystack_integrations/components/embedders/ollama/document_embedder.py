@@ -1,8 +1,9 @@
 from typing import Any, Dict, List, Optional
 
-import requests
 from haystack import Document, component
 from tqdm import tqdm
+
+from ollama import Client
 
 
 @component
@@ -27,7 +28,7 @@ class OllamaDocumentEmbedder:
     def __init__(
         self,
         model: str = "nomic-embed-text",
-        url: str = "http://localhost:11434/api/embeddings",
+        url: str = "http://localhost:11434",
         generation_kwargs: Optional[Dict[str, Any]] = None,
         timeout: int = 120,
         prefix: str = "",
@@ -58,6 +59,8 @@ class OllamaDocumentEmbedder:
         self.embedding_separator = embedding_separator
         self.suffix = suffix
         self.prefix = prefix
+
+        self.client = Client(host=self.url, timeout=self.timeout)
 
     def _create_json_payload(self, text: str, generation_kwargs: Optional[Dict[str, Any]]) -> Dict[str, Any]:
         """
@@ -103,10 +106,7 @@ class OllamaDocumentEmbedder:
             range(0, len(texts_to_embed), batch_size), disable=not self.progress_bar, desc="Calculating embeddings"
         ):
             batch = texts_to_embed[i]  # Single batch only
-            payload = self._create_json_payload(batch, generation_kwargs)
-            response = requests.post(url=self.url, json=payload, timeout=self.timeout)
-            response.raise_for_status()
-            result = response.json()
+            result = self.client.embeddings(model=self.model, prompt=batch, options=generation_kwargs)
             all_embeddings.append(result["embedding"])
 
         meta["model"] = self.model
