@@ -222,6 +222,8 @@ class AmazonBedrockConverseGenerator:
             else:
                 response = self.client.converse(**request_kwargs)
                 output = response.get("output")
+                # TODO: Delete
+                print(output)
                 if output is None:
                     raise KeyError("Response does not contain 'output'")
                 message = output.get("message")

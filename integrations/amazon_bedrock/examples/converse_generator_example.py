@@ -1,6 +1,3 @@
-
-
-
 from haystack import Pipeline
 from haystack_integrations.components.generators.amazon_bedrock import AmazonBedrockConverseGenerator
 from haystack_integrations.components.generators.amazon_bedrock.converse.utils import ConverseMessage,ToolConfig
@@ -21,7 +18,7 @@ def get_current_time(timezone: str) -> str:
 def main():
     generator = AmazonBedrockConverseGenerator(
         model="anthropic.claude-3-5-sonnet-20240620-v1:0",
-        streaming_callback=print,
+        # streaming_callback=print,
     )
 
     # Create ToolConfig from functions
@@ -53,7 +50,6 @@ def main():
             },
         },
     )
-
     print("\nPipeline Result:")
     print(result)
 

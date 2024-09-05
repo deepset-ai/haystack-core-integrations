@@ -1,4 +1,5 @@
-﻿from unittest.mock import Mock, patch, MagicMock
+﻿import json
+from unittest.mock import Mock, patch, MagicMock
 import pytest
 from botocore.exceptions import ClientError
 
@@ -16,6 +17,7 @@ from haystack_integrations.components.generators.amazon_bedrock.converse.utils i
     ConverseRole,
     ImageBlock,
     ImageSource,
+    StreamEvent,
     ToolResultBlock,
     ToolUseBlock,
 )
@@ -187,7 +189,7 @@ def test_run_with_different_message_types(mock_session):
     call_args = mock_client.converse.call_args[1]
     assert len(call_args["messages"]) == 2
     assert call_args["messages"][0]["content"] == [{"text": "What's the weather like?"}]
-    print(f"Actual content of second message: {call_args['messages'][1]['content']}")
+    print(f"Actual content of second message: {call_args["messages'][1]['content"]}")
     # Depending on the actual behavior, you might need to adjust the following assertion:
     assert call_args["messages"][1]["content"] == []  # or whatever the actual behavior is
 
@@ -203,33 +205,96 @@ from botocore.exceptions import ClientError
 def test_streaming():
     generator = AmazonBedrockConverseGenerator(model="anthropic.claude-3-sonnet-20240229-v1:0")
 
+    mocked_events = [
+        {'messageStart': {'role': 'assistant'}},
+        {'contentBlockDelta': {'delta': {'text': 'To'}, 'contentBlockIndex': 0}},
+        {'contentBlockDelta': {'delta': {'text': ' answer'}, 'contentBlockIndex': 0}},
+        {'contentBlockDelta': {'delta': {'text': ' your questions'}, 'contentBlockIndex': 0}},
+        {'contentBlockDelta': {'delta': {'text': ','}, 'contentBlockIndex': 0}},
+        {'contentBlockDelta': {'delta': {'text': " I'll"}, 'contentBlockIndex': 0}},
+        {'contentBlockDelta': {'delta': {'text': ' need to'}, 'contentBlockIndex': 0}},
+        {'contentBlockDelta': {'delta': {'text': ' use'}, 'contentBlockIndex': 0}},
+        {'contentBlockDelta': {'delta': {'text': ' two'}, 'contentBlockIndex': 0}},
+        {'contentBlockDelta': {'delta': {'text': ' different functions'}, 'contentBlockIndex': 0}},
+        {'contentBlockDelta': {'delta': {'text': ':'}, 'contentBlockIndex': 0}},
+        {'contentBlockDelta': {'delta': {'text': ' one'}, 'contentBlockIndex': 0}},
+        {'contentBlockDelta': {'delta': {'text': ' to check'}, 'contentBlockIndex': 0}},
+        {'contentBlockDelta': {'delta': {'text': ' the weather'}, 'contentBlockIndex': 0}},
+        {'contentBlockDelta': {'delta': {'text': ' in Paris and another'}, 'contentBlockIndex': 0}},
+        {'contentBlockDelta': {'delta': {'text': ' to get the current'}, 'contentBlockIndex': 0}},
+        {'contentBlockDelta': {'delta': {'text': ' time in New York'}, 'contentBlockIndex': 0}},
+        {'contentBlockDelta': {'delta': {'text': '.'}, 'contentBlockIndex': 0}},
+        {'contentBlockDelta': {'delta': {'text': ' Let'}, 'contentBlockIndex': 0}},
+        {'contentBlockDelta': {'delta': {'text': ' me'}, 'contentBlockIndex': 0}},
+        {'contentBlockDelta': {'delta': {'text': ' fetch'}, 'contentBlockIndex': 0}},
+        {'contentBlockDelta': {'delta': {'text': ' that'}, 'contentBlockIndex': 0}},
+        {'contentBlockDelta': {'delta': {'text': ' information for'}, 'contentBlockIndex': 0}},
+        {'contentBlockDelta': {'delta': {'text': ' you.'}, 'contentBlockIndex': 0}},
+        {'contentBlockStop': {'contentBlockIndex': 0}},
+        {
+            'contentBlockStart': {
+                'start': {'toolUse': {'toolUseId': 'tooluse_5Uu9EPSjQxiSsmc5Ex5MJg', 'name': 'get_current_weather'}},
+                'contentBlockIndex': 1,
+            }
+        },
+        {'contentBlockDelta': {'delta': {'toolUse': {'input': ''}}, 'contentBlockIndex': 1}},
+        {'contentBlockDelta': {'delta': {'toolUse': {'input': '{"loc'}}, 'contentBlockIndex': 1}},
+        {'contentBlockDelta': {'delta': {'toolUse': {'input': 'ation":'}}, 'contentBlockIndex': 1}},
+        {'contentBlockDelta': {'delta': {'toolUse': {'input': ' "Paris"'}}, 'contentBlockIndex': 1}},
+        {'contentBlockDelta': {'delta': {'toolUse': {'input': ', "u'}}, 'contentBlockIndex': 1}},
+        {'contentBlockDelta': {'delta': {'toolUse': {'input': 'nit": "ce'}}, 'contentBlockIndex': 1}},
+        {'contentBlockDelta': {'delta': {'toolUse': {'input': 'lsius'}}, 'contentBlockIndex': 1}},
+        {'contentBlockDelta': {'delta': {'toolUse': {'input': '"}'}}, 'contentBlockIndex': 1}},
+        {'contentBlockStop': {'contentBlockIndex': 1}},
+        {
+            'contentBlockStart': {
+                'start': {'toolUse': {'toolUseId': 'tooluse_cbK-e15KTFqZHtwpBJ0kzg', 'name': 'get_current_time'}},
+                'contentBlockIndex': 2,
+            }
+        },
+        {'contentBlockDelta': {'delta': {'toolUse': {'input': ''}}, 'contentBlockIndex': 2}},
+        {'contentBlockDelta': {'delta': {'toolUse': {'input': '{"timezon'}}, 'contentBlockIndex': 2}},
+        {'contentBlockDelta': {'delta': {'toolUse': {'input': 'e"'}}, 'contentBlockIndex': 2}},
+        {'contentBlockDelta': {'delta': {'toolUse': {'input': ': "A'}}, 'contentBlockIndex': 2}},
+        {'contentBlockDelta': {'delta': {'toolUse': {'input': 'meric'}}, 'contentBlockIndex': 2}},
+        {'contentBlockDelta': {'delta': {'toolUse': {'input': 'a/New'}}, 'contentBlockIndex': 2}},
+        {'contentBlockDelta': {'delta': {'toolUse': {'input': '_York"}'}}, 'contentBlockIndex': 2}},
+        {'contentBlockStop': {'contentBlockIndex': 2}},
+        {'messageStop': {'stopReason': 'tool_use'}},
+        {
+            'metadata': {
+                'usage': {'inputTokens': 446, 'outputTokens': 118, 'totalTokens': 564},
+                'metrics': {'latencyMs': 3930},
+            }
+        },
+    ]
+
     mock_stream = Mock()
-    mock_stream.__iter__ = Mock(
-        return_value=iter(
-            [
-                {'contentBlockStart': {'contentBlockIndex': 0}},
-                {'contentBlockDelta': {'delta': {'text': 'Hello'}}},
-                {'contentBlockDelta': {'delta': {'text': ', how can I help you?'}}},
-                {'contentBlockStop': {}},
-                {'messageStop': {'stopReason': 'endOfResponse'}},
-            ]
-        )
-    )
+    mock_stream.__iter__ = Mock(return_value=iter(mocked_events))
 
     generator.client.converse_stream = Mock(return_value={'stream': mock_stream})
 
     chunks = []
-    result = generator.run([ConverseMessage.from_user(["Hi"])], streaming_callback=lambda chunk: chunks.append(chunk))
+    result = generator.run(
+        [ConverseMessage.from_user(["What's the weather like in Paris and what time is it in New York?"])],
+        streaming_callback=lambda chunk: chunks.append(chunk),
+    )
 
-    assert len(chunks) == 5
-    assert chunks[0].type == 'contentBlockStart'
-    assert chunks[1].content == 'Hello'
-    assert chunks[2].content == ', how can I help you?'
-    assert chunks[3].type == 'contentBlockStop'
-    assert chunks[4].type == 'messageStop'
+    assert len(chunks) == len(mocked_events)
+    assert result["message"].content.content[0] == "To answer your questions, I'll need to use two different functions: one to check the weather in Paris and another to get the current time in New York. Let me fetch that information for you."
+    assert len(result["message"].content.content) == 3
+    assert result["stop_reason"] == 'tool_use'
 
-    assert result['message'].content.content[0] == 'Hello, how can I help you?'
-    assert result['stop_reason'] == 'endOfResponse'
+    assert result["message"].role == ConverseRole.ASSISTANT
+
+    assert result["usage"] == {'inputTokens': 446, 'outputTokens': 118, 'totalTokens': 564}
+    assert result["metrics"] == {'latencyMs': 3930}
+
+    assert result["message"].content.content[1].name == "get_current_weather"
+    assert result["message"].content.content[2].name == "get_current_time"
+
+    assert json.dumps(result["message"].content.content[1].input) == """{"location": "Paris", "unit": "celsius"}"""
+    assert json.dumps(result["message"].content.content[2].input) == """{"timezone": "America/New_York"}"""
 
 
 def test_client_error_handling():
@@ -250,33 +315,22 @@ def test_tool_usage():
     generator = AmazonBedrockConverseGenerator(model="anthropic.claude-3-sonnet-20240229-v1:0", tool_config=tool_config)
 
     mock_response = {
-        "output": {
-            "message": {
-                "role": "assistant",
-                "content": [
-                    {
-                        "toolUse": {
-                            "toolUseId": "123",
-                            "name": "get_current_weather",
-                            "input": {"location": "London", "unit": "celsius"},
-                        }
-                    },
-                    {
-                        "toolResult": {
-                            "toolUseId": "123",
-                            "content": [{"text": "The weather in London is 22 degrees celsius."}],
-                        }
-                    },
-                    {"text": "Based on the weather information, it's a nice day in London."},
-                ],
-            }
-        }
+        "output": {'message': {'role': 'assistant', 'content': [{'text': "Certainly! I'd be happy to help you with the weather in Paris and the current time in New York. To get this information, I'll need to use two different tools. Let me fetch that data for you."}, {'toolUse': {'toolUseId': 'tooluse_-Tp78_OeSq-1DSsP0B__TA', 'name': 'get_current_weather', 'input': {'location': 'Paris', 'unit': 'celsius'}}}, {'toolUse': {'toolUseId': 'tooluse_gdYvqeiGTme7toWoV4sSKw', 'name': 'get_current_time', 'input': {'timezone': 'America/New_York'},},},],},},
+        "stop_reason": "tool_use",
     }
     generator.client.converse = Mock(return_value=mock_response)
 
     result = generator.run([ConverseMessage.from_user(["What's the weather in London?"])])
 
     assert len(result["message"].content.content) == 3
-    assert isinstance(result["message"].content.content[0], ToolUseBlock)
-    assert isinstance(result["message"].content.content[1], ToolResultBlock)
-    assert result["message"].content.content[2] == "Based on the weather information, it's a nice day in London."
+    assert isinstance(result["message"].content.content[0], str)
+    assert isinstance(result["message"].content.content[1], ToolUseBlock)
+    assert isinstance(result["message"].content.content[2], ToolUseBlock)
+    assert result["stop_reason"] == "tool_use"
+    assert result["message"].role == ConverseRole.ASSISTANT
+    assert result["message"].content.content[0] == "Certainly! I'd be happy to help you with the weather in Paris and the current time in New York. To get this information, I'll need to use two different tools. Let me fetch that data for you."
+    assert result["message"].content.content[1].name == "get_current_weather"
+    assert result["message"].content.content[2].name == "get_current_time"
+    assert json.dumps(result["message"].content.content[1].input) == """{"location": "Paris", "unit": "celsius"}"""
+    assert json.dumps(result["message"].content.content[2].input) == """{"timezone": "America/New_York"}"""
+    

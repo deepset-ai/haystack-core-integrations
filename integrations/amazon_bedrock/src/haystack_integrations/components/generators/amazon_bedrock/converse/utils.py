@@ -298,7 +298,7 @@ def _handle_content_block_delta(
 
 def get_stream_message(
     stream: EventStream,
-    streaming_callback: Callable[[ConverseStreamingChunk], None],
+    streaming_callback: Callable[[StreamEvent], None],
 ) -> Tuple[ConverseMessage, Dict[str, Any]]:
     """
     Processes a stream of messages and returns a ConverseMessage and the associated metadata.
@@ -371,14 +371,7 @@ def get_stream_message(
                 latest_metadata["stopReason"] = event.data.get("stopReason")
 
             latest_metadata.update(event.data if event.type == "metadata" else {})
-
-            streaming_chunk = ConverseStreamingChunk(
-                content=current_block,
-                metadata=latest_metadata,
-                index=current_index,
-                type=event.type,
-            )
-            streaming_callback(streaming_chunk)
+            streaming_callback(event)
 
     except Exception as e:
         logging.error(f"Error processing stream: {e!s}")
