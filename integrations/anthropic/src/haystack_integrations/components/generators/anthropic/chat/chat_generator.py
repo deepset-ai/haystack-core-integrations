@@ -200,10 +200,8 @@ class AnthropicChatGenerator:
                 "Prompt caching is not enabled but you requested individual messages to be cached. "
                 "Messages will be sent to the API without prompt caching."
             )
-            for m in system_messages_formatted:
-                m.pop("cache_control", None)
-            for m in messages_formatted:
-                m.pop("cache_control", None)
+            system_messages_formatted = list(map(self._remove_cache_control, system_messages_formatted))
+            messages_formatted = list(map(self._remove_cache_control, messages_formatted))
 
         response: Union[Message, Stream[MessageStreamEvent]] = self.client.messages.create(
             max_tokens=filtered_generation_kwargs.pop("max_tokens", 512),
@@ -317,3 +315,11 @@ class AnthropicChatGenerator:
         :returns: The StreamingChunk.
         """
         return StreamingChunk(content=delta.text)
+
+    def _remove_cache_control(self, message: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Removes the cache_control key from the message.
+        :param message: The message to remove the cache_control key from.
+        :returns: The message with the cache_control key removed.
+        """
+        return {k: v for k, v in message.items() if k != "cache_control"}
