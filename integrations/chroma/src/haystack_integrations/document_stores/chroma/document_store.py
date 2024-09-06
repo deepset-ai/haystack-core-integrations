@@ -131,15 +131,16 @@ class ChromaDocumentStore:
 
         ```python
         filters = {
-            "$and": {
-                "type": {"$eq": "article"},
-                "date": {"$gte": "2015-01-01", "$lt": "2021-01-01"},
-                "rating": {"$gte": 3},
-                "$or": {
-                    "genre": {"$in": ["economy", "politics"]},
-                    "publisher": {"$eq": "nytimes"}
+            "$and": [
+                {"type": {"$eq": "article"}},
+                {"date": {"$gte": "2015-01-01", "$lt": "2021-01-01"}},
+                {"rating": {"$gte": 3}},
+                {"$or": [
+                    {"genre": {"$in": ["economy", "politics"]}},
+                    {"publisher": {"$eq": "nytimes"}}
+                ]
                 }
-            }
+            ]
         }
         # or simpler using default operators
         filters = {
@@ -370,12 +371,15 @@ class ChromaDocumentStore:
         where = defaultdict(list)
         where_document = defaultdict(list)
         keys_to_remove = []
+        document_flag = False
+        final_where = dict()
 
         for field, value in filters.items():
             if field == "content":
                 # Schedule for removal the original key, we're going to change it
                 keys_to_remove.append(field)
                 where_document["$contains"] = value
+                document_flag = True
             elif field == "id":
                 # Schedule for removal the original key, we're going to change it
                 keys_to_remove.append(field)
@@ -393,20 +397,30 @@ class ChromaDocumentStore:
                     where[field] = value[0]
                     continue
 
-                # if the list contains multiple items, we need an $or chain
                 for v in value:
-                    where["$or"].append({field: v})
+                    if isinstance(v, dict):
+                        for k, v in v.items():
+                            if k in ["$contains", "$not_contains"]:
+                                document_flag = True
+                                break
+                if document_flag:
+                    where_document=dict(filters)
+                    break
+
+                # if the list contains multiple items, we need an $or chain
+                if isinstance(value, list) and field not in ["$and", "$or"]:
+                    where[field] = {"$in": value}
 
         for k in keys_to_remove:
             del filters[k]
-
-        final_where = dict(filters)
-        final_where.update(dict(where))
+        
         try:
-            if final_where:
-                validate_where(final_where)
-            if where_document:
+            if document_flag:
                 validate_where_document(where_document)
+            elif filters or where:
+                final_where = dict(filters)
+                final_where.update(dict(where))
+                validate_where(final_where)
         except ValueError as e:
             raise ChromaDocumentStoreFilterError(e) from e
 
