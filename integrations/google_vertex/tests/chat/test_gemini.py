@@ -1,6 +1,8 @@
 from unittest.mock import MagicMock, Mock, patch
 
 import pytest
+from haystack import Pipeline
+from haystack.components.builders import ChatPromptBuilder
 from haystack.dataclasses import ChatMessage, StreamingChunk
 from vertexai.generative_models import (
     Content,
@@ -278,3 +280,17 @@ def test_run_with_streaming_callback(mock_generative_model):
 
     mock_model.send_message.assert_called_once()
     assert streaming_callback_called == ["First part", "Second part"]
+
+
+def test_serialization_deserialization_pipeline():
+
+    pipeline = Pipeline()
+    template = [ChatMessage.from_user("Translate to {{ target_language }}. Context: {{ snippet }}; Translation:")]
+    pipeline.add_component("prompt_builder", ChatPromptBuilder(template=template))
+    pipeline.add_component("gemini", VertexAIGeminiChatGenerator(project_id="TestID123"))
+    pipeline.connect("prompt_builder.prompt", "gemini.messages")
+
+    pipeline_dict = pipeline.to_dict()
+
+    new_pipeline = Pipeline.from_dict(pipeline_dict)
+    assert new_pipeline == pipeline

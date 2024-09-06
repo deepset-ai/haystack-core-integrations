@@ -1,5 +1,7 @@
 from unittest.mock import MagicMock, Mock, patch
 
+from haystack import Pipeline
+from haystack.components.builders import PromptBuilder
 from haystack.dataclasses import StreamingChunk
 from vertexai.generative_models import (
     FunctionDeclaration,
@@ -254,3 +256,20 @@ def test_run_with_streaming_callback(mock_generative_model):
     gemini = VertexAIGeminiGenerator(model="gemini-pro", project_id="TestID123", streaming_callback=streaming_callback)
     gemini.run(["Come on, stream!"])
     assert streaming_callback_called
+
+
+def test_serialization_deserialization_pipeline():
+    template = """
+        Answer the following questions:
+        1. What is the weather like today?
+        """
+    pipeline = Pipeline()
+
+    pipeline.add_component("prompt_builder", PromptBuilder(template=template))
+    pipeline.add_component("gemini", VertexAIGeminiGenerator(project_id="TestID123"))
+    pipeline.connect("prompt_builder", "gemini")
+
+    pipeline_dict = pipeline.to_dict()
+
+    new_pipeline = Pipeline.from_dict(pipeline_dict)
+    assert new_pipeline == pipeline
