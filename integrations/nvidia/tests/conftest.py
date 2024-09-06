@@ -2,9 +2,8 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import pytest
 from haystack.utils import Secret
-from requests_mock import Mocker
-
 from haystack_integrations.utils.nvidia import Model, NimBackend
+from requests_mock import Mocker
 
 
 class MockBackend(NimBackend):

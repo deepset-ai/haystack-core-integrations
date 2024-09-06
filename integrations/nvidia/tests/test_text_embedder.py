@@ -2,7 +2,6 @@ import os
 
 import pytest
 from haystack.utils import Secret
-
 from haystack_integrations.components.embedders.nvidia import EmbeddingTruncateMode, NvidiaTextEmbedder
 
 from . import MockBackend
