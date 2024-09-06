@@ -11,7 +11,7 @@ class Model:
 
     id: unique identifier for the model, passed as model parameter for requests
     model_type: API type (chat, vlm, embedding, ranking, completions)
-    client: client name, e.g. NvidiaGenerator, NVIDIAEmbeddings, NVIDIARerank, NVIDIA
+    client: client name, e.g. NvidiaGenerator, NvidiaTextEmbedder, NVIDIARerank, NVIDIA
     endpoint: custom endpoint for the model
     aliases: list of aliases for the model
 
@@ -399,13 +399,13 @@ EMBEDDING_MODEL_TABLE = {
     "snowflake/arctic-embed-l": Model(
         id="snowflake/arctic-embed-l",
         model_type="embedding",
-        client="NVIDIAEmbeddings",
+        client="NvidiaTextEmbedder",
         aliases=["ai-arctic-embed-l"],
     ),
     "NV-Embed-QA": Model(
         id="NV-Embed-QA",
         model_type="embedding",
-        client="NVIDIAEmbeddings",
+        client="NvidiaTextEmbedder",
         endpoint="https://ai.api.nvidia.com/v1/retrieval/nvidia/embeddings",
         aliases=[
             "ai-embed-qa-4",
@@ -416,23 +416,23 @@ EMBEDDING_MODEL_TABLE = {
     "nvidia/nv-embed-v1": Model(
         id="nvidia/nv-embed-v1",
         model_type="embedding",
-        client="NVIDIAEmbeddings",
+        client="NvidiaTextEmbedder",
         aliases=["ai-nv-embed-v1"],
     ),
     "nvidia/nv-embedqa-mistral-7b-v2": Model(
         id="nvidia/nv-embedqa-mistral-7b-v2",
         model_type="embedding",
-        client="NVIDIAEmbeddings",
+        client="NvidiaTextEmbedder",
     ),
     "nvidia/nv-embedqa-e5-v5": Model(
         id="nvidia/nv-embedqa-e5-v5",
         model_type="embedding",
-        client="NVIDIAEmbeddings",
+        client="NvidiaTextEmbedder",
     ),
     "baai/bge-m3": Model(
         id="baai/bge-m3",
         model_type="embedding",
-        client="NVIDIAEmbeddings",
+        client="NvidiaTextEmbedder",
     ),
 }
 

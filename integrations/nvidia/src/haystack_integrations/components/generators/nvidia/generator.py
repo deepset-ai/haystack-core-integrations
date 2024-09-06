@@ -140,7 +140,7 @@ class NvidiaGenerator:
         """
         Get a list of available models that work with ChatNVIDIA.
         """
-        return self._backend.models()
+        return self._backend.models() if self._backend else []
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "NvidiaGenerator":

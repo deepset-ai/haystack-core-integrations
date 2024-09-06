@@ -144,7 +144,7 @@ class NvidiaTextEmbedder:
         """
         Get a list of available models that work with ChatNVIDIA.
         """
-        return self.backend.models()
+        return self.backend.models() if self.backend else []
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "NvidiaTextEmbedder":
