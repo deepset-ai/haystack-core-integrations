@@ -1,14 +1,14 @@
 from haystack import component, tracing
-from haystack_integrations.tracing.langfuse import LangfuseTracer
 
+from haystack_integrations.tracing.langfuse import LangfuseTracer
 from langfuse import Langfuse
 
 
 @component
 class LangfuseConnector:
     """
-    LangfuseConnector connects Haystack LLM framework with Langfuse in order to enable the tracing of operations
-    and data flow within various components of a pipeline.
+    LangfuseConnector connects Haystack LLM framework with [Langfuse](https://langfuse.com) in order to enable the
+    tracing of operations and data flow within various components of a pipeline.
 
     Simply add this component to your pipeline, but *do not* connect it to any other component. The LangfuseConnector
     will automatically trace the operations and data flow within the pipeline.
