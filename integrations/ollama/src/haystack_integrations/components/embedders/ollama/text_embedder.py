@@ -32,7 +32,7 @@ class OllamaTextEmbedder:
         :param model:
             The name of the model to use. The model should be available in the running Ollama instance.
         :param url:
-            The URL of the chat endpoint of a running Ollama instance.
+            The URL of a running Ollama instance.
         :param generation_kwargs:
             Optional arguments to pass to the Ollama generation endpoint, such as temperature,
             top_p, and others. See the available arguments in
@@ -45,7 +45,7 @@ class OllamaTextEmbedder:
         self.url = url
         self.model = model
 
-        self.client = Client(host=url)
+        self.client = Client(host=self.url, timeout=self.timeout)
 
     @component.output_types(embedding=List[float], meta=Dict[str, Any])
     def run(self, text: str, generation_kwargs: Optional[Dict[str, Any]] = None):

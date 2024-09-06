@@ -41,7 +41,7 @@ class OllamaDocumentEmbedder:
         :param model:
             The name of the model to use. The model should be available in the running Ollama instance.
         :param url:
-            The URL of the chat endpoint of a running Ollama instance.
+            The URL of a running Ollama instance.
         :param generation_kwargs:
             Optional arguments to pass to the Ollama generation endpoint, such as temperature, top_p, and others.
             See the available arguments in
@@ -61,12 +61,6 @@ class OllamaDocumentEmbedder:
         self.prefix = prefix
 
         self.client = Client(host=self.url, timeout=self.timeout)
-
-    def _create_json_payload(self, text: str, generation_kwargs: Optional[Dict[str, Any]]) -> Dict[str, Any]:
-        """
-        Returns A dictionary of JSON arguments for a POST request to an Ollama service
-        """
-        return {"model": self.model, "prompt": text, "options": {**self.generation_kwargs, **(generation_kwargs or {})}}
 
     def _prepare_texts_to_embed(self, documents: List[Document]) -> List[str]:
         """

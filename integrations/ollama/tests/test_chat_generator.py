@@ -24,7 +24,6 @@ class TestOllamaChatGenerator:
         assert component.model == "orca-mini"
         assert component.url == "http://localhost:11434"
         assert component.generation_kwargs == {}
-        assert component.template is None
         assert component.timeout == 120
 
     def test_init(self):
@@ -38,7 +37,6 @@ class TestOllamaChatGenerator:
         assert component.model == "llama2"
         assert component.url == "http://my-custom-endpoint:11434"
         assert component.generation_kwargs == {"temperature": 0.5}
-        assert component.template is None
         assert component.timeout == 5
 
     def test_build_message_from_ollama_response(self):
