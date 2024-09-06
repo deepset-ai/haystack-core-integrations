@@ -280,7 +280,7 @@ class AnthropicChatGenerator:
             message_dict = dataclasses.asdict(m)
             formatted_message = {k: v for k, v in message_dict.items() if k in {"role", "content"} and v}
             if m.is_from(ChatRole.SYSTEM):
-                # system messages need to be in the format expected by the Anthropic API
+                # system messages are treated differently and MUST be in the format expected by the Anthropic API
                 # remove role and content from the message dict, add type and text
                 formatted_message.pop("role")
                 formatted_message["type"] = "text"
