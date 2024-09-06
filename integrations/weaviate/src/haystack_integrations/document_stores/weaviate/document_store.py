@@ -68,7 +68,7 @@ class WeaviateDocumentStore:
     from haystack_integrations.document_stores.weaviate.auth import AuthApiKey
     from haystack_integrations.document_stores.weaviate.document_store import WeaviateDocumentStore
 
-    os.environ["WEAVIATE_API_KEY"] = "MY_API_KEY
+    os.environ["WEAVIATE_API_KEY"] = "MY_API_KEY"
 
     document_store = WeaviateDocumentStore(
         url="rAnD0mD1g1t5.something.weaviate.cloud",
