@@ -230,7 +230,7 @@ def test_from_dict_with_param(_mock_vertexai_init, _mock_generative_model):
     assert gemini._model_name == "gemini-1.5-flash"
     assert gemini._project_id == "TestID123"
     assert gemini._safety_settings == {HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_ONLY_HIGH}
-    # assert repr(gemini._tools) == repr([Tool(function_declarations=[GET_CURRENT_WEATHER_FUNC])])
+    assert repr(gemini._tools) == repr([Tool(function_declarations=[GET_CURRENT_WEATHER_FUNC])])
     assert isinstance(gemini._generation_config, GenerationConfig)
     assert isinstance(gemini._tools[0], Tool)
 
