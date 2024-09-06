@@ -5,7 +5,7 @@
 import pytest
 from haystack.components.generators.utils import print_streaming_chunk
 from haystack.dataclasses import StreamingChunk
-from requests import HTTPError
+from ollama._types import ResponseError
 
 from haystack_integrations.components.generators.ollama import OllamaGenerator
 
@@ -33,7 +33,7 @@ class TestOllamaGenerator:
     def test_run_model_unavailable(self):
         component = OllamaGenerator(model="Alistair_is_great")
 
-        with pytest.raises(HTTPError):
+        with pytest.raises(ResponseError):
             component.run(prompt="Why is Alistair so great?")
 
     def test_init_default(self):

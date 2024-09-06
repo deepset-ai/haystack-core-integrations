@@ -1,6 +1,6 @@
 import pytest
 from haystack import Document
-from requests import HTTPError
+from ollama._types import ResponseError
 
 from haystack_integrations.components.embedders.ollama import OllamaDocumentEmbedder
 
@@ -31,7 +31,7 @@ class TestOllamaDocumentEmbedder:
     def test_model_not_found(self):
         embedder = OllamaDocumentEmbedder(model="cheese")
 
-        with pytest.raises(HTTPError):
+        with pytest.raises(ResponseError):
             embedder.run([Document("hello")])
 
     @pytest.mark.integration

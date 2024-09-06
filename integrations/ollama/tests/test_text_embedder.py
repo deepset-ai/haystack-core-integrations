@@ -1,5 +1,5 @@
 import pytest
-from requests import HTTPError
+from ollama._types import ResponseError
 
 from haystack_integrations.components.embedders.ollama import OllamaTextEmbedder
 
@@ -30,7 +30,7 @@ class TestOllamaTextEmbedder:
     def test_model_not_found(self):
         embedder = OllamaTextEmbedder(model="cheese")
 
-        with pytest.raises(HTTPError):
+        with pytest.raises(ResponseError):
             embedder.run("hello")
 
     @pytest.mark.integration

@@ -3,7 +3,7 @@ from unittest.mock import Mock
 
 import pytest
 from haystack.dataclasses import ChatMessage, ChatRole
-from requests import HTTPError
+from ollama._types import ResponseError
 
 from haystack_integrations.components.generators.ollama import OllamaChatGenerator
 
@@ -103,7 +103,7 @@ class TestOllamaChatGenerator:
     def test_run_model_unavailable(self):
         component = OllamaChatGenerator(model="Alistair_and_Stefano_are_great")
 
-        with pytest.raises(HTTPError):
+        with pytest.raises(ResponseError):
             message = ChatMessage.from_user(
                 "Based on your infinite wisdom, can you tell me why Alistair and Stefano are so great?"
             )

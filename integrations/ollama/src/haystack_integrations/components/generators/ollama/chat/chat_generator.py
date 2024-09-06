@@ -137,5 +137,4 @@ class OllamaChatGenerator:
             chunks: List[StreamingChunk] = self._handle_streaming_response(response)
             return self._convert_to_streaming_response(chunks)
 
-
         return {"replies": [self._build_message_from_ollama_response(response)]}
