@@ -262,3 +262,92 @@ class TestAnthropicChatGenerator:
         fc_response = json.loads(first_reply.content)
         assert "name" in fc_response, "First reply does not contain name of the tool"
         assert "input" in fc_response, "First reply does not contain input of the tool"
+
+    def test_prompt_caching_enabled(self, monkeypatch):
+        """
+        Test that the generation_kwargs extra_headers are correctly passed to the Anthropic API when prompt
+        caching is enabled
+        """
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "test-api-key")
+        component = AnthropicChatGenerator(
+            generation_kwargs={"extra_headers": {"anthropic-beta": "prompt-caching-2024-07-31"}}
+        )
+        assert component.generation_kwargs.get("extra_headers", {}).get("anthropic-beta") == "prompt-caching-2024-07-31"
+
+    def test_prompt_caching_cache_control_without_extra_headers(self, monkeypatch, mock_chat_completion, caplog):
+        """
+        Test that the cache_control is removed from the messages when prompt caching is not enabled via extra_headers
+        This is to avoid Anthropic errors when prompt caching is not enabled
+        """
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "test-api-key")
+        component = AnthropicChatGenerator()
+
+        messages = [ChatMessage.from_system("System message"), ChatMessage.from_user("User message")]
+
+        # Add cache_control to messages
+        for msg in messages:
+            msg.meta["cache_control"] = {"type": "ephemeral"}
+
+        # Invoke run with messages
+        component.run(messages)
+
+        # Check caplog for the warning message that should have been logged
+        assert any("Prompt caching" in record.message for record in caplog.records)
+
+        # Check that the Anthropic API was called without cache_control in messages so that it does not raise an error
+        _, kwargs = mock_chat_completion.call_args
+        for msg in kwargs["messages"]:
+            assert "cache_control" not in msg
+
+    @pytest.mark.parametrize("enable_caching", [True, False])
+    def test_run_with_prompt_caching(self, monkeypatch, mock_chat_completion, enable_caching):
+        """
+        Test that the generation_kwargs extra_headers are correctly passed to the Anthropic API in both cases of
+        prompt caching being enabled or not
+        """
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "test-api-key")
+
+        generation_kwargs = {"extra_headers": {"anthropic-beta": "prompt-caching-2024-07-31"}} if enable_caching else {}
+        component = AnthropicChatGenerator(generation_kwargs=generation_kwargs)
+
+        messages = [ChatMessage.from_system("System message"), ChatMessage.from_user("User message")]
+
+        component.run(messages)
+
+        # Check that the Anthropic API was called with the correct headers
+        _, kwargs = mock_chat_completion.call_args
+        headers = kwargs.get("extra_headers", {})
+        if enable_caching:
+            assert "anthropic-beta" in headers
+        else:
+            assert "anthropic-beta" not in headers
+
+    def test_to_dict_with_prompt_caching(self, monkeypatch):
+        """
+        Test that the generation_kwargs extra_headers are correctly serialized to a dictionary
+        """
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "test-api-key")
+        component = AnthropicChatGenerator(
+            generation_kwargs={"extra_headers": {"anthropic-beta": "prompt-caching-2024-07-31"}}
+        )
+        data = component.to_dict()
+        assert (
+            data["init_parameters"]["generation_kwargs"]["extra_headers"]["anthropic-beta"]
+            == "prompt-caching-2024-07-31"
+        )
+
+    def test_from_dict_with_prompt_caching(self, monkeypatch):
+        """
+        Test that the generation_kwargs extra_headers are correctly deserialized from a dictionary
+        """
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "test-api-key")
+        data = {
+            "type": "haystack_integrations.components.generators.anthropic.chat.chat_generator.AnthropicChatGenerator",
+            "init_parameters": {
+                "api_key": {"env_vars": ["ANTHROPIC_API_KEY"], "strict": True, "type": "env_var"},
+                "model": "claude-3-5-sonnet-20240620",
+                "generation_kwargs": {"extra_headers": {"anthropic-beta": "prompt-caching-2024-07-31"}},
+            },
+        }
+        component = AnthropicChatGenerator.from_dict(data)
+        assert component.generation_kwargs["extra_headers"]["anthropic-beta"] == "prompt-caching-2024-07-31"
