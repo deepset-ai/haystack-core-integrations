@@ -506,19 +506,25 @@ class QdrantDocumentStore:
         scale_score: bool = False,
         return_embedding: bool = False,
         score_threshold: Optional[float] = None,
+        group_by: Optional[str] = None,
+        group_size: Optional[int] = None,
     ) -> List[Document]:
         """
         Queries Qdrant using a sparse embedding and returns the most relevant documents.
 
         :param query_sparse_embedding: Sparse embedding of the query.
         :param filters: Filters applied to the retrieved documents.
-        :param top_k: Maximum number of documents to return.
+        :param top_k: Maximum number of documents to return. If using `group_by` parameters, maximum number of
+             groups to return.
         :param scale_score: Whether to scale the scores of the retrieved documents.
         :param return_embedding: Whether to return the embeddings of the retrieved documents.
         :param score_threshold: A minimal score threshold for the result.
             Score of the returned result might be higher or smaller than the threshold
              depending on the Distance function used.
             E.g. for cosine similarity only higher scores will be returned.
+        :param group_by: Payload field to group by, must be a string or number field. If the field contains more than 1
+             value, all values will be used for grouping. One point can be in multiple groups.
+        :param group_size: Maximum amount of points to return per group. Default is 3.
 
         :returns: List of documents that are most similar to `query_sparse_embedding`.
 
@@ -536,22 +542,47 @@ class QdrantDocumentStore:
         qdrant_filters = convert_filters_to_qdrant(filters)
         query_indices = query_sparse_embedding.indices
         query_values = query_sparse_embedding.values
-        points = self.client.query_points(
-            collection_name=self.index,
-            query=rest.SparseVector(
-                indices=query_indices,
-                values=query_values,
-            ),
-            using=SPARSE_VECTORS_NAME,
-            query_filter=qdrant_filters,
-            limit=top_k,
-            with_vectors=return_embedding,
-            score_threshold=score_threshold,
-        ).points
-        results = [
-            convert_qdrant_point_to_haystack_document(point, use_sparse_embeddings=self.use_sparse_embeddings)
-            for point in points
-        ]
+        if not group_by:
+            points = self.client.query_points(
+                collection_name=self.index,
+                query=rest.SparseVector(
+                    indices=query_indices,
+                    values=query_values,
+                ),
+                using=SPARSE_VECTORS_NAME,
+                query_filter=qdrant_filters,
+                limit=top_k,
+                with_vectors=return_embedding,
+                score_threshold=score_threshold,
+            ).points
+            results = [
+                convert_qdrant_point_to_haystack_document(point, use_sparse_embeddings=self.use_sparse_embeddings)
+                for point in points
+            ]
+        elif group_by:
+            groups = self.client.query_points_groups(
+                collection_name=self.index,
+                query=rest.SparseVector(
+                    indices=query_indices,
+                    values=query_values,
+                ),
+                using=SPARSE_VECTORS_NAME,
+                query_filter=qdrant_filters,
+                limit=top_k,
+                group_by=group_by,
+                group_size=group_size,
+                with_vectors=return_embedding,
+                score_threshold=score_threshold,
+            ).groups
+            results = (
+                [
+                    convert_qdrant_point_to_haystack_document(point, use_sparse_embeddings=self.use_sparse_embeddings)
+                    for group in groups
+                    for point in group.hits
+                ]
+                if groups
+                else []
+            )
         if scale_score:
             for document in results:
                 score = document.score
@@ -567,37 +598,64 @@ class QdrantDocumentStore:
         scale_score: bool = False,
         return_embedding: bool = False,
         score_threshold: Optional[float] = None,
+        group_by: Optional[str] = None,
+        group_size: Optional[int] = None,
     ) -> List[Document]:
         """
         Queries Qdrant using a dense embedding and returns the most relevant documents.
 
         :param query_embedding: Dense embedding of the query.
         :param filters: Filters applied to the retrieved documents.
-        :param top_k: Maximum number of documents to return.
+        :param top_k: Maximum number of documents to return. If using `group_by` parameters, maximum number of
+             groups to return.
         :param scale_score: Whether to scale the scores of the retrieved documents.
         :param return_embedding: Whether to return the embeddings of the retrieved documents.
         :param score_threshold: A minimal score threshold for the result.
             Score of the returned result might be higher or smaller than the threshold
              depending on the Distance function used.
             E.g. for cosine similarity only higher scores will be returned.
+        :param group_by: Payload field to group by, must be a string or number field. If the field contains more than 1
+             value, all values will be used for grouping. One point can be in multiple groups.
+        :param group_size: Maximum amount of points to return per group. Default is 3.
 
         :returns: List of documents that are most similar to `query_embedding`.
         """
         qdrant_filters = convert_filters_to_qdrant(filters)
-
-        points = self.client.query_points(
-            collection_name=self.index,
-            query=query_embedding,
-            using=DENSE_VECTORS_NAME if self.use_sparse_embeddings else None,
-            query_filter=qdrant_filters,
-            limit=top_k,
-            with_vectors=return_embedding,
-            score_threshold=score_threshold,
-        ).points
-        results = [
-            convert_qdrant_point_to_haystack_document(point, use_sparse_embeddings=self.use_sparse_embeddings)
-            for point in points
-        ]
+        if not group_by:
+            points = self.client.query_points(
+                collection_name=self.index,
+                query=query_embedding,
+                using=DENSE_VECTORS_NAME if self.use_sparse_embeddings else None,
+                query_filter=qdrant_filters,
+                limit=top_k,
+                with_vectors=return_embedding,
+                score_threshold=score_threshold,
+            ).points
+            results = [
+                convert_qdrant_point_to_haystack_document(point, use_sparse_embeddings=self.use_sparse_embeddings)
+                for point in points
+            ]
+        elif group_by:
+            groups = self.client.query_points_groups(
+                collection_name=self.index,
+                query=query_embedding,
+                using=DENSE_VECTORS_NAME if self.use_sparse_embeddings else None,
+                query_filter=qdrant_filters,
+                limit=top_k,
+                group_by=group_by,
+                group_size=group_size,
+                with_vectors=return_embedding,
+                score_threshold=score_threshold,
+            ).groups
+            results = (
+                [
+                    convert_qdrant_point_to_haystack_document(point, use_sparse_embeddings=self.use_sparse_embeddings)
+                    for group in groups
+                    for point in group.hits
+                ]
+                if groups
+                else []
+            )
         if scale_score:
             for document in results:
                 score = document.score
@@ -616,6 +674,8 @@ class QdrantDocumentStore:
         top_k: int = 10,
         return_embedding: bool = False,
         score_threshold: Optional[float] = None,
+        group_by: Optional[str] = None,
+        group_size: Optional[int] = None,
     ) -> List[Document]:
         """
         Retrieves documents based on dense and sparse embeddings and fuses the results using Reciprocal Rank Fusion.
@@ -626,12 +686,16 @@ class QdrantDocumentStore:
         :param query_embedding: Dense embedding of the query.
         :param query_sparse_embedding: Sparse embedding of the query.
         :param filters: Filters applied to the retrieved documents.
-        :param top_k: Maximum number of documents to return.
+        :param top_k: Maximum number of documents to return. If using `group_by` parameters, maximum number of
+             groups to return.
         :param return_embedding: Whether to return the embeddings of the retrieved documents.
         :param score_threshold: A minimal score threshold for the result.
             Score of the returned result might be higher or smaller than the threshold
              depending on the Distance function used.
             E.g. for cosine similarity only higher scores will be returned.
+        :param group_by: Payload field to group by, must be a string or number field. If the field contains more than 1
+             value, all values will be used for grouping. One point can be in multiple groups.
+        :param group_size: Maximum amount of points to return per group. Default is 3.
 
         :returns: List of Document that are most similar to `query_embedding` and `query_sparse_embedding`.
 
@@ -651,35 +715,73 @@ class QdrantDocumentStore:
         qdrant_filters = convert_filters_to_qdrant(filters)
 
         try:
-            points = self.client.query_points(
-                collection_name=self.index,
-                prefetch=[
-                    rest.Prefetch(
-                        query=rest.SparseVector(
-                            indices=query_sparse_embedding.indices,
-                            values=query_sparse_embedding.values,
+            if not group_by:
+                points = self.client.query_points(
+                    collection_name=self.index,
+                    prefetch=[
+                        rest.Prefetch(
+                            query=rest.SparseVector(
+                                indices=query_sparse_embedding.indices,
+                                values=query_sparse_embedding.values,
+                            ),
+                            using=SPARSE_VECTORS_NAME,
+                            filter=qdrant_filters,
                         ),
-                        using=SPARSE_VECTORS_NAME,
-                        filter=qdrant_filters,
-                    ),
-                    rest.Prefetch(
-                        query=query_embedding,
-                        using=DENSE_VECTORS_NAME,
-                        filter=qdrant_filters,
-                    ),
-                ],
-                query=rest.FusionQuery(fusion=rest.Fusion.RRF),
-                limit=top_k,
-                score_threshold=score_threshold,
-                with_payload=True,
-                with_vectors=return_embedding,
-            ).points
+                        rest.Prefetch(
+                            query=query_embedding,
+                            using=DENSE_VECTORS_NAME,
+                            filter=qdrant_filters,
+                        ),
+                    ],
+                    query=rest.FusionQuery(fusion=rest.Fusion.RRF),
+                    limit=top_k,
+                    score_threshold=score_threshold,
+                    with_payload=True,
+                    with_vectors=return_embedding,
+                ).points
+            elif group_by:
+                groups = self.client.query_points_groups(
+                    collection_name=self.index,
+                    prefetch=[
+                        rest.Prefetch(
+                            query=rest.SparseVector(
+                                indices=query_sparse_embedding.indices,
+                                values=query_sparse_embedding.values,
+                            ),
+                            using=SPARSE_VECTORS_NAME,
+                            filter=qdrant_filters,
+                        ),
+                        rest.Prefetch(
+                            query=query_embedding,
+                            using=DENSE_VECTORS_NAME,
+                            filter=qdrant_filters,
+                        ),
+                    ],
+                    query=rest.FusionQuery(fusion=rest.Fusion.RRF),
+                    limit=top_k,
+                    group_by=group_by,
+                    group_size=group_size,
+                    score_threshold=score_threshold,
+                    with_payload=True,
+                    with_vectors=return_embedding,
+                ).groups
+
         except Exception as e:
             msg = "Error during hybrid search"
             raise QdrantStoreError(msg) from e
 
-        results = [convert_qdrant_point_to_haystack_document(point, use_sparse_embeddings=True) for point in points]
-
+        if not group_by:
+            results = [convert_qdrant_point_to_haystack_document(point, use_sparse_embeddings=True) for point in points]
+        elif group_by:
+            results = (
+                [
+                    convert_qdrant_point_to_haystack_document(point, use_sparse_embeddings=self.use_sparse_embeddings)
+                    for group in groups
+                    for point in group.hits
+                ]
+                if groups
+                else []
+            )
         return results
 
     def get_distance(self, similarity: str) -> rest.Distance:
