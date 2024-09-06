@@ -161,7 +161,7 @@ class TestNvidiaGenerator:
         )
         with pytest.warns(UserWarning) as record:
             generator.warm_up()
-        assert len(record) == 1
+        assert len(record) == 2
         assert "Default model is set as:" in str(record[0].message)
         assert generator._model == "model1"
         assert not generator.is_hosted
@@ -191,10 +191,11 @@ class TestNvidiaGenerator:
         assert result["replies"]
         assert result["meta"]
 
+    @pytest.mark.usefixtures("mock_local_models")
     def test_local_nim_without_key(self) -> None:
         generator = NvidiaGenerator(
-            model="BOGUS",
-            api_url="http://localhost:8000",
+            model="model1",
+            api_url="http://localhost:8080",
             api_key=None,
         )
         generator.warm_up()

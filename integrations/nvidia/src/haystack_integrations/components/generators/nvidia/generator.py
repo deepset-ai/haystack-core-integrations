@@ -81,7 +81,7 @@ class NvidiaGenerator:
     def default_model(self):
         """Set default model in local NIM mode."""
         valid_models = [
-            model.id for model in self._backend.models() if not model.base_model or model.base_model == model.id
+            model.id for model in self.available_models if not model.base_model or model.base_model == model.id
         ]
         name = next(iter(valid_models), None)
         if name:
@@ -140,7 +140,7 @@ class NvidiaGenerator:
         """
         Get a list of available models that work with ChatNVIDIA.
         """
-        return self.backend.models
+        return self._backend.models()
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "NvidiaGenerator":

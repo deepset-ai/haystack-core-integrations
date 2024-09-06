@@ -97,7 +97,7 @@ class NvidiaDocumentEmbedder:
     def default_model(self):
         """Set default model in local NIM mode."""
         valid_models = [
-            model.id for model in self.available_models() if not model.base_model or model.base_model == model.id
+            model.id for model in self.available_models if not model.base_model or model.base_model == model.id
         ]
         name = next(iter(valid_models), None)
         if name:

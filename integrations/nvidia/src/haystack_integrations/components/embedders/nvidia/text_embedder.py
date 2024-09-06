@@ -80,23 +80,22 @@ class NvidiaTextEmbedder:
 
     def default_model(self):
         """Set default model in local NIM mode."""
-        if not self.is_hosted:
-            valid_models = [
-                model.id for model in self.available_models() if not model.base_model or model.base_model == model.id
-            ]
-            name = next(iter(valid_models), None)
-            if name:
-                warnings.warn(
-                    f"Default model is set as: {name}. \n"
-                    "Set model using model parameter. \n"
-                    "To get available models use available_models property.",
-                    UserWarning,
-                    stacklevel=2,
-                )
-                self.model = self.backend.model = name
-            else:
-                error_message = "No locally hosted model was found."
-                raise ValueError(error_message)
+        valid_models = [
+            model.id for model in self.available_models if not model.base_model or model.base_model == model.id
+        ]
+        name = next(iter(valid_models), None)
+        if name:
+            warnings.warn(
+                f"Default model is set as: {name}. \n"
+                "Set model using model parameter. \n"
+                "To get available models use available_models property.",
+                UserWarning,
+                stacklevel=2,
+            )
+            self.model = self.backend.model = name
+        else:
+            error_message = "No locally hosted model was found."
+            raise ValueError(error_message)
 
     def warm_up(self):
         """
