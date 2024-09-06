@@ -22,7 +22,12 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
-dependencies = ["haystack-ai", "google-cloud-aiplatform>=1.38", "pyarrow>3"]
+dependencies = [
+  "haystack-ai",
+  "google-cloud-aiplatform>=1.38",
+  "pyarrow>3",
+  "protobuf<5.28",
+]
 
 [project.urls]
 Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/google_vertex#readme"

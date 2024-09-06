@@ -93,7 +93,7 @@ class NvidiaDocumentEmbedder:
         self._initialized = False
 
         if is_hosted(api_url) and not self.model:  # manually set default model
-            self.model = "NV-Embed-QA"
+            self.model = "nvidia/nv-embedqa-e5-v5"
 
     def default_model(self):
         """Set default model in local NIM mode."""

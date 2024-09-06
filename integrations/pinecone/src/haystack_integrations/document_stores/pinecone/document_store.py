@@ -26,6 +26,7 @@ TOP_K_LIMIT = 1_000
 
 
 DEFAULT_STARTER_PLAN_SPEC = {"serverless": {"region": "us-east-1", "cloud": "aws"}}
+METADATA_SUPPORTED_TYPES = str, int, bool, float  # List[str] is supported and checked separately
 
 
 class PineconeDocumentStore:
@@ -266,6 +267,20 @@ class PineconeDocumentStore:
 
         return self._convert_query_result_to_documents(result)
 
+    @staticmethod
+    def _convert_meta_to_int(metadata: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Pinecone store numeric metadata values as `float`. Some specific metadata are used in Retrievers components and
+        are expected to be `int`. This method converts them back to integers.
+        """
+        values_to_convert = ["split_id", "split_idx_start", "page_number"]
+
+        for value in values_to_convert:
+            if value in metadata:
+                metadata[value] = int(metadata[value]) if isinstance(metadata[value], float) else metadata[value]
+
+        return metadata
+
     def _convert_query_result_to_documents(self, query_result: Dict[str, Any]) -> List[Document]:
         pinecone_docs = query_result["matches"]
         documents = []
@@ -277,8 +292,7 @@ class PineconeDocumentStore:
             if dataframe_string:
                 dataframe = pd.read_json(io.StringIO(dataframe_string))
 
-            # we always store vectors during writing
-            # but we don't want to return them if they are dummy vectors
+            # we always store vectors during writing but we don't want to return them if they are dummy vectors
             embedding = None
             if pinecone_doc["values"] != self._dummy_vector:
                 embedding = pinecone_doc["values"]
@@ -287,13 +301,44 @@ class PineconeDocumentStore:
                 id=pinecone_doc["id"],
                 content=content,
                 dataframe=dataframe,
-                meta=pinecone_doc["metadata"],
+                meta=self._convert_meta_to_int(pinecone_doc["metadata"]),
                 embedding=embedding,
                 score=pinecone_doc["score"],
             )
             documents.append(doc)
 
         return documents
+
+    @staticmethod
+    def _discard_invalid_meta(document: Document):
+        """
+        Remove metadata fields with unsupported types from the document.
+        """
+
+        def valid_type(value: Any):
+            return isinstance(value, METADATA_SUPPORTED_TYPES) or (
+                isinstance(value, list) and all(isinstance(i, str) for i in value)
+            )
+
+        if document.meta:
+            discarded_keys = []
+            new_meta = {}
+            for key, value in document.meta.items():
+                if not valid_type(value):
+                    discarded_keys.append(key)
+                else:
+                    new_meta[key] = value
+
+            if discarded_keys:
+                msg = (
+                    f"Document {document.id} has metadata fields with unsupported types: {discarded_keys}. "
+                    f"Only str, int, bool, and List[str] are supported. The values of these fields will be discarded."
+                )
+                logger.warning(msg)
+
+            document.meta = new_meta
+
+        return document
 
     def _convert_documents_to_pinecone_format(self, documents: List[Document]) -> List[Dict[str, Any]]:
         documents_for_pinecone = []
@@ -305,6 +350,10 @@ class PineconeDocumentStore:
                     "A dummy embedding will be used, but this can affect the search results. "
                 )
                 embedding = self._dummy_vector
+
+            if document.meta:
+                self._discard_invalid_meta(document)
+
             doc_for_pinecone = {"id": document.id, "values": embedding, "metadata": dict(document.meta)}
 
             # we save content/dataframe as metadata
