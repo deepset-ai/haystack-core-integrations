@@ -6,7 +6,7 @@ from typing import Any, Dict, List, Optional
 
 from haystack import component, default_from_dict, default_to_dict
 from haystack.utils.auth import Secret, deserialize_secrets_inplace
-from haystack_integrations.utils.nvidia import NimBackend, is_hosted, url_validation
+from haystack_integrations.utils.nvidia import Model, NimBackend, is_hosted, url_validation, validate_hosted_model
 
 _DEFAULT_API_URL = "https://integrate.api.nvidia.com/v1"
 
@@ -112,10 +112,13 @@ class NvidiaGenerator:
             api_url=self._api_url,
             api_key=self._api_key,
             model_kwargs=self._model_arguments,
+            client=self.__class__.__name__,
+            model_type="chat",
         )
 
         if not self.is_hosted and not self._model:
             self.default_model()
+        validate_hosted_model(self.__class__.__name__, self._model, self)
 
     def to_dict(self) -> Dict[str, Any]:
         """
@@ -131,6 +134,13 @@ class NvidiaGenerator:
             api_key=self._api_key.to_dict() if self._api_key else None,
             model_arguments=self._model_arguments,
         )
+
+    @property
+    def available_models(self) -> List[Model]:
+        """
+        Get a list of available models that work with ChatNVIDIA.
+        """
+        return self.backend.models
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "NvidiaGenerator":

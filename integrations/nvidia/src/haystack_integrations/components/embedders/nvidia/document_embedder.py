@@ -3,7 +3,7 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 
 from haystack import Document, component, default_from_dict, default_to_dict
 from haystack.utils import Secret, deserialize_secrets_inplace
-from haystack_integrations.utils.nvidia import NimBackend, is_hosted, url_validation
+from haystack_integrations.utils.nvidia import Model, NimBackend, is_hosted, url_validation, validate_hosted_model
 from tqdm import tqdm
 
 from .truncate import EmbeddingTruncateMode
@@ -97,7 +97,7 @@ class NvidiaDocumentEmbedder:
     def default_model(self):
         """Set default model in local NIM mode."""
         valid_models = [
-            model.id for model in self.backend.models() if not model.base_model or model.base_model == model.id
+            model.id for model in self.available_models() if not model.base_model or model.base_model == model.id
         ]
         name = next(iter(valid_models), None)
         if name:
@@ -128,12 +128,15 @@ class NvidiaDocumentEmbedder:
             api_url=self.api_url,
             api_key=self.api_key,
             model_kwargs=model_kwargs,
+            client=self.__class__.__name__,
+            model_type="embedding",
         )
 
         self._initialized = True
 
         if not self.model:
             self.default_model()
+        validate_hosted_model(self.__class__.__name__, self.model, self)
 
     def to_dict(self) -> Dict[str, Any]:
         """
@@ -155,6 +158,13 @@ class NvidiaDocumentEmbedder:
             embedding_separator=self.embedding_separator,
             truncate=str(self.truncate) if self.truncate is not None else None,
         )
+
+    @property
+    def available_models(self) -> List[Model]:
+        """
+        Get a list of available models that work with ChatNVIDIA.
+        """
+        return self.backend.models()
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "NvidiaDocumentEmbedder":
