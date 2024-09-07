@@ -3,8 +3,9 @@ from unittest.mock import Mock
 
 import pytest
 from haystack.dataclasses import ChatMessage, ChatRole
-from haystack_integrations.components.generators.ollama import OllamaChatGenerator
 from ollama._types import ResponseError
+
+from haystack_integrations.components.generators.ollama import OllamaChatGenerator
 
 
 @pytest.fixture

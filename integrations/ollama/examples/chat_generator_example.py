@@ -6,6 +6,7 @@
 # docker exec ollama ollama pull orca-mini
 
 from haystack.dataclasses import ChatMessage
+
 from haystack_integrations.components.generators.ollama import OllamaChatGenerator
 
 messages = [
