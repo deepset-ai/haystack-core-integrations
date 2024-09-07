@@ -14,24 +14,22 @@ class ModelCapability(Enum):
 
 # https://docs.aws.amazon.com/bedrock/latest/userguide/conversation-inference.html
 MODEL_CAPABILITIES = {
-    "ai21.j2-.*-instruct": {
+    "ai21.jamba-instruct-.*": {
         ModelCapability.CONVERSE,
         ModelCapability.CONVERSE_STREAM,
         ModelCapability.SYSTEM_PROMPTS,
     },
-    "ai21.j2-.*-text": {ModelCapability.CONVERSE, ModelCapability.GUARDRAILS},
-    "amazon.titan-.*": {
+    "ai21.j2-.*": {
+        ModelCapability.CONVERSE,
+        ModelCapability.GUARDRAILS,
+    },
+    "amazon.titan-text-.*": {
         ModelCapability.CONVERSE,
         ModelCapability.CONVERSE_STREAM,
         ModelCapability.DOCUMENT_CHAT,
         ModelCapability.GUARDRAILS,
     },
-    "amazon.titan-text-express-v1": {
-        ModelCapability.CONVERSE,
-        ModelCapability.CONVERSE_STREAM,
-        ModelCapability.GUARDRAILS,
-    },
-    "anthropic.claude-2.*": {
+    "anthropic.claude-v2.*": {
         ModelCapability.CONVERSE,
         ModelCapability.CONVERSE_STREAM,
         ModelCapability.SYSTEM_PROMPTS,
@@ -48,8 +46,15 @@ MODEL_CAPABILITIES = {
         ModelCapability.STREAMING_TOOL_USE,
         ModelCapability.GUARDRAILS,
     },
-    "cohere.command-text.*": {ModelCapability.CONVERSE, ModelCapability.DOCUMENT_CHAT, ModelCapability.GUARDRAILS},
-    "cohere.command-light.*": {ModelCapability.CONVERSE, ModelCapability.GUARDRAILS},
+    "cohere.command-text.*": {
+        ModelCapability.CONVERSE,
+        ModelCapability.DOCUMENT_CHAT,
+        ModelCapability.GUARDRAILS,
+    },
+    "cohere.command-light.*": {
+        ModelCapability.CONVERSE,
+        ModelCapability.GUARDRAILS,
+    },
     "cohere.command-r.*": {
         ModelCapability.CONVERSE,
         ModelCapability.CONVERSE_STREAM,

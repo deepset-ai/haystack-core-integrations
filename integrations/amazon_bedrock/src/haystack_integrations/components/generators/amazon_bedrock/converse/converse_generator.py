@@ -3,20 +3,21 @@ import re
 from typing import Any, Callable, Dict, List, Optional, Set
 
 from botocore.exceptions import ClientError
-from .capabilities import (
-    MODEL_CAPABILITIES,
-    ModelCapability,
-)
 from haystack import component, default_from_dict, default_to_dict
 from haystack.utils.auth import Secret, deserialize_secrets_inplace
 from haystack.utils.callable_serialization import deserialize_callable, serialize_callable
-from .utils import ContentBlock, ConverseMessage, ConverseStreamingChunk, ImageBlock, ToolConfig, get_stream_message
 
 from haystack_integrations.common.amazon_bedrock.errors import (
     AmazonBedrockConfigurationError,
     AmazonBedrockInferenceError,
 )
 from haystack_integrations.common.amazon_bedrock.utils import get_aws_session
+
+from .capabilities import (
+    MODEL_CAPABILITIES,
+    ModelCapability,
+)
+from .utils import ContentBlock, ConverseMessage, ConverseStreamingChunk, ImageBlock, ToolConfig, get_stream_message
 
 logger = logging.getLogger(__name__)
 
@@ -140,7 +141,8 @@ class AmazonBedrockConverseGenerator:
         for pattern, capabilities in MODEL_CAPABILITIES.items():
             if re.match(pattern, model):
                 return capabilities
-        raise ValueError(f"Unsupported model: {model}")
+        unsupported_model_error = ValueError(f"Unsupported model: {model}")
+        raise unsupported_model_error
 
     @component.output_types(
         message=ConverseMessage,
@@ -153,7 +155,7 @@ class AmazonBedrockConverseGenerator:
         self,
         messages: List[ConverseMessage],
         streaming_callback: Optional[Callable[[ConverseStreamingChunk], None]] = None,
-        inference_config: Dict[str, Any] = {},
+        inference_config: Optional[Dict[str, Any]] = None,
         tool_config: Optional[ToolConfig] = None,
         system_prompt: Optional[List[Dict[str, Any]]] = None,
     ):
@@ -198,12 +200,13 @@ class AmazonBedrockConverseGenerator:
 
         if ModelCapability.STREAMING_TOOL_USE not in self.model_capabilities and streaming_callback and tool_config:
             logger.warning(
-                f"The model {self.model} does not support streaming tool use. Streaming will be disabled for tool calls."
+                f"The model {self.model} does not support streaming tool use. "
+                "Streaming will be disabled for tool calls."
             )
 
         request_kwargs = {
             "modelId": self.model,
-            "inferenceConfig": inference_config,
+            "inferenceConfig": inference_config or self.inference_config,
             "messages": [message.to_dict() for message in messages],
         }
 
@@ -216,21 +219,21 @@ class AmazonBedrockConverseGenerator:
 
         try:
             if streaming_callback and ModelCapability.CONVERSE_STREAM in self.model_capabilities:
-                response = self.client.converse_stream(**request_kwargs)
-                response_stream = response.get("stream")
+                converse_response = self.client.converse_stream(**request_kwargs)
+                response_stream = converse_response.get("stream")
                 message, metadata = get_stream_message(stream=response_stream, streaming_callback=streaming_callback)
             else:
-                response = self.client.converse(**request_kwargs)
-                output = response.get("output")
-                # TODO: Delete
-                print(output)
+                converse_response = self.client.converse(**request_kwargs)
+                output = converse_response.get("output")
                 if output is None:
-                    raise KeyError("Response does not contain 'output'")
+                    response_output_missing_error = "Response does not contain 'output'"
+                    raise KeyError(response_output_missing_error)
                 message = output.get("message")
                 if message is None:
-                    raise KeyError("Response 'output' does not contain 'message'")
+                    response_output_missing_message_error = "Response 'output' does not contain 'message'"
+                    raise KeyError(response_output_missing_message_error)
                 message = ConverseMessage.from_dict(message)
-                metadata = response
+                metadata = converse_response
 
             return {
                 "message": message,

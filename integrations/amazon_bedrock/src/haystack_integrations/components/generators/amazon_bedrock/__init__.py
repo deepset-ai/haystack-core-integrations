@@ -2,10 +2,10 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 from .chat.chat_generator import AmazonBedrockChatGenerator
-from .converse.converse_generator import AmazonBedrockConverseGenerator
-from .generator import AmazonBedrockGenerator
-from .converse.utils import ConverseMessage, ToolConfig
 from .converse.capabilities import MODEL_CAPABILITIES
+from .converse.converse_generator import AmazonBedrockConverseGenerator
+from .converse.utils import ConverseMessage, ToolConfig
+from .generator import AmazonBedrockGenerator
 
 __all__ = [
     "AmazonBedrockGenerator",

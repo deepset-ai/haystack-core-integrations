@@ -33,12 +33,14 @@ class ToolConfig:
     toolChoice: Optional[ToolChoice] = None
 
     def __post_init__(self):
+        msg = "Only one of 'auto', 'any', or 'tool' can be set in toolChoice"
         if self.toolChoice and sum(bool(v) for v in vars(self.toolChoice).values()) != 1:
-            raise ValueError("Only one of 'auto', 'any', or 'tool' can be set in toolChoice")
+            raise ValueError(msg)
 
         if self.toolChoice and self.toolChoice.tool:
             if "name" not in self.toolChoice.tool:
-                raise ValueError("'name' is required when 'tool' is specified in toolChoice")
+                msg = "'name' is required when 'tool' is specified in toolChoice"
+                raise ValueError(msg)
 
     @staticmethod
     def from_functions(functions: List[Callable]) -> "ToolConfig":
@@ -76,7 +78,18 @@ class ToolConfig:
         return cls(tools=tools, toolChoice=tool_choice)
 
     def to_dict(self) -> Dict[str, Any]:
-        result = {"tools": [{"toolSpec": asdict(tool.toolSpec)} for tool in self.tools]}
+        result = {
+            "tools": [
+                {
+                    "toolSpec": {
+                        "name": tool.toolSpec.name,
+                        "description": tool.toolSpec.description,
+                        "inputSchema": tool.toolSpec.inputSchema,
+                    }
+                }
+                for tool in self.tools
+            ]
+        }
         if self.toolChoice:
             tool_choice: Dict[str, Dict[str, Any]] = {}
             if self.toolChoice.auto:
@@ -151,17 +164,19 @@ class ContentBlock:
     content: List[Union[DocumentBlock, GuardrailConverseContentBlock, ImageBlock, str, ToolResultBlock, ToolUseBlock]]
 
     def __post_init__(self):
+        err_msg = "Content must be a list"
         if not isinstance(self.content, list):
-            raise ValueError("Content must be a list")
+            raise ValueError(err_msg)
 
         for item in self.content:
             if not isinstance(
                 item, (DocumentBlock, GuardrailConverseContentBlock, ImageBlock, str, ToolResultBlock, ToolUseBlock)
             ):
-                raise ValueError(
+                msg = (
                     f"Invalid content type: {type(item)}. Each item must be one of DocumentBlock, "
                     "GuardrailConverseContentBlock, ImageBlock, str, ToolResultBlock, or ToolUseBlock"
                 )
+                raise ValueError(msg)
 
     @staticmethod
     def from_assistant(content: Sequence[Union[str, ToolUseBlock]]) -> "ContentBlock":
@@ -183,7 +198,8 @@ class ContentBlock:
             elif isinstance(item, ToolUseBlock):
                 res.append({"toolUse": asdict(item)})
             else:
-                raise ValueError(f"Unsupported content type: {type(item)}")
+                msg = f"Unsupported content type: {type(item)}"
+                raise ValueError(msg)
         return res
 
 
@@ -231,7 +247,8 @@ class ConverseMessage:
             elif "guardContent" in item:
                 content_blocks.append(GuardrailConverseContentBlock(**item["guardContent"]))
             else:
-                raise ValueError(f"Unknown content type in message: {item}")
+                unknown_type = f"Unknown content type in message: {item}"
+                raise ValueError(unknown_type)
 
         return ConverseMessage(role, ContentBlock(content=content_blocks))
 
@@ -312,9 +329,11 @@ def get_stream_message(
     - metadata: Indicates metadata about the message.
 
     The function processes each event in the stream and returns a ConverseMessage and the associated metadata.
-    The ConverseMessage will contain the content of the message, and the metadata will contain the stop reason and any other metadata from the stream.
+    The ConverseMessage will contain the content of the message,
+    and the metadata will contain the stop reason and any other metadata from the stream.
 
-    The function will also call the streaming_callback function with a ConverseStreamingChunk for each event in the stream.
+    The function will also call the streaming_callback function
+    with a ConverseStreamingChunk for each event in the stream.
     The ConverseStreamingChunk will contain the content and metadata from the event.
 
     :param stream: The stream of messages to process.
