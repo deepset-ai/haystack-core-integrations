@@ -6,11 +6,12 @@
 # docker exec ollama ollama pull orca-mini
 
 from haystack.dataclasses import ChatMessage
+
 from haystack_integrations.components.generators.ollama import OllamaChatGenerator
 
 messages = [
     ChatMessage.from_user("What's Natural Language Processing?"),
-    ChatMessage.from_system(
+    ChatMessage.from_assistant(
         "Natural Language Processing (NLP) is a field of computer science and artificial "
         "intelligence concerned with the interaction between computers and human language"
     ),

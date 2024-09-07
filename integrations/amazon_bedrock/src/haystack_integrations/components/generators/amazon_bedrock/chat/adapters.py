@@ -5,6 +5,7 @@ from abc import ABC, abstractmethod
 from typing import Any, Callable, ClassVar, Dict, List, Optional
 
 from botocore.eventstream import EventStream
+from haystack.components.generators.openai_utils import _convert_message_to_openai_format
 from haystack.dataclasses import ChatMessage, ChatRole, StreamingChunk
 from transformers import AutoTokenizer, PreTrainedTokenizer
 
@@ -165,6 +166,8 @@ class AnthropicClaudeChatAdapter(BedrockModelChatAdapter):
         "top_p",
         "top_k",
         "system",
+        "tools",
+        "tool_choice",
     ]
 
     def __init__(self, truncate: Optional[bool], generation_kwargs: Dict[str, Any]):
@@ -252,10 +255,18 @@ class AnthropicClaudeChatAdapter(BedrockModelChatAdapter):
         """
         messages: List[ChatMessage] = []
         if response_body.get("type") == "message":
-            for content in response_body["content"]:
-                if content.get("type") == "text":
-                    meta = {k: v for k, v in response_body.items() if k not in ["type", "content", "role"]}
-                    messages.append(ChatMessage.from_assistant(content["text"], meta=meta))
+            if response_body.get("stop_reason") == "tool_use":  # If `tool_use` we only keep the tool_use content
+                for content in response_body["content"]:
+                    if content.get("type") == "tool_use":
+                        meta = {k: v for k, v in response_body.items() if k not in ["type", "content", "role"]}
+                        json_answer = json.dumps(content)
+                        messages.append(ChatMessage.from_assistant(json_answer, meta=meta))
+            else:  # For other stop_reason, return all text content
+                for content in response_body["content"]:
+                    if content.get("type") == "text":
+                        meta = {k: v for k, v in response_body.items() if k not in ["type", "content", "role"]}
+                        messages.append(ChatMessage.from_assistant(content["text"], meta=meta))
+
         return messages
 
     def _build_streaming_chunk(self, chunk: Dict[str, Any]) -> StreamingChunk:
@@ -341,7 +352,7 @@ class MistralChatAdapter(BedrockModelChatAdapter):
         # b) we can use apply_chat_template with the template above to delineate ChatMessages
         # Mistral models are gated on HF Hub. If no HF_TOKEN is found we use a non-gated alternative tokenizer model.
         tokenizer: PreTrainedTokenizer
-        if os.environ.get("HF_TOKEN"):
+        if os.environ.get("HF_TOKEN") or os.environ.get("HF_API_TOKEN"):
             tokenizer = AutoTokenizer.from_pretrained("mistralai/Mistral-7B-Instruct-v0.1")
         else:
             tokenizer = AutoTokenizer.from_pretrained("NousResearch/Llama-2-7b-chat-hf")
@@ -389,26 +400,13 @@ class MistralChatAdapter(BedrockModelChatAdapter):
         # default is https://huggingface.co/mistralai/Mixtral-8x7B-Instruct-v0.1/blob/main/tokenizer_config.json
         # but we'll use our custom chat template
         prepared_prompt: str = self.prompt_handler.tokenizer.apply_chat_template(
-            conversation=[self.to_openai_format(m) for m in messages], tokenize=False, chat_template=self.chat_template
+            conversation=[_convert_message_to_openai_format(m) for m in messages],
+            tokenize=False,
+            chat_template=self.chat_template,
         )
         if self.truncate:
             prepared_prompt = self._ensure_token_limit(prepared_prompt)
         return prepared_prompt
-
-    def to_openai_format(self, m: ChatMessage) -> Dict[str, Any]:
-        """
-        Convert the message to the format expected by OpenAI's Chat API.
-        See the [API reference](https://platform.openai.com/docs/api-reference/chat/create) for details.
-
-        :returns: A dictionary with the following key:
-            - `role`
-            - `content`
-            - `name` (optional)
-        """
-        msg = {"role": m.role.value, "content": m.content}
-        if m.name:
-            msg["name"] = m.name
-        return msg
 
     def check_prompt(self, prompt: str) -> Dict[str, Any]:
         """

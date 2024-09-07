@@ -3,6 +3,7 @@ import os
 import pytest
 from haystack import Document
 from haystack.utils import Secret
+
 from haystack_integrations.components.embedders.nvidia import EmbeddingTruncateMode, NvidiaDocumentEmbedder
 
 from . import MockBackend
@@ -14,7 +15,7 @@ class TestNvidiaDocumentEmbedder:
         embedder = NvidiaDocumentEmbedder()
 
         assert embedder.api_key == Secret.from_env_var("NVIDIA_API_KEY")
-        assert embedder.model == "NV-Embed-QA"
+        assert embedder.model == "nvidia/nv-embedqa-e5-v5"
         assert embedder.api_url == "https://ai.api.nvidia.com/v1/retrieval/nvidia"
         assert embedder.prefix == ""
         assert embedder.suffix == ""
@@ -372,15 +373,34 @@ class TestNvidiaDocumentEmbedder:
             assert isinstance(doc.embedding, list)
             assert isinstance(doc.embedding[0], float)
 
+    @pytest.mark.parametrize(
+        "model, api_url",
+        [
+            ("NV-Embed-QA", None),
+            ("snowflake/arctic-embed-l", "https://integrate.api.nvidia.com/v1"),
+            ("nvidia/nv-embed-v1", "https://integrate.api.nvidia.com/v1"),
+            ("nvidia/nv-embedqa-mistral-7b-v2", "https://integrate.api.nvidia.com/v1"),
+            ("nvidia/nv-embedqa-e5-v5", "https://integrate.api.nvidia.com/v1"),
+            ("baai/bge-m3", "https://integrate.api.nvidia.com/v1"),
+        ],
+        ids=[
+            "NV-Embed-QA",
+            "snowflake/arctic-embed-l",
+            "nvidia/nv-embed-v1",
+            "nvidia/nv-embedqa-mistral-7b-v2",
+            "nvidia/nv-embedqa-e5-v5",
+            "baai/bge-m3",
+        ],
+    )
     @pytest.mark.skipif(
         not os.environ.get("NVIDIA_API_KEY", None),
         reason="Export an env var called NVIDIA_API_KEY containing the NVIDIA API key to run this test.",
     )
     @pytest.mark.integration
-    def test_run_integration_with_api_catalog(self):
+    def test_run_integration_with_api_catalog(self, model, api_url):
         embedder = NvidiaDocumentEmbedder(
-            model="NV-Embed-QA",
-            api_url="https://ai.api.nvidia.com/v1/retrieval/nvidia",
+            model=model,
+            **({"api_url": api_url} if api_url else {}),
             api_key=Secret.from_env_var("NVIDIA_API_KEY"),
         )
         embedder.warm_up()
