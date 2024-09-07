@@ -183,6 +183,7 @@ class WeaviateDocumentStore:
                 additional_config=self._additional_config,
             )
         else:
+            # Embedded, local Docker deployment or custom connection.
             # proxies, timeout_config, trust_env are part of additional_config now
             # startup_period has been removed
             self._client = weaviate.WeaviateClient(
