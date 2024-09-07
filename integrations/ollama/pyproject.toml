@@ -161,5 +161,5 @@ markers = [
 addopts = ["--import-mode=importlib"]
 
 [[tool.mypy.overrides]]
-module = ["haystack.*", "haystack_integrations.*", "pytest.*"]
+module = ["haystack.*", "haystack_integrations.*", "pytest.*", "ollama.*"]
 ignore_missing_imports = true

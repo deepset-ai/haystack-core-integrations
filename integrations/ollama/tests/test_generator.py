@@ -5,9 +5,8 @@
 import pytest
 from haystack.components.generators.utils import print_streaming_chunk
 from haystack.dataclasses import StreamingChunk
-from ollama._types import ResponseError
-
 from haystack_integrations.components.generators.ollama import OllamaGenerator
+from ollama._types import ResponseError
 
 
 class TestOllamaGenerator:

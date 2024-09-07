@@ -7,7 +7,6 @@
 from haystack import Document, Pipeline
 from haystack.components.retrievers.in_memory import InMemoryEmbeddingRetriever
 from haystack.document_stores.in_memory import InMemoryDocumentStore
-
 from haystack_integrations.components.embedders.ollama.document_embedder import OllamaDocumentEmbedder
 from haystack_integrations.components.embedders.ollama.text_embedder import OllamaTextEmbedder
 

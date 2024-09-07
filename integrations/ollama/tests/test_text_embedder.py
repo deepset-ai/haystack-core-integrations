@@ -1,7 +1,6 @@
 import pytest
-from ollama._types import ResponseError
-
 from haystack_integrations.components.embedders.ollama import OllamaTextEmbedder
+from ollama._types import ResponseError
 
 
 class TestOllamaTextEmbedder:
