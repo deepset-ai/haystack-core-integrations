@@ -34,18 +34,54 @@ class AmazonBedrockConverseGenerator:
     ### Usage example
 
     ```python
-    from haystack_integrations.components.generators.amazon_bedrock import AmazonBedrockChatGenerator
-    from haystack.dataclasses import ChatMessage
-    from haystack.components.generators.utils import print_streaming_chunk
+    from haystack import Pipeline
 
-    messages = [ChatMessage.from_system("\\nYou are a helpful, respectful and honest assistant, answer in German only"),
-                ChatMessage.from_user("What's Natural Language Processing?")]
+    from haystack_integrations.components.generators.amazon_bedrock import AmazonBedrockConverseGenerator
+    from haystack_integrations.components.generators.amazon_bedrock.converse.utils import ConverseMessage, ToolConfig
 
 
-    client = AmazonBedrockChatGenerator(model="anthropic.claude-3-sonnet-20240229-v1:0",
-                                        streaming_callback=print_streaming_chunk)
-    client.run(messages, generation_kwargs={"max_tokens": 512})
+    def get_current_weather(location: str, unit: str = "celsius") -> str:
+        return f"The weather in {location} is 22 degrees {unit}."
 
+
+    def get_current_time(timezone: str) -> str:
+        return f"The current time in {timezone} is 14:30."
+
+
+    generator = AmazonBedrockConverseGenerator(
+        model="anthropic.claude-3-5-sonnet-20240620-v1:0",
+        # streaming_callback=print,
+    )
+
+    # Create ToolConfig from functions
+    tool_config = ToolConfig.from_functions([get_current_weather, get_current_time])
+
+    # Convert ToolConfig to dict for use in the run method
+    tool_config_dict = tool_config.to_dict()
+
+    print("Tool Config:")
+    print(tool_config_dict)
+
+    pipeline = Pipeline()
+    pipeline.add_component("generator", generator)
+
+    result = pipeline.run(
+        data={
+            "generator": {
+                "inference_config": {
+                    "temperature": 0.1,
+                    "maxTokens": 256,
+                    "topP": 0.1,
+                    "stopSequences": ["\\n"],
+                },
+                "messages": [
+                    ConverseMessage.from_user(["What's the weather like in Paris and what time is it in New York?"]),
+                ],
+                "tool_config": tool_config_dict,
+            },
+        },
+    )
+    print(result)
     ```
 
     AmazonBedrockChatGenerator uses AWS for authentication. You can use the AWS CLI to authenticate through your IAM.
@@ -101,6 +137,7 @@ class AmazonBedrockConverseGenerator:
         switches the streaming mode on.
         :param inference_config: A dictionary containing the inference configuration. The default value is None.
         :param tool_config: A dictionary containing the tool configuration. The default value is None.
+        :param system_prompt: A list of dictionaries containing the system prompt. The default value is None.
         """
         if not model:
             msg = "'model' cannot be None or empty string"

@@ -13,6 +13,7 @@ class ModelCapability(Enum):
 
 
 # https://docs.aws.amazon.com/bedrock/latest/userguide/conversation-inference.html
+
 MODEL_CAPABILITIES = {
     "ai21.jamba-instruct-.*": {
         ModelCapability.CONVERSE,
