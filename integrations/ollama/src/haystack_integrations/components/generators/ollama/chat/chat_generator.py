@@ -61,7 +61,7 @@ class OllamaChatGenerator:
         self.model = model
         self.streaming_callback = streaming_callback
 
-        self.client = Client(host=self.url, timeout=self.timeout)
+        self._client = Client(host=self.url, timeout=self.timeout)
 
     def _message_to_dict(self, message: ChatMessage) -> Dict[str, str]:
         return {"role": message.role.value, "content": message.content}
@@ -131,7 +131,7 @@ class OllamaChatGenerator:
 
         stream = self.streaming_callback is not None
         messages = [self._message_to_dict(message) for message in messages]
-        response = self.client.chat(model=self.model, messages=messages, stream=stream, options=generation_kwargs)
+        response = self._client.chat(model=self.model, messages=messages, stream=stream, options=generation_kwargs)
 
         if stream:
             chunks: List[StreamingChunk] = self._handle_streaming_response(response)

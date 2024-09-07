@@ -69,7 +69,7 @@ class OllamaGenerator:
         self.generation_kwargs = generation_kwargs or {}
         self.streaming_callback = streaming_callback
 
-        self.client = Client(host=self.url, timeout=self.timeout)
+        self._client = Client(host=self.url, timeout=self.timeout)
 
     def to_dict(self) -> Dict[str, Any]:
         """
@@ -172,7 +172,7 @@ class OllamaGenerator:
 
         stream = self.streaming_callback is not None
 
-        response = self.client.generate(model=self.model, prompt=prompt, stream=stream, options=generation_kwargs)
+        response = self._client.generate(model=self.model, prompt=prompt, stream=stream, options=generation_kwargs)
 
         if stream:
             chunks: List[StreamingChunk] = self._handle_streaming_response(response)

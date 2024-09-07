@@ -60,7 +60,7 @@ class OllamaDocumentEmbedder:
         self.suffix = suffix
         self.prefix = prefix
 
-        self.client = Client(host=self.url, timeout=self.timeout)
+        self._client = Client(host=self.url, timeout=self.timeout)
 
     def _prepare_texts_to_embed(self, documents: List[Document]) -> List[str]:
         """
@@ -100,7 +100,7 @@ class OllamaDocumentEmbedder:
             range(0, len(texts_to_embed), batch_size), disable=not self.progress_bar, desc="Calculating embeddings"
         ):
             batch = texts_to_embed[i]  # Single batch only
-            result = self.client.embeddings(model=self.model, prompt=batch, options=generation_kwargs)
+            result = self._client.embeddings(model=self.model, prompt=batch, options=generation_kwargs)
             all_embeddings.append(result["embedding"])
 
         meta["model"] = self.model

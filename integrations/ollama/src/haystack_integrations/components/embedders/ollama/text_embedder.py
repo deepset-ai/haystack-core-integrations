@@ -45,7 +45,7 @@ class OllamaTextEmbedder:
         self.url = url
         self.model = model
 
-        self.client = Client(host=self.url, timeout=self.timeout)
+        self._client = Client(host=self.url, timeout=self.timeout)
 
     @component.output_types(embedding=List[float], meta=Dict[str, Any])
     def run(self, text: str, generation_kwargs: Optional[Dict[str, Any]] = None):
@@ -62,7 +62,7 @@ class OllamaTextEmbedder:
             - `embedding`: The computed embeddings
             - `meta`: The metadata collected during the embedding process
         """
-        result = self.client.embeddings(model=self.model, prompt=text, options=generation_kwargs)
+        result = self._client.embeddings(model=self.model, prompt=text, options=generation_kwargs)
         result["meta"] = {"model": self.model}
 
         return result
