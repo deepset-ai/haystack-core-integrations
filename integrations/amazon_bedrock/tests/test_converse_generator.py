@@ -33,7 +33,7 @@ def get_current_time(timezone: str) -> str:
     return f"The current time in {timezone} is 14:30."
 
 
-def test_to_dict(mock_boto3_session):
+def test_to_dict():
     """
     Test that the to_dict method returns the correct dictionary without aws credentials
     """
@@ -94,7 +94,7 @@ def test_to_dict(mock_boto3_session):
     assert generator.to_dict() == expected_dict
 
 
-def test_from_dict(mock_boto3_session):
+def test_from_dict():
     """
     Test that the from_dict method returns the correct object
     """

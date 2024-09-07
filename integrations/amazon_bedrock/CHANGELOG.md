@@ -2,6 +2,12 @@
 
 ## [unreleased]
 
+### 🚀 Features
+
+- New generator for the bedrock converse API (#977)
+
+## [unreleased]
+
 ### 🐛 Bug Fixes
 
 - *(Bedrock)* Allow tools kwargs for AWS Bedrock Claude model (#976)
