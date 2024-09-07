@@ -172,10 +172,10 @@ class WeaviateDocumentStore:
         if self._client:
             return self._client
 
-        if self._url and (self._url.endswith(".weaviate.network") or self._url.endswith(".weaviate.cloud")):
-            # We use this utility function instead of using WeaviateClient directly like in other cases
-            # otherwise we'd have to parse the URL to get some information about the connection.
-            # This utility function does all that for us.
+        if self._url and self._url.endswith((".weaviate.network", ".weaviate.cloud")):
+            # If we detect that the URL is a Weaviate Cloud URL, we use the utility function to connect
+            # instead of using WeaviateClient directly like in other cases.
+            # Among other things, the utility function takes care of parsing the URL.
             self._client = weaviate.connect_to_weaviate_cloud(
                 self._url,
                 auth_credentials=self._auth_client_secret.resolve_value() if self._auth_client_secret else None,
