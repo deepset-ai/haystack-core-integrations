@@ -1,5 +1,5 @@
-﻿import json
 from unittest.mock import Mock, patch
+import json
 
 import pytest
 from botocore.exceptions import ClientError
