@@ -96,7 +96,7 @@ class SnowflakeRetriever:
         :returns:
             Dictionary with serialized data.
         """
-        return default_to_dict(  # type: ignore
+        return default_to_dict(
             self,
             user=self.user,
             account=self.account,
@@ -119,7 +119,7 @@ class SnowflakeRetriever:
         """
         init_params = data.get("init_parameters", {})
         deserialize_secrets_inplace(init_params, ["api_key"])
-        return default_from_dict(cls, data)  # type: ignore
+        return default_from_dict(cls, data)
 
     @staticmethod
     def _snowflake_connector(connect_params: Dict[str, Any]) -> Union[SnowflakeConnection, None]:
