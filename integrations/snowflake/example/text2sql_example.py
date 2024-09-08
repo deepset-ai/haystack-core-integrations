@@ -75,14 +75,14 @@ analyst_template = """
 
 analyst_builder = PromptBuilder(template=analyst_template)
 
-# Model responsible for generating the SQL query
+# LLM responsible for generating the SQL query
 sql_llm = OpenAIGenerator(
     model="gpt-4o",
     api_key=Secret.from_env_var("OPENAI_API_KEY"),
     generation_kwargs={"temperature": 0.0, "max_tokens": 1000},
 )
 
-# Model responsible for analyzing the table
+# LLM responsible for analyzing the table
 analyst_llm = OpenAIGenerator(
     model="gpt-4o",
     api_key=Secret.from_env_var("OPENAI_API_KEY"),
