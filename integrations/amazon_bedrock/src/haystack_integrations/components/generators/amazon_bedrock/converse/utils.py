@@ -1,4 +1,4 @@
-﻿import inspect
+import inspect
 import json
 import logging
 from dataclasses import asdict, dataclass, field
