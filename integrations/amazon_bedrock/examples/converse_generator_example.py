@@ -22,13 +22,10 @@ tool_config = ToolConfig.from_functions([get_current_weather, get_current_time])
 
 tool_config_dict = tool_config.to_dict()
 
-print("Tool Config:")
-print(tool_config_dict)
 
 pipeline = Pipeline()
 pipeline.add_component("generator", generator)
 
-print("\nRunning pipeline with tools:")
 result = pipeline.run(
     data={
         "generator": {
@@ -45,5 +42,3 @@ result = pipeline.run(
         },
     },
 )
-print("\nPipeline Result:")
-print(result)

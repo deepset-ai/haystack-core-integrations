@@ -1,5 +1,5 @@
-from unittest.mock import Mock, patch
 import json
+from unittest.mock import Mock, patch
 
 import pytest
 from botocore.exceptions import ClientError
@@ -51,7 +51,8 @@ def test_to_dict():
     )
 
     expected_dict = {
-        "type": "haystack_integrations.components.generators.amazon_bedrock.converse.converse_generator.AmazonBedrockConverseGenerator",
+        "type": "haystack_integrations.components.generators.amazon_bedrock.converse.converse_generator."
+        "AmazonBedrockConverseGenerator",
         "init_parameters": {
             "aws_access_key_id": {
                 "type": "env_var",
@@ -102,7 +103,8 @@ def test_from_dict():
 
     generator = AmazonBedrockConverseGenerator.from_dict(
         {
-            "type": "haystack_integrations.components.generators.amazon_bedrock.converse.converse_generator.AmazonBedrockConverseGenerator",
+            "type": "haystack_integrations.components.generators.amazon_bedrock.converse.converse_generator."
+            "AmazonBedrockConverseGenerator",
             "init_parameters": {
                 "aws_access_key_id": {"type": "env_var", "env_vars": ["AWS_ACCESS_KEY_ID"], "strict": False},
                 "aws_secret_access_key": {"type": "env_var", "env_vars": ["AWS_SECRET_ACCESS_KEY"], "strict": False},
@@ -209,9 +211,6 @@ def test_run_with_different_message_types(mock_session):
     assert call_args["messages"][0]["content"] == [{"text": "What's the weather like?"}]
 
 
-from unittest.mock import patch
-
-
 def test_streaming():
     generator = AmazonBedrockConverseGenerator(model="anthropic.claude-3-sonnet-20240229-v1:0")
 
@@ -293,7 +292,8 @@ def test_streaming():
     assert len(chunks) == len(mocked_events)
     assert (
         result["message"].content.content[0]
-        == "To answer your questions, I'll need to use two different functions: one to check the weather in Paris and another to get the current time in New York. Let me fetch that information for you."
+        == "To answer your questions, I'll need to use two different functions: one to check the weather "
+        "in Paris and another to get the current time in New York. Let me fetch that information for you."
     )
     assert len(result["message"].content.content) == 3
     assert result["stop_reason"] == "tool_use"
@@ -333,7 +333,8 @@ def test_tool_usage():
                 "role": "assistant",
                 "content": [
                     {
-                        "text": "Certainly! I'd be happy to help you with the weather in Paris and the current time in New York. To get this information, I'll need to use two different tools. Let me fetch that data for you."
+                        "text": "I'll get the weather in Paris and the current time in New York for you. "
+                        "To do this, I'll need to use two different tools. Let me fetch that data."
                     },
                     {
                         "toolUse": {
@@ -364,9 +365,9 @@ def test_tool_usage():
     assert isinstance(result["message"].content.content[2], ToolUseBlock)
     assert result["stop_reason"] == "tool_use"
     assert result["message"].role == ConverseRole.ASSISTANT
-    assert (
-        result["message"].content.content[0]
-        == "Certainly! I'd be happy to help you with the weather in Paris and the current time in New York. To get this information, I'll need to use two different tools. Let me fetch that data for you."
+    assert result["message"].content.content[0] == (
+        "I'll get the weather in Paris and the current time in New York for you. "
+        "To do this, I'll need to use two different tools. Let me fetch that data."
     )
     assert result["message"].content.content[1].name == "get_current_weather"
     assert result["message"].content.content[2].name == "get_current_time"

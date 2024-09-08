@@ -12,12 +12,12 @@ from botocore.eventstream import EventStream
 class ToolSpec:
     name: str
     description: Optional[str] = None
-    inputSchema: Dict[str, Dict] = field(default_factory=dict)
+    input_schema: Dict[str, Dict] = field(default_factory=dict)
 
 
 @dataclass
 class Tool:
-    toolSpec: ToolSpec
+    tool_spec: ToolSpec
 
 
 @dataclass
@@ -30,16 +30,16 @@ class ToolChoice:
 @dataclass
 class ToolConfig:
     tools: List[Tool]
-    toolChoice: Optional[ToolChoice] = None
+    tool_choice: Optional[ToolChoice] = None
 
     def __post_init__(self):
-        msg = "Only one of 'auto', 'any', or 'tool' can be set in toolChoice"
-        if self.toolChoice and sum(bool(v) for v in vars(self.toolChoice).values()) != 1:
+        msg = "Only one of 'auto', 'any', or 'tool' can be set in tool_choice"
+        if self.tool_choice and sum(bool(v) for v in vars(self.tool_choice).values()) != 1:
             raise ValueError(msg)
 
-        if self.toolChoice and self.toolChoice.tool:
-            if "name" not in self.toolChoice.tool:
-                msg = "'name' is required when 'tool' is specified in toolChoice"
+        if self.tool_choice and self.tool_choice.tool:
+            if "name" not in self.tool_choice.tool:
+                msg = "'name' is required when 'tool' is specified in tool_choice"
                 raise ValueError(msg)
 
     @staticmethod
@@ -49,7 +49,7 @@ class ToolConfig:
             tool_spec = ToolSpec(
                 name=func.__name__,
                 description=func.__doc__,
-                inputSchema={
+                input_schema={
                     "json": {
                         "type": "object",
                         "properties": {param: {"type": "string"} for param in inspect.signature(func).parameters},
@@ -57,17 +57,17 @@ class ToolConfig:
                     }
                 },
             )
-            tools.append(Tool(toolSpec=tool_spec))
+            tools.append(Tool(tool_spec=tool_spec))
 
         return ToolConfig(tools=tools)
 
     @classmethod
     def from_dict(cls, config: Dict) -> "ToolConfig":
-        tools = [Tool(ToolSpec(**tool["toolSpec"])) for tool in config.get("tools", [])]
+        tools = [Tool(ToolSpec(**tool["tool_spec"])) for tool in config.get("tools", [])]
 
         tool_choice = None
-        if "toolChoice" in config:
-            tc = config["toolChoice"]
+        if "tool_choice" in config:
+            tc = config["tool_choice"]
             if "auto" in tc:
                 tool_choice = ToolChoice(auto=tc["auto"])
             elif "any" in tc:
@@ -75,30 +75,30 @@ class ToolConfig:
             elif "tool" in tc:
                 tool_choice = ToolChoice(tool={"name": tc["tool"]["name"]})
 
-        return cls(tools=tools, toolChoice=tool_choice)
+        return cls(tools=tools, tool_choice=tool_choice)
 
     def to_dict(self) -> Dict[str, Any]:
         result = {
             "tools": [
                 {
                     "toolSpec": {
-                        "name": tool.toolSpec.name,
-                        "description": tool.toolSpec.description,
-                        "inputSchema": tool.toolSpec.inputSchema,
+                        "name": tool.tool_spec.name,
+                        "description": tool.tool_spec.description,
+                        "inputSchema": tool.tool_spec.input_schema,
                     }
                 }
                 for tool in self.tools
             ]
         }
-        if self.toolChoice:
+        if self.tool_choice:
             tool_choice: Dict[str, Dict[str, Any]] = {}
-            if self.toolChoice.auto:
-                tool_choice["auto"] = self.toolChoice.auto
-            elif self.toolChoice.any:
-                tool_choice["any"] = self.toolChoice.any
-            elif self.toolChoice.tool:
-                tool_choice["tool"] = self.toolChoice.tool
-            result["toolChoice"] = [tool_choice]
+            if self.tool_choice.auto:
+                tool_choice["auto"] = self.tool_choice.auto
+            elif self.tool_choice.any:
+                tool_choice["any"] = self.tool_choice.any
+            elif self.tool_choice.tool:
+                tool_choice["tool"] = self.tool_choice.tool
+            result["tool_choice"] = [tool_choice]
         return result
 
 
@@ -142,14 +142,14 @@ class ToolResultContentBlock:
 
 @dataclass
 class ToolResultBlock:
-    toolUseId: str
+    tool_use_id: str
     content: List[ToolResultContentBlock]
     status: Optional[str] = None
 
 
 @dataclass
 class ToolUseBlock:
-    toolUseId: str
+    tool_use_id: str
     name: str
     input: Dict[str, Any]
 
@@ -241,7 +241,13 @@ class ConverseMessage:
             elif "document" in item:
                 content_blocks.append(DocumentBlock(**item["document"]))
             elif "toolUse" in item:
-                content_blocks.append(ToolUseBlock(**item["toolUse"]))
+                content_blocks.append(
+                    ToolUseBlock(
+                        tool_use_id=item["toolUse"]["toolUseId"],
+                        name=item["toolUse"]["name"],
+                        input=item["toolUse"]["input"],
+                    )
+                )
             elif "toolResult" in item:
                 content_blocks.append(ToolResultBlock(**item["toolResult"]))
             elif "guardContent" in item:
@@ -285,7 +291,7 @@ def _handle_content_block_start(event: StreamEvent, current_index: int) -> Tuple
     start_of_tool_use = event.data.get("start")
     if start_of_tool_use:
         return new_index, ToolUseBlock(
-            toolUseId=start_of_tool_use["toolUse"]["toolUseId"],
+            tool_use_id=start_of_tool_use["toolUse"]["toolUseId"],
             name=start_of_tool_use["toolUse"]["name"],
             input={},
         )
