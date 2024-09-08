@@ -74,7 +74,6 @@ class TestSnowflakeRetriever:
     def test_exception(
         self, mock_connect: MagicMock, snowflake_retriever: SnowflakeRetriever, caplog: LogCaptureFixture
     ) -> None:
-
         mock_connect = mock_connect.return_value
         mock_connect._fetch_data.side_effect = Exception("Unknown error")
 
@@ -112,7 +111,6 @@ class TestSnowflakeRetriever:
     def test_execute_sql_query_programming_error(
         self, mock_connect: MagicMock, snowflake_retriever: SnowflakeRetriever, caplog: LogCaptureFixture
     ) -> None:
-
         mock_conn = MagicMock()
         mock_cursor = mock_conn.cursor.return_value
 
@@ -153,7 +151,6 @@ class TestSnowflakeRetriever:
             assert result == ["TABLE_A"]
 
     def test_extract_database_and_schema_from_query(self, snowflake_retriever: SnowflakeRetriever) -> None:
-
         # when database and schema are next to table name
         assert snowflake_retriever._extract_table_names(query="SELECT * FROM DB.SCHEMA.TABLE_A") == [
             "DB.SCHEMA.TABLE_A"
@@ -173,16 +170,23 @@ class TestSnowflakeRetriever:
             assert result == ["TABLE_A", "TABLE_B"] or ["TABLE_B", "TABLE_A"]
 
     def test_extract_multiple_db_schema_from_table_names(self, snowflake_retriever: SnowflakeRetriever) -> None:
-
-        assert snowflake_retriever._extract_table_names(
-            query="""SELECT a.name, b.value FROM DB.SCHEMA.TABLE_A AS a """
-            + """FULL OUTER JOIN DATABASE.SCHEMA.TABLE_b AS b ON a.id = b.id"""
-        ) == ["DB.SCHEMA.TABLE_A", "DATABASE.SCHEMA.TABLE_A"] or ["DATABASE.SCHEMA.TABLE_A", "DB.SCHEMA.TABLE_B" ""]
+        assert (
+            snowflake_retriever._extract_table_names(
+                query="""SELECT a.name, b.value FROM DB.SCHEMA.TABLE_A AS a
+                 FULL OUTER JOIN DATABASE.SCHEMA.TABLE_b AS b ON a.id = b.id"""
+            )
+            == ["DB.SCHEMA.TABLE_A", "DATABASE.SCHEMA.TABLE_A"]
+            or ["DATABASE.SCHEMA.TABLE_A", "DB.SCHEMA.TABLE_B"]
+        )
         # No database
-        assert snowflake_retriever._extract_table_names(
-            query="""SELECT a.name, b.value FROM SCHEMA.TABLE_A AS a """
-            + """FULL OUTER JOIN SCHEMA.TABLE_b AS b ON a.id = b.id"""
-        ) == ["SCHEMA.TABLE_A", "SCHEMA.TABLE_A"] or ["SCHEMA.TABLE_A", "SCHEMA.TABLE_B"]
+        assert (
+            snowflake_retriever._extract_table_names(
+                query="""SELECT a.name, b.value FROM SCHEMA.TABLE_A AS a
+                 FULL OUTER JOIN SCHEMA.TABLE_b AS b ON a.id = b.id"""
+            )
+            == ["SCHEMA.TABLE_A", "SCHEMA.TABLE_A"]
+            or ["SCHEMA.TABLE_A", "SCHEMA.TABLE_B"]
+        )
 
     @patch("haystack_integrations.components.retrievers.snowflake.snowflake_retriever.snowflake.connector.connect")
     def test_execute_sql_query(self, mock_connect: MagicMock, snowflake_retriever: SnowflakeRetriever) -> None:
@@ -250,7 +254,7 @@ class TestSnowflakeRetriever:
         ]
 
         result = snowflake_retriever._check_privilege(conn=mock_conn, user="test_user", query=query)
-        print(result)
+
         assert not result
         assert "User does not have `Select` privilege on the table" in caplog.text
 
@@ -311,7 +315,7 @@ class TestSnowflakeRetriever:
         }
 
         result = snowflake_retriever.run(query=query)
-        print(result["table"])
+
         assert result["dataframe"].equals(expected["dataframe"])
         assert result["table"] == expected["table"]
 
@@ -344,7 +348,6 @@ class TestSnowflakeRetriever:
     def test_run_pipeline(
         self, mock_connect: MagicMock, mock_chat_completion: MagicMock, snowflake_retriever: SnowflakeRetriever
     ) -> None:
-
         mock_conn = MagicMock()
         mock_cursor = MagicMock()
         mock_col1 = MagicMock()
@@ -484,9 +487,7 @@ class TestSnowflakeRetriever:
         }
 
     @patch("haystack_integrations.components.retrievers.snowflake.snowflake_retriever.snowflake.connector.connect")
-    def test_has_select_privilege(
-        self, mock_logger: MagicMock, snowflake_retriever: SnowflakeRetriever, caplog: LogCaptureFixture
-    ) -> None:
+    def test_has_select_privilege(self, mock_logger: MagicMock, snowflake_retriever: SnowflakeRetriever) -> None:
         # Define test cases
         test_cases = [
             # Test case 1: Fully qualified table name in query
@@ -532,21 +533,19 @@ class TestSnowflakeRetriever:
     def test_user_does_not_exist(
         self, mock_connect: MagicMock, snowflake_retriever: SnowflakeRetriever, caplog: LogCaptureFixture
     ) -> None:
-
         mock_conn = MagicMock()
         mock_connect.return_value = mock_conn
 
         mock_cursor = mock_conn.cursor.return_value
         mock_cursor.fetchall.return_value = []
 
-        result = snowflake_retriever._fetch_data(query="SELECT * FROM test_table")
+        result = snowflake_retriever._fetch_data(query="""SELECT * FROM test_table""")
 
         assert result.empty
         assert "User does not exist" in caplog.text
 
     @patch("haystack_integrations.components.retrievers.snowflake.snowflake_retriever.snowflake.connector.connect")
-    def test_empty_query(self, mock_connect: MagicMock, snowflake_retriever: SnowflakeRetriever) -> None:
-
+    def test_empty_query(self, snowflake_retriever: SnowflakeRetriever) -> None:
         result = snowflake_retriever._fetch_data(query="")
 
         assert result.empty

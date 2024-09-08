@@ -10,7 +10,8 @@ readme = "README.md"
 requires-python = ">=3.8"
 license = "Apache-2.0"
 keywords = []
-authors = [{ name = "deepset GmbH", email = "info@deepset.ai" }]
+authors = [{ name = "deepset GmbH", email = "info@deepset.ai" },
+           { name = "Mohamed Sriha", email = "mohamed.sriha@deepset.ai" }]
 classifiers = [
   "License :: OSI Approved :: Apache Software License",
   "Development Status :: 4 - Beta",
@@ -23,9 +24,7 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
-dependencies = ["haystack-ai",
-  "snowflake-connector-python>=3.10.1",
-  "tabulate>=0.9.0"]
+dependencies = ["haystack-ai", "snowflake-connector-python>=3.10.1", "tabulate>=0.9.0"]
 
 [project.urls]
 Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/snowflake#readme"
@@ -114,6 +113,10 @@ ignore = [
   "PLR0912",
   "PLR0913",
   "PLR0915",
+  # Ignore SQL injection
+  "S608",
+  # Unused method argument
+  "ARG002"
 ]
 unfixable = [
   # Don't touch unused imports

@@ -32,7 +32,7 @@ class SnowflakeRetriever:
     executor = SnowflakeRetriever(
         user="<ACCOUNT-USER>",
         account="<ACCOUNT-IDENTIFIER>",
-        api_key=Secret.from_env_var("<SNOWFLAKE-API-KEY>"),
+        api_key=Secret.from_env_var("SNOWFLAKE_API_KEY"),
         database="<DATABASE-NAME>",
         db_schema="<SCHEMA-NAME>",
         warehouse="<WAREHOUSE-NAME>",
