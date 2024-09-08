@@ -174,7 +174,7 @@ def test_get_model_capabilities():
     assert generator.model_capabilities == MODEL_CAPABILITIES["anthropic.claude-3.*"]
 
     generator = AmazonBedrockConverseGenerator(model="ai21.j2-ultra-instruct-v1")
-    assert generator.model_capabilities == MODEL_CAPABILITIES["ai21.j2-.*-instruct"]
+    assert generator.model_capabilities == MODEL_CAPABILITIES["ai21.j2-.*"]
 
     with pytest.raises(ValueError, match="Unsupported model"):
         AmazonBedrockConverseGenerator(model="unsupported.model-v1")

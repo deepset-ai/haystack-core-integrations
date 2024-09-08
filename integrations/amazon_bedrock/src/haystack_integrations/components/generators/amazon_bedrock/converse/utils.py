@@ -63,7 +63,19 @@ class ToolConfig:
 
     @classmethod
     def from_dict(cls, config: Dict) -> "ToolConfig":
-        tools = [Tool(ToolSpec(**tool["tool_spec"])) for tool in config.get("tools", [])]
+        tools = [
+            Tool(
+                ToolSpec(
+                    input_schema=tool["toolSpec"]["inputSchema"],
+                    name=tool["toolSpec"]["name"],
+                    description=tool["toolSpec"]["description"],
+                )
+            )
+            for tool in config.get(
+                "tools",
+                [],
+            )
+        ]
 
         tool_choice = None
         if "tool_choice" in config:

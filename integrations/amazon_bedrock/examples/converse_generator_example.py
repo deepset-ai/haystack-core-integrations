@@ -5,16 +5,18 @@ from haystack_integrations.components.generators.amazon_bedrock.converse.utils i
 
 
 def get_current_weather(location: str, unit: str = "celsius") -> str:
+    """Get the current weather in a given location"""
     return f"The weather in {location} is 22 degrees {unit}."
 
 
 def get_current_time(timezone: str) -> str:
+    """Get the current time in a given timezone"""
     return f"The current time in {timezone} is 14:30."
 
 
 generator = AmazonBedrockConverseGenerator(
     model="anthropic.claude-3-5-sonnet-20240620-v1:0",
-    # streaming_callback=print,
+    streaming_callback=print,
 )
 
 # Create ToolConfig from functions
@@ -42,3 +44,4 @@ result = pipeline.run(
         },
     },
 )
+print(result)
