@@ -71,7 +71,7 @@ def test_to_dict():
             },
             "aws_region_name": {
                 "type": "env_var",
-                "env_vars": ["AWS_REGION"],
+                "env_vars": ["AWS_DEFAULT_REGION"],
                 "strict": False,
             },
             "aws_profile_name": {

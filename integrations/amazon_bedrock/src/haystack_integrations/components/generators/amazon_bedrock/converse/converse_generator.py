@@ -327,6 +327,13 @@ class AmazonBedrockConverseGenerator:
         :returns:
             Deserialized component.
         """
+        init_params = data.get("init_parameters", {})
+        serialized_callback_handler = init_params.get("streaming_callback")
+        if serialized_callback_handler:
+            data["init_parameters"]["streaming_callback"] = deserialize_callable(serialized_callback_handler)
+        tool_config = data.get("init_parameters", {}).get("tool_config")
+        if tool_config:
+            data["init_parameters"]["tool_config"] = ToolConfig.from_dict(tool_config)
         deserialize_secrets_inplace(
             data["init_parameters"],
             [
@@ -337,11 +344,4 @@ class AmazonBedrockConverseGenerator:
                 "aws_profile_name",
             ],
         )
-        init_params = data.get("init_parameters", {})
-        serialized_callback_handler = init_params.get("streaming_callback")
-        if serialized_callback_handler:
-            data["init_parameters"]["streaming_callback"] = deserialize_callable(serialized_callback_handler)
-        tool_config = data.get("init_parameters", {}).get("tool_config")
-        if tool_config:
-            data["init_parameters"]["tool_config"] = ToolConfig.from_dict(tool_config)
         return default_from_dict(cls, data)
