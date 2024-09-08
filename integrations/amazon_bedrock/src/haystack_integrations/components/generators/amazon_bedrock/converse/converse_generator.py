@@ -17,7 +17,14 @@ from .capabilities import (
     MODEL_CAPABILITIES,
     ModelCapability,
 )
-from .utils import ContentBlock, ConverseMessage, ConverseStreamingChunk, ImageBlock, ToolConfig, get_stream_message
+from .utils import (
+    ContentBlock,
+    ConverseMessage,
+    ImageBlock,
+    StreamEvent,
+    ToolConfig,
+    get_stream_message,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -110,7 +117,7 @@ class AmazonBedrockConverseGenerator:
         aws_profile_name: Optional[Secret] = Secret.from_env_var(["AWS_PROFILE"], strict=False),  # noqa: B008
         inference_config: Optional[Dict[str, Any]] = None,
         tool_config: Optional[ToolConfig] = None,
-        streaming_callback: Optional[Callable[[ConverseStreamingChunk], None]] = None,
+        streaming_callback: Optional[Callable[[StreamEvent], None]] = None,
         system_prompt: Optional[List[Dict[str, Any]]] = None,
     ):
         """
@@ -191,7 +198,7 @@ class AmazonBedrockConverseGenerator:
     def run(
         self,
         messages: List[ConverseMessage],
-        streaming_callback: Optional[Callable[[ConverseStreamingChunk], None]] = None,
+        streaming_callback: Optional[Callable[[StreamEvent], None]] = None,
         inference_config: Optional[Dict[str, Any]] = None,
         tool_config: Optional[ToolConfig] = None,
         system_prompt: Optional[List[Dict[str, Any]]] = None,
@@ -248,7 +255,7 @@ class AmazonBedrockConverseGenerator:
         }
 
         if tool_config:
-            request_kwargs["toolConfig"] = tool_config
+            request_kwargs["toolConfig"] = tool_config.to_dict()
         if system_prompt:
             request_kwargs["system"] = {
                 "text": system_prompt,
@@ -258,18 +265,20 @@ class AmazonBedrockConverseGenerator:
             if streaming_callback and ModelCapability.CONVERSE_STREAM in self.model_capabilities:
                 converse_response = self.client.converse_stream(**request_kwargs)
                 response_stream = converse_response.get("stream")
-                message, metadata = get_stream_message(stream=response_stream, streaming_callback=streaming_callback)
+                message, metadata = get_stream_message(
+                    stream=response_stream,
+                    streaming_callback=streaming_callback,
+                )
             else:
                 converse_response = self.client.converse(**request_kwargs)
                 output = converse_response.get("output")
                 if output is None:
                     response_output_missing_error = "Response does not contain 'output'"
                     raise KeyError(response_output_missing_error)
-                message = output.get("message")
+                message = ConverseMessage.from_dict(output.get("message"))
                 if message is None:
                     response_output_missing_message_error = "Response 'output' does not contain 'message'"
                     raise KeyError(response_output_missing_message_error)
-                message = ConverseMessage.from_dict(message)
                 metadata = converse_response
 
             return {

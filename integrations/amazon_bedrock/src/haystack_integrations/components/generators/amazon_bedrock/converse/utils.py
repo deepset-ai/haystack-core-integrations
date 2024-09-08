@@ -278,14 +278,6 @@ class ConverseMessage:
 
 
 @dataclass
-class ConverseStreamingChunk:
-    content: Union[str, ToolUseBlock]
-    metadata: Dict[str, Any]
-    index: int = 0
-    type: str = ""
-
-
-@dataclass
 class StreamEvent:
     type: str
     data: Dict[str, Any]
@@ -324,7 +316,7 @@ def _handle_content_block_delta(
             return current_block, current_tool_use_input_str + delta["toolUse"].get("input", "")
         else:
             return ToolUseBlock(
-                toolUseId=delta["toolUse"]["toolUseId"],
+                tool_use_id=delta["toolUse"]["toolUseId"],
                 name=delta["toolUse"]["name"],
                 input={},
             ), delta["toolUse"].get("input", "")
