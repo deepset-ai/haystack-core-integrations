@@ -142,5 +142,5 @@ show_missing = true
 exclude_lines = ["no cov", "if __name__ == .__main__.:", "if TYPE_CHECKING:"]
 
 [[tool.mypy.overrides]]
-module = ["haystack.*", "haystack_integrations.*", "pytest.*"]
+module = ["haystack.*", "haystack_integrations.*", "pytest.*", "openai.*", "snowflake.*"]
 ignore_missing_imports = true
