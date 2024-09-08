@@ -44,4 +44,3 @@ result = pipeline.run(
         },
     },
 )
-print(result)
