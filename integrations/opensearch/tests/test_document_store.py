@@ -574,7 +574,6 @@ class TestDocumentStore(DocumentStoreBaseTests):
         retrieved_ids = sorted([doc.id for doc in res])
         assert retrieved_ids == ["1", "2", "3", "4", "5"]
 
-
     def test_bm25_retrieval_with_custom_query(self, document_store: OpenSearchDocumentStore):
         document_store.write_documents(
             [
