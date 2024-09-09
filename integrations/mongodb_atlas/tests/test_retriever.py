@@ -7,7 +7,6 @@ import pytest
 from haystack.dataclasses import Document
 from haystack.document_stores.types import FilterPolicy
 from haystack.utils.auth import EnvVarSecret
-
 from haystack_integrations.components.retrievers.mongodb_atlas import MongoDBAtlasEmbeddingRetriever
 from haystack_integrations.document_stores.mongodb_atlas import MongoDBAtlasDocumentStore
 
