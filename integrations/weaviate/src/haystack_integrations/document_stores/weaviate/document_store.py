@@ -12,7 +12,6 @@ from haystack.core.serialization import default_from_dict, default_to_dict
 from haystack.dataclasses.document import Document
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
 from haystack.document_stores.types.policy import DuplicatePolicy
-from haystack.utils.filters import convert
 
 import weaviate
 from weaviate.collections.classes.data import DataObject
@@ -388,7 +387,7 @@ class WeaviateDocumentStore:
         :returns: A list of Documents that match the given filters.
         """
         if filters and "operator" not in filters and "conditions" not in filters:
-            filters = convert(filters)
+            raise ValueError("Legacy filters support has been removed. Please see documentation for new filter syntax.")
 
         result = []
         if filters:
