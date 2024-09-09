@@ -388,7 +388,8 @@ class PgvectorDocumentStore:
                 msg = "Filters must be a dictionary"
                 raise TypeError(msg)
             if "operator" not in filters and "conditions" not in filters:
-                raise ValueError("Legacy filters support has been removed. Please see documentation for new filter syntax.")
+                msg = "Legacy filters support has been removed. Please see documentation for new filter syntax."
+                raise ValueError(msg)
 
         sql_filter = SQL("SELECT * FROM {table_name}").format(table_name=Identifier(self.table_name))
 
