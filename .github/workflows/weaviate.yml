@@ -44,6 +44,7 @@ jobs:
         run: pip install --upgrade hatch
 
       - name: Lint
+        if: matrix.python-version == '3.9' && runner.os == 'Linux'
         run: hatch run lint:all
 
       - name: Run Weaviate container

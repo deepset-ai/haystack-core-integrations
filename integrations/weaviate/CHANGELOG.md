@@ -1,6 +1,6 @@
 # Changelog
 
-## [unreleased]
+## [integrations/weaviate-v2.2.1] - 2024-09-07
 
 ### 🚀 Features
 
@@ -10,6 +10,12 @@
 
 - Weaviate filter error (#811)
 - Fix connection to Weaviate Cloud Service (#624)
+- Pin weaviate-client (#1046)
+- Weaviate - fix connection issues with some WCS URLs (#1058)
+
+### 🧪 Testing
+
+- Do not retry tests in `hatch run test` command (#954)
 
 ### ⚙️ Miscellaneous Tasks
 
