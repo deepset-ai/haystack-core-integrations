@@ -9,6 +9,20 @@ from pandas import DataFrame
 
 UNSUPPORTED_TYPES_FOR_COMPARISON = (list, DataFrame)
 
+def _normalize_filters(filters: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Converts Haystack filters to MongoDB filters.
+    """
+    if not isinstance(filters, dict):
+        msg = "Filters must be a dictionary"
+        raise FilterError(msg)
+
+    if "operator" not in filters and "conditions" not in filters:
+        raise ValueError("Legacy filters support has been removed. Please see documentation for new filter syntax.")
+
+    if "field" in filters:
+        return _parse_comparison_condition(filters)
+    return _parse_logical_condition(filters)
 
 def _parse_logical_condition(condition: Dict[str, Any]) -> Dict[str, Any]:
     if "operator" not in condition:
