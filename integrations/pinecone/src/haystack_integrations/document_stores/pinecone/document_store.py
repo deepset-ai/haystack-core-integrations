@@ -11,7 +11,6 @@ from haystack import default_from_dict, default_to_dict
 from haystack.dataclasses import Document
 from haystack.document_stores.types import DuplicatePolicy
 from haystack.utils import Secret, deserialize_secrets_inplace
-from haystack.utils.filters import convert
 
 from pinecone import Pinecone, PodSpec, ServerlessSpec
 
@@ -201,6 +200,9 @@ class PineconeDocumentStore:
         :returns: A list of Documents that match the given filters.
         """
 
+        if filters and "operator" not in filters and "conditions" not in filters:
+            raise ValueError("Legacy filters support has been removed. Please see documentation for new filter syntax.")
+
         # Pinecone only performs vector similarity search
         # here we are querying with a dummy vector and the max compatible top_k
         documents = self._embedding_retrieval(query_embedding=self._dummy_vector, filters=filters, top_k=TOP_K_LIMIT)
@@ -253,7 +255,7 @@ class PineconeDocumentStore:
             raise ValueError(msg)
 
         if filters and "operator" not in filters and "conditions" not in filters:
-            filters = convert(filters)
+            raise ValueError("Legacy filters support has been removed. Please see documentation for new filter syntax.")
         filters = _normalize_filters(filters) if filters else None
 
         result = self.index.query(
