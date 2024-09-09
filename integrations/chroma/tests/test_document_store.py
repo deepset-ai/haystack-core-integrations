@@ -229,6 +229,73 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, LegacyFilterDoc
         assert store._collection.metadata["hnsw:space"] == "ip"
         assert new_store._collection.metadata["hnsw:space"] == "ip"
 
+    # Override tests from LegacyFilterDocumentsTest
+    def test_filter_nested_or_and(self, document_store: ChromaDocumentStore, filterable_docs: List[Document]):
+        filters = {
+            "$and": [
+                {"page": {"$eq": "123"}},
+                {"$or": [{"name": {"$in": ["name_0", "name_1"]}}, {"number": {"$lt": 1.0}}]},
+            ]
+        }
+
+        document_store.write_documents(filterable_docs)
+        result = document_store.filter_documents(filters)
+        self.assert_documents_are_equal(
+            result,
+            [
+                doc
+                for doc in filterable_docs
+                if (
+                    doc.meta.get("page") in ["123"]
+                    and (
+                        doc.meta.get("name") in ["name_0", "name_1"]
+                        or ("number" in doc.meta and doc.meta["number"] < 1)
+                    )
+                )
+            ],
+        )
+
+    def test_filter_nested_multiple_identical_operators_same_level(
+        self, document_store: ChromaDocumentStore, filterable_docs: List[Document]
+    ):
+        filters = {
+            "$and": [
+                {"page": {"$eq": "123"}},
+                {"$or": [{"name": {"$in": ["name_0", "name_1"]}}, {"number": {"$lt": 1.0}}]},
+                {"$or": [{"name": {"$in": ["name_0", "name_1"]}}, {"number": {"$lt": 1.0}}]},
+            ]
+        }
+
+        document_store.write_documents(filterable_docs)
+        filters = {
+            "$or": [
+                {
+                    "$and": [
+                        {"name": {"$in": ["name_0", "name_1"]}},
+                        {"page": {"$eq": "100"}},
+                    ]
+                },
+                {
+                    "$and": [
+                        {"chapter": {"$in": ["intro", "abstract"]}},
+                        {"page": "123"},
+                    ]
+                },
+            ]
+        }
+        result = document_store.filter_documents(filters=filters)
+        self.assert_documents_are_equal(
+            result,
+            [
+                doc
+                for doc in filterable_docs
+                if (
+                    (doc.meta.get("name") in ["name_0", "name_1"] and doc.meta.get("page") == "100")
+                    or (doc.meta.get("chapter") in ["intro", "abstract"] and doc.meta.get("page") == "123")
+                )
+            ],
+        )
+
     @pytest.mark.skip(reason="Filter on dataframe contents is not supported.")
     def test_filter_document_dataframe(self, document_store: ChromaDocumentStore, filterable_docs: List[Document]):
         pass
@@ -303,14 +370,4 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, LegacyFilterDoc
 
     @pytest.mark.skip(reason="Filter syntax not supported.")
     def test_filter_nested_and_or_implicit(self, document_store: ChromaDocumentStore, filterable_docs: List[Document]):
-        pass
-
-    @pytest.mark.skip(reason="Filter syntax not supported.")
-    def test_filter_nested_or_and(self, document_store: ChromaDocumentStore, filterable_docs: List[Document]):
-        pass
-
-    @pytest.mark.skip(reason="Filter syntax not supported.")
-    def test_filter_nested_multiple_identical_operators_same_level(
-        self, document_store: ChromaDocumentStore, filterable_docs: List[Document]
-    ):
         pass

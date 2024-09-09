@@ -121,11 +121,11 @@ class ChromaDocumentStore:
         `"$or"`, `"$not"`), a comparison operator (`"$eq"`, `$ne`, `"$in"`, `$nin`, `"$gt"`, `"$gte"`, `"$lt"`,
         `"$lte"`) or a metadata field name.
 
-        Logical operator keys take a dictionary of metadata field names and/or logical operators as value. Metadata
-        field names take a dictionary of comparison operators as value. Comparison operator keys take a single value or
-        (in case of `"$in"`) a list of values as value. If no logical operator is provided, `"$and"` is used as default
-        operation. If no comparison operator is provided, `"$eq"` (or `"$in"` if the comparison value is a list) is used
-        as default operation.
+        Logical operator keys take a list of dictionaries of metadata field names and/or logical operators as value.
+        Metadata field names take a dictionary of comparison operators as value. Comparison operator keys take a single
+        value or (in case of `"$in"`) a list of values as value. If no comparison operator is provided, `"$eq"`
+        (or `"$in"` if the comparison value is a list) is used
+        as default operation. The logical operators `$and` and `$or` can be used to combine multiple filters.
 
         Example:
 
@@ -133,24 +133,14 @@ class ChromaDocumentStore:
         filters = {
             "$and": [
                 {"type": {"$eq": "article"}},
-                {"date": {"$gte": "2015-01-01", "$lt": "2021-01-01"}},
+                {"date": {"$eq": "2015-01-01"}},
                 {"rating": {"$gte": 3}},
                 {"$or": [
                     {"genre": {"$in": ["economy", "politics"]}},
                     {"publisher": {"$eq": "nytimes"}}
-                ]
+                    ]
                 }
             ]
-        }
-        # or simpler using default operators
-        filters = {
-            "type": "article",
-            "date": {"$gte": "2015-01-01", "$lt": "2021-01-01"},
-            "rating": {"$gte": 3},
-            "$or": {
-                "genre": ["economy", "politics"],
-                "publisher": "nytimes"
-            }
         }
         ```
 
@@ -163,21 +153,17 @@ class ChromaDocumentStore:
         filters = {
             "$or": [
                 {
-                    "$and": {
-                        "Type": "News Paper",
-                        "Date": {
-                            "$lt": "2019-01-01"
-                        }
-                    }
+                    "$and": [
+                            {"type": "news paper"},
+                            {"date": {"$eq": "2019-01-01"}}
+                    ]
                 },
                 {
-                    "$and": {
-                        "Type": "Blog Post",
-                        "Date": {
-                            "$gte": "2019-01-01"
-                        }
-                    }
-                }
+                    "$and": [
+                            {"type": "blog post"},
+                            {"date": {"$eq": "2019-01-01"}}
+                    ]
+                },
             ]
         }
         ```
@@ -364,62 +350,46 @@ class ChromaDocumentStore:
         passed to `ids`, `where` and `where_document` respectively.
         """
         if not isinstance(filters, dict):
-            msg = "'filters' parameter must be a dictionary"
+            msg = f"'{filters}' parameter must be a dictionary"
             raise ChromaDocumentStoreFilterError(msg)
 
         ids = []
         where = defaultdict(list)
-        where_document = defaultdict(list)
-        keys_to_remove = []
+        where_document = {}
         document_flag = False
-        final_where = dict()
 
-        for field, value in filters.items():
+        # Process filters
+        for field, value in list(filters.items()):
             if field == "content":
-                # Schedule for removal the original key, we're going to change it
-                keys_to_remove.append(field)
                 where_document["$contains"] = value
                 document_flag = True
+                del filters[field]
             elif field == "id":
-                # Schedule for removal the original key, we're going to change it
-                keys_to_remove.append(field)
                 ids.append(value)
-            elif isinstance(value, (list, tuple)):
-                # Schedule for removal the original key, we're going to change it
-                keys_to_remove.append(field)
-
-                # if the list is empty the filter is invalid, let's just remove it
-                if len(value) == 0:
+                del filters[field]
+            elif isinstance(value, (list, tuple)) and field not in ["$and", "$or"]:
+                if not value:  # Skip empty lists
+                    del filters[field]
                     continue
 
-                # if the list has a single item, just make it a regular key:value filter pair
                 if len(value) == 1:
-                    where[field] = value[0]
-                    continue
-
-                for v in value:
-                    if isinstance(v, dict):
-                        for k, v in v.items():
-                            if k in ["$contains", "$not_contains"]:
-                                document_flag = True
-                                break
-                if document_flag:
-                    where_document=dict(filters)
+                    where[field] = value[0]  # Simplify single-item lists
+                # Check if list contains special operators that apply to documents
+                elif any(isinstance(v, dict) and any(k in v for k in ["$contains", "$not_contains"]) for v in value):
+                    where_document = filters.copy()
+                    document_flag = True
                     break
+                else:
+                    where[field] = {"$in": value}  # Create $in chain for multiple items
+                del filters[field]
 
-                # if the list contains multiple items, we need an $or chain
-                if isinstance(value, list) and field not in ["$and", "$or"]:
-                    where[field] = {"$in": value}
-
-        for k in keys_to_remove:
-            del filters[k]
-        
+        final_where = {}
         try:
             if document_flag:
                 validate_where_document(where_document)
             elif filters or where:
-                final_where = dict(filters)
-                final_where.update(dict(where))
+                final_where.update(filters)
+                final_where.update(where)
                 validate_where(final_where)
         except ValueError as e:
             raise ChromaDocumentStoreFilterError(e) from e
@@ -467,7 +437,7 @@ class ChromaDocumentStore:
             for j in range(len(answers)):
                 document_dict: Dict[str, Any] = {
                     "id": result["ids"][i][j],
-                    "content": documents[i][j],
+                    "content": answers[j],
                 }
 
                 # prepare metadata
