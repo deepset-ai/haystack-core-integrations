@@ -106,7 +106,12 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, LegacyFilterDoc
 
         # Assertions to verify correctness
         assert len(result) == 1
-        assert result[0][0].content == "Third document"
+        doc = result[0][0]
+        assert doc.content == "Third document"
+        assert doc.meta == {"author": "Author2"}
+        assert doc.embedding
+        assert isinstance(doc.embedding, list)
+        assert all(isinstance(el, float) for el in doc.embedding)
 
     def test_write_documents_unsupported_meta_values(self, document_store: ChromaDocumentStore):
         """
