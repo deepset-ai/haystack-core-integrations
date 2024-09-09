@@ -9,7 +9,6 @@ from haystack import default_from_dict, default_to_dict
 from haystack.dataclasses import Document
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
-from haystack.utils.filters import convert
 from opensearchpy import OpenSearch
 from opensearchpy.helpers import bulk
 
@@ -135,7 +134,7 @@ class OpenSearchDocumentStore:
                 **self._kwargs,
             )
 
-        if self._client.indices.exists(index=self._index):  # type:ignore
+        if self.client.indices.exists(index=self._index):  # type:ignore
             logger.debug(
                 "The index '%s' already exists. The `embedding_dim`, `method`, `mappings`, and "
                 "`settings` values will be ignored.",
@@ -144,7 +143,7 @@ class OpenSearchDocumentStore:
         elif self._create_index:
             # Create the index if it doesn't exist
             body = {"mappings": self._mappings, "settings": self._settings}
-            self._client.indices.create(index=self._index, body=body)  # type:ignore
+            self.client.indices.create(index=self._index, body=body)  # type:ignore
         return self._client
 
     def create_index(
@@ -238,14 +237,13 @@ class OpenSearchDocumentStore:
 
     def filter_documents(self, filters: Optional[Dict[str, Any]] = None) -> List[Document]:
         if filters and "operator" not in filters and "conditions" not in filters:
-            filters = convert(filters)
+            raise ValueError("Legacy filters support has been removed. Please see documentation for new filter syntax.")
 
         if filters:
             query = {"bool": {"filter": normalize_filters(filters)}}
             documents = self._search_documents(query=query, size=10_000)
         else:
             documents = self._search_documents(size=10_000)
-
         return documents
 
     def write_documents(self, documents: List[Document], policy: DuplicatePolicy = DuplicatePolicy.NONE) -> int:
@@ -384,7 +382,7 @@ class OpenSearchDocumentStore:
         :returns: List of Document that match `query`
         """
         if filters and "operator" not in filters and "conditions" not in filters:
-            filters = convert(filters)
+            raise ValueError("Legacy filters support has been removed. Please see documentation for new filter syntax.")
 
         if not query:
             body: Dict[str, Any] = {"query": {"bool": {"must": {"match_all": {}}}}}
@@ -478,7 +476,7 @@ class OpenSearchDocumentStore:
         :returns: List of Document that are most similar to `query_embedding`
         """
         if filters and "operator" not in filters and "conditions" not in filters:
-            filters = convert(filters)
+            raise ValueError("Legacy filters support has been removed. Please see documentation for new filter syntax.")
 
         if not query_embedding:
             msg = "query_embedding must be a non-empty list of floats"
