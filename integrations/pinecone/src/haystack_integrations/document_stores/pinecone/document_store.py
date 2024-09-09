@@ -201,7 +201,8 @@ class PineconeDocumentStore:
         """
 
         if filters and "operator" not in filters and "conditions" not in filters:
-            raise ValueError("Legacy filters support has been removed. Please see documentation for new filter syntax.")
+            msg = "Legacy filters support has been removed. Please see documentation for new filter syntax."
+            raise ValueError(msg)
 
         # Pinecone only performs vector similarity search
         # here we are querying with a dummy vector and the max compatible top_k
@@ -255,7 +256,8 @@ class PineconeDocumentStore:
             raise ValueError(msg)
 
         if filters and "operator" not in filters and "conditions" not in filters:
-            raise ValueError("Legacy filters support has been removed. Please see documentation for new filter syntax.")
+            msg = "Legacy filters support has been removed. Please see documentation for new filter syntax."
+            raise ValueError(msg)
         filters = _normalize_filters(filters) if filters else None
 
         result = self.index.query(
