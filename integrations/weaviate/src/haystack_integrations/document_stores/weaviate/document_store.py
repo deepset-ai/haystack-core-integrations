@@ -387,7 +387,8 @@ class WeaviateDocumentStore:
         :returns: A list of Documents that match the given filters.
         """
         if filters and "operator" not in filters and "conditions" not in filters:
-            raise ValueError("Legacy filters support has been removed. Please see documentation for new filter syntax.")
+            msg = "Legacy filters support has been removed. Please see documentation for new filter syntax."
+            raise ValueError(msg)
 
         result = []
         if filters:
