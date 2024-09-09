@@ -690,27 +690,6 @@ class TestDocumentStore(DocumentStoreBaseTests):
         assert len(results) == 1
         assert results[0].content == "Not very similar document with meta field"
 
-    def test_embedding_retrieval_with_legacy_filters(self, document_store_embedding_dim_4: OpenSearchDocumentStore):
-        docs = [
-            Document(content="Most similar document", embedding=[1.0, 1.0, 1.0, 1.0]),
-            Document(content="2nd best document", embedding=[0.8, 0.8, 0.8, 1.0]),
-            Document(
-                content="Not very similar document with meta field",
-                embedding=[0.0, 0.8, 0.3, 0.9],
-                meta={"meta_field": "custom_value"},
-            ),
-        ]
-        document_store_embedding_dim_4.write_documents(docs)
-
-        filters = {"meta_field": "custom_value"}
-        # we set top_k=3, to make the test pass as we are not sure whether efficient filtering is supported for nmslib
-        # TODO: remove top_k=3, when efficient filtering is supported for nmslib
-        results = document_store_embedding_dim_4._embedding_retrieval(
-            query_embedding=[0.1, 0.1, 0.1, 0.1], top_k=3, filters=filters
-        )
-        assert len(results) == 1
-        assert results[0].content == "Not very similar document with meta field"
-
     def test_embedding_retrieval_pagination(self, document_store_embedding_dim_4: OpenSearchDocumentStore):
         """
         Test that handling of pagination works as expected, when the matching documents are > 10.
