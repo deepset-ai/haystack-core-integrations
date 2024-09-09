@@ -9,11 +9,10 @@ from haystack import default_from_dict, default_to_dict
 from haystack.dataclasses import Document
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
-from opensearchpy import OpenSearch
-from opensearchpy.helpers import bulk
-
 from haystack_integrations.document_stores.opensearch.auth import AWSAuth
 from haystack_integrations.document_stores.opensearch.filters import normalize_filters
+from opensearchpy import OpenSearch
+from opensearchpy.helpers import bulk
 
 logger = logging.getLogger(__name__)
 
@@ -237,7 +236,8 @@ class OpenSearchDocumentStore:
 
     def filter_documents(self, filters: Optional[Dict[str, Any]] = None) -> List[Document]:
         if filters and "operator" not in filters and "conditions" not in filters:
-            raise ValueError("Legacy filters support has been removed. Please see documentation for new filter syntax.")
+            msg = "Legacy filters support has been removed. Please see documentation for new filter syntax."
+            raise ValueError(msg)
 
         if filters:
             query = {"bool": {"filter": normalize_filters(filters)}}
@@ -382,7 +382,8 @@ class OpenSearchDocumentStore:
         :returns: List of Document that match `query`
         """
         if filters and "operator" not in filters and "conditions" not in filters:
-            raise ValueError("Legacy filters support has been removed. Please see documentation for new filter syntax.")
+            msg = "Legacy filters support has been removed. Please see documentation for new filter syntax."
+            raise ValueError(msg)
 
         if not query:
             body: Dict[str, Any] = {"query": {"bool": {"must": {"match_all": {}}}}}
@@ -476,7 +477,8 @@ class OpenSearchDocumentStore:
         :returns: List of Document that are most similar to `query_embedding`
         """
         if filters and "operator" not in filters and "conditions" not in filters:
-            raise ValueError("Legacy filters support has been removed. Please see documentation for new filter syntax.")
+            msg = "Legacy filters support has been removed. Please see documentation for new filter syntax."
+            raise ValueError(msg)
 
         if not query_embedding:
             msg = "query_embedding must be a non-empty list of floats"
