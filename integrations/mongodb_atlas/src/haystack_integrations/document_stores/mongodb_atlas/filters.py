@@ -2,12 +2,13 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 from datetime import datetime
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
 from haystack.errors import FilterError
 from pandas import DataFrame
 
 UNSUPPORTED_TYPES_FOR_COMPARISON = (list, DataFrame)
+
 
 def _parse_logical_condition(condition: Dict[str, Any]) -> Dict[str, Any]:
     if "operator" not in condition:
