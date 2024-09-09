@@ -134,7 +134,7 @@ class OpenSearchDocumentStore:
                 **self._kwargs,
             )
 
-        if self.client.indices.exists(index=self._index):  # type:ignore
+        if self._client.indices.exists(index=self._index):  # type:ignore
             logger.debug(
                 "The index '%s' already exists. The `embedding_dim`, `method`, `mappings`, and "
                 "`settings` values will be ignored.",
@@ -143,7 +143,7 @@ class OpenSearchDocumentStore:
         elif self._create_index:
             # Create the index if it doesn't exist
             body = {"mappings": self._mappings, "settings": self._settings}
-            self.client.indices.create(index=self._index, body=body)  # type:ignore
+            self._client.indices.create(index=self._index, body=body)  # type:ignore
         return self._client
 
     def create_index(
