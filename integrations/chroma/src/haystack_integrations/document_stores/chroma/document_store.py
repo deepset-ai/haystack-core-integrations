@@ -453,7 +453,7 @@ class ChromaDocumentStore:
             for j in range(len(answers)):
                 document_dict: Dict[str, Any] = {
                     "id": result["ids"][i][j],
-                    "content": documents[i][j],
+                    "content": answers[j],
                 }
 
                 # prepare metadata
