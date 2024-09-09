@@ -211,7 +211,7 @@ def test_run_with_different_message_types(mock_session):
     assert call_args["messages"][0]["content"] == [{"text": "What's the weather like?"}]
 
 
-def test_streaming():
+def test_streaming(mock_boto3_session):
     generator = AmazonBedrockConverseGenerator(model="anthropic.claude-3-sonnet-20240229-v1:0")
 
     mocked_events = [
@@ -310,7 +310,7 @@ def test_streaming():
     assert json.dumps(result["message"].content.content[2].input) == """{"timezone": "America/New_York"}"""
 
 
-def test_client_error_handling():
+def test_client_error_handling(mock_boto3_session):
     generator = AmazonBedrockConverseGenerator(model="anthropic.claude-3-sonnet-20240229-v1:0")
     generator.client.converse = Mock(
         side_effect=ClientError(
@@ -323,7 +323,7 @@ def test_client_error_handling():
         generator.run([ConverseMessage.from_user(["Hi"])])
 
 
-def test_tool_usage():
+def test_tool_usage(mock_boto3_session):
     tool_config = ToolConfig.from_functions([get_current_weather, get_current_time])
     generator = AmazonBedrockConverseGenerator(model="anthropic.claude-3-sonnet-20240229-v1:0", tool_config=tool_config)
 

@@ -242,7 +242,7 @@ class ConverseMessage:
 
     @staticmethod
     def from_dict(data: Dict[str, Any]) -> "ConverseMessage":
-        role = ConverseRole(data["role"])
+        role = ConverseRole.ASSISTANT if data["role"] == "assistant" else ConverseRole.USER
         content_blocks = []
 
         for item in data["content"]:
