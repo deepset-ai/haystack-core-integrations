@@ -255,16 +255,19 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, LegacyFilterDoc
             ],
         )
 
+    def test_filter_in_implicit(self, document_store: ChromaDocumentStore, filterable_docs: List[Document]):
+        filters = {"page": {"$in": ["100", "123"]}}
+
+        document_store.write_documents(filterable_docs)
+        result = document_store.filter_documents(filters)
+        self.assert_documents_are_equal(
+            result,
+            [doc for doc in filterable_docs if doc.meta.get("page") in ["123", "100"]],
+        )
+
     def test_filter_nested_multiple_identical_operators_same_level(
         self, document_store: ChromaDocumentStore, filterable_docs: List[Document]
     ):
-        filters = {
-            "$and": [
-                {"page": {"$eq": "123"}},
-                {"$or": [{"name": {"$in": ["name_0", "name_1"]}}, {"number": {"$lt": 1.0}}]},
-                {"$or": [{"name": {"$in": ["name_0", "name_1"]}}, {"number": {"$lt": 1.0}}]},
-            ]
-        }
 
         document_store.write_documents(filterable_docs)
         filters = {
@@ -294,6 +297,44 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, LegacyFilterDoc
                     or (doc.meta.get("chapter") in ["intro", "abstract"] and doc.meta.get("page") == "123")
                 )
             ],
+        )
+
+    def test_document_filter_contains(self, document_store: ChromaDocumentStore, filterable_docs: List[Document]):
+        document_store.write_documents(filterable_docs)
+        filters = {
+            "$or": [
+                {
+                    "$and": [
+                        {"name": {"$in": ["name_0", "name_1"]}},
+                        {"page": {"$eq": "100"}},
+                    ]
+                },
+                {"$contains": "FOO"},
+            ]
+        }
+        result = document_store.filter_documents(filters=filters)
+        self.assert_documents_are_equal(
+            result,
+            [
+                doc
+                for doc in filterable_docs
+                if (
+                    (doc.meta.get("name") in ["name_0", "name_1"] and doc.meta.get("page") == "100")
+                    or doc.content
+                    and "FOO" in doc.content
+                )
+            ],
+        )
+
+    def test_logical_and_document_filter_combination(
+        self, document_store: ChromaDocumentStore, filterable_docs: List[Document]
+    ):
+        document_store.write_documents(filterable_docs)
+
+        result = document_store.filter_documents(filters={"$contains": "FOO"})
+        self.assert_documents_are_equal(
+            result,
+            [doc for doc in filterable_docs if doc.content and "FOO" in doc.content],
         )
 
     @pytest.mark.skip(reason="Filter on dataframe contents is not supported.")

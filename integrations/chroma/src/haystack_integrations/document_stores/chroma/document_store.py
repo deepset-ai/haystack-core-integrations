@@ -356,33 +356,38 @@ class ChromaDocumentStore:
         ids = []
         where = defaultdict(list)
         where_document = {}
+        # Flag to check if the filters contain a document filter i.e. "$contains" or "$not_contains"
         document_flag = False
+        keys_to_remove = []
 
-        # Process filters
-        for field, value in list(filters.items()):
+        for field, value in filters.items():
             if field == "content":
                 where_document["$contains"] = value
                 document_flag = True
-                del filters[field]
+                keys_to_remove.append(field)
             elif field == "id":
                 ids.append(value)
-                del filters[field]
-            elif isinstance(value, (list, tuple)) and field not in ["$and", "$or"]:
+                keys_to_remove.append(field)
+            elif isinstance(value, (list)) and field not in ["$and", "$or"]:
                 if not value:  # Skip empty lists
-                    del filters[field]
+                    keys_to_remove.append(field)
                     continue
-
+                # if the list has a single item, make it a key:value filter pair
+                # e.g. filter = {"name": ["Alice"]}
                 if len(value) == 1:
-                    where[field] = value[0]  # Simplify single-item lists
+                    where[field] = value[0]
                 # Check if list contains special operators that apply to documents
-                elif any(isinstance(v, dict) and any(k in v for k in ["$contains", "$not_contains"]) for v in value):
-                    where_document = filters.copy()
+                if any(isinstance(v, dict) and any(k in v for k in ["$contains", "$not_contains"]) for v in value):
+                    where_document = filters
                     document_flag = True
                     break
                 else:
-                    where[field] = {"$in": value}  # Create $in chain for multiple items
-                del filters[field]
+                    where[field] = {"$in": value}
+                    keys_to_remove.append(field)
 
+        # Remove items from filters after iteration
+        for field in keys_to_remove:
+            del filters[field]
         final_where = {}
         try:
             if document_flag:
