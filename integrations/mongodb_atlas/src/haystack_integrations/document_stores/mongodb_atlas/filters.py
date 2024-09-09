@@ -2,30 +2,12 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 from datetime import datetime
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 from haystack.errors import FilterError
-from haystack.utils.filters import convert
 from pandas import DataFrame
 
 UNSUPPORTED_TYPES_FOR_COMPARISON = (list, DataFrame)
-
-
-def _normalize_filters(filters: Dict[str, Any]) -> Dict[str, Any]:
-    """
-    Converts Haystack filters to MongoDB filters.
-    """
-    if not isinstance(filters, dict):
-        msg = "Filters must be a dictionary"
-        raise FilterError(msg)
-
-    if "operator" not in filters and "conditions" not in filters:
-        filters = convert(filters)
-
-    if "field" in filters:
-        return _parse_comparison_condition(filters)
-    return _parse_logical_condition(filters)
-
 
 def _parse_logical_condition(condition: Dict[str, Any]) -> Dict[str, Any]:
     if "operator" not in condition:
