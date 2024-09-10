@@ -1,6 +1,6 @@
 from unittest.mock import Mock, patch
 
-from vertexai.preview.vision_models import ImageGenerationResponse
+from vertexai.vision_models import ImageGenerationResponse
 
 from haystack_integrations.components.generators.google_vertex import VertexAIImageGenerator
 
