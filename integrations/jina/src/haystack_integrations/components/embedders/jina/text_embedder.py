@@ -95,7 +95,7 @@ class JinaTextEmbedder:
         return default_from_dict(cls, data)
 
     @component.output_types(embedding=List[float], meta=Dict[str, Any])
-    def run(self, text: str, parameters: Optional[Dict]=None):
+    def run(self, text: str, parameters: Optional[Dict] = None):
         """
         Embed a string.
 

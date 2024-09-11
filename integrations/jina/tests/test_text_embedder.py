@@ -127,7 +127,7 @@ class TestJinaTextEmbedder:
             embedder = JinaTextEmbedder(
                 api_key=Secret.from_token("fake-api-key"), model=model, prefix="prefix ", suffix=" suffix"
             )
-            result = embedder.run(text="The food was delicious", parameters={"task_type":"retrieval.passage"})
+            result = embedder.run(text="The food was delicious", parameters={"task_type": "retrieval.passage"})
 
         assert len(result["embedding"]) == 3
         assert all(isinstance(x, float) for x in result["embedding"])

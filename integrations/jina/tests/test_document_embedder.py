@@ -246,7 +246,7 @@ class TestJinaDocumentEmbedder:
 
         assert result["documents"] is not None
         assert not result["documents"]  # empty list
-    
+
     def test_run_with_v3(self):
         docs = [
             Document(content="I love cheese", meta={"topic": "Cuisine"}),
@@ -264,7 +264,7 @@ class TestJinaDocumentEmbedder:
                 embedding_separator=" | ",
                 batch_size=1,
             )
-            result = embedder.run(documents=docs, parameters={"task_type":"retrieval.passage"})
+            result = embedder.run(documents=docs, parameters={"task_type": "retrieval.passage"})
 
         documents_with_embeddings = result["documents"]
         metadata = result["meta"]
@@ -277,4 +277,3 @@ class TestJinaDocumentEmbedder:
             assert len(doc.embedding) == 3
             assert all(isinstance(x, float) for x in doc.embedding)
         assert metadata == {"model": model, "usage": {"prompt_tokens": 4, "total_tokens": 4}}
-
