@@ -116,11 +116,7 @@ class JinaTextEmbedder:
 
         resp = self._session.post(
             JINA_API_URL,
-            json={
-                "input": [text_to_embed],
-                "model": self.model_name,
-                **(parameters if parameters is not None else {}),
-            }
+            json={"input": [text_to_embed], "model": self.model_name, **(parameters if parameters is not None else {})},
         ).json()
 
         if "data" not in resp:
