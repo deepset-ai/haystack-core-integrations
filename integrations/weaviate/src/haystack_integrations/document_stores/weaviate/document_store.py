@@ -387,8 +387,7 @@ class WeaviateDocumentStore:
         :returns: A list of Documents that match the given filters.
         """
         if filters and "operator" not in filters and "conditions" not in filters:
-            msg = ("Invalid filter syntax. "
-                   "See https://docs.haystack.deepset.ai/docs/metadata-filtering for more details.")
+            msg = "Invalid filter syntax. See https://docs.haystack.deepset.ai/docs/metadata-filtering for details."
             raise ValueError(msg)
 
         result = []
