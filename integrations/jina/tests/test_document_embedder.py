@@ -253,7 +253,7 @@ class TestJinaDocumentEmbedder:
             Document(content="A transformer is a deep learning architecture", meta={"topic": "ML"}),
         ]
 
-        model = "jina-embeddings-v3-base-en"
+        model = "jina-embeddings-v3"
         with patch("requests.sessions.Session.post", side_effect=mock_session_post_response):
             embedder = JinaDocumentEmbedder(
                 api_key=Secret.from_token("fake-api-key"),
@@ -276,4 +276,4 @@ class TestJinaDocumentEmbedder:
             assert isinstance(doc.embedding, list)
             assert len(doc.embedding) == 3
             assert all(isinstance(x, float) for x in doc.embedding)
-        assert metadata == {"model": model, "usage": {"prompt_tokens": 4, "total_tokens": 4}}
+        assert metadata == {"model": model, "usage": {"prompt_tokens": 2 * 4, "total_tokens": 2 * 4}}
