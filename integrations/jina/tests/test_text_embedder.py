@@ -106,3 +106,32 @@ class TestJinaTextEmbedder:
 
         with pytest.raises(TypeError, match="JinaTextEmbedder expects a string as an input"):
             embedder.run(text=list_integers_input)
+
+    def test_with_v3(self):
+        model = "jina-embeddings-v3"
+        with patch("requests.sessions.Session.post") as mock_post:
+            # Configure the mock to return a specific response
+            mock_response = requests.Response()
+            mock_response.status_code = 200
+            mock_response._content = json.dumps(
+                {
+                    "model": "jina-embeddings-v3",
+                    "object": "list",
+                    "usage": {"total_tokens": 6, "prompt_tokens": 6},
+                    "data": [{"object": "embedding", "index": 0, "embedding": [0.1, 0.2, 0.3]}],
+                }
+            ).encode()
+
+            mock_post.return_value = mock_response
+
+            embedder = JinaTextEmbedder(
+                api_key=Secret.from_token("fake-api-key"), model=model, prefix="prefix ", suffix=" suffix"
+            )
+            result = embedder.run(text="The food was delicious", parameters={"task_type":"retrieval.passage"})
+
+        assert len(result["embedding"]) == 3
+        assert all(isinstance(x, float) for x in result["embedding"])
+        assert result["meta"] == {
+            "model": "jina-embeddings-v3",
+            "usage": {"prompt_tokens": 6, "total_tokens": 6},
+        }

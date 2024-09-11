@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 import requests
 from haystack import component, default_from_dict, default_to_dict
@@ -95,7 +95,7 @@ class JinaTextEmbedder:
         return default_from_dict(cls, data)
 
     @component.output_types(embedding=List[float], meta=Dict[str, Any])
-    def run(self, text: str):
+    def run(self, text: str, parameters: Optional[Dict]):
         """
         Embed a string.
 
@@ -114,7 +114,7 @@ class JinaTextEmbedder:
 
         text_to_embed = self.prefix + text + self.suffix
 
-        resp = self._session.post(JINA_API_URL, json={"input": [text_to_embed], "model": self.model_name}).json()
+        resp = self._session.post(JINA_API_URL, json={"input": [text_to_embed], "model": self.model_name, **parameters}).json()
         if "data" not in resp:
             raise RuntimeError(resp["detail"])
 

@@ -246,3 +246,35 @@ class TestJinaDocumentEmbedder:
 
         assert result["documents"] is not None
         assert not result["documents"]  # empty list
+    
+    def test_run_with_v3(self):
+        docs = [
+            Document(content="I love cheese", meta={"topic": "Cuisine"}),
+            Document(content="A transformer is a deep learning architecture", meta={"topic": "ML"}),
+        ]
+
+        model = "jina-embeddings-v3-base-en"
+        with patch("requests.sessions.Session.post", side_effect=mock_session_post_response):
+            embedder = JinaDocumentEmbedder(
+                api_key=Secret.from_token("fake-api-key"),
+                model=model,
+                prefix="prefix ",
+                suffix=" suffix",
+                meta_fields_to_embed=["topic"],
+                embedding_separator=" | ",
+                batch_size=1,
+            )
+            result = embedder.run(documents=docs, parameters={"task_type":"retrieval.passage"})
+
+        documents_with_embeddings = result["documents"]
+        metadata = result["meta"]
+
+        assert isinstance(documents_with_embeddings, list)
+        assert len(documents_with_embeddings) == len(docs)
+        for doc in documents_with_embeddings:
+            assert isinstance(doc, Document)
+            assert isinstance(doc.embedding, list)
+            assert len(doc.embedding) == 3
+            assert all(isinstance(x, float) for x in doc.embedding)
+        assert metadata == {"model": model, "usage": {"prompt_tokens": 4, "total_tokens": 4}}
+
