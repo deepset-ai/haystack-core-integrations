@@ -18,7 +18,7 @@ from unstructured.partition.api import partition_via_api
 
 logger = logging.getLogger(__name__)
 
-UNSTRUCTURED_HOSTED_API_URL = "https://api.unstructured.io/general/v0/general"
+UNSTRUCTURED_HOSTED_API_URL = "https://api.unstructuredapp.io/general/v0/general"
 
 
 @component
