@@ -185,7 +185,9 @@ class JinaDocumentEmbedder:
 
         texts_to_embed = self._prepare_texts_to_embed(documents=documents)
 
-        embeddings, metadata = self._embed_batch(texts_to_embed=texts_to_embed, batch_size=self.batch_size, parameters=parameters)
+        embeddings, metadata = self._embed_batch(
+            texts_to_embed=texts_to_embed, batch_size=self.batch_size, parameters=parameters
+        )
 
         for doc, emb in zip(documents, embeddings):
             doc.embedding = emb
