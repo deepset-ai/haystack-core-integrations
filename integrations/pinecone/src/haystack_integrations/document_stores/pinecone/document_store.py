@@ -201,7 +201,8 @@ class PineconeDocumentStore:
         """
 
         if filters and "operator" not in filters and "conditions" not in filters:
-            msg = "Legacy filters support has been removed. See https://docs.haystack.deepset.ai/docs/metadata-filtering for more details."
+            msg = ("Legacy filters support has been removed. "
+                   "See https://docs.haystack.deepset.ai/docs/metadata-filtering for more details.")
             raise ValueError(msg)
 
         # Pinecone only performs vector similarity search
