@@ -19,7 +19,7 @@ def _normalize_filters(filters: Dict[str, Any]) -> Dict[str, Any]:
         raise FilterError(msg)
 
     if "operator" not in filters and "conditions" not in filters:
-        msg = "Legacy filters support has been removed. Please see documentation for new filter syntax."
+        msg = "Invalid filter syntax. See https://docs.haystack.deepset.ai/docs/metadata-filtering for details."
         raise ValueError(msg)
 
     if "field" in filters:
