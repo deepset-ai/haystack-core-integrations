@@ -131,7 +131,12 @@ class JinaDocumentEmbedder:
             texts_to_embed.append(text_to_embed)
         return texts_to_embed
 
-    def _embed_batch(self, texts_to_embed: List[str], batch_size: int, parameters: Optional[Dict]) -> Tuple[List[List[float]], Dict[str, Any]]:
+    def _embed_batch(
+            self,
+            texts_to_embed: List[str],
+            batch_size: int,
+            parameters: Optional[Dict]
+        ) -> Tuple[List[List[float]],Dict[str, Any]]:
         """
         Embed a list of texts in batches.
         """
@@ -142,7 +147,10 @@ class JinaDocumentEmbedder:
             range(0, len(texts_to_embed), batch_size), disable=not self.progress_bar, desc="Calculating embeddings"
         ):
             batch = texts_to_embed[i : i + batch_size]
-            response = self._session.post(JINA_API_URL, json={"input": batch, "model": self.model_name, **parameters}).json()
+            response = self._session.post(
+                JINA_API_URL,
+                json={"input": batch, "model": self.model_name, **parameters}
+            ).json()
             if "data" not in response:
                 raise RuntimeError(response["detail"])
 
@@ -180,7 +188,11 @@ class JinaDocumentEmbedder:
 
         texts_to_embed = self._prepare_texts_to_embed(documents=documents)
 
-        embeddings, metadata = self._embed_batch(texts_to_embed=texts_to_embed, batch_size=self.batch_size, parameters=parameters)
+        embeddings, metadata = self._embed_batch(
+            texts_to_embed=texts_to_embed,
+            batch_size=self.batch_size,
+            parameters=parameters
+        )
 
         for doc, emb in zip(documents, embeddings):
             doc.embedding = emb
