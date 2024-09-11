@@ -223,7 +223,8 @@ class ElasticsearchDocumentStore:
         :returns: List of `Document`s that match the filters.
         """
         if filters and "operator" not in filters and "conditions" not in filters:
-            raise ValueError("Legacy filters support has been removed. Please see documentation for new filter syntax.")
+            msg = "Legacy filters support has been removed. See https://docs.haystack.deepset.ai/docs/metadata-filtering for more details."
+            raise ValueError(msg)
 
         query = {"bool": {"filter": _normalize_filters(filters)}} if filters else None
         documents = self._search_documents(query=query)
