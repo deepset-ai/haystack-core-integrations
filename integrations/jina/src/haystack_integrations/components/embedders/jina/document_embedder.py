@@ -133,7 +133,7 @@ class JinaDocumentEmbedder:
 
     def _embed_batch(
         self, texts_to_embed: List[str], batch_size: int, parameters: Optional[Dict] = None
-    ) -> Tuple[List[List[float]],Dict[str, Any]]:
+    ) -> Tuple[List[List[float]], Dict[str, Any]]:
         """
         Embed a list of texts in batches.
         """
