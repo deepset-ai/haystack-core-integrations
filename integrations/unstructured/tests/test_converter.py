@@ -9,7 +9,7 @@ class TestUnstructuredFileConverter:
     @pytest.mark.usefixtures("set_env_variables")
     def test_init_default(self):
         converter = UnstructuredFileConverter()
-        assert converter.api_url == "https://api.unstructured.io/general/v0/general"
+        assert converter.api_url == "https://api.unstructuredapp.io/general/v0/general"
         assert converter.api_key.resolve_value() == "test-api-key"
         assert converter.document_creation_mode == "one-doc-per-file"
         assert converter.separator == "\n\n"
@@ -33,7 +33,7 @@ class TestUnstructuredFileConverter:
 
     def test_init_hosted_without_api_key_raises_error(self):
         with pytest.raises(ValueError):
-            UnstructuredFileConverter(api_url="https://api.unstructured.io/general/v0/general")
+            UnstructuredFileConverter(api_url="https://api.unstructuredapp.io/general/v0/general")
 
     @pytest.mark.usefixtures("set_env_variables")
     def test_to_dict(self):
@@ -43,7 +43,7 @@ class TestUnstructuredFileConverter:
         assert converter_dict == {
             "type": "haystack_integrations.components.converters.unstructured.converter.UnstructuredFileConverter",
             "init_parameters": {
-                "api_url": "https://api.unstructured.io/general/v0/general",
+                "api_url": "https://api.unstructuredapp.io/general/v0/general",
                 "api_key": {"env_vars": ["UNSTRUCTURED_API_KEY"], "strict": False, "type": "env_var"},
                 "document_creation_mode": "one-doc-per-file",
                 "separator": "\n\n",
