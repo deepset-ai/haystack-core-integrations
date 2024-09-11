@@ -135,7 +135,7 @@ class JinaDocumentEmbedder:
             self,
             texts_to_embed: List[str],
             batch_size: int,
-            parameters: Optional[Dict]
+            parameters: Optional[Dict] = None
         ) -> Tuple[List[List[float]],Dict[str, Any]]:
         """
         Embed a list of texts in batches.
@@ -169,7 +169,7 @@ class JinaDocumentEmbedder:
         return all_embeddings, metadata
 
     @component.output_types(documents=List[Document], meta=Dict[str, Any])
-    def run(self, documents: List[Document], parameters: Optional[Dict]):
+    def run(self, documents: List[Document], parameters: Optional[Dict]=None):
         """
         Compute the embeddings for a list of Documents.
 
