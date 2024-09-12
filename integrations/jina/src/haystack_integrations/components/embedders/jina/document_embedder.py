@@ -28,7 +28,7 @@ class JinaDocumentEmbedder:
 
     doc = Document(content="I love pizza!")
 
-    result = document_embedder.run([doc])
+    result = document_embedder.run([doc], parameters={"task_type": "retrieval.query"})
     print(result['documents'][0].embedding)
 
     # [0.017020374536514282, -0.023255806416273117, ...]
@@ -38,7 +38,7 @@ class JinaDocumentEmbedder:
     def __init__(
         self,
         api_key: Secret = Secret.from_env_var("JINA_API_KEY"),  # noqa: B008
-        model: str = "jina-embeddings-v2-base-en",
+        model: str = "jina-embeddings-v3",
         prefix: str = "",
         suffix: str = "",
         batch_size: int = 32,

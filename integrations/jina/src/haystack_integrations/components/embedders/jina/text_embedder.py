@@ -25,10 +25,10 @@ class JinaTextEmbedder:
 
     text_to_embed = "I love pizza!"
 
-    print(text_embedder.run(text_to_embed))
+    print(text_embedder.run(text_to_embed), parameters={"task_type": "retrieval.query"})
 
     # {'embedding': [0.017020374536514282, -0.023255806416273117, ...],
-    # 'meta': {'model': 'jina-embeddings-v2-base-en',
+    # 'meta': {'model': 'jina-embeddings-v3',
     #          'usage': {'prompt_tokens': 4, 'total_tokens': 4}}}
     ```
     """
@@ -36,7 +36,7 @@ class JinaTextEmbedder:
     def __init__(
         self,
         api_key: Secret = Secret.from_env_var("JINA_API_KEY"),  # noqa: B008
-        model: str = "jina-embeddings-v2-base-en",
+        model: str = "jina-embeddings-v3",
         prefix: str = "",
         suffix: str = "",
     ):
