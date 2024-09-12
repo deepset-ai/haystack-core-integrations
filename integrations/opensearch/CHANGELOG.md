@@ -1,6 +1,6 @@
 # Changelog
 
-## [unreleased]
+## [integrations/opensearch-v1.0.0] - 2024-09-12
 
 ### 📚 Documentation
 

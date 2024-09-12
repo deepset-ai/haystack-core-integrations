@@ -1,6 +1,6 @@
 # Changelog
 
-## [unreleased]
+## [integrations/weaviate-v3.0.0] - 2024-09-12
 
 ### ⚙️ Miscellaneous Tasks
 

@@ -1,6 +1,6 @@
 # Changelog
 
-## [unreleased]
+## [integrations/pinecone-v2.0.0] - 2024-09-12
 
 ### ⚙️ Miscellaneous Tasks
 
