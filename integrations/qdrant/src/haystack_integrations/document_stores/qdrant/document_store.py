@@ -542,24 +542,7 @@ class QdrantDocumentStore:
         qdrant_filters = convert_filters_to_qdrant(filters)
         query_indices = query_sparse_embedding.indices
         query_values = query_sparse_embedding.values
-        if not group_by:
-            points = self.client.query_points(
-                collection_name=self.index,
-                query=rest.SparseVector(
-                    indices=query_indices,
-                    values=query_values,
-                ),
-                using=SPARSE_VECTORS_NAME,
-                query_filter=qdrant_filters,
-                limit=top_k,
-                with_vectors=return_embedding,
-                score_threshold=score_threshold,
-            ).points
-            results = [
-                convert_qdrant_point_to_haystack_document(point, use_sparse_embeddings=self.use_sparse_embeddings)
-                for point in points
-            ]
-        elif group_by:
+        if group_by:
             groups = self.client.query_points_groups(
                 collection_name=self.index,
                 query=rest.SparseVector(
@@ -583,6 +566,23 @@ class QdrantDocumentStore:
                 if groups
                 else []
             )
+        else:
+            points = self.client.query_points(
+                collection_name=self.index,
+                query=rest.SparseVector(
+                    indices=query_indices,
+                    values=query_values,
+                ),
+                using=SPARSE_VECTORS_NAME,
+                query_filter=qdrant_filters,
+                limit=top_k,
+                with_vectors=return_embedding,
+                score_threshold=score_threshold,
+            ).points
+            results = [
+                convert_qdrant_point_to_haystack_document(point, use_sparse_embeddings=self.use_sparse_embeddings)
+                for point in points
+            ]
         if scale_score:
             for document in results:
                 score = document.score
@@ -621,21 +621,7 @@ class QdrantDocumentStore:
         :returns: List of documents that are most similar to `query_embedding`.
         """
         qdrant_filters = convert_filters_to_qdrant(filters)
-        if not group_by:
-            points = self.client.query_points(
-                collection_name=self.index,
-                query=query_embedding,
-                using=DENSE_VECTORS_NAME if self.use_sparse_embeddings else None,
-                query_filter=qdrant_filters,
-                limit=top_k,
-                with_vectors=return_embedding,
-                score_threshold=score_threshold,
-            ).points
-            results = [
-                convert_qdrant_point_to_haystack_document(point, use_sparse_embeddings=self.use_sparse_embeddings)
-                for point in points
-            ]
-        elif group_by:
+        if group_by:
             groups = self.client.query_points_groups(
                 collection_name=self.index,
                 query=query_embedding,
@@ -656,6 +642,21 @@ class QdrantDocumentStore:
                 if groups
                 else []
             )
+        else:
+            points = self.client.query_points(
+                collection_name=self.index,
+                query=query_embedding,
+                using=DENSE_VECTORS_NAME if self.use_sparse_embeddings else None,
+                query_filter=qdrant_filters,
+                limit=top_k,
+                with_vectors=return_embedding,
+                score_threshold=score_threshold,
+            ).points
+            results = [
+                convert_qdrant_point_to_haystack_document(point, use_sparse_embeddings=self.use_sparse_embeddings)
+                for point in points
+            ]
+
         if scale_score:
             for document in results:
                 score = document.score
@@ -715,31 +716,7 @@ class QdrantDocumentStore:
         qdrant_filters = convert_filters_to_qdrant(filters)
 
         try:
-            if not group_by:
-                points = self.client.query_points(
-                    collection_name=self.index,
-                    prefetch=[
-                        rest.Prefetch(
-                            query=rest.SparseVector(
-                                indices=query_sparse_embedding.indices,
-                                values=query_sparse_embedding.values,
-                            ),
-                            using=SPARSE_VECTORS_NAME,
-                            filter=qdrant_filters,
-                        ),
-                        rest.Prefetch(
-                            query=query_embedding,
-                            using=DENSE_VECTORS_NAME,
-                            filter=qdrant_filters,
-                        ),
-                    ],
-                    query=rest.FusionQuery(fusion=rest.Fusion.RRF),
-                    limit=top_k,
-                    score_threshold=score_threshold,
-                    with_payload=True,
-                    with_vectors=return_embedding,
-                ).points
-            elif group_by:
+            if group_by:
                 groups = self.client.query_points_groups(
                     collection_name=self.index,
                     prefetch=[
@@ -765,14 +742,36 @@ class QdrantDocumentStore:
                     with_payload=True,
                     with_vectors=return_embedding,
                 ).groups
+            else:
+                points = self.client.query_points(
+                    collection_name=self.index,
+                    prefetch=[
+                        rest.Prefetch(
+                            query=rest.SparseVector(
+                                indices=query_sparse_embedding.indices,
+                                values=query_sparse_embedding.values,
+                            ),
+                            using=SPARSE_VECTORS_NAME,
+                            filter=qdrant_filters,
+                        ),
+                        rest.Prefetch(
+                            query=query_embedding,
+                            using=DENSE_VECTORS_NAME,
+                            filter=qdrant_filters,
+                        ),
+                    ],
+                    query=rest.FusionQuery(fusion=rest.Fusion.RRF),
+                    limit=top_k,
+                    score_threshold=score_threshold,
+                    with_payload=True,
+                    with_vectors=return_embedding,
+                ).points
 
         except Exception as e:
             msg = "Error during hybrid search"
             raise QdrantStoreError(msg) from e
 
-        if not group_by:
-            results = [convert_qdrant_point_to_haystack_document(point, use_sparse_embeddings=True) for point in points]
-        elif group_by:
+        if group_by:
             results = (
                 [
                     convert_qdrant_point_to_haystack_document(point, use_sparse_embeddings=self.use_sparse_embeddings)
@@ -782,6 +781,9 @@ class QdrantDocumentStore:
                 if groups
                 else []
             )
+        else:
+            results = [convert_qdrant_point_to_haystack_document(point, use_sparse_embeddings=True) for point in points]
+
         return results
 
     def get_distance(self, similarity: str) -> rest.Distance:
