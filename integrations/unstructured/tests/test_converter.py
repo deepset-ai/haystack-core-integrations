@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 import pytest
 from haystack_integrations.components.converters.unstructured import UnstructuredFileConverter
+from haystack.dataclasses.byte_stream import ByteStream
 
 
 class TestUnstructuredFileConverter:
@@ -87,6 +88,34 @@ class TestUnstructuredFileConverter:
         assert documents[0].meta == {"file_path": str(pdf_path)}
 
     @pytest.mark.integration
+    def test_run_one_doc_per_file_bytestream(self, samples_path):
+        pdf_path = samples_path / "sample_pdf.pdf"
+        pdf_stream = ByteStream.from_file_path(pdf_path)
+
+        local_converter = UnstructuredFileConverter(
+            api_url="http://localhost:8000/general/v0/general", document_creation_mode="one-doc-per-file"
+        )
+
+        documents = local_converter.run([pdf_stream])["documents"]
+
+        assert len(documents) == 1
+
+    @pytest.mark.integration
+    def test_run_one_doc_per_page_bytestream(self, samples_path):
+        pdf_path = samples_path / "sample_pdf.pdf"
+        pdf_stream = ByteStream.from_file_path(pdf_path)
+
+        local_converter = UnstructuredFileConverter(
+            api_url="http://localhost:8000/general/v0/general", document_creation_mode="one-doc-per-page"
+        )
+
+        documents = local_converter.run([pdf_stream])["documents"]
+
+        assert len(documents) == 4
+        for i, doc in enumerate(documents, start=1):
+            assert doc.meta["page_number"] == i
+
+    @pytest.mark.integration
     def test_run_one_doc_per_page(self, samples_path):
         pdf_path = samples_path / "sample_pdf.pdf"
 
@@ -127,7 +156,7 @@ class TestUnstructuredFileConverter:
             api_url="http://localhost:8000/general/v0/general", document_creation_mode="one-doc-per-file"
         )
 
-        documents = local_converter.run(paths=[pdf_path], meta=meta)["documents"]
+        documents = local_converter.run(sources=[pdf_path], meta=meta)["documents"]
 
         assert len(documents) == 1
         assert documents[0].meta["file_path"] == str(pdf_path)
@@ -143,7 +172,7 @@ class TestUnstructuredFileConverter:
             api_url="http://localhost:8000/general/v0/general", document_creation_mode="one-doc-per-page"
         )
 
-        documents = local_converter.run(paths=[pdf_path], meta=meta)["documents"]
+        documents = local_converter.run(sources=[pdf_path], meta=meta)["documents"]
         assert len(documents) == 4
         for i, doc in enumerate(documents, start=1):
             assert doc.meta["file_path"] == str(pdf_path)
@@ -159,7 +188,7 @@ class TestUnstructuredFileConverter:
             api_url="http://localhost:8000/general/v0/general", document_creation_mode="one-doc-per-element"
         )
 
-        documents = local_converter.run(paths=[pdf_path], meta=meta)["documents"]
+        documents = local_converter.run(sources=[pdf_path], meta=meta)["documents"]
 
         assert len(documents) > 4
         first_element_index = 0
@@ -185,7 +214,7 @@ class TestUnstructuredFileConverter:
             api_url="http://localhost:8000/general/v0/general", document_creation_mode="one-doc-per-element"
         )
 
-        documents = local_converter.run(paths=pdf_path, meta=meta)["documents"]
+        documents = local_converter.run(sources=pdf_path, meta=meta)["documents"]
 
         assert len(documents) > 4
         for doc in documents:
@@ -205,7 +234,7 @@ class TestUnstructuredFileConverter:
             api_url="http://localhost:8000/general/v0/general", document_creation_mode="one-doc-per-element"
         )
         with pytest.raises(ValueError):
-            local_converter.run(paths=pdf_path, meta=meta)["documents"]
+            local_converter.run(sources=pdf_path, meta=meta)["documents"]
 
     @pytest.mark.integration
     def test_run_one_doc_per_element_with_meta_list_folder(self, samples_path):
@@ -216,7 +245,7 @@ class TestUnstructuredFileConverter:
             api_url="http://localhost:8000/general/v0/general", document_creation_mode="one-doc-per-element"
         )
 
-        documents = local_converter.run(paths=pdf_path, meta=meta)["documents"]
+        documents = local_converter.run(sources=pdf_path, meta=meta)["documents"]
 
         assert len(documents) > 4
         for doc in documents:
