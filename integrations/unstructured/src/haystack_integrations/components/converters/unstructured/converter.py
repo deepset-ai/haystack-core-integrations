@@ -28,7 +28,7 @@ class UnstructuredFileConverter:
     A component for converting files to Haystack Documents using the Unstructured API (hosted or running locally).
 
     For the supported file types and the specific API parameters, see
-    [Unstructured docs](https://unstructured-io.github.io/unstructured/api.html).
+    [Unstructured docs](https://docs.unstructured.io/api-reference/api-services/overview).
 
     Usage example:
     ```python
@@ -69,7 +69,7 @@ class UnstructuredFileConverter:
         :param separator: Separator between elements when concatenating them into one text field.
         :param unstructured_kwargs: Additional parameters that are passed to the Unstructured API.
             For the available parameters, see
-            [Unstructured API docs](https://unstructured-io.github.io/unstructured/apis/api_parameters.html).
+            [Unstructured API docs](https://docs.unstructured.io/api-reference/api-services/api-parameters).
         :param progress_bar: Whether to show a progress bar during the conversion.
         """
 
