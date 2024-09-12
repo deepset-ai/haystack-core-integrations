@@ -46,7 +46,7 @@ class TestJinaTextEmbedder:
             "type": "haystack_integrations.components.embedders.jina.text_embedder.JinaTextEmbedder",
             "init_parameters": {
                 "api_key": {"env_vars": ["JINA_API_KEY"], "strict": True, "type": "env_var"},
-                "model": "jina-embeddings-v2-base-en",
+                "model": "jina-embeddings-v3",
                 "prefix": "",
                 "suffix": "",
             },

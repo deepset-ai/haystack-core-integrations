@@ -73,7 +73,7 @@ class TestJinaDocumentEmbedder:
             "type": "haystack_integrations.components.embedders.jina.document_embedder.JinaDocumentEmbedder",
             "init_parameters": {
                 "api_key": {"env_vars": ["JINA_API_KEY"], "strict": True, "type": "env_var"},
-                "model": "jina-embeddings-v2-base-en",
+                "model": "jina-embeddings-v3",
                 "prefix": "",
                 "suffix": "",
                 "batch_size": 32,
