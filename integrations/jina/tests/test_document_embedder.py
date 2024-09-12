@@ -31,7 +31,7 @@ class TestJinaDocumentEmbedder:
         embedder = JinaDocumentEmbedder()
 
         assert embedder.api_key == Secret.from_env_var("JINA_API_KEY")
-        assert embedder.model_name == "jina-embeddings-v2-base-en"
+        assert embedder.model_name == "jina-embeddings-v3"
         assert embedder.prefix == ""
         assert embedder.suffix == ""
         assert embedder.batch_size == 32
