@@ -6,7 +6,7 @@ import logging
 import os
 from collections import defaultdict
 from pathlib import Path
-from typing import Any, Dict, List, Literal, Optional, Union, Tuple
+from typing import Any, Dict, List, Literal, Optional, Tuple, Union
 
 from haystack import Document, component, default_from_dict, default_to_dict
 from haystack.components.converters.utils import normalize_metadata
@@ -124,7 +124,7 @@ class UnstructuredFileConverter:
     @component.output_types(documents=List[Document])
     def run(
         self,
-        sources: Union[List[Union[str, os.PathLike, ByteStream]]], 
+        sources: Union[List[Union[str, os.PathLike, ByteStream]]],
         meta: Optional[Union[Dict[str, Any], List[Dict[str, Any]]]] = None,
     ):
         """
@@ -183,7 +183,7 @@ class UnstructuredFileConverter:
         return {"documents": documents}
 
     def _get_sources(
-        self, 
+        self,
         sources: Union[List[str], List[os.PathLike], List[ByteStream]]
     ) -> Tuple[List[Path], List[Path], List[ByteStream]]:
         """
@@ -194,7 +194,6 @@ class UnstructuredFileConverter:
 
         # Separate files and directories
         filepaths = [path for path in paths_obj if path.is_file()]
-        directories = [path for path in paths_obj if path.is_dir()]
 
         filepaths_in_directories = [
             filepath for path in paths_obj if path.is_dir() for filepath in path.glob("*.*") if filepath.is_file()

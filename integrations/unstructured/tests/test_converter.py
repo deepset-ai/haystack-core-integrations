@@ -2,8 +2,9 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 import pytest
-from haystack_integrations.components.converters.unstructured import UnstructuredFileConverter
 from haystack.dataclasses.byte_stream import ByteStream
+
+from haystack_integrations.components.converters.unstructured import UnstructuredFileConverter
 
 
 class TestUnstructuredFileConverter:
