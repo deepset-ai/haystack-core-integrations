@@ -277,7 +277,7 @@ class TestJinaDocumentEmbedder:
             assert len(doc.embedding) == 3
             assert all(isinstance(x, float) for x in doc.embedding)
         assert metadata == {"model": model, "usage": {"prompt_tokens": 2 * 4, "total_tokens": 2 * 4}}
-    
+
     @patch('requests.sessions.Session.post')
     def test_run_without_tasktype(self, mock_post):
         docs = [
@@ -287,7 +287,7 @@ class TestJinaDocumentEmbedder:
 
         # Configure the mock to return a response with an error status code
         mock_post.return_value.status_code = 400
-        mock_post.return_value.json.return_value = {"detail":"Task type parameter is required for jina-embeddings-v3."}
+        mock_post.return_value.json.return_value = {"detail": "Task type parameter is required for jina-embeddings-v3."}
 
         with pytest.raises(Exception) as excinfo:
             embedder = JinaDocumentEmbedder(
