@@ -1,6 +1,8 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
+from pathlib import Path
+
 import pytest
 from haystack.dataclasses.byte_stream import ByteStream
 
@@ -259,22 +261,20 @@ class TestUnstructuredFileConverter:
 
     @pytest.mark.integration
     def test_run_one_doc_per_element_with_meta_list_multiple_sources(self, samples_path):
-        from pathlib import Path
-
-        sources = [ 
-            ByteStream(data=b"content", meta={"file_path": "some_file.md"}), 
-            "README.md", 
-            ByteStream(data=b"content", meta={"file_path": "yet_another_file.md"}), 
-            Path(__file__), 
-            ByteStream(data=b"content", meta={"file_path": "my_file.md"}), 
+        sources = [
+            ByteStream(data=b"content", meta={"file_path": "some_file.md"}),
+            "README.md",
+            ByteStream(data=b"content", meta={"file_path": "yet_another_file.md"}),
+            Path(__file__),
+            ByteStream(data=b"content", meta={"file_path": "my_file.md"}),
         ]
-        
-        meta = [ 
-            {"type": "ByteStream"}, 
-            {"type": "str"}, 
-            {"type": "ByteStream"}, 
-            {"type": "Path"}, 
-            {"type": "ByteStream"}, 
+
+        meta = [
+            {"type": "ByteStream"},
+            {"type": "str"},
+            {"type": "ByteStream"},
+            {"type": "Path"},
+            {"type": "ByteStream"},
         ]
 
         local_converter = UnstructuredFileConverter(
@@ -293,7 +293,24 @@ class TestUnstructuredFileConverter:
         assert documents[3].meta["type"] == "Path"
         assert documents[4].meta["type"] == "ByteStream"
         assert documents[4].meta["file_path"] == "my_file.md"
-  
+
+    @pytest.mark.integration
+    def test_run_one_doc_per_element_with_meta_list_multiple_sources_directory(self, samples_path):
+        sources = [
+            "README.md",
+            ByteStream(data=b"Some content", meta={"file_path": "some_file.md"}),
+            samples_path,
+            Path(__file__),
+        ]
+
+        meta = {"common_meta": "applies_to_all"}
 
 
-       
+        local_converter = UnstructuredFileConverter(
+            api_url="http://localhost:8000/general/v0/general", document_creation_mode="one-doc-per-page"
+        )
+
+        documents = local_converter.run(sources=sources, meta=meta)["documents"]
+
+        for doc in documents:
+            assert doc.meta["common_meta"] == "applies_to_all"

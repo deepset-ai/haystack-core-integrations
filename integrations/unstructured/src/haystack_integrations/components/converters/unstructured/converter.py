@@ -6,13 +6,12 @@ import logging
 import os
 from collections import defaultdict
 from pathlib import Path
-from typing import Any, Dict, List, Literal, Optional, Tuple, Union
+from typing import Any, Dict, List, Literal, Optional, Union
 
 from haystack import Document, component, default_from_dict, default_to_dict
 from haystack.components.converters.utils import get_bytestream_from_source, normalize_metadata
 from haystack.dataclasses.byte_stream import ByteStream
 from haystack.utils import Secret, deserialize_secrets_inplace
-from tqdm import tqdm
 
 from unstructured.documents.elements import Element
 from unstructured.partition.api import partition_via_api
@@ -131,7 +130,7 @@ class UnstructuredFileConverter:
         Convert files or byte streams to Haystack Documents using the Unstructured API.
 
         :param sources: List of file paths or byte streams to convert.
-            Paths can be files or directories. Byte streams are also supported.
+            Paths can be files or directories. ByteStream is also supported.
         :param meta: Optional metadata to attach to the Documents.
             This value can be a single dictionary or a list of dictionaries, matching the number of sources.
         :returns: A dictionary with the following key:
@@ -139,36 +138,12 @@ class UnstructuredFileConverter:
         :raises ValueError: If `meta` is a list and `sources` contains directories.
         """
 
-        # Process sources and maintain meta list alignment
-        # paths_obj = []
-        # byte_streams = []
-
-        # for path in sources:
-        #     if isinstance(path, (str, os.PathLike)):
-        #         paths_obj.append(Path(path))
-        #     elif isinstance(path, ByteStream):
-        #         byte_streams.append(path)
-
-        # Filter out only file paths
-        # filepaths = [path for path in paths_obj if path.is_file()]
-
-        # # For each directory, find all files and add them to the list (if there were any directories)
-        # filepaths_in_directories = [
-        #     filepath for path in paths_obj if path.is_dir() for filepath in path.glob("*.*") if filepath.is_file()
-        # ]
-
-        # if filepaths_in_directories and isinstance(meta, list):
-        #     error = """"If providing directories in the `paths` parameter,
-        #      `meta` can only be a dictionary (metadata applied to every file),
-        #      and not a list. To specify different metadata for each file,
-        #      provide an explicit list of direct paths instead."""
-        #     raise ValueError(error)
-
+        documents = []
         all_sources = []
-        meta_sources = normalize_metadata(meta, len(sources))  # Use normalize_metadata here
+        meta_sources = normalize_metadata(meta, len(sources))
 
         # Iterate over the sources
-        for i, source in enumerate(sources):
+        for source in sources:
             if isinstance(source, (str, os.PathLike)):
                 path_obj = Path(source)
 
@@ -184,7 +159,7 @@ class UnstructuredFileConverter:
                                 and not a list. To specify different metadata for each file,
                                 provide an explicit list of direct paths instead."""
                         raise ValueError(error)
-                    
+
                     # If the source is a directory, add all files in the directory
                     for file in path_obj.glob("*.*"):
                         if file.is_file():
@@ -193,9 +168,6 @@ class UnstructuredFileConverter:
             elif isinstance(source, ByteStream):
                 # Handle ByteStream
                 all_sources.append(source)
-
-        documents = []
-        #logger.info(f"meta_sources: {meta_sources}")
 
         for source, metadata in zip(all_sources, meta_sources):
             try:
@@ -206,7 +178,6 @@ class UnstructuredFileConverter:
 
             elements = self._partition_source_into_elements(source=source)
             merged_metadata = {**bytestream.meta, **metadata}
-            logger.info(f"merged_data : {merged_metadata}\n")
 
             docs_for_stream = self._create_documents(
                 elements=elements,
