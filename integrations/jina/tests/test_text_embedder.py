@@ -10,6 +10,7 @@ from haystack.utils import Secret
 
 from haystack_integrations.components.embedders.jina import JinaTextEmbedder
 
+
 class TestJinaTextEmbedder:
     def test_init_default(self, monkeypatch):
         monkeypatch.setenv("JINA_API_KEY", "fake-api-key")
@@ -132,7 +133,7 @@ class TestJinaTextEmbedder:
                 model=model,
                 prefix="prefix ",
                 suffix=" suffix",
-                task_type="retrieval.query"
+                task_type="retrieval.query",
             )
             result = embedder.run(text="The food was delicious")
 

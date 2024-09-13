@@ -271,7 +271,7 @@ class TestJinaDocumentEmbedder:
                 meta_fields_to_embed=["topic"],
                 embedding_separator=" | ",
                 batch_size=1,
-                task_type="retrieval.query"
+                task_type="retrieval.query",
             )
             result = embedder.run(documents=docs)
 
