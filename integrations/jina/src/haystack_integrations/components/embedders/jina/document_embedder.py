@@ -194,7 +194,7 @@ class JinaDocumentEmbedder:
             raise TypeError(msg)
 
         texts_to_embed = self._prepare_texts_to_embed(documents=documents)
-        parameters = {}
+        parameters: Dict[str, any] = {}
         if self.task_type:
             parameters["task_type"] = self.task_type
         if self.dimensions:

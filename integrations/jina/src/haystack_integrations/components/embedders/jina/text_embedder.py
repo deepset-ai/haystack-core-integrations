@@ -127,7 +127,7 @@ class JinaTextEmbedder:
 
         text_to_embed = self.prefix + text + self.suffix
 
-        parameters = {}
+        parameters: Dict[str, any] = {}
         if self.task_type is not None:
             parameters["task_type"] = self.task_type
         if self.dimensions is not None:
