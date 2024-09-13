@@ -169,7 +169,7 @@ def test_constructor_with_empty_model():
         AmazonBedrockConverseGenerator(model="")
 
 
-def test_get_model_capabilities():
+def test_get_model_capabilities(mock_boto3_session):
     generator = AmazonBedrockConverseGenerator(model="anthropic.claude-3-sonnet-20240229-v1:0")
     assert generator.model_capabilities == MODEL_CAPABILITIES["anthropic.claude-3.*"]
 
