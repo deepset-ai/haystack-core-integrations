@@ -1,5 +1,16 @@
 # Changelog
 
+## [integrations/astra-v0.9.3] - 2024-09-12
+
+### 🐛 Bug Fixes
+
+- Astra DB, improved warnings and guidance about indexing-related mismatches (#932)
+- AstraDocumentStore filter by id (#1053)
+
+### 🧪 Testing
+
+- Do not retry tests in `hatch run test` command (#954)
+
 ## [integrations/astra-v0.9.2] - 2024-07-22
 
 ## [integrations/astra-v0.9.1] - 2024-07-15
