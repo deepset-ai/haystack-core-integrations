@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Literal, Optional, Tuple, Union
 
 from haystack import Document, component, default_from_dict, default_to_dict
-from haystack.components.converters.utils import normalize_metadata
+from haystack.components.converters.utils import get_bytestream_from_source, normalize_metadata
 from haystack.dataclasses.byte_stream import ByteStream
 from haystack.utils import Secret, deserialize_secrets_inplace
 from tqdm import tqdm
@@ -139,67 +139,84 @@ class UnstructuredFileConverter:
         :raises ValueError: If `meta` is a list and `sources` contains directories.
         """
 
-        # Separate file paths and byte streams
-        filepaths, filepaths_in_directories, byte_streams = self._get_sources(sources)
+        # Process sources and maintain meta list alignment
+        # paths_obj = []
+        # byte_streams = []
 
+        # for path in sources:
+        #     if isinstance(path, (str, os.PathLike)):
+        #         paths_obj.append(Path(path))
+        #     elif isinstance(path, ByteStream):
+        #         byte_streams.append(path)
 
-        if filepaths_in_directories and isinstance(meta, list):
-            error = """"If providing directories in the `paths` parameter,
-             `meta` can only be a dictionary (metadata applied to every file),
-             and not a list. To specify different metadata for each file,
-             provide an explicit list of direct paths instead."""
-            raise ValueError(error)
+        # Filter out only file paths
+        # filepaths = [path for path in paths_obj if path.is_file()]
 
-        # Combine file paths and directories for processing
-        all_filepaths = filepaths + filepaths_in_directories
+        # # For each directory, find all files and add them to the list (if there were any directories)
+        # filepaths_in_directories = [
+        #     filepath for path in paths_obj if path.is_dir() for filepath in path.glob("*.*") if filepath.is_file()
+        # ]
+
+        # if filepaths_in_directories and isinstance(meta, list):
+        #     error = """"If providing directories in the `paths` parameter,
+        #      `meta` can only be a dictionary (metadata applied to every file),
+        #      and not a list. To specify different metadata for each file,
+        #      provide an explicit list of direct paths instead."""
+        #     raise ValueError(error)
+
+        all_sources = []
+        meta_sources = normalize_metadata(meta, len(sources))  # Use normalize_metadata here
+
+        # Iterate over the sources
+        for i, source in enumerate(sources):
+            if isinstance(source, (str, os.PathLike)):
+                path_obj = Path(source)
+
+                if path_obj.is_file():
+                    # Add individual file
+                    all_sources.append(path_obj)
+
+                elif path_obj.is_dir():
+                    # Ensure meta is a dict when directories are provided
+                    if not isinstance(meta, dict):
+                        error = """"If providing directories in the `paths` parameter,
+                                `meta` can only be a dictionary (metadata applied to every file),
+                                and not a list. To specify different metadata for each file,
+                                provide an explicit list of direct paths instead."""
+                        raise ValueError(error)
+                    
+                    # If the source is a directory, add all files in the directory
+                    for file in path_obj.glob("*.*"):
+                        if file.is_file():
+                            all_sources.append(file)  # Add each file in the directory
+
+            elif isinstance(source, ByteStream):
+                # Handle ByteStream
+                all_sources.append(source)
+
         documents = []
-        meta_list = normalize_metadata(meta, sources_count=len(all_filepaths) + len(byte_streams))
+        #logger.info(f"meta_sources: {meta_sources}")
 
-        # Process file paths
-        for filepath, metadata in tqdm(
-            zip(all_filepaths, meta_list[:len(all_filepaths)]), desc="Converting files to Haystack Documents"
-        ):
-            elements = self._partition_source_into_elements(source=filepath)
-            docs_for_file = self._create_documents(
-                filepath=filepath,
-                elements=elements,
-                document_creation_mode=self.document_creation_mode,
-                separator=self.separator,
-                meta=metadata,
-            )
-            documents.extend(docs_for_file)
+        for source, metadata in zip(all_sources, meta_sources):
+            try:
+                bytestream = get_bytestream_from_source(source=source)
+            except Exception as e:
+                logger.warning("Could not read {source}. Skipping it. Error: {error}", source=source, error=e)
+                continue
 
-        # Process byte streams
-        for bytestream in byte_streams:
-            elements = self._partition_source_into_elements(source=bytestream)
+            elements = self._partition_source_into_elements(source=source)
+            merged_metadata = {**bytestream.meta, **metadata}
+            logger.info(f"merged_data : {merged_metadata}\n")
+
             docs_for_stream = self._create_documents(
                 elements=elements,
                 document_creation_mode=self.document_creation_mode,
                 separator=self.separator,
-                meta=bytestream.meta,
+                meta=merged_metadata,
             )
             documents.extend(docs_for_stream)
 
         return {"documents": documents}
-
-    def _get_sources(
-        self,
-        sources: Union[List[str], List[os.PathLike], List[ByteStream]]
-    ) -> Tuple[List[Path], List[Path], List[ByteStream]]:
-        """
-        Helper function to process and return file paths, directories, and byte streams separately.
-        """
-        paths_obj = [Path(source) for source in sources if isinstance(source, (str, os.PathLike))]
-        byte_streams = [source for source in sources if isinstance(source, ByteStream)]
-
-        # Separate files and directories
-        filepaths = [path for path in paths_obj if path.is_file()]
-
-        filepaths_in_directories = [
-            filepath for path in paths_obj if path.is_dir() for filepath in path.glob("*.*") if filepath.is_file()
-        ]
-
-        return filepaths, filepaths_in_directories, byte_streams
 
     @staticmethod
     def _create_documents(

@@ -256,3 +256,44 @@ class TestUnstructuredFileConverter:
             assert "category" in doc.meta
             assert "common_meta" in doc.meta
             assert doc.meta["common_meta"] == "common"
+
+    @pytest.mark.integration
+    def test_run_one_doc_per_element_with_meta_list_multiple_sources(self, samples_path):
+        from pathlib import Path
+
+        sources = [ 
+            ByteStream(data=b"content", meta={"file_path": "some_file.md"}), 
+            "README.md", 
+            ByteStream(data=b"content", meta={"file_path": "yet_another_file.md"}), 
+            Path(__file__), 
+            ByteStream(data=b"content", meta={"file_path": "my_file.md"}), 
+        ]
+        
+        meta = [ 
+            {"type": "ByteStream"}, 
+            {"type": "str"}, 
+            {"type": "ByteStream"}, 
+            {"type": "Path"}, 
+            {"type": "ByteStream"}, 
+        ]
+
+        local_converter = UnstructuredFileConverter(
+            api_url="http://localhost:8000/general/v0/general", document_creation_mode="one-doc-per-page"
+        )
+
+        documents = local_converter.run(sources=sources, meta=meta)["documents"]
+
+        assert len(documents) == 5
+        assert documents[0].meta["type"] == "ByteStream"
+        assert documents[0].meta["file_path"] == "some_file.md"
+        assert documents[1].meta["type"] == "str"
+        assert documents[1].meta["file_path"] == "README.md"
+        assert documents[2].meta["type"] == "ByteStream"
+        assert documents[2].meta["file_path"] == "yet_another_file.md"
+        assert documents[3].meta["type"] == "Path"
+        assert documents[4].meta["type"] == "ByteStream"
+        assert documents[4].meta["file_path"] == "my_file.md"
+  
+
+
+       
