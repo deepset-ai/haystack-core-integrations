@@ -45,6 +45,8 @@ class JinaDocumentEmbedder:
         progress_bar: bool = True,
         meta_fields_to_embed: Optional[List[str]] = None,
         embedding_separator: str = "\n",
+        task_type: Optional[str] = None,
+        dimensions: Optional[int] = None,
     ):
         """
         Create a JinaDocumentEmbedder component.
@@ -78,6 +80,8 @@ class JinaDocumentEmbedder:
                 "Content-type": "application/json",
             }
         )
+        self.task_type = task_type
+        self.dimensions = dimensions
 
     def _get_telemetry_data(self) -> Dict[str, Any]:
         """
@@ -91,17 +95,23 @@ class JinaDocumentEmbedder:
         :returns:
             Dictionary with serialized data.
         """
-        return default_to_dict(
-            self,
-            api_key=self.api_key.to_dict(),
-            model=self.model_name,
-            prefix=self.prefix,
-            suffix=self.suffix,
-            batch_size=self.batch_size,
-            progress_bar=self.progress_bar,
-            meta_fields_to_embed=self.meta_fields_to_embed,
-            embedding_separator=self.embedding_separator,
-        )
+        kwargs = {
+            "api_key": self.api_key.to_dict(),
+            "model": self.model_name,
+            "prefix": self.prefix,
+            "suffix": self.suffix,
+            "batch_size": self.batch_size,
+            "progress_bar": self.progress_bar,
+            "meta_fields_to_embed": self.meta_fields_to_embed,
+            "embedding_separator": self.embedding_separator,
+        }
+        # Optional parameters, the following two are only supported by embeddings-v3 for now
+        if self.task_type:
+            kwargs["task_type"] = self.task_type
+        if self.dimensions:
+            kwargs["dimensions"] = self.dimensions
+
+        return default_to_dict(self, **kwargs)
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "JinaDocumentEmbedder":
@@ -166,7 +176,7 @@ class JinaDocumentEmbedder:
         return all_embeddings, metadata
 
     @component.output_types(documents=List[Document], meta=Dict[str, Any])
-    def run(self, documents: List[Document], parameters: Optional[Dict] = None):
+    def run(self, documents: List[Document]):
         """
         Compute the embeddings for a list of Documents.
 
@@ -184,7 +194,11 @@ class JinaDocumentEmbedder:
             raise TypeError(msg)
 
         texts_to_embed = self._prepare_texts_to_embed(documents=documents)
-
+        parameters = {}
+        if self.task_type:
+            parameters["task_type"] = self.task_type
+        if self.dimensions:
+            parameters["dimensions"] = self.dimensions
         embeddings, metadata = self._embed_batch(
             texts_to_embed=texts_to_embed, batch_size=self.batch_size, parameters=parameters
         )

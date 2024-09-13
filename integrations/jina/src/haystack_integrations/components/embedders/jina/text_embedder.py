@@ -39,6 +39,8 @@ class JinaTextEmbedder:
         model: str = "jina-embeddings-v3",
         prefix: str = "",
         suffix: str = "",
+        task_type: Optional[str] = None,
+        dimensions: Optional[int] = None,
     ):
         """
         Create a JinaTextEmbedder component.
@@ -65,6 +67,8 @@ class JinaTextEmbedder:
                 "Content-type": "application/json",
             }
         )
+        self.task_type = task_type
+        self.dimensions = dimensions
 
     def _get_telemetry_data(self) -> Dict[str, Any]:
         """
@@ -78,9 +82,18 @@ class JinaTextEmbedder:
         :returns:
             Dictionary with serialized data.
         """
-        return default_to_dict(
-            self, api_key=self.api_key.to_dict(), model=self.model_name, prefix=self.prefix, suffix=self.suffix
-        )
+        kwargs = {
+            "api_key": self.api_key.to_dict(),
+            "model": self.model_name,
+            "prefix": self.prefix,
+            "suffix": self.suffix,
+        }
+        # Optional parameters, the following two are only supported by embeddings-v3 for now
+        if self.task_type:
+            kwargs["task_type"] = self.task_type
+        if self.dimensions:
+            kwargs["dimensions"] = self.dimensions
+        return default_to_dict(self, **kwargs)
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "JinaTextEmbedder":
@@ -95,7 +108,7 @@ class JinaTextEmbedder:
         return default_from_dict(cls, data)
 
     @component.output_types(embedding=List[float], meta=Dict[str, Any])
-    def run(self, text: str, parameters: Optional[Dict] = None):
+    def run(self, text: str):
         """
         Embed a string.
 
@@ -114,9 +127,15 @@ class JinaTextEmbedder:
 
         text_to_embed = self.prefix + text + self.suffix
 
+        parameters = {}
+        if self.task_type is not None:
+            parameters["task_type"] = self.task_type
+        if self.dimensions is not None:
+            parameters["dimensions"] = self.dimensions
+
         resp = self._session.post(
             JINA_API_URL,
-            json={"input": [text_to_embed], "model": self.model_name, **(parameters if parameters is not None else {})},
+            json={"input": [text_to_embed], "model": self.model_name, **parameters},
         ).json()
 
         if "data" not in resp:

@@ -10,7 +10,6 @@ from haystack.utils import Secret
 
 from haystack_integrations.components.embedders.jina import JinaTextEmbedder
 
-
 class TestJinaTextEmbedder:
     def test_init_default(self, monkeypatch):
         monkeypatch.setenv("JINA_API_KEY", "fake-api-key")
@@ -58,6 +57,8 @@ class TestJinaTextEmbedder:
             model="model",
             prefix="prefix",
             suffix="suffix",
+            task_type="retrieval.query",
+            dimensions=1024,
         )
         data = component.to_dict()
         assert data == {
@@ -67,6 +68,8 @@ class TestJinaTextEmbedder:
                 "model": "model",
                 "prefix": "prefix",
                 "suffix": "suffix",
+                "task_type": "retrieval.query",
+                "dimensions": 1024,
             },
         }
 
@@ -125,9 +128,13 @@ class TestJinaTextEmbedder:
             mock_post.return_value = mock_response
 
             embedder = JinaTextEmbedder(
-                api_key=Secret.from_token("fake-api-key"), model=model, prefix="prefix ", suffix=" suffix"
+                api_key=Secret.from_token("fake-api-key"),
+                model=model,
+                prefix="prefix ",
+                suffix=" suffix",
+                task_type="retrieval.query"
             )
-            result = embedder.run(text="The food was delicious", parameters={"task_type": "retrieval.passage"})
+            result = embedder.run(text="The food was delicious")
 
         assert len(result["embedding"]) == 3
         assert all(isinstance(x, float) for x in result["embedding"])
