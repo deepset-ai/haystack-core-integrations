@@ -1,17 +1,21 @@
 from unittest.mock import MagicMock, Mock, patch
 
+import pytest
 from haystack import Pipeline
-from haystack.components.builders import PromptBuilder
-from haystack.dataclasses import StreamingChunk
+from haystack.components.builders import ChatPromptBuilder
+from haystack.dataclasses import ChatMessage, StreamingChunk
 from vertexai.generative_models import (
+    Content,
     FunctionDeclaration,
     GenerationConfig,
+    GenerationResponse,
     HarmBlockThreshold,
     HarmCategory,
+    Part,
     Tool,
 )
 
-from haystack_integrations.components.generators.google_vertex import VertexAIGeminiGenerator
+from haystack_integrations.components.generators.google_vertex import VertexAIGeminiChatGenerator
 
 GET_CURRENT_WEATHER_FUNC = FunctionDeclaration(
     name="get_current_weather",
@@ -33,8 +37,16 @@ GET_CURRENT_WEATHER_FUNC = FunctionDeclaration(
 )
 
 
-@patch("haystack_integrations.components.generators.google_vertex.gemini.vertexai_init")
-@patch("haystack_integrations.components.generators.google_vertex.gemini.GenerativeModel")
+@pytest.fixture
+def chat_messages():
+    return [
+        ChatMessage.from_system("You are a helpful assistant"),
+        ChatMessage.from_user("What's the capital of France"),
+    ]
+
+
+@patch("haystack_integrations.components.generators.google_vertex.chat.gemini.vertexai_init")
+@patch("haystack_integrations.components.generators.google_vertex.chat.gemini.GenerativeModel")
 def test_init(mock_vertexai_init, _mock_generative_model):
 
     generation_config = GenerationConfig(
@@ -49,7 +61,7 @@ def test_init(mock_vertexai_init, _mock_generative_model):
 
     tool = Tool(function_declarations=[GET_CURRENT_WEATHER_FUNC])
 
-    gemini = VertexAIGeminiGenerator(
+    gemini = VertexAIGeminiChatGenerator(
         project_id="TestID123",
         location="TestLocation",
         generation_config=generation_config,
@@ -63,15 +75,15 @@ def test_init(mock_vertexai_init, _mock_generative_model):
     assert gemini._tools == [tool]
 
 
-@patch("haystack_integrations.components.generators.google_vertex.gemini.vertexai_init")
-@patch("haystack_integrations.components.generators.google_vertex.gemini.GenerativeModel")
+@patch("haystack_integrations.components.generators.google_vertex.chat.gemini.vertexai_init")
+@patch("haystack_integrations.components.generators.google_vertex.chat.gemini.GenerativeModel")
 def test_to_dict(_mock_vertexai_init, _mock_generative_model):
 
-    gemini = VertexAIGeminiGenerator(
+    gemini = VertexAIGeminiChatGenerator(
         project_id="TestID123",
     )
     assert gemini.to_dict() == {
-        "type": "haystack_integrations.components.generators.google_vertex.gemini.VertexAIGeminiGenerator",
+        "type": "haystack_integrations.components.generators.google_vertex.chat.gemini.VertexAIGeminiChatGenerator",
         "init_parameters": {
             "model": "gemini-1.5-flash",
             "project_id": "TestID123",
@@ -84,8 +96,8 @@ def test_to_dict(_mock_vertexai_init, _mock_generative_model):
     }
 
 
-@patch("haystack_integrations.components.generators.google_vertex.gemini.vertexai_init")
-@patch("haystack_integrations.components.generators.google_vertex.gemini.GenerativeModel")
+@patch("haystack_integrations.components.generators.google_vertex.chat.gemini.vertexai_init")
+@patch("haystack_integrations.components.generators.google_vertex.chat.gemini.GenerativeModel")
 def test_to_dict_with_params(_mock_vertexai_init, _mock_generative_model):
     generation_config = GenerationConfig(
         candidate_count=1,
@@ -99,14 +111,15 @@ def test_to_dict_with_params(_mock_vertexai_init, _mock_generative_model):
 
     tool = Tool(function_declarations=[GET_CURRENT_WEATHER_FUNC])
 
-    gemini = VertexAIGeminiGenerator(
+    gemini = VertexAIGeminiChatGenerator(
         project_id="TestID123",
         generation_config=generation_config,
         safety_settings=safety_settings,
         tools=[tool],
     )
+
     assert gemini.to_dict() == {
-        "type": "haystack_integrations.components.generators.google_vertex.gemini.VertexAIGeminiGenerator",
+        "type": "haystack_integrations.components.generators.google_vertex.chat.gemini.VertexAIGeminiChatGenerator",
         "init_parameters": {
             "model": "gemini-1.5-flash",
             "project_id": "TestID123",
@@ -146,12 +159,12 @@ def test_to_dict_with_params(_mock_vertexai_init, _mock_generative_model):
     }
 
 
-@patch("haystack_integrations.components.generators.google_vertex.gemini.vertexai_init")
-@patch("haystack_integrations.components.generators.google_vertex.gemini.GenerativeModel")
+@patch("haystack_integrations.components.generators.google_vertex.chat.gemini.vertexai_init")
+@patch("haystack_integrations.components.generators.google_vertex.chat.gemini.GenerativeModel")
 def test_from_dict(_mock_vertexai_init, _mock_generative_model):
-    gemini = VertexAIGeminiGenerator.from_dict(
+    gemini = VertexAIGeminiChatGenerator.from_dict(
         {
-            "type": "haystack_integrations.components.generators.google_vertex.gemini.VertexAIGeminiGenerator",
+            "type": "haystack_integrations.components.generators.google_vertex.chat.gemini.VertexAIGeminiChatGenerator",
             "init_parameters": {
                 "project_id": "TestID123",
                 "model": "gemini-1.5-flash",
@@ -170,12 +183,12 @@ def test_from_dict(_mock_vertexai_init, _mock_generative_model):
     assert gemini._generation_config is None
 
 
-@patch("haystack_integrations.components.generators.google_vertex.gemini.vertexai_init")
-@patch("haystack_integrations.components.generators.google_vertex.gemini.GenerativeModel")
+@patch("haystack_integrations.components.generators.google_vertex.chat.gemini.vertexai_init")
+@patch("haystack_integrations.components.generators.google_vertex.chat.gemini.GenerativeModel")
 def test_from_dict_with_param(_mock_vertexai_init, _mock_generative_model):
-    gemini = VertexAIGeminiGenerator.from_dict(
+    gemini = VertexAIGeminiChatGenerator.from_dict(
         {
-            "type": "haystack_integrations.components.generators.google_vertex.gemini.VertexAIGeminiGenerator",
+            "type": "haystack_integrations.components.generators.google_vertex.chat.gemini.VertexAIGeminiChatGenerator",
             "init_parameters": {
                 "project_id": "TestID123",
                 "model": "gemini-1.5-flash",
@@ -193,18 +206,18 @@ def test_from_dict_with_param(_mock_vertexai_init, _mock_generative_model):
                         "function_declarations": [
                             {
                                 "name": "get_current_weather",
+                                "description": "Get the current weather in a given location",
                                 "parameters": {
                                     "type_": "OBJECT",
                                     "properties": {
-                                        "unit": {"type_": "STRING", "enum": ["celsius", "fahrenheit"]},
                                         "location": {
                                             "type_": "STRING",
                                             "description": "The city and state, e.g. San Francisco, CA",
                                         },
+                                        "unit": {"type_": "STRING", "enum": ["celsius", "fahrenheit"]},
                                     },
                                     "required": ["location"],
                                 },
-                                "description": "Get the current weather in a given location",
                             }
                         ]
                     }
@@ -221,53 +234,60 @@ def test_from_dict_with_param(_mock_vertexai_init, _mock_generative_model):
     assert isinstance(gemini._generation_config, GenerationConfig)
 
 
-@patch("haystack_integrations.components.generators.google_vertex.gemini.GenerativeModel")
+@patch("haystack_integrations.components.generators.google_vertex.chat.gemini.GenerativeModel")
 def test_run(mock_generative_model):
     mock_model = Mock()
-    mock_model.generate_content.return_value = MagicMock()
+    mock_candidate = Mock(content=Content(parts=[Part.from_text("This is a generated response.")], role="model"))
+    mock_response = MagicMock(spec=GenerationResponse, candidates=[mock_candidate])
+
+    mock_model.send_message.return_value = mock_response
+    mock_model.start_chat.return_value = mock_model
     mock_generative_model.return_value = mock_model
 
-    gemini = VertexAIGeminiGenerator(project_id="TestID123", location=None)
+    messages = [
+        ChatMessage.from_system("You are a helpful assistant"),
+        ChatMessage.from_user("What's the capital of France?"),
+    ]
+    gemini = VertexAIGeminiChatGenerator(project_id="TestID123", location=None)
+    gemini.run(messages=messages)
 
-    response = gemini.run(["What's the weather like today?"])
-
-    mock_model.generate_content.assert_called_once()
-    assert "replies" in response
-    assert isinstance(response["replies"], list)
+    mock_model.send_message.assert_called_once()
 
 
-@patch("haystack_integrations.components.generators.google_vertex.gemini.GenerativeModel")
+@patch("haystack_integrations.components.generators.google_vertex.chat.gemini.GenerativeModel")
 def test_run_with_streaming_callback(mock_generative_model):
     mock_model = Mock()
-    mock_stream = [
-        MagicMock(text="First part", usage_metadata={}),
-        MagicMock(text="Second part", usage_metadata={}),
-    ]
+    mock_responses = iter(
+        [MagicMock(spec=GenerationResponse, text="First part"), MagicMock(spec=GenerationResponse, text="Second part")]
+    )
 
-    mock_model.generate_content.return_value = mock_stream
+    mock_model.send_message.return_value = mock_responses
+    mock_model.start_chat.return_value = mock_model
     mock_generative_model.return_value = mock_model
 
-    streaming_callback_called = False
+    streaming_callback_called = []
 
-    def streaming_callback(_chunk: StreamingChunk) -> None:
-        nonlocal streaming_callback_called
-        streaming_callback_called = True
+    def streaming_callback(chunk: StreamingChunk) -> None:
+        streaming_callback_called.append(chunk.content)
 
-    gemini = VertexAIGeminiGenerator(model="gemini-pro", project_id="TestID123", streaming_callback=streaming_callback)
-    gemini.run(["Come on, stream!"])
-    assert streaming_callback_called
+    gemini = VertexAIGeminiChatGenerator(project_id="TestID123", location=None, streaming_callback=streaming_callback)
+    messages = [
+        ChatMessage.from_system("You are a helpful assistant"),
+        ChatMessage.from_user("What's the capital of France?"),
+    ]
+    gemini.run(messages=messages)
+
+    mock_model.send_message.assert_called_once()
+    assert streaming_callback_called == ["First part", "Second part"]
 
 
 def test_serialization_deserialization_pipeline():
-    template = """
-        Answer the following questions:
-        1. What is the weather like today?
-        """
-    pipeline = Pipeline()
 
-    pipeline.add_component("prompt_builder", PromptBuilder(template=template))
-    pipeline.add_component("gemini", VertexAIGeminiGenerator(project_id="TestID123"))
-    pipeline.connect("prompt_builder", "gemini")
+    pipeline = Pipeline()
+    template = [ChatMessage.from_user("Translate to {{ target_language }}. Context: {{ snippet }}; Translation:")]
+    pipeline.add_component("prompt_builder", ChatPromptBuilder(template=template))
+    pipeline.add_component("gemini", VertexAIGeminiChatGenerator(project_id="TestID123"))
+    pipeline.connect("prompt_builder.prompt", "gemini.messages")
 
     pipeline_dict = pipeline.to_dict()
 

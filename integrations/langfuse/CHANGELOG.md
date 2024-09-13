@@ -1,5 +1,25 @@
 # Changelog
 
+## [unreleased]
+
+### 🚜 Refactor
+
+- Remove usage of deprecated `ChatMessage.to_openai_format` (#1001)
+
+### 📚 Documentation
+
+- Add link to langfuse in LangfuseConnector (#981)
+
+### 🧪 Testing
+
+- Do not retry tests in `hatch run test` command (#954)
+
+### ⚙️ Miscellaneous Tasks
+
+- Retry tests to reduce flakyness (#836)
+- `Langfuse` - replace DynamicChatPromptBuilder with ChatPromptBuilder (#925)
+- Remove all `DynamicChatPromptBuilder` references in Langfuse integration (#931)
+
 ## [integrations/langfuse-v0.2.0] - 2024-06-18
 
 ## [integrations/langfuse-v0.1.0] - 2024-06-13
