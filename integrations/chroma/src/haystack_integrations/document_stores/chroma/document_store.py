@@ -2,16 +2,16 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 import logging
-from collections import defaultdict
-from typing import Any, Dict, List, Literal, Optional, Tuple
+from typing import Any, Dict, List, Literal, Optional
 
 import chromadb
-from chromadb.api.types import GetResult, QueryResult, validate_where, validate_where_document
+import numpy as np
+from chromadb.api.types import GetResult, QueryResult
 from haystack import default_from_dict, default_to_dict
 from haystack.dataclasses import Document
 from haystack.document_stores.types import DuplicatePolicy
 
-from .errors import ChromaDocumentStoreFilterError
+from .filters import _convert_filters
 from .utils import get_embedding_function
 
 logger = logging.getLogger(__name__)
@@ -171,7 +171,7 @@ class ChromaDocumentStore:
         :returns: a list of Documents that match the given filters.
         """
         if filters:
-            ids, where, where_document = self._normalize_filters(filters)
+            ids, where, where_document = _convert_filters(filters)
             kwargs: Dict[str, Any] = {"where": where}
 
             if ids:
@@ -272,7 +272,7 @@ class ChromaDocumentStore:
                 include=["embeddings", "documents", "metadatas", "distances"],
             )
         else:
-            chroma_filters = self._normalize_filters(filters=filters)
+            chroma_filters = _convert_filters(filters=filters)
             results = self._collection.query(
                 query_texts=queries,
                 n_results=top_k,
@@ -303,7 +303,7 @@ class ChromaDocumentStore:
                 include=["embeddings", "documents", "metadatas", "distances"],
             )
         else:
-            chroma_filters = self._normalize_filters(filters=filters)
+            chroma_filters = _convert_filters(filters=filters)
             results = self._collection.query(
                 query_embeddings=query_embeddings,
                 n_results=top_k,
@@ -341,64 +341,6 @@ class ChromaDocumentStore:
             distance_function=self._distance_function,
             **self._embedding_function_params,
         )
-
-    @staticmethod
-    def _normalize_filters(filters: Dict[str, Any]) -> Tuple[List[str], Dict[str, Any], Dict[str, Any]]:
-        """
-        Translate Haystack filters to Chroma filters. It returns three dictionaries, to be
-        passed to `ids`, `where` and `where_document` respectively.
-        """
-        if not isinstance(filters, dict):
-            msg = f"'{filters}' parameter must be a dictionary"
-            raise ChromaDocumentStoreFilterError(msg)
-
-        ids = []
-        where = defaultdict(list)
-        where_document = {}
-        # Flag to check if the filters contain a document filter i.e. "$contains" or "$not_contains"
-        document_flag = False
-        keys_to_remove = []
-
-        for field, value in filters.items():
-            if field == "content":
-                where_document["$contains"] = value
-                document_flag = True
-                keys_to_remove.append(field)
-            elif field == "id":
-                ids.append(value)
-                keys_to_remove.append(field)
-            elif isinstance(value, (list)) and field not in ["$and", "$or"]:
-                if not value:  # Skip empty lists
-                    keys_to_remove.append(field)
-                    continue
-                # if the list has a single item, make it a key:value filter pair
-                # e.g. filter = {"name": ["Alice"]}
-                if len(value) == 1:
-                    where[field] = value[0]
-                # Check if list contains special operators that apply to documents
-                if any(isinstance(v, dict) and any(k in v for k in ["$contains", "$not_contains"]) for v in value):
-                    where_document = filters
-                    document_flag = True
-                    break
-                else:
-                    where[field] = {"$in": value}
-                    keys_to_remove.append(field)
-
-        # Remove items from filters after iteration
-        for field in keys_to_remove:
-            del filters[field]
-        final_where = {}
-        try:
-            if document_flag:
-                validate_where_document(where_document)
-            elif filters or where:
-                final_where.update(filters)
-                final_where.update(where)
-                validate_where(final_where)
-        except ValueError as e:
-            raise ChromaDocumentStoreFilterError(e) from e
-
-        return ids, final_where, where_document
 
     @staticmethod
     def _get_result_to_documents(result: GetResult) -> List[Document]:
