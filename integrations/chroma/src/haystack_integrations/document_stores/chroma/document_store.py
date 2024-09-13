@@ -5,7 +5,6 @@ import logging
 from typing import Any, Dict, List, Literal, Optional
 
 import chromadb
-import numpy as np
 from chromadb.api.types import GetResult, QueryResult
 from haystack import default_from_dict, default_to_dict
 from haystack.dataclasses import Document
