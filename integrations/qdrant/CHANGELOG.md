@@ -1,5 +1,7 @@
 # Changelog
 
+## [integrations/qdrant-v6.0.0] - 2024-09-13
+
 ## [integrations/qdrant-v5.1.0] - 2024-09-12
 
 ### 🚀 Features
