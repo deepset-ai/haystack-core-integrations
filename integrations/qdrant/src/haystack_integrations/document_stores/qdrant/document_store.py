@@ -11,7 +11,6 @@ from haystack.dataclasses.sparse_embedding import SparseEmbedding
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
 from haystack.utils import Secret, deserialize_secrets_inplace
-from haystack.utils.filters import convert as convert_legacy_filters
 from qdrant_client import grpc
 from qdrant_client.http import models as rest
 from qdrant_client.http.exceptions import UnexpectedResponse
@@ -323,7 +322,8 @@ class QdrantDocumentStore:
             raise ValueError(msg)
 
         if filters and not isinstance(filters, rest.Filter) and "operator" not in filters:
-            filters = convert_legacy_filters(filters)
+            msg = "Invalid filter syntax. See https://docs.haystack.deepset.ai/docs/metadata-filtering for details."
+            raise ValueError(msg)
         return list(
             self.get_documents_generator(
                 filters,
