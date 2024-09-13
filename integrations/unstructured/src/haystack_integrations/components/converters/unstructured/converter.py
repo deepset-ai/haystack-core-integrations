@@ -240,7 +240,6 @@ class UnstructuredFileConverter:
 
         return docs
 
-
     def _partition_source_into_elements(self, source: Union[Path, ByteStream]) -> List[Element]:
         """
         Partition a file into elements using the Unstructured API.
