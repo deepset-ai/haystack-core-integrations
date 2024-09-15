@@ -1,6 +1,6 @@
 # Changelog
 
-## [unreleased]
+## [integrations/pgvector-v1.0.0] - 2024-09-12
 
 ### 🚀 Features
 
@@ -10,10 +10,15 @@
 
 - `PgVector` - Fallback to default filter policy when deserializing retrievers without the init parameter (#900)
 
+### 🧪 Testing
+
+- Do not retry tests in `hatch run test` command (#954)
+
 ### ⚙️ Miscellaneous Tasks
 
 - Retry tests to reduce flakyness (#836)
 - Update ruff invocation to include check parameter (#853)
+- PgVector - remove legacy filter support (#1068)
 
 ## [integrations/pgvector-v0.4.0] - 2024-06-20
 
