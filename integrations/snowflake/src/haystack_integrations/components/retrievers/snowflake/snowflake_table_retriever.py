@@ -24,7 +24,7 @@ MAX_SYS_ROWS: Final = 1000000  # Max rows to fetch from a table
 
 
 @component
-class SnowflakeRetriever:
+class SnowflakeTableRetriever:
     """
     Connects to a Snowflake database to execute a SQL query.
     For more information, see [Snowflake documentation](https://docs.snowflake.com/en/developer-guide/python-connector/python-connector).
@@ -32,7 +32,7 @@ class SnowflakeRetriever:
     ### Usage example:
 
     ```python
-    executor = SnowflakeRetriever(
+    executor = SnowflakeTableRetriever(
         user="<ACCOUNT-USER>",
         account="<ACCOUNT-IDENTIFIER>",
         api_key=Secret.from_env_var("SNOWFLAKE_API_KEY"),
@@ -51,12 +51,12 @@ class SnowflakeRetriever:
 
     results = executor.run(query=query)
 
-    print(results["dataframe"].head(2))
+    print(results["dataframe"].head(2))  # Pandas dataframe
     #   Column 1  Column 2
     # 0       Value1 Value2
     # 1       Value1 Value2
 
-    print(results["table"])
+    print(results["table"])  # Markdown
     # | Column 1  | Column 2  |
     # |:----------|:----------|
     # | Value1    | Value2    |
@@ -111,7 +111,7 @@ class SnowflakeRetriever:
         )
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "SnowflakeRetriever":
+    def from_dict(cls, data: Dict[str, Any]) -> "SnowflakeTableRetriever":
         """
         Deserializes the component from a dictionary.
 
@@ -140,14 +140,13 @@ class SnowflakeRetriever:
     @staticmethod
     def _extract_table_names(query: str) -> list:
         """
-        Extract table names from a SQL query using regex.
+        Extract table names from an SQL query using regex.
         The extracted table names will be checked for privilege.
 
         :param query: SQL query to extract table names from.
         """
 
-        # Regular expressions to match table names in various clauses
-        suffix = "\\s+([a-zA-Z0-9_.]+)"
+        suffix = "\\s+([a-zA-Z0-9_.]+)"  # Regular expressions to match table names in various clauses
 
         patterns = [
             "MERGE\\s+INTO",
@@ -168,7 +167,7 @@ class SnowflakeRetriever:
         # Find all matches in the query
         matches = re.findall(pattern=combined_pattern, string=query, flags=re.IGNORECASE)
 
-        # Flatten list of tuples and remove duplication
+        # Flatten the list of tuples and remove duplication
         matches = list(set(sum(matches, ())))
 
         # Clean and return unique table names
@@ -177,7 +176,7 @@ class SnowflakeRetriever:
     @staticmethod
     def _execute_sql_query(conn: SnowflakeConnection, query: str) -> pd.DataFrame:
         """
-        Execute a SQL query and fetch the results.
+        Execute an SQL query and fetch the results.
 
         :param conn: An open connection to Snowflake.
         :param query: The query to execute.
@@ -185,18 +184,21 @@ class SnowflakeRetriever:
         cur = conn.cursor()
         try:
             cur.execute(query)
-            # set a limit to MAX_SYS_ROWS rows to avoid fetching too many rows
-            rows = cur.fetchmany(size=MAX_SYS_ROWS)
-            # Convert data to a dataframe
-            df = pd.DataFrame(rows, columns=[desc.name for desc in cur.description])
+            rows = cur.fetchmany(size=MAX_SYS_ROWS)  # set a limit to avoid fetching too many rows
+
+            df = pd.DataFrame(rows, columns=[desc.name for desc in cur.description])  # Convert data to a dataframe
             return df
-        except ProgrammingError as e:
-            logger.warning(
-                "{error_msg} Use the following ID to check the status of the query in Snowflake UI (ID: {sfqid})",
-                error_msg=e.msg,
-                sfqid=e.sfqid,
-            )
-            return pd.DataFrame()
+        except Exception as e:
+            if isinstance(e, ProgrammingError):
+                logger.warning(
+                    "{error_msg} Use the following ID to check the status of the query in Snowflake UI (ID: {sfqid})",
+                    error_msg=e.msg,
+                    sfqid=e.sfqid,
+                )
+            else:
+                logger.warning("An unexpected error occurred: {error_msg}", error_msg=e)
+
+        return pd.DataFrame()
 
     @staticmethod
     def _has_select_privilege(privileges: list, table_name: str) -> bool:
@@ -213,7 +215,6 @@ class SnowflakeRetriever:
                 string=privilege[1],
                 flags=re.IGNORECASE,
             ):
-                logger.error("User does not have `Select` privilege on the table.")
                 return False
 
         return True
@@ -304,6 +305,8 @@ class SnowflakeRetriever:
                 user=self.user,
             ):
                 df = self._execute_sql_query(conn=conn, query=query)
+            else:
+                logger.error("User does not have `Select` privilege on the table.")
 
         except Exception as e:
             logger.error("An unexpected error has occurred: {error}", error=e)

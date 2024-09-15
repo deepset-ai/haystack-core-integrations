@@ -2,6 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from .snowflake_retriever import SnowflakeRetriever
+from .snowflake_table_retriever import SnowflakeTableRetriever
 
-__all__ = ["SnowflakeRetriever"]
+__all__ = ["SnowflakeTableRetriever"]

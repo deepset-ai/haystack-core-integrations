@@ -5,7 +5,7 @@ from haystack.components.converters import OutputAdapter
 from haystack.components.generators import OpenAIGenerator
 from haystack.utils import Secret
 
-from haystack_integrations.components.retrievers.snowflake import SnowflakeRetriever
+from haystack_integrations.components.retrievers.snowflake import SnowflakeTableRetriever
 
 load_dotenv()
 
@@ -89,7 +89,7 @@ analyst_llm = OpenAIGenerator(
     generation_kwargs={"temperature": 0.0, "max_tokens": 2000},
 )
 
-snowflake = SnowflakeRetriever(
+snowflake = SnowflakeTableRetriever(
     user="<ACCOUNT-USER>",
     account="<ACCOUNT-IDENTIFIER>",
     api_key=Secret.from_env_var("SNOWFLAKE_API_KEY"),

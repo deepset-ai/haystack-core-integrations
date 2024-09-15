@@ -12,19 +12,20 @@ from dateutil.tz import tzlocal
 from haystack import Pipeline
 from haystack.components.converters import OutputAdapter
 from haystack.components.generators import OpenAIGenerator
+from haystack.components.builders import PromptBuilder
 from haystack.utils import Secret
 from openai.types.chat import ChatCompletion, ChatCompletionMessage
 from openai.types.chat.chat_completion import Choice
 from pytest import LogCaptureFixture
 from snowflake.connector.errors import DatabaseError, ForbiddenError, ProgrammingError
 
-from haystack_integrations.components.retrievers.snowflake import SnowflakeRetriever
+from haystack_integrations.components.retrievers.snowflake import SnowflakeTableRetriever
 
 
-class TestSnowflakeRetriever:
+class TestSnowflakeTableRetriever:
     @pytest.fixture
-    def snowflake_retriever(self) -> SnowflakeRetriever:
-        return SnowflakeRetriever(
+    def snowflake_table_retriever(self) -> SnowflakeTableRetriever:
+        return SnowflakeTableRetriever(
             user="test_user",
             account="test_account",
             api_key=Secret.from_token("test-api-key"),
@@ -34,12 +35,16 @@ class TestSnowflakeRetriever:
             login_timeout=30,
         )
 
-    @patch("haystack_integrations.components.retrievers.snowflake.snowflake_retriever.snowflake.connector.connect")
-    def test_snowflake_connector(self, mock_connect: MagicMock, snowflake_retriever: SnowflakeRetriever) -> None:
+    @patch(
+        "haystack_integrations.components.retrievers.snowflake.snowflake_table_retriever.snowflake.connector.connect"
+    )
+    def test_snowflake_connector(
+        self, mock_connect: MagicMock, snowflake_table_retriever: SnowflakeTableRetriever
+    ) -> None:
         mock_conn = MagicMock()
         mock_connect.return_value = mock_conn
 
-        conn = snowflake_retriever._snowflake_connector(
+        conn = snowflake_table_retriever._snowflake_connector(
             connect_params={
                 "user": "test_user",
                 "account": "test_account",
@@ -62,61 +67,71 @@ class TestSnowflakeRetriever:
 
         assert conn == mock_conn
 
-    def test_query_is_empty(self, snowflake_retriever: SnowflakeRetriever, caplog: LogCaptureFixture) -> None:
+    def test_query_is_empty(
+        self, snowflake_table_retriever: SnowflakeTableRetriever, caplog: LogCaptureFixture
+    ) -> None:
         query = ""
-        result = snowflake_retriever.run(query=query)
+        result = snowflake_table_retriever.run(query=query)
 
         assert result["table"] == ""
         assert result["dataframe"].empty
         assert "Provide a valid SQL query" in caplog.text
 
-    @patch("haystack_integrations.components.retrievers.snowflake.snowflake_retriever.snowflake.connector.connect")
+    @patch(
+        "haystack_integrations.components.retrievers.snowflake.snowflake_table_retriever.snowflake.connector.connect"
+    )
     def test_exception(
-        self, mock_connect: MagicMock, snowflake_retriever: SnowflakeRetriever, caplog: LogCaptureFixture
+        self, mock_connect: MagicMock, snowflake_table_retriever: SnowflakeTableRetriever, caplog: LogCaptureFixture
     ) -> None:
         mock_connect = mock_connect.return_value
         mock_connect._fetch_data.side_effect = Exception("Unknown error")
 
         query = 4
-        result = snowflake_retriever.run(query=query)
+        result = snowflake_table_retriever.run(query=query)
 
         assert result["table"] == ""
         assert result["dataframe"].empty
 
         assert "An unexpected error has occurred" in caplog.text
 
-    @patch("haystack_integrations.components.retrievers.snowflake.snowflake_retriever.snowflake.connector.connect")
+    @patch(
+        "haystack_integrations.components.retrievers.snowflake.snowflake_table_retriever.snowflake.connector.connect"
+    )
     def test_forbidden_error_during_connection(
-        self, mock_connect: MagicMock, snowflake_retriever: SnowflakeRetriever, caplog: LogCaptureFixture
+        self, mock_connect: MagicMock, snowflake_table_retriever: SnowflakeTableRetriever, caplog: LogCaptureFixture
     ) -> None:
         mock_connect.side_effect = ForbiddenError(msg="Forbidden error", errno=403)
 
-        result = snowflake_retriever._fetch_data(query="SELECT * FROM test_table")
+        result = snowflake_table_retriever._fetch_data(query="SELECT * FROM test_table")
 
         assert result.empty
         assert "000403: Forbidden error" in caplog.text
 
-    @patch("haystack_integrations.components.retrievers.snowflake.snowflake_retriever.snowflake.connector.connect")
+    @patch(
+        "haystack_integrations.components.retrievers.snowflake.snowflake_table_retriever.snowflake.connector.connect"
+    )
     def test_programing_error_during_connection(
-        self, mock_connect: MagicMock, snowflake_retriever: SnowflakeRetriever, caplog: LogCaptureFixture
+        self, mock_connect: MagicMock, snowflake_table_retriever: SnowflakeTableRetriever, caplog: LogCaptureFixture
     ) -> None:
         mock_connect.side_effect = ProgrammingError(msg="Programming error", errno=403)
 
-        result = snowflake_retriever._fetch_data(query="SELECT * FROM test_table")
+        result = snowflake_table_retriever._fetch_data(query="SELECT * FROM test_table")
 
         assert result.empty
         assert "000403: Programming error" in caplog.text
 
-    @patch("haystack_integrations.components.retrievers.snowflake.snowflake_retriever.snowflake.connector.connect")
+    @patch(
+        "haystack_integrations.components.retrievers.snowflake.snowflake_table_retriever.snowflake.connector.connect"
+    )
     def test_execute_sql_query_programming_error(
-        self, mock_connect: MagicMock, snowflake_retriever: SnowflakeRetriever, caplog: LogCaptureFixture
+        self, mock_connect: MagicMock, snowflake_table_retriever: SnowflakeTableRetriever, caplog: LogCaptureFixture
     ) -> None:
         mock_conn = MagicMock()
         mock_cursor = mock_conn.cursor.return_value
 
         mock_cursor.execute.side_effect = ProgrammingError(msg="Simulated programming error", sfqid="ABC-123")
 
-        result = snowflake_retriever._execute_sql_query(mock_conn, "SELECT * FROM some_table")
+        result = snowflake_table_retriever._execute_sql_query(mock_conn, "SELECT * FROM some_table")
 
         assert result.empty
 
@@ -125,17 +140,21 @@ class TestSnowflakeRetriever:
             "the query in Snowflake UI (ID: ABC-123)" in caplog.text
         )
 
-    @patch("haystack_integrations.components.retrievers.snowflake.snowflake_retriever.snowflake.connector.connect")
-    def test_run_connection_error(self, mock_connect: MagicMock, snowflake_retriever: SnowflakeRetriever) -> None:
+    @patch(
+        "haystack_integrations.components.retrievers.snowflake.snowflake_table_retriever.snowflake.connector.connect"
+    )
+    def test_run_connection_error(
+        self, mock_connect: MagicMock, snowflake_table_retriever: SnowflakeTableRetriever
+    ) -> None:
         mock_connect.side_effect = DatabaseError(msg="Connection error", errno=1234)
 
         query = "SELECT * FROM test_table"
-        result = snowflake_retriever.run(query=query)
+        result = snowflake_table_retriever.run(query=query)
 
         assert result["table"] == ""
         assert result["dataframe"].empty
 
-    def test_extract_single_table_name(self, snowflake_retriever: SnowflakeRetriever) -> None:
+    def test_extract_single_table_name(self, snowflake_table_retriever: SnowflakeTableRetriever) -> None:
         queries = [
             "SELECT * FROM table_a",
             "SELECT name, value FROM (SELECT name, value FROM table_a) AS subquery",
@@ -147,31 +166,35 @@ class TestSnowflakeRetriever:
             "DROP TABLE table_a",
         ]
         for query in queries:
-            result = snowflake_retriever._extract_table_names(query)
+            result = snowflake_table_retriever._extract_table_names(query)
             assert result == ["TABLE_A"]
 
-    def test_extract_database_and_schema_from_query(self, snowflake_retriever: SnowflakeRetriever) -> None:
+    def test_extract_database_and_schema_from_query(self, snowflake_table_retriever: SnowflakeTableRetriever) -> None:
         # when database and schema are next to table name
-        assert snowflake_retriever._extract_table_names(query="SELECT * FROM DB.SCHEMA.TABLE_A") == [
+        assert snowflake_table_retriever._extract_table_names(query="SELECT * FROM DB.SCHEMA.TABLE_A") == [
             "DB.SCHEMA.TABLE_A"
         ]
         # No database
-        assert snowflake_retriever._extract_table_names(query="SELECT * FROM SCHEMA.TABLE_A") == ["SCHEMA.TABLE_A"]
+        assert snowflake_table_retriever._extract_table_names(query="SELECT * FROM SCHEMA.TABLE_A") == [
+            "SCHEMA.TABLE_A"
+        ]
 
-    def test_extract_multiple_table_names(self, snowflake_retriever: SnowflakeRetriever) -> None:
+    def test_extract_multiple_table_names(self, snowflake_table_retriever: SnowflakeTableRetriever) -> None:
         queries = [
             "MERGE INTO table_a USING table_b ON table_a.id = table_b.id WHEN MATCHED",
             "SELECT a.name, b.value FROM table_a AS a FULL OUTER JOIN table_b AS b ON a.id = b.id",
             "SELECT a.name, b.value FROM table_a AS a RIGHT JOIN table_b AS b ON a.id = b.id",
         ]
         for query in queries:
-            result = snowflake_retriever._extract_table_names(query)
+            result = snowflake_table_retriever._extract_table_names(query)
             # Due to using set when deduplicating
             assert result == ["TABLE_A", "TABLE_B"] or ["TABLE_B", "TABLE_A"]
 
-    def test_extract_multiple_db_schema_from_table_names(self, snowflake_retriever: SnowflakeRetriever) -> None:
+    def test_extract_multiple_db_schema_from_table_names(
+        self, snowflake_table_retriever: SnowflakeTableRetriever
+    ) -> None:
         assert (
-            snowflake_retriever._extract_table_names(
+            snowflake_table_retriever._extract_table_names(
                 query="""SELECT a.name, b.value FROM DB.SCHEMA.TABLE_A AS a
                  FULL OUTER JOIN DATABASE.SCHEMA.TABLE_b AS b ON a.id = b.id"""
             )
@@ -180,7 +203,7 @@ class TestSnowflakeRetriever:
         )
         # No database
         assert (
-            snowflake_retriever._extract_table_names(
+            snowflake_table_retriever._extract_table_names(
                 query="""SELECT a.name, b.value FROM SCHEMA.TABLE_A AS a
                  FULL OUTER JOIN SCHEMA.TABLE_b AS b ON a.id = b.id"""
             )
@@ -188,8 +211,12 @@ class TestSnowflakeRetriever:
             or ["SCHEMA.TABLE_A", "SCHEMA.TABLE_B"]
         )
 
-    @patch("haystack_integrations.components.retrievers.snowflake.snowflake_retriever.snowflake.connector.connect")
-    def test_execute_sql_query(self, mock_connect: MagicMock, snowflake_retriever: SnowflakeRetriever) -> None:
+    @patch(
+        "haystack_integrations.components.retrievers.snowflake.snowflake_table_retriever.snowflake.connector.connect"
+    )
+    def test_execute_sql_query(
+        self, mock_connect: MagicMock, snowflake_table_retriever: SnowflakeTableRetriever
+    ) -> None:
         mock_conn = MagicMock()
         mock_cursor = MagicMock()
         mock_col1 = MagicMock()
@@ -203,15 +230,17 @@ class TestSnowflakeRetriever:
 
         query = "SELECT * FROM test_table"
         expected = pd.DataFrame(data={"City": ["Chicago"], "State": ["Illinois"]})
-        result = snowflake_retriever._execute_sql_query(conn=mock_conn, query=query)
+        result = snowflake_table_retriever._execute_sql_query(conn=mock_conn, query=query)
 
         mock_cursor.execute.assert_called_once_with(query)
 
         assert result.equals(expected)
 
-    @patch("haystack_integrations.components.retrievers.snowflake.snowflake_retriever.snowflake.connector.connect")
+    @patch(
+        "haystack_integrations.components.retrievers.snowflake.snowflake_table_retriever.snowflake.connector.connect"
+    )
     def test_is_select_only(
-        self, mock_connect: MagicMock, snowflake_retriever: SnowflakeRetriever, caplog: LogCaptureFixture
+        self, mock_connect: MagicMock, snowflake_table_retriever: SnowflakeTableRetriever, caplog: LogCaptureFixture
     ) -> None:
         mock_conn = MagicMock()
         mock_cursor = MagicMock()
@@ -234,7 +263,7 @@ class TestSnowflakeRetriever:
         ]
 
         query = "select * from locations"
-        result = snowflake_retriever._check_privilege(conn=mock_conn, user="test_user", query=query)
+        result = snowflake_table_retriever._check_privilege(conn=mock_conn, user="test_user", query=query)
         assert result
 
         mock_cursor.fetchall.side_effect = [
@@ -253,13 +282,16 @@ class TestSnowflakeRetriever:
             ],
         ]
 
-        result = snowflake_retriever._check_privilege(conn=mock_conn, user="test_user", query=query)
+        result = snowflake_table_retriever._check_privilege(conn=mock_conn, user="test_user", query=query)
 
         assert not result
-        assert "User does not have `Select` privilege on the table" in caplog.text
 
-    @patch("haystack_integrations.components.retrievers.snowflake.snowflake_retriever.snowflake.connector.connect")
-    def test_column_after_from(self, mock_connect: MagicMock, snowflake_retriever: SnowflakeRetriever) -> None:
+    @patch(
+        "haystack_integrations.components.retrievers.snowflake.snowflake_table_retriever.snowflake.connector.connect"
+    )
+    def test_column_after_from(
+        self, mock_connect: MagicMock, snowflake_table_retriever: SnowflakeTableRetriever
+    ) -> None:
         mock_conn = MagicMock()
         mock_cursor = MagicMock()
         mock_col1 = MagicMock()
@@ -273,13 +305,15 @@ class TestSnowflakeRetriever:
 
         query = "SELECT id, extract(year from date_col) as year FROM test_table"
         expected = pd.DataFrame(data={"id": [1233], "year": [1998]})
-        result = snowflake_retriever._execute_sql_query(conn=mock_conn, query=query)
+        result = snowflake_table_retriever._execute_sql_query(conn=mock_conn, query=query)
         mock_cursor.execute.assert_called_once_with(query)
 
         assert result.equals(expected)
 
-    @patch("haystack_integrations.components.retrievers.snowflake.snowflake_retriever.snowflake.connector.connect")
-    def test_run(self, mock_connect: MagicMock, snowflake_retriever: SnowflakeRetriever) -> None:
+    @patch(
+        "haystack_integrations.components.retrievers.snowflake.snowflake_table_retriever.snowflake.connector.connect"
+    )
+    def test_run(self, mock_connect: MagicMock, snowflake_table_retriever: SnowflakeTableRetriever) -> None:
         mock_conn = MagicMock()
         mock_cursor = MagicMock()
         mock_col1 = MagicMock()
@@ -314,7 +348,7 @@ class TestSnowflakeRetriever:
             "table": "| City    | State    |\n|:--------|:---------|\n| Chicago | Illinois |",
         }
 
-        result = snowflake_retriever.run(query=query)
+        result = snowflake_table_retriever.run(query=query)
 
         assert result["dataframe"].equals(expected["dataframe"])
         assert result["table"] == expected["table"]
@@ -327,7 +361,7 @@ class TestSnowflakeRetriever:
         with patch("openai.resources.chat.completions.Completions.create") as mock_chat_completion_create:
             completion = ChatCompletion(
                 id="foo",
-                model="gpt-4o",
+                model="gpt-4o-mini",
                 object="chat.completion",
                 choices=[
                     Choice(
@@ -344,9 +378,14 @@ class TestSnowflakeRetriever:
             mock_chat_completion_create.return_value = completion
             yield mock_chat_completion_create
 
-    @patch("haystack_integrations.components.retrievers.snowflake.snowflake_retriever.snowflake.connector.connect")
+    @patch(
+        "haystack_integrations.components.retrievers.snowflake.snowflake_table_retriever.snowflake.connector.connect"
+    )
     def test_run_pipeline(
-        self, mock_connect: MagicMock, mock_chat_completion: MagicMock, snowflake_retriever: SnowflakeRetriever
+        self,
+        mock_connect: MagicMock,
+        mock_chat_completion: MagicMock,
+        snowflake_table_retriever: SnowflakeTableRetriever,
     ) -> None:
         mock_conn = MagicMock()
         mock_cursor = MagicMock()
@@ -385,7 +424,7 @@ class TestSnowflakeRetriever:
 
         pipeline.add_component("llm", llm)
         pipeline.add_component("adapter", adapter)
-        pipeline.add_component("snowflake", snowflake_retriever)
+        pipeline.add_component("snowflake", snowflake_table_retriever)
 
         pipeline.connect(sender="llm.replies", receiver="adapter.replies")
         pipeline.connect(sender="adapter.output", receiver="snowflake.query")
@@ -398,7 +437,8 @@ class TestSnowflakeRetriever:
     def test_from_dict(self, monkeypatch: MagicMock) -> None:
         monkeypatch.setenv("SNOWFLAKE_API_KEY", "test-api-key")
         data = {
-            "type": "haystack_integrations.components.retrievers.snowflake.snowflake_retriever.SnowflakeRetriever",
+            "type": "haystack_integrations.components.retrievers.snowflake.snowflake_table_retriever"
+            ".SnowflakeTableRetriever",
             "init_parameters": {
                 "api_key": {
                     "env_vars": ["SNOWFLAKE_API_KEY"],
@@ -413,7 +453,7 @@ class TestSnowflakeRetriever:
                 "login_timeout": 3,
             },
         }
-        component = SnowflakeRetriever.from_dict(data)
+        component = SnowflakeTableRetriever.from_dict(data)
 
         assert component.user == "test_user"
         assert component.account == "new_account"
@@ -425,7 +465,7 @@ class TestSnowflakeRetriever:
 
     def test_to_dict_default(self, monkeypatch: MagicMock) -> None:
         monkeypatch.setenv("SNOWFLAKE_API_KEY", "test-api-key")
-        component = SnowflakeRetriever(
+        component = SnowflakeTableRetriever(
             user="test_user",
             api_key=Secret.from_env_var("SNOWFLAKE_API_KEY"),
             account="test_account",
@@ -438,7 +478,7 @@ class TestSnowflakeRetriever:
         data = component.to_dict()
 
         assert data == {
-            "type": "haystack_integrations.components.retrievers.snowflake.snowflake_retriever.SnowflakeRetriever",
+            "type": "haystack_integrations.components.retrievers.snowflake.snowflake_table_retriever.SnowflakeTableRetriever",
             "init_parameters": {
                 "api_key": {
                     "env_vars": ["SNOWFLAKE_API_KEY"],
@@ -457,7 +497,7 @@ class TestSnowflakeRetriever:
     def test_to_dict_with_parameters(self, monkeypatch: MagicMock) -> None:
         monkeypatch.setenv("SNOWFLAKE_API_KEY", "test-api-key")
         monkeypatch.setenv("SNOWFLAKE_API_KEY", "test-api-key")
-        component = SnowflakeRetriever(
+        component = SnowflakeTableRetriever(
             user="John",
             api_key=Secret.from_env_var("SNOWFLAKE_API_KEY"),
             account="TGMD-EEREW",
@@ -470,7 +510,7 @@ class TestSnowflakeRetriever:
         data = component.to_dict()
 
         assert data == {
-            "type": "haystack_integrations.components.retrievers.snowflake.snowflake_retriever.SnowflakeRetriever",
+            "type": "haystack_integrations.components.retrievers.snowflake.snowflake_table_retriever.SnowflakeTableRetriever",
             "init_parameters": {
                 "api_key": {
                     "env_vars": ["SNOWFLAKE_API_KEY"],
@@ -486,8 +526,12 @@ class TestSnowflakeRetriever:
             },
         }
 
-    @patch("haystack_integrations.components.retrievers.snowflake.snowflake_retriever.snowflake.connector.connect")
-    def test_has_select_privilege(self, mock_logger: MagicMock, snowflake_retriever: SnowflakeRetriever) -> None:
+    @patch(
+        "haystack_integrations.components.retrievers.snowflake.snowflake_table_retriever.snowflake.connector.connect"
+    )
+    def test_has_select_privilege(
+        self, mock_logger: MagicMock, snowflake_table_retriever: SnowflakeTableRetriever
+    ) -> None:
         # Define test cases
         test_cases = [
             # Test case 1: Fully qualified table name in query
@@ -523,15 +567,17 @@ class TestSnowflakeRetriever:
         ]
 
         for case in test_cases:
-            result = snowflake_retriever._has_select_privilege(
+            result = snowflake_table_retriever._has_select_privilege(
                 privileges=case["privileges"],  # type: ignore
                 table_name=case["table_name"],  # type: ignore
             )
             assert result == case["expected_result"]  # type: ignore
 
-    @patch("haystack_integrations.components.retrievers.snowflake.snowflake_retriever.snowflake.connector.connect")
+    @patch(
+        "haystack_integrations.components.retrievers.snowflake.snowflake_table_retriever.snowflake.connector.connect"
+    )
     def test_user_does_not_exist(
-        self, mock_connect: MagicMock, snowflake_retriever: SnowflakeRetriever, caplog: LogCaptureFixture
+        self, mock_connect: MagicMock, snowflake_table_retriever: SnowflakeTableRetriever, caplog: LogCaptureFixture
     ) -> None:
         mock_conn = MagicMock()
         mock_connect.return_value = mock_conn
@@ -539,13 +585,27 @@ class TestSnowflakeRetriever:
         mock_cursor = mock_conn.cursor.return_value
         mock_cursor.fetchall.return_value = []
 
-        result = snowflake_retriever._fetch_data(query="""SELECT * FROM test_table""")
+        result = snowflake_table_retriever._fetch_data(query="""SELECT * FROM test_table""")
 
         assert result.empty
         assert "User does not exist" in caplog.text
 
-    @patch("haystack_integrations.components.retrievers.snowflake.snowflake_retriever.snowflake.connector.connect")
-    def test_empty_query(self, snowflake_retriever: SnowflakeRetriever) -> None:
-        result = snowflake_retriever._fetch_data(query="")
+    @patch(
+        "haystack_integrations.components.retrievers.snowflake.snowflake_table_retriever.snowflake.connector.connect"
+    )
+    def test_empty_query(self, snowflake_table_retriever: SnowflakeTableRetriever) -> None:
+        result = snowflake_table_retriever._fetch_data(query="")
 
         assert result.empty
+
+    def test_serialization_deserialization_pipeline(self) -> None:
+
+        pipeline = Pipeline()
+        pipeline.add_component("snow", SnowflakeTableRetriever(user="test_user", account="test_account"))
+        pipeline.add_component("prompt_builder", PromptBuilder(template="Display results {{ table }}"))
+        pipeline.connect("snow.table", "prompt_builder.table")
+
+        pipeline_dict = pipeline.to_dict()
+
+        new_pipeline = Pipeline.from_dict(pipeline_dict)
+        assert new_pipeline == pipeline
