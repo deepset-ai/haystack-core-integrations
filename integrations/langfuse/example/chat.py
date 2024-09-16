@@ -28,9 +28,9 @@ generators = {
     "hf_api": lambda: HuggingFaceAPIChatGenerator(
         api_type=HFGenerationAPIType.SERVERLESS_INFERENCE_API,
         api_params={"model": "mistralai/Mixtral-8x7B-Instruct-v0.1"},
-        token=Secret.from_token(os.environ["HF_API_KEY"])
+        token=Secret.from_token(os.environ["HF_API_KEY"]),
     ),
-    "cohere": CohereChatGenerator
+    "cohere": CohereChatGenerator,
 }
 
 selected_chat_generator = generators[selected_chat_generator]()
