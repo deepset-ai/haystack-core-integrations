@@ -9,14 +9,14 @@ os.environ["HAYSTACK_CONTENT_TRACING_ENABLED"] = "true"
 
 from haystack import Pipeline
 from haystack.components.builders import ChatPromptBuilder
-from haystack.components.generators.chat import OpenAIChatGenerator, HuggingFaceAPIChatGenerator
-from haystack.utils.hf import HFGenerationAPIType
+from haystack.components.generators.chat import HuggingFaceAPIChatGenerator, OpenAIChatGenerator
 from haystack.dataclasses import ChatMessage
 from haystack.utils.auth import Secret
+from haystack.utils.hf import HFGenerationAPIType
 
+from haystack_integrations.components.connectors.langfuse import LangfuseConnector
 from haystack_integrations.components.generators.anthropic import AnthropicChatGenerator
 from haystack_integrations.components.generators.cohere import CohereChatGenerator
-from haystack_integrations.components.connectors.langfuse import LangfuseConnector
 
 os.environ["HAYSTACK_CONTENT_TRACING_ENABLED"] = "true"
 
