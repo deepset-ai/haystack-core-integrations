@@ -12,25 +12,28 @@ from haystack.components.builders import ChatPromptBuilder
 from haystack.components.generators.chat import OpenAIChatGenerator, HuggingFaceAPIChatGenerator
 from haystack.utils.hf import HFGenerationAPIType
 from haystack.dataclasses import ChatMessage
+from haystack.utils.auth import Secret
 
 from haystack_integrations.components.generators.anthropic import AnthropicChatGenerator
 from haystack_integrations.components.generators.cohere import CohereChatGenerator
 from haystack_integrations.components.connectors.langfuse import LangfuseConnector
-from haystack.utils.auth import Secret
 
-# create a dict with all supported chat generators
-supported_chat_generators = {
-    "openai": OpenAIChatGenerator(),
-    "anthropic": AnthropicChatGenerator(),
-    "hf_api": HuggingFaceAPIChatGenerator(
+os.environ["HAYSTACK_CONTENT_TRACING_ENABLED"] = "true"
+
+selected_chat_generator = "openai"
+
+generators = {
+    "openai": OpenAIChatGenerator,
+    "anthropic": AnthropicChatGenerator,
+    "hf_api": lambda: HuggingFaceAPIChatGenerator(
         api_type=HFGenerationAPIType.SERVERLESS_INFERENCE_API,
         api_params={"model": "mistralai/Mixtral-8x7B-Instruct-v0.1"},
-        token=Secret.from_token(os.environ["HF_API_KEY"]),
+        token=Secret.from_token(os.environ["HF_API_KEY"])
     ),
-    "cohere": CohereChatGenerator(),
+    "cohere": CohereChatGenerator
 }
 
-selected_chat_generator = supported_chat_generators["openai"]
+selected_chat_generator = generators[selected_chat_generator]()
 
 if __name__ == "__main__":
 
