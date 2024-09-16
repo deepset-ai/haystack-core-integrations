@@ -178,7 +178,8 @@ class CohereChatGenerator:
                 if finish_response.meta.billed_units:
                     tokens_in = finish_response.meta.billed_units.input_tokens or -1
                     tokens_out = finish_response.meta.billed_units.output_tokens or -1
-                    chat_message.meta["usage"] = tokens_in + tokens_out
+                    chat_message.meta["usage"] = {"prompt_tokens": tokens_in,
+                                                  "completion_tokens": tokens_out}
                 chat_message.meta.update(
                     {
                         "model": self.model,
