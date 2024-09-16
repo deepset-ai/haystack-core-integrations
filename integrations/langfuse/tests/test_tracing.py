@@ -103,6 +103,7 @@ def test_tracing_integration_anthropic():
     except requests.exceptions.RequestException as e:
         assert False, f"Failed to retrieve data from Langfuse API: {e}"
 
+
 @pytest.mark.integration
 @pytest.mark.skipif(
     not os.environ.get("LANGFUSE_SECRET_KEY", None)
