@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 import logging
-from typing import Any, Dict, List, Literal, Optional
+from typing import Any, Dict, List, Literal, Optional, Union
 
 import chromadb
 from chromadb.api.types import GetResult, QueryResult
@@ -111,63 +111,69 @@ class ChromaDocumentStore:
         """
         return self._collection.count()
 
-    def filter_documents(self, filters: Optional[Dict[str, Any]] = None) -> List[Document]:
+    def filter_documents(self, filters: Optional[Union[Dict[str, Any], List[Dict[str, Any]]]] = None) -> List[Document]:
         """
-        Returns the documents that match the filters provided.
+         Returns the documents that match the filters provided.
 
-        Filters are defined as nested dictionaries. The keys of the dictionaries can be a logical operator (`"$and"`,
-        `"$or"`, `"$not"`), a comparison operator (`"$eq"`, `$ne`, `"$in"`, `$nin`, `"$gt"`, `"$gte"`, `"$lt"`,
-        `"$lte"`) or a metadata field name.
+         Filters can be provided as a dictionary or a list of dictionaries, supporting both metadata
+         and document content filtering.
+            Filters for metadata fields should be prefixed (e.g., "meta.name"),
+              while content-based filters use the `content` field directly.
+        Content filters support operators like `contains` and `not contains`.
 
-        Logical operator keys take a list of dictionaries of metadata field names and/or logical operators as value.
-        Metadata field names take a dictionary of comparison operators as value. Comparison operator keys take a single
-        value or (in case of `"$in"`) a list of values as value. If no comparison operator is provided, `"$eq"`
-        (or `"$in"` if the comparison value is a list) is used
-        as default operation. The logical operators `$and` and `$or` can be used to combine multiple filters.
+         Due to Chroma's distinction between metadata filters and document filters, filters with `"field": "content"`
+        (i.e., document content filters) and metadata fields must be supplied separately.
+          See the example below for correct usage.
 
-        Example:
+         Example:
 
-        ```python
-        filters = {
-            "$and": [
-                {"type": {"$eq": "article"}},
-                {"date": {"$eq": "2015-01-01"}},
-                {"rating": {"$gte": 3}},
-                {"$or": [
-                    {"genre": {"$in": ["economy", "politics"]}},
-                    {"publisher": {"$eq": "nytimes"}}
-                    ]
-                }
-            ]
-        }
-        ```
+         ```python
+         filters = [
+             {
+                 "operator": "AND",
+                 "conditions": [
+                     {"field": "meta.name", "operator": "==", "value": "name_0"},
+                     {"field": "meta.number", "operator": "not in", "value": [2, 9]},
+                 ],
+             },
+             {
+                 "operator": "AND",
+                 "conditions": [
+                     {"field": "content", "operator": "contains", "value": "FOO"},
+                     {"field": "content", "operator": "not contains", "value": "BAR"},
+                 ],
+             },
+         ]
+         ```
 
-        To use the same logical operator multiple times on the same level, logical operators can take a list of
-        dictionaries as value.
+        If you need to apply the same logical operator (e.g., "AND", "OR") to multiple conditions at the same level,
+         you can provide a list of dictionaries as the value for the operator, like in the example below:
 
-        Example:
+         ```python
+         filters = {
+             "operator": "OR",
+             "conditions": [
+                 {"field": "meta.author", "operator": "==", "value": "author_1"},
+                 {
+                     "operator": "AND",
+                     "conditions": [
+                         {"field": "meta.tag", "operator": "==", "value": "tag_1"},
+                         {"field": "meta.page", "operator": ">", "value": 100},
+                     ],
+                 },
+                 {
+                     "operator": "AND",
+                     "conditions": [
+                         {"field": "meta.tag", "operator": "==", "value": "tag_2"},
+                         {"field": "meta.page", "operator": ">", "value": 200},
+                     ],
+                 },
+             ],
+         }
+         ```
 
-        ```python
-        filters = {
-            "$or": [
-                {
-                    "$and": [
-                            {"type": "news paper"},
-                            {"date": {"$eq": "2019-01-01"}}
-                    ]
-                },
-                {
-                    "$and": [
-                            {"type": "blog post"},
-                            {"date": {"$eq": "2019-01-01"}}
-                    ]
-                },
-            ]
-        }
-        ```
-
-        :param filters: the filters to apply to the document list.
-        :returns: a list of Documents that match the given filters.
+         :param filters: the filters to apply to the document list.
+         :returns: a list of Documents that match the given filters.
         """
         if filters:
             ids, where, where_document = _convert_filters(filters)

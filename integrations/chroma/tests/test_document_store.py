@@ -223,6 +223,15 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, FilterDocuments
         assert store._collection.metadata["hnsw:space"] == "ip"
         assert new_store._collection.metadata["hnsw:space"] == "ip"
 
+    def test_contains(self, document_store: ChromaDocumentStore, filterable_docs: List[Document]):
+        document_store.write_documents(filterable_docs)
+        filters = {"field": "content", "operator": "contains", "value": "FOO"}
+        result = document_store.filter_documents(filters=filters)
+        self.assert_documents_are_equal(
+            result,
+            [doc for doc in filterable_docs if doc.content and "FOO" in doc.content],
+        )
+
     def test_multiple_contains(self, document_store: ChromaDocumentStore, filterable_docs: List[Document]):
         document_store.write_documents(filterable_docs)
         filters = {
@@ -238,13 +247,39 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, FilterDocuments
             [doc for doc in filterable_docs if doc.content and ("FOO" in doc.content or "BAR" not in doc.content)],
         )
 
-    def test_contains(self, document_store: ChromaDocumentStore, filterable_docs: List[Document]):
+    def test_logical_and_document_filters(self, document_store: ChromaDocumentStore, filterable_docs: List[Document]):
         document_store.write_documents(filterable_docs)
-        filters = {"field": "content", "operator": "contains", "value": "FOO"}
+        filters = [
+            {
+                "operator": "AND",
+                "conditions": [
+                    {"field": "meta.name", "operator": "==", "value": "name_0"},
+                    {"field": "meta.number", "operator": "not in", "value": [2, 9]},
+                ],
+            },
+            {
+                "operator": "AND",
+                "conditions": [
+                    {"field": "content", "operator": "contains", "value": "FOO"},
+                    {"field": "content", "operator": "not contains", "value": "BAR"},
+                ],
+            },
+        ]
         result = document_store.filter_documents(filters=filters)
         self.assert_documents_are_equal(
             result,
-            [doc for doc in filterable_docs if doc.content and "FOO" in doc.content],
+            [
+                doc
+                for doc in filterable_docs
+                if (
+                    "name" in doc.meta
+                    and doc.meta.get("name") == "name_0"
+                    and "number" in doc.meta
+                    and doc.meta.get("number")
+                    or [2, 9]
+                )
+                and (doc.content and ("FOO" in doc.content and "BAR" not in doc.content))
+            ],
         )
 
     # Override inequality tests from FilterDocumentsTest

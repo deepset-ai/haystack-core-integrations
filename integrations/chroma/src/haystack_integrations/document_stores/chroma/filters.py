@@ -1,5 +1,5 @@
 from collections import defaultdict
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Tuple, Union
 
 from chromadb.api.types import validate_where, validate_where_document
 
@@ -21,9 +21,13 @@ OPERATORS = {
 }
 
 
-def _convert_filters(filters: Dict[str, Any]) -> Tuple[List[str], Dict[str, Any], Dict[str, Any]]:
+def _convert_filters(
+    filters: Union[Dict[str, Any], List[Dict[str, Any]]]
+) -> Tuple[List[str], Dict[str, Any], Dict[str, Any]]:
     """
-    Convert haystack filters to chroma filter string capturing all boolean operators
+    Converts Haystack filters into a format compatible with Chroma, separating them into ids, metadata filters,
+    and content filters to be passed to chroma as ids, where, and where_document clauses respectively.
+
     """
 
     filters = _normalize_filters(filters)
@@ -32,19 +36,25 @@ def _convert_filters(filters: Dict[str, Any]) -> Tuple[List[str], Dict[str, Any]
     where: Dict[str, Any] = defaultdict(list)
     where_document: Dict[str, Any] = defaultdict(list)
 
-    for field, value in filters.items():
-        if value is None:
-            continue
-        where_document.update(create_where_document_filter(field, value))
-        if where_document:  # if where_document is not empty, skip the rest of the loop
-            continue
-        elif field == "id":
-            if not value["$eq"]:
-                msg = f"id filter only supports '==' operator, got {value}"
-                raise ChromaDocumentStoreFilterError(msg)
-            ids.append(value["$eq"])
-        else:
-            where[field] = value
+    if isinstance(filters, dict):  # if filters is a dict, convert it to a list
+        filters = [filters]
+
+    for clause in filters:
+        for field, value in clause.items():
+            if value is None:
+                continue
+            where_document.update(create_where_document_filter(field, value))
+            # if where_document is not empty, current clause is a content filter and we can skip rest of the loop
+            if where_document:
+                continue
+            # if field is "id", it'll be passes to Chroma's ids filter
+            elif field == "id":
+                if not value["$eq"]:
+                    msg = f"id filter only supports '==' operator, got {value}"
+                    raise ChromaDocumentStoreFilterError(msg)
+                ids.append(value["$eq"])
+            else:
+                where[field] = value
 
     try:
         if where_document:
@@ -57,21 +67,28 @@ def _convert_filters(filters: Dict[str, Any]) -> Tuple[List[str], Dict[str, Any]
     return ids, where, where_document
 
 
-def _normalize_filters(filters: Dict[str, Any]) -> Dict[str, Any]:
+def _normalize_filters(filters: Union[Dict[str, Any], List[Dict[str, Any]]]) -> Dict[str, Any]:
     """
     Converts Haystack filters to Chroma compatible filters.
     """
-    if not isinstance(filters, dict):
-        msg = "Filters must be a dictionary"
-        raise ChromaDocumentStoreFilterError(msg)
+    normalized_filters = {}
 
-    if "field" in filters:
-        return _parse_comparison_condition(filters)
-    return _parse_logical_condition(filters)
+    if not isinstance(filters, list):
+        filters = [filters]
+    for condition in filters:
+        if "field" in condition:
+            normalized_filters.update(_parse_comparison_condition(condition))
+        else:
+            normalized_filters.update(_parse_logical_condition(condition))
+
+    return normalized_filters
 
 
-# Method to covnert haystack filters with "content" field to chroma document filters
 def create_where_document_filter(field, value) -> Dict[str, Any]:
+    """
+    Method to convert Haystack filters with the "content" field to Chroma-compatible document filters
+
+    """
     where_document: Dict[str, Any] = defaultdict(list)
     document_filters = []
 
