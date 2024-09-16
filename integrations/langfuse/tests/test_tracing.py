@@ -32,7 +32,7 @@ def test_tracing_integration(llm_name, llm_class, env_var, expected_trace):
     pipe = Pipeline()
     pipe.add_component("tracer", LangfuseConnector(name=f"Chat example - {llm_name}", public=True))
     pipe.add_component("prompt_builder", ChatPromptBuilder())
-    pipe.add_component("llm",llm_class())
+    pipe.add_component("llm", llm_class())
     pipe.connect("prompt_builder.prompt", "llm.messages")
 
     messages = [
