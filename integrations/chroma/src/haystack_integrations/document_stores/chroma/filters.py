@@ -30,8 +30,6 @@ def _convert_filters(
 
     """
 
-    filters = _normalize_filters(filters)
-
     ids = []
     where: Dict[str, Any] = defaultdict(list)
     where_document: Dict[str, Any] = defaultdict(list)
@@ -40,7 +38,8 @@ def _convert_filters(
         filters = [filters]
 
     for clause in filters:
-        for field, value in clause.items():
+        normalized_clause = _normalize_filters(clause)
+        for field, value in normalized_clause.items():
             if value is None:
                 continue
             where_document.update(create_where_document_filter(field, value))
@@ -67,19 +66,16 @@ def _convert_filters(
     return ids, where, where_document
 
 
-def _normalize_filters(filters: Union[Dict[str, Any], List[Dict[str, Any]]]) -> Dict[str, Any]:
+def _normalize_filters(filters: Dict[str, Any]) -> Dict[str, Any]:
     """
     Converts Haystack filters to Chroma compatible filters.
     """
     normalized_filters = {}
 
-    if not isinstance(filters, list):
-        filters = [filters]
-    for condition in filters:
-        if "field" in condition:
-            normalized_filters.update(_parse_comparison_condition(condition))
-        else:
-            normalized_filters.update(_parse_logical_condition(condition))
+    if "field" in filters:
+        normalized_filters.update(_parse_comparison_condition(filters))
+    else:
+        normalized_filters.update(_parse_logical_condition(filters))
 
     return normalized_filters
 

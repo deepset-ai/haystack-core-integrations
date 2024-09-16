@@ -123,8 +123,8 @@ class ChromaDocumentStore:
          while id filters only support the `==` operator.
 
          Due to Chroma's distinction between metadata filters and document filters, filters with `"field": "content"`
-        (i.e., document content filters) and metadata fields must be supplied separately.
-          See the example below for correct usage.
+        (i.e., document content filters) and metadata fields must be supplied separately. For details on chroma filters,
+        see the [Chroma documentation](https://docs.trychroma.com/guides).
 
          Example:
 
