@@ -115,11 +115,12 @@ class ChromaDocumentStore:
         """
          Returns the documents that match the filters provided.
 
-         Filters can be provided as a dictionary or a list of dictionaries, supporting both metadata
-         and document content filtering.
-            Filters for metadata fields should be prefixed (e.g., "meta.name"),
-              while content-based filters use the `content` field directly.
-        Content filters support operators like `contains` and `not contains`.
+         Filters can be provided as a dictionary or a list of dictionaries, supporting filtering by
+         ids, metadata, and document content.
+         Metadata filters should use fields like `"meta.name"`, while content-based filters
+         use the `"content"` field directly.
+         Content filters support the `contains` and `not contains` operators,
+         while id filters only support the `==` operator.
 
          Due to Chroma's distinction between metadata filters and document filters, filters with `"field": "content"`
         (i.e., document content filters) and metadata fields must be supplied separately.
