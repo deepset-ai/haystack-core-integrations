@@ -57,11 +57,14 @@ def _convert_filters(
 
     try:
         if where_document:
+            test_clause = "document content filter"
             validate_where_document(where_document)
         elif where:
+            test_clause = "metadata filter"
             validate_where(where)
     except ValueError as e:
-        raise ChromaDocumentStoreFilterError(e) from e
+        msg = f"Invalid '{test_clause}' : {e}"
+        raise ChromaDocumentStoreFilterError(msg) from e
 
     return ids, where, where_document
 
