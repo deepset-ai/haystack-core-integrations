@@ -47,7 +47,7 @@ def _convert_filters(
             # if where_document is not empty, current clause is a content filter and we can skip rest of the loop
             if where_document:
                 continue
-            # if field is "id", it'll be passes to Chroma's ids filter
+            # if field is "id", it'll be passed to Chroma's ids filter
             elif field == "id":
                 if not value["$eq"]:
                     msg = f"id filter only supports '==' operator, got {value}"
