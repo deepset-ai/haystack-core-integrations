@@ -2,6 +2,9 @@ import os
 
 # See README.md for more information on how to set up the environment variables
 # before running this script
+
+# In addition to setting the environment variables, you need to install the following packages:
+# pip install cohere-haystack anthropic-haystack
 os.environ["HAYSTACK_CONTENT_TRACING_ENABLED"] = "true"
 
 from haystack import Pipeline
@@ -27,7 +30,7 @@ supported_chat_generators = {
     "cohere": CohereChatGenerator(),
 }
 
-selected_chat_generator = supported_chat_generators["cohere"]
+selected_chat_generator = supported_chat_generators["openai"]
 
 if __name__ == "__main__":
 
