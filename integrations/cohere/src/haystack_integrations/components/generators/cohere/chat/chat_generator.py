@@ -224,7 +224,8 @@ class CohereChatGenerator:
         message.meta.update(
             {
                 "model": self.model,
-                "usage": total_tokens,
+                "usage": {"prompt_tokens": cohere_response.meta.billed_units.input_tokens,
+                          "completion_tokens": cohere_response.meta.billed_units.output_tokens},
                 "index": 0,
                 "finish_reason": cohere_response.finish_reason,
                 "documents": cohere_response.documents,
