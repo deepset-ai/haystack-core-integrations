@@ -178,8 +178,7 @@ class CohereChatGenerator:
                 if finish_response.meta.billed_units:
                     tokens_in = finish_response.meta.billed_units.input_tokens or -1
                     tokens_out = finish_response.meta.billed_units.output_tokens or -1
-                    chat_message.meta["usage"] = {"prompt_tokens": tokens_in,
-                                                  "completion_tokens": tokens_out}
+                    chat_message.meta["usage"] = {"prompt_tokens": tokens_in, "completion_tokens": tokens_out}
                 chat_message.meta.update(
                     {
                         "model": self.model,
@@ -221,12 +220,13 @@ class CohereChatGenerator:
             message = ChatMessage.from_assistant(cohere_response.tool_calls[0].json())
         elif cohere_response.text:
             message = ChatMessage.from_assistant(content=cohere_response.text)
-        total_tokens = cohere_response.meta.billed_units.input_tokens + cohere_response.meta.billed_units.output_tokens
         message.meta.update(
             {
                 "model": self.model,
-                "usage": {"prompt_tokens": cohere_response.meta.billed_units.input_tokens,
-                          "completion_tokens": cohere_response.meta.billed_units.output_tokens},
+                "usage": {
+                    "prompt_tokens": cohere_response.meta.billed_units.input_tokens,
+                    "completion_tokens": cohere_response.meta.billed_units.output_tokens,
+                },
                 "index": 0,
                 "finish_reason": cohere_response.finish_reason,
                 "documents": cohere_response.documents,
