@@ -1,5 +1,11 @@
 # Changelog
 
+## [integrations/weaviate-v3.0.0] - 2024-09-12
+
+### ⚙️ Miscellaneous Tasks
+
+- Weaviate - remove legacy filter support (#1070)
+
 ## [integrations/weaviate-v2.2.1] - 2024-09-07
 
 ### 🚀 Features
