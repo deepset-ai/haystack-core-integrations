@@ -3,7 +3,7 @@ from unittest.mock import MagicMock, Mock, patch
 import pytest
 from haystack import Pipeline
 from haystack.components.builders import ChatPromptBuilder
-from haystack.dataclasses import ChatMessage, StreamingChunk
+from haystack.dataclasses import ChatMessage, StreamingChunk, ChatRole
 from vertexai.generative_models import (
     Content,
     FunctionDeclaration,
@@ -293,3 +293,25 @@ def test_serialization_deserialization_pipeline():
 
     new_pipeline = Pipeline.from_dict(pipeline_dict)
     assert new_pipeline == pipeline
+
+
+@patch("haystack_integrations.components.generators.google_vertex.chat.gemini.GenerativeModel")
+def test_role_in_messages(mock_generative_model):
+    mock_model = Mock()
+    mock_candidate = Mock(content=Content(parts=[Part.from_text("This is a generated response.")], role="model"))
+    mock_response = MagicMock(spec=GenerationResponse, candidates=[mock_candidate])
+
+    mock_model.send_message.return_value = mock_response
+    mock_model.start_chat.return_value = mock_model
+    mock_generative_model.return_value = mock_model
+
+    messages = [
+        ChatMessage.from_system("You are a helpful assistant"),
+        ChatMessage.from_user("What's the capital of France?"),
+    ]
+    gemini = VertexAIGeminiChatGenerator(project_id="TestID123", location=None)
+    response = gemini.run(messages=messages)
+    assert response["replies"][0].is_from(ChatRole.ASSISTANT)
+    messages += [response["replies"][0], ChatMessage.from_user("How big is this city?")]
+
+    mock_model.send_message.assert_called_once()
