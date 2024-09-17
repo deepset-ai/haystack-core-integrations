@@ -22,7 +22,7 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
-dependencies = ["haystack-ai>=2.1.0", "langfuse", "anthropic-haystack", "cohere-haystack"]
+dependencies = ["haystack-ai>=2.1.0", "langfuse"]
 
 [project.urls]
 Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/langfuse#readme"
@@ -47,6 +47,8 @@ dependencies = [
   "pytest",
   "pytest-rerunfailures",
   "haystack-pydoc-tools",
+  "anthropic-haystack",
+  "cohere-haystack"
 ]
 [tool.hatch.envs.default.scripts]
 test = "pytest {args:tests}"
