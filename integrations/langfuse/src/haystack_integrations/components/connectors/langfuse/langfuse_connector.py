@@ -107,13 +107,14 @@ class LangfuseConnector:
         tracing.enable_tracing(self.tracer)
 
     @component.output_types(name=str, trace_url=str)
-    def run(self, invocation_context: Optional[Dict[str, Any]] = None):
+    def run(self, invocation_context: Optional[Dict[str, Any]] = None):  # noqa: ARG002
         """
         Runs the LangfuseConnector component.
 
-        :param invocation_context: A dictionary with additional context for the invocation. This parameter is useful when
-            users want to mark this particular invocation with additional information, e.g. a run id from their own
-            execution framework, user id, etc. These key-value pairs are then visible in the Langfuse traces.
+        :param invocation_context: A dictionary with additional context for the invocation. This parameter
+            is useful when users want to mark this particular invocation with additional information, e.g.
+            a run id from their own execution framework, user id, etc. These key-value pairs are then visible
+            in the Langfuse traces.
         :returns: A dictionary with the following keys:
             - `name`: The name of the tracing component.
             - `trace_url`: The URL to the tracing data.
