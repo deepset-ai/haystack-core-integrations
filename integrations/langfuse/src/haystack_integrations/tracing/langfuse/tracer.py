@@ -10,8 +10,22 @@ from haystack.tracing import utils as tracing_utils
 import langfuse
 
 HAYSTACK_LANGFUSE_ENFORCE_FLUSH_ENV_VAR = "HAYSTACK_LANGFUSE_ENFORCE_FLUSH"
-_SUPPORTED_GENERATORS = ["AzureOpenAIGenerator", "OpenAIGenerator"]
-_SUPPORTED_CHAT_GENERATORS = ["AzureOpenAIChatGenerator", "OpenAIChatGenerator"]
+_SUPPORTED_GENERATORS = [
+    "AzureOpenAIGenerator",
+    "OpenAIGenerator",
+    "AnthropicGenerator",
+    "HuggingFaceAPIGenerator",
+    "HuggingFaceLocalGenerator",
+    "CohereGenerator",
+]
+_SUPPORTED_CHAT_GENERATORS = [
+    "AzureOpenAIChatGenerator",
+    "OpenAIChatGenerator",
+    "AnthropicChatGenerator",
+    "HuggingFaceAPIChatGenerator",
+    "HuggingFaceLocalChatGenerator",
+    "CohereChatGenerator",
+]
 _ALL_SUPPORTED_GENERATORS = _SUPPORTED_GENERATORS + _SUPPORTED_CHAT_GENERATORS
 
 
