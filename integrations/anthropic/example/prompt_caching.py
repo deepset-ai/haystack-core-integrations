@@ -91,5 +91,12 @@ for question in questions:
     # tokens used to create the prompt cache
     # on first subsequent cache hit we'll see a usage key 'cache_read_input_tokens' having a value of the number of
     # tokens read from the cache
-    print(f"Cache usage: {result['llm']['replies'][0].meta.get('usage')}")
+    token_stats = result["llm"]["replies"][0].meta.get("usage")
+    if token_stats.get("cache_creation_input_tokens", 0) > 0:
+        print("Cache created! ", end="")
+    elif token_stats.get("cache_read_input_tokens", 0) > 0:
+        print("Cache hit! ", end="")
+    else:
+        print("Cache not used, something is wrong with the prompt caching setup. ", end="")
+    print(f"Cache usage details: {token_stats}")
     print("\n" + "=" * 100)
