@@ -1,6 +1,6 @@
 # Changelog
 
-## [unreleased]
+## [integrations/elasticsearch-v1.0.0] - 2024-09-12
 
 ### 🚀 Features
 
@@ -11,10 +11,15 @@
 
 - `ElasticSearch` - Fallback to default filter policy when deserializing retrievers without the init parameter (#898)
 
+### 🧪 Testing
+
+- Do not retry tests in `hatch run test` command (#954)
+
 ### ⚙️ Miscellaneous Tasks
 
 - Retry tests to reduce flakyness (#836)
 - Update ruff invocation to include check parameter (#853)
+- ElasticSearch - remove legacy filters elasticsearch (#1078)
 
 ## [integrations/elasticsearch-v0.5.0] - 2024-05-24
 

@@ -1,7 +1,9 @@
 from unittest.mock import MagicMock, Mock, patch
 
+from haystack import Pipeline
+from haystack.components.builders import PromptBuilder
 from haystack.dataclasses import StreamingChunk
-from vertexai.preview.generative_models import (
+from vertexai.generative_models import (
     FunctionDeclaration,
     GenerationConfig,
     HarmBlockThreshold,
@@ -191,18 +193,18 @@ def test_from_dict_with_param(_mock_vertexai_init, _mock_generative_model):
                         "function_declarations": [
                             {
                                 "name": "get_current_weather",
-                                "description": "Get the current weather in a given location",
                                 "parameters": {
                                     "type_": "OBJECT",
                                     "properties": {
+                                        "unit": {"type_": "STRING", "enum": ["celsius", "fahrenheit"]},
                                         "location": {
                                             "type_": "STRING",
                                             "description": "The city and state, e.g. San Francisco, CA",
                                         },
-                                        "unit": {"type_": "STRING", "enum": ["celsius", "fahrenheit"]},
                                     },
                                     "required": ["location"],
                                 },
+                                "description": "Get the current weather in a given location",
                             }
                         ]
                     }
@@ -254,3 +256,20 @@ def test_run_with_streaming_callback(mock_generative_model):
     gemini = VertexAIGeminiGenerator(model="gemini-pro", project_id="TestID123", streaming_callback=streaming_callback)
     gemini.run(["Come on, stream!"])
     assert streaming_callback_called
+
+
+def test_serialization_deserialization_pipeline():
+    template = """
+        Answer the following questions:
+        1. What is the weather like today?
+        """
+    pipeline = Pipeline()
+
+    pipeline.add_component("prompt_builder", PromptBuilder(template=template))
+    pipeline.add_component("gemini", VertexAIGeminiGenerator(project_id="TestID123"))
+    pipeline.connect("prompt_builder", "gemini")
+
+    pipeline_dict = pipeline.to_dict()
+
+    new_pipeline = Pipeline.from_dict(pipeline_dict)
+    assert new_pipeline == pipeline

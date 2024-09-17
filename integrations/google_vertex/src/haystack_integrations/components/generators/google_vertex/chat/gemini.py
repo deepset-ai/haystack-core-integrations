@@ -8,7 +8,7 @@ from haystack.dataclasses.byte_stream import ByteStream
 from haystack.dataclasses.chat_message import ChatMessage, ChatRole
 from haystack.utils import deserialize_callable, serialize_callable
 from vertexai import init as vertexai_init
-from vertexai.preview.generative_models import (
+from vertexai.generative_models import (
     Content,
     GenerationConfig,
     GenerationResponse,
@@ -67,14 +67,14 @@ class VertexAIGeminiChatGenerator:
         :param location: The default location to use when making API calls, if not set uses us-central-1.
             Defaults to None.
         :param generation_config: Configuration for the generation process.
-            See the [GenerationConfig documentation](https://cloud.google.com/python/docs/reference/aiplatform/latest/vertexai.preview.generative_models.GenerationConfig
+            See the [GenerationConfig documentation](https://cloud.google.com/python/docs/reference/aiplatform/latest/vertexai.generative_models.GenerationConfig
             for a list of supported arguments.
         :param safety_settings: Safety settings to use when generating content. See the documentation
-            for [HarmBlockThreshold](https://cloud.google.com/python/docs/reference/aiplatform/latest/vertexai.preview.generative_models.HarmBlockThreshold)
-            and [HarmCategory](https://cloud.google.com/python/docs/reference/aiplatform/latest/vertexai.preview.generative_models.HarmCategory)
+            for [HarmBlockThreshold](https://cloud.google.com/python/docs/reference/aiplatform/latest/vertexai.generative_models.HarmBlockThreshold)
+            and [HarmCategory](https://cloud.google.com/python/docs/reference/aiplatform/latest/vertexai.generative_models.HarmCategory)
             for more details.
         :param tools: List of tools to use when generating content. See the documentation for
-            [Tool](https://cloud.google.com/python/docs/reference/aiplatform/latest/vertexai.preview.generative_models.Tool)
+            [Tool](https://cloud.google.com/python/docs/reference/aiplatform/latest/vertexai.generative_models.Tool)
             the list of supported arguments.
         :param streaming_callback: A callback function that is called when a new token is received from
             the  stream. The callback function accepts StreamingChunk as an argument.

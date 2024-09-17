@@ -44,13 +44,16 @@ class QdrantEmbeddingRetriever:
         return_embedding: bool = False,
         filter_policy: Union[str, FilterPolicy] = FilterPolicy.REPLACE,
         score_threshold: Optional[float] = None,
+        group_by: Optional[str] = None,
+        group_size: Optional[int] = None,
     ):
         """
         Create a QdrantEmbeddingRetriever component.
 
         :param document_store: An instance of QdrantDocumentStore.
         :param filters: A dictionary with filters to narrow down the search space.
-        :param top_k: The maximum number of documents to retrieve.
+        :param top_k: The maximum number of documents to retrieve. If using `group_by` parameters, maximum number of
+             groups to return.
         :param scale_score: Whether to scale the scores of the retrieved documents or not.
         :param return_embedding: Whether to return the embedding of the retrieved Documents.
         :param filter_policy: Policy to determine how filters are applied.
@@ -58,6 +61,9 @@ class QdrantEmbeddingRetriever:
             Score of the returned result might be higher or smaller than the threshold
              depending on the `similarity` function specified in the Document Store.
             E.g. for cosine similarity only higher scores will be returned.
+        :param group_by: Payload field to group by, must be a string or number field. If the field contains more than 1
+            value, all values will be used for grouping. One point can be in multiple groups.
+        :param group_size: Maximum amount of points to return per group. Default is 3.
 
         :raises ValueError: If `document_store` is not an instance of `QdrantDocumentStore`.
         """
@@ -75,6 +81,8 @@ class QdrantEmbeddingRetriever:
             filter_policy if isinstance(filter_policy, FilterPolicy) else FilterPolicy.from_str(filter_policy)
         )
         self._score_threshold = score_threshold
+        self._group_by = group_by
+        self._group_size = group_size
 
     def to_dict(self) -> Dict[str, Any]:
         """
@@ -92,6 +100,8 @@ class QdrantEmbeddingRetriever:
             scale_score=self._scale_score,
             return_embedding=self._return_embedding,
             score_threshold=self._score_threshold,
+            group_by=self._group_by,
+            group_size=self._group_size,
         )
         d["init_parameters"]["document_store"] = self._document_store.to_dict()
 
@@ -124,16 +134,22 @@ class QdrantEmbeddingRetriever:
         scale_score: Optional[bool] = None,
         return_embedding: Optional[bool] = None,
         score_threshold: Optional[float] = None,
+        group_by: Optional[str] = None,
+        group_size: Optional[int] = None,
     ):
         """
         Run the Embedding Retriever on the given input data.
 
         :param query_embedding: Embedding of the query.
         :param filters: A dictionary with filters to narrow down the search space.
-        :param top_k: The maximum number of documents to return.
+        :param top_k: The maximum number of documents to return. If using `group_by` parameters, maximum number of
+             groups to return.
         :param scale_score: Whether to scale the scores of the retrieved documents or not.
         :param return_embedding: Whether to return the embedding of the retrieved Documents.
         :param score_threshold: A minimal score threshold for the result.
+        :param group_by: Payload field to group by, must be a string or number field. If the field contains more than 1
+            value, all values will be used for grouping. One point can be in multiple groups.
+        :param group_size: Maximum amount of points to return per group. Default is 3.
         :returns:
             The retrieved documents.
 
@@ -147,6 +163,8 @@ class QdrantEmbeddingRetriever:
             scale_score=scale_score or self._scale_score,
             return_embedding=return_embedding or self._return_embedding,
             score_threshold=score_threshold or self._score_threshold,
+            group_by=group_by or self._group_by,
+            group_size=group_size or self._group_size,
         )
 
         return {"documents": docs}
@@ -188,13 +206,16 @@ class QdrantSparseEmbeddingRetriever:
         return_embedding: bool = False,
         filter_policy: Union[str, FilterPolicy] = FilterPolicy.REPLACE,
         score_threshold: Optional[float] = None,
+        group_by: Optional[str] = None,
+        group_size: Optional[int] = None,
     ):
         """
         Create a QdrantSparseEmbeddingRetriever component.
 
         :param document_store: An instance of QdrantDocumentStore.
         :param filters: A dictionary with filters to narrow down the search space.
-        :param top_k: The maximum number of documents to retrieve.
+        :param top_k: The maximum number of documents to retrieve. If using `group_by` parameters, maximum number of
+             groups to return.
         :param scale_score: Whether to scale the scores of the retrieved documents or not.
         :param return_embedding: Whether to return the sparse embedding of the retrieved Documents.
         :param filter_policy: Policy to determine how filters are applied. Defaults to "replace".
@@ -202,6 +223,9 @@ class QdrantSparseEmbeddingRetriever:
             Score of the returned result might be higher or smaller than the threshold
              depending on the Distance function used.
             E.g. for cosine similarity only higher scores will be returned.
+        :param group_by: Payload field to group by, must be a string or number field. If the field contains more than 1
+            value, all values will be used for grouping. One point can be in multiple groups.
+        :param group_size: Maximum amount of points to return per group. Default is 3.
 
         :raises ValueError: If `document_store` is not an instance of `QdrantDocumentStore`.
         """
@@ -219,6 +243,8 @@ class QdrantSparseEmbeddingRetriever:
             filter_policy if isinstance(filter_policy, FilterPolicy) else FilterPolicy.from_str(filter_policy)
         )
         self._score_threshold = score_threshold
+        self._group_by = group_by
+        self._group_size = group_size
 
     def to_dict(self) -> Dict[str, Any]:
         """
@@ -236,6 +262,8 @@ class QdrantSparseEmbeddingRetriever:
             filter_policy=self._filter_policy.value,
             return_embedding=self._return_embedding,
             score_threshold=self._score_threshold,
+            group_by=self._group_by,
+            group_size=self._group_size,
         )
         d["init_parameters"]["document_store"] = self._document_store.to_dict()
 
@@ -268,6 +296,8 @@ class QdrantSparseEmbeddingRetriever:
         scale_score: Optional[bool] = None,
         return_embedding: Optional[bool] = None,
         score_threshold: Optional[float] = None,
+        group_by: Optional[str] = None,
+        group_size: Optional[int] = None,
     ):
         """
         Run the Sparse Embedding Retriever on the given input data.
@@ -276,13 +306,17 @@ class QdrantSparseEmbeddingRetriever:
         :param filters: Filters applied to the retrieved Documents. The way runtime filters are applied depends on
                         the `filter_policy` chosen at retriever initialization. See init method docstring for more
                         details.
-        :param top_k: The maximum number of documents to return.
+        :param top_k: The maximum number of documents to return. If using `group_by` parameters, maximum number of
+             groups to return.
         :param scale_score: Whether to scale the scores of the retrieved documents or not.
         :param return_embedding: Whether to return the embedding of the retrieved Documents.
         :param score_threshold: A minimal score threshold for the result.
             Score of the returned result might be higher or smaller than the threshold
              depending on the Distance function used.
             E.g. for cosine similarity only higher scores will be returned.
+        :param group_by: Payload field to group by, must be a string or number field. If the field contains more than 1
+            value, all values will be used for grouping. One point can be in multiple groups.
+        :param group_size: Maximum amount of points to return per group. Default is 3.
         :returns:
             The retrieved documents.
 
@@ -296,6 +330,8 @@ class QdrantSparseEmbeddingRetriever:
             scale_score=scale_score or self._scale_score,
             return_embedding=return_embedding or self._return_embedding,
             score_threshold=score_threshold or self._score_threshold,
+            group_by=group_by or self._group_by,
+            group_size=group_size or self._group_size,
         )
 
         return {"documents": docs}
@@ -342,19 +378,25 @@ class QdrantHybridRetriever:
         return_embedding: bool = False,
         filter_policy: Union[str, FilterPolicy] = FilterPolicy.REPLACE,
         score_threshold: Optional[float] = None,
+        group_by: Optional[str] = None,
+        group_size: Optional[int] = None,
     ):
         """
         Create a QdrantHybridRetriever component.
 
         :param document_store: An instance of QdrantDocumentStore.
         :param filters: A dictionary with filters to narrow down the search space.
-        :param top_k: The maximum number of documents to retrieve.
+        :param top_k: The maximum number of documents to retrieve. If using `group_by` parameters, maximum number of
+             groups to return.
         :param return_embedding: Whether to return the embeddings of the retrieved Documents.
         :param filter_policy: Policy to determine how filters are applied.
         :param score_threshold: A minimal score threshold for the result.
             Score of the returned result might be higher or smaller than the threshold
              depending on the Distance function used.
             E.g. for cosine similarity only higher scores will be returned.
+        :param group_by: Payload field to group by, must be a string or number field. If the field contains more than 1
+             value, all values will be used for grouping. One point can be in multiple groups.
+        :param group_size: Maximum amount of points to return per group. Default is 3.
 
         :raises ValueError: If 'document_store' is not an instance of QdrantDocumentStore.
         """
@@ -371,6 +413,8 @@ class QdrantHybridRetriever:
             filter_policy if isinstance(filter_policy, FilterPolicy) else FilterPolicy.from_str(filter_policy)
         )
         self._score_threshold = score_threshold
+        self._group_by = group_by
+        self._group_size = group_size
 
     def to_dict(self) -> Dict[str, Any]:
         """
@@ -387,6 +431,8 @@ class QdrantHybridRetriever:
             filter_policy=self._filter_policy.value,
             return_embedding=self._return_embedding,
             score_threshold=self._score_threshold,
+            group_by=self._group_by,
+            group_size=self._group_size,
         )
 
     @classmethod
@@ -416,6 +462,8 @@ class QdrantHybridRetriever:
         top_k: Optional[int] = None,
         return_embedding: Optional[bool] = None,
         score_threshold: Optional[float] = None,
+        group_by: Optional[str] = None,
+        group_size: Optional[int] = None,
     ):
         """
         Run the Sparse Embedding Retriever on the given input data.
@@ -425,12 +473,16 @@ class QdrantHybridRetriever:
         :param filters: Filters applied to the retrieved Documents. The way runtime filters are applied depends on
                         the `filter_policy` chosen at retriever initialization. See init method docstring for more
                         details.
-        :param top_k: The maximum number of documents to return.
+        :param top_k: The maximum number of documents to return. If using `group_by` parameters, maximum number of
+             groups to return.
         :param return_embedding: Whether to return the embedding of the retrieved Documents.
         :param score_threshold: A minimal score threshold for the result.
             Score of the returned result might be higher or smaller than the threshold
              depending on the Distance function used.
             E.g. for cosine similarity only higher scores will be returned.
+        :param group_by: Payload field to group by, must be a string or number field. If the field contains more than 1
+             value, all values will be used for grouping. One point can be in multiple groups.
+        :param group_size: Maximum amount of points to return per group. Default is 3.
         :returns:
             The retrieved documents.
 
@@ -444,6 +496,8 @@ class QdrantHybridRetriever:
             top_k=top_k or self._top_k,
             return_embedding=return_embedding or self._return_embedding,
             score_threshold=score_threshold or self._score_threshold,
+            group_by=group_by or self._group_by,
+            group_size=group_size or self._group_size,
         )
 
         return {"documents": docs}
