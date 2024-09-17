@@ -1,3 +1,5 @@
+from typing import Any, Dict, Optional
+
 from haystack import component, tracing
 
 from haystack_integrations.tracing.langfuse import LangfuseTracer
@@ -105,12 +107,16 @@ class LangfuseConnector:
         tracing.enable_tracing(self.tracer)
 
     @component.output_types(name=str, trace_url=str)
-    def run(self):
+    def run(self, invocation_context: Optional[Dict[str, Any]] = None):
         """
         Runs the LangfuseConnector component.
 
+        :param invocation_context: A dictionary with additional context for the invocation. This parameter is useful when
+            users want to mark this particular invocation with additional information, e.g. a run id from their own
+            execution framework, user id, etc. These key-value pairs are then visible in the Langfuse traces.
         :returns: A dictionary with the following keys:
             - `name`: The name of the tracing component.
             - `trace_url`: The URL to the tracing data.
         """
+        # invocation_context is not used here but it is registered as input to the component in Langfuse.
         return {"name": self.name, "trace_url": self.tracer.get_trace_url()}
