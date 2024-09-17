@@ -18,19 +18,19 @@ os.environ["HAYSTACK_CONTENT_TRACING_ENABLED"] = "true"
 
 @pytest.mark.integration
 @pytest.mark.parametrize(
-    "llm_name, llm_class, env_var, expected_trace",
+    "llm_class, env_var, expected_trace",
     [
-        ("OpenAI", OpenAIChatGenerator, "OPENAI_API_KEY", "OpenAI"),
-        ("Anthropic", AnthropicChatGenerator, "ANTHROPIC_API_KEY", "Anthropic"),
-        ("Cohere", CohereChatGenerator, "COHERE_API_KEY", "Cohere"),
+        (OpenAIChatGenerator, "OPENAI_API_KEY", "OpenAI"),
+        (AnthropicChatGenerator, "ANTHROPIC_API_KEY", "Anthropic"),
+        (CohereChatGenerator, "COHERE_API_KEY", "Cohere"),
     ],
 )
-def test_tracing_integration(llm_name, llm_class, env_var, expected_trace):
+def test_tracing_integration(llm_class, env_var, expected_trace):
     if not all([os.environ.get("LANGFUSE_SECRET_KEY"), os.environ.get("LANGFUSE_PUBLIC_KEY"), os.environ.get(env_var)]):
         pytest.skip(f"Missing required environment variables: LANGFUSE_SECRET_KEY, LANGFUSE_PUBLIC_KEY, or {env_var}")
 
     pipe = Pipeline()
-    pipe.add_component("tracer", LangfuseConnector(name=f"Chat example - {llm_name}", public=True))
+    pipe.add_component("tracer", LangfuseConnector(name=f"Chat example - {expected_trace}", public=True))
     pipe.add_component("prompt_builder", ChatPromptBuilder())
     pipe.add_component("llm", llm_class())
     pipe.connect("prompt_builder.prompt", "llm.messages")
