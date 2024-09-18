@@ -76,14 +76,14 @@ def _convert_filter_clause(filters: Dict[str, Any]) -> Dict[str, Any]:
     """
     Converts Haystack filters to Chroma compatible filters.
     """
-    normalized_filters = {}
+    converted_clauses = {}
 
     if "field" in filters:
-        normalized_filters.update(_parse_comparison_condition(filters))
+        converted_clauses.update(_parse_comparison_condition(filters))
     else:
-        normalized_filters.update(_parse_logical_condition(filters))
+        converted_clauses.update(_parse_logical_condition(filters))
 
-    return normalized_filters
+    return converted_clauses
 
 
 def _create_where_document_filter(field: str, value: Dict[Any, Any]) -> Dict[str, Any]:
