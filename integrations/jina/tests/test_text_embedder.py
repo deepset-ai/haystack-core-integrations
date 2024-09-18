@@ -27,11 +27,13 @@ class TestJinaTextEmbedder:
             model="model",
             prefix="prefix",
             suffix="suffix",
+            late_chunking=True,
         )
         assert embedder.api_key == Secret.from_token("fake-api-key")
         assert embedder.model_name == "model"
         assert embedder.prefix == "prefix"
         assert embedder.suffix == "suffix"
+        assert embedder.late_chunking is True
 
     def test_init_fail_wo_api_key(self, monkeypatch):
         monkeypatch.delenv("JINA_API_KEY", raising=False)

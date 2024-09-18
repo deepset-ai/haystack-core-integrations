@@ -51,6 +51,7 @@ class TestJinaDocumentEmbedder:
             embedding_separator=" | ",
             task="retrieval.query",
             dimensions=1024,
+            late_chunking=True,
         )
 
         assert embedder.api_key == Secret.from_token("fake-api-key")
@@ -63,6 +64,7 @@ class TestJinaDocumentEmbedder:
         assert embedder.embedding_separator == " | "
         assert embedder.task == "retrieval.query"
         assert embedder.dimensions == 1024
+        assert embedder.late_chunking is True
 
     def test_init_fail_wo_api_key(self, monkeypatch):
         monkeypatch.delenv("JINA_API_KEY", raising=False)

@@ -47,6 +47,7 @@ class JinaDocumentEmbedder:
         embedding_separator: str = "\n",
         task: Optional[str] = None,
         dimensions: Optional[int] = None,
+        late_chunking: Optional[bool] = None,
     ):
         """
         Create a JinaDocumentEmbedder component.
@@ -82,6 +83,7 @@ class JinaDocumentEmbedder:
         )
         self.task = task
         self.dimensions = dimensions
+        self.late_chunking = late_chunking
 
     def _get_telemetry_data(self) -> Dict[str, Any]:
         """
@@ -110,6 +112,8 @@ class JinaDocumentEmbedder:
             kwargs["task"] = self.task
         if self.dimensions:
             kwargs["dimensions"] = self.dimensions
+        if self.late_chunking is not None:
+            kwargs["late_chunking"] = self.late_chunking
 
         return default_to_dict(self, **kwargs)
 
@@ -199,6 +203,8 @@ class JinaDocumentEmbedder:
             parameters["task"] = self.task
         if self.dimensions:
             parameters["dimensions"] = self.dimensions
+        if self.late_chunking is not None:
+            parameters["late_chunking"] = self.late_chunking
         embeddings, metadata = self._embed_batch(
             texts_to_embed=texts_to_embed, batch_size=self.batch_size, parameters=parameters
         )

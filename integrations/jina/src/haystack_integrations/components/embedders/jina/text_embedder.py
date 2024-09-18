@@ -41,6 +41,7 @@ class JinaTextEmbedder:
         suffix: str = "",
         task: Optional[str] = None,
         dimensions: Optional[int] = None,
+        late_chunking: Optional[bool] = None,
     ):
         """
         Create a JinaTextEmbedder component.
@@ -69,6 +70,7 @@ class JinaTextEmbedder:
         )
         self.task = task
         self.dimensions = dimensions
+        self.late_chunking = late_chunking
 
     def _get_telemetry_data(self) -> Dict[str, Any]:
         """
@@ -93,6 +95,8 @@ class JinaTextEmbedder:
             kwargs["task"] = self.task
         if self.dimensions:
             kwargs["dimensions"] = self.dimensions
+        if self.late_chunking is not None:
+            kwargs["late_chunking"] = self.late_chunking
         return default_to_dict(self, **kwargs)
 
     @classmethod
@@ -132,6 +136,8 @@ class JinaTextEmbedder:
             parameters["task"] = self.task
         if self.dimensions is not None:
             parameters["dimensions"] = self.dimensions
+        if self.late_chunking is not None:
+            parameters["late_chunking"] = self.late_chunking
 
         resp = self._session.post(
             JINA_API_URL,
