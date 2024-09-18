@@ -160,7 +160,7 @@ class JinaDocumentEmbedder:
             batch = texts_to_embed[i : i + batch_size]
             response = self._session.post(
                 JINA_API_URL,
-                json={"input": batch, "model": self.model_name, **(parameters if parameters is not None else {})},
+                json={"input": batch, "model": self.model_name, **(parameters or {})},
             ).json()
             if "data" not in response:
                 raise RuntimeError(response["detail"])
