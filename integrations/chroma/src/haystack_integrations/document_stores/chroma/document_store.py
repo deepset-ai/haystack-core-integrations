@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 import logging
-from typing import Any, Dict, List, Literal, Optional, Union
+from typing import Any, Dict, List, Literal, Optional
 
 import chromadb
 from chromadb.api.types import GetResult, QueryResult
@@ -111,13 +111,12 @@ class ChromaDocumentStore:
         """
         return self._collection.count()
 
-    def filter_documents(self, filters: Optional[Union[Dict[str, Any], List[Dict[str, Any]]]] = None) -> List[Document]:
+    def filter_documents(self, filters: Optional[Dict[str, Any]] = None) -> List[Document]:
         """
          Returns the documents that match the filters provided.
 
-         Filters can be provided as a dictionary or a list of dictionaries, supporting filtering by
-         ids, metadata, and document content.
-         Metadata filters should use fields like `"meta.name"`, while content-based filters
+         Filters can be provided as a dictionary supporting filtering by ids, metadata, and document content.
+         Metadata filters should use the `"meta.<metadata_key>"` syntax, while content-based filters
          use the `"content"` field directly.
          Content filters support the `contains` and `not contains` operators,
          while id filters only support the `==` operator.
@@ -129,22 +128,20 @@ class ChromaDocumentStore:
          Example:
 
          ```python
-         filters = [
-             {
-                 "operator": "AND",
-                 "conditions": [
-                     {"field": "meta.name", "operator": "==", "value": "name_0"},
-                     {"field": "meta.number", "operator": "not in", "value": [2, 9]},
-                 ],
-             },
-             {
-                 "operator": "AND",
-                 "conditions": [
-                     {"field": "content", "operator": "contains", "value": "FOO"},
-                     {"field": "content", "operator": "not contains", "value": "BAR"},
-                 ],
-             },
-         ]
+         filter_1 = {
+                "operator": "AND",
+                "conditions": [
+                    {"field": "meta.name", "operator": "==", "value": "name_0"},
+                    {"field": "meta.number", "operator": "not in", "value": [2, 9]},
+                ],
+            }
+         filter_2 = {
+                "operator": "AND",
+                "conditions": [
+                    {"field": "content", "operator": "contains", "value": "FOO"},
+                    {"field": "content", "operator": "not contains", "value": "BAR"},
+                ],
+            }
          ```
 
         If you need to apply the same logical operator (e.g., "AND", "OR") to multiple conditions at the same level,
@@ -177,13 +174,13 @@ class ChromaDocumentStore:
          :returns: a list of Documents that match the given filters.
         """
         if filters:
-            ids, where, where_document = _convert_filters(filters)
-            kwargs: Dict[str, Any] = {"where": where}
+            chroma_filter = _convert_filters(filters)
+            kwargs: Dict[str, Any] = {"where": chroma_filter.where}
 
-            if ids:
-                kwargs["ids"] = ids
-            if where_document:
-                kwargs["where_document"] = where_document
+            if chroma_filter.ids:
+                kwargs["ids"] = chroma_filter.ids
+            if chroma_filter.where_document:
+                kwargs["where_document"] = chroma_filter.where_document
 
             result = self._collection.get(**kwargs)
         else:
@@ -282,8 +279,8 @@ class ChromaDocumentStore:
             results = self._collection.query(
                 query_texts=queries,
                 n_results=top_k,
-                where=chroma_filters[1],
-                where_document=chroma_filters[2],
+                where=chroma_filters.where,
+                where_document=chroma_filters.where_document,
                 include=["embeddings", "documents", "metadatas", "distances"],
             )
 
@@ -313,8 +310,8 @@ class ChromaDocumentStore:
             results = self._collection.query(
                 query_embeddings=query_embeddings,
                 n_results=top_k,
-                where=chroma_filters[1],
-                where_document=chroma_filters[2],
+                where=chroma_filters.where,
+                where_document=chroma_filters.where_document,
                 include=["embeddings", "documents", "metadatas", "distances"],
             )
 

@@ -247,24 +247,28 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, FilterDocuments
             [doc for doc in filterable_docs if doc.content and ("FOO" in doc.content or "BAR" not in doc.content)],
         )
 
-    def test_logical_and_document_filters(self, document_store: ChromaDocumentStore, filterable_docs: List[Document]):
+    def test_nested_logical_filters(self, document_store: ChromaDocumentStore, filterable_docs: List[Document]):
         document_store.write_documents(filterable_docs)
-        filters = [
-            {
-                "operator": "AND",
-                "conditions": [
-                    {"field": "meta.name", "operator": "==", "value": "name_0"},
-                    {"field": "meta.number", "operator": "not in", "value": [2, 9]},
-                ],
-            },
-            {
-                "operator": "AND",
-                "conditions": [
-                    {"field": "content", "operator": "contains", "value": "FOO"},
-                    {"field": "content", "operator": "not contains", "value": "BAR"},
-                ],
-            },
-        ]
+        filters = {
+            "operator": "OR",
+            "conditions": [
+                {"field": "meta.name", "operator": "==", "value": "name_0"},
+                {
+                    "operator": "AND",
+                    "conditions": [
+                        {"field": "meta.number", "operator": "!=", "value": 0},
+                        {"field": "meta.page", "operator": "==", "value": "123"},
+                    ],
+                },
+                {
+                    "operator": "AND",
+                    "conditions": [
+                        {"field": "meta.chapter", "operator": "==", "value": "conclusion"},
+                        {"field": "meta.date", "operator": "==", "value": "1989-11-09T17:53:00"},
+                    ],
+                },
+            ],
+        }
         result = document_store.filter_documents(filters=filters)
         self.assert_documents_are_equal(
             result,
@@ -272,13 +276,19 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, FilterDocuments
                 doc
                 for doc in filterable_docs
                 if (
-                    "name" in doc.meta
-                    and doc.meta.get("name") == "name_0"
-                    and "number" in doc.meta
-                    and doc.meta.get("number")
-                    or [2, 9]
+                    # Ensure all required fields are present in doc.meta
+                    ("name" in doc.meta and doc.meta.get("name") == "name_0")
+                    or (
+                        all(key in doc.meta for key in ["number", "page"])
+                        and doc.meta.get("number") != 0
+                        and doc.meta.get("page") == "123"
+                    )
+                    or (
+                        all(key in doc.meta for key in ["date", "chapter"])
+                        and doc.meta.get("chapter") == "conclusion"
+                        and doc.meta.get("date") == "1989-11-09T17:53:00"
+                    )
                 )
-                and (doc.content and ("FOO" in doc.content and "BAR" not in doc.content))
             ],
         )
 
