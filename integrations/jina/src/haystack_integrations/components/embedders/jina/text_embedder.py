@@ -60,6 +60,8 @@ class JinaTextEmbedder:
         :param late_chunking: A boolean to enable or disable late chunking.
             Apply the late chunking technique to leverage the model's long-context capabilities for
             generating contextual chunk embeddings.
+
+            The support of `task`, `dimensions`, and `late_chunking` parameters is only available for jina-embeddings-v3.
         """
 
         resolved_api_key = api_key.resolve_value()
