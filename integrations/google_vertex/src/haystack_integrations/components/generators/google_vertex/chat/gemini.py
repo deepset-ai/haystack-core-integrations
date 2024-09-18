@@ -232,14 +232,18 @@ class VertexAIGeminiChatGenerator:
         replies = []
         for candidate in response_body.candidates:
             for part in candidate.content.parts:
+                metadata=candidate.to_dict()
+                metadata.pop("content")
                 if part._raw_part.text != "":
-                    replies.append(ChatMessage.from_assistant(part.text))
+                    replies.append(ChatMessage(content=part._raw_part.text, role=ChatRole.ASSISTANT,name = None, meta=metadata))
                 elif part.function_call is not None:
+                    
                     replies.append(
                         ChatMessage(
                             content=dict(part.function_call.args.items()),
                             role=ChatRole.ASSISTANT,
                             name=part.function_call.name,
+                            meta=metadata
                         )
                     )
         return replies
