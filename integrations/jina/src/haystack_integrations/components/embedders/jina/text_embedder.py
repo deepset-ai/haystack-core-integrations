@@ -58,7 +58,8 @@ class JinaTextEmbedder:
         :param dimensions: Number of desired dimension.
             Smaller dimensions are easier to store and retrieve, with minimal performance impact thanks to MRL.
         :param late_chunking: A boolean to enable or disable late chunking.
-            Apply the late chunking technique to leverage the model's long-context capabilities for generating contextual chunk embeddings.
+            Apply the late chunking technique to leverage the model's long-context capabilities for 
+            generating contextual chunk embeddings.
         """
 
         resolved_api_key = api_key.resolve_value()
