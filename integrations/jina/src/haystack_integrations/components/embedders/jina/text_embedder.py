@@ -91,9 +91,9 @@ class JinaTextEmbedder:
             "suffix": self.suffix,
         }
         # Optional parameters, the following two are only supported by embeddings-v3 for now
-        if self.task:
+        if self.task is not None:
             kwargs["task"] = self.task
-        if self.dimensions:
+        if self.dimensions is not None:
             kwargs["dimensions"] = self.dimensions
         if self.late_chunking is not None:
             kwargs["late_chunking"] = self.late_chunking
