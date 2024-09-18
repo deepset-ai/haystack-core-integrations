@@ -58,7 +58,7 @@ class TestJinaTextEmbedder:
             model="model",
             prefix="prefix",
             suffix="suffix",
-            task_type="retrieval.query",
+            task="retrieval.query",
             dimensions=1024,
         )
         data = component.to_dict()
@@ -69,7 +69,7 @@ class TestJinaTextEmbedder:
                 "model": "model",
                 "prefix": "prefix",
                 "suffix": "suffix",
-                "task_type": "retrieval.query",
+                "task": "retrieval.query",
                 "dimensions": 1024,
             },
         }
@@ -133,7 +133,7 @@ class TestJinaTextEmbedder:
                 model=model,
                 prefix="prefix ",
                 suffix=" suffix",
-                task_type="retrieval.query",
+                task="retrieval.query",
             )
             result = embedder.run(text="The food was delicious")
 

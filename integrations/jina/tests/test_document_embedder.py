@@ -49,7 +49,7 @@ class TestJinaDocumentEmbedder:
             progress_bar=False,
             meta_fields_to_embed=["test_field"],
             embedding_separator=" | ",
-            task_type="retrieval.query",
+            task="retrieval.query",
             dimensions=1024,
         )
 
@@ -61,7 +61,7 @@ class TestJinaDocumentEmbedder:
         assert embedder.progress_bar is False
         assert embedder.meta_fields_to_embed == ["test_field"]
         assert embedder.embedding_separator == " | "
-        assert embedder.task_type == "retrieval.query"
+        assert embedder.task == "retrieval.query"
         assert embedder.dimensions == 1024
 
     def test_init_fail_wo_api_key(self, monkeypatch):
@@ -97,7 +97,7 @@ class TestJinaDocumentEmbedder:
             progress_bar=False,
             meta_fields_to_embed=["test_field"],
             embedding_separator=" | ",
-            task_type="retrieval.query",
+            task="retrieval.query",
             dimensions=1024,
         )
         data = component.to_dict()
@@ -112,7 +112,7 @@ class TestJinaDocumentEmbedder:
                 "progress_bar": False,
                 "meta_fields_to_embed": ["test_field"],
                 "embedding_separator": " | ",
-                "task_type": "retrieval.query",
+                "task": "retrieval.query",
                 "dimensions": 1024,
             },
         }
@@ -271,7 +271,7 @@ class TestJinaDocumentEmbedder:
                 meta_fields_to_embed=["topic"],
                 embedding_separator=" | ",
                 batch_size=1,
-                task_type="retrieval.query",
+                task="retrieval.query",
             )
             result = embedder.run(documents=docs)
 

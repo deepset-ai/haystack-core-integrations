@@ -21,11 +21,11 @@ class JinaTextEmbedder:
 
     # Make sure that the environment variable JINA_API_KEY is set
 
-    text_embedder = JinaTextEmbedder()
+    text_embedder = JinaTextEmbedder(task="retrieval.query")
 
     text_to_embed = "I love pizza!"
 
-    print(text_embedder.run(text_to_embed), parameters={"task_type": "retrieval.query"})
+    print(text_embedder.run(text_to_embed))
 
     # {'embedding': [0.017020374536514282, -0.023255806416273117, ...],
     # 'meta': {'model': 'jina-embeddings-v3',
@@ -39,7 +39,7 @@ class JinaTextEmbedder:
         model: str = "jina-embeddings-v3",
         prefix: str = "",
         suffix: str = "",
-        task_type: Optional[str] = None,
+        task: Optional[str] = None,
         dimensions: Optional[int] = None,
     ):
         """
@@ -67,7 +67,7 @@ class JinaTextEmbedder:
                 "Content-type": "application/json",
             }
         )
-        self.task_type = task_type
+        self.task = task
         self.dimensions = dimensions
 
     def _get_telemetry_data(self) -> Dict[str, Any]:
@@ -89,8 +89,8 @@ class JinaTextEmbedder:
             "suffix": self.suffix,
         }
         # Optional parameters, the following two are only supported by embeddings-v3 for now
-        if self.task_type:
-            kwargs["task_type"] = self.task_type
+        if self.task:
+            kwargs["task"] = self.task
         if self.dimensions:
             kwargs["dimensions"] = self.dimensions
         return default_to_dict(self, **kwargs)
@@ -128,8 +128,8 @@ class JinaTextEmbedder:
         text_to_embed = self.prefix + text + self.suffix
 
         parameters: Dict[str, Any] = {}
-        if self.task_type is not None:
-            parameters["task_type"] = self.task_type
+        if self.task is not None:
+            parameters["task"] = self.task
         if self.dimensions is not None:
             parameters["dimensions"] = self.dimensions
 

@@ -24,11 +24,11 @@ class JinaDocumentEmbedder:
 
     # Make sure that the environment variable JINA_API_KEY is set
 
-    document_embedder = JinaDocumentEmbedder()
+    document_embedder = JinaDocumentEmbedder(task="retrieval.query")
 
     doc = Document(content="I love pizza!")
 
-    result = document_embedder.run([doc], parameters={"task_type": "retrieval.query"})
+    result = document_embedder.run([doc])
     print(result['documents'][0].embedding)
 
     # [0.017020374536514282, -0.023255806416273117, ...]
@@ -45,7 +45,7 @@ class JinaDocumentEmbedder:
         progress_bar: bool = True,
         meta_fields_to_embed: Optional[List[str]] = None,
         embedding_separator: str = "\n",
-        task_type: Optional[str] = None,
+        task: Optional[str] = None,
         dimensions: Optional[int] = None,
     ):
         """
@@ -80,7 +80,7 @@ class JinaDocumentEmbedder:
                 "Content-type": "application/json",
             }
         )
-        self.task_type = task_type
+        self.task = task
         self.dimensions = dimensions
 
     def _get_telemetry_data(self) -> Dict[str, Any]:
@@ -106,8 +106,8 @@ class JinaDocumentEmbedder:
             "embedding_separator": self.embedding_separator,
         }
         # Optional parameters, the following two are only supported by embeddings-v3 for now
-        if self.task_type:
-            kwargs["task_type"] = self.task_type
+        if self.task:
+            kwargs["task"] = self.task
         if self.dimensions:
             kwargs["dimensions"] = self.dimensions
 
@@ -195,8 +195,8 @@ class JinaDocumentEmbedder:
 
         texts_to_embed = self._prepare_texts_to_embed(documents=documents)
         parameters: Dict[str, Any] = {}
-        if self.task_type:
-            parameters["task_type"] = self.task_type
+        if self.task:
+            parameters["task"] = self.task
         if self.dimensions:
             parameters["dimensions"] = self.dimensions
         embeddings, metadata = self._embed_batch(
