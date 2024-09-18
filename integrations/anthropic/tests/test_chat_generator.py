@@ -351,3 +351,51 @@ class TestAnthropicChatGenerator:
         }
         component = AnthropicChatGenerator.from_dict(data)
         assert component.generation_kwargs["extra_headers"]["anthropic-beta"] == "prompt-caching-2024-07-31"
+
+    @pytest.mark.unit
+    def test_convert_messages_to_anthropic_format(self, monkeypatch):
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "test-api-key")
+        generator = AnthropicChatGenerator()
+
+        # Test scenario 1: Regular user and assistant messages
+        messages = [
+            ChatMessage.from_user("Hello"),
+            ChatMessage.from_assistant("Hi there!"),
+        ]
+        result = generator._convert_to_anthropic_format(messages)
+        assert result == [
+            {"role": "user", "content": "Hello"},
+            {"role": "assistant", "content": "Hi there!"},
+        ]
+
+        # Test scenario 2: System message
+        messages = [ChatMessage.from_system("You are a helpful assistant.")]
+        result = generator._convert_to_anthropic_format(messages)
+        assert result == [{"type": "text", "text": "You are a helpful assistant."}]
+
+        # Test scenario 3: Mixed message types
+        messages = [
+            ChatMessage.from_system("Be concise."),
+            ChatMessage.from_user("What's AI?"),
+            ChatMessage.from_assistant("Artificial Intelligence."),
+        ]
+        result = generator._convert_to_anthropic_format(messages)
+        assert result == [
+            {"type": "text", "text": "Be concise."},
+            {"role": "user", "content": "What's AI?"},
+            {"role": "assistant", "content": "Artificial Intelligence."},
+        ]
+
+        # Test scenario 4: metadata
+        messages = [
+            ChatMessage.from_user("What's AI?"),
+            ChatMessage.from_assistant("Artificial Intelligence.", meta={"confidence": 0.9}),
+        ]
+        result = generator._convert_to_anthropic_format(messages)
+        assert result == [
+            {"role": "user", "content": "What's AI?"},
+            {"role": "assistant", "content": "Artificial Intelligence.", "confidence": 0.9},
+        ]
+
+        # Test scenario 5: Empty message list
+        assert generator._convert_to_anthropic_format([]) == []
