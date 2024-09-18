@@ -22,6 +22,7 @@ OPERATORS = {
 }
 
 
+# dataclass to hold the Chroma filter structure
 @dataclass
 class ChromaFilter:
     ids: List[str]
