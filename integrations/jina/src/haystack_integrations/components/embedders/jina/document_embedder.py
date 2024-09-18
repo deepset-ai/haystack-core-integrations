@@ -24,7 +24,7 @@ class JinaDocumentEmbedder:
 
     # Make sure that the environment variable JINA_API_KEY is set
 
-    document_embedder = JinaDocumentEmbedder()
+    document_embedder = JinaDocumentEmbedder(task="retrieval.query")
 
     doc = Document(content="I love pizza!")
 
@@ -38,13 +38,16 @@ class JinaDocumentEmbedder:
     def __init__(
         self,
         api_key: Secret = Secret.from_env_var("JINA_API_KEY"),  # noqa: B008
-        model: str = "jina-embeddings-v2-base-en",
+        model: str = "jina-embeddings-v3",
         prefix: str = "",
         suffix: str = "",
         batch_size: int = 32,
         progress_bar: bool = True,
         meta_fields_to_embed: Optional[List[str]] = None,
         embedding_separator: str = "\n",
+        task: Optional[str] = None,
+        dimensions: Optional[int] = None,
+        late_chunking: Optional[bool] = None,
     ):
         """
         Create a JinaDocumentEmbedder component.
@@ -78,6 +81,9 @@ class JinaDocumentEmbedder:
                 "Content-type": "application/json",
             }
         )
+        self.task = task
+        self.dimensions = dimensions
+        self.late_chunking = late_chunking
 
     def _get_telemetry_data(self) -> Dict[str, Any]:
         """
@@ -91,17 +97,25 @@ class JinaDocumentEmbedder:
         :returns:
             Dictionary with serialized data.
         """
-        return default_to_dict(
-            self,
-            api_key=self.api_key.to_dict(),
-            model=self.model_name,
-            prefix=self.prefix,
-            suffix=self.suffix,
-            batch_size=self.batch_size,
-            progress_bar=self.progress_bar,
-            meta_fields_to_embed=self.meta_fields_to_embed,
-            embedding_separator=self.embedding_separator,
-        )
+        kwargs = {
+            "api_key": self.api_key.to_dict(),
+            "model": self.model_name,
+            "prefix": self.prefix,
+            "suffix": self.suffix,
+            "batch_size": self.batch_size,
+            "progress_bar": self.progress_bar,
+            "meta_fields_to_embed": self.meta_fields_to_embed,
+            "embedding_separator": self.embedding_separator,
+        }
+        # Optional parameters, the following two are only supported by embeddings-v3 for now
+        if self.task is not None:
+            kwargs["task"] = self.task
+        if self.dimensions is not None:
+            kwargs["dimensions"] = self.dimensions
+        if self.late_chunking is not None:
+            kwargs["late_chunking"] = self.late_chunking
+
+        return default_to_dict(self, **kwargs)
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "JinaDocumentEmbedder":
@@ -131,7 +145,9 @@ class JinaDocumentEmbedder:
             texts_to_embed.append(text_to_embed)
         return texts_to_embed
 
-    def _embed_batch(self, texts_to_embed: List[str], batch_size: int) -> Tuple[List[List[float]], Dict[str, Any]]:
+    def _embed_batch(
+        self, texts_to_embed: List[str], batch_size: int, parameters: Optional[Dict] = None
+    ) -> Tuple[List[List[float]], Dict[str, Any]]:
         """
         Embed a list of texts in batches.
         """
@@ -142,7 +158,10 @@ class JinaDocumentEmbedder:
             range(0, len(texts_to_embed), batch_size), disable=not self.progress_bar, desc="Calculating embeddings"
         ):
             batch = texts_to_embed[i : i + batch_size]
-            response = self._session.post(JINA_API_URL, json={"input": batch, "model": self.model_name}).json()
+            response = self._session.post(
+                JINA_API_URL,
+                json={"input": batch, "model": self.model_name, **(parameters or {})},
+            ).json()
             if "data" not in response:
                 raise RuntimeError(response["detail"])
 
@@ -179,8 +198,16 @@ class JinaDocumentEmbedder:
             raise TypeError(msg)
 
         texts_to_embed = self._prepare_texts_to_embed(documents=documents)
-
-        embeddings, metadata = self._embed_batch(texts_to_embed=texts_to_embed, batch_size=self.batch_size)
+        parameters: Dict[str, Any] = {}
+        if self.task is not None:
+            parameters["task"] = self.task
+        if self.dimensions is not None:
+            parameters["dimensions"] = self.dimensions
+        if self.late_chunking is not None:
+            parameters["late_chunking"] = self.late_chunking
+        embeddings, metadata = self._embed_batch(
+            texts_to_embed=texts_to_embed, batch_size=self.batch_size, parameters=parameters
+        )
 
         for doc, emb in zip(documents, embeddings):
             doc.embedding = emb
