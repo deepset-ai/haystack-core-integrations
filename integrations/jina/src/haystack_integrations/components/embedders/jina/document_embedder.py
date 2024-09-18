@@ -62,10 +62,13 @@ class JinaDocumentEmbedder:
                              to keep the logs clean.
         :param meta_fields_to_embed: List of meta fields that should be embedded along with the Document text.
         :param embedding_separator: Separator used to concatenate the meta fields to the Document text.
-        :param task: A string to tailor the model for your specific application 
+        :param task: The downstream task for which the embeddings will be used.
+            The model will return the optimized embeddings for that task.
             Check the list of available models on [Jina documentation](https://jina.ai/embeddings/).
         :param dimensions: Number of desired dimension.
+            Smaller dimensions are easier to store and retrieve, with minimal performance impact thanks to MRL.
         :param late_chunking: A boolean to enable or disable late chunking.
+            Apply the late chunking technique to leverage the model's long-context capabilities for generating contextual chunk embeddings.
         """
         resolved_api_key = api_key.resolve_value()
 
