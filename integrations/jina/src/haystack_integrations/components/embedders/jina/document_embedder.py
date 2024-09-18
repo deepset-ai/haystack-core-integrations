@@ -199,9 +199,9 @@ class JinaDocumentEmbedder:
 
         texts_to_embed = self._prepare_texts_to_embed(documents=documents)
         parameters: Dict[str, Any] = {}
-        if self.task:
+        if self.task is not None:
             parameters["task"] = self.task
-        if self.dimensions:
+        if self.dimensions is not None:
             parameters["dimensions"] = self.dimensions
         if self.late_chunking is not None:
             parameters["late_chunking"] = self.late_chunking
