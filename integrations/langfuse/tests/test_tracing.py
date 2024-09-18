@@ -1,4 +1,6 @@
 import os
+import random
+import time
 import pytest
 from urllib.parse import urlparse
 import requests
@@ -43,6 +45,10 @@ def test_tracing_integration(llm_class, env_var, expected_trace):
     response = pipe.run(data={"prompt_builder": {"template_variables": {"location": "Berlin"}, "template": messages}})
     assert "Berlin" in response["llm"]["replies"][0].content
     assert response["tracer"]["trace_url"]
+
+    # add a random delay between 1 and 3 seconds to make sure the trace is flushed
+    # and that the trace is available in Langfuse when we fetch it below
+    time.sleep(random.uniform(1, 3))
 
     url = "https://cloud.langfuse.com/api/public/traces/"
     trace_url = response["tracer"]["trace_url"]
