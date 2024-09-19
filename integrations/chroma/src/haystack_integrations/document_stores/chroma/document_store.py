@@ -81,7 +81,13 @@ class ChromaDocumentStore:
             error_message = "You cannot provide both `persist_path` and `host`. Please choose one."
             raise ValueError(error_message)
 
-        # Set up the Chroma client
+        # Store the params for marshalling
+        self._collection_name = collection_name
+        self._embedding_function = embedding_function
+        self._embedding_function_params = embedding_function_params
+        self._persist_path = persist_path
+        self._distance_function = distance_function
+        # Create the client instance
         if host:
             # Remote connection via HTTP client
             self._chroma_client = chromadb.HttpClient(
@@ -93,18 +99,6 @@ class ChromaDocumentStore:
             self._chroma_client = chromadb.Client()  # In-memory client
         else:
             # Local persistent storage
-            self._chroma_client = chromadb.PersistentClient(path=persist_path)
-
-        # Store the params for marshalling
-        self._collection_name = collection_name
-        self._embedding_function = embedding_function
-        self._embedding_function_params = embedding_function_params
-        self._persist_path = persist_path
-        self._distance_function = distance_function
-        # Create the client instance
-        if persist_path is None:
-            self._chroma_client = chromadb.Client()
-        else:
             self._chroma_client = chromadb.PersistentClient(path=persist_path)
 
         embedding_func = get_embedding_function(embedding_function, **embedding_function_params)
