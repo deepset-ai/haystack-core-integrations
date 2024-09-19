@@ -352,7 +352,6 @@ class TestAnthropicChatGenerator:
         component = AnthropicChatGenerator.from_dict(data)
         assert component.generation_kwargs["extra_headers"]["anthropic-beta"] == "prompt-caching-2024-07-31"
 
-    @pytest.mark.unit
     def test_convert_messages_to_anthropic_format(self, monkeypatch):
         monkeypatch.setenv("ANTHROPIC_API_KEY", "test-api-key")
         generator = AnthropicChatGenerator()
@@ -399,3 +398,28 @@ class TestAnthropicChatGenerator:
 
         # Test scenario 5: Empty message list
         assert generator._convert_to_anthropic_format([]) == []
+
+    @pytest.mark.integration
+    @pytest.mark.skipif(not os.environ.get("ANTHROPIC_API_KEY", None), reason="ANTHROPIC_API_KEY not set")
+    def test_prompt_caching(self):
+        generation_kwargs = {"extra_headers": {"anthropic-beta": "prompt-caching-2024-07-31"}}
+
+        claude_llm = AnthropicChatGenerator(
+            api_key=Secret.from_env_var("ANTHROPIC_API_KEY"), generation_kwargs=generation_kwargs
+        )
+
+        # see https://docs.anthropic.com/en/docs/build-with-claude/prompt-caching#cache-limitations
+        system_message = ChatMessage.from_system("This is the cached, here we make it at least 1024 tokens long." * 70)
+        system_message.meta["cache_control"] = {"type": "ephemeral"}
+
+        messages = [system_message, ChatMessage.from_user("What's in cached content?")]
+        result = claude_llm.run(messages)
+
+        assert "replies" in result
+        assert len(result["replies"]) == 1
+        token_usage = result["replies"][0].meta.get("usage")
+
+        # either we created cache or we read it (depends on how you execute this integration test)
+        assert (
+            token_usage.get("cache_creation_input_tokens") > 1024 or token_usage.get("cache_read_input_tokens") > 1024
+        )
