@@ -76,11 +76,6 @@ class ChromaDocumentStore:
             )
             raise ValueError(error_message)
 
-        # Ensure only one of persist_path or host is provided
-        if persist_path and host:
-            error_message = "You cannot provide both `persist_path` and `host`. Please choose one."
-            raise ValueError(error_message)
-
         # Store the params for marshalling
         self._collection_name = collection_name
         self._embedding_function = embedding_function
@@ -88,6 +83,10 @@ class ChromaDocumentStore:
         self._persist_path = persist_path
         self._distance_function = distance_function
         # Create the client instance
+        # Ensure only one of persist_path or host is provided
+        if persist_path and host:
+            error_message = "You cannot provide both `persist_path` and `host`. Please choose one."
+            raise ValueError(error_message)
         if host:
             # Remote connection via HTTP client
             self._chroma_client = chromadb.HttpClient(
