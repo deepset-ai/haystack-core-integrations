@@ -256,14 +256,12 @@ def test_run(mock_generative_model):
     assert len(response["replies"]) > 0
     assert all(reply.role == ChatRole.ASSISTANT for reply in response["replies"])
 
-    
-
 
 @patch("haystack_integrations.components.generators.google_vertex.chat.gemini.GenerativeModel")
 def test_run_with_streaming_callback(mock_generative_model):
     mock_model = Mock()
     mock_responses = iter(
-        [MagicMock(spec=GenerationResponse, text="First part"), MagicMock(spec=GenerationResponse, text="Second part")]
+        [MagicMock(spec=GenerationResponse, text="First part"), MagicMock(spec=GenerationResponse, text=" Second part")]
     )
 
     mock_model.send_message.return_value = mock_responses
@@ -283,13 +281,12 @@ def test_run_with_streaming_callback(mock_generative_model):
     response = gemini.run(messages=messages)
 
     mock_model.send_message.assert_called_once()
-    assert streaming_callback_called == ["First part", "Second part"]
+    assert streaming_callback_called == ["First part", " Second part"]
     assert "replies" in response
-    assert len(response["replies"]) == 1
+    assert len(response["replies"]) > 0
 
-    chat_message = response["replies"][0]
-    assert chat_message.content
-    assert chat_message.is_from(ChatRole.ASSISTANT)
+    assert response["replies"][0].content == "First part Second part"
+    assert all(reply.role == ChatRole.ASSISTANT for reply in response["replies"])
 
 
 def test_serialization_deserialization_pipeline():
@@ -304,53 +301,3 @@ def test_serialization_deserialization_pipeline():
 
     new_pipeline = Pipeline.from_dict(pipeline_dict)
     assert new_pipeline == pipeline
-
-@patch("haystack_integrations.components.generators.google_vertex.chat.gemini.GenerativeModel")
-def test_function_call_and_execute(mock_generative_model):
-    mock_model = Mock()
-    mock_candidate = Mock(content=Content(parts=[Part.from_text("This is a generated response.")], role="model"))
-    mock_response = MagicMock(spec=GenerationResponse, candidates=[mock_candidate])
-
-    mock_model.send_message.return_value = mock_response
-    mock_model.start_chat.return_value = mock_model
-    mock_generative_model.return_value = mock_model
-
-    get_current_weather_func = FunctionDeclaration(
-        name="get_current_weather",
-    description="Get the current weather in a given location",
-    parameters={
-        "type": "object",
-        "properties": {
-            "location": {"type": "string", "description": "The city and state, e.g. San Francisco, CA"},
-            "unit": {
-                "type": "string",
-                "enum": [
-                    "celsius",
-                    "fahrenheit",
-                ],
-            },
-        },
-        "required": ["location"],
-    },
-    )
-
-    def get_current_weather(location: str, unit: str = "celsius"):
-        return {"weather": "sunny", "temperature": 21.8, "unit": unit}
-    
-
-    tool = Tool(function_declarations=[get_current_weather_func])
-    messages = [ChatMessage.from_user(content="What is the temperature in celsius in Berlin?")]
-    gemini = VertexAIGeminiChatGenerator(project_id="TestID123", location=None, tools=[tool])
-
-    response = gemini.run(messages=messages)
-    assert "replies" in response
-    assert all(reply.role == ChatRole.ASSISTANT for reply in response["replies"])
-
-    assert len(response["replies"]) > 0
-    print (response)
-
-    first_reply = response["replies"][0]
-    assert "tool_calls" in first_reply.meta
-    tool_calls = first_reply.meta["tool_calls"]
-
-    

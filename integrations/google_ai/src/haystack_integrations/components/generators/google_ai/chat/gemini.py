@@ -312,16 +312,20 @@ class GoogleAIGeminiChatGenerator:
         :returns: The extracted responses.
         """
         replies = []
+        metadata = response_body.to_dict()
+        [candidate.pop("content", None) for candidate in metadata["candidates"]]
         for candidate in response_body.candidates:
             for part in candidate.content.parts:
                 if part.text != "":
-                    replies.append(ChatMessage.from_assistant(part.text))
+                    replies.append(ChatMessage(content=part.text, role=ChatRole.ASSISTANT, name=None, meta=metadata))
                 elif part.function_call is not None:
+                    metadata["function_call"] = part.function_call
                     replies.append(
                         ChatMessage(
                             content=dict(part.function_call.args.items()),
                             role=ChatRole.ASSISTANT,
                             name=part.function_call.name,
+                            meta=metadata,
                         )
                     )
         return replies
@@ -336,27 +340,32 @@ class GoogleAIGeminiChatGenerator:
         :param streaming_callback: The handler for the streaming response.
         :returns: The extracted response with the content of all streaming chunks.
         """
-        responses: Union[List[str], List[ChatMessage]] = []
+        replies: Union[List[str], List[ChatMessage]] = []
+        metadata = stream.to_dict()
+
+        for candidate in metadata.get("candidates", []):
+            candidate.pop("content", None)
+
         for chunk in stream:
             for candidate in chunk.candidates:
                 for part in candidate.content.parts:
                     if part.text != "":
-                        content = part.text
-                        responses.append(content)
+                        replies.append(part.text)
                     elif part.function_call is not None:
-                        content = dict(part.function_call.args.items())
-                        responses.append(
+                        metadata["function_call"] = part.function_call
+                        replies.append(
                             ChatMessage(
                                 content=dict(part.function_call.args.items()),
                                 role=ChatRole.ASSISTANT,
                                 name=part.function_call.name,
+                                meta=metadata,
                             )
                         )
 
-                streaming_callback(StreamingChunk(content=content, meta=chunk.to_dict()))
+                streaming_callback(StreamingChunk(content=part.text, meta=chunk.to_dict()))
 
-        if isinstance(responses[0], ChatMessage):
-            return responses
+        if isinstance(replies[0], ChatMessage):
+            return replies
 
-        combined_response = "".join(responses).lstrip()
+        combined_response = "".join(replies).lstrip()
         return [ChatMessage.from_assistant(content=combined_response)]
