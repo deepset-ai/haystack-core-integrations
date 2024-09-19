@@ -341,16 +341,15 @@ class GoogleAIGeminiChatGenerator:
         :returns: The extracted response with the content of all streaming chunks.
         """
         replies: Union[List[str], List[ChatMessage]] = []
-        metadata = stream.to_dict()
-
-        for candidate in metadata.get("candidates", []):
-            candidate.pop("content", None)
 
         for chunk in stream:
+            metadata = chunk.to_dict()
             for candidate in chunk.candidates:
                 for part in candidate.content.parts:
                     if part.text != "":
-                        replies.append(part.text)
+                        replies.append(
+                            ChatMessage(content=part.text, role=ChatRole.ASSISTANT, meta=metadata, name=None)
+                        )
                     elif part.function_call is not None:
                         metadata["function_call"] = part.function_call
                         replies.append(
@@ -363,9 +362,4 @@ class GoogleAIGeminiChatGenerator:
                         )
 
                 streaming_callback(StreamingChunk(content=part.text, meta=chunk.to_dict()))
-
-        if isinstance(replies[0], ChatMessage):
-            return replies
-
-        combined_response = "".join(replies).lstrip()
-        return [ChatMessage.from_assistant(content=combined_response)]
+        return replies

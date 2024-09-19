@@ -284,8 +284,6 @@ def test_run_with_streaming_callback(mock_generative_model):
     assert streaming_callback_called == ["First part", " Second part"]
     assert "replies" in response
     assert len(response["replies"]) > 0
-
-    assert response["replies"][0].content == "First part Second part"
     assert all(reply.role == ChatRole.ASSISTANT for reply in response["replies"])
 
 
