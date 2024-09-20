@@ -268,7 +268,7 @@ class PgvectorDocumentStore:
         create_sql = SQL(CREATE_TABLE_STATEMENT).format(
             schema_name=Identifier(self.schema_name),
             table_name=Identifier(self.table_name),
-            embedding_dimension=SQLLiteral(self.embedding_dimension)
+            embedding_dimension=SQLLiteral(self.embedding_dimension),
         )
 
         self._execute_sql(create_sql, error_msg="Could not create table in PgvectorDocumentStore")
@@ -281,12 +281,12 @@ class PgvectorDocumentStore:
         """
         delete_sql = SQL("DROP TABLE IF EXISTS {schema_name}.{table_name}").format(
             schema_name=Identifier(self.schema_name),
-            table_name=Identifier(self.table_name)
+            table_name=Identifier(self.table_name),
         )
 
         self._execute_sql(
             delete_sql,
-            error_msg=f"Could not delete table {self.schema_name}.{self.table_name} in PgvectorDocumentStore"
+            error_msg=f"Could not delete table {self.schema_name}.{self.table_name} in PgvectorDocumentStore",
         )
 
     def _create_keyword_index_if_not_exists(self):
@@ -364,7 +364,7 @@ class PgvectorDocumentStore:
             schema_name=Identifier(self.schema_name),
             index_name=Identifier(self.hnsw_index_name),
             table_name=Identifier(self.table_name),
-            ops=SQL(pg_ops)
+            ops=SQL(pg_ops),
         )
 
         if actual_hnsw_index_creation_kwargs:
@@ -384,8 +384,7 @@ class PgvectorDocumentStore:
         """
 
         sql_count = SQL("SELECT COUNT(*) FROM {schema_name}.{table_name}").format(
-            schema_name=Identifier(self.schema_name),
-            table_name=Identifier(self.table_name)
+            schema_name=Identifier(self.schema_name), table_name=Identifier(self.table_name)
         )
 
         count = self._execute_sql(sql_count, error_msg="Could not count documents in PgvectorDocumentStore").fetchone()[
@@ -413,8 +412,7 @@ class PgvectorDocumentStore:
                 raise ValueError(msg)
 
         sql_filter = SQL("SELECT * FROM {schema_name}.{table_name}").format(
-            schema_name=Identifier(self.schema_name),
-            table_name=Identifier(self.table_name)
+            schema_name=Identifier(self.schema_name), table_name=Identifier(self.table_name)
         )
 
         params = ()
@@ -455,8 +453,7 @@ class PgvectorDocumentStore:
         db_documents = self._from_haystack_to_pg_documents(documents)
 
         sql_insert = SQL(INSERT_STATEMENT).format(
-            schema_name=Identifier(self.schema_name),
-            table_name=Identifier(self.table_name)
+            schema_name=Identifier(self.schema_name), table_name=Identifier(self.table_name)
         )
 
         if policy == DuplicatePolicy.OVERWRITE:
@@ -567,9 +564,9 @@ class PgvectorDocumentStore:
         document_ids_str = ", ".join(f"'{document_id}'" for document_id in document_ids)
 
         delete_sql = SQL("DELETE FROM {schema_name}.{table_name} WHERE id IN ({document_ids_str})").format(
-            schema_name=Identifier(self.schema_name),
+            schema_name=Identifier(self.schema_name), 
             table_name=Identifier(self.table_name),
-            document_ids_str=SQL(document_ids_str)
+            document_ids_str=SQL(document_ids_str),
         )
 
         self._execute_sql(delete_sql, error_msg="Could not delete documents from PgvectorDocumentStore")
