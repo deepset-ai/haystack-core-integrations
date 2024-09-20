@@ -237,7 +237,7 @@ class VertexAIGeminiChatGenerator:
                     replies.append(
                         ChatMessage(content=part._raw_part.text, role=ChatRole.ASSISTANT, name=None, meta=metadata)
                     )
-                elif part.function_call is not None:
+                elif part.function_call:
                     metadata["function_call"] = part.function_call
                     replies.append(
                         ChatMessage(
@@ -260,21 +260,28 @@ class VertexAIGeminiChatGenerator:
         :returns: The extracted response with the content of all streaming chunks.
         """
         replies = []
+
+        content: Union[str, Dict[Any, Any]] = ""
         for chunk in stream:
             metadata = chunk.to_dict()
-            streaming_chunk = StreamingChunk(content=chunk.text, meta=chunk.to_dict())
+            for candidate in chunk.candidates:
+                for part in candidate.content.parts:
+
+                    if part._raw_part.text:
+                        content = chunk.text
+                        replies.append(ChatMessage(content, role=ChatRole.ASSISTANT, name=None, meta=metadata))
+                    elif part.function_call:
+                        metadata["function_call"] = part.function_call
+                        content = dict(part.function_call.args.items())
+                        replies.append(
+                            ChatMessage(
+                                content=content,
+                                role=ChatRole.ASSISTANT,
+                                name=part.function_call.name,
+                                meta=metadata,
+                            )
+                        )
+            streaming_chunk = StreamingChunk(content=content, meta=chunk.to_dict())
             streaming_callback(streaming_chunk)
 
-            if chunk.text != "":
-                replies.append(ChatMessage(chunk.text, role=ChatRole.ASSISTANT, name=None, meta=metadata))
-            elif chunk.function_call is not None:
-                metadata["function_call"] = chunk.function_call
-                replies.append(
-                    ChatMessage(
-                        content=dict(chunk.function_call.args.items()),
-                        role=ChatRole.ASSISTANT,
-                        name=chunk.function_call.name,
-                        meta=metadata,
-                    )
-                )
         return replies

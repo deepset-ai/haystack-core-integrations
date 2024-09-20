@@ -269,7 +269,7 @@ def test_run_with_streaming_callback():
     response = gemini_chat.run(messages=messages)
     assert "replies" in response
     assert len(response["replies"]) > 0
-    assert all(reply.role == ChatRole.SYSTEM for reply in response["replies"])
+    assert all(reply.role == ChatRole.ASSISTANT for reply in response["replies"])
 
 
 @pytest.mark.skipif(not os.environ.get("GOOGLE_API_KEY", None), reason="GOOGLE_API_KEY env var not set")
