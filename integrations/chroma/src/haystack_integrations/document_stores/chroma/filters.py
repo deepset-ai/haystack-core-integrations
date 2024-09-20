@@ -22,9 +22,17 @@ OPERATORS = {
 }
 
 
-# dataclass to hold the Chroma filter structure
 @dataclass
 class ChromaFilter:
+    """
+    Dataclass to store the converted filter structure used in Chroma queries.
+
+    Following filter criterias are supported:
+    - `ids`: A list of document IDs to filter by in Chroma collection.
+    - `where`: A dictionary of metadata filters applied to the documents.
+    - `where_document`: A dictionary of content-based filters applied to the documents' content.
+    """
+
     ids: List[str]
     where: Dict[str, Any]
     where_document: Dict[str, Any]
@@ -44,8 +52,11 @@ def _convert_filters(filters: Dict[str, Any]) -> ChromaFilter:
     for field, value in converted_filters.items():
         if value is None:
             continue
-        # we first check if filter is a document filter
-        # if where_document is not empty, we can skip rest of the loop
+
+        # Chroma differentiates between metadata filters and content filters,
+        # with each filter applying to only one type.
+        # If 'where_document' is populated, it's a content filter.
+        # In this case, we skip further processing of metadata filters for this field.
         where_document.update(_create_where_document_filter(field, value))
         if where_document:
             continue
@@ -98,7 +109,7 @@ def _create_where_document_filter(field: str, value: Dict[Any, Any]) -> Dict[str
     if field == "content":
         return value
     # In case of a logical operator, check if the given filters contain "content"
-    # Then combine the filters into a single where_document filter to pas to Chroma
+    # Then combine the filters into a single where_document filter to pass to Chroma
     if field in ["$and", "$or"] and value[0].get("content"):
         # Use list comprehension to populate the field without modifying the original structure
         document_filters = [
