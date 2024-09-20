@@ -278,7 +278,7 @@ class PgvectorDocumentStore:
         Deletes the table used to store Haystack documents.
         The name of the schema (`schema_name`) and the name of the table (`table_name`)
         are defined when initializing the `PgvectorDocumentStore`.
-        """        
+        """
         delete_sql = SQL("DROP TABLE IF EXISTS {schema_name}.{table_name}").format(
             schema_name=Identifier(self.schema_name),
             table_name=Identifier(self.table_name)
