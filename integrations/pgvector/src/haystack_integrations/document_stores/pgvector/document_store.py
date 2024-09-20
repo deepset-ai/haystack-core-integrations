@@ -276,16 +276,19 @@ class PgvectorDocumentStore:
     def delete_table(self):
         """
         Deletes the table used to store Haystack documents.
-        The name of the schema (`schema_name`) and the name of the table (`table_name`) 
+        The name of the schema (`schema_name`) and the name of the table (`table_name`)
         are defined when initializing the `PgvectorDocumentStore`.
         """
-
+        
         delete_sql = SQL("DROP TABLE IF EXISTS {schema_name}.{table_name}").format(
-            schema_name=Identifier(self.schema_name), 
+            schema_name=Identifier(self.schema_name),
             table_name=Identifier(self.table_name)
         )
 
-        self._execute_sql(delete_sql, error_msg=f"Could not delete table {self.schema_name}.{self.table_name} in PgvectorDocumentStore")
+        self._execute_sql(
+            delete_sql, 
+            error_msg=f"Could not delete table {self.schema_name}.{self.table_name} in PgvectorDocumentStore"
+        )
 
     def _create_keyword_index_if_not_exists(self):
         """
@@ -356,7 +359,9 @@ class PgvectorDocumentStore:
             if key in HNSW_INDEX_CREATION_VALID_KWARGS
         }
 
-        sql_create_index = SQL("CREATE INDEX {index_name} ON {schema_name}.{table_name} USING hnsw (embedding {ops}) ").format(
+        sql_create_index = SQL(
+            "CREATE INDEX {index_name} ON {schema_name}.{table_name} USING hnsw (embedding {ops}) "
+        ).format(
             schema_name=Identifier(self.schema_name),
             index_name=Identifier(self.hnsw_index_name),
             table_name=Identifier(self.table_name),
