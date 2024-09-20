@@ -229,10 +229,12 @@ class VertexAIGeminiChatGenerator:
         :param response_body: The response from Vertex AI request.
         :returns: The extracted responses.
         """
-        replies = []
+        replies: List[ChatMessage] = []
         for candidate in response_body.candidates:
-            metadata = candidate.to_dict()
             for part in candidate.content.parts:
+                # Remove content from metadata
+                metadata = part.to_dict()
+                metadata.pop("content", None)
                 if part._raw_part.text != "":
                     replies.append(
                         ChatMessage(content=part._raw_part.text, role=ChatRole.ASSISTANT, name=None, meta=metadata)
@@ -259,14 +261,13 @@ class VertexAIGeminiChatGenerator:
         :param streaming_callback: The handler for the streaming response.
         :returns: The extracted response with the content of all streaming chunks.
         """
-        replies = []
+        replies: List[ChatMessage] = []
+        content: Union[str, Dict[str, Any]] = ""
 
-        content: Union[str, Dict[Any, Any]] = ""
         for chunk in stream:
-            metadata = chunk.to_dict()
+            metadata = chunk.to_dict()  # we store whole chunk as metadata for streaming
             for candidate in chunk.candidates:
                 for part in candidate.content.parts:
-
                     if part._raw_part.text:
                         content = chunk.text
                         replies.append(ChatMessage(content, role=ChatRole.ASSISTANT, name=None, meta=metadata))
@@ -281,7 +282,7 @@ class VertexAIGeminiChatGenerator:
                                 meta=metadata,
                             )
                         )
-            streaming_chunk = StreamingChunk(content=content, meta=chunk.to_dict())
+            streaming_chunk = StreamingChunk(content=content, meta=metadata)
             streaming_callback(streaming_chunk)
 
         return replies
