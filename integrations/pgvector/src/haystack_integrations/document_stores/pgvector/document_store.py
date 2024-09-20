@@ -564,7 +564,7 @@ class PgvectorDocumentStore:
         document_ids_str = ", ".join(f"'{document_id}'" for document_id in document_ids)
 
         delete_sql = SQL("DELETE FROM {schema_name}.{table_name} WHERE id IN ({document_ids_str})").format(
-            schema_name=Identifier(self.schema_name), 
+            schema_name=Identifier(self.schema_name),
             table_name=Identifier(self.table_name),
             document_ids_str=SQL(document_ids_str),
         )
