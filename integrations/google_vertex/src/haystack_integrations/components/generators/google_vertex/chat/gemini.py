@@ -231,9 +231,9 @@ class VertexAIGeminiChatGenerator:
         """
         replies: List[ChatMessage] = []
         for candidate in response_body.candidates:
+            metadata = candidate.to_dict()
             for part in candidate.content.parts:
                 # Remove content from metadata
-                metadata = part.to_dict()
                 metadata.pop("content", None)
                 if part._raw_part.text != "":
                     replies.append(
