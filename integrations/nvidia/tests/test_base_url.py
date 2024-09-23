@@ -1,4 +1,5 @@
 import pytest
+
 from haystack_integrations.components.embedders.nvidia import NvidiaDocumentEmbedder, NvidiaTextEmbedder
 from haystack_integrations.components.generators.nvidia import NvidiaGenerator
 from haystack_integrations.components.rankers.nvidia import NvidiaRanker

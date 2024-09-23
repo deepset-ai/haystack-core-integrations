@@ -1,4 +1,5 @@
 import pytest
+
 from haystack_integrations.components.embedders.nvidia import EmbeddingTruncateMode
 
 

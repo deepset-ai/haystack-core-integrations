@@ -3,6 +3,7 @@ from typing import Any, Dict, List, Optional, Union
 
 from haystack import component, default_from_dict, default_to_dict
 from haystack.utils import Secret, deserialize_secrets_inplace
+
 from haystack_integrations.utils.nvidia import Model, NimBackend, is_hosted, url_validation, validate_hosted_model
 
 from .truncate import EmbeddingTruncateMode

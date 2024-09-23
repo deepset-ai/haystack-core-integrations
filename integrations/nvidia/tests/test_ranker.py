@@ -5,6 +5,7 @@ from typing import Any, Optional, Union
 import pytest
 from haystack import Document
 from haystack.utils import Secret
+
 from haystack_integrations.components.rankers.nvidia import NvidiaRanker
 from haystack_integrations.components.rankers.nvidia.ranker import _DEFAULT_MODEL
 from haystack_integrations.components.rankers.nvidia.truncate import RankerTruncateMode
