@@ -169,6 +169,9 @@ class TestCohereChatGenerator:
         assert len(results["replies"]) == 1
         message: ChatMessage = results["replies"][0]
         assert "Paris" in message.content
+        assert "usage" in message.meta
+        assert "prompt_tokens" in message.meta["usage"]
+        assert "completion_tokens" in message.meta["usage"]
 
     @pytest.mark.skipif(
         not os.environ.get("COHERE_API_KEY", None) and not os.environ.get("CO_API_KEY", None),
@@ -209,6 +212,10 @@ class TestCohereChatGenerator:
 
         assert callback.counter > 1
         assert "Paris" in callback.responses
+
+        assert "usage" in message.meta
+        assert "prompt_tokens" in message.meta["usage"]
+        assert "completion_tokens" in message.meta["usage"]
 
     @pytest.mark.skipif(
         not os.environ.get("COHERE_API_KEY", None) and not os.environ.get("CO_API_KEY", None),

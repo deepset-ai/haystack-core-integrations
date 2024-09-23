@@ -1,6 +1,10 @@
 # Changelog
 
-## [unreleased]
+## [integrations/langfuse-v0.4.0] - 2024-09-17
+
+### 🚀 Features
+
+- Langfuse - support generation span for more LLMs (#1087)
 
 ### 🚜 Refactor
 
