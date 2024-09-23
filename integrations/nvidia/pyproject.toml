@@ -48,7 +48,9 @@ dependencies = [
   "pytest-rerunfailures",
   "haystack-pydoc-tools",
   "requests_mock",
+  "tritonclient[http,grpc]",
 ]
+
 [tool.hatch.envs.default.scripts]
 test = "pytest {args:tests}"
 test-cov = "coverage run -m pytest {args:tests}"
@@ -70,7 +72,7 @@ style = [
   "ruff check {args:. --exclude tests/}",
   "black --check --diff {args:.}",
 ]
-fmt = ["black {args:.}", "ruff --fix {args:. --exclude tests/}", "style"]
+fmt = ["black {args:.}", "ruff check --fix {args:. --exclude tests/}", "style"]
 all = ["style", "typing"]
 
 [tool.black]
@@ -160,6 +162,7 @@ module = [
   "numpy.*",
   "requests_mock.*",
   "pydantic.*",
+  "tritonclient.*",
 ]
 ignore_missing_imports = true
 

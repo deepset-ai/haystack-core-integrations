@@ -71,8 +71,21 @@ class TestNvidiaDocumentEmbedder:
                 "meta_fields_to_embed": [],
                 "embedding_separator": "\n",
                 "truncate": None,
+                "backend": "nim",
             },
         }
+
+    @pytest.mark.parametrize("backend", ["triton-http", "triton-grpc"])
+    def test_init_with_triton_backend(self, monkeypatch, backend: str):
+        monkeypatch.setenv("NVIDIA_API_KEY", "fake-api-key")
+        embedder = NvidiaDocumentEmbedder(backend=backend, model="my-triton-model", api_url="localhost:8000")
+
+        assert embedder.api_key == Secret.from_env_var("NVIDIA_API_KEY")
+        assert embedder.api_url == "localhost:8000"
+        assert embedder.model == "my-triton-model"
+        assert embedder.prefix == ""
+        assert embedder.suffix == ""
+        assert embedder._backend == backend
 
     def test_to_dict_with_custom_init_parameters(self, monkeypatch):
         monkeypatch.setenv("NVIDIA_API_KEY", "fake-api-key")
@@ -101,6 +114,7 @@ class TestNvidiaDocumentEmbedder:
                 "meta_fields_to_embed": ["test_field"],
                 "embedding_separator": " | ",
                 "truncate": "END",
+                "backend": "nim",
             },
         }
 
@@ -402,6 +416,43 @@ class TestNvidiaDocumentEmbedder:
             model=model,
             **({"api_url": api_url} if api_url else {}),
             api_key=Secret.from_env_var("NVIDIA_API_KEY"),
+        )
+        embedder.warm_up()
+
+        docs = [
+            Document(content="I love cheese", meta={"topic": "Cuisine"}),
+            Document(content="A transformer is a deep learning architecture", meta={"topic": "ML"}),
+        ]
+
+        result = embedder.run(docs)
+        docs_with_embeddings = result["documents"]
+
+        assert isinstance(docs_with_embeddings, list)
+        assert len(docs_with_embeddings) == len(docs)
+        for doc in docs_with_embeddings:
+            assert isinstance(doc.embedding, list)
+            assert isinstance(doc.embedding[0], float)
+
+    @pytest.mark.skipif(
+        not os.environ.get("NVIDIA_TRITON_EMBEDDER_MODEL", None)
+        or not os.environ.get(
+            "NVIDIA_TRITON_HTTP_ENDPOINT_URL", os.environ.get("NVIDIA_TRITON_GRPC_ENDPOINT_URL", None)
+        ),
+        reason="Export an env var called NVIDIA_TRITON_EMBEDDER_MODEL containing the hosted model name and "
+        "NVIDIA_TRITON_HTTP_ENDPOINT_URL or NVIDIA_TRITON_GRPC_ENDPOINT_URL containing the local URL to call.",
+    )
+    @pytest.mark.parametrize("backend", ["triton-http", "triton-grpc"])
+    @pytest.mark.integration
+    def test_run_integration_with_triton_backend(self, backend: str):
+        model = os.environ["NVIDIA_TRITON_EMBEDDER_MODEL"]
+        url = os.environ[
+            "NVIDIA_TRITON_HTTP_ENDPOINT_URL" if backend == "triton-http" else "NVIDIA_TRITON_GRPC_ENDPOINT_URL"
+        ]
+        embedder = NvidiaDocumentEmbedder(
+            model=model,
+            api_url=url,
+            api_key=None,
+            backend=backend,
         )
         embedder.warm_up()
 

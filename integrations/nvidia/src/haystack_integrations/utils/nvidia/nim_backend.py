@@ -1,27 +1,10 @@
-from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple
 
 import requests
 from haystack import Document
 from haystack.utils import Secret
 
-REQUEST_TIMEOUT = 60
-
-
-@dataclass
-class Model:
-    """
-    Model information.
-
-    id: unique identifier for the model, passed as model parameter for requests
-    aliases: list of aliases for the model
-    base_model: root model for the model
-    All aliases are deprecated and will trigger a warning when used.
-    """
-
-    id: str
-    aliases: Optional[List[str]] = field(default_factory=list)
-    base_model: Optional[str] = None
+from haystack_integrations.utils.nvidia.utils import REQUEST_TIMEOUT, Model
 
 
 class NimBackend:
@@ -31,6 +14,7 @@ class NimBackend:
         api_url: str,
         api_key: Optional[Secret] = Secret.from_env_var("NVIDIA_API_KEY"),
         model_kwargs: Optional[Dict[str, Any]] = None,
+        timeout: Optional[float] = None,
     ):
         headers = {
             "Content-Type": "application/json",
@@ -47,6 +31,10 @@ class NimBackend:
         self.api_url = api_url
         self.model_kwargs = model_kwargs or {}
 
+        if timeout is None:
+            timeout = REQUEST_TIMEOUT
+        self.timeout = timeout
+
     def embed(self, texts: List[str]) -> Tuple[List[List[float]], Dict[str, Any]]:
         url = f"{self.api_url}/embeddings"
 
@@ -57,7 +45,7 @@ class NimBackend:
                 "input": texts,
                 **self.model_kwargs,
             },
-            timeout=REQUEST_TIMEOUT,
+            timeout=self.timeout,
         )
         res.raise_for_status()
 
@@ -85,7 +73,7 @@ class NimBackend:
                 ],
                 **self.model_kwargs,
             },
-            timeout=REQUEST_TIMEOUT,
+            timeout=self.timeout,
         )
         res.raise_for_status()
 
@@ -120,7 +108,7 @@ class NimBackend:
 
         res = self.session.get(
             url,
-            timeout=REQUEST_TIMEOUT,
+            timeout=self.timeout,
         )
         res.raise_for_status()
 
@@ -147,7 +135,7 @@ class NimBackend:
                 "passages": [{"text": doc.content} for doc in documents],
                 **self.model_kwargs,
             },
-            timeout=REQUEST_TIMEOUT,
+            timeout=self.timeout,
         )
         res.raise_for_status()
 
