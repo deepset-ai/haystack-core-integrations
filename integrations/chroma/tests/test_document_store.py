@@ -50,6 +50,30 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, LegacyFilterDoc
             get_func.return_value = _TestEmbeddingFunction()
             return ChromaDocumentStore(embedding_function="test_function", collection_name=str(uuid.uuid1()))
 
+    @pytest.mark.parametrize(
+        "persist_path, host, port, expected_client_type",
+        [
+            (None, None, None, "in_memory"),  # In-memory storage
+            ("./path/to/local/store", None, None, "persistent"),  # Local persistent storage
+            (None, "localhost", 8000, "http"),  # Remote HTTP client
+        ]
+    )
+    def test_constructor_options(self, persist_path, host, port, expected_client_type):
+        """
+        Test different constructor options for ChromaDocumentStore
+        """
+        store = ChromaDocumentStore(persist_path=persist_path, host=host, port=port)
+
+        # Validate the type of client initialized by checking the client_type flag
+        assert store._client_type == expected_client_type, f"Expected {expected_client_type} client, got {store._client_type}"
+
+    def test_invalid_initialization_both_host_and_persist_path(self):
+        """
+        Test that providing both host and persist_path raises an error.
+        """
+        with pytest.raises(ValueError, match="You cannot provide both `persist_path` and `host`"):
+            ChromaDocumentStore(persist_path="./path/to/local/store", host="localhost")
+
     def assert_documents_are_equal(self, received: List[Document], expected: List[Document]):
         """
         Assert that two lists of Documents are equal.
@@ -145,6 +169,29 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, LegacyFilterDoc
             "type": "haystack_integrations.document_stores.chroma.document_store.ChromaDocumentStore",
             "init_parameters": {
                 "collection_name": "test_to_json",
+                "embedding_function": "HuggingFaceEmbeddingFunction",
+                "persist_path": None,
+                "host": None,
+                "port": None,
+                "api_key": "1234567890",
+                "distance_function": "l2",
+            },
+        }
+
+    @pytest.mark.integration
+    def test_to_json_http(self, request):
+        ds = ChromaDocumentStore(
+            host = "localhost",
+            port = 8000,
+            collection_name=request.node.name, embedding_function="HuggingFaceEmbeddingFunction", api_key="1234567890"
+        )
+        ds_dict = ds.to_dict()
+        assert ds_dict == {
+            "type": "haystack_integrations.document_stores.chroma.document_store.ChromaDocumentStore",
+            "init_parameters": {
+                "collection_name": "test_to_json_http",
+                "host": "localhost",
+                "port": 8000,
                 "embedding_function": "HuggingFaceEmbeddingFunction",
                 "persist_path": None,
                 "api_key": "1234567890",

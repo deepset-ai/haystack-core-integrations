@@ -56,6 +56,9 @@ jobs:
         if: matrix.python-version == '3.9' && runner.os == 'Linux'
         run: hatch run docs
 
+      - name: Start the Chroma Server
+        run: hatch run chroma run
+
       - name: Run tests
         run: hatch run cov-retry
 
