@@ -63,8 +63,9 @@ jobs:
 
       - name: Start Chroma on Windows
         if: runner.os == 'Windows'
+        shell: pwsh
         run: |
-          start /B cmd /c "hatch run chroma run"
+          Start-Process -NoNewWindow -FilePath "hatch" -ArgumentList "run chroma run"
 
       - name: Run tests
         run: hatch run cov-retry
