@@ -90,7 +90,7 @@ class VertexAIGeminiGenerator:
             [Tool](https://cloud.google.com/python/docs/reference/aiplatform/latest/vertexai.generative_models.Tool)
             the list of supported arguments.
         :param tool_config: The tool config to use. See the documentation for [ToolConfig](https://cloud.google.com/vertex-ai/generative-ai/docs/reference/python/latest/vertexai.generative_models.ToolConfig)
-        :param system_instruction: Default system instruction to use in generate_content.
+        :param system_instruction: Default system instruction to use for generating content.
         :param streaming_callback: A callback function that is called when a new token is received from the stream.
             The callback function accepts StreamingChunk as an argument.
         """
@@ -134,8 +134,6 @@ class VertexAIGeminiGenerator:
 
         return config_dict
 
-    
-
     def to_dict(self) -> Dict[str, Any]:
         """
         Serializes the component to a dictionary.
@@ -177,12 +175,14 @@ class VertexAIGeminiGenerator:
         """
 
         def _tool_config_from_dict(config_dict: Dict[str, Any]) -> Tool:
-            """Serializes the ToolConfig object into a dictionary."""
+            """Deserializes the ToolConfig object from a dictionary."""
+
             allowed_function_names = config_dict["function_calling_config"].get("allowed_function_names")
+            mode = config_dict["function_calling_config"]["mode"]
             if allowed_function_names:
                 tool_config = ToolConfig(
                     function_calling_config=ToolConfig.FunctionCallingConfig(
-                        mode=config_dict["function_calling_config"]["mode"],
+                        mode=mode,
                         allowed_function_names=allowed_function_names,
                     )
                 )
@@ -193,13 +193,12 @@ class VertexAIGeminiGenerator:
                     )
                 )
             return tool_config
-        
+
         if (tools := data["init_parameters"].get("tools")) is not None:
             data["init_parameters"]["tools"] = [Tool.from_dict(t) for t in tools]
         if (generation_config := data["init_parameters"].get("generation_config")) is not None:
             data["init_parameters"]["generation_config"] = GenerationConfig.from_dict(generation_config)
         if (tool_config := data["init_parameters"].get("tool_config")) is not None:
-            print (tool_config)
             data["init_parameters"]["tool_config"] = _tool_config_from_dict(tool_config)
         if (serialized_callback_handler := data["init_parameters"].get("streaming_callback")) is not None:
             data["init_parameters"]["streaming_callback"] = deserialize_callable(serialized_callback_handler)

@@ -9,6 +9,7 @@ from vertexai.generative_models import (
     HarmBlockThreshold,
     HarmCategory,
     Tool,
+    ToolConfig,
 )
 
 from haystack_integrations.components.generators.google_vertex import VertexAIGeminiGenerator
@@ -80,6 +81,8 @@ def test_to_dict(_mock_vertexai_init, _mock_generative_model):
             "safety_settings": None,
             "streaming_callback": None,
             "tools": None,
+            "tool_config": None,
+            "system_instruction": None,
         },
     }
 
@@ -98,12 +101,20 @@ def test_to_dict_with_params(_mock_vertexai_init, _mock_generative_model):
     safety_settings = {HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_ONLY_HIGH}
 
     tool = Tool(function_declarations=[GET_CURRENT_WEATHER_FUNC])
+    tool_config = ToolConfig(
+        function_calling_config=ToolConfig.FunctionCallingConfig(
+            mode=ToolConfig.FunctionCallingConfig.Mode.ANY,
+            allowed_function_names=["get_current_weather_func"],
+        )
+    )
 
     gemini = VertexAIGeminiGenerator(
         project_id="TestID123",
         generation_config=generation_config,
         safety_settings=safety_settings,
         tools=[tool],
+        tool_config=tool_config,
+        system_instruction="Please provide brief answers.",
     )
     assert gemini.to_dict() == {
         "type": "haystack_integrations.components.generators.google_vertex.gemini.VertexAIGeminiGenerator",
@@ -142,6 +153,13 @@ def test_to_dict_with_params(_mock_vertexai_init, _mock_generative_model):
                     ]
                 }
             ],
+            "tool_config": {
+                "function_calling_config": {
+                    "mode": ToolConfig.FunctionCallingConfig.Mode.ANY,
+                    "allowed_function_names": ["get_current_weather_func"],
+                }
+            },
+            "system_instruction": "Please provide brief answers.",
         },
     }
 
@@ -159,6 +177,8 @@ def test_from_dict(_mock_vertexai_init, _mock_generative_model):
                 "safety_settings": None,
                 "tools": None,
                 "streaming_callback": None,
+                "tool_config": None,
+                "system_instruction": None,
             },
         }
     )
@@ -210,6 +230,13 @@ def test_from_dict_with_param(_mock_vertexai_init, _mock_generative_model):
                     }
                 ],
                 "streaming_callback": None,
+                "tool_config": {
+                    "function_calling_config": {
+                        "mode": ToolConfig.FunctionCallingConfig.Mode.ANY,
+                        "allowed_function_names": ["get_current_weather_func"],
+                    }
+                },
+                "system_instruction": "Please provide brief answers.",
             },
         }
     )
@@ -219,6 +246,11 @@ def test_from_dict_with_param(_mock_vertexai_init, _mock_generative_model):
     assert gemini._safety_settings == {HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_ONLY_HIGH}
     assert repr(gemini._tools) == repr([Tool(function_declarations=[GET_CURRENT_WEATHER_FUNC])])
     assert isinstance(gemini._generation_config, GenerationConfig)
+    assert isinstance(gemini._tool_config, ToolConfig)
+    assert gemini._system_instruction == "Please provide brief answers."
+    assert (
+        gemini._tool_config._gapic_tool_config.function_calling_config.mode == ToolConfig.FunctionCallingConfig.Mode.ANY
+    )
 
 
 @patch("haystack_integrations.components.generators.google_vertex.gemini.GenerativeModel")
