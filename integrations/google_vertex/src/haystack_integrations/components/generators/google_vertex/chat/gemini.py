@@ -229,17 +229,24 @@ class VertexAIGeminiChatGenerator:
         :param response_body: The response from Vertex AI request.
         :returns: The extracted responses.
         """
-        replies = []
+        replies: List[ChatMessage] = []
         for candidate in response_body.candidates:
+            metadata = candidate.to_dict()
             for part in candidate.content.parts:
+                # Remove content from metadata
+                metadata.pop("content", None)
                 if part._raw_part.text != "":
-                    replies.append(ChatMessage.from_assistant(part.text))
-                elif part.function_call is not None:
+                    replies.append(
+                        ChatMessage(content=part._raw_part.text, role=ChatRole.ASSISTANT, name=None, meta=metadata)
+                    )
+                elif part.function_call:
+                    metadata["function_call"] = part.function_call
                     replies.append(
                         ChatMessage(
                             content=dict(part.function_call.args.items()),
                             role=ChatRole.ASSISTANT,
                             name=part.function_call.name,
+                            meta=metadata,
                         )
                     )
         return replies
@@ -254,11 +261,27 @@ class VertexAIGeminiChatGenerator:
         :param streaming_callback: The handler for the streaming response.
         :returns: The extracted response with the content of all streaming chunks.
         """
-        responses = []
-        for chunk in stream:
-            streaming_chunk = StreamingChunk(content=chunk.text, meta=chunk.to_dict())
-            streaming_callback(streaming_chunk)
-            responses.append(streaming_chunk.content)
+        replies: List[ChatMessage] = []
 
-        combined_response = "".join(responses).lstrip()
-        return [ChatMessage.from_assistant(content=combined_response)]
+        for chunk in stream:
+            content: Union[str, Dict[str, Any]] = ""
+            metadata = chunk.to_dict()  # we store whole chunk as metadata for streaming
+            for candidate in chunk.candidates:
+                for part in candidate.content.parts:
+                    if part._raw_part.text:
+                        content = chunk.text
+                        replies.append(ChatMessage(content, role=ChatRole.ASSISTANT, name=None, meta=metadata))
+                    elif part.function_call:
+                        metadata["function_call"] = part.function_call
+                        content = dict(part.function_call.args.items())
+                        replies.append(
+                            ChatMessage(
+                                content=content,
+                                role=ChatRole.ASSISTANT,
+                                name=part.function_call.name,
+                                meta=metadata,
+                            )
+                        )
+                    streaming_callback(StreamingChunk(content=content, meta=metadata))
+
+        return replies
