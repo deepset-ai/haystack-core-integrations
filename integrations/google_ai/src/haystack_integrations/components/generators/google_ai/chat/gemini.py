@@ -345,8 +345,8 @@ class GoogleAIGeminiChatGenerator:
         :returns: The extracted response with the content of all streaming chunks.
         """
         replies: List[ChatMessage] = []
-        content: Union[str, Dict[str, Any]] = ""
         for chunk in stream:
+            content: Union[str, Dict[str, Any]] = ""
             metadata = chunk.to_dict()  # we store whole chunk as metadata in streaming calls
             for candidate in chunk.candidates:
                 for part in candidate.content.parts:
@@ -365,5 +365,5 @@ class GoogleAIGeminiChatGenerator:
                             )
                         )
 
-                streaming_callback(StreamingChunk(content=content, meta=metadata))
+                    streaming_callback(StreamingChunk(content=content, meta=metadata))
         return replies

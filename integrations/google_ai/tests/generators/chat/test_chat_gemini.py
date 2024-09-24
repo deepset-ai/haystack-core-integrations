@@ -207,7 +207,7 @@ def test_run():
     get_current_weather_func = FunctionDeclaration.from_function(
         get_current_weather,
         descriptions={
-            "location": "The city and state, e.g. San Francisco",
+            "location": "The city, e.g. San Francisco",
             "unit": "The temperature unit of measurement, e.g. celsius or fahrenheit",
         },
     )
@@ -252,7 +252,7 @@ def test_run_with_streaming_callback():
     get_current_weather_func = FunctionDeclaration.from_function(
         get_current_weather,
         descriptions={
-            "location": "The city and state, e.g. San Francisco",
+            "location": "The city, e.g. San Francisco",
             "unit": "The temperature unit of measurement, e.g. celsius or fahrenheit",
         },
     )

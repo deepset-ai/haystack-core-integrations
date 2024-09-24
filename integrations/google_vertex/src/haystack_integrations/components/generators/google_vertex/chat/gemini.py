@@ -262,9 +262,9 @@ class VertexAIGeminiChatGenerator:
         :returns: The extracted response with the content of all streaming chunks.
         """
         replies: List[ChatMessage] = []
-        content: Union[str, Dict[str, Any]] = ""
 
         for chunk in stream:
+            content: Union[str, Dict[str, Any]] = ""
             metadata = chunk.to_dict()  # we store whole chunk as metadata for streaming
             for candidate in chunk.candidates:
                 for part in candidate.content.parts:
@@ -282,7 +282,6 @@ class VertexAIGeminiChatGenerator:
                                 meta=metadata,
                             )
                         )
-            streaming_chunk = StreamingChunk(content=content, meta=metadata)
-            streaming_callback(streaming_chunk)
+                streaming_callback(StreamingChunk(content=content, meta=metadata))
 
         return replies
