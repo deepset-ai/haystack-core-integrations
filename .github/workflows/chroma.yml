@@ -57,7 +57,7 @@ jobs:
         run: hatch run docs
 
       - name: Start the Chroma Server
-        run: hatch run chroma run
+        run: hatch run chroma run &
 
       - name: Run tests
         run: hatch run cov-retry
