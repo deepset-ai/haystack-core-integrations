@@ -64,7 +64,7 @@ jobs:
       - name: Start Chroma on Windows
         if: runner.os == 'Windows'
         run: |
-          start /B hatch run chroma run
+          start /B cmd /c "hatch run chroma run"
 
       - name: Run tests
         run: hatch run cov-retry
