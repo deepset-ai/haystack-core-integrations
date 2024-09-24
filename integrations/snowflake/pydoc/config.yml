@@ -3,7 +3,7 @@ loaders:
     search_path: [../src]
     modules:
       [
-        "haystack_integrations.components.retrievers.snowflake.snowflake_retriever"
+        "haystack_integrations.components.retrievers.snowflake.snowflake_table_retriever",
       ]
     ignore_when_discovered: ["__init__"]
 processors:
