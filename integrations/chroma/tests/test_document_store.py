@@ -56,7 +56,7 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, LegacyFilterDoc
             (None, None, None, "in_memory"),  # In-memory storage
             ("./path/to/local/store", None, None, "persistent"),  # Local persistent storage
             (None, "localhost", 8000, "http"),  # Remote HTTP client
-        ]
+        ],
     )
     def test_constructor_options(self, persist_path, host, port, expected_client_type):
         """
@@ -65,16 +65,20 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, LegacyFilterDoc
         store = ChromaDocumentStore(persist_path=persist_path, host=host, port=port)
 
         # Validate the type of client initialized by checking the client_type flag
-        # Validate the type of client initialized by checking the client_type flag
-        assert store._client_type == expected_client_type, (
-            f"Expected {expected_client_type} client, got {store._client_type}"
-        )
+        assert (
+            store._client_type == expected_client_type
+        ), f"Expected {expected_client_type} client, got {store._client_type}"
 
     def test_invalid_initialization_both_host_and_persist_path(self):
         """
         Test that providing both host and persist_path raises an error.
         """
-        with pytest.raises(ValueError, match="You cannot provide both `persist_path` and `host`"):
+        with pytest.raises(
+            ValueError,
+            match="You must specify `persist_path` for local persistent storage or, "
+            "alternatively, `host` and `port` for remote HTTP client connection. "
+            "You cannot specify both options.",
+        ):
             ChromaDocumentStore(persist_path="./path/to/local/store", host="localhost")
 
     def assert_documents_are_equal(self, received: List[Document], expected: List[Document]):
@@ -184,9 +188,11 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, LegacyFilterDoc
     @pytest.mark.integration
     def test_to_json_http(self, request):
         ds = ChromaDocumentStore(
-            host = "localhost",
-            port = 8000,
-            collection_name=request.node.name, embedding_function="HuggingFaceEmbeddingFunction", api_key="1234567890"
+            host="localhost",
+            port=8000,
+            collection_name=request.node.name,
+            embedding_function="HuggingFaceEmbeddingFunction",
+            api_key="1234567890",
         )
         ds_dict = ds.to_dict()
         assert ds_dict == {
