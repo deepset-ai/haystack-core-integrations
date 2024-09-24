@@ -282,6 +282,6 @@ class VertexAIGeminiChatGenerator:
                                 meta=metadata,
                             )
                         )
-                streaming_callback(StreamingChunk(content=content, meta=metadata))
+                    streaming_callback(StreamingChunk(content=content, meta=metadata))
 
         return replies
