@@ -65,7 +65,10 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, LegacyFilterDoc
         store = ChromaDocumentStore(persist_path=persist_path, host=host, port=port)
 
         # Validate the type of client initialized by checking the client_type flag
-        assert store._client_type == expected_client_type, f"Expected {expected_client_type} client, got {store._client_type}"
+        # Validate the type of client initialized by checking the client_type flag
+        assert store._client_type == expected_client_type, (
+            f"Expected {expected_client_type} client, got {store._client_type}"
+        )
 
     def test_invalid_initialization_both_host_and_persist_path(self):
         """

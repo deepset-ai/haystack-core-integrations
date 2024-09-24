@@ -84,7 +84,11 @@ class ChromaDocumentStore:
         self._distance_function = distance_function
         # Create the client instance
         if persist_path and (host or port is not None):
-            error_message = "You must specify `persist_path` for local persistent storage or, alternatively, `host` and `port` for remote HTTP client connection. You cannot specify both options."
+            error_message = (
+                "You must specify `persist_path` for local persistent storage or, "
+                "alternatively, `host` and `port` for remote HTTP client connection. "
+                "You cannot specify both options."
+            )
             raise ValueError(error_message)
         if host and port is not None:
             # Remote connection via HTTP client
