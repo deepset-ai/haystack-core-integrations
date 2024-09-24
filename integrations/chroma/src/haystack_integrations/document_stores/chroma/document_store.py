@@ -34,8 +34,8 @@ class ChromaDocumentStore:
         collection_name: str = "documents",
         embedding_function: str = "default",
         persist_path: Optional[str] = None,
-        host: Optional[str] = None,  # For remote connection
-        port: Optional[int] = None,  # For remote connection
+        host: Optional[str] = None,
+        port: Optional[int] = None,
         distance_function: Literal["l2", "cosine", "ip"] = "l2",
         metadata: Optional[dict] = None,
         **embedding_function_params,
@@ -51,9 +51,10 @@ class ChromaDocumentStore:
 
         :param collection_name: the name of the collection to use in the database.
         :param embedding_function: the name of the embedding function to use to embed the query
-        :param persist_path: where to store the database. If None, the database will be `in-memory`.
+        :param persist_path: Path for local persistent storage. Cannot be used in combination with `host` and `port`.
+            If none of `persist_path`, `host`, and `port` is specified, the database will be `in-memory`.
         :param host: The host address for the remote Chroma HTTP client connection. Cannot be used with `persist_path`.
-        :param port: The port number for the remote Chroma HTTP client connection. Default is 8000.
+        :param port: The port number for the remote Chroma HTTP client connection. Cannot be used with `persist_path`.
         :param distance_function: The distance metric for the embedding space.
             - `"l2"` computes the Euclidean (straight-line) distance between vectors,
             where smaller scores indicate more similarity.
@@ -82,22 +83,21 @@ class ChromaDocumentStore:
         self._embedding_function_params = embedding_function_params
         self._distance_function = distance_function
         # Create the client instance
-        # Ensure only one of persist_path or host is provided
-        if persist_path and host:
-            error_message = "You cannot provide both `persist_path` and `host`. Please choose one."
+        if persist_path and (host or port is not None):
+            error_message = "You must specify `persist_path` for local persistent storage or, alternatively, `host` and `port` for remote HTTP client connection. You cannot specify both options."
             raise ValueError(error_message)
-        if host:
+        if host and port is not None:
             # Remote connection via HTTP client
             self._chroma_client = chromadb.HttpClient(
                 host=host,
-                port=port or 8000,
+                port=port,
             )
             self._host = host
             self._port = port
             self._client_type = "http"
         elif persist_path is None:
             # In-memory storage
-            self._chroma_client = chromadb.Client()  # In-memory client
+            self._chroma_client = chromadb.Client()
             self._client_type = "in_memory"
         else:
             # Local persistent storage
