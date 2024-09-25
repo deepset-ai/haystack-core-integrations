@@ -83,7 +83,7 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, FilterDocuments
 
     @pytest.mark.integration
     @pytest.mark.skipif(
-        sys.platform != "win32",
+        sys.platform == "win32",
         reason="This test requires running the Chroma server. For simplicity, we don't run it on Windows.",
     )
     def test_init_http_connection(self):
