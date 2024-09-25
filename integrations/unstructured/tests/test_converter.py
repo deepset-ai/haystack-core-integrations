@@ -1,7 +1,11 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
+from pathlib import Path
+
 import pytest
+from haystack.dataclasses.byte_stream import ByteStream
+
 from haystack_integrations.components.converters.unstructured import UnstructuredFileConverter
 
 
@@ -87,6 +91,34 @@ class TestUnstructuredFileConverter:
         assert documents[0].meta == {"file_path": str(pdf_path)}
 
     @pytest.mark.integration
+    def test_run_one_doc_per_file_bytestream(self, samples_path):
+        pdf_path = samples_path / "sample_pdf.pdf"
+        pdf_stream = ByteStream.from_file_path(pdf_path)
+
+        local_converter = UnstructuredFileConverter(
+            api_url="http://localhost:8000/general/v0/general", document_creation_mode="one-doc-per-file"
+        )
+
+        documents = local_converter.run([pdf_stream])["documents"]
+
+        assert len(documents) == 1
+
+    @pytest.mark.integration
+    def test_run_one_doc_per_page_bytestream(self, samples_path):
+        pdf_path = samples_path / "sample_pdf.pdf"
+        pdf_stream = ByteStream.from_file_path(pdf_path)
+
+        local_converter = UnstructuredFileConverter(
+            api_url="http://localhost:8000/general/v0/general", document_creation_mode="one-doc-per-page"
+        )
+
+        documents = local_converter.run([pdf_stream])["documents"]
+
+        assert len(documents) == 4
+        for i, doc in enumerate(documents, start=1):
+            assert doc.meta["page_number"] == i
+
+    @pytest.mark.integration
     def test_run_one_doc_per_page(self, samples_path):
         pdf_path = samples_path / "sample_pdf.pdf"
 
@@ -127,7 +159,7 @@ class TestUnstructuredFileConverter:
             api_url="http://localhost:8000/general/v0/general", document_creation_mode="one-doc-per-file"
         )
 
-        documents = local_converter.run(paths=[pdf_path], meta=meta)["documents"]
+        documents = local_converter.run(sources=[pdf_path], meta=meta)["documents"]
 
         assert len(documents) == 1
         assert documents[0].meta["file_path"] == str(pdf_path)
@@ -143,7 +175,7 @@ class TestUnstructuredFileConverter:
             api_url="http://localhost:8000/general/v0/general", document_creation_mode="one-doc-per-page"
         )
 
-        documents = local_converter.run(paths=[pdf_path], meta=meta)["documents"]
+        documents = local_converter.run(sources=[pdf_path], meta=meta)["documents"]
         assert len(documents) == 4
         for i, doc in enumerate(documents, start=1):
             assert doc.meta["file_path"] == str(pdf_path)
@@ -159,7 +191,7 @@ class TestUnstructuredFileConverter:
             api_url="http://localhost:8000/general/v0/general", document_creation_mode="one-doc-per-element"
         )
 
-        documents = local_converter.run(paths=[pdf_path], meta=meta)["documents"]
+        documents = local_converter.run(sources=[pdf_path], meta=meta)["documents"]
 
         assert len(documents) > 4
         first_element_index = 0
@@ -185,7 +217,7 @@ class TestUnstructuredFileConverter:
             api_url="http://localhost:8000/general/v0/general", document_creation_mode="one-doc-per-element"
         )
 
-        documents = local_converter.run(paths=pdf_path, meta=meta)["documents"]
+        documents = local_converter.run(sources=pdf_path, meta=meta)["documents"]
 
         assert len(documents) > 4
         for doc in documents:
@@ -205,7 +237,7 @@ class TestUnstructuredFileConverter:
             api_url="http://localhost:8000/general/v0/general", document_creation_mode="one-doc-per-element"
         )
         with pytest.raises(ValueError):
-            local_converter.run(paths=pdf_path, meta=meta)["documents"]
+            local_converter.run(sources=pdf_path, meta=meta)["documents"]
 
     @pytest.mark.integration
     def test_run_one_doc_per_element_with_meta_list_folder(self, samples_path):
@@ -216,7 +248,7 @@ class TestUnstructuredFileConverter:
             api_url="http://localhost:8000/general/v0/general", document_creation_mode="one-doc-per-element"
         )
 
-        documents = local_converter.run(paths=pdf_path, meta=meta)["documents"]
+        documents = local_converter.run(sources=pdf_path, meta=meta)["documents"]
 
         assert len(documents) > 4
         for doc in documents:
@@ -226,3 +258,59 @@ class TestUnstructuredFileConverter:
             assert "category" in doc.meta
             assert "common_meta" in doc.meta
             assert doc.meta["common_meta"] == "common"
+
+    @pytest.mark.integration
+    def test_run_one_doc_per_element_with_meta_list_multiple_sources(self, samples_path):
+        sources = [
+            ByteStream(data=b"content", meta={"file_path": "some_file.md"}),
+            "README.md",
+            ByteStream(data=b"content", meta={"file_path": "yet_another_file.md"}),
+            Path(__file__),
+            ByteStream(data=b"content", meta={"file_path": "my_file.md"}),
+        ]
+
+        meta = [
+            {"type": "ByteStream"},
+            {"type": "str"},
+            {"type": "ByteStream"},
+            {"type": "Path"},
+            {"type": "ByteStream"},
+        ]
+
+        local_converter = UnstructuredFileConverter(
+            api_url="http://localhost:8000/general/v0/general", document_creation_mode="one-doc-per-page"
+        )
+
+        documents = local_converter.run(sources=sources, meta=meta)["documents"]
+
+        assert len(documents) == 5
+        assert documents[0].meta["type"] == "ByteStream"
+        assert documents[0].meta["file_path"] == "some_file.md"
+        assert documents[1].meta["type"] == "str"
+        assert documents[1].meta["file_path"] == "README.md"
+        assert documents[2].meta["type"] == "ByteStream"
+        assert documents[2].meta["file_path"] == "yet_another_file.md"
+        assert documents[3].meta["type"] == "Path"
+        assert documents[4].meta["type"] == "ByteStream"
+        assert documents[4].meta["file_path"] == "my_file.md"
+
+    @pytest.mark.integration
+    def test_run_one_doc_per_element_with_meta_list_multiple_sources_directory(self, samples_path):
+        sources = [
+            "README.md",
+            ByteStream(data=b"Some content", meta={"file_path": "some_file.md"}),
+            samples_path,
+            Path(__file__),
+        ]
+
+        meta = {"common_meta": "applies_to_all"}
+
+
+        local_converter = UnstructuredFileConverter(
+            api_url="http://localhost:8000/general/v0/general", document_creation_mode="one-doc-per-page"
+        )
+
+        documents = local_converter.run(sources=sources, meta=meta)["documents"]
+
+        for doc in documents:
+            assert doc.meta["common_meta"] == "applies_to_all"
