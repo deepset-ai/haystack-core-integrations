@@ -8,6 +8,7 @@ from haystack.testing.document_store import (
     FilterableDocsFixtureMixin,
     _random_embeddings,
 )
+
 from haystack_integrations.components.retrievers.qdrant import (
     QdrantEmbeddingRetriever,
     QdrantHybridRetriever,
