@@ -38,6 +38,8 @@ def test_retriever_to_json(request):
                     "collection_name": "test_retriever_to_json",
                     "embedding_function": "HuggingFaceEmbeddingFunction",
                     "persist_path": None,
+                    "host": None,
+                    "port": None,
                     "api_key": "1234567890",
                     "distance_function": "l2",
                 },
