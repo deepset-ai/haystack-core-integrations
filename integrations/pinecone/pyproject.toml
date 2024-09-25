@@ -85,6 +85,8 @@ skip-string-normalization = true
 [tool.ruff]
 target-version = "py38"
 line-length = 120
+
+[tool.ruff.lint]
 select = [
   "A",
   "ARG",

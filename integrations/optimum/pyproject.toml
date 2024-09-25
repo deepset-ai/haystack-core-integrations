@@ -99,6 +99,9 @@ skip-string-normalization = true
 [tool.ruff]
 target-version = "py38"
 line-length = 120
+extend-exclude = ["tests", "example"]
+
+[tool.ruff.lint]
 select = [
   "A",
   "ARG",
@@ -145,7 +148,6 @@ unfixable = [
   # Don't touch unused imports
   "F401",
 ]
-extend-exclude = ["tests", "example"]
 
 [tool.ruff.lint.flake8-tidy-imports]
 ban-relative-imports = "parents"

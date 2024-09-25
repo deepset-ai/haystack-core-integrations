@@ -6,9 +6,9 @@ from typing import Any, Dict, List
 
 from haystack import component, default_from_dict, default_to_dict
 from haystack.utils import Secret, deserialize_secrets_inplace
+from haystack_integrations.components.embedders.cohere.utils import get_async_response, get_response
 
 from cohere import AsyncClient, Client
-from haystack_integrations.components.embedders.cohere.utils import get_async_response, get_response
 
 
 @component

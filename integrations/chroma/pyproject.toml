@@ -85,7 +85,9 @@ skip-string-normalization = true
 [tool.ruff]
 target-version = "py38"
 line-length = 120
-lint.select = [
+
+[tool.ruff.lint]
+select = [
   "A",
   "ARG",
   "B",
@@ -112,7 +114,7 @@ lint.select = [
   "W",
   "YTT",
 ]
-lint.ignore = [
+ignore = [
   # Allow non-abstract empty methods in abstract base classes
   "B027",
   # Allow boolean positional values in function calls, like `dict.get(... True)`
@@ -130,7 +132,7 @@ lint.ignore = [
   # Ignore unused params
   "ARG002",
 ]
-lint.unfixable = [
+unfixable = [
   # Don't touch unused imports
   "F401",
 ]

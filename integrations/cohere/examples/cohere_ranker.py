@@ -1,7 +1,6 @@
 from haystack import Document, Pipeline
 from haystack.components.retrievers.in_memory import InMemoryBM25Retriever
 from haystack.document_stores.in_memory import InMemoryDocumentStore
-
 from haystack_integrations.components.rankers.cohere import CohereRanker
 
 # Note set your API key by running the below command in your terminal

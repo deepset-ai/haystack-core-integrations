@@ -7,6 +7,7 @@ import pytest
 from cohere.core import ApiError
 from haystack.components.generators.utils import print_streaming_chunk
 from haystack.utils import Secret
+
 from haystack_integrations.components.generators.cohere import CohereGenerator
 
 pytestmark = pytest.mark.generators

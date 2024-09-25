@@ -18,7 +18,6 @@ from haystack.components.embedders import SentenceTransformersDocumentEmbedder, 
 from haystack.components.joiners import DocumentJoiner
 from haystack.components.preprocessors import DocumentSplitter
 from haystack.components.writers import DocumentWriter
-
 from haystack_integrations.components.retrievers.pgvector import PgvectorEmbeddingRetriever, PgvectorKeywordRetriever
 from haystack_integrations.document_stores.pgvector import PgvectorDocumentStore
 

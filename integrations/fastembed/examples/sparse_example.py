@@ -4,7 +4,6 @@
 # involving indexing and retrieval of documents.
 
 from haystack import Document
-
 from haystack_integrations.components.embedders.fastembed import FastembedSparseDocumentEmbedder
 
 document_list = [

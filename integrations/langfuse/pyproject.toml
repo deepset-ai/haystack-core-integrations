@@ -84,7 +84,10 @@ skip-string-normalization = true
 [tool.ruff]
 target-version = "py38"
 line-length = 120
-lint.select = [
+extend-exclude = ["tests", "example"]
+
+[tool.ruff.lint]
+select = [
   "A",
   "ARG",
   "B",
@@ -110,8 +113,7 @@ lint.select = [
   "W",
   "YTT",
 ]
-
-lint.ignore = [
+ignore = [
   # Allow non-abstract empty methods in abstract base classes
   "B027",
   # Ignore checks for possible passwords
@@ -127,11 +129,10 @@ lint.ignore = [
   # Asserts
   "S101",
 ]
-lint.unfixable = [
+unfixable = [
   # Don't touch unused imports
   "F401",
 ]
-extend-exclude = ["tests", "example"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["src"]
