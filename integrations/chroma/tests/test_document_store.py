@@ -6,6 +6,7 @@ import operator
 import uuid
 from typing import List
 from unittest import mock
+import sys
 
 import numpy as np
 import pytest
@@ -66,6 +67,39 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, FilterDocuments
             assert doc_received.content == doc_expected.content
             assert doc_received.meta == doc_expected.meta
 
+    def test_init_in_memory(self):
+        store = ChromaDocumentStore()
+
+        assert store._persist_path is None
+        assert store._host is None
+        assert store._port is None
+
+    def test_init_persistent_storage(self):
+        store = ChromaDocumentStore(persist_path="./path/to/local/store")
+
+        assert store._persist_path == "./path/to/local/store"
+        assert store._host is None
+        assert store._port is None
+
+    @pytest.mark.integration
+    @pytest.mark.skipif(
+        sys.platform == "win32",
+        reason="This test requires running the Chroma server. For simplicity, we don't run it on Windows.",
+    )
+    def test_init_http_connection(self):
+        store = ChromaDocumentStore(host="localhost", port=8000)
+
+        assert store._persist_path is None
+        assert store._host == "localhost"
+        assert store._port == 8000
+
+    def test_invalid_initialization_both_host_and_persist_path(self):
+        """
+        Test that providing both host and persist_path raises an error.
+        """
+        with pytest.raises(ValueError):
+            ChromaDocumentStore(persist_path="./path/to/local/store", host="localhost")
+
     def test_delete_empty(self, document_store: ChromaDocumentStore):
         """
         Deleting a non-existing document should not raise with Chroma
@@ -125,7 +159,7 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, FilterDocuments
         assert written_docs[2].meta == {"ok": 123}
 
     @pytest.mark.integration
-    def test_to_json(self, request):
+    def test_to_dict(self, request):
         ds = ChromaDocumentStore(
             collection_name=request.node.name, embedding_function="HuggingFaceEmbeddingFunction", api_key="1234567890"
         )
@@ -133,16 +167,18 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, FilterDocuments
         assert ds_dict == {
             "type": "haystack_integrations.document_stores.chroma.document_store.ChromaDocumentStore",
             "init_parameters": {
-                "collection_name": "test_to_json",
+                "collection_name": "test_to_dict",
                 "embedding_function": "HuggingFaceEmbeddingFunction",
                 "persist_path": None,
+                "host": None,
+                "port": None,
                 "api_key": "1234567890",
                 "distance_function": "l2",
             },
         }
 
     @pytest.mark.integration
-    def test_from_json(self):
+    def test_from_dict(self):
         collection_name = "test_collection"
         function_name = "HuggingFaceEmbeddingFunction"
         ds_dict = {
@@ -151,6 +187,8 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, FilterDocuments
                 "collection_name": "test_collection",
                 "embedding_function": "HuggingFaceEmbeddingFunction",
                 "persist_path": None,
+                "host": None,
+                "port": None,
                 "api_key": "1234567890",
                 "distance_function": "l2",
             },
