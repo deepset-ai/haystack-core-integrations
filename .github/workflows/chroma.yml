@@ -57,7 +57,7 @@ jobs:
         run: hatch run docs
 
       - name: Run Chroma server on Linux/macOS
-        if: matrix.os != 'windows-latest'
+        shell: bash
         run: hatch run chroma run &
 
       - name: Run tests

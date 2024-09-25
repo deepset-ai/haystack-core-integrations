@@ -82,10 +82,6 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, FilterDocuments
         assert store._port is None
 
     @pytest.mark.integration
-    @pytest.mark.skipif(
-        sys.platform == "win32",
-        reason="This test requires running the Chroma server. For simplicity, we don't run it on Windows.",
-    )
     def test_init_http_connection(self):
         store = ChromaDocumentStore(host="localhost", port=8000)
 
