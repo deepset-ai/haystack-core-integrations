@@ -79,53 +79,68 @@ class ChromaDocumentStore:
         # Store the params for marshalling
         self._collection_name = collection_name
         self._embedding_function = embedding_function
+        self._embedding_func = get_embedding_function(embedding_function, **embedding_function_params)
         self._embedding_function_params = embedding_function_params
         self._distance_function = distance_function
+        self._metadata = metadata
+        self._collection = None
 
         self._persist_path = persist_path
         self._host = host
         self._port = port
+        self._chroma_client = None
 
-        # Create the client instance
-        if persist_path and (host or port is not None):
-            error_message = (
-                "You must specify `persist_path` for local persistent storage or, "
-                "alternatively, `host` and `port` for remote HTTP client connection. "
-                "You cannot specify both options."
-            )
-            raise ValueError(error_message)
-        if host and port is not None:
-            # Remote connection via HTTP client
-            self._chroma_client = chromadb.HttpClient(
-                host=host,
-                port=port,
-            )
-        elif persist_path is None:
-            # In-memory storage
-            self._chroma_client = chromadb.Client()
-        else:
-            # Local persistent storage
-            self._chroma_client = chromadb.PersistentClient(path=persist_path)
-
-        embedding_func = get_embedding_function(embedding_function, **embedding_function_params)
-
-        metadata = metadata or {}
-        if "hnsw:space" not in metadata:
-            metadata["hnsw:space"] = distance_function
-
-        if collection_name in [c.name for c in self._chroma_client.list_collections()]:
-            self._collection = self._chroma_client.get_collection(collection_name, embedding_function=embedding_func)
-
-            if metadata != self._collection.metadata:
-                logger.warning(
-                    "Collection already exists. The `distance_function` and `metadata` parameters will be ignored."
+    @property
+    def chroma_client(self):
+        if self._chroma_client is None:
+            # Create the client instance
+            if self._persist_path and (self._host or self._port is not None):
+                error_message = (
+                    "You must specify `persist_path` for local persistent storage or, "
+                    "alternatively, `host` and `port` for remote HTTP client connection. "
+                    "You cannot specify both options."
                 )
-        else:
-            self._collection = self._chroma_client.create_collection(
-                name=collection_name,
-                metadata=metadata,
-                embedding_function=embedding_func,
-            )
+                raise ValueError(error_message)
+            if self._host and self._port is not None:
+                # Remote connection via HTTP client
+                self._chroma_client = chromadb.HttpClient(
+                    host=self._host,
+                    port=self._port,
+                )
+            elif self._persist_path is None:
+                # In-memory storage
+                self._chroma_client = chromadb.Client()
+            else:
+                # Local persistent storage
+                self._chroma_client = chromadb.PersistentClient(path=self._persist_path)
+
+        return self._chroma_client
+
+    @property
+    def collection(self):
+        if self._collection is None:
+
+            self._metadata = self._metadata or {}
+            if "hnsw:space" not in self._metadata:
+                self._metadata["hnsw:space"] = self._distance_function
+
+            if self._collection_name in [c.name for c in self.chroma_client.list_collections()]:
+                self._collection = self.chroma_client.get_collection(
+                    self._collection_name, embedding_function=self._embedding_func
+                )
+
+                if self._metadata != self._collection.metadata:
+                    logger.warning(
+                        "Collection already exists. The `distance_function` and `metadata` parameters will be ignored."
+                    )
+            else:
+                self._collection = self.chroma_client.create_collection(
+                    name=self._collection_name,
+                    metadata=self._metadata,
+                    embedding_function=self._embedding_func,
+                )
+
+        return self._collection
 
     def count_documents(self) -> int:
         """
@@ -133,7 +148,7 @@ class ChromaDocumentStore:
 
         :returns: how many documents are present in the document store.
         """
-        return self._collection.count()
+        return self.collection.count()
 
     def filter_documents(self, filters: Optional[Dict[str, Any]] = None) -> List[Document]:
         """
@@ -206,9 +221,9 @@ class ChromaDocumentStore:
             if chroma_filter.where_document:
                 kwargs["where_document"] = chroma_filter.where_document
 
-            result = self._collection.get(**kwargs)
+            result = self.collection.get(**kwargs)
         else:
-            result = self._collection.get()
+            result = self.collection.get()
 
         return self._get_result_to_documents(result)
 
@@ -272,7 +287,7 @@ class ChromaDocumentStore:
                     doc.id,
                 )
 
-            self._collection.add(**data)
+            self.collection.add(**data)
 
         return len(documents)
 
@@ -282,7 +297,7 @@ class ChromaDocumentStore:
 
         :param document_ids: the object_ids to delete
         """
-        self._collection.delete(ids=document_ids)
+        self.collection.delete(ids=document_ids)
 
     def search(self, queries: List[str], top_k: int, filters: Optional[Dict[str, Any]] = None) -> List[List[Document]]:
         """Search the documents in the store using the provided text queries.
@@ -293,14 +308,14 @@ class ChromaDocumentStore:
         :returns: matching documents for each query.
         """
         if filters is None:
-            results = self._collection.query(
+            results = self.collection.query(
                 query_texts=queries,
                 n_results=top_k,
                 include=["embeddings", "documents", "metadatas", "distances"],
             )
         else:
             chroma_filters = _convert_filters(filters=filters)
-            results = self._collection.query(
+            results = self.collection.query(
                 query_texts=queries,
                 n_results=top_k,
                 where=chroma_filters.where,
@@ -324,14 +339,14 @@ class ChromaDocumentStore:
 
         """
         if filters is None:
-            results = self._collection.query(
+            results = self.collection.query(
                 query_embeddings=query_embeddings,
                 n_results=top_k,
                 include=["embeddings", "documents", "metadatas", "distances"],
             )
         else:
             chroma_filters = _convert_filters(filters=filters)
-            results = self._collection.query(
+            results = self.collection.query(
                 query_embeddings=query_embeddings,
                 n_results=top_k,
                 where=chroma_filters.where,
