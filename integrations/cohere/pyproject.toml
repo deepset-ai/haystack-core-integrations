@@ -65,7 +65,7 @@ dependencies = ["black>=23.1.0", "mypy>=1.0.0", "ruff>=0.0.243"]
 [tool.hatch.envs.lint.scripts]
 typing = "mypy --install-types --non-interactive --explicit-package-bases {args:src/ tests}"
 style = [
-  "ruff check {args:}",
+  "ruff check {args:.}",
   "black --check --diff {args:.}",
 ]
 fmt = ["black {args:.}", "ruff check --fix {args:}", "style"]
@@ -130,7 +130,7 @@ unfixable = [
 ]
 
 [tool.ruff.lint.isort]
-known-first-party = ["src"]
+known-first-party = ["haystack_integrations"]
 
 [tool.ruff.lint.flake8-tidy-imports]
 ban-relative-imports = "parents"

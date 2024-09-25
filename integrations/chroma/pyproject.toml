@@ -139,7 +139,7 @@ unfixable = [
 exclude = ["example"]
 
 [tool.ruff.lint.isort]
-known-first-party = ["src", "example", "tests"]
+known-first-party = ["haystack_integrations"]
 
 [tool.ruff.lint.flake8-tidy-imports]
 ban-relative-imports = "parents"

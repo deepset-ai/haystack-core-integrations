@@ -89,7 +89,7 @@ all = ["style", "typing"]
 allow-direct-references = true
 
 [tool.ruff.lint.isort]
-known-first-party = ["src"]
+known-first-party = ["haystack_integrations"]
 
 [tool.black]
 target-version = ["py38"]
