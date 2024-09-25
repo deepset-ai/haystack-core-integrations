@@ -61,10 +61,12 @@ jobs:
         run: hatch run chroma run &
 
       - name: Run tests
+        shell: bash
         run: hatch run cov-retry
 
       - name: Nightly - run unit tests with Haystack main branch
         if: github.event_name == 'schedule'
+        shell: bash
         run: |
           hatch run pip install git+https://github.com/deepset-ai/haystack.git
           hatch run cov-retry -m "not integration"
