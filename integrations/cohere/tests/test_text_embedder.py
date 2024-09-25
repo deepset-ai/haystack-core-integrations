@@ -5,7 +5,6 @@ import os
 
 import pytest
 from haystack.utils import Secret
-
 from haystack_integrations.components.embedders.cohere import CohereTextEmbedder
 
 pytestmark = pytest.mark.embedders

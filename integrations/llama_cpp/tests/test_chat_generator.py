@@ -10,7 +10,6 @@ from haystack.components.builders import ChatPromptBuilder
 from haystack.components.retrievers.in_memory import InMemoryBM25Retriever
 from haystack.dataclasses import ChatMessage, ChatRole
 from haystack.document_stores.in_memory import InMemoryDocumentStore
-
 from haystack_integrations.components.generators.llama_cpp.chat.chat_generator import (
     LlamaCppChatGenerator,
     _convert_message_to_llamacpp_format,

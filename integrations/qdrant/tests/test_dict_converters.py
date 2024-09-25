@@ -1,5 +1,4 @@
 from haystack.utils import Secret
-
 from haystack_integrations.document_stores.qdrant import QdrantDocumentStore
 
 

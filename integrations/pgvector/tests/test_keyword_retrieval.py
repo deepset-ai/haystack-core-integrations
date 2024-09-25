@@ -1,6 +1,5 @@
 import pytest
 from haystack.dataclasses.document import Document
-
 from haystack_integrations.document_stores.pgvector import PgvectorDocumentStore
 
 

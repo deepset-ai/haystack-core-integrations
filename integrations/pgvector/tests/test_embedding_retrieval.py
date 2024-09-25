@@ -6,9 +6,8 @@ from typing import List
 
 import pytest
 from haystack.dataclasses.document import Document
-from numpy.random import rand
-
 from haystack_integrations.document_stores.pgvector import PgvectorDocumentStore
+from numpy.random import rand
 
 
 @pytest.mark.integration

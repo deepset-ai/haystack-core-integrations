@@ -11,9 +11,8 @@ from haystack.document_stores.errors import DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
 from haystack.testing.document_store import CountDocumentsTest, DeleteDocumentsTest, WriteDocumentsTest
 from haystack.utils import Secret
-from pandas import DataFrame
-
 from haystack_integrations.document_stores.pgvector import PgvectorDocumentStore
+from pandas import DataFrame
 
 
 @pytest.mark.integration
