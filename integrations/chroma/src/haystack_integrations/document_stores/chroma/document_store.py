@@ -82,6 +82,11 @@ class ChromaDocumentStore:
         self._embedding_function = embedding_function
         self._embedding_function_params = embedding_function_params
         self._distance_function = distance_function
+
+        self._persist_path = persist_path
+        self._host = host
+        self._port = port
+
         # Create the client instance
         if persist_path and (host or port is not None):
             error_message = (
@@ -96,18 +101,12 @@ class ChromaDocumentStore:
                 host=host,
                 port=port,
             )
-            self._host = host
-            self._port = port
-            self._client_type = "http"
         elif persist_path is None:
             # In-memory storage
             self._chroma_client = chromadb.Client()
-            self._client_type = "in_memory"
         else:
             # Local persistent storage
             self._chroma_client = chromadb.PersistentClient(path=persist_path)
-            self._persist_path = persist_path
-            self._client_type = "persistent"
 
         embedding_func = get_embedding_function(embedding_function, **embedding_function_params)
 
@@ -375,9 +374,9 @@ class ChromaDocumentStore:
             self,
             collection_name=self._collection_name,
             embedding_function=self._embedding_function,
-            persist_path=getattr(self, "_persist_path", None),
-            host=getattr(self, "_host", None),
-            port=getattr(self, "_port", None),
+            persist_path=self._persist_path,
+            host=self._host,
+            port=self._port,
             distance_function=self._distance_function,
             **self._embedding_function_params,
         )

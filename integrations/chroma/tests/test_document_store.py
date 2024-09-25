@@ -6,6 +6,7 @@ import operator
 import uuid
 from typing import List
 from unittest import mock
+import sys
 
 import numpy as np
 import pytest
@@ -50,37 +51,6 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, LegacyFilterDoc
             get_func.return_value = _TestEmbeddingFunction()
             return ChromaDocumentStore(embedding_function="test_function", collection_name=str(uuid.uuid1()))
 
-    @pytest.mark.parametrize(
-        "persist_path, host, port, expected_client_type",
-        [
-            (None, None, None, "in_memory"),  # In-memory storage
-            ("./path/to/local/store", None, None, "persistent"),  # Local persistent storage
-            (None, "localhost", 8000, "http"),  # Remote HTTP client
-        ],
-    )
-    def test_constructor_options(self, persist_path, host, port, expected_client_type):
-        """
-        Test different constructor options for ChromaDocumentStore
-        """
-        store = ChromaDocumentStore(persist_path=persist_path, host=host, port=port)
-
-        # Validate the type of client initialized by checking the client_type flag
-        assert (
-            store._client_type == expected_client_type
-        ), f"Expected {expected_client_type} client, got {store._client_type}"
-
-    def test_invalid_initialization_both_host_and_persist_path(self):
-        """
-        Test that providing both host and persist_path raises an error.
-        """
-        with pytest.raises(
-            ValueError,
-            match="You must specify `persist_path` for local persistent storage or, "
-            "alternatively, `host` and `port` for remote HTTP client connection. "
-            "You cannot specify both options.",
-        ):
-            ChromaDocumentStore(persist_path="./path/to/local/store", host="localhost")
-
     def assert_documents_are_equal(self, received: List[Document], expected: List[Document]):
         """
         Assert that two lists of Documents are equal.
@@ -96,6 +66,39 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, LegacyFilterDoc
         for doc_received, doc_expected in zip(received, expected):
             assert doc_received.content == doc_expected.content
             assert doc_received.meta == doc_expected.meta
+
+    def test_init_in_memory(self):
+        store = ChromaDocumentStore()
+
+        assert store._persist_path is None
+        assert store._host is None
+        assert store._port is None
+
+    def test_init_persistent_storage(self):
+        store = ChromaDocumentStore(persist_path="./path/to/local/store")
+
+        assert store._persist_path == "./path/to/local/store"
+        assert store._host is None
+        assert store._port is None
+
+    @pytest.mark.integration
+    @pytest.mark.skipif(
+        sys.platform != "win32",
+        reason="This test requires running the Chroma server. For simplicity, we don't run it on Windows.",
+    )
+    def test_init_http_connection(self):
+        store = ChromaDocumentStore(host="localhost", port=8000)
+
+        assert store._persist_path is None
+        assert store._host == "localhost"
+        assert store._port == 8000
+
+    def test_invalid_initialization_both_host_and_persist_path(self):
+        """
+        Test that providing both host and persist_path raises an error.
+        """
+        with pytest.raises(ValueError):
+            ChromaDocumentStore(persist_path="./path/to/local/store", host="localhost")
 
     def test_ne_filter(self, document_store: ChromaDocumentStore, filterable_docs: List[Document]):
         """
@@ -167,7 +170,7 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, LegacyFilterDoc
         assert written_docs[2].meta == {"ok": 123}
 
     @pytest.mark.integration
-    def test_to_json(self, request):
+    def test_to_dict(self, request):
         ds = ChromaDocumentStore(
             collection_name=request.node.name, embedding_function="HuggingFaceEmbeddingFunction", api_key="1234567890"
         )
@@ -175,7 +178,7 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, LegacyFilterDoc
         assert ds_dict == {
             "type": "haystack_integrations.document_stores.chroma.document_store.ChromaDocumentStore",
             "init_parameters": {
-                "collection_name": "test_to_json",
+                "collection_name": "test_to_dict",
                 "embedding_function": "HuggingFaceEmbeddingFunction",
                 "persist_path": None,
                 "host": None,
@@ -186,30 +189,7 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, LegacyFilterDoc
         }
 
     @pytest.mark.integration
-    def test_to_json_http(self, request):
-        ds = ChromaDocumentStore(
-            host="localhost",
-            port=8000,
-            collection_name=request.node.name,
-            embedding_function="HuggingFaceEmbeddingFunction",
-            api_key="1234567890",
-        )
-        ds_dict = ds.to_dict()
-        assert ds_dict == {
-            "type": "haystack_integrations.document_stores.chroma.document_store.ChromaDocumentStore",
-            "init_parameters": {
-                "collection_name": "test_to_json_http",
-                "host": "localhost",
-                "port": 8000,
-                "embedding_function": "HuggingFaceEmbeddingFunction",
-                "persist_path": None,
-                "api_key": "1234567890",
-                "distance_function": "l2",
-            },
-        }
-
-    @pytest.mark.integration
-    def test_from_json(self):
+    def test_from_dict(self):
         collection_name = "test_collection"
         function_name = "HuggingFaceEmbeddingFunction"
         ds_dict = {
