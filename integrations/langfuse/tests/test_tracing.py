@@ -1,16 +1,17 @@
 import os
 import random
 import time
-import pytest
 from urllib.parse import urlparse
+
+import pytest
 import requests
-from requests.auth import HTTPBasicAuth
 from haystack import Pipeline
 from haystack.components.builders import ChatPromptBuilder
-from haystack.dataclasses import ChatMessage
-from haystack_integrations.components.connectors.langfuse import LangfuseConnector
 from haystack.components.generators.chat import OpenAIChatGenerator
+from haystack.dataclasses import ChatMessage
+from requests.auth import HTTPBasicAuth
 
+from haystack_integrations.components.connectors.langfuse import LangfuseConnector
 from haystack_integrations.components.generators.anthropic import AnthropicChatGenerator
 from haystack_integrations.components.generators.cohere import CohereChatGenerator
 

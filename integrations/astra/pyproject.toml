@@ -127,7 +127,6 @@ unfixable = [
   # Don't touch unused imports
   "F401",
 ]
-exclude = ["example"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["haystack_integrations"]
