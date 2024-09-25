@@ -98,7 +98,7 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, FilterDocuments
         Test that providing both host and persist_path raises an error.
         """
         with pytest.raises(ValueError):
-            ChromaDocumentStore(persist_path="./path/to/local/store", host="localhost")            
+            ChromaDocumentStore(persist_path="./path/to/local/store", host="localhost")
 
     def test_delete_empty(self, document_store: ChromaDocumentStore):
         """
@@ -188,7 +188,7 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, FilterDocuments
                 "embedding_function": "HuggingFaceEmbeddingFunction",
                 "persist_path": None,
                 "host": None,
-                "port": None,                
+                "port": None,
                 "api_key": "1234567890",
                 "distance_function": "l2",
             },
