@@ -3,7 +3,9 @@ import os
 os.environ["HAYSTACK_CONTENT_TRACING_ENABLED"] = "true"
 
 from unittest.mock import Mock
+
 from haystack.dataclasses import ChatMessage
+
 from haystack_integrations.tracing.langfuse.tracer import LangfuseSpan
 
 

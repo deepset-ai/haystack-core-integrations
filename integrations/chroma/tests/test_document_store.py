@@ -3,10 +3,10 @@
 # SPDX-License-Identifier: Apache-2.0
 import logging
 import operator
+import sys
 import uuid
 from typing import List
 from unittest import mock
-import sys
 
 import numpy as np
 import pytest

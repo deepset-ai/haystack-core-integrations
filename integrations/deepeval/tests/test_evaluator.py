@@ -5,10 +5,10 @@ from typing import Dict, Optional
 from unittest.mock import patch
 
 import pytest
+from deepeval.evaluate import BaseMetric, TestResult
 from haystack import DeserializationError
 
 from haystack_integrations.components.evaluators.deepeval import DeepEvalEvaluator, DeepEvalMetric
-from deepeval.evaluate import TestResult, BaseMetric
 
 DEFAULT_QUESTIONS = [
     "Which is the most popular global sport?",
