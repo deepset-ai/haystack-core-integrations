@@ -60,7 +60,7 @@ class VertexAIGeminiGenerator:
         safety_settings: Optional[Dict[HarmCategory, HarmBlockThreshold]] = None,
         tools: Optional[List[Tool]] = None,
         tool_config: Optional[ToolConfig] = None,
-        system_instruction: Optional[str] = None,
+        system_instruction: Optional[Union[str, ByteStream, Part]] = None,
         streaming_callback: Optional[Callable[[StreamingChunk], None]] = None,
     ):
         """
