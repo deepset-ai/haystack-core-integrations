@@ -231,6 +231,24 @@ class AstraClient:
         else:
             logger.warning(f"No documents found: {response_dict}")
 
+    def find_one_document(self, find_query):
+        """
+        Find one document in the Astra index.
+
+        :param find_query: a dictionary with the query options
+        :returns: the document found in the index
+        """
+        response_dict = self._astra_db_collection.find_one(
+            filter=find_query.get("filter"),
+            options=find_query.get("options"),
+            projection={"*": 1},
+        )
+
+        if "data" in response_dict and "document" in response_dict["data"]:
+            return response_dict["data"]["document"]
+        else:
+            logger.warning(f"No document found: {response_dict}")
+
     def get_documents(self, ids: List[str], batch_size: int = 20) -> QueryResponse:
         """
         Get documents from the Astra index by their ids.
