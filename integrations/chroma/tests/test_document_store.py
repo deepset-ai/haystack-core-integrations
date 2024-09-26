@@ -98,7 +98,8 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, FilterDocuments
         Test that providing both host and persist_path raises an error.
         """
         with pytest.raises(ValueError):
-            ChromaDocumentStore(persist_path="./path/to/local/store", host="localhost").chroma_client
+            store = ChromaDocumentStore(persist_path="./path/to/local/store", host="localhost")
+            store._ensure_initialized()
 
     def test_delete_empty(self, document_store: ChromaDocumentStore):
         """
@@ -207,7 +208,8 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, FilterDocuments
     @pytest.mark.integration
     def test_distance_metric_initialization(self):
         store = ChromaDocumentStore("test_2", distance_function="cosine")
-        assert store.collection.metadata["hnsw:space"] == "cosine"
+        store._ensure_initialized()
+        assert store._collection.metadata["hnsw:space"] == "cosine"
 
         with pytest.raises(ValueError):
             ChromaDocumentStore("test_3", distance_function="jaccard")
@@ -215,21 +217,18 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, FilterDocuments
     @pytest.mark.integration
     def test_distance_metric_reinitialization(self, caplog):
         store = ChromaDocumentStore("test_4", distance_function="cosine")
-
-        # Access the collection to trigger the creation and set the distance function
-        _ = store.collection
+        store._ensure_initialized()
 
         with caplog.at_level(logging.WARNING):
             new_store = ChromaDocumentStore("test_4", distance_function="ip")
-            # Access the collection of the new_store to trigger the log
-            _ = new_store.collection
+            new_store._ensure_initialized()
 
         assert (
             "Collection already exists. The `distance_function` and `metadata` parameters will be ignored."
             in caplog.text
         )
-        assert store.collection.metadata["hnsw:space"] == "cosine"
-        assert new_store.collection.metadata["hnsw:space"] == "cosine"
+        assert store._collection.metadata["hnsw:space"] == "cosine"
+        assert new_store._collection.metadata["hnsw:space"] == "cosine"
 
     @pytest.mark.integration
     def test_metadata_initialization(self, caplog):
@@ -243,12 +242,12 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, FilterDocuments
                 "hnsw:M": 103,
             },
         )
-        _ = store.collection
+        store._ensure_initialized()
 
-        assert store.collection.metadata["hnsw:space"] == "ip"
-        assert store.collection.metadata["hnsw:search_ef"] == 101
-        assert store.collection.metadata["hnsw:construction_ef"] == 102
-        assert store.collection.metadata["hnsw:M"] == 103
+        assert store._collection.metadata["hnsw:space"] == "ip"
+        assert store._collection.metadata["hnsw:search_ef"] == 101
+        assert store._collection.metadata["hnsw:construction_ef"] == 102
+        assert store._collection.metadata["hnsw:M"] == 103
 
         with caplog.at_level(logging.WARNING):
             new_store = ChromaDocumentStore(
@@ -261,14 +260,14 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, FilterDocuments
                 },
             )
 
-            _ = new_store.collection
+        new_store._ensure_initialized()
 
         assert (
             "Collection already exists. The `distance_function` and `metadata` parameters will be ignored."
             in caplog.text
         )
-        assert store.collection.metadata["hnsw:space"] == "ip"
-        assert new_store.collection.metadata["hnsw:space"] == "ip"
+        assert store._collection.metadata["hnsw:space"] == "ip"
+        assert new_store._collection.metadata["hnsw:space"] == "ip"
 
     def test_contains(self, document_store: ChromaDocumentStore, filterable_docs: List[Document]):
         document_store.write_documents(filterable_docs)

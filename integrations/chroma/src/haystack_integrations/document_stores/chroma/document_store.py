@@ -90,7 +90,14 @@ class ChromaDocumentStore:
         self._port = port
         self._chroma_client = None
 
-    @property
+        self._initialized = False
+
+    def _ensure_initialized(self):
+        if not self._initialized:
+            self._chroma_client = self.chroma_client()
+            self._collection = self.collection()
+            self._initialized = True
+
     def chroma_client(self):
         if self._chroma_client is None:
             # Create the client instance
@@ -116,7 +123,6 @@ class ChromaDocumentStore:
 
         return self._chroma_client
 
-    @property
     def collection(self):
         if self._collection is None:
 
@@ -124,8 +130,8 @@ class ChromaDocumentStore:
             if "hnsw:space" not in self._metadata:
                 self._metadata["hnsw:space"] = self._distance_function
 
-            if self._collection_name in [c.name for c in self.chroma_client.list_collections()]:
-                self._collection = self.chroma_client.get_collection(
+            if self._collection_name in [c.name for c in self._chroma_client.list_collections()]:
+                self._collection = self._chroma_client.get_collection(
                     self._collection_name, embedding_function=self._embedding_func
                 )
 
@@ -134,7 +140,7 @@ class ChromaDocumentStore:
                         "Collection already exists. The `distance_function` and `metadata` parameters will be ignored."
                     )
             else:
-                self._collection = self.chroma_client.create_collection(
+                self._collection = self._chroma_client.create_collection(
                     name=self._collection_name,
                     metadata=self._metadata,
                     embedding_function=self._embedding_func,
@@ -148,7 +154,11 @@ class ChromaDocumentStore:
 
         :returns: how many documents are present in the document store.
         """
-        return self.collection.count()
+        self._ensure_initialized()
+        if self._collection is None:
+            msg = "Collection is not initialized"
+            raise ValueError(msg)
+        return self._collection.count()
 
     def filter_documents(self, filters: Optional[Dict[str, Any]] = None) -> List[Document]:
         """
@@ -212,6 +222,11 @@ class ChromaDocumentStore:
          :param filters: the filters to apply to the document list.
          :returns: a list of Documents that match the given filters.
         """
+        self._ensure_initialized()
+        if self._collection is None:
+            msg = "Collection is not initialized"
+            raise ValueError(msg)
+
         if filters:
             chroma_filter = _convert_filters(filters)
             kwargs: Dict[str, Any] = {"where": chroma_filter.where}
@@ -221,9 +236,9 @@ class ChromaDocumentStore:
             if chroma_filter.where_document:
                 kwargs["where_document"] = chroma_filter.where_document
 
-            result = self.collection.get(**kwargs)
+            result = self._collection.get(**kwargs)
         else:
-            result = self.collection.get()
+            result = self._collection.get()
 
         return self._get_result_to_documents(result)
 
@@ -242,6 +257,11 @@ class ChromaDocumentStore:
         :returns:
             The number of documents written
         """
+        self._ensure_initialized()
+        if self._collection is None:
+            msg = "Collection is not initialized"
+            raise ValueError(msg)
+
         for doc in documents:
             if not isinstance(doc, Document):
                 msg = "param 'documents' must contain a list of objects of type Document"
@@ -287,7 +307,7 @@ class ChromaDocumentStore:
                     doc.id,
                 )
 
-            self.collection.add(**data)
+            self._collection.add(**data)
 
         return len(documents)
 
@@ -297,7 +317,12 @@ class ChromaDocumentStore:
 
         :param document_ids: the object_ids to delete
         """
-        self.collection.delete(ids=document_ids)
+        self._ensure_initialized()
+        if self._collection is None:
+            msg = "Collection is not initialized"
+            raise ValueError(msg)
+
+        self._collection.delete(ids=document_ids)
 
     def search(self, queries: List[str], top_k: int, filters: Optional[Dict[str, Any]] = None) -> List[List[Document]]:
         """Search the documents in the store using the provided text queries.
@@ -307,15 +332,20 @@ class ChromaDocumentStore:
         :param filters: a dictionary of filters to apply to the search. Accepts filters in haystack format.
         :returns: matching documents for each query.
         """
+        self._ensure_initialized()
+        if self._collection is None:
+            msg = "Collection is not initialized"
+            raise ValueError(msg)
+
         if filters is None:
-            results = self.collection.query(
+            results = self._collection.query(
                 query_texts=queries,
                 n_results=top_k,
                 include=["embeddings", "documents", "metadatas", "distances"],
             )
         else:
             chroma_filters = _convert_filters(filters=filters)
-            results = self.collection.query(
+            results = self._collection.query(
                 query_texts=queries,
                 n_results=top_k,
                 where=chroma_filters.where,
@@ -338,15 +368,20 @@ class ChromaDocumentStore:
         :returns: a list of lists of documents that match the given filters.
 
         """
+        self._ensure_initialized()
+        if self._collection is None:
+            msg = "Collection is not initialized"
+            raise ValueError(msg)
+
         if filters is None:
-            results = self.collection.query(
+            results = self._collection.query(
                 query_embeddings=query_embeddings,
                 n_results=top_k,
                 include=["embeddings", "documents", "metadatas", "distances"],
             )
         else:
             chroma_filters = _convert_filters(filters=filters)
-            results = self.collection.query(
+            results = self._collection.query(
                 query_embeddings=query_embeddings,
                 n_results=top_k,
                 where=chroma_filters.where,
