@@ -4,6 +4,7 @@ from haystack import Document, component, default_from_dict, default_to_dict
 from haystack.dataclasses.sparse_embedding import SparseEmbedding
 from haystack.document_stores.types import FilterPolicy
 from haystack.document_stores.types.filter_policy import apply_filter_policy
+
 from haystack_integrations.document_stores.qdrant import QdrantDocumentStore
 
 
