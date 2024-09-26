@@ -49,6 +49,12 @@ def test_init(mock_vertexai_init, _mock_generative_model):
     safety_settings = {HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_ONLY_HIGH}
 
     tool = Tool(function_declarations=[GET_CURRENT_WEATHER_FUNC])
+    tool_config = ToolConfig(
+        function_calling_config=ToolConfig.FunctionCallingConfig(
+            mode=ToolConfig.FunctionCallingConfig.Mode.ANY,
+            allowed_function_names=["get_current_weather_func"],
+        )
+    )
 
     gemini = VertexAIGeminiGenerator(
         project_id="TestID123",
@@ -56,12 +62,16 @@ def test_init(mock_vertexai_init, _mock_generative_model):
         generation_config=generation_config,
         safety_settings=safety_settings,
         tools=[tool],
+        tool_config=tool_config,
+        system_instruction="Please provide brief answers.",
     )
     mock_vertexai_init.assert_called()
     assert gemini._model_name == "gemini-1.5-flash"
     assert gemini._generation_config == generation_config
     assert gemini._safety_settings == safety_settings
     assert gemini._tools == [tool]
+    assert gemini._tool_config == tool_config
+    assert gemini._system_instruction == "Please provide brief answers."
 
 
 @patch("haystack_integrations.components.generators.google_vertex.gemini.vertexai_init")
@@ -187,6 +197,8 @@ def test_from_dict(_mock_vertexai_init, _mock_generative_model):
     assert gemini._project_id == "TestID123"
     assert gemini._safety_settings is None
     assert gemini._tools is None
+    assert gemini._tool_config is None
+    assert gemini._system_instruction is None
     assert gemini._generation_config is None
 
 

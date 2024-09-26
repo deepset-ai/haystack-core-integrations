@@ -101,15 +101,24 @@ class VertexAIGeminiGenerator:
         self._model_name = model
         self._project_id = project_id
         self._location = location
-        self._system_instruction = system_instruction
 
-        self._model = GenerativeModel(self._model_name, system_instruction=self._system_instruction)
-
+        # model parameters
         self._generation_config = generation_config
         self._safety_settings = safety_settings
         self._tools = tools
         self._tool_config = tool_config
+        self._system_instruction = system_instruction
         self._streaming_callback = streaming_callback
+
+        # except streaming_callback, all other model parameters can be passed during initialization
+        self._model = GenerativeModel(
+            self._model_name,
+            generation_config=self._generation_config,
+            safety_settings=self._safety_settings,
+            tools=self._tools,
+            tool_config=self._tool_config,
+            system_instruction=self._system_instruction,
+        )
 
     def _generation_config_to_dict(self, config: Union[GenerationConfig, Dict[str, Any]]) -> Dict[str, Any]:
         if isinstance(config, dict):
@@ -125,6 +134,7 @@ class VertexAIGeminiGenerator:
 
     def _tool_config_to_dict(self, tool_config: ToolConfig) -> Dict[str, Any]:
         """Serializes the ToolConfig object into a dictionary."""
+
         mode = tool_config._gapic_tool_config.function_calling_config.mode
         allowed_function_names = tool_config._gapic_tool_config.function_calling_config.allowed_function_names
         config_dict = {"function_calling_config": {"mode": mode}}
@@ -176,7 +186,6 @@ class VertexAIGeminiGenerator:
 
         def _tool_config_from_dict(config_dict: Dict[str, Any]) -> Tool:
             """Deserializes the ToolConfig object from a dictionary."""
-
             allowed_function_names = config_dict["function_calling_config"].get("allowed_function_names")
             mode = config_dict["function_calling_config"]["mode"]
             if allowed_function_names:
@@ -234,12 +243,9 @@ class VertexAIGeminiGenerator:
         converted_parts = [self._convert_part(p) for p in parts]
 
         contents = [Content(parts=converted_parts, role="user")]
+
         res = self._model.generate_content(
             contents=contents,
-            generation_config=self._generation_config,
-            safety_settings=self._safety_settings,
-            tools=self._tools,
-            tool_config=self._tool_config,
             stream=streaming_callback is not None,
         )
         self._model.start_chat()
