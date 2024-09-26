@@ -10,7 +10,7 @@ from haystack.dataclasses import Document
 from haystack.dataclasses.sparse_embedding import SparseEmbedding
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
-from haystack.utils import Secret, deserialize_secrets_inplace
+from haystack.utils import Secret, deserialize_secrets_inplace, raise_on_invalid_filter_syntax
 from qdrant_client import grpc
 from qdrant_client.http import models as rest
 from qdrant_client.http.exceptions import UnexpectedResponse
@@ -306,22 +306,21 @@ class QdrantDocumentStore:
 
     def filter_documents(
         self,
-        filters: Optional[Union[Dict[str, Any], rest.Filter]] = None,
+        filters: Optional[Dict[str, Any]] = None,
     ) -> List[Document]:
         """
         Returns the documents that match the provided filters.
-
         For a detailed specification of the filters, refer to the
         [documentation](https://docs.haystack.deepset.ai/docs/metadata-filtering)
 
-        :param filters: The filters to apply to the document list.
-        :returns: A list of documents that match the given filters.
+        :param filters: the filters to apply to the Document list.
+        :returns: a list of Documents that match the given filters.
         """
-        if filters and not isinstance(filters, dict) and not isinstance(filters, rest.Filter):
-            msg = "Filter must be a dictionary or an instance of `qdrant_client.http.models.Filter`"
+        if filters and not isinstance(filters, dict):
+            msg = "Filter must be a dictionary"
             raise ValueError(msg)
 
-        if filters and not isinstance(filters, rest.Filter) and "operator" not in filters:
+        if filters and "operator" not in filters:
             msg = "Invalid filter syntax. See https://docs.haystack.deepset.ai/docs/metadata-filtering for details."
             raise ValueError(msg)
         return list(
@@ -433,7 +432,7 @@ class QdrantDocumentStore:
 
     def get_documents_generator(
         self,
-        filters: Optional[Union[Dict[str, Any], rest.Filter]] = None,
+        filters: Optional[Dict[str, Any]] = None,
     ) -> Generator[Document, None, None]:
         """
         Returns a generator that yields documents from Qdrant based on the provided filters.
