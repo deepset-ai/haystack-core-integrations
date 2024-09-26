@@ -4,8 +4,6 @@ from haystack import Document, component, default_from_dict, default_to_dict
 from haystack.dataclasses.sparse_embedding import SparseEmbedding
 from haystack.document_stores.types import FilterPolicy
 from haystack.document_stores.types.filter_policy import apply_filter_policy
-from qdrant_client.http import models
-
 from haystack_integrations.document_stores.qdrant import QdrantDocumentStore
 
 
@@ -38,7 +36,7 @@ class QdrantEmbeddingRetriever:
     def __init__(
         self,
         document_store: QdrantDocumentStore,
-        filters: Optional[Union[Dict[str, Any], models.Filter]] = None,
+        filters: Optional[Dict[str, Any]] = None,
         top_k: int = 10,
         scale_score: bool = False,
         return_embedding: bool = False,
@@ -129,7 +127,7 @@ class QdrantEmbeddingRetriever:
     def run(
         self,
         query_embedding: List[float],
-        filters: Optional[Union[Dict[str, Any], models.Filter]] = None,
+        filters: Optional[Dict[str, Any]] = None,
         top_k: Optional[int] = None,
         scale_score: Optional[bool] = None,
         return_embedding: Optional[bool] = None,
@@ -200,7 +198,7 @@ class QdrantSparseEmbeddingRetriever:
     def __init__(
         self,
         document_store: QdrantDocumentStore,
-        filters: Optional[Union[Dict[str, Any], models.Filter]] = None,
+        filters: Optional[Dict[str, Any]] = None,
         top_k: int = 10,
         scale_score: bool = False,
         return_embedding: bool = False,
@@ -291,7 +289,7 @@ class QdrantSparseEmbeddingRetriever:
     def run(
         self,
         query_sparse_embedding: SparseEmbedding,
-        filters: Optional[Union[Dict[str, Any], models.Filter]] = None,
+        filters: Optional[Dict[str, Any]] = None,
         top_k: Optional[int] = None,
         scale_score: Optional[bool] = None,
         return_embedding: Optional[bool] = None,
@@ -373,7 +371,7 @@ class QdrantHybridRetriever:
     def __init__(
         self,
         document_store: QdrantDocumentStore,
-        filters: Optional[Union[Dict[str, Any], models.Filter]] = None,
+        filters: Optional[Dict[str, Any]] = None,
         top_k: int = 10,
         return_embedding: bool = False,
         filter_policy: Union[str, FilterPolicy] = FilterPolicy.REPLACE,
@@ -458,7 +456,7 @@ class QdrantHybridRetriever:
         self,
         query_embedding: List[float],
         query_sparse_embedding: SparseEmbedding,
-        filters: Optional[Union[Dict[str, Any], models.Filter]] = None,
+        filters: Optional[Dict[str, Any]] = None,
         top_k: Optional[int] = None,
         return_embedding: Optional[bool] = None,
         score_threshold: Optional[float] = None,

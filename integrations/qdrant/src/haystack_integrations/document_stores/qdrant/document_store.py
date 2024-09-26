@@ -10,7 +10,7 @@ from haystack.dataclasses import Document
 from haystack.dataclasses.sparse_embedding import SparseEmbedding
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
-from haystack.utils import Secret, deserialize_secrets_inplace, raise_on_invalid_filter_syntax
+from haystack.utils import Secret, deserialize_secrets_inplace
 from qdrant_client import grpc
 from qdrant_client.http import models as rest
 from qdrant_client.http.exceptions import UnexpectedResponse
@@ -320,7 +320,8 @@ class QdrantDocumentStore:
             msg = "Filter must be a dictionary"
             raise ValueError(msg)
 
-        if filters and "operator" not in filters:
+        # TODO: replace this with "raise_on_invalid_filter_syntax" function from haystack.utils
+        if filters and "operator" not in filters and "condition" not in filters:
             msg = "Invalid filter syntax. See https://docs.haystack.deepset.ai/docs/metadata-filtering for details."
             raise ValueError(msg)
         return list(
@@ -500,7 +501,7 @@ class QdrantDocumentStore:
     def _query_by_sparse(
         self,
         query_sparse_embedding: SparseEmbedding,
-        filters: Optional[Union[Dict[str, Any], rest.Filter]] = None,
+        filters: Optional[Dict[str, Any]] = None,
         top_k: int = 10,
         scale_score: bool = False,
         return_embedding: bool = False,
@@ -592,7 +593,7 @@ class QdrantDocumentStore:
     def _query_by_embedding(
         self,
         query_embedding: List[float],
-        filters: Optional[Union[Dict[str, Any], rest.Filter]] = None,
+        filters: Optional[Dict[str, Any]] = None,
         top_k: int = 10,
         scale_score: bool = False,
         return_embedding: bool = False,

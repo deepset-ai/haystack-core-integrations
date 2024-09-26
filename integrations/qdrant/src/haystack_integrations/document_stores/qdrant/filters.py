@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import List, Optional, Union
+from typing import Any, Dict, List, Optional, Union
 
 from haystack.utils.filters import COMPARISON_OPERATORS, LOGICAL_OPERATORS, FilterError
 from qdrant_client.http import models
@@ -9,7 +9,7 @@ LOGICAL_OPERATORS = LOGICAL_OPERATORS.keys()
 
 
 def convert_filters_to_qdrant(
-    filter_term: Optional[Union[List[dict], dict, models.Filter]] = None, is_parent_call: bool = True
+    filter_term: Optional[Union[Dict[str, Any], List[Dict[str, Any]]]] = None, is_parent_call: bool = True
 ) -> Optional[Union[models.Filter, List[models.Filter], List[models.Condition]]]:
     """Converts Haystack filters to the format used by Qdrant.
 
@@ -23,8 +23,6 @@ def convert_filters_to_qdrant(
 
     """
 
-    if isinstance(filter_term, models.Filter):
-        return filter_term
     if not filter_term:
         return None
 
