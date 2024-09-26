@@ -2,10 +2,11 @@ import logging
 import re
 from typing import Any, Dict, List, Optional, Union
 
+from haystack import default_from_dict
 from haystack.dataclasses.document import Document
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
-from haystack.utils import Secret
+from haystack.utils import Secret, deserialize_secrets_inplace
 from pymongo import InsertOne, MongoClient, ReplaceOne, UpdateOne
 from pymongo.collection import Collection
 from pymongo.driver_info import DriverInfo
@@ -85,7 +86,7 @@ class AzureCosmosDBMongoVCoreDocumentStore:
         if self._mongo_client is None:
             self._mongo_client = MongoClient(
                 self.mongo_connection_string.resolve_value(),
-                appname="",
+                appname="HayStack-CDBMongoVCore-DocumentStore-Python",
                 driver=DriverInfo(name="AzureCosmosDBMongoVCoreDocumentStore")
             )
             return self._mongo_client
@@ -121,6 +122,20 @@ class AzureCosmosDBMongoVCoreDocumentStore:
 
         create_index_response: dict[str, Any] = self.mongo_client[self.database_name].command(command)
         return create_index_response
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "AzureCosmosDBMongoVCoreDocumentStore":
+        """
+        Deserializes the component from a dictionary.
+
+        :param data:
+            Dictionary to deserialize from.
+        :returns:
+              Deserialized component.
+        """
+        deserialize_secrets_inplace(data["init_parameters"], keys=["mongo_connection_string"])
+        return default_from_dict(cls, data)
+
 
     def count_documents(self) -> int:
         """

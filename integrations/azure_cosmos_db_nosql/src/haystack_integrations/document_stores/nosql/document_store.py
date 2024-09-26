@@ -3,15 +3,18 @@ from typing import Any, Dict, List, Optional
 
 from azure.cosmos import CosmosClient
 from azure.cosmos.container import ContainerProxy
+from azure.identity import ClientSecretCredential
+from haystack import default_from_dict
 from haystack import Document
 from haystack.document_stores.types import DuplicatePolicy
+from haystack.utils import Secret, deserialize_secrets_inplace
 
 logger = logging.getLogger(__name__)
 
 
-class AzureCosmosNoSqlDocumentStore:
+class AzureCosmosDBNoSqlDocumentStore:
     """
-    AzureCosmosNoSqlDocumentStore is a DocumentStore implementation that uses [Azure CosmosDB NoSql]
+    AzureCosmosDBNoSqlDocumentStore is a DocumentStore implementation that uses [Azure CosmosDB NoSql]
     (https://learn.microsoft.com/en-us/azure/cosmos-db/nosql/vector-search) service.
 
     To connect to Azure CosmosDB NoSql, you need to provide a cosmosClient. After providing the connection
@@ -30,7 +33,7 @@ class AzureCosmosNoSqlDocumentStore:
         cosmos_container_properties: dict[str, Any] = None,
     ):
         """
-        Creates a new AzureCosmosNoSqlDocumentStore instance.
+        Creates a new AzureCosmosDBNoSqlDocumentStore instance.
 
         :param cosmos_client: Azure CosmosClient for NoSql account.
         :param database_name: Name of the database to use.
@@ -68,6 +71,81 @@ class AzureCosmosNoSqlDocumentStore:
                 vector_embedding_policy=self.vector_embedding_policy,
             )
         return self._container
+
+    @classmethod
+    def from_connection_string(
+            cls,
+            connection_string: Secret = Secret.from_env_var("AZURE_COSMOS_NOSQL_CONNECTION_STRING"),
+            database_name: str = None,
+            container_name: str = None,
+            vector_embedding_policy: dict[str, Any] = None,
+            indexing_policy: dict[str, Any] = None,
+            cosmos_container_properties: dict[str, Any] = None,
+    ) -> "AzureCosmosDBNoSqlDocumentStore":
+        cosmos_client = CosmosClient.from_connection_string(connection_string.resolve_value())
+        return cls(
+            cosmos_client,
+            database_name,
+            container_name,
+            vector_embedding_policy,
+            indexing_policy,
+            cosmos_container_properties,
+        )
+
+    @classmethod
+    def from_uri_and_key(
+        cls,
+        uri: str,
+        key: str,
+        database_name: str = None,
+        container_name: str = None,
+        vector_embedding_policy: dict[str, Any] = None,
+        indexing_policy: dict[str, Any] = None,
+        cosmos_container_properties: dict[str, Any] = None,
+    ) -> "AzureCosmosDBNoSqlDocumentStore":
+        cosmos_client = CosmosClient(uri, key)
+        return cls(
+            cosmos_client,
+            database_name,
+            container_name,
+            vector_embedding_policy,
+            indexing_policy,
+            cosmos_container_properties,
+        )
+
+    @classmethod
+    def from_aad_token(
+            cls,
+            uri: str,
+            credential: ClientSecretCredential,
+            database_name: str = None,
+            container_name: str = None,
+            vector_embedding_policy: dict[str, Any] = None,
+            indexing_policy: dict[str, Any] = None,
+            cosmos_container_properties: dict[str, Any] = None,
+    ) -> "AzureCosmosDBNoSqlDocumentStore":
+        cosmos_client = CosmosClient(uri, credential)
+        return cls(
+            cosmos_client,
+            database_name,
+            container_name,
+            vector_embedding_policy,
+            indexing_policy,
+            cosmos_container_properties,
+        )
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "AzureCosmosDBNoSqlDocumentStore":
+        """
+        Deserializes the component from a dictionary.
+
+        :param data:
+            Dictionary to deserialize from.
+        :returns:
+              Deserialized component.
+        """
+        deserialize_secrets_inplace(data["init_parameters"], keys=["mongo_connection_string"])
+        return default_from_dict(cls, data)
 
     def count_documents(self) -> int:
         """
