@@ -3,10 +3,10 @@
 from haystack import Pipeline
 
 from haystack_integrations.components.embedders.optimum import (
-    OptimumTextEmbedder,
-    OptimumEmbedderPooling,
     OptimumEmbedderOptimizationConfig,
     OptimumEmbedderOptimizationMode,
+    OptimumEmbedderPooling,
+    OptimumTextEmbedder,
 )
 
 pipeline = Pipeline()

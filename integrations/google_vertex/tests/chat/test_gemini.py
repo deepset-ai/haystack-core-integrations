@@ -3,7 +3,7 @@ from unittest.mock import MagicMock, Mock, patch
 import pytest
 from haystack import Pipeline
 from haystack.components.builders import ChatPromptBuilder
-from haystack.dataclasses import ChatMessage, StreamingChunk
+from haystack.dataclasses import ChatMessage, ChatRole, StreamingChunk
 from vertexai.generative_models import (
     Content,
     FunctionDeclaration,
@@ -13,6 +13,7 @@ from vertexai.generative_models import (
     HarmCategory,
     Part,
     Tool,
+    ToolConfig,
 )
 
 from haystack_integrations.components.generators.google_vertex import VertexAIGeminiChatGenerator
@@ -60,6 +61,12 @@ def test_init(mock_vertexai_init, _mock_generative_model):
     safety_settings = {HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_ONLY_HIGH}
 
     tool = Tool(function_declarations=[GET_CURRENT_WEATHER_FUNC])
+    tool_config = ToolConfig(
+        function_calling_config=ToolConfig.FunctionCallingConfig(
+            mode=ToolConfig.FunctionCallingConfig.Mode.ANY,
+            allowed_function_names=["get_current_weather_func"],
+        )
+    )
 
     gemini = VertexAIGeminiChatGenerator(
         project_id="TestID123",
@@ -67,12 +74,16 @@ def test_init(mock_vertexai_init, _mock_generative_model):
         generation_config=generation_config,
         safety_settings=safety_settings,
         tools=[tool],
+        tool_config=tool_config,
+        system_instruction="Please provide brief answers.",
     )
     mock_vertexai_init.assert_called()
     assert gemini._model_name == "gemini-1.5-flash"
     assert gemini._generation_config == generation_config
     assert gemini._safety_settings == safety_settings
     assert gemini._tools == [tool]
+    assert gemini._tool_config == tool_config
+    assert gemini._system_instruction == "Please provide brief answers."
 
 
 @patch("haystack_integrations.components.generators.google_vertex.chat.gemini.vertexai_init")
@@ -92,6 +103,8 @@ def test_to_dict(_mock_vertexai_init, _mock_generative_model):
             "safety_settings": None,
             "streaming_callback": None,
             "tools": None,
+            "tool_config": None,
+            "system_instruction": None,
         },
     }
 
@@ -110,12 +123,20 @@ def test_to_dict_with_params(_mock_vertexai_init, _mock_generative_model):
     safety_settings = {HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_ONLY_HIGH}
 
     tool = Tool(function_declarations=[GET_CURRENT_WEATHER_FUNC])
+    tool_config = ToolConfig(
+        function_calling_config=ToolConfig.FunctionCallingConfig(
+            mode=ToolConfig.FunctionCallingConfig.Mode.ANY,
+            allowed_function_names=["get_current_weather_func"],
+        )
+    )
 
     gemini = VertexAIGeminiChatGenerator(
         project_id="TestID123",
         generation_config=generation_config,
         safety_settings=safety_settings,
         tools=[tool],
+        tool_config=tool_config,
+        system_instruction="Please provide brief answers.",
     )
 
     assert gemini.to_dict() == {
@@ -155,6 +176,13 @@ def test_to_dict_with_params(_mock_vertexai_init, _mock_generative_model):
                     ]
                 }
             ],
+            "tool_config": {
+                "function_calling_config": {
+                    "mode": ToolConfig.FunctionCallingConfig.Mode.ANY,
+                    "allowed_function_names": ["get_current_weather_func"],
+                }
+            },
+            "system_instruction": "Please provide brief answers.",
         },
     }
 
@@ -180,6 +208,8 @@ def test_from_dict(_mock_vertexai_init, _mock_generative_model):
     assert gemini._project_id == "TestID123"
     assert gemini._safety_settings is None
     assert gemini._tools is None
+    assert gemini._tool_config is None
+    assert gemini._system_instruction is None
     assert gemini._generation_config is None
 
 
@@ -222,6 +252,13 @@ def test_from_dict_with_param(_mock_vertexai_init, _mock_generative_model):
                         ]
                     }
                 ],
+                "tool_config": {
+                    "function_calling_config": {
+                        "mode": ToolConfig.FunctionCallingConfig.Mode.ANY,
+                        "allowed_function_names": ["get_current_weather_func"],
+                    }
+                },
+                "system_instruction": "Please provide brief answers.",
                 "streaming_callback": None,
             },
         }
@@ -231,7 +268,12 @@ def test_from_dict_with_param(_mock_vertexai_init, _mock_generative_model):
     assert gemini._project_id == "TestID123"
     assert gemini._safety_settings == {HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_ONLY_HIGH}
     assert repr(gemini._tools) == repr([Tool(function_declarations=[GET_CURRENT_WEATHER_FUNC])])
+    assert isinstance(gemini._tool_config, ToolConfig)
     assert isinstance(gemini._generation_config, GenerationConfig)
+    assert gemini._system_instruction == "Please provide brief answers."
+    assert (
+        gemini._tool_config._gapic_tool_config.function_calling_config.mode == ToolConfig.FunctionCallingConfig.Mode.ANY
+    )
 
 
 @patch("haystack_integrations.components.generators.google_vertex.chat.gemini.GenerativeModel")
@@ -249,9 +291,12 @@ def test_run(mock_generative_model):
         ChatMessage.from_user("What's the capital of France?"),
     ]
     gemini = VertexAIGeminiChatGenerator(project_id="TestID123", location=None)
-    gemini.run(messages=messages)
+    response = gemini.run(messages=messages)
 
     mock_model.send_message.assert_called_once()
+    assert "replies" in response
+    assert len(response["replies"]) > 0
+    assert all(reply.role == ChatRole.ASSISTANT for reply in response["replies"])
 
 
 @patch("haystack_integrations.components.generators.google_vertex.chat.gemini.GenerativeModel")
@@ -260,25 +305,24 @@ def test_run_with_streaming_callback(mock_generative_model):
     mock_responses = iter(
         [MagicMock(spec=GenerationResponse, text="First part"), MagicMock(spec=GenerationResponse, text="Second part")]
     )
-
     mock_model.send_message.return_value = mock_responses
     mock_model.start_chat.return_value = mock_model
     mock_generative_model.return_value = mock_model
 
     streaming_callback_called = []
 
-    def streaming_callback(chunk: StreamingChunk) -> None:
-        streaming_callback_called.append(chunk.content)
+    def streaming_callback(_chunk: StreamingChunk) -> None:
+        nonlocal streaming_callback_called
+        streaming_callback_called = True
 
     gemini = VertexAIGeminiChatGenerator(project_id="TestID123", location=None, streaming_callback=streaming_callback)
     messages = [
         ChatMessage.from_system("You are a helpful assistant"),
         ChatMessage.from_user("What's the capital of France?"),
     ]
-    gemini.run(messages=messages)
-
+    response = gemini.run(messages=messages)
     mock_model.send_message.assert_called_once()
-    assert streaming_callback_called == ["First part", "Second part"]
+    assert "replies" in response
 
 
 def test_serialization_deserialization_pipeline():

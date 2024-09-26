@@ -19,8 +19,8 @@ renderer:
   excerpt: Snowflake integration for Haystack
   category_slug: integrations-api
   title: Snowflake
-  slug: integrations-Snowflake
-  order: 130
+  slug: integrations-snowflake
+  order: 225
   markdown:
     descriptive_class_title: false
     classdef_code_block: false
