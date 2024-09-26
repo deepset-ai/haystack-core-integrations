@@ -1,21 +1,22 @@
-from unittest.mock import MagicMock, patch
-import tempfile
 import copy
+import tempfile
+from unittest.mock import MagicMock, patch
 
 import pytest
 from haystack.dataclasses import Document
 from haystack.utils.auth import Secret
+from huggingface_hub.utils import RepositoryNotFoundError
+
 from haystack_integrations.components.embedders.optimum import OptimumDocumentEmbedder
-from haystack_integrations.components.embedders.optimum.pooling import OptimumEmbedderPooling
 from haystack_integrations.components.embedders.optimum.optimization import (
     OptimumEmbedderOptimizationConfig,
     OptimumEmbedderOptimizationMode,
 )
+from haystack_integrations.components.embedders.optimum.pooling import OptimumEmbedderPooling
 from haystack_integrations.components.embedders.optimum.quantization import (
     OptimumEmbedderQuantizationConfig,
     OptimumEmbedderQuantizationMode,
 )
-from huggingface_hub.utils import RepositoryNotFoundError
 
 
 @pytest.fixture
@@ -147,9 +148,7 @@ class TestOptimumDocumentEmbedder:
         assert embedder._backend.parameters.optimizer_settings is None
         assert embedder._backend.parameters.quantizer_settings is None
 
-    def test_to_and_from_dict_with_custom_init_parameters(
-        self, mock_check_valid_model, mock_get_pooling_mode
-    ):  # noqa: ARG002
+    def test_to_and_from_dict_with_custom_init_parameters(self, mock_check_valid_model, mock_get_pooling_mode):
         component = OptimumDocumentEmbedder(
             model="sentence-transformers/all-minilm-l6-v2",
             token=Secret.from_env_var("ENV_VAR", strict=False),

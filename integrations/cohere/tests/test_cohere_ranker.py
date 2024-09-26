@@ -4,6 +4,7 @@ from unittest.mock import Mock, patch
 import pytest
 from haystack import Document
 from haystack.utils.auth import Secret
+
 from haystack_integrations.components.rankers.cohere import CohereRanker
 
 pytestmark = pytest.mark.ranker

@@ -5,6 +5,7 @@ import os
 
 import pytest
 from haystack.utils import Secret
+
 from haystack_integrations.components.embedders.mistral.text_embedder import MistralTextEmbedder
 
 pytestmark = pytest.mark.embedders
