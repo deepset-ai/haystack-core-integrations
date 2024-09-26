@@ -671,7 +671,7 @@ class QdrantDocumentStore:
         self,
         query_embedding: List[float],
         query_sparse_embedding: SparseEmbedding,
-        filters: Optional[Union[Dict[str, Any], rest.Filter]] = None,
+        filters: Optional[Dict[str, Any]] = None,
         top_k: int = 10,
         return_embedding: bool = False,
         score_threshold: Optional[float] = None,
