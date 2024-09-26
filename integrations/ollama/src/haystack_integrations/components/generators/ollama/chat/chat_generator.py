@@ -1,7 +1,8 @@
 from typing import Any, Callable, Dict, List, Optional
 
-from haystack import component
+from haystack import component, default_from_dict, default_to_dict
 from haystack.dataclasses import ChatMessage, StreamingChunk
+from haystack.utils.callable_serialization import deserialize_callable, serialize_callable
 
 from ollama import Client
 
@@ -62,6 +63,40 @@ class OllamaChatGenerator:
         self.streaming_callback = streaming_callback
 
         self._client = Client(host=self.url, timeout=self.timeout)
+
+    def to_dict(self) -> Dict[str, Any]:
+        """
+        Serializes the component to a dictionary.
+
+        :returns:
+              Dictionary with serialized data.
+        """
+        callback_name = serialize_callable(self.streaming_callback) if self.streaming_callback else None
+        return default_to_dict(
+            self,
+            model=self.model,
+            url=self.url,
+            generation_kwargs=self.generation_kwargs,
+            timeout=self.timeout,
+            streaming_callback=callback_name,
+        )
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "OllamaChatGenerator":
+        """
+        Deserializes the component from a dictionary.
+
+        :param data:
+            Dictionary to deserialize from.
+        :returns:
+            Deserialized component.
+        """
+        init_params = data.get("init_parameters", {})
+        serialized_callback_handler = init_params.get("streaming_callback")
+        if serialized_callback_handler:
+            data["init_parameters"]["streaming_callback"] = deserialize_callable(serialized_callback_handler)
+        return default_from_dict(cls, data)
+            
 
     def _message_to_dict(self, message: ChatMessage) -> Dict[str, str]:
         return {"role": message.role.value, "content": message.content}
