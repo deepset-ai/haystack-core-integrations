@@ -477,10 +477,11 @@ class TestSnowflakeTableRetriever:
 
         data = component.to_dict()
 
-        t = "haystack_integrations.components.retrievers.snowflake.snowflake_table_retriever.SnowflakeTableRetriever"
-
         assert data == {
-            "type": t,
+            "type": (
+                "haystack_integrations.components.retrievers.snowflake."
+                "snowflake_table_retriever.SnowflakeTableRetriever"
+            ),
             "init_parameters": {
                 "api_key": {
                     "env_vars": ["SNOWFLAKE_API_KEY"],
@@ -511,10 +512,11 @@ class TestSnowflakeTableRetriever:
 
         data = component.to_dict()
 
-        t = "haystack_integrations.components.retrievers.snowflake.snowflake_table_retriever.SnowflakeTableRetriever"
-
         assert data == {
-            "type": t,
+            "type": (
+                "haystack_integrations.components.retrievers.snowflake."
+                "snowflake_table_retriever.SnowflakeTableRetriever"
+            ),
             "init_parameters": {
                 "api_key": {
                     "env_vars": ["SNOWFLAKE_API_KEY"],
