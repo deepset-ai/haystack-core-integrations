@@ -1,5 +1,11 @@
 # Changelog
 
+## [integrations/pinecone-v2.0.0] - 2024-09-12
+
+### ⚙️ Miscellaneous Tasks
+
+- Pinecone - remove legacy filter support (#1069)
+
 ## [integrations/pinecone-v1.2.3] - 2024-08-29
 
 ### 🚀 Features

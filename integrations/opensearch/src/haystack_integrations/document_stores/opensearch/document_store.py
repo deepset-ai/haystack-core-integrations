@@ -9,7 +9,6 @@ from haystack import default_from_dict, default_to_dict
 from haystack.dataclasses import Document
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
-from haystack.utils.filters import convert
 from opensearchpy import OpenSearch
 from opensearchpy.helpers import bulk
 
@@ -238,14 +237,14 @@ class OpenSearchDocumentStore:
 
     def filter_documents(self, filters: Optional[Dict[str, Any]] = None) -> List[Document]:
         if filters and "operator" not in filters and "conditions" not in filters:
-            filters = convert(filters)
+            msg = "Invalid filter syntax. See https://docs.haystack.deepset.ai/docs/metadata-filtering for details."
+            raise ValueError(msg)
 
         if filters:
             query = {"bool": {"filter": normalize_filters(filters)}}
             documents = self._search_documents(query=query, size=10_000)
         else:
             documents = self._search_documents(size=10_000)
-
         return documents
 
     def write_documents(self, documents: List[Document], policy: DuplicatePolicy = DuplicatePolicy.NONE) -> int:
@@ -384,7 +383,8 @@ class OpenSearchDocumentStore:
         :returns: List of Document that match `query`
         """
         if filters and "operator" not in filters and "conditions" not in filters:
-            filters = convert(filters)
+            msg = "Invalid filter syntax. See https://docs.haystack.deepset.ai/docs/metadata-filtering for details."
+            raise ValueError(msg)
 
         if not query:
             body: Dict[str, Any] = {"query": {"bool": {"must": {"match_all": {}}}}}
@@ -478,7 +478,8 @@ class OpenSearchDocumentStore:
         :returns: List of Document that are most similar to `query_embedding`
         """
         if filters and "operator" not in filters and "conditions" not in filters:
-            filters = convert(filters)
+            msg = "Legacy filters support has been removed. Please see documentation for new filter syntax."
+            raise ValueError(msg)
 
         if not query_embedding:
             msg = "query_embedding must be a non-empty list of floats"

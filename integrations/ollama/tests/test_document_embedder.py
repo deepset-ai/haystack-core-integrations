@@ -1,6 +1,6 @@
 import pytest
 from haystack import Document
-from requests import HTTPError
+from ollama._types import ResponseError
 
 from haystack_integrations.components.embedders.ollama import OllamaDocumentEmbedder
 
@@ -11,27 +11,27 @@ class TestOllamaDocumentEmbedder:
 
         assert embedder.timeout == 120
         assert embedder.generation_kwargs == {}
-        assert embedder.url == "http://localhost:11434/api/embeddings"
+        assert embedder.url == "http://localhost:11434"
         assert embedder.model == "nomic-embed-text"
 
     def test_init(self):
         embedder = OllamaDocumentEmbedder(
             model="nomic-embed-text",
-            url="http://my-custom-endpoint:11434/api/embeddings",
+            url="http://my-custom-endpoint:11434",
             generation_kwargs={"temperature": 0.5},
             timeout=3000,
         )
 
         assert embedder.timeout == 3000
         assert embedder.generation_kwargs == {"temperature": 0.5}
-        assert embedder.url == "http://my-custom-endpoint:11434/api/embeddings"
+        assert embedder.url == "http://my-custom-endpoint:11434"
         assert embedder.model == "nomic-embed-text"
 
     @pytest.mark.integration
     def test_model_not_found(self):
         embedder = OllamaDocumentEmbedder(model="cheese")
 
-        with pytest.raises(HTTPError):
+        with pytest.raises(ResponseError):
             embedder.run([Document("hello")])
 
     @pytest.mark.integration

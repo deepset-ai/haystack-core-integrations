@@ -1,5 +1,5 @@
 import pytest
-from requests import HTTPError
+from ollama._types import ResponseError
 
 from haystack_integrations.components.embedders.ollama import OllamaTextEmbedder
 
@@ -10,27 +10,27 @@ class TestOllamaTextEmbedder:
 
         assert embedder.timeout == 120
         assert embedder.generation_kwargs == {}
-        assert embedder.url == "http://localhost:11434/api/embeddings"
+        assert embedder.url == "http://localhost:11434"
         assert embedder.model == "nomic-embed-text"
 
     def test_init(self):
         embedder = OllamaTextEmbedder(
             model="llama2",
-            url="http://my-custom-endpoint:11434/api/embeddings",
+            url="http://my-custom-endpoint:11434",
             generation_kwargs={"temperature": 0.5},
             timeout=3000,
         )
 
         assert embedder.timeout == 3000
         assert embedder.generation_kwargs == {"temperature": 0.5}
-        assert embedder.url == "http://my-custom-endpoint:11434/api/embeddings"
+        assert embedder.url == "http://my-custom-endpoint:11434"
         assert embedder.model == "llama2"
 
     @pytest.mark.integration
     def test_model_not_found(self):
         embedder = OllamaTextEmbedder(model="cheese")
 
-        with pytest.raises(HTTPError):
+        with pytest.raises(ResponseError):
             embedder.run("hello")
 
     @pytest.mark.integration

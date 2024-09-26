@@ -2,17 +2,15 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 import logging
-from collections import defaultdict
-from typing import Any, Dict, List, Literal, Optional, Tuple
+from typing import Any, Dict, List, Literal, Optional
 
 import chromadb
-import numpy as np
-from chromadb.api.types import GetResult, QueryResult, validate_where, validate_where_document
+from chromadb.api.types import GetResult, QueryResult
 from haystack import default_from_dict, default_to_dict
 from haystack.dataclasses import Document
 from haystack.document_stores.types import DuplicatePolicy
 
-from .errors import ChromaDocumentStoreFilterError
+from .filters import _convert_filters
 from .utils import get_embedding_function
 
 logger = logging.getLogger(__name__)
@@ -35,6 +33,8 @@ class ChromaDocumentStore:
         collection_name: str = "documents",
         embedding_function: str = "default",
         persist_path: Optional[str] = None,
+        host: Optional[str] = None,
+        port: Optional[int] = None,
         distance_function: Literal["l2", "cosine", "ip"] = "l2",
         metadata: Optional[dict] = None,
         **embedding_function_params,
@@ -50,7 +50,10 @@ class ChromaDocumentStore:
 
         :param collection_name: the name of the collection to use in the database.
         :param embedding_function: the name of the embedding function to use to embed the query
-        :param persist_path: where to store the database. If None, the database will be `in-memory`.
+        :param persist_path: Path for local persistent storage. Cannot be used in combination with `host` and `port`.
+            If none of `persist_path`, `host`, and `port` is specified, the database will be `in-memory`.
+        :param host: The host address for the remote Chroma HTTP client connection. Cannot be used with `persist_path`.
+        :param port: The port number for the remote Chroma HTTP client connection. Cannot be used with `persist_path`.
         :param distance_function: The distance metric for the embedding space.
             - `"l2"` computes the Euclidean (straight-line) distance between vectors,
             where smaller scores indicate more similarity.
@@ -77,12 +80,31 @@ class ChromaDocumentStore:
         self._collection_name = collection_name
         self._embedding_function = embedding_function
         self._embedding_function_params = embedding_function_params
-        self._persist_path = persist_path
         self._distance_function = distance_function
+
+        self._persist_path = persist_path
+        self._host = host
+        self._port = port
+
         # Create the client instance
-        if persist_path is None:
+        if persist_path and (host or port is not None):
+            error_message = (
+                "You must specify `persist_path` for local persistent storage or, "
+                "alternatively, `host` and `port` for remote HTTP client connection. "
+                "You cannot specify both options."
+            )
+            raise ValueError(error_message)
+        if host and port is not None:
+            # Remote connection via HTTP client
+            self._chroma_client = chromadb.HttpClient(
+                host=host,
+                port=port,
+            )
+        elif persist_path is None:
+            # In-memory storage
             self._chroma_client = chromadb.Client()
         else:
+            # Local persistent storage
             self._chroma_client = chromadb.PersistentClient(path=persist_path)
 
         embedding_func = get_embedding_function(embedding_function, **embedding_function_params)
@@ -115,83 +137,74 @@ class ChromaDocumentStore:
 
     def filter_documents(self, filters: Optional[Dict[str, Any]] = None) -> List[Document]:
         """
-        Returns the documents that match the filters provided.
+         Returns the documents that match the filters provided.
 
-        Filters are defined as nested dictionaries. The keys of the dictionaries can be a logical operator (`"$and"`,
-        `"$or"`, `"$not"`), a comparison operator (`"$eq"`, `$ne`, `"$in"`, `$nin`, `"$gt"`, `"$gte"`, `"$lt"`,
-        `"$lte"`) or a metadata field name.
+         Filters can be provided as a dictionary supporting filtering by ids, metadata, and document content.
+         Metadata filters should use the `"meta.<metadata_key>"` syntax, while content-based filters
+         use the `"content"` field directly.
+         Content filters support the `contains` and `not contains` operators,
+         while id filters only support the `==` operator.
 
-        Logical operator keys take a dictionary of metadata field names and/or logical operators as value. Metadata
-        field names take a dictionary of comparison operators as value. Comparison operator keys take a single value or
-        (in case of `"$in"`) a list of values as value. If no logical operator is provided, `"$and"` is used as default
-        operation. If no comparison operator is provided, `"$eq"` (or `"$in"` if the comparison value is a list) is used
-        as default operation.
+         Due to Chroma's distinction between metadata filters and document filters, filters with `"field": "content"`
+        (i.e., document content filters) and metadata fields must be supplied separately. For details on chroma filters,
+        see the [Chroma documentation](https://docs.trychroma.com/guides).
 
-        Example:
+         Example:
 
-        ```python
-        filters = {
-            "$and": {
-                "type": {"$eq": "article"},
-                "date": {"$gte": "2015-01-01", "$lt": "2021-01-01"},
-                "rating": {"$gte": 3},
-                "$or": {
-                    "genre": {"$in": ["economy", "politics"]},
-                    "publisher": {"$eq": "nytimes"}
-                }
+         ```python
+         filter_1 = {
+                "operator": "AND",
+                "conditions": [
+                    {"field": "meta.name", "operator": "==", "value": "name_0"},
+                    {"field": "meta.number", "operator": "not in", "value": [2, 9]},
+                ],
             }
-        }
-        # or simpler using default operators
-        filters = {
-            "type": "article",
-            "date": {"$gte": "2015-01-01", "$lt": "2021-01-01"},
-            "rating": {"$gte": 3},
-            "$or": {
-                "genre": ["economy", "politics"],
-                "publisher": "nytimes"
+         filter_2 = {
+                "operator": "AND",
+                "conditions": [
+                    {"field": "content", "operator": "contains", "value": "FOO"},
+                    {"field": "content", "operator": "not contains", "value": "BAR"},
+                ],
             }
-        }
-        ```
+         ```
 
-        To use the same logical operator multiple times on the same level, logical operators can take a list of
-        dictionaries as value.
+        If you need to apply the same logical operator (e.g., "AND", "OR") to multiple conditions at the same level,
+         you can provide a list of dictionaries as the value for the operator, like in the example below:
 
-        Example:
+         ```python
+         filters = {
+             "operator": "OR",
+             "conditions": [
+                 {"field": "meta.author", "operator": "==", "value": "author_1"},
+                 {
+                     "operator": "AND",
+                     "conditions": [
+                         {"field": "meta.tag", "operator": "==", "value": "tag_1"},
+                         {"field": "meta.page", "operator": ">", "value": 100},
+                     ],
+                 },
+                 {
+                     "operator": "AND",
+                     "conditions": [
+                         {"field": "meta.tag", "operator": "==", "value": "tag_2"},
+                         {"field": "meta.page", "operator": ">", "value": 200},
+                     ],
+                 },
+             ],
+         }
+         ```
 
-        ```python
-        filters = {
-            "$or": [
-                {
-                    "$and": {
-                        "Type": "News Paper",
-                        "Date": {
-                            "$lt": "2019-01-01"
-                        }
-                    }
-                },
-                {
-                    "$and": {
-                        "Type": "Blog Post",
-                        "Date": {
-                            "$gte": "2019-01-01"
-                        }
-                    }
-                }
-            ]
-        }
-        ```
-
-        :param filters: the filters to apply to the document list.
-        :returns: a list of Documents that match the given filters.
+         :param filters: the filters to apply to the document list.
+         :returns: a list of Documents that match the given filters.
         """
         if filters:
-            ids, where, where_document = self._normalize_filters(filters)
-            kwargs: Dict[str, Any] = {"where": where}
+            chroma_filter = _convert_filters(filters)
+            kwargs: Dict[str, Any] = {"where": chroma_filter.where}
 
-            if ids:
-                kwargs["ids"] = ids
-            if where_document:
-                kwargs["where_document"] = where_document
+            if chroma_filter.ids:
+                kwargs["ids"] = chroma_filter.ids
+            if chroma_filter.where_document:
+                kwargs["where_document"] = chroma_filter.where_document
 
             result = self._collection.get(**kwargs)
         else:
@@ -286,12 +299,12 @@ class ChromaDocumentStore:
                 include=["embeddings", "documents", "metadatas", "distances"],
             )
         else:
-            chroma_filters = self._normalize_filters(filters=filters)
+            chroma_filters = _convert_filters(filters=filters)
             results = self._collection.query(
                 query_texts=queries,
                 n_results=top_k,
-                where=chroma_filters[1],
-                where_document=chroma_filters[2],
+                where=chroma_filters.where,
+                where_document=chroma_filters.where_document,
                 include=["embeddings", "documents", "metadatas", "distances"],
             )
 
@@ -317,12 +330,12 @@ class ChromaDocumentStore:
                 include=["embeddings", "documents", "metadatas", "distances"],
             )
         else:
-            chroma_filters = self._normalize_filters(filters=filters)
+            chroma_filters = _convert_filters(filters=filters)
             results = self._collection.query(
                 query_embeddings=query_embeddings,
                 n_results=top_k,
-                where=chroma_filters[1],
-                where_document=chroma_filters[2],
+                where=chroma_filters.where,
+                where_document=chroma_filters.where_document,
                 include=["embeddings", "documents", "metadatas", "distances"],
             )
 
@@ -352,65 +365,11 @@ class ChromaDocumentStore:
             collection_name=self._collection_name,
             embedding_function=self._embedding_function,
             persist_path=self._persist_path,
+            host=self._host,
+            port=self._port,
             distance_function=self._distance_function,
             **self._embedding_function_params,
         )
-
-    @staticmethod
-    def _normalize_filters(filters: Dict[str, Any]) -> Tuple[List[str], Dict[str, Any], Dict[str, Any]]:
-        """
-        Translate Haystack filters to Chroma filters. It returns three dictionaries, to be
-        passed to `ids`, `where` and `where_document` respectively.
-        """
-        if not isinstance(filters, dict):
-            msg = "'filters' parameter must be a dictionary"
-            raise ChromaDocumentStoreFilterError(msg)
-
-        ids = []
-        where = defaultdict(list)
-        where_document = defaultdict(list)
-        keys_to_remove = []
-
-        for field, value in filters.items():
-            if field == "content":
-                # Schedule for removal the original key, we're going to change it
-                keys_to_remove.append(field)
-                where_document["$contains"] = value
-            elif field == "id":
-                # Schedule for removal the original key, we're going to change it
-                keys_to_remove.append(field)
-                ids.append(value)
-            elif isinstance(value, (list, tuple)):
-                # Schedule for removal the original key, we're going to change it
-                keys_to_remove.append(field)
-
-                # if the list is empty the filter is invalid, let's just remove it
-                if len(value) == 0:
-                    continue
-
-                # if the list has a single item, just make it a regular key:value filter pair
-                if len(value) == 1:
-                    where[field] = value[0]
-                    continue
-
-                # if the list contains multiple items, we need an $or chain
-                for v in value:
-                    where["$or"].append({field: v})
-
-        for k in keys_to_remove:
-            del filters[k]
-
-        final_where = dict(filters)
-        final_where.update(dict(where))
-        try:
-            if final_where:
-                validate_where(final_where)
-            if where_document:
-                validate_where_document(where_document)
-        except ValueError as e:
-            raise ChromaDocumentStoreFilterError(e) from e
-
-        return ids, final_where, where_document
 
     @staticmethod
     def _get_result_to_documents(result: GetResult) -> List[Document]:
@@ -453,7 +412,7 @@ class ChromaDocumentStore:
             for j in range(len(answers)):
                 document_dict: Dict[str, Any] = {
                     "id": result["ids"][i][j],
-                    "content": documents[i][j],
+                    "content": answers[j],
                 }
 
                 # prepare metadata
@@ -465,7 +424,7 @@ class ChromaDocumentStore:
                     pass
 
                 if embeddings := result.get("embeddings"):
-                    document_dict["embedding"] = np.array(embeddings[i][j])
+                    document_dict["embedding"] = embeddings[i][j]
 
                 if distances := result.get("distances"):
                     document_dict["score"] = distances[i][j]

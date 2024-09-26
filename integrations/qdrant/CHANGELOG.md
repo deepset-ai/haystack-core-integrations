@@ -1,5 +1,13 @@
 # Changelog
 
+## [integrations/qdrant-v6.0.0] - 2024-09-13
+
+## [integrations/qdrant-v5.1.0] - 2024-09-12
+
+### 🚀 Features
+
+- Qdrant - Add group_by and group_size optional parameters to Retrievers (#1054)
+
 ## [integrations/qdrant-v5.0.0] - 2024-09-02
 
 ## [integrations/qdrant-v4.2.0] - 2024-08-27

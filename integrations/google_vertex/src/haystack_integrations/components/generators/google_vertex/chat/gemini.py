@@ -8,7 +8,7 @@ from haystack.dataclasses.byte_stream import ByteStream
 from haystack.dataclasses.chat_message import ChatMessage, ChatRole
 from haystack.utils import deserialize_callable, serialize_callable
 from vertexai import init as vertexai_init
-from vertexai.preview.generative_models import (
+from vertexai.generative_models import (
     Content,
     GenerationConfig,
     GenerationResponse,
@@ -67,14 +67,14 @@ class VertexAIGeminiChatGenerator:
         :param location: The default location to use when making API calls, if not set uses us-central-1.
             Defaults to None.
         :param generation_config: Configuration for the generation process.
-            See the [GenerationConfig documentation](https://cloud.google.com/python/docs/reference/aiplatform/latest/vertexai.preview.generative_models.GenerationConfig
+            See the [GenerationConfig documentation](https://cloud.google.com/python/docs/reference/aiplatform/latest/vertexai.generative_models.GenerationConfig
             for a list of supported arguments.
         :param safety_settings: Safety settings to use when generating content. See the documentation
-            for [HarmBlockThreshold](https://cloud.google.com/python/docs/reference/aiplatform/latest/vertexai.preview.generative_models.HarmBlockThreshold)
-            and [HarmCategory](https://cloud.google.com/python/docs/reference/aiplatform/latest/vertexai.preview.generative_models.HarmCategory)
+            for [HarmBlockThreshold](https://cloud.google.com/python/docs/reference/aiplatform/latest/vertexai.generative_models.HarmBlockThreshold)
+            and [HarmCategory](https://cloud.google.com/python/docs/reference/aiplatform/latest/vertexai.generative_models.HarmCategory)
             for more details.
         :param tools: List of tools to use when generating content. See the documentation for
-            [Tool](https://cloud.google.com/python/docs/reference/aiplatform/latest/vertexai.preview.generative_models.Tool)
+            [Tool](https://cloud.google.com/python/docs/reference/aiplatform/latest/vertexai.generative_models.Tool)
             the list of supported arguments.
         :param streaming_callback: A callback function that is called when a new token is received from
             the  stream. The callback function accepts StreamingChunk as an argument.
@@ -229,17 +229,24 @@ class VertexAIGeminiChatGenerator:
         :param response_body: The response from Vertex AI request.
         :returns: The extracted responses.
         """
-        replies = []
+        replies: List[ChatMessage] = []
         for candidate in response_body.candidates:
+            metadata = candidate.to_dict()
             for part in candidate.content.parts:
+                # Remove content from metadata
+                metadata.pop("content", None)
                 if part._raw_part.text != "":
-                    replies.append(ChatMessage.from_assistant(part.text))
-                elif part.function_call is not None:
+                    replies.append(
+                        ChatMessage(content=part._raw_part.text, role=ChatRole.ASSISTANT, name=None, meta=metadata)
+                    )
+                elif part.function_call:
+                    metadata["function_call"] = part.function_call
                     replies.append(
                         ChatMessage(
                             content=dict(part.function_call.args.items()),
                             role=ChatRole.ASSISTANT,
                             name=part.function_call.name,
+                            meta=metadata,
                         )
                     )
         return replies
@@ -254,11 +261,27 @@ class VertexAIGeminiChatGenerator:
         :param streaming_callback: The handler for the streaming response.
         :returns: The extracted response with the content of all streaming chunks.
         """
-        responses = []
-        for chunk in stream:
-            streaming_chunk = StreamingChunk(content=chunk.text, meta=chunk.to_dict())
-            streaming_callback(streaming_chunk)
-            responses.append(streaming_chunk.content)
+        replies: List[ChatMessage] = []
 
-        combined_response = "".join(responses).lstrip()
-        return [ChatMessage.from_assistant(content=combined_response)]
+        for chunk in stream:
+            content: Union[str, Dict[str, Any]] = ""
+            metadata = chunk.to_dict()  # we store whole chunk as metadata for streaming
+            for candidate in chunk.candidates:
+                for part in candidate.content.parts:
+                    if part._raw_part.text:
+                        content = chunk.text
+                        replies.append(ChatMessage(content, role=ChatRole.ASSISTANT, name=None, meta=metadata))
+                    elif part.function_call:
+                        metadata["function_call"] = part.function_call
+                        content = dict(part.function_call.args.items())
+                        replies.append(
+                            ChatMessage(
+                                content=content,
+                                role=ChatRole.ASSISTANT,
+                                name=part.function_call.name,
+                                meta=metadata,
+                            )
+                        )
+                    streaming_callback(StreamingChunk(content=content, meta=metadata))
+
+        return replies

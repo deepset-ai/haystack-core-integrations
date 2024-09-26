@@ -6,6 +6,7 @@ import operator
 import uuid
 from typing import List
 from unittest import mock
+import sys
 
 import numpy as np
 import pytest
@@ -14,7 +15,7 @@ from haystack import Document
 from haystack.testing.document_store import (
     CountDocumentsTest,
     DeleteDocumentsTest,
-    LegacyFilterDocumentsTest,
+    FilterDocumentsTest,
 )
 
 from haystack_integrations.document_stores.chroma import ChromaDocumentStore
@@ -32,7 +33,7 @@ class _TestEmbeddingFunction(EmbeddingFunction):
         return [np.random.default_rng().uniform(-1, 1, 768).tolist()]
 
 
-class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, LegacyFilterDocumentsTest):
+class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, FilterDocumentsTest):
     """
     Common test cases will be provided by `DocumentStoreBaseTests` but
     you can add more to this class.
@@ -66,16 +67,38 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, LegacyFilterDoc
             assert doc_received.content == doc_expected.content
             assert doc_received.meta == doc_expected.meta
 
-    def test_ne_filter(self, document_store: ChromaDocumentStore, filterable_docs: List[Document]):
+    def test_init_in_memory(self):
+        store = ChromaDocumentStore()
+
+        assert store._persist_path is None
+        assert store._host is None
+        assert store._port is None
+
+    def test_init_persistent_storage(self):
+        store = ChromaDocumentStore(persist_path="./path/to/local/store")
+
+        assert store._persist_path == "./path/to/local/store"
+        assert store._host is None
+        assert store._port is None
+
+    @pytest.mark.integration
+    @pytest.mark.skipif(
+        sys.platform == "win32",
+        reason="This test requires running the Chroma server. For simplicity, we don't run it on Windows.",
+    )
+    def test_init_http_connection(self):
+        store = ChromaDocumentStore(host="localhost", port=8000)
+
+        assert store._persist_path is None
+        assert store._host == "localhost"
+        assert store._port == 8000
+
+    def test_invalid_initialization_both_host_and_persist_path(self):
         """
-        We customize this test because Chroma consider "not equal" true when
-        a field is missing
+        Test that providing both host and persist_path raises an error.
         """
-        document_store.write_documents(filterable_docs)
-        result = document_store.filter_documents(filters={"page": {"$ne": "100"}})
-        self.assert_documents_are_equal(
-            result, [doc for doc in filterable_docs if doc.meta.get("page", "100") != "100"]
-        )
+        with pytest.raises(ValueError):
+            ChromaDocumentStore(persist_path="./path/to/local/store", host="localhost")
 
     def test_delete_empty(self, document_store: ChromaDocumentStore):
         """
@@ -90,8 +113,8 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, LegacyFilterDoc
         doc = Document(content="test doc")
         document_store.write_documents([doc])
         document_store.delete_documents(["non_existing"])
-
-        assert document_store.filter_documents(filters={"id": doc.id}) == [doc]
+        filters = {"operator": "==", "field": "id", "value": doc.id}
+        assert document_store.filter_documents(filters=filters) == [doc]
 
     def test_search(self):
         document_store = ChromaDocumentStore()
@@ -106,7 +129,12 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, LegacyFilterDoc
 
         # Assertions to verify correctness
         assert len(result) == 1
-        assert result[0][0].content == "Third document"
+        doc = result[0][0]
+        assert doc.content == "Third document"
+        assert doc.meta == {"author": "Author2"}
+        assert doc.embedding
+        assert isinstance(doc.embedding, list)
+        assert all(isinstance(el, float) for el in doc.embedding)
 
     def test_write_documents_unsupported_meta_values(self, document_store: ChromaDocumentStore):
         """
@@ -131,7 +159,7 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, LegacyFilterDoc
         assert written_docs[2].meta == {"ok": 123}
 
     @pytest.mark.integration
-    def test_to_json(self, request):
+    def test_to_dict(self, request):
         ds = ChromaDocumentStore(
             collection_name=request.node.name, embedding_function="HuggingFaceEmbeddingFunction", api_key="1234567890"
         )
@@ -139,16 +167,18 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, LegacyFilterDoc
         assert ds_dict == {
             "type": "haystack_integrations.document_stores.chroma.document_store.ChromaDocumentStore",
             "init_parameters": {
-                "collection_name": "test_to_json",
+                "collection_name": "test_to_dict",
                 "embedding_function": "HuggingFaceEmbeddingFunction",
                 "persist_path": None,
+                "host": None,
+                "port": None,
                 "api_key": "1234567890",
                 "distance_function": "l2",
             },
         }
 
     @pytest.mark.integration
-    def test_from_json(self):
+    def test_from_dict(self):
         collection_name = "test_collection"
         function_name = "HuggingFaceEmbeddingFunction"
         ds_dict = {
@@ -157,6 +187,8 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, LegacyFilterDoc
                 "collection_name": "test_collection",
                 "embedding_function": "HuggingFaceEmbeddingFunction",
                 "persist_path": None,
+                "host": None,
+                "port": None,
                 "api_key": "1234567890",
                 "distance_function": "l2",
             },
@@ -229,88 +261,146 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, LegacyFilterDoc
         assert store._collection.metadata["hnsw:space"] == "ip"
         assert new_store._collection.metadata["hnsw:space"] == "ip"
 
+    def test_contains(self, document_store: ChromaDocumentStore, filterable_docs: List[Document]):
+        document_store.write_documents(filterable_docs)
+        filters = {"field": "content", "operator": "contains", "value": "FOO"}
+        result = document_store.filter_documents(filters=filters)
+        self.assert_documents_are_equal(
+            result,
+            [doc for doc in filterable_docs if doc.content and "FOO" in doc.content],
+        )
+
+    def test_multiple_contains(self, document_store: ChromaDocumentStore, filterable_docs: List[Document]):
+        document_store.write_documents(filterable_docs)
+        filters = {
+            "operator": "OR",
+            "conditions": [
+                {"field": "content", "operator": "contains", "value": "FOO"},
+                {"field": "content", "operator": "not contains", "value": "BAR"},
+            ],
+        }
+        result = document_store.filter_documents(filters=filters)
+        self.assert_documents_are_equal(
+            result,
+            [doc for doc in filterable_docs if doc.content and ("FOO" in doc.content or "BAR" not in doc.content)],
+        )
+
+    def test_nested_logical_filters(self, document_store: ChromaDocumentStore, filterable_docs: List[Document]):
+        document_store.write_documents(filterable_docs)
+        filters = {
+            "operator": "OR",
+            "conditions": [
+                {"field": "meta.name", "operator": "==", "value": "name_0"},
+                {
+                    "operator": "AND",
+                    "conditions": [
+                        {"field": "meta.number", "operator": "!=", "value": 0},
+                        {"field": "meta.page", "operator": "==", "value": "123"},
+                    ],
+                },
+                {
+                    "operator": "AND",
+                    "conditions": [
+                        {"field": "meta.chapter", "operator": "==", "value": "conclusion"},
+                        {"field": "meta.date", "operator": "==", "value": "1989-11-09T17:53:00"},
+                    ],
+                },
+            ],
+        }
+        result = document_store.filter_documents(filters=filters)
+        self.assert_documents_are_equal(
+            result,
+            [
+                doc
+                for doc in filterable_docs
+                if (
+                    # Ensure all required fields are present in doc.meta
+                    ("name" in doc.meta and doc.meta.get("name") == "name_0")
+                    or (
+                        all(key in doc.meta for key in ["number", "page"])
+                        and doc.meta.get("number") != 0
+                        and doc.meta.get("page") == "123"
+                    )
+                    or (
+                        all(key in doc.meta for key in ["date", "chapter"])
+                        and doc.meta.get("chapter") == "conclusion"
+                        and doc.meta.get("date") == "1989-11-09T17:53:00"
+                    )
+                )
+            ],
+        )
+
+    # Override inequality tests from FilterDocumentsTest
+    # because chroma doesn't return documents with absent meta fields
+
+    def test_comparison_not_equal(self, document_store, filterable_docs):
+        """Test filter_documents() with != comparator"""
+        document_store.write_documents(filterable_docs)
+        result = document_store.filter_documents({"field": "meta.number", "operator": "!=", "value": 100})
+        self.assert_documents_are_equal(
+            result, [d for d in filterable_docs if "number" in d.meta and d.meta.get("number") != 100]
+        )
+
+    def test_comparison_not_in(self, document_store, filterable_docs):
+        """Test filter_documents() with 'not in' comparator"""
+        document_store.write_documents(filterable_docs)
+        result = document_store.filter_documents({"field": "meta.number", "operator": "not in", "value": [2, 9]})
+        self.assert_documents_are_equal(
+            result, [d for d in filterable_docs if "number" in d.meta and d.meta.get("number") not in [2, 9]]
+        )
+
     @pytest.mark.skip(reason="Filter on dataframe contents is not supported.")
-    def test_filter_document_dataframe(self, document_store: ChromaDocumentStore, filterable_docs: List[Document]):
-        pass
-
-    @pytest.mark.skip(reason="Filter on table contents is not supported.")
-    def test_eq_filter_table(self, document_store: ChromaDocumentStore, filterable_docs: List[Document]):
-        pass
-
-    @pytest.mark.skip(reason="Filter on embedding value is not supported.")
-    def test_eq_filter_embedding(self, document_store: ChromaDocumentStore, filterable_docs: List[Document]):
-        pass
-
-    @pytest.mark.skip(reason="$in operator is not supported. Filter on table contents is not supported.")
-    def test_in_filter_table(self, document_store: ChromaDocumentStore, filterable_docs: List[Document]):
-        pass
-
-    @pytest.mark.skip(reason="$in operator is not supported.")
-    def test_in_filter_embedding(self, document_store: ChromaDocumentStore, filterable_docs: List[Document]):
-        pass
-
-    @pytest.mark.skip(reason="Filter on table contents is not supported.")
-    def test_ne_filter_table(self, document_store: ChromaDocumentStore, filterable_docs: List[Document]):
-        pass
-
-    @pytest.mark.skip(reason="Filter on embedding value is not supported.")
-    def test_ne_filter_embedding(self, document_store: ChromaDocumentStore, filterable_docs: List[Document]):
-        pass
-
-    @pytest.mark.skip(reason="$nin operator is not supported. Filter on table contents is not supported.")
-    def test_nin_filter_table(self, document_store: ChromaDocumentStore, filterable_docs: List[Document]):
-        pass
-
-    @pytest.mark.skip(reason="$nin operator is not supported. Filter on embedding value is not supported.")
-    def test_nin_filter_embedding(self, document_store: ChromaDocumentStore, filterable_docs: List[Document]):
-        pass
-
-    @pytest.mark.skip(reason="$nin operator is not supported.")
-    def test_nin_filter(self, document_store: ChromaDocumentStore, filterable_docs: List[Document]):
-        pass
-
-    @pytest.mark.skip(reason="Filter syntax not supported.")
-    def test_filter_simple_implicit_and_with_multi_key_dict(
+    def test_comparison_equal_with_dataframe(
         self, document_store: ChromaDocumentStore, filterable_docs: List[Document]
     ):
         pass
 
-    @pytest.mark.skip(reason="Filter syntax not supported.")
-    def test_filter_simple_explicit_and_with_list(
+    @pytest.mark.skip(reason="Filter on dataframe contents is not supported.")
+    def test_comparison_not_equal_with_dataframe(
         self, document_store: ChromaDocumentStore, filterable_docs: List[Document]
     ):
         pass
 
-    @pytest.mark.skip(reason="Filter syntax not supported.")
-    def test_filter_simple_implicit_and(self, document_store: ChromaDocumentStore, filterable_docs: List[Document]):
+    @pytest.mark.skip(reason="Chroma does not support comparison with null values")
+    def test_comparison_equal_with_none(self, document_store, filterable_docs):
         pass
 
-    @pytest.mark.skip(reason="Filter syntax not supported.")
-    def test_filter_nested_implicit_and(self, document_store: ChromaDocumentStore, filterable_docs: List[Document]):
+    @pytest.mark.skip(reason="Chroma does not support comparison with null values")
+    def test_comparison_not_equal_with_none(self, document_store, filterable_docs):
         pass
 
-    @pytest.mark.skip(reason="Filter syntax not supported.")
-    def test_filter_simple_or(self, document_store: ChromaDocumentStore, filterable_docs: List[Document]):
+    @pytest.mark.skip(reason="Chroma does not support comparison with dates")
+    def test_comparison_greater_than_with_iso_date(self, document_store, filterable_docs):
         pass
 
-    @pytest.mark.skip(reason="Filter syntax not supported.")
-    def test_filter_nested_or(self, document_store: ChromaDocumentStore, filterable_docs: List[Document]):
+    @pytest.mark.skip(reason="Chroma does not support comparison with null values")
+    def test_comparison_greater_than_with_none(self, document_store, filterable_docs):
         pass
 
-    @pytest.mark.skip(reason="Filter on table contents is not supported.")
-    def test_filter_nested_and_or_explicit(self, document_store: ChromaDocumentStore, filterable_docs: List[Document]):
+    @pytest.mark.skip(reason="Chroma does not support comparison with dates")
+    def test_comparison_greater_than_equal_with_iso_date(self, document_store, filterable_docs):
         pass
 
-    @pytest.mark.skip(reason="Filter syntax not supported.")
-    def test_filter_nested_and_or_implicit(self, document_store: ChromaDocumentStore, filterable_docs: List[Document]):
+    @pytest.mark.skip(reason="Chroma does not support comparison with null values")
+    def test_comparison_greater_than_equal_with_none(self, document_store, filterable_docs):
         pass
 
-    @pytest.mark.skip(reason="Filter syntax not supported.")
-    def test_filter_nested_or_and(self, document_store: ChromaDocumentStore, filterable_docs: List[Document]):
+    @pytest.mark.skip(reason="Chroma does not support comparison with dates")
+    def test_comparison_less_than_with_iso_date(self, document_store, filterable_docs):
         pass
 
-    @pytest.mark.skip(reason="Filter syntax not supported.")
-    def test_filter_nested_multiple_identical_operators_same_level(
-        self, document_store: ChromaDocumentStore, filterable_docs: List[Document]
-    ):
+    @pytest.mark.skip(reason="Chroma does not support comparison with null values")
+    def test_comparison_less_than_with_none(self, document_store, filterable_docs):
+        pass
+
+    @pytest.mark.skip(reason="Chroma does not support comparison with dates")
+    def test_comparison_less_than_equal_with_iso_date(self, document_store, filterable_docs):
+        pass
+
+    @pytest.mark.skip(reason="Chroma does not support comparison with null values")
+    def test_comparison_less_than_equal_with_none(self, document_store, filterable_docs):
+        pass
+
+    @pytest.mark.skip(reason="Chroma does not support not operator")
+    def test_not_operator(self, document_store, filterable_docs):
         pass
