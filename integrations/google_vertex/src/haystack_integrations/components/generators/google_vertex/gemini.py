@@ -184,24 +184,15 @@ class VertexAIGeminiGenerator:
            Deserialized component.
         """
 
-        def _tool_config_from_dict(config_dict: Dict[str, Any]) -> Tool:
+        def _tool_config_from_dict(config_dict: Dict[str, Any]) -> ToolConfig:
             """Deserializes the ToolConfig object from a dictionary."""
-            allowed_function_names = config_dict["function_calling_config"].get("allowed_function_names")
-            mode = config_dict["function_calling_config"]["mode"]
-            if allowed_function_names:
-                tool_config = ToolConfig(
-                    function_calling_config=ToolConfig.FunctionCallingConfig(
-                        mode=mode,
-                        allowed_function_names=allowed_function_names,
-                    )
+            function_calling_config = config_dict["function_calling_config"]
+            return ToolConfig(
+                function_calling_config=ToolConfig.FunctionCallingConfig(
+                    mode=function_calling_config["mode"],
+                    allowed_function_names=function_calling_config.get("allowed_function_names"),
                 )
-            else:
-                tool_config = ToolConfig(
-                    function_calling_config=ToolConfig.FunctionCallingConfig(
-                        mode=config_dict["function_calling_config"]["mode"],
-                    )
-                )
-            return tool_config
+            )
 
         if (tools := data["init_parameters"].get("tools")) is not None:
             data["init_parameters"]["tools"] = [Tool.from_dict(t) for t in tools]
