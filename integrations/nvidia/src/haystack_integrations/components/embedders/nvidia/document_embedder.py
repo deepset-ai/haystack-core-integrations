@@ -1,11 +1,11 @@
 import warnings
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Literal, Optional, Tuple, Union
 
 from haystack import Document, component, default_from_dict, default_to_dict
 from haystack.utils import Secret, deserialize_secrets_inplace
 from tqdm import tqdm
 
-from haystack_integrations.utils.nvidia import NimBackend, is_hosted, url_validation
+from haystack_integrations.utils.nvidia import NimBackend, TritonBackend, is_hosted, url_validation
 
 from .truncate import EmbeddingTruncateMode
 
@@ -16,7 +16,7 @@ _DEFAULT_API_URL = "https://ai.api.nvidia.com/v1/retrieval/nvidia"
 class NvidiaDocumentEmbedder:
     """
     A component for embedding documents using embedding models provided by
-    [NVIDIA NIMs](https://ai.nvidia.com).
+    [NVIDIA NIMs](https://ai.nvidia.com) or [NIVIDIA Triton](https://developer.nvidia.com/triton-inference-server).
 
     Usage example:
     ```python
@@ -44,6 +44,8 @@ class NvidiaDocumentEmbedder:
         meta_fields_to_embed: Optional[List[str]] = None,
         embedding_separator: str = "\n",
         truncate: Optional[Union[EmbeddingTruncateMode, str]] = None,
+        backend: Literal["nim", "triton-http", "triton-grpc"] = "nim",
+        timeout: Optional[float] = None,
     ):
         """
         Create a NvidiaTextEmbedder component.
@@ -73,19 +75,30 @@ class NvidiaDocumentEmbedder:
         :param truncate:
             Specifies how inputs longer that the maximum token length should be truncated.
             If None the behavior is model-dependent, see the official documentation for more information.
+        :param backend:
+            The backend to use for the component. Currently supported are "nim", "triton-http", and "triton-grpc".
+            Default is "nim".
+        :param timeout:
+            Timeout for the request in seconds. If not set, defaults either to `NVIDIA_TIMEOUT` environment variable
+            or 60 seconds.
         """
 
         self.api_key = api_key
         self.model = model
-        self.api_url = url_validation(api_url, _DEFAULT_API_URL, ["v1/embeddings"])
+        self.api_url = url_validation(api_url, _DEFAULT_API_URL, ["v1/embeddings"]) if backend == "nim" else api_url
         self.prefix = prefix
         self.suffix = suffix
         self.batch_size = batch_size
         self.progress_bar = progress_bar
         self.meta_fields_to_embed = meta_fields_to_embed or []
         self.embedding_separator = embedding_separator
+        self._backend = backend
+        self.timeout = timeout
 
         if isinstance(truncate, str):
+            if self._backend != "nim":
+                error_message = "Truncation is only supported with the nim backend."
+                raise ValueError(error_message)
             truncate = EmbeddingTruncateMode.from_str(truncate)
         self.truncate = truncate
 
@@ -121,15 +134,25 @@ class NvidiaDocumentEmbedder:
         if self._initialized:
             return
 
-        model_kwargs = {"input_type": "passage"}
-        if self.truncate is not None:
-            model_kwargs["truncate"] = str(self.truncate)
-        self.backend = NimBackend(
-            self.model,
-            api_url=self.api_url,
-            api_key=self.api_key,
-            model_kwargs=model_kwargs,
-        )
+        if self._backend == "nim":
+            model_kwargs = {"input_type": "passage"}
+            if self.truncate is not None:
+                model_kwargs["truncate"] = str(self.truncate)
+            self.backend = NimBackend(
+                self.model,
+                api_url=self.api_url,
+                api_key=self.api_key,
+                model_kwargs=model_kwargs,
+                timeout=self.timeout,
+            )
+        else:
+            self.backend = TritonBackend(
+                model=self.model,
+                api_url=self.api_url,
+                api_key=self.api_key,
+                protocol="http" if self._backend == "triton-http" else "grpc",
+                timeout=self.timeout,
+            )
 
         self._initialized = True
 
@@ -155,6 +178,7 @@ class NvidiaDocumentEmbedder:
             meta_fields_to_embed=self.meta_fields_to_embed,
             embedding_separator=self.embedding_separator,
             truncate=str(self.truncate) if self.truncate is not None else None,
+            backend=self._backend,
         )
 
     @classmethod

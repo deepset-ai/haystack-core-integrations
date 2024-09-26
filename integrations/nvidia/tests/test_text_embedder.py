@@ -39,6 +39,18 @@ class TestNvidiaTextEmbedder:
         with pytest.raises(ValueError):
             embedder.warm_up()
 
+    @pytest.mark.parametrize("backend", ["triton-http", "triton-grpc"])
+    def test_init_with_triton_backend(self, monkeypatch, backend: str):
+        monkeypatch.setenv("NVIDIA_API_KEY", "fake-api-key")
+        embedder = NvidiaTextEmbedder(backend=backend, model="my-triton-model", api_url="localhost:8000")
+
+        assert embedder.api_key == Secret.from_env_var("NVIDIA_API_KEY")
+        assert embedder.api_url == "localhost:8000"
+        assert embedder.model == "my-triton-model"
+        assert embedder.prefix == ""
+        assert embedder.suffix == ""
+        assert embedder._backend == backend
+
     def test_to_dict(self, monkeypatch):
         monkeypatch.setenv("NVIDIA_API_KEY", "fake-api-key")
         component = NvidiaTextEmbedder("nvolveqa_40k")
@@ -52,6 +64,7 @@ class TestNvidiaTextEmbedder:
                 "prefix": "",
                 "suffix": "",
                 "truncate": None,
+                "backend": "nim",
             },
         }
 
@@ -74,6 +87,7 @@ class TestNvidiaTextEmbedder:
                 "prefix": "prefix",
                 "suffix": "suffix",
                 "truncate": "START",
+                "backend": "nim",
             },
         }
 
@@ -208,3 +222,31 @@ class TestNvidiaTextEmbedder:
 
         assert all(isinstance(x, float) for x in embedding)
         assert "usage" in meta
+
+    @pytest.mark.skipif(
+        not os.environ.get("NVIDIA_TRITON_EMBEDDER_MODEL", None)
+        or not os.environ.get(
+            "NVIDIA_TRITON_HTTP_ENDPOINT_URL", os.environ.get("NVIDIA_TRITON_GRPC_ENDPOINT_URL", None)
+        ),
+        reason="Export an env var called NVIDIA_TRITON_EMBEDDER_MODEL containing the hosted model name and "
+        "NVIDIA_TRITON_HTTP_ENDPOINT_URL or NVIDIA_TRITON_GRPC_ENDPOINT_URL containing the local URL to call.",
+    )
+    @pytest.mark.parametrize("backend", ["triton-http", "triton-grpc"])
+    @pytest.mark.integration
+    def test_run_integration_with_triton_backend(self, backend: str):
+        model = os.environ["NVIDIA_TRITON_EMBEDDER_MODEL"]
+        url = os.environ[
+            "NVIDIA_TRITON_HTTP_ENDPOINT_URL" if backend == "triton-http" else "NVIDIA_TRITON_GRPC_ENDPOINT_URL"
+        ]
+        embedder = NvidiaTextEmbedder(
+            model=model,
+            api_url=url,
+            api_key=None,
+            backend=backend,
+        )
+        embedder.warm_up()
+
+        result = embedder.run("A transformer is a deep learning architecture")
+        embedding = result["embedding"]
+
+        assert all(isinstance(x, float) for x in embedding)
