@@ -17,6 +17,7 @@ from vertexai.generative_models import (
     HarmCategory,
     Part,
     Tool,
+    ToolConfig,
 )
 
 logger = logging.getLogger(__name__)
@@ -54,6 +55,8 @@ class VertexAIGeminiChatGenerator:
         generation_config: Optional[Union[GenerationConfig, Dict[str, Any]]] = None,
         safety_settings: Optional[Dict[HarmCategory, HarmBlockThreshold]] = None,
         tools: Optional[List[Tool]] = None,
+        tool_config: Optional[ToolConfig] = None,
+        system_instruction: Optional[Union[str, ByteStream, Part]] = None,
         streaming_callback: Optional[Callable[[StreamingChunk], None]] = None,
     ):
         """
@@ -76,8 +79,11 @@ class VertexAIGeminiChatGenerator:
         :param tools: List of tools to use when generating content. See the documentation for
             [Tool](https://cloud.google.com/python/docs/reference/aiplatform/latest/vertexai.generative_models.Tool)
             the list of supported arguments.
+        :param tool_config: The tool config to use. See the documentation for [ToolConfig]
+            (https://cloud.google.com/vertex-ai/generative-ai/docs/reference/python/latest/vertexai.generative_models.ToolConfig)
+        :param system_instruction: Default system instruction to use for generating content.
         :param streaming_callback: A callback function that is called when a new token is received from
-            the  stream. The callback function accepts StreamingChunk as an argument.
+            the stream. The callback function accepts StreamingChunk as an argument.
 
         """
 
@@ -87,12 +93,24 @@ class VertexAIGeminiChatGenerator:
         self._model_name = model
         self._project_id = project_id
         self._location = location
-        self._model = GenerativeModel(self._model_name)
 
+        # model parameters
         self._generation_config = generation_config
         self._safety_settings = safety_settings
         self._tools = tools
+        self._tool_config = tool_config
+        self._system_instruction = system_instruction
         self._streaming_callback = streaming_callback
+
+        # except streaming_callback, all other model parameters can be passed during initialization
+        self._model = GenerativeModel(
+            self._model_name,
+            generation_config=self._generation_config,
+            safety_settings=self._safety_settings,
+            tools=self._tools,
+            tool_config=self._tool_config,
+            system_instruction=self._system_instruction,
+        )
 
     def _generation_config_to_dict(self, config: Union[GenerationConfig, Dict[str, Any]]) -> Dict[str, Any]:
         if isinstance(config, dict):
@@ -105,6 +123,17 @@ class VertexAIGeminiChatGenerator:
             "max_output_tokens": config._raw_generation_config.max_output_tokens,
             "stop_sequences": config._raw_generation_config.stop_sequences,
         }
+
+    def _tool_config_to_dict(self, tool_config: ToolConfig) -> Dict[str, Any]:
+        """Serializes the ToolConfig object into a dictionary."""
+        mode = tool_config._gapic_tool_config.function_calling_config.mode
+        allowed_function_names = tool_config._gapic_tool_config.function_calling_config.allowed_function_names
+        config_dict = {"function_calling_config": {"mode": mode}}
+
+        if allowed_function_names:
+            config_dict["function_calling_config"]["allowed_function_names"] = allowed_function_names
+
+        return config_dict
 
     def to_dict(self) -> Dict[str, Any]:
         """
@@ -123,10 +152,14 @@ class VertexAIGeminiChatGenerator:
             generation_config=self._generation_config,
             safety_settings=self._safety_settings,
             tools=self._tools,
+            tool_config=self._tool_config,
+            system_instruction=self._system_instruction,
             streaming_callback=callback_name,
         )
         if (tools := data["init_parameters"].get("tools")) is not None:
             data["init_parameters"]["tools"] = [Tool.to_dict(t) for t in tools]
+        if (tool_config := data["init_parameters"].get("tool_config")) is not None:
+            data["init_parameters"]["tool_config"] = self._tool_config_to_dict(tool_config)
         if (generation_config := data["init_parameters"].get("generation_config")) is not None:
             data["init_parameters"]["generation_config"] = self._generation_config_to_dict(generation_config)
         return data
@@ -141,10 +174,23 @@ class VertexAIGeminiChatGenerator:
         :returns:
             Deserialized component.
         """
+
+        def _tool_config_from_dict(config_dict: Dict[str, Any]) -> ToolConfig:
+            """Deserializes the ToolConfig object from a dictionary."""
+            function_calling_config = config_dict["function_calling_config"]
+            return ToolConfig(
+                function_calling_config=ToolConfig.FunctionCallingConfig(
+                    mode=function_calling_config["mode"],
+                    allowed_function_names=function_calling_config.get("allowed_function_names"),
+                )
+            )
+
         if (tools := data["init_parameters"].get("tools")) is not None:
             data["init_parameters"]["tools"] = [Tool.from_dict(t) for t in tools]
         if (generation_config := data["init_parameters"].get("generation_config")) is not None:
             data["init_parameters"]["generation_config"] = GenerationConfig.from_dict(generation_config)
+        if (tool_config := data["init_parameters"].get("tool_config")) is not None:
+            data["init_parameters"]["tool_config"] = _tool_config_from_dict(tool_config)
         if (serialized_callback_handler := data["init_parameters"].get("streaming_callback")) is not None:
             data["init_parameters"]["streaming_callback"] = deserialize_callable(serialized_callback_handler)
         return default_from_dict(cls, data)
@@ -212,9 +258,6 @@ class VertexAIGeminiChatGenerator:
         new_message = self._message_to_part(messages[-1])
         res = session.send_message(
             content=new_message,
-            generation_config=self._generation_config,
-            safety_settings=self._safety_settings,
-            tools=self._tools,
             stream=streaming_callback is not None,
         )
 
