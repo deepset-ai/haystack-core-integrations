@@ -1,5 +1,11 @@
 # Changelog
 
+## [integrations/ollama-v1.0.1] - 2024-09-26
+
+### 🐛 Bug Fixes
+
+- Ollama Chat Generator - add missing `to_dict` and `from_dict` methods (#1110)
+
 ## [integrations/ollama-v1.0.0] - 2024-09-07
 
 ### 🐛 Bug Fixes
