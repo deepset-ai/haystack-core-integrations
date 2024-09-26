@@ -2,10 +2,9 @@ from typing import List
 from unittest.mock import Mock
 
 import pytest
+from haystack.components.generators.utils import print_streaming_chunk
 from haystack.dataclasses import ChatMessage, ChatRole
 from ollama._types import ResponseError
-
-from haystack.components.generators.utils import print_streaming_chunk
 
 from haystack_integrations.components.generators.ollama import OllamaChatGenerator
 
@@ -75,7 +74,7 @@ class TestOllamaChatGenerator:
         assert component.model == "llama2"
         assert component.streaming_callback is print_streaming_chunk
         assert component.url == "custom_url"
-        assert component.generation_kwargs == {"max_tokens": 10, "some_test_param": "test-params"}        
+        assert component.generation_kwargs == {"max_tokens": 10, "some_test_param": "test-params"}
 
     def test_build_message_from_ollama_response(self):
         model = "some_model"
