@@ -173,7 +173,7 @@ class AmazonBedrockChatGenerator:
         generation_kwargs = generation_kwargs.copy()
 
         streaming_callback = streaming_callback or self.streaming_callback
-        generation_kwargs["stream"] = streaming_callback is not None
+        is_streaming_enabled = streaming_callback is not None
 
         # check if the prompt is a list of ChatMessage objects
         if not (
@@ -188,7 +188,7 @@ class AmazonBedrockChatGenerator:
             messages=messages, **{"stop_words": self.stop_words, **generation_kwargs}
         )
         try:
-            if streaming_callback:
+            if is_streaming_enabled:
                 response = self.client.invoke_model_with_response_stream(
                     body=json.dumps(body), modelId=self.model, accept="application/json", contentType="application/json"
                 )
