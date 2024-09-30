@@ -88,55 +88,50 @@ class ChromaDocumentStore:
         self._persist_path = persist_path
         self._host = host
         self._port = port
-        self._chroma_client = None
 
         self._initialized = False
 
     def _ensure_initialized(self):
         if not self._initialized:
-            if self._chroma_client is None:
-                # Create the client instance
-                if self._persist_path and (self._host or self._port is not None):
-                    error_message = (
-                        "You must specify `persist_path` for local persistent storage or, "
-                        "alternatively, `host` and `port` for remote HTTP client connection. "
-                        "You cannot specify both options."
-                    )
-                    raise ValueError(error_message)
-                if self._host and self._port is not None:
-                    # Remote connection via HTTP client
-                    self._chroma_client = chromadb.HttpClient(
-                        host=self._host,
-                        port=self._port,
-                    )
-                elif self._persist_path is None:
-                    # In-memory storage
-                    self._chroma_client = chromadb.Client()
-                else:
-                    # Local persistent storage
-                    self._chroma_client = chromadb.PersistentClient(path=self._persist_path)
+            # Create the client instance
+            if self._persist_path and (self._host or self._port is not None):
+                error_message = (
+                    "You must specify `persist_path` for local persistent storage or, "
+                    "alternatively, `host` and `port` for remote HTTP client connection. "
+                    "You cannot specify both options."
+                )
+                raise ValueError(error_message)
+            if self._host and self._port is not None:
+                # Remote connection via HTTP client
+                client = chromadb.HttpClient(
+                    host=self._host,
+                    port=self._port,
+                )
+            elif self._persist_path is None:
+                # In-memory storage
+                client = chromadb.Client()
+            else:
+                # Local persistent storage
+                client = chromadb.PersistentClient(path=self._persist_path)
 
-            if self._collection is None:
-                self._metadata = self._metadata or {}
-                if "hnsw:space" not in self._metadata:
-                    self._metadata["hnsw:space"] = self._distance_function
+            self._metadata = self._metadata or {}
+            if "hnsw:space" not in self._metadata:
+                self._metadata["hnsw:space"] = self._distance_function
 
-                if self._collection_name in [c.name for c in self._chroma_client.list_collections()]:
-                    self._collection = self._chroma_client.get_collection(
-                        self._collection_name, embedding_function=self._embedding_func
-                    )
+            if self._collection_name in [c.name for c in client.list_collections()]:
+                self._collection = client.get_collection(self._collection_name, embedding_function=self._embedding_func)
 
-                    if self._metadata != self._collection.metadata:
-                        logger.warning(
-                            "Collection already exists. "
-                            "The `distance_function` and `metadata` parameters will be ignored."
-                        )
-                else:
-                    self._collection = self._chroma_client.create_collection(
-                        name=self._collection_name,
-                        metadata=self._metadata,
-                        embedding_function=self._embedding_func,
+                if self._metadata != self._collection.metadata:
+                    logger.warning(
+                        "Collection already exists. "
+                        "The `distance_function` and `metadata` parameters will be ignored."
                     )
+            else:
+                self._collection = client.create_collection(
+                    name=self._collection_name,
+                    metadata=self._metadata,
+                    embedding_function=self._embedding_func,
+                )
 
             self._initialized = True
 

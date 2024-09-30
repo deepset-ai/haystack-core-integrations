@@ -131,6 +131,8 @@ ignore = [
   "PLR0915",
   # Ignore unused params
   "ARG002",
+  # Allow assertions
+  "S101",
 ]
 unfixable = [
   # Don't touch unused imports
