@@ -417,7 +417,6 @@ class TestLlamaCppChatGeneratorFunctionary:
         assert len(response["replies"]) > 0
 
         first_reply = response["replies"][0]
-        print(first_reply)
         assert "tool_calls" in first_reply.meta
         tool_calls = first_reply.meta["tool_calls"]
 
