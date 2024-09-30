@@ -312,7 +312,7 @@ class ChromaDocumentStore:
         self._ensure_initialized()
         assert self._collection is not None
 
-        if filters is None:
+        if not filters:
             results = self._collection.query(
                 query_texts=queries,
                 n_results=top_k,
@@ -346,7 +346,7 @@ class ChromaDocumentStore:
         self._ensure_initialized()
         assert self._collection is not None
 
-        if filters is None:
+        if not filters:
             results = self._collection.query(
                 query_embeddings=query_embeddings,
                 n_results=top_k,

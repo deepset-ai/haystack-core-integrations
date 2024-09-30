@@ -137,6 +137,10 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, FilterDocuments
         assert isinstance(doc.embedding, list)
         assert all(isinstance(el, float) for el in doc.embedding)
 
+        # check that empty filters behave as no filters
+        result_empty_filters = document_store.search(["Third"], filters={}, top_k=1)
+        assert result == result_empty_filters
+
     def test_write_documents_unsupported_meta_values(self, document_store: ChromaDocumentStore):
         """
         Unsupported meta values should be removed from the documents before writing them to the database
