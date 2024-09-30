@@ -334,9 +334,9 @@ class TestLlamaCppChatGeneratorFunctionary:
     @pytest.fixture
     def generator(self, model_path, capsys):
         gguf_model_path = (
-            "https://huggingface.co/bartowski/functionary-small-v3.1-GGUF/blob/main/functionary-small-v3.1-Q4_K_M.gguf"
+            "https://huggingface.co/meetkai/functionary-small-v2.4-GGUF/resolve/main/functionary-small-v2.4.Q4_0.gguf"
         )
-        filename = "functionary-small-v3.1-Q4_K_M.gguf"
+        filename = "functionary-small-v2.4.Q4_0.gguf"
         download_file(gguf_model_path, str(model_path / filename), capsys)
         model_path = str(model_path / filename)
         hf_tokenizer_path = "meetkai/functionary-small-v2.4-GGUF"
@@ -344,6 +344,7 @@ class TestLlamaCppChatGeneratorFunctionary:
             model=model_path,
             n_ctx=8192,
             n_batch=512,
+            generation_kwargs={"max_tokens": 256},
             model_kwargs={
                 "chat_format": "functionary-v2",
                 "hf_tokenizer_path": hf_tokenizer_path,
@@ -399,7 +400,6 @@ class TestLlamaCppChatGeneratorFunctionary:
                                 "type": "string",
                                 "description": "The city and state, e.g. San Francisco, CA",
                             },
-                            "unit": {"type": "string", "enum": ["celsius", "fahrenheit"]},
                         },
                         "required": ["location"],
                     },
@@ -407,7 +407,8 @@ class TestLlamaCppChatGeneratorFunctionary:
             }
         ]
 
-        response = generator.run(messages=messages, generation_kwargs={"tools": tools})
+        tool_choice = {"type": "function", "function": {"name": "get_current_temperature"}}
+        response = generator.run(messages=messages, generation_kwargs={"tools": tools, "tool_choice": tool_choice})
 
         available_functions = {
             "get_current_temperature": self.get_current_temperature,
@@ -417,6 +418,7 @@ class TestLlamaCppChatGeneratorFunctionary:
         assert len(response["replies"]) > 0
 
         first_reply = response["replies"][0]
+        print(first_reply)
         assert "tool_calls" in first_reply.meta
         tool_calls = first_reply.meta["tool_calls"]
 
