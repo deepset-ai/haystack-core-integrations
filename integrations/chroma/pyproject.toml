@@ -70,8 +70,8 @@ dependencies = [
 ]
 [tool.hatch.envs.lint.scripts]
 typing = "mypy --install-types --non-interactive --explicit-package-bases {args:src/ tests}"
-style = ["ruff check {args:. --exclude tests/}", "black --check --diff {args:.}"]
-fmt = ["black {args:.}", "ruff --fix {args:. --exclude tests/}", "style"]
+style = ["ruff check {args:.}", "black --check --diff {args:.}"]
+fmt = ["black {args:.}", "ruff check --fix {args:.}", "style"]
 all = ["style", "typing"]
 
 [tool.hatch.metadata]
@@ -85,7 +85,9 @@ skip-string-normalization = true
 [tool.ruff]
 target-version = "py38"
 line-length = 120
-lint.select = [
+
+[tool.ruff.lint]
+select = [
   "A",
   "ARG",
   "B",
@@ -112,7 +114,7 @@ lint.select = [
   "W",
   "YTT",
 ]
-lint.ignore = [
+ignore = [
   # Allow non-abstract empty methods in abstract base classes
   "B027",
   # Allow boolean positional values in function calls, like `dict.get(... True)`
@@ -130,19 +132,19 @@ lint.ignore = [
   # Ignore unused params
   "ARG002",
 ]
-lint.unfixable = [
+unfixable = [
   # Don't touch unused imports
   "F401",
 ]
 exclude = ["example"]
 
-[tool.ruff.isort]
-known-first-party = ["src", "example", "tests"]
+[tool.ruff.lint.isort]
+known-first-party = ["haystack_integrations"]
 
-[tool.ruff.flake8-tidy-imports]
+[tool.ruff.lint.flake8-tidy-imports]
 ban-relative-imports = "parents"
 
-[tool.ruff.per-file-ignores]
+[tool.ruff.lint.per-file-ignores]
 # Tests can use magic values, assertions, and relative imports
 "tests/**/*" = ["PLR2004", "S101", "TID252"]
 "example/**/*" = ["T201"]
