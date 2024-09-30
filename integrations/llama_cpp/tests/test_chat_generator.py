@@ -334,9 +334,9 @@ class TestLlamaCppChatGeneratorFunctionary:
     @pytest.fixture
     def generator(self, model_path, capsys):
         gguf_model_path = (
-            "https://huggingface.co/meetkai/functionary-small-v2.4-GGUF/resolve/main/functionary-small-v2.4.Q4_0.gguf"
+            "https://huggingface.co/bartowski/functionary-small-v3.1-GGUF/blob/main/functionary-small-v3.1-Q4_K_M.gguf"
         )
-        filename = "functionary-small-v2.4.Q4_0.gguf"
+        filename = "functionary-small-v3.1-Q4_K_M.gguf"
         download_file(gguf_model_path, str(model_path / filename), capsys)
         model_path = str(model_path / filename)
         hf_tokenizer_path = "meetkai/functionary-small-v2.4-GGUF"
