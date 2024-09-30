@@ -344,7 +344,6 @@ class TestLlamaCppChatGeneratorFunctionary:
             model=model_path,
             n_ctx=8192,
             n_batch=512,
-            generation_kwargs={"max_tokens": 256},
             model_kwargs={
                 "chat_format": "functionary-v2",
                 "hf_tokenizer_path": hf_tokenizer_path,
