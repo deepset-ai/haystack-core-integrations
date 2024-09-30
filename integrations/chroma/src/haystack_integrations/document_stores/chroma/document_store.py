@@ -40,9 +40,8 @@ class ChromaDocumentStore:
         **embedding_function_params,
     ):
         """
-        Initializes the store. The __init__ constructor is not part of the Store Protocol
-        and the signature can be customized to your needs. For example, parameters needed
-        to set up a database client would be passed to this method.
+        Creates a new ChromaDocumentStore instance.
+        It is meant to be connected to a Chroma collection.
 
         Note: for the component to be part of a serializable pipeline, the __init__
         parameters must be serializable, reason why we use a registry to configure the
@@ -65,7 +64,6 @@ class ChromaDocumentStore:
         :param metadata: a dictionary of chromadb collection parameters passed directly to chromadb's client
             method `create_collection`. If it contains the key `"hnsw:space"`, the value will take precedence over the
             `distance_function` parameter above.
-
         :param embedding_function_params: additional parameters to pass to the embedding function.
         """
 
@@ -296,7 +294,7 @@ class ChromaDocumentStore:
         """
         Deletes all documents with a matching document_ids from the document store.
 
-        :param document_ids: the object_ids to delete
+        :param document_ids: the document ids to delete
         """
         self._ensure_initialized()
         assert self._collection is not None
