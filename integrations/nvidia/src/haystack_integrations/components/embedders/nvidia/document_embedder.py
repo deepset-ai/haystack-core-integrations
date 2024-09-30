@@ -2,7 +2,6 @@ import warnings
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 from haystack import Document, component, default_from_dict, default_to_dict
-from haystack.document_stores import in_memory
 from haystack.utils import Secret, deserialize_secrets_inplace
 from tqdm import tqdm
 

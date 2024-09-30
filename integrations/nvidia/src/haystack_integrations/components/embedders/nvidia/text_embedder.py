@@ -176,7 +176,7 @@ class NvidiaTextEmbedder:
             )
             raise TypeError(msg)
         elif not text:
-            msg = f"Cannot embed an empty string."
+            msg = "Cannot embed an empty string."
             raise ValueError(msg)
 
         assert self.backend is not None
