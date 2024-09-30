@@ -2,6 +2,7 @@ import warnings
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 from haystack import Document, component, default_from_dict, default_to_dict
+from haystack.document_stores import in_memory
 from haystack.utils import Secret, deserialize_secrets_inplace
 from tqdm import tqdm
 
@@ -230,6 +231,11 @@ class NvidiaDocumentEmbedder:
                 "In case you want to embed a string, please use the NvidiaTextEmbedder."
             )
             raise TypeError(msg)
+
+        for doc in documents:
+            if not doc.content:
+                msg = f"Document '{doc.id}' has no content to embed."
+                raise ValueError(msg)
 
         texts_to_embed = self._prepare_texts_to_embed(documents)
         embeddings, metadata = self._embed_batch(texts_to_embed, self.batch_size)

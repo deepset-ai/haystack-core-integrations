@@ -147,6 +147,17 @@ class TestNvidiaTextEmbedder:
         with pytest.raises(TypeError, match="NvidiaTextEmbedder expects a string as an input"):
             embedder.run(text=list_integers_input)
 
+    def test_run_empty_string(self):
+        model = "playground_nvolveqa_40k"
+        api_key = Secret.from_token("fake-api-key")
+        embedder = NvidiaTextEmbedder(model, api_key=api_key)
+
+        embedder.warm_up()
+        embedder.backend = MockBackend(model=model, api_key=api_key)
+
+        with pytest.raises(ValueError, match="empty string"):
+            embedder.run(text="")
+
     @pytest.mark.skipif(
         not os.environ.get("NVIDIA_NIM_EMBEDDER_MODEL", None) or not os.environ.get("NVIDIA_NIM_ENDPOINT_URL", None),
         reason="Export an env var called NVIDIA_NIM_EMBEDDER_MODEL containing the hosted model name and "
