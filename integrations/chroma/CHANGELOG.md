@@ -1,5 +1,11 @@
 # Changelog
 
+## [integrations/chroma-v0.22.1] - 2024-09-30
+
+### Chroma
+
+- Empty filters should behave as no filters (#1117)
+
 ## [integrations/chroma-v0.22.0] - 2024-09-30
 
 ### 🚀 Features
