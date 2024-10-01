@@ -1,5 +1,15 @@
 # Changelog
 
+## [integrations/langfuse-v0.5.0] - 2024-10-01
+
+### ⚙️ Miscellaneous Tasks
+
+- Update ruff linting scripts and settings (#1105)
+
+### Langfuse
+
+- Add invocation_context to identify traces (#1089)
+
 ## [integrations/langfuse-v0.4.0] - 2024-09-17
 
 ### 🚀 Features
