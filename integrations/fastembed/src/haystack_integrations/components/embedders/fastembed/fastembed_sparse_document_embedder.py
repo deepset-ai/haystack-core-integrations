@@ -2,7 +2,7 @@ from typing import Any, Dict, List, Optional
 
 from haystack import Document, component, default_to_dict
 
-from .embedding_backend.fastembed_backend import _FastembedSparseEmbeddingBackendFactory
+from .embedding_backend.fastembed_backend import _FastembedSparseEmbeddingBackendFactory, OnnxProvider
 
 
 @component
@@ -62,6 +62,7 @@ class FastembedSparseDocumentEmbedder:
         local_files_only: bool = False,
         meta_fields_to_embed: Optional[List[str]] = None,
         embedding_separator: str = "\n",
+        onnx_providers: Optional[List[OnnxProvider]] = None,
     ):
         """
         Create an FastembedDocumentEmbedder component.
@@ -92,6 +93,7 @@ class FastembedSparseDocumentEmbedder:
         self.local_files_only = local_files_only
         self.meta_fields_to_embed = meta_fields_to_embed or []
         self.embedding_separator = embedding_separator
+        self.onnx_providers = onnx_providers
 
     def to_dict(self) -> Dict[str, Any]:
         """
@@ -110,6 +112,7 @@ class FastembedSparseDocumentEmbedder:
             local_files_only=self.local_files_only,
             meta_fields_to_embed=self.meta_fields_to_embed,
             embedding_separator=self.embedding_separator,
+            onnx_providers=self.onnx_providers,
         )
 
     def warm_up(self):
@@ -122,6 +125,7 @@ class FastembedSparseDocumentEmbedder:
                 cache_dir=self.cache_dir,
                 threads=self.threads,
                 local_files_only=self.local_files_only,
+                onnx_providers=self.onnx_providers
             )
 
     def _prepare_texts_to_embed(self, documents: List[Document]) -> List[str]:

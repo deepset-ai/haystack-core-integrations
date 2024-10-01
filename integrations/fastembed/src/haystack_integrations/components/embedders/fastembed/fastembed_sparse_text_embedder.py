@@ -1,9 +1,9 @@
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, List
 
 from haystack import component, default_to_dict
 from haystack.dataclasses.sparse_embedding import SparseEmbedding
 
-from .embedding_backend.fastembed_backend import _FastembedSparseEmbeddingBackendFactory
+from .embedding_backend.fastembed_backend import _FastembedSparseEmbeddingBackendFactory, OnnxProvider
 
 
 @component
@@ -35,6 +35,7 @@ class FastembedSparseTextEmbedder:
         progress_bar: bool = True,
         parallel: Optional[int] = None,
         local_files_only: bool = False,
+        onnx_providers: Optional[List[OnnxProvider]] = None,
     ):
         """
         Create a FastembedSparseTextEmbedder component.
@@ -58,6 +59,7 @@ class FastembedSparseTextEmbedder:
         self.progress_bar = progress_bar
         self.parallel = parallel
         self.local_files_only = local_files_only
+        self.onnx_providers = onnx_providers
 
     def to_dict(self) -> Dict[str, Any]:
         """
@@ -74,6 +76,7 @@ class FastembedSparseTextEmbedder:
             progress_bar=self.progress_bar,
             parallel=self.parallel,
             local_files_only=self.local_files_only,
+            onnx_providers=self.onnx_providers,
         )
 
     def warm_up(self):
@@ -86,6 +89,7 @@ class FastembedSparseTextEmbedder:
                 cache_dir=self.cache_dir,
                 threads=self.threads,
                 local_files_only=self.local_files_only,
+                onnx_providers=self.onnx_providers,
             )
 
     @component.output_types(sparse_embedding=SparseEmbedding)
