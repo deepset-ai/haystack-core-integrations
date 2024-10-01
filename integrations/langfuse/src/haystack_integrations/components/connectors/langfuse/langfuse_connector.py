@@ -1,9 +1,9 @@
 from typing import Any, Dict, Optional
 
 from haystack import component, tracing, logging
+from langfuse import Langfuse
 
 from haystack_integrations.tracing.langfuse import LangfuseTracer
-from langfuse import Langfuse
 
 logger = logging.getLogger(__name__)
 
