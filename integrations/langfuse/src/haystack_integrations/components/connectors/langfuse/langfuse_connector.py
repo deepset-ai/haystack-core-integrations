@@ -1,9 +1,11 @@
 from typing import Any, Dict, Optional
 
-from haystack import component, tracing
+from haystack import component, tracing, logging
 
 from haystack_integrations.tracing.langfuse import LangfuseTracer
 from langfuse import Langfuse
+
+logger = logging.getLogger(__name__)
 
 
 @component
@@ -107,7 +109,7 @@ class LangfuseConnector:
         tracing.enable_tracing(self.tracer)
 
     @component.output_types(name=str, trace_url=str)
-    def run(self, invocation_context: Optional[Dict[str, Any]] = None):  # noqa: ARG002
+    def run(self, invocation_context: Optional[Dict[str, Any]] = None):
         """
         Runs the LangfuseConnector component.
 
@@ -119,5 +121,6 @@ class LangfuseConnector:
             - `name`: The name of the tracing component.
             - `trace_url`: The URL to the tracing data.
         """
-        # invocation_context is not used here but it is registered as input to the component in Langfuse.
+        logger.debug("Langfuse tracer invoked with the following context: '{invocation_context}'",
+                     invocation_context=invocation_context)
         return {"name": self.name, "trace_url": self.tracer.get_trace_url()}
