@@ -7,7 +7,7 @@ from dataclasses import asdict
 from typing import Any, Dict, List, Optional
 
 from azure.core.credentials import AzureKeyCredential
-from azure.core.exceptions import ClientAuthenticationError, HttpResponseError, ResourceNotFoundError
+from azure.core.exceptions import ResourceNotFoundError
 from azure.identity import DefaultAzureCredential
 from azure.search.documents import SearchClient
 from azure.search.documents.indexes import SearchIndexClient
@@ -62,6 +62,7 @@ class AzureAISearchDocumentStore:
         azure_endpoint: Secret = Secret.from_env_var("AZURE_SEARCH_SERVICE_ENDPOINT", strict=False),
         index_name: str = "default",
         embedding_dimension: int = 768,  # whats a better default value
+        embedding_dimension: int = 768,  # whats a better default value
         metadata_fields: Optional[Dict[str, type]] = None,
         vector_search_configuration: VectorSearch = None,
         create_index: bool = True,
@@ -72,9 +73,12 @@ class AzureAISearchDocumentStore:
         as the backend.
 
         :param azure_endpoint: The URL endpoint of an Azure AI Search service.
+        :param azure_endpoint: The URL endpoint of an Azure AI Search service.
         :param api_key: The API key to use for authentication.
         :param index_name: Name of index in Azure AI Search, if it doesn't exist it will be created.
         :param embedding_dimension: Dimension of the embeddings.
+        :param metadata_fields: A dictionary of metatada keys and their types to create
+        additional fields in index schema. As fields in Azure SearchIndex cannot be dynamic, it is necessary to specify the metadata fields in advance.
         :param metadata_fields: A dictionary of metatada keys and their types to create
         additional fields in index schema. As fields in Azure SearchIndex cannot be dynamic, it is necessary to specify the metadata fields in advance.
         :param vector_search_configuration: Configuration option related to vector search.
@@ -94,6 +98,8 @@ class AzureAISearchDocumentStore:
             msg = "Please provide an Azure endpoint or set the environment variable AZURE_OPENAI_ENDPOINT."
             raise ValueError(msg)
         api_key = api_key or os.environ.get("AZURE_SEARCH_API_KEY")
+        # if not api_key:
+        # raise ValueError("Please provide an API key or an Azure Active Directory token.")
 
         self._client = None
         self._index_client = None
@@ -116,19 +122,17 @@ class AzureAISearchDocumentStore:
         if isinstance(self._api_key, Secret):
             self._api_key = self._api_key.resolve_value()
         credential = AzureKeyCredential(self._api_key) if self._api_key else DefaultAzureCredential()
-        try:
-            if not self._index_client:
-                self._index_client = SearchIndexClient(self._azure_endpoint, credential, **self._kwargs)
-            if not self.index_exists(self._index_name):
-                # Create a new index if it does not exist
-                logger.debug(
-                    "The index '%s' does not exist. A new index will be created.",
-                    self._index_name,
-                )
-                self.create_index(self._index_name)
-        except (HttpResponseError, ClientAuthenticationError) as error:
-            msg = f"Failed to authenticate with Azure Search: {error}"
-            raise AzureAISearchDocumentStoreConfigError(msg) from error
+
+        if not self._index_client:
+            self._index_client = SearchIndexClient(self._azure_endpoint, credential, **self._kwargs)
+
+        if not self.index_exists(self._index_name):
+            # Create a new index if it does not exist
+            logger.debug(
+                "The index '%s' does not exist. A new index will be created.",
+                self._index_name,
+            )
+            self.create_index(self._index_name)
 
         self._client = self._index_client.get_search_client(self._index_name)
         return self._client
@@ -159,6 +163,7 @@ class AzureAISearchDocumentStore:
         fields = default_fields
         if self._metadata_fields:
             fields.extend(self._create_metadata_index_fields(self._metadata_fields))
+
 
         self._index_fields = fields
         index = SearchIndex(name=index_name, fields=fields, vector_search=self._vector_search_configuration, **kwargs)
