@@ -1,9 +1,9 @@
 from typing import Any, Dict, Optional
 
-from haystack import component, tracing, logging
-from langfuse import Langfuse
+from haystack import component, logging, tracing
 
 from haystack_integrations.tracing.langfuse import LangfuseTracer
+from langfuse import Langfuse
 
 logger = logging.getLogger(__name__)
 
@@ -121,6 +121,8 @@ class LangfuseConnector:
             - `name`: The name of the tracing component.
             - `trace_url`: The URL to the tracing data.
         """
-        logger.debug("Langfuse tracer invoked with the following context: '{invocation_context}'",
-                     invocation_context=invocation_context)
+        logger.debug(
+            "Langfuse tracer invoked with the following context: '{invocation_context}'",
+            invocation_context=invocation_context,
+        )
         return {"name": self.name, "trace_url": self.tracer.get_trace_url()}
