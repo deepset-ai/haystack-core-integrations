@@ -231,6 +231,11 @@ class NvidiaDocumentEmbedder:
             )
             raise TypeError(msg)
 
+        for doc in documents:
+            if not doc.content:
+                msg = f"Document '{doc.id}' has no content to embed."
+                raise ValueError(msg)
+
         texts_to_embed = self._prepare_texts_to_embed(documents)
         embeddings, metadata = self._embed_batch(texts_to_embed, self.batch_size)
         for doc, emb in zip(documents, embeddings):
