@@ -5,9 +5,10 @@ import logging
 import os
 from dataclasses import asdict
 from typing import Any, Dict, List, Optional
-from haystack.components.embedders import AzureOpenAIDocumentEmbedder
+
 from azure.core.credentials import AzureKeyCredential
 from azure.core.exceptions import ResourceNotFoundError
+from azure.identity import DefaultAzureCredential
 from azure.search.documents import SearchClient
 from azure.search.documents.indexes import SearchIndexClient
 from azure.search.documents.indexes.models import (
@@ -21,14 +22,12 @@ from azure.search.documents.indexes.models import (
     VectorSearch,
     VectorSearchAlgorithmMetric,
     VectorSearchProfile,
-    VectorizedQuery
 )
 from haystack import default_from_dict, default_to_dict
 from haystack.dataclasses import Document
 from haystack.document_stores.errors import DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
 from haystack.utils import Secret, deserialize_secrets_inplace
-from .vectorizer import create_vectorizer, get_document_emebeddings, get_text_embeddings
 
 type_mapping = {str: "Edm.String", bool: "Edm.Boolean", int: "Edm.Int32", float: "Edm.Double"}
 
@@ -46,10 +45,7 @@ DEFAULT_VECTOR_SEARCH = VectorSearch(
             ),
         )
     ],
-    vectorizers=create_vectorizer(embedding_model_name="text-embedding-ada-002")
 )
-
-
 
 logger = logging.getLogger(__name__)
 logging.getLogger("azure").setLevel(logging.ERROR)
@@ -62,7 +58,7 @@ class AzureAISearchDocumentStore:
         api_key: Secret = Secret.from_env_var("AZURE_SEARCH_API_KEY", strict=False),
         azure_endpoint: Secret = Secret.from_env_var("AZURE_SEARCH_SERVICE_ENDPOINT", strict=False),
         index_name: str = "default",
-        embedding_dimension: int = 768,
+        embedding_dimension: int = 768,  # whats a better default value
         metadata_fields: Optional[Dict[str, type]] = None,
         vector_search_configuration: VectorSearch = None,
         create_index: bool = True,
@@ -72,12 +68,12 @@ class AzureAISearchDocumentStore:
         A document store using [Azure AI Search](https://azure.microsoft.com/products/ai-services/ai-search/)
         as the backend.
 
-        :param azure_endpoint: The URL endpoint of an Azure search service.
+        :param azure_endpoint: The URL endpoint of an Azure AI Search service.
         :param api_key: The API key to use for authentication.
         :param index_name: Name of index in Azure AI Search, if it doesn't exist it will be created.
         :param embedding_dimension: Dimension of the embeddings.
-        :param metadata_fields: A dictionary of metatada keys and their types to create 
-        additional fields in index schema.
+        :param metadata_fields: A dictionary of metatada keys and their types to create
+        additional fields in index schema. As fields in Azure SearchIndex cannot be dynamic, it is necessary to specify the metadata fields in advance.
         :param vector_search_configuration: Configuration option related to vector search.
         Default configuration uses the HNSW algorithm with cosine similarity to handle vector searches.
 
@@ -94,8 +90,8 @@ class AzureAISearchDocumentStore:
         if not azure_endpoint:
             raise ValueError("Please provide an Azure endpoint or set the environment variable AZURE_OPENAI_ENDPOINT.")
         api_key = api_key or os.environ.get("AZURE_SEARCH_API_KEY")
-        if not api_key:
-            raise ValueError("Please provide an API key or an Azure Active Directory token.")
+        # if not api_key:
+        # raise ValueError("Please provide an API key or an Azure Active Directory token.")
 
         self._client = None
         self._index_client = None
@@ -116,14 +112,13 @@ class AzureAISearchDocumentStore:
             self._azure_endpoint = self._azure_endpoint.resolve_value()
         if isinstance(self._api_key, Secret):
             self._api_key = self._api_key.resolve_value()
+        credential = AzureKeyCredential(self._api_key) if self._api_key else DefaultAzureCredential()
 
         if not self._index_client:
-            self._index_client = SearchIndexClient(
-                self._azure_endpoint, AzureKeyCredential(self._api_key), **self._kwargs
-            )
+            self._index_client = SearchIndexClient(self._azure_endpoint, credential, **self._kwargs)
 
         if not self.index_exists(self._index_name):
-            # Handle the case where the index does not exist
+            # Create a new index if it does not exist
             logger.debug(
                 "The index '%s' does not exist. A new index will be created.",
                 self._index_name,
@@ -142,7 +137,6 @@ class AzureAISearchDocumentStore:
         """
 
         # default fields to create index based on Haystack Document
-
         default_fields = [
             SimpleField(name="id", type=SearchFieldDataType.String, key=True, filterable=True),
             SearchableField(name="content", type=SearchFieldDataType.String),
@@ -160,6 +154,7 @@ class AzureAISearchDocumentStore:
         fields = default_fields
         if self._metadata_fields:
             fields.extend(self._create_metadata_index_fields(self._metadata_fields))
+
         self._index_fields = fields
         index = SearchIndex(name=index_name, fields=fields, vector_search=self._vector_search_configuration, **kwargs)
         self._index_client.create_index(index)
@@ -247,7 +242,6 @@ class AzureAISearchDocumentStore:
                 # Document does not exist, safe to add
                 documents_to_write.append(_convert_input_document(doc))
 
-        print (documents_to_write) 
         if documents_to_write != []:
             self.client.merge_or_upload_documents(documents_to_write)
         return len(documents_to_write)
@@ -281,38 +275,15 @@ class AzureAISearchDocumentStore:
                 logger.warning(f"Document with ID {doc_id} not found.")
         return documents
 
-    def filter_documents(self, filters: Optional[Dict[str, Any]] = None) -> List[Document]:
-        """
-        Returns the documents that match the filters provided.
-
-        For a detailed specification of the filters,
-        refer to the [documentation](https://docs.haystack.deepset.ai/v2.0/docs/metadata-filtering)
-
-        :param filters: The filters to apply to the document list.
-        :returns: A list of Documents that match the given filters.
-        """
-
-        # Filters to be implemented with suitable interface for Azure AI Search
-        azure_docs = []
-        result = self.client.search(search_text="*", top=self.count_documents())
-        for doc in result:
-            azure_docs.append(doc)
-
-        documents = self._convert_search_result_to_documents(azure_docs)
-        return documents
-
-
-    def search_documents(self, search_text = '*') -> List[Document]:
+    def search_documents(self, search_text="*") -> List[Document]:
         """
         Calls the Azure AI Search client's search method and handles pagination.
         :param search_text: The text to search for. If not supplied, all documents will be retrieved.
         :returns: A list of Documents that match the given filters.
         """
 
-        # Filters to be implemented with suitable interface for Azure AI Search
         azure_docs = []
         result = self.client.search(search_text=search_text, top=self.count_documents())
-        print (type(result))
         for doc in result:
             azure_docs.append(doc)
 
@@ -380,45 +351,3 @@ class AzureAISearchDocumentStore:
             metadata_field_mapping[key] = field_type
 
         return metadata_field_mapping
-
-
-    def _vector_search(
-        self,
-        query_embedding: List[float],
-        *,
-        filters: Optional[Dict[str, Any]] = None,
-        top_k: int = 10,
-        custom_query: Optional[Dict[str, Any]] = None,
-    ) -> List[Document]:
-        """
-        Retrieves documents that are most similar to the query embedding using a vector similarity metric.
-        It uses the vector configuration of the document store. By default it uses the HNSW algorithm with cosine similarity.
-
-        This method is not meant to be part of the public interface of
-        `AzureAISearchDocumentStore` nor called directly.
-        `AzureAISearchEmbeddingRetriever` uses this method directly and is the public interface for it.
-
-        :param query_embedding: Embedding of the query.
-        :param filters: Filters applied to the retrieved Documents. Defaults to None.
-            Filters are applied during the approximate kNN search to ensure that top_k matching documents are returned.
-        :param top_k: Maximum number of Documents to return, defaults to 10
-        
-        :raises ValueError: If `query_embedding` is an empty list
-        :returns: List of Document that are most similar to `query_embedding`
-        """
-        if filters and "operator" not in filters and "conditions" not in filters:
-            filters = convert(filters)
-
-        if not query_embedding:
-            msg = "query_embedding must be a non-empty list of floats"
-            raise ValueError(msg)
-
-        #embedding = get_embeddings(input=query, model=embedding_model_name, dimensions=self._embedding_dimension)
-
-        vector_query = VectorizedQuery(vector=query_embedding, k_nearest_neighbors=3, fields="contentVector")
-        
-        results = self.client.search(  
-            search_text=None,  
-            vector_queries= [vector_query],
-            select=["title", "content", "category"],
-        )  

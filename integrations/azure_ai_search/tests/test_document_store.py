@@ -14,6 +14,7 @@ from haystack.testing.document_store import (
     WriteDocumentsTest,
 )
 from haystack.utils.auth import EnvVarSecret, Secret
+
 from haystack_integrations.document_stores.azure_ai_search import AzureAISearchDocumentStore
 from haystack_integrations.document_stores.azure_ai_search.document_store import DEFAULT_VECTOR_SEARCH
 
@@ -90,7 +91,10 @@ def test_init(_mock_azure_search_client):
     assert document_store._vector_search_configuration == DEFAULT_VECTOR_SEARCH
 
 
-@pytest.mark.integration
+@pytest.mark.skipif(
+    not os.environ.get("AZURE_SEARCH_SERVICE_ENDPOINT", None) and not os.environ.get("AZURE_SEARCH_API_KEY", None),
+    reason="Missing AZURE_SEARCH_SERVICE_ENDPOINT or AZURE_SEARCH_API_KEY.",
+)
 class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsTest):
 
     @pytest.fixture
