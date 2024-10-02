@@ -5,8 +5,6 @@ import os
 from unittest.mock import patch
 
 import pytest
-from azure.core.credentials import AzureKeyCredential
-from azure.search.documents.indexes import SearchIndexClient
 from haystack.dataclasses.document import Document
 from haystack.testing.document_store import (
     CountDocumentsTest,
@@ -15,8 +13,7 @@ from haystack.testing.document_store import (
 )
 from haystack.utils.auth import EnvVarSecret, Secret
 
-from haystack_integrations.document_stores.azure_ai_search import AzureAISearchDocumentStore
-from haystack_integrations.document_stores.azure_ai_search.document_store import DEFAULT_VECTOR_SEARCH
+from haystack_integrations.document_stores.azure_ai_search import DEFAULT_VECTOR_SEARCH, AzureAISearchDocumentStore
 
 
 @patch("haystack_integrations.document_stores.azure_ai_search.document_store.AzureAISearchDocumentStore")
@@ -97,30 +94,26 @@ def test_init(_mock_azure_search_client):
 )
 class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsTest):
 
-    @pytest.fixture
-    def document_store(self):
-        """
-        This is the most basic requirement for the child class: provide
-        an instance of this document store so the base class can use it.
-        """
-        index_name = "haystack_integration_test"
-        azure_endpoint = os.environ["AZURE_SEARCH_SERVICE_ENDPOINT"]
-        api_key = os.environ["AZURE_SEARCH_API_KEY"]
-
-        client = SearchIndexClient(azure_endpoint, AzureKeyCredential(api_key))
-        if index_name in client.list_index_names():
-            client.delete_index(index_name)
-
-        store = AzureAISearchDocumentStore(
-            api_key=api_key,
-            azure_endpoint=azure_endpoint,
-            index_name=index_name,
-            create_index=True,
-            embedding_dimension=15,
-        )
-        yield store
-        client.delete_index(index_name)
-
     def test_write_documents(self, document_store: AzureAISearchDocumentStore):
         docs = [Document(id="1")]
         assert document_store.write_documents(docs) == 1
+
+    # Parametrize the test with metadata fields
+    @pytest.mark.parametrize(
+        "document_store",
+        [
+            {"metadata_fields": {"author": str, "publication_year": int, "rating": float}},
+        ],
+        indirect=True,
+    )
+    def test_write_documents_with_meta(self, document_store: AzureAISearchDocumentStore):
+        docs = [
+            Document(
+                id="1",
+                meta={"author": "Tom", "publication_year": 2021, "rating": 4.5},
+                content="This is a test document.",
+            )
+        ]
+        document_store.write_documents(docs)
+        doc = document_store.get_documents_by_id(["1"])
+        assert doc[0] == docs[0]

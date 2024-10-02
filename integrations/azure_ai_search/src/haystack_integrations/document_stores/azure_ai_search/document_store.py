@@ -7,7 +7,7 @@ from dataclasses import asdict
 from typing import Any, Dict, List, Optional
 
 from azure.core.credentials import AzureKeyCredential
-from azure.core.exceptions import ResourceNotFoundError
+from azure.core.exceptions import ClientAuthenticationError, HttpResponseError, ResourceNotFoundError
 from azure.identity import DefaultAzureCredential
 from azure.search.documents import SearchClient
 from azure.search.documents.indexes import SearchIndexClient
@@ -29,6 +29,8 @@ from haystack.document_stores.errors import DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
 from haystack.utils import Secret, deserialize_secrets_inplace
 
+from .errors import AzureAISearchDocumentStoreConfigError
+
 type_mapping = {str: "Edm.String", bool: "Edm.Boolean", int: "Edm.Int32", float: "Edm.Double"}
 
 MAX_UPLOAD_BATCH_SIZE = 1000
@@ -49,6 +51,7 @@ DEFAULT_VECTOR_SEARCH = VectorSearch(
 
 logger = logging.getLogger(__name__)
 logging.getLogger("azure").setLevel(logging.ERROR)
+logging.getLogger("azure.identity").setLevel(logging.DEBUG)
 
 
 class AzureAISearchDocumentStore:
@@ -88,10 +91,9 @@ class AzureAISearchDocumentStore:
 
         azure_endpoint = azure_endpoint or os.environ.get("AZURE_SEARCH_SERVICE_ENDPOINT")
         if not azure_endpoint:
-            raise ValueError("Please provide an Azure endpoint or set the environment variable AZURE_OPENAI_ENDPOINT.")
+            msg = "Please provide an Azure endpoint or set the environment variable AZURE_OPENAI_ENDPOINT."
+            raise ValueError(msg)
         api_key = api_key or os.environ.get("AZURE_SEARCH_API_KEY")
-        # if not api_key:
-        # raise ValueError("Please provide an API key or an Azure Active Directory token.")
 
         self._client = None
         self._index_client = None
@@ -110,20 +112,23 @@ class AzureAISearchDocumentStore:
 
         if isinstance(self._azure_endpoint, Secret):
             self._azure_endpoint = self._azure_endpoint.resolve_value()
+
         if isinstance(self._api_key, Secret):
             self._api_key = self._api_key.resolve_value()
         credential = AzureKeyCredential(self._api_key) if self._api_key else DefaultAzureCredential()
-
-        if not self._index_client:
-            self._index_client = SearchIndexClient(self._azure_endpoint, credential, **self._kwargs)
-
-        if not self.index_exists(self._index_name):
-            # Create a new index if it does not exist
-            logger.debug(
-                "The index '%s' does not exist. A new index will be created.",
-                self._index_name,
-            )
-            self.create_index(self._index_name)
+        try:
+            if not self._index_client:
+                self._index_client = SearchIndexClient(self._azure_endpoint, credential, **self._kwargs)
+            if not self.index_exists(self._index_name):
+                # Create a new index if it does not exist
+                logger.debug(
+                    "The index '%s' does not exist. A new index will be created.",
+                    self._index_name,
+                )
+                self.create_index(self._index_name)
+        except (HttpResponseError, ClientAuthenticationError) as error:
+            msg = f"Failed to authenticate with Azure Search: {error}"
+            raise AzureAISearchDocumentStoreConfigError(msg) from error
 
         self._client = self._index_client.get_search_client(self._index_name)
         return self._client
@@ -234,7 +239,8 @@ class AzureAISearchDocumentStore:
                     logger.info(f"Document with ID {doc.id} already exists. Skipping.")
                     continue
                 elif policy == DuplicatePolicy.FAIL:
-                    raise DuplicateDocumentError(f"Document with ID {doc.id} already exists.")
+                    msg = f"Document with ID {doc.id} already exists."
+                    raise DuplicateDocumentError(msg)
                 elif policy == DuplicatePolicy.OVERWRITE:
                     logger.info(f"Document with ID {doc.id} already exists. Overwriting.")
                     documents_to_write.append(_convert_input_document(doc))
@@ -243,7 +249,7 @@ class AzureAISearchDocumentStore:
                 documents_to_write.append(_convert_input_document(doc))
 
         if documents_to_write != []:
-            self.client.merge_or_upload_documents(documents_to_write)
+            self.client.upload_documents(documents_to_write)
         return len(documents_to_write)
 
     def delete_documents(self, document_ids: List[str]) -> None:
@@ -252,64 +258,83 @@ class AzureAISearchDocumentStore:
 
         :param document_ids: ids of the documents to be deleted.
         """
-
         if self.count_documents == 0:
             return
-        documents = self.get_documents(document_ids)
-        if documents != []:
+        documents = self._get_raw_documents_by_id(document_ids)
+        if documents:
             self.client.delete_documents(documents)
 
-    def get_documents(self, document_ids: List[str]):
+    def _get_raw_documents_by_id(self, document_ids: List[str]):
         """
-        Retrieves all documents with a matching document_ids from the document store.
+        Retrieves all Azure documents with a matching document_ids from the document store.
 
         :param document_ids: ids of the documents to be retrieved.
-        :returns: list of retrieved documents.
+        :returns: list of retrieved Azure documents.
         """
-        documents = []
+        azure_documents = []
         for doc_id in document_ids:
             try:
                 document = self.client.get_document(doc_id)
-                documents.append(document)
+                azure_documents.append(document)
             except ResourceNotFoundError:
                 logger.warning(f"Document with ID {doc_id} not found.")
-        return documents
+        return azure_documents
 
-    def search_documents(self, search_text="*") -> List[Document]:
+    def get_documents_by_id(self, document_ids: List[str]) -> List[Document]:
+        return self._convert_search_result_to_documents(self._get_raw_documents_by_id(document_ids))
+
+    def filter_documents(self, filters: Optional[Dict[str, Any]] = None) -> List[Document]:
+
+        # TODO: Implement this method to filter documents based on metadata fields
+        # For now the implementation is similar to search_documents
         """
         Calls the Azure AI Search client's search method and handles pagination.
         :param search_text: The text to search for. If not supplied, all documents will be retrieved.
         :returns: A list of Documents that match the given filters.
         """
 
+        search_text = "*"  # default to search all documents
         azure_docs = []
-        result = self.client.search(search_text=search_text, top=self.count_documents())
-        for doc in result:
-            azure_docs.append(doc)
+        if filters:
+            # Handle filtering by 'id' first
+            document_ids = filters.get("id")
+            if document_ids:
+                azure_docs = self._get_raw_documents_by_id(document_ids)
+                return self._convert_search_result_to_documents(azure_docs)
 
-        documents = self._convert_search_result_to_documents(azure_docs)
-        return documents
+            # Handle filtering by 'content'
+            search_text = filters.get("content", "*")
+
+        # Perform search with pagination
+        result = self.client.search(search_text=search_text, top=self.count_documents())
+        azure_docs = list(result)
+        return self._convert_search_result_to_documents(azure_docs)
 
     def _convert_search_result_to_documents(self, azure_docs: List[Dict[str, Any]]) -> List[Document]:
 
-        ## UNDER PROGRESS
         documents = []
         for azure_doc in azure_docs:
 
-            embedding = None
-            if "embedding" in azure_doc and azure_doc["embedding"] != self._dummy_vector:
-                embedding = azure_doc["embedding"]
-            # meta = {key: value for key, value in azure_doc.items() if key not in ["id", "content", "embedding"]}
+            embedding = azure_doc.get("embedding")
+            if embedding == self._dummy_vector:
+                embedding = None
+
+            # Filter out meta fields
+            meta = {
+                key: value
+                for key, value in azure_doc.items()
+                if key not in ["id", "content", "embedding"] and not key.startswith("@")
+            }
+
+            # Create the document with meta only if it's non-empty
             doc = Document(
-                id=azure_doc["id"],
-                content=azure_doc["content"],
-                embedding=embedding,
-                # meta = meta
+                id=azure_doc["id"], content=azure_doc["content"], embedding=embedding, meta=meta if meta else {}
             )
+
             documents.append(doc)
         return documents
 
-    def index_exists(self, index_name: Optional[str]) -> None:
+    def index_exists(self, index_name: Optional[str]) -> bool:
         if self._index_client and index_name:
             return index_name in self._index_client.list_index_names()
 
