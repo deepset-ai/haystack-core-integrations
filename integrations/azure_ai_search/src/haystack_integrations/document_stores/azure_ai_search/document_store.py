@@ -7,7 +7,7 @@ from dataclasses import asdict
 from typing import Any, Dict, List, Optional
 
 from azure.core.credentials import AzureKeyCredential
-from azure.core.exceptions import ResourceNotFoundError
+from azure.core.exceptions import ClientAuthenticationError, HttpResponseError, ResourceNotFoundError
 from azure.identity import DefaultAzureCredential
 from azure.search.documents import SearchClient
 from azure.search.documents.indexes import SearchIndexClient
@@ -98,8 +98,6 @@ class AzureAISearchDocumentStore:
             msg = "Please provide an Azure endpoint or set the environment variable AZURE_OPENAI_ENDPOINT."
             raise ValueError(msg)
         api_key = api_key or os.environ.get("AZURE_SEARCH_API_KEY")
-        # if not api_key:
-        # raise ValueError("Please provide an API key or an Azure Active Directory token.")
 
         self._client = None
         self._index_client = None
@@ -122,17 +120,19 @@ class AzureAISearchDocumentStore:
         if isinstance(self._api_key, Secret):
             self._api_key = self._api_key.resolve_value()
         credential = AzureKeyCredential(self._api_key) if self._api_key else DefaultAzureCredential()
-
-        if not self._index_client:
-            self._index_client = SearchIndexClient(self._azure_endpoint, credential, **self._kwargs)
-
-        if not self.index_exists(self._index_name):
-            # Create a new index if it does not exist
-            logger.debug(
-                "The index '%s' does not exist. A new index will be created.",
-                self._index_name,
-            )
-            self.create_index(self._index_name)
+        try:
+            if not self._index_client:
+                self._index_client = SearchIndexClient(self._azure_endpoint, credential, **self._kwargs)
+            if not self.index_exists(self._index_name):
+                # Create a new index if it does not exist
+                logger.debug(
+                    "The index '%s' does not exist. A new index will be created.",
+                    self._index_name,
+                )
+                self.create_index(self._index_name)
+        except (HttpResponseError, ClientAuthenticationError) as error:
+            msg = f"Failed to authenticate with Azure Search: {error}"
+            raise AzureAISearchDocumentStoreConfigError(msg) from error
 
         self._client = self._index_client.get_search_client(self._index_name)
         return self._client
