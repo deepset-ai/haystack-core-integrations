@@ -2,7 +2,7 @@ from typing import Any, Dict, List, Optional
 
 from haystack import component, default_to_dict
 
-from .embedding_backend.fastembed_backend import _FastembedEmbeddingBackendFactory
+from .embedding_backend.fastembed_backend import _FastembedEmbeddingBackendFactory, OnnxProvider
 
 
 @component
@@ -36,6 +36,7 @@ class FastembedTextEmbedder:
         progress_bar: bool = True,
         parallel: Optional[int] = None,
         local_files_only: bool = False,
+        onnx_providers: Optional[List[OnnxProvider]] = None,
     ):
         """
         Create a FastembedTextEmbedder component.
@@ -63,6 +64,7 @@ class FastembedTextEmbedder:
         self.progress_bar = progress_bar
         self.parallel = parallel
         self.local_files_only = local_files_only
+        self.onnx_providers = onnx_providers
 
     def to_dict(self) -> Dict[str, Any]:
         """
@@ -81,6 +83,7 @@ class FastembedTextEmbedder:
             progress_bar=self.progress_bar,
             parallel=self.parallel,
             local_files_only=self.local_files_only,
+            onnx_providers=self.onnx_providers,
         )
 
     def warm_up(self):
@@ -93,6 +96,7 @@ class FastembedTextEmbedder:
                 cache_dir=self.cache_dir,
                 threads=self.threads,
                 local_files_only=self.local_files_only,
+                onnx_providers=self.onnx_providers,
             )
 
     @component.output_types(embedding=List[float])

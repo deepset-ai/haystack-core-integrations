@@ -5,6 +5,7 @@ from tqdm import tqdm
 
 from fastembed import TextEmbedding
 from fastembed.sparse.sparse_text_embedding import SparseTextEmbedding
+from fastembed.common.types import OnnxProvider
 
 
 class _FastembedEmbeddingBackendFactory:
@@ -20,6 +21,7 @@ class _FastembedEmbeddingBackendFactory:
         cache_dir: Optional[str] = None,
         threads: Optional[int] = None,
         local_files_only: bool = False,
+        onnx_providers: Optional[List[OnnxProvider]] = None,
     ):
         embedding_backend_id = f"{model_name}{cache_dir}{threads}"
 
@@ -27,7 +29,7 @@ class _FastembedEmbeddingBackendFactory:
             return _FastembedEmbeddingBackendFactory._instances[embedding_backend_id]
 
         embedding_backend = _FastembedEmbeddingBackend(
-            model_name=model_name, cache_dir=cache_dir, threads=threads, local_files_only=local_files_only
+            model_name=model_name, cache_dir=cache_dir, threads=threads, local_files_only=local_files_only, onnx_providers=onnx_providers
         )
         _FastembedEmbeddingBackendFactory._instances[embedding_backend_id] = embedding_backend
         return embedding_backend
@@ -44,9 +46,10 @@ class _FastembedEmbeddingBackend:
         cache_dir: Optional[str] = None,
         threads: Optional[int] = None,
         local_files_only: bool = False,
+        onnx_providers: Optional[List[OnnxProvider]] = None,
     ):
         self.model = TextEmbedding(
-            model_name=model_name, cache_dir=cache_dir, threads=threads, local_files_only=local_files_only
+            model_name=model_name, cache_dir=cache_dir, threads=threads, local_files_only=local_files_only, providers=onnx_providers
         )
 
     def embed(self, data: List[str], progress_bar=True, **kwargs) -> List[List[float]]:
@@ -73,6 +76,7 @@ class _FastembedSparseEmbeddingBackendFactory:
         cache_dir: Optional[str] = None,
         threads: Optional[int] = None,
         local_files_only: bool = False,
+        onnx_providers: Optional[List[OnnxProvider]] = None,
     ):
         embedding_backend_id = f"{model_name}{cache_dir}{threads}"
 
@@ -80,7 +84,7 @@ class _FastembedSparseEmbeddingBackendFactory:
             return _FastembedSparseEmbeddingBackendFactory._instances[embedding_backend_id]
 
         embedding_backend = _FastembedSparseEmbeddingBackend(
-            model_name=model_name, cache_dir=cache_dir, threads=threads, local_files_only=local_files_only
+            model_name=model_name, cache_dir=cache_dir, threads=threads, local_files_only=local_files_only, onnx_providers=onnx_providers
         )
         _FastembedSparseEmbeddingBackendFactory._instances[embedding_backend_id] = embedding_backend
         return embedding_backend
@@ -97,9 +101,10 @@ class _FastembedSparseEmbeddingBackend:
         cache_dir: Optional[str] = None,
         threads: Optional[int] = None,
         local_files_only: bool = False,
+        onnx_providers: Optional[List[OnnxProvider]] = None,
     ):
         self.model = SparseTextEmbedding(
-            model_name=model_name, cache_dir=cache_dir, threads=threads, local_files_only=local_files_only
+            model_name=model_name, cache_dir=cache_dir, threads=threads, local_files_only=local_files_only, providers=onnx_providers
         )
 
     def embed(self, data: List[List[str]], progress_bar=True, **kwargs) -> List[SparseEmbedding]:
