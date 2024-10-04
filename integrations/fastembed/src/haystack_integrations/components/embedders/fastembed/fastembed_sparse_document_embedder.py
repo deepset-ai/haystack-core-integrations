@@ -62,6 +62,7 @@ class FastembedSparseDocumentEmbedder:
         local_files_only: bool = False,
         meta_fields_to_embed: Optional[List[str]] = None,
         embedding_separator: str = "\n",
+        bm25: Optional[Dict[str, Any]] = None,
     ):
         """
         Create an FastembedDocumentEmbedder component.
@@ -81,6 +82,7 @@ class FastembedSparseDocumentEmbedder:
         :param local_files_only: If `True`, only use the model files in the `cache_dir`.
         :param meta_fields_to_embed: List of meta fields that should be embedded along with the Document content.
         :param embedding_separator: Separator used to concatenate the meta fields to the Document content.
+        :param bm25: Dictionary containing BM25 parameters (`k`, `b`, `avg_len`, `language`, `token_max_length`).
         """
 
         self.model_name = model
@@ -92,6 +94,7 @@ class FastembedSparseDocumentEmbedder:
         self.local_files_only = local_files_only
         self.meta_fields_to_embed = meta_fields_to_embed or []
         self.embedding_separator = embedding_separator
+        self.bm25 = bm25 if model == "Qdrant/bm25" else None
 
     def to_dict(self) -> Dict[str, Any]:
         """
@@ -110,6 +113,7 @@ class FastembedSparseDocumentEmbedder:
             local_files_only=self.local_files_only,
             meta_fields_to_embed=self.meta_fields_to_embed,
             embedding_separator=self.embedding_separator,
+            bm25=self.bm25,
         )
 
     def warm_up(self):
@@ -122,6 +126,7 @@ class FastembedSparseDocumentEmbedder:
                 cache_dir=self.cache_dir,
                 threads=self.threads,
                 local_files_only=self.local_files_only,
+                bm25=self.bm25,
             )
 
     def _prepare_texts_to_embed(self, documents: List[Document]) -> List[str]:
