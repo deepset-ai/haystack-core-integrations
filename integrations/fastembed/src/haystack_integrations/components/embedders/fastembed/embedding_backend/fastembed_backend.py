@@ -73,15 +73,19 @@ class _FastembedSparseEmbeddingBackendFactory:
         cache_dir: Optional[str] = None,
         threads: Optional[int] = None,
         local_files_only: bool = False,
-        bm25: Optional[Dict[str, Any]] = None,
+        model_kwargs: Optional[Dict[str, Any]] = None,
     ):
-        embedding_backend_id = f"{model_name}{cache_dir}{threads}{bm25}"
+        embedding_backend_id = f"{model_name}{cache_dir}{threads}{model_kwargs}"
 
         if embedding_backend_id in _FastembedSparseEmbeddingBackendFactory._instances:
             return _FastembedSparseEmbeddingBackendFactory._instances[embedding_backend_id]
 
         embedding_backend = _FastembedSparseEmbeddingBackend(
-            model_name=model_name, cache_dir=cache_dir, threads=threads, local_files_only=local_files_only, bm25=bm25
+            model_name=model_name,
+            cache_dir=cache_dir,
+            threads=threads,
+            local_files_only=local_files_only,
+            model_kwargs=model_kwargs,
         )
         _FastembedSparseEmbeddingBackendFactory._instances[embedding_backend_id] = embedding_backend
         return embedding_backend
@@ -98,14 +102,14 @@ class _FastembedSparseEmbeddingBackend:
         cache_dir: Optional[str] = None,
         threads: Optional[int] = None,
         local_files_only: bool = False,
-        bm25: Optional[Dict[str, Any]] = None,
+        model_kwargs: Optional[Dict[str, Any]] = None,
     ):
         self.model = SparseTextEmbedding(
             model_name=model_name,
             cache_dir=cache_dir,
             threads=threads,
             local_files_only=local_files_only,
-            **(bm25 if bm25 else {}),
+            **(model_kwargs if model_kwargs else {}),
         )
 
     def embed(self, data: List[List[str]], progress_bar=True, **kwargs) -> List[SparseEmbedding]:

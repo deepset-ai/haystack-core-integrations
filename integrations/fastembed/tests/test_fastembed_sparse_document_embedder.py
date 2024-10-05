@@ -69,7 +69,7 @@ class TestFastembedSparseDocumentEmbedderDoc:
                 "local_files_only": False,
                 "embedding_separator": "\n",
                 "meta_fields_to_embed": [],
-                "bm25": None,
+                "model_kwargs": None,
             },
         }
 
@@ -101,7 +101,7 @@ class TestFastembedSparseDocumentEmbedderDoc:
                 "local_files_only": True,
                 "meta_fields_to_embed": ["test_field"],
                 "embedding_separator": " | ",
-                "bm25": None,
+                "model_kwargs": None,
             },
         }
 
@@ -176,7 +176,11 @@ class TestFastembedSparseDocumentEmbedderDoc:
         mocked_factory.get_embedding_backend.assert_not_called()
         embedder.warm_up()
         mocked_factory.get_embedding_backend.assert_called_once_with(
-            model_name="prithvida/Splade_PP_en_v1", cache_dir=None, threads=None, local_files_only=False, bm25=None
+            model_name="prithvida/Splade_PP_en_v1",
+            cache_dir=None,
+            threads=None,
+            local_files_only=False,
+            model_kwargs=None,
         )
 
     @patch(
@@ -277,9 +281,9 @@ class TestFastembedSparseDocumentEmbedderDoc:
             parallel=None,
         )
 
-    def test_init_with_bm25_parameters(self):
+    def test_init_with_model_kwargs_parameters(self):
         """
-        Test initialization of FastembedSparseDocumentEmbedder with BM25 parameters.
+        Test initialization of FastembedSparseDocumentEmbedder with model_kwargs parameters.
         """
         bm25_config = {
             "k": 1.2,
@@ -291,45 +295,27 @@ class TestFastembedSparseDocumentEmbedderDoc:
 
         embedder = FastembedSparseDocumentEmbedder(
             model="Qdrant/bm25",
-            bm25=bm25_config,
+            model_kwargs=bm25_config,
         )
 
-        assert embedder.bm25 == bm25_config
-
-    def test_bm25_not_passed_for_non_bm25_model(self):
-        """
-        Test that BM25 parameters are not used if model is not "Qdrant/bm25".
-        """
-        bm25_config = {
-            "k": 1.5,
-            "b": 0.9,
-            "avg_len": 250.0,
-        }
-
-        embedder = FastembedSparseDocumentEmbedder(
-            model="prithvida/Splade_PP_en_v1",
-            bm25=bm25_config,
-        )
-        assert embedder.bm25 is None
+        assert embedder.model_kwargs == bm25_config
 
     @pytest.mark.integration
-    def test_run_with_bm25(self):
+    def test_run_with_model_kwargs(self):
         """
-        Integration test to check the embedding with bm25 parameters.
+        Integration test to check the embedding with model_kwargs parameters.
         """
-        bm25_config = {
-            "k": 1.2,
-            "b": 0.75,
-            "avg_len": 256.0,
+        bm42_config = {
+            "alpha": 0.2,
         }
 
         embedder = FastembedSparseDocumentEmbedder(
-            model="Qdrant/bm25",
-            bm25=bm25_config,
+            model="Qdrant/bm42-all-minilm-l6-v2-attentions",
+            model_kwargs=bm42_config,
         )
         embedder.warm_up()
 
-        doc = Document(content="Example content using BM25")
+        doc = Document(content="Example content using BM42")
 
         result = embedder.run(documents=[doc])
         embedding = result["documents"][0].sparse_embedding

@@ -48,7 +48,7 @@ def test_embedding_function_with_kwargs(mock_instructor):  # noqa: ARG001
 
 
 @patch("haystack_integrations.components.embedders.fastembed.embedding_backend.fastembed_backend.SparseTextEmbedding")
-def test_bm25_model_initialization(mock_instructor):
+def test_model_kwargs_initialization(mock_instructor):
     bm25_config = {
         "k": 1.2,
         "b": 0.75,
@@ -60,7 +60,7 @@ def test_bm25_model_initialization(mock_instructor):
     # Invoke the backend factory with the BM25 configuration
     _FastembedSparseEmbeddingBackendFactory.get_embedding_backend(
         model_name="Qdrant/bm25",
-        bm25=bm25_config,
+        model_kwargs=bm25_config,
     )
 
     # Check if SparseTextEmbedding was called with the correct arguments

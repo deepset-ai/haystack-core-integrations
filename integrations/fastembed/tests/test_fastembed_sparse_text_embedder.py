@@ -54,7 +54,7 @@ class TestFastembedSparseTextEmbedder:
                 "progress_bar": True,
                 "parallel": None,
                 "local_files_only": False,
-                "bm25": None,
+                "model_kwargs": None,
             },
         }
 
@@ -80,7 +80,7 @@ class TestFastembedSparseTextEmbedder:
                 "progress_bar": False,
                 "parallel": 1,
                 "local_files_only": True,
-                "bm25": None,
+                "model_kwargs": None,
             },
         }
 
@@ -137,7 +137,11 @@ class TestFastembedSparseTextEmbedder:
         mocked_factory.get_embedding_backend.assert_not_called()
         embedder.warm_up()
         mocked_factory.get_embedding_backend.assert_called_once_with(
-            model_name="prithvida/Splade_PP_en_v1", cache_dir=None, threads=None, local_files_only=False, bm25=None
+            model_name="prithvida/Splade_PP_en_v1",
+            cache_dir=None,
+            threads=None,
+            local_files_only=False,
+            model_kwargs=None,
         )
 
     @patch(
@@ -197,9 +201,9 @@ class TestFastembedSparseTextEmbedder:
         with pytest.raises(TypeError, match="FastembedSparseTextEmbedder expects a string as input"):
             embedder.run(text=list_integers_input)
 
-    def test_init_with_bm25_parameters(self):
+    def test_init_with_model_kwargs_parameters(self):
         """
-        Test initialization of FastembedSparseTextEmbedder with BM25 parameters.
+        Test initialization of FastembedSparseTextEmbedder with model_kwargs parameters.
         """
         bm25_config = {
             "k": 1.2,
@@ -211,31 +215,15 @@ class TestFastembedSparseTextEmbedder:
 
         embedder = FastembedSparseTextEmbedder(
             model="Qdrant/bm25",
-            bm25=bm25_config,
+            model_kwargs=bm25_config,
         )
 
-        assert embedder.bm25 == bm25_config
-
-    def test_bm25_not_passed_for_non_bm25_model(self):
-        """
-        Test that BM25 parameters are not used if model is not "Qdrant/bm25".
-        """
-        bm25_config = {
-            "k": 1.5,
-            "b": 0.9,
-            "avg_len": 250.0,
-        }
-
-        embedder = FastembedSparseTextEmbedder(
-            model="prithvida/Splade_PP_en_v1",
-            bm25=bm25_config,
-        )
-        assert embedder.bm25 is None
+        assert embedder.model_kwargs == bm25_config
 
     @pytest.mark.integration
-    def test_run_with_bm25(self):
+    def test_run_with_model_kwargs(self):
         """
-        Integration test to check the embedding with bm25 parameters.
+        Integration test to check the embedding with model_kwargs parameters.
         """
         bm25_config = {
             "k": 1.2,
@@ -245,7 +233,7 @@ class TestFastembedSparseTextEmbedder:
 
         embedder = FastembedSparseTextEmbedder(
             model="Qdrant/bm25",
-            bm25=bm25_config,
+            model_kwargs=bm25_config,
         )
         embedder.warm_up()
 
