@@ -246,7 +246,7 @@ def test_long_prompt_is_not_truncated_when_truncate_false(mock_boto3_session):
         mock_ensure_token_limit.assert_not_called(),
 
         # Check the prompt passed to prepare_body
-        generator.model_adapter.prepare_body.assert_called_with(messages=messages, stop_words=[], stream=False)
+        generator.model_adapter.prepare_body.assert_called_with(messages=messages, stop_words=[])
 
 
 @pytest.mark.parametrize(
