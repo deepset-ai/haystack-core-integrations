@@ -104,12 +104,14 @@ class _FastembedSparseEmbeddingBackend:
         local_files_only: bool = False,
         model_kwargs: Optional[Dict[str, Any]] = None,
     ):
+        model_kwargs = model_kwargs or {}
+
         self.model = SparseTextEmbedding(
             model_name=model_name,
             cache_dir=cache_dir,
             threads=threads,
             local_files_only=local_files_only,
-            **(model_kwargs if model_kwargs else {}),
+            **model_kwargs,
         )
 
     def embed(self, data: List[List[str]], progress_bar=True, **kwargs) -> List[SparseEmbedding]:
