@@ -51,7 +51,7 @@ class FastembedSparseTextEmbedder:
                 If 0, use all available cores.
                 If None, don't use data-parallel processing, use default onnxruntime threading instead.
         :param local_files_only: If `True`, only use the model files in the `cache_dir`.
-        :param model_kwargs: Dictionary containing model parameters such as (`k`, `b`, `avg_len`, `language`).
+        :param model_kwargs: Dictionary containing model parameters such as `k`, `b`, `avg_len`, `language`.
         """
 
         self.model_name = model

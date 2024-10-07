@@ -75,7 +75,7 @@ class _FastembedSparseEmbeddingBackendFactory:
         local_files_only: bool = False,
         model_kwargs: Optional[Dict[str, Any]] = None,
     ):
-        embedding_backend_id = f"{model_name}{cache_dir}{threads}{model_kwargs}"
+        embedding_backend_id = f"{model_name}{cache_dir}{threads}{local_files_only}{model_kwargs}"
 
         if embedding_backend_id in _FastembedSparseEmbeddingBackendFactory._instances:
             return _FastembedSparseEmbeddingBackendFactory._instances[embedding_backend_id]

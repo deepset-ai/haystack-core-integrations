@@ -82,7 +82,7 @@ class FastembedSparseDocumentEmbedder:
         :param local_files_only: If `True`, only use the model files in the `cache_dir`.
         :param meta_fields_to_embed: List of meta fields that should be embedded along with the Document content.
         :param embedding_separator: Separator used to concatenate the meta fields to the Document content.
-        :param model_kwargs: Dictionary containing model parameters such as (`k`, `b`, `avg_len`, `language`).
+        :param model_kwargs: Dictionary containing model parameters such as `k`, `b`, `avg_len`, `language`.
         """
 
         self.model_name = model
