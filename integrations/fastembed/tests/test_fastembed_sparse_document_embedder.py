@@ -69,6 +69,7 @@ class TestFastembedSparseDocumentEmbedderDoc:
                 "local_files_only": False,
                 "embedding_separator": "\n",
                 "meta_fields_to_embed": [],
+                "model_kwargs": None,
             },
         }
 
@@ -100,6 +101,7 @@ class TestFastembedSparseDocumentEmbedderDoc:
                 "local_files_only": True,
                 "meta_fields_to_embed": ["test_field"],
                 "embedding_separator": " | ",
+                "model_kwargs": None,
             },
         }
 
@@ -174,7 +176,11 @@ class TestFastembedSparseDocumentEmbedderDoc:
         mocked_factory.get_embedding_backend.assert_not_called()
         embedder.warm_up()
         mocked_factory.get_embedding_backend.assert_called_once_with(
-            model_name="prithvida/Splade_PP_en_v1", cache_dir=None, threads=None, local_files_only=False
+            model_name="prithvida/Splade_PP_en_v1",
+            cache_dir=None,
+            threads=None,
+            local_files_only=False,
+            model_kwargs=None,
         )
 
     @patch(
@@ -274,6 +280,52 @@ class TestFastembedSparseDocumentEmbedderDoc:
             progress_bar=True,
             parallel=None,
         )
+
+    def test_init_with_model_kwargs_parameters(self):
+        """
+        Test initialization of FastembedSparseDocumentEmbedder with model_kwargs parameters.
+        """
+        bm25_config = {
+            "k": 1.2,
+            "b": 0.75,
+            "avg_len": 300.0,
+            "language": "english",
+            "token_max_length": 50,
+        }
+
+        embedder = FastembedSparseDocumentEmbedder(
+            model="Qdrant/bm25",
+            model_kwargs=bm25_config,
+        )
+
+        assert embedder.model_kwargs == bm25_config
+
+    @pytest.mark.integration
+    def test_run_with_model_kwargs(self):
+        """
+        Integration test to check the embedding with model_kwargs parameters.
+        """
+        bm42_config = {
+            "alpha": 0.2,
+        }
+
+        embedder = FastembedSparseDocumentEmbedder(
+            model="Qdrant/bm42-all-minilm-l6-v2-attentions",
+            model_kwargs=bm42_config,
+        )
+        embedder.warm_up()
+
+        doc = Document(content="Example content using BM42")
+
+        result = embedder.run(documents=[doc])
+        embedding = result["documents"][0].sparse_embedding
+        embedding_dict = embedding.to_dict()
+
+        assert isinstance(embedding, SparseEmbedding)
+        assert isinstance(embedding_dict["indices"], list)
+        assert isinstance(embedding_dict["values"], list)
+        assert isinstance(embedding_dict["indices"][0], int)
+        assert isinstance(embedding_dict["values"][0], float)
 
     @pytest.mark.integration
     def test_run(self):
