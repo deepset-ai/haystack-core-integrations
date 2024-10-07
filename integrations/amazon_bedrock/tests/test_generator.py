@@ -220,7 +220,7 @@ def test_long_prompt_is_not_truncated_when_truncate_false(mock_boto3_session):
             generator.run(prompt=long_prompt_text)
 
         # Ensure _ensure_token_limit was not called
-        (mock_ensure_token_limit.assert_not_called(),)
+        mock_ensure_token_limit.assert_not_called()
 
         # Check the prompt passed to prepare_body
         generator.model_adapter.prepare_body.assert_called_with(prompt=long_prompt_text, stream=False)
