@@ -65,13 +65,13 @@ class AmazonBedrockGenerator:
     """
 
     SUPPORTED_MODEL_PATTERNS: ClassVar[Dict[str, Type[BedrockModelAdapter]]] = {
-        r"amazon.titan-text.*": AmazonTitanAdapter,
-        r"ai21.j2.*": AI21LabsJurassic2Adapter,
-        r"cohere.command-[^r].*": CohereCommandAdapter,
-        r"cohere.command-r.*": CohereCommandRAdapter,
-        r"(.+\.)?anthropic.claude.*": AnthropicClaudeAdapter,
-        r"meta.llama.*": MetaLlamaAdapter,
-        r"mistral.*": MistralAdapter,
+        r"(eu\.|us\.)?amazon.titan-text.*": AmazonTitanAdapter,
+        r"(eu\.|us\.)?ai21.j2.*": AI21LabsJurassic2Adapter,
+        r"(eu\.|us\.)?cohere.command-[^r].*": CohereCommandAdapter,
+        r"(eu\.|us\.)?cohere.command-r.*": CohereCommandRAdapter,
+        r"(eu\.|us\.)?(.+\.)?anthropic.claude.*": AnthropicClaudeAdapter,
+        r"(eu\.|us\.)?meta.llama.*": MetaLlamaAdapter,
+        r"(eu\.|us\.)?mistral.*": MistralAdapter,
     }
 
     def __init__(
