@@ -12,7 +12,7 @@ from pymongo.collection import Collection
 from pymongo.driver_info import DriverInfo
 from pymongo.errors import BulkWriteError
 
-from haystack_integrations.document_stores.mongodb_vcore.filters import _normalize_filters
+from integrations.azure_cosmos_db_mongo_vcore.src.haystack_integrations.document_stores.mongodb_vcore.filters import _normalize_filters
 
 logger = logging.getLogger(__name__)
 
@@ -38,7 +38,7 @@ class AzureCosmosDBMongoVCoreDocumentStore:
 
     The last parameter users need to provide is a `vector_search_kwargs` - used for configs for vector search in mongo vCore.
     {
-        "vector_dimensions": 1536,
+        "dimensions": 1536,
         "num_lists": 1,
         "similarity": "COS",
         "kind": "vector-hnsw",
@@ -78,34 +78,27 @@ class AzureCosmosDBMongoVCoreDocumentStore:
         self.collection_name = collection_name
         self.vector_search_index_name = vector_search_index_name
         self.vector_search_kwargs = vector_search_kwargs
-        self._mongo_client = Optional[MongoClient] = None
-        self._collection = Optional[Collection] = None
 
-    @property
-    def mongo_client(self) -> MongoClient:
-        if self._mongo_client is None:
-            self._mongo_client = MongoClient(
-                self.mongo_connection_string.resolve_value(),
-                appname="HayStack-CDBMongoVCore-DocumentStore-Python",
-                driver=DriverInfo(name="AzureCosmosDBMongoVCoreDocumentStore")
-            )
-            return self._mongo_client
+        self._mongo_client = MongoClient(
+            self.mongo_connection_string.resolve_value(),
+            appname="HayStack-CDBMongoVCore-DocumentStore-Python",
+            driver=DriverInfo(name="AzureCosmosDBMongoVCoreHayStackIntegration")
+        )
 
-    @property
-    def collection(self) -> Collection:
-        if self._collection is None:
-            database = self.mongo_client[self.database_name]
-            if self.collection_name not in database.list_collection_names():
-                # check the kind of vector search to be performed
-                # prepare the command accordingly
-                create_index_commands = {}
-                if self.vector_search_kwargs.get("kind") == "vector-ivf":
-                    create_index_commands = self._get_vector_index_ivf()
-                elif self.vector_search_kwargs.get("kind") == "vector-hnsw":
-                    create_index_commands = self._get_vector_index_hnsw()
-                database.command(create_index_commands)
-            self._collection = database[self.collection_name]
-        return self._collection
+        self._collection = self._create_collection_and_index()
+
+    def _create_collection_and_index(self) -> Collection:
+        database = self._mongo_client[self.database_name]
+        if self.collection_name not in database.list_collection_names():
+            # check the kind of vector search to be performed
+            # prepare the command accordingly
+            create_index_commands = {}
+            if self.vector_search_kwargs.get("kind") == "vector-ivf":
+                create_index_commands = self._get_vector_index_ivf()
+            elif self.vector_search_kwargs.get("kind") == "vector-hnsw":
+                create_index_commands = self._get_vector_index_hnsw()
+            database.command(create_index_commands)
+        return database[self.collection_name]
 
     def create_filter_index(
             self, property_to_filter: str,
@@ -136,24 +129,25 @@ class AzureCosmosDBMongoVCoreDocumentStore:
         deserialize_secrets_inplace(data["init_parameters"], keys=["mongo_connection_string"])
         return default_from_dict(cls, data)
 
-
     def count_documents(self) -> int:
         """
         Returns how many documents are present in the document store.
 
         :returns: The number of documents in the document store.
         """
-        return self.collection.count_documents({})
+        return self._collection.count_documents({})
 
-    def delete_documents(self, document_ids: List[str]) -> None:
+    def delete_documents(self, document_ids: Optional[List[str]] = None, delete_all: Optional[bool] = None) -> None:
         """
         Deletes all documents with a matching document_ids from the document store.
 
         :param document_ids: the document ids to delete
+        :param delete_all: if `True`, delete all documents.
         """
-        if not document_ids:
-            return
-        self.collection.delete_many(filter={"id": {"$in": document_ids}})
+        if document_ids is not None:
+            self._collection.delete_many(filter={"id": {"$in": document_ids}})
+        elif delete_all:
+            self._collection.delete_many({})
 
     def write_documents(self, documents: List[Document], policy: DuplicatePolicy = DuplicatePolicy.NONE) -> int:
         """
@@ -193,7 +187,7 @@ class AzureCosmosDBMongoVCoreDocumentStore:
 
         if policy == DuplicatePolicy.SKIP:
             operations = [UpdateOne({"id": doc["id"]}, {"$setOnInsert": doc}, upsert=True) for doc in mongo_documents]
-            existing_documents = self.collection.count_documents({"id": {"$in": [doc.id for doc in documents]}})
+            existing_documents = self._collection.count_documents({"id": {"$in": [doc.id for doc in documents]}})
             written_docs -= existing_documents
         elif policy == DuplicatePolicy.FAIL:
             operations = [InsertOne(doc) for doc in mongo_documents]
@@ -201,7 +195,7 @@ class AzureCosmosDBMongoVCoreDocumentStore:
             operations = [ReplaceOne({"id": doc["id"]}, upsert=True, replacement=doc) for doc in mongo_documents]
 
         try:
-            self.collection.bulk_write(operations)
+            self._collection.bulk_write(operations)
         except BulkWriteError as e:
             msg = f"Duplicate documents found: {e.details['writeErrors']}"
             raise DuplicateDocumentError(msg) from e
@@ -219,7 +213,7 @@ class AzureCosmosDBMongoVCoreDocumentStore:
         :returns: A list of Documents that match the given filters.
         """
         filters = _normalize_filters(filters) if filters else None
-        documents = list(self.collection.find(filters))
+        documents = list(self._collection.find(filters))
         for doc in documents:
             doc.pop("_id", None)  # MongoDB's internal id doesn't belong into a Haystack document, so we remove it.
         return [Document.from_dict(doc) for doc in documents]
@@ -247,7 +241,7 @@ class AzureCosmosDBMongoVCoreDocumentStore:
             pipeline = self._get_pipeline_vector_hnsw(query_embedding, top_k, filters)
 
         try:
-            documents = list(self.collection.aggregate(pipeline))
+            documents = list(self._collection.aggregate(pipeline))
         except Exception as e:
             msg = f"Retrieval of documents from MongoDB Atlas failed: {e}"
             if filters:

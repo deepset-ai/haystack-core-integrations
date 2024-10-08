@@ -6,6 +6,7 @@ from azure.cosmos.container import ContainerProxy
 from azure.identity import ClientSecretCredential
 from haystack import default_from_dict
 from haystack import Document
+from haystack.document_stores.errors.errors import DocumentStoreError
 from haystack.document_stores.types import DuplicatePolicy
 from haystack.utils import Secret, deserialize_secrets_inplace
 
@@ -56,20 +57,19 @@ class AzureCosmosDBNoSqlDocumentStore:
         self.vector_embedding_policy = vector_embedding_policy
         self.indexing_policy = indexing_policy
         self.cosmos_container_properties = cosmos_container_properties
-        self._container = Optional[ContainerProxy] = None
+        self._container: Optional[ContainerProxy] = None
 
     @property
     def container(self) -> ContainerProxy:
         # Create the database if it already doesn't exist
         database = self.cosmos_client.create_database_if_not_exists(id=self.database_name)
-        if database.get_container_client(self.container_name).read() is not None:
-            # Create the collection if it already doesn't exist
-            self._container = database.create_container(
-                id=self.container_name,
-                partition_key=self.cosmos_container_properties["partition_key"],
-                indexing_policy=self.indexing_policy,
-                vector_embedding_policy=self.vector_embedding_policy,
-            )
+
+        self._container = database.create_container_if_not_exists(
+            id=self.container_name,
+            partition_key=self.cosmos_container_properties["partition_key"],
+            indexing_policy=self.indexing_policy,
+            vector_embedding_policy=self.vector_embedding_policy,
+        )
         return self._container
 
     @classmethod
@@ -162,7 +162,7 @@ class AzureCosmosDBNoSqlDocumentStore:
         :param document_ids: the document ids to delete
         """
         if not document_ids:
-            return
+            raise ValueError("document_ids cannot be empty")
         for document_id in document_ids:
             self.container.delete_item(document_id)
 
@@ -217,30 +217,33 @@ class AzureCosmosDBNoSqlDocumentStore:
         :raises ValueError: If `query_embedding` is empty.
         :raises DocumentStoreError: If the retrieval of documents from MongoDB Atlas fails.
         """
-        embedding_key = self.vector_embedding_policy["vectorEmbeddings"][0]["path"][1:]
 
         query = "SELECT "
         # If limit_offset_clause is not specified, add TOP clause
         if filters is None or filters.get("limit_offset_clause") is None:
             query += "TOP @limit "
         query += (
-            "c.id, c.@embeddingKey, c.content, c.meta, c.score, "
-            "VectorDistance(c.@embeddingKey, @embeddings) AS SimilarityScore FROM c"
+            "c.id, c.embedding, c.content, c.meta, c.score, "
+            "VectorDistance(c.embedding, @embeddings) AS SimilarityScore FROM c"
         )
         # Add where_clause if specified
         if filters is not None and filters.get("where_clause") is not None:
             query += " {}".format(filters["where_clause"])
-        query += " ORDER BY VectorDistance(c.@embeddingKey, @embeddings)"
+        query += " ORDER BY VectorDistance(c.embedding, @embeddings)"
         # Add limit_offset_clause if specified
         if filters is not None and filters.get("limit_offset_clause") is not None:
             query += " {}".format(filters["limit_offset_clause"])
         parameters = [
             {"name": "@limit", "value": top_k},
-            {"name": "@embeddingKey", "value": embedding_key},
             {"name": "@embeddings", "value": query_embedding},
         ]
 
-        items = list(self.container.query_items(query, parameters=parameters, enable_cross_partition_query=True))
+        try:
+            items = list(self.container.query_items(query, parameters=parameters, enable_cross_partition_query=True))
+        except Exception as e:
+            msg = f"Retrieval of documents from Azure CosmosDB NoSQL failed: {str(e)}"
+            raise DocumentStoreError(msg) from e
+
         nearest_results = [self._cosmos_doc_to_haystack_doc(item) for item in items]
         return nearest_results
 
@@ -249,14 +252,14 @@ class AzureCosmosDBNoSqlDocumentStore:
             return "SELECT * FROM c"
         query = "SELECT "
 
-        if filters["top"] is not None:
+        if "top" in filters:
             query += filters["top"]
-        query += "* FROM c"
-        if filters["where"] is not None:
+        query += "* FROM c "
+        if "where" in filters:
             query += filters["where"]
-        if filters["order_by"] is not None:
+        if "order_by" in filters:
             query += filters["order_by"]
-        if filters["limit_offset"] is not None and filters["top"] is None:
+        if "limit_offset" in filters and "top" not in filters:
             query += filters["limit_offset"]
         return query
 
