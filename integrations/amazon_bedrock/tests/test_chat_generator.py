@@ -254,6 +254,8 @@ def test_long_prompt_is_not_truncated_when_truncate_false(mock_boto3_session):
     [
         ("anthropic.claude-v1", AnthropicClaudeChatAdapter),
         ("anthropic.claude-v2", AnthropicClaudeChatAdapter),
+        ("eu.anthropic.claude-v1", AnthropicClaudeChatAdapter),  # cross-region inference
+        ("us.anthropic.claude-v2", AnthropicClaudeChatAdapter),  # cross-region inference
         ("anthropic.claude-instant-v1", AnthropicClaudeChatAdapter),
         ("anthropic.claude-super-v5", AnthropicClaudeChatAdapter),  # artificial
         ("meta.llama2-13b-chat-v1", MetaLlama2ChatAdapter),

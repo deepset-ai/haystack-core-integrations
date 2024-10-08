@@ -69,7 +69,7 @@ class AmazonBedrockGenerator:
         r"ai21.j2.*": AI21LabsJurassic2Adapter,
         r"cohere.command-[^r].*": CohereCommandAdapter,
         r"cohere.command-r.*": CohereCommandRAdapter,
-        r"anthropic.claude.*": AnthropicClaudeAdapter,
+        r"(.+\.)?anthropic.claude.*": AnthropicClaudeAdapter,
         r"meta.llama.*": MetaLlamaAdapter,
         r"mistral.*": MistralAdapter,
     }

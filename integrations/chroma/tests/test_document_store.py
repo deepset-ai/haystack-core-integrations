@@ -98,7 +98,8 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, FilterDocuments
         Test that providing both host and persist_path raises an error.
         """
         with pytest.raises(ValueError):
-            ChromaDocumentStore(persist_path="./path/to/local/store", host="localhost")
+            store = ChromaDocumentStore(persist_path="./path/to/local/store", host="localhost")
+            store._ensure_initialized()
 
     def test_delete_empty(self, document_store: ChromaDocumentStore):
         """
@@ -135,6 +136,10 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, FilterDocuments
         assert doc.embedding
         assert isinstance(doc.embedding, list)
         assert all(isinstance(el, float) for el in doc.embedding)
+
+        # check that empty filters behave as no filters
+        result_empty_filters = document_store.search(["Third"], filters={}, top_k=1)
+        assert result == result_empty_filters
 
     def test_write_documents_unsupported_meta_values(self, document_store: ChromaDocumentStore):
         """
@@ -207,6 +212,7 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, FilterDocuments
     @pytest.mark.integration
     def test_distance_metric_initialization(self):
         store = ChromaDocumentStore("test_2", distance_function="cosine")
+        store._ensure_initialized()
         assert store._collection.metadata["hnsw:space"] == "cosine"
 
         with pytest.raises(ValueError):
@@ -215,9 +221,11 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, FilterDocuments
     @pytest.mark.integration
     def test_distance_metric_reinitialization(self, caplog):
         store = ChromaDocumentStore("test_4", distance_function="cosine")
+        store._ensure_initialized()
 
         with caplog.at_level(logging.WARNING):
             new_store = ChromaDocumentStore("test_4", distance_function="ip")
+            new_store._ensure_initialized()
 
         assert (
             "Collection already exists. The `distance_function` and `metadata` parameters will be ignored."
@@ -238,6 +246,8 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, FilterDocuments
                 "hnsw:M": 103,
             },
         )
+        store._ensure_initialized()
+
         assert store._collection.metadata["hnsw:space"] == "ip"
         assert store._collection.metadata["hnsw:search_ef"] == 101
         assert store._collection.metadata["hnsw:construction_ef"] == 102
@@ -253,6 +263,8 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, FilterDocuments
                     "hnsw:M": 103,
                 },
             )
+
+        new_store._ensure_initialized()
 
         assert (
             "Collection already exists. The `distance_function` and `metadata` parameters will be ignored."

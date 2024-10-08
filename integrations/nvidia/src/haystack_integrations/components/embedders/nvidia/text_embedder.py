@@ -175,6 +175,9 @@ class NvidiaTextEmbedder:
                 "In case you want to embed a list of Documents, please use the NvidiaDocumentEmbedder."
             )
             raise TypeError(msg)
+        elif not text:
+            msg = "Cannot embed an empty string."
+            raise ValueError(msg)
 
         assert self.backend is not None
         text_to_embed = self.prefix + text + self.suffix

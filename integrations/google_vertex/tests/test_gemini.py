@@ -18,11 +18,11 @@ GET_CURRENT_WEATHER_FUNC = FunctionDeclaration(
     name="get_current_weather",
     description="Get the current weather in a given location",
     parameters={
-        "type_": "OBJECT",
+        "type": "object",
         "properties": {
-            "location": {"type_": "STRING", "description": "The city and state, e.g. San Francisco, CA"},
+            "location": {"type": "string", "description": "The city and state, e.g. San Francisco, CA"},
             "unit": {
-                "type_": "STRING",
+                "type": "string",
                 "enum": [
                     "celsius",
                     "fahrenheit",
@@ -226,12 +226,18 @@ def test_from_dict_with_param(_mock_vertexai_init, _mock_generative_model):
                             {
                                 "name": "get_current_weather",
                                 "parameters": {
-                                    "type_": "OBJECT",
+                                    "type": "object",
                                     "properties": {
-                                        "unit": {"type_": "STRING", "enum": ["celsius", "fahrenheit"]},
                                         "location": {
-                                            "type_": "STRING",
+                                            "type": "string",
                                             "description": "The city and state, e.g. San Francisco, CA",
+                                        },
+                                        "unit": {
+                                            "type": "string",
+                                            "enum": [
+                                                "celsius",
+                                                "fahrenheit",
+                                            ],
                                         },
                                     },
                                     "required": ["location"],

@@ -231,6 +231,8 @@ def test_long_prompt_is_not_truncated_when_truncate_false(mock_boto3_session):
     [
         ("anthropic.claude-v1", AnthropicClaudeAdapter),
         ("anthropic.claude-v2", AnthropicClaudeAdapter),
+        ("eu.anthropic.claude-v1", AnthropicClaudeAdapter),  # cross-region inference
+        ("us.anthropic.claude-v2", AnthropicClaudeAdapter),  # cross-region inference
         ("anthropic.claude-instant-v1", AnthropicClaudeAdapter),
         ("anthropic.claude-super-v5", AnthropicClaudeAdapter),  # artificial
         ("cohere.command-text-v14", CohereCommandAdapter),
