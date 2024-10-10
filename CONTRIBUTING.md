@@ -50,7 +50,7 @@ By participating, you are expected to uphold this code. Please report unacceptab
 > [!TIP]
 > If you want to ask a question, we assume that you have read the available [Documentation](https://docs.haystack.deepset.ai/v2.0/docs/intro).
 
-Before you ask a question, it is best to search for existing [Issues](/issues) that might help you. In case you have
+Before you ask a question, it is best to search for existing [Issues](/../../issues) that might help you. In case you have
 found a suitable issue and still need clarification, you can write your question in this issue. It is also advisable to
 search the internet for answers first.
 
@@ -68,7 +68,7 @@ following steps in advance to help us fix any potential bug as fast as possible.
 
 - Make sure that you are using the latest version.
 - Determine if your bug is really a bug and not an error on your side e.g. using incompatible environment components/versions (Make sure that you have read the [documentation](https://docs.haystack.deepset.ai/v2.0/docs/intro). If you are looking for support, you might want to check [this section](#i-have-a-question)).
-- To see if other users have experienced (and potentially already solved) the same issue you are having, check if there is not already a bug report existing for your bug or error in the [bug tracker](/issues).
+- To see if other users have experienced (and potentially already solved) the same issue you are having, check if there is not already a bug report existing for your bug or error in the [bug tracker](/../../issues?labels=bug).
 - Also make sure to search the internet (including Stack Overflow) to see if users outside of the GitHub community have discussed the issue.
 - Collect information about the bug:
   - OS, Platform and Version (Windows, Linux, macOS, x86, ARM)
@@ -85,7 +85,7 @@ following steps in advance to help us fix any potential bug as fast as possible.
 
 We use GitHub issues to track bugs and errors. If you run into an issue with the project:
 
-- Open an [Issue of type Bug Report](/issues/new?assignees=&labels=bug&projects=&template=bug_report.md&title=).
+- Open an [Issue of type Bug Report](/../../issues/new?assignees=&labels=bug&projects=&template=bug_report.md&title=).
 - Explain the behavior you would expect and the actual behavior.
 - Please provide as much context as possible and describe the *reproduction steps* that someone else can follow to recreate the issue on their own. This usually includes your code. For good bug reports you should isolate the problem and create a reduced test case.
 - Provide the information you collected in the previous section.
@@ -107,13 +107,13 @@ to existing ones. Following these guidelines will help maintainers and the commu
 
 - Make sure that you are using the latest version.
 - Read the [documentation](https://docs.haystack.deepset.ai/v2.0/docs/intro) carefully and find out if the functionality is already covered, maybe by an individual configuration.
-- Perform a [search](/issues) to see if the enhancement has already been suggested. If it has, add a comment to the existing issue instead of opening a new one.
+- Perform a [search](/../../issues) to see if the enhancement has already been suggested. If it has, add a comment to the existing issue instead of opening a new one.
 - Find out whether your idea fits with the scope and aims of the project. It's up to you to make a strong case to convince the project's developers of the merits of this feature. Keep in mind that we want features that will be useful to the majority of our users and not just a small subset. If you're just targeting a minority of users, consider writing and distributing the integration on your own.
 
 
 ### How Do I Submit a Good Enhancement Suggestion?
 
-Enhancement suggestions are tracked as GitHub issues of type [Feature request for existing integrations](/issues/new?assignees=&labels=feature+request&projects=&template=feature-request-for-existing-integrations.md&title=).
+Enhancement suggestions are tracked as GitHub issues of type [Feature request for existing integrations](/../../issues/new?assignees=&labels=feature+request&projects=&template=feature-request-for-existing-integrations.md&title=).
 
 - Use a **clear and descriptive title** for the issue to identify the suggestion.
 - Fill the issue following the template
