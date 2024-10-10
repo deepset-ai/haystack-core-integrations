@@ -1,0 +1,422 @@
+import inspect
+import json
+import logging
+from dataclasses import asdict, dataclass, field
+from enum import Enum
+from typing import Any, Callable, Dict, List, Literal, Optional, Sequence, Tuple, Union
+
+from botocore.eventstream import EventStream
+
+
+@dataclass
+class ToolSpec:
+    name: str
+    description: Optional[str] = None
+    input_schema: Dict[str, Dict] = field(default_factory=dict)
+
+
+@dataclass
+class Tool:
+    tool_spec: ToolSpec
+
+
+@dataclass
+class ToolChoice:
+    auto: Dict = field(default_factory=dict)
+    any: Dict = field(default_factory=dict)
+    tool: Optional[Dict[str, str]] = None
+
+
+@dataclass
+class ToolConfig:
+    tools: List[Tool]
+    tool_choice: Optional[ToolChoice] = None
+
+    def __post_init__(self):
+        msg = "Only one of 'auto', 'any', or 'tool' can be set in tool_choice"
+        if self.tool_choice and sum(bool(v) for v in vars(self.tool_choice).values()) != 1:
+            raise ValueError(msg)
+
+        if self.tool_choice and self.tool_choice.tool:
+            if "name" not in self.tool_choice.tool:
+                msg = "'name' is required when 'tool' is specified in tool_choice"
+                raise ValueError(msg)
+
+    @staticmethod
+    def from_functions(functions: List[Callable]) -> "ToolConfig":
+        tools = []
+        for func in functions:
+            tool_spec = ToolSpec(
+                name=func.__name__,
+                description=func.__doc__,
+                input_schema={
+                    "json": {
+                        "type": "object",
+                        "properties": {param: {"type": "string"} for param in inspect.signature(func).parameters},
+                        "required": list(inspect.signature(func).parameters.keys()),
+                    }
+                },
+            )
+            tools.append(Tool(tool_spec=tool_spec))
+
+        return ToolConfig(tools=tools)
+
+    @classmethod
+    def from_dict(cls, config: Dict) -> "ToolConfig":
+        tools = [
+            Tool(
+                ToolSpec(
+                    input_schema=tool["toolSpec"]["inputSchema"],
+                    name=tool["toolSpec"]["name"],
+                    description=tool["toolSpec"]["description"],
+                )
+            )
+            for tool in config.get(
+                "tools",
+                [],
+            )
+        ]
+
+        tool_choice = None
+        if "tool_choice" in config:
+            tc = config["tool_choice"]
+            if "auto" in tc:
+                tool_choice = ToolChoice(auto=tc["auto"])
+            elif "any" in tc:
+                tool_choice = ToolChoice(any=tc["any"])
+            elif "tool" in tc:
+                tool_choice = ToolChoice(tool={"name": tc["tool"]["name"]})
+
+        return cls(tools=tools, tool_choice=tool_choice)
+
+    def to_dict(self) -> Dict[str, Any]:
+        result = {
+            "tools": [
+                {
+                    "toolSpec": {
+                        "name": tool.tool_spec.name,
+                        "description": tool.tool_spec.description,
+                        "inputSchema": tool.tool_spec.input_schema,
+                    }
+                }
+                for tool in self.tools
+            ]
+        }
+        if self.tool_choice:
+            tool_choice: Dict[str, Dict[str, Any]] = {}
+            if self.tool_choice.auto:
+                tool_choice["auto"] = self.tool_choice.auto
+            elif self.tool_choice.any:
+                tool_choice["any"] = self.tool_choice.any
+            elif self.tool_choice.tool:
+                tool_choice["tool"] = self.tool_choice.tool
+            result["tool_choice"] = [tool_choice]
+        return result
+
+
+@dataclass
+class DocumentSource:
+    bytes: bytes
+
+
+@dataclass
+class DocumentBlock:
+    SUPPORTED_FORMATS = Literal["pdf", "csv", "doc", "docx", "xls", "xlsx", "html", "txt", "md"]
+    format: SUPPORTED_FORMATS
+    name: str
+    source: bytes
+
+
+@dataclass
+class GuardrailConverseContentBlock:
+    text: str
+    qualifiers: List[str] = field(default_factory=list)
+
+
+@dataclass
+class ImageSource:
+    bytes: bytes
+
+
+@dataclass
+class ImageBlock:
+    format: str
+    source: ImageSource
+
+
+@dataclass
+class ToolResultContentBlock:
+    json: Optional[Dict] = None
+    text: Optional[str] = None
+    image: Optional[ImageBlock] = None
+    document: Optional[DocumentBlock] = None
+
+
+@dataclass
+class ToolResultBlock:
+    tool_use_id: str
+    content: List[ToolResultContentBlock]
+    status: Optional[str] = None
+
+
+@dataclass
+class ToolUseBlock:
+    tool_use_id: str
+    name: str
+    input: Dict[str, Any]
+
+
+class ConverseRole(str, Enum):
+    USER = "user"
+    ASSISTANT = "assistant"
+
+
+@dataclass
+class ContentBlock:
+    content: List[Union[DocumentBlock, GuardrailConverseContentBlock, ImageBlock, str, ToolResultBlock, ToolUseBlock]]
+
+    def __post_init__(self):
+        err_msg = "Content must be a list"
+        if not isinstance(self.content, list):
+            raise ValueError(err_msg)
+
+        for item in self.content:
+            if not isinstance(
+                item, (DocumentBlock, GuardrailConverseContentBlock, ImageBlock, str, ToolResultBlock, ToolUseBlock)
+            ):
+                msg = (
+                    f"Invalid content type: {type(item)}. Each item must be one of DocumentBlock, "
+                    "GuardrailConverseContentBlock, ImageBlock, str, ToolResultBlock, or ToolUseBlock"
+                )
+                raise ValueError(msg)
+
+    @staticmethod
+    def from_assistant(content: Sequence[Union[str, ToolUseBlock]]) -> "ContentBlock":
+        return ContentBlock(content=list(content))
+
+    def to_dict(self):
+        res = []
+        for item in self.content:
+            if isinstance(item, str):
+                res.append({"text": item})
+            elif isinstance(item, DocumentBlock):
+                res.append({"document": asdict(item)})
+            elif isinstance(item, GuardrailConverseContentBlock):
+                res.append({"guardContent": asdict(item)})
+            elif isinstance(item, ImageBlock):
+                res.append({"image": asdict(item)})
+            elif isinstance(item, ToolResultBlock):
+                res.append({"toolResult": asdict(item)})
+            elif isinstance(item, ToolUseBlock):
+                res.append({"toolUse": asdict(item)})
+            else:
+                msg = f"Unsupported content type: {type(item)}"
+                raise ValueError(msg)
+        return res
+
+
+@dataclass
+class ConverseMessage:
+    role: ConverseRole
+    content: ContentBlock
+
+    @staticmethod
+    def from_user(
+        content: List[
+            Union[
+                DocumentBlock,
+                GuardrailConverseContentBlock,
+                ImageBlock,
+                str,
+                ToolUseBlock,
+                ToolResultBlock,
+            ],
+        ],
+    ) -> "ConverseMessage":
+        return ConverseMessage(
+            ConverseRole.USER,
+            ContentBlock(
+                content=content,
+            ),
+        )
+
+    @staticmethod
+    def from_dict(data: Dict[str, Any]) -> "ConverseMessage":
+        role = ConverseRole.ASSISTANT if data["role"] == "assistant" else ConverseRole.USER
+        content_blocks = []
+
+        for item in data["content"]:
+            if "text" in item:
+                content_blocks.append(item["text"])
+            elif "image" in item:
+                content_blocks.append(ImageBlock(**item["image"]))
+            elif "document" in item:
+                content_blocks.append(DocumentBlock(**item["document"]))
+            elif "toolUse" in item:
+                content_blocks.append(
+                    ToolUseBlock(
+                        tool_use_id=item["toolUse"]["toolUseId"],
+                        name=item["toolUse"]["name"],
+                        input=item["toolUse"]["input"],
+                    )
+                )
+            elif "toolResult" in item:
+                content_blocks.append(ToolResultBlock(**item["toolResult"]))
+            elif "guardContent" in item:
+                content_blocks.append(GuardrailConverseContentBlock(**item["guardContent"]))
+            else:
+                unknown_type = f"Unknown content type in message: {item}"
+                raise ValueError(unknown_type)
+
+        return ConverseMessage(role, ContentBlock(content=content_blocks))
+
+    def to_dict(self):
+        return {
+            "role": self.role.value,
+            "content": self.content.to_dict(),
+        }
+
+
+@dataclass
+class StreamEvent:
+    type: str
+    data: Dict[str, Any]
+
+
+def _parse_event(event: Dict[str, Any]) -> StreamEvent:
+    for key in ["contentBlockStart", "contentBlockDelta", "contentBlockStop", "messageStop", "messageStart"]:
+        if key in event:
+            return StreamEvent(type=key, data=event[key])
+    return StreamEvent(type="metadata", data=event.get("metadata", {}))
+
+
+def _handle_content_block_start(event: StreamEvent, current_index: int) -> Tuple[int, Union[str, ToolUseBlock]]:
+    new_index = event.data.get("contentBlockIndex", current_index + 1)
+    start_of_tool_use = event.data.get("start")
+    if start_of_tool_use:
+        return new_index, ToolUseBlock(
+            tool_use_id=start_of_tool_use["toolUse"]["toolUseId"],
+            name=start_of_tool_use["toolUse"]["name"],
+            input={},
+        )
+    return new_index, ""
+
+
+def _handle_content_block_delta(
+    event: StreamEvent, current_block: Union[str, ToolUseBlock], current_tool_use_input_str: str
+) -> Tuple[Union[str, ToolUseBlock], str]:
+    delta = event.data.get("delta", {})
+    if "text" in delta:
+        if isinstance(current_block, str):
+            return current_block + delta["text"], current_tool_use_input_str
+        else:
+            return delta["text"], current_tool_use_input_str
+    if "toolUse" in delta:
+        if isinstance(current_block, ToolUseBlock):
+            return current_block, current_tool_use_input_str + delta["toolUse"].get("input", "")
+        else:
+            return ToolUseBlock(
+                tool_use_id=delta["toolUse"]["toolUseId"],
+                name=delta["toolUse"]["name"],
+                input={},
+            ), delta["toolUse"].get("input", "")
+    return current_block, current_tool_use_input_str
+
+
+def get_stream_message(
+    stream: EventStream,
+    streaming_callback: Callable[[StreamEvent], None],
+) -> Tuple[ConverseMessage, Dict[str, Any]]:
+    """
+    Processes a stream of messages and returns a ConverseMessage and the associated metadata.
+
+    The stream is expected to contain the following events:
+
+    - contentBlockStart: Indicates the start of a content block.
+    - contentBlockDelta: Indicates a change to the content block.
+    - contentBlockStop: Indicates the end of a content block.
+    - messageStop: Indicates the end of a message.
+    - metadata: Indicates metadata about the message.
+
+    The function processes each event in the stream and returns a ConverseMessage and the associated metadata.
+    The ConverseMessage will contain the content of the message,
+    and the metadata will contain the stop reason and any other metadata from the stream.
+
+    The function will also call the streaming_callback function
+    with a ConverseStreamingChunk for each event in the stream.
+    The ConverseStreamingChunk will contain the content and metadata from the event.
+
+    :param stream: The stream of messages to process.
+    :param streaming_callback: The callback function to call with each ConverseStreamingChunk.
+    :return: A tuple containing the ConverseMessage and the associated metadata.
+    """
+    current_block: Union[str, ToolUseBlock] = ""
+    current_tool_use_input_str: str = ""
+    latest_metadata: Dict[str, Any] = {}
+    current_index: int = 0
+    streamed_contents: List[Union[str, ToolUseBlock]] = []
+
+    try:
+        for raw_event in stream:
+            event = _parse_event(raw_event)
+
+            if event.type == "contentBlockStart":
+                if current_block:
+                    if isinstance(current_block, str) and streamed_contents and isinstance(streamed_contents[-1], str):
+                        streamed_contents[-1] += current_block
+                    else:
+                        streamed_contents.append(current_block)
+                current_index, current_block = _handle_content_block_start(event, current_index)
+
+            elif event.type == "contentBlockDelta":
+                new_block, new_input_str = _handle_content_block_delta(event, current_block, current_tool_use_input_str)
+                if isinstance(new_block, ToolUseBlock) and new_block != current_block:
+                    if current_block:
+                        if (
+                            isinstance(current_block, str)
+                            and streamed_contents
+                            and isinstance(streamed_contents[-1], str)
+                        ):
+                            streamed_contents[-1] += current_block
+                        else:
+                            streamed_contents.append(current_block)
+                    current_index += 1
+                current_block, current_tool_use_input_str = new_block, new_input_str
+
+            elif event.type == "contentBlockStop":
+                if isinstance(current_block, ToolUseBlock):
+                    current_block.input = json.loads(current_tool_use_input_str)
+                    current_tool_use_input_str = ""
+                    streamed_contents.append(current_block)
+                elif isinstance(current_block, str):
+                    if streamed_contents and isinstance(streamed_contents[-1], str):
+                        streamed_contents[-1] += current_block
+                    else:
+                        streamed_contents.append(current_block)
+                current_block = ""
+                current_index += 1
+
+            elif event.type == "messageStop":
+                latest_metadata["stopReason"] = event.data.get("stopReason")
+
+            latest_metadata.update(event.data if event.type == "metadata" else {})
+            streaming_callback(event)
+
+    except Exception as e:
+        logging.error(f"Error processing stream: {e!s}")
+        raise
+
+    # Add any remaining content
+    if current_block:
+        if isinstance(current_block, str) and streamed_contents and isinstance(streamed_contents[-1], str):
+            streamed_contents[-1] += current_block
+        else:
+            streamed_contents.append(current_block)
+
+    return (
+        ConverseMessage(
+            role=ConverseRole.ASSISTANT,
+            content=ContentBlock.from_assistant(streamed_contents),
+        ),
+        latest_metadata,
+    )
