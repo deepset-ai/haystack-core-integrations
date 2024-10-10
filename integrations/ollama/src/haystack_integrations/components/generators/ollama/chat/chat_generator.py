@@ -169,7 +169,9 @@ class OllamaChatGenerator:
 
         stream = self.streaming_callback is not None
         messages = [self._message_to_dict(message) for message in messages]
-        response = self._client.chat(model=self.model, messages=messages, stream=stream, keep_alive=self.keep_alive, options=generation_kwargs)
+        response = self._client.chat(
+            model=self.model, messages=messages, stream=stream, keep_alive=self.keep_alive, options=generation_kwargs
+        )
 
         if stream:
             chunks: List[StreamingChunk] = self._handle_streaming_response(response)

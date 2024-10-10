@@ -176,7 +176,9 @@ class OllamaGenerator:
 
         stream = self.streaming_callback is not None
 
-        response = self._client.generate(model=self.model, prompt=prompt, stream=stream, keep_alive=self.keep_alive, options=generation_kwargs)
+        response = self._client.generate(
+            model=self.model, prompt=prompt, stream=stream, keep_alive=self.keep_alive, options=generation_kwargs
+        )
 
         if stream:
             chunks: List[StreamingChunk] = self._handle_streaming_response(response)
