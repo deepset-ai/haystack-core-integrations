@@ -139,6 +139,7 @@ class PgvectorDocumentStore:
         """
 
         self.connection_string = connection_string
+        self.connection_param_kwargs = connection_param_kwargs or {}
         self.table_name = table_name
         self.embedding_dimension = embedding_dimension
         if vector_function not in VALID_VECTOR_FUNCTIONS:
@@ -156,7 +157,6 @@ class PgvectorDocumentStore:
         self._connection = None
         self._cursor = None
         self._dict_cursor = None
-        self.connection_param_kwargs = connection_param_kwargs or {}
 
     @property
     def cursor(self):
