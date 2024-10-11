@@ -78,6 +78,7 @@ class PgvectorDocumentStore:
         self,
         *,
         connection_string: Secret = Secret.from_env_var("PG_CONN_STR"),
+        connection_param_kwargs: Optional[Dict[str, Secret]] = None,
         table_name: str = "haystack_documents",
         language: str = "english",
         embedding_dimension: int = 768,
@@ -89,7 +90,6 @@ class PgvectorDocumentStore:
         hnsw_index_name: str = "haystack_hnsw_index",
         hnsw_ef_search: Optional[int] = None,
         keyword_index_name: str = "haystack_keyword_index",
-        connection_param_kwargs: Optional[Dict[str, Secret]] = None,
     ):
         """
         Creates a new PgvectorDocumentStore instance.
@@ -98,6 +98,12 @@ class PgvectorDocumentStore:
 
         :param connection_string: The connection string to use to connect to the PostgreSQL database, defined as an
             environment variable, e.g.: `PG_CONN_STR="postgresql://USER:PASSWORD@HOST:PORT/DB_NAME"`
+        :param connection_param_kwargs: A dictionary of parameters for the PostgreSQL connection.
+            You can specify individual connections parameters here instead of a  `connection_string`
+            Common parameters include 'user', 'password', 'host', 'port', & 'dbname'. For a complete list, refer to the
+            [PostgreSQL documentation](https://www.postgresql.org/docs/current/libpq-connect.html#LIBPQ-PARAMKEYWORDS).
+            Use the `Secret.from_env_var()` method to securely load parameters from environment variables.
+            Note that parameters specified here take precedence over those in the `connection_string`.
         :param table_name: The name of the table to use to store Haystack documents.
         :param language: The language to be used to parse query and document content in keyword retrieval.
             To see the list of available languages, you can run the following SQL query in your PostgreSQL database:
@@ -130,12 +136,6 @@ class PgvectorDocumentStore:
             `"hnsw"`. You can find more information about this parameter in the
             [pgvector documentation](https://github.com/pgvector/pgvector?tab=readme-ov-file#hnsw).
         :param keyword_index_name: Index name for the Keyword index.
-        :param connection_param_kwargs: A dictionary of parameters for the PostgreSQL connection.
-            You can specify individual connections parameters here instead of a  `connection_string`
-            Common parameters include 'user', 'password', 'host', 'port', & 'dbname'. For a complete list, refer to the
-            [PostgreSQL documentation](https://www.postgresql.org/docs/current/libpq-connect.html#LIBPQ-PARAMKEYWORDS).
-            Use the `Secret.from_env_var()` method to securely load parameters from environment variables.
-            Note that parameters specified here take precedence over those in the `connection_string`.
         """
 
         self.connection_string = connection_string
