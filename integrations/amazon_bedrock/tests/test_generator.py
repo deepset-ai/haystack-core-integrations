@@ -241,23 +241,44 @@ def test_long_prompt_is_not_truncated_when_truncate_false(mock_boto3_session):
         ("cohere.command-r-v1:0", CohereCommandRAdapter),
         ("cohere.command-r-plus-v1:0", CohereCommandRAdapter),
         ("cohere.command-r-v8:9", CohereCommandRAdapter),  # artificial
+        ("us.cohere.command-light-text-v14", CohereCommandAdapter),
+        ("us.cohere.command-text-v21", CohereCommandAdapter),  # artificial
+        ("eu.cohere.command-r-v1:0", CohereCommandRAdapter),
+        ("eu.cohere.command-r-plus-v1:0", CohereCommandRAdapter),
         ("ai21.j2-mid-v1", AI21LabsJurassic2Adapter),
         ("ai21.j2-ultra-v1", AI21LabsJurassic2Adapter),
         ("ai21.j2-mega-v5", AI21LabsJurassic2Adapter),  # artificial
+        ("us.ai21.j2-mid-v1", AI21LabsJurassic2Adapter),
+        ("eu.ai21.j2-ultra-v1", AI21LabsJurassic2Adapter),
+        ("us.ai21.j2-mega-v5", AI21LabsJurassic2Adapter),  # artificial
         ("amazon.titan-text-lite-v1", AmazonTitanAdapter),
         ("amazon.titan-text-express-v1", AmazonTitanAdapter),
         ("amazon.titan-text-agile-v1", AmazonTitanAdapter),
         ("amazon.titan-text-lightning-v8", AmazonTitanAdapter),  # artificial
+        ("us.amazon.titan-text-lite-v1", AmazonTitanAdapter),
+        ("us.amazon.titan-text-express-v1", AmazonTitanAdapter),
+        ("eu.amazon.titan-text-agile-v1", AmazonTitanAdapter),
+        ("eu.amazon.titan-text-lightning-v8", AmazonTitanAdapter),  # artificial
         ("meta.llama2-13b-chat-v1", MetaLlamaAdapter),
         ("meta.llama2-70b-chat-v1", MetaLlamaAdapter),
         ("meta.llama2-130b-v5", MetaLlamaAdapter),  # artificial
         ("meta.llama3-8b-instruct-v1:0", MetaLlamaAdapter),
         ("meta.llama3-70b-instruct-v1:0", MetaLlamaAdapter),
         ("meta.llama3-130b-instruct-v5:9", MetaLlamaAdapter),  # artificial
+        ("us.meta.llama2-13b-chat-v1", MetaLlamaAdapter),
+        ("us.meta.llama2-70b-chat-v1", MetaLlamaAdapter),
+        ("us.meta.llama2-130b-v5", MetaLlamaAdapter),  # artificial
+        ("eu.meta.llama3-8b-instruct-v1:0", MetaLlamaAdapter),
+        ("eu.meta.llama3-70b-instruct-v1:0", MetaLlamaAdapter),
+        ("eu.meta.llama3-130b-instruct-v5:9", MetaLlamaAdapter),  # artificial
         ("mistral.mistral-7b-instruct-v0:2", MistralAdapter),
         ("mistral.mixtral-8x7b-instruct-v0:1", MistralAdapter),
         ("mistral.mistral-large-2402-v1:0", MistralAdapter),
         ("mistral.mistral-medium-v8:0", MistralAdapter),  # artificial
+        ("us.mistral.mistral-7b-instruct-v0:2", MistralAdapter),
+        ("us.mistral.mixtral-8x7b-instruct-v0:1", MistralAdapter),
+        ("eu.mistral.mistral-large-2402-v1:0", MistralAdapter),
+        ("eu.mistral.mistral-medium-v8:0", MistralAdapter),  # artificial
         ("unknown_model", None),
     ],
 )
@@ -1430,52 +1451,3 @@ class TestMetaLlamaAdapter:
 
         streaming_callback_mock.assert_not_called()
 
-
-class TestAmazonBedrockGeneratorCrossRegionSupport:
-    @pytest.mark.parametrize(
-        "model, expected_model_adapter",
-        [
-            ("anthropic.claude-v1", AnthropicClaudeAdapter),
-            ("anthropic.claude-v2", AnthropicClaudeAdapter),
-            ("anthropic.claude-instant-v1", AnthropicClaudeAdapter),
-            ("anthropic.claude-super-v5", AnthropicClaudeAdapter),  # artificial
-            ("cohere.command-text-v14", CohereCommandAdapter),
-            ("cohere.command-light-text-v14", CohereCommandAdapter),
-            ("cohere.command-text-v21", CohereCommandAdapter),  # artificial
-            ("cohere.command-r-v1:0", CohereCommandRAdapter),
-            ("cohere.command-r-plus-v1:0", CohereCommandRAdapter),
-            ("cohere.command-r-v8:9", CohereCommandRAdapter),  # artificial
-            ("ai21.j2-mid-v1", AI21LabsJurassic2Adapter),
-            ("ai21.j2-ultra-v1", AI21LabsJurassic2Adapter),
-            ("ai21.j2-mega-v5", AI21LabsJurassic2Adapter),  # artificial
-            ("amazon.titan-text-lite-v1", AmazonTitanAdapter),
-            ("amazon.titan-text-express-v1", AmazonTitanAdapter),
-            ("amazon.titan-text-agile-v1", AmazonTitanAdapter),
-            ("amazon.titan-text-lightning-v8", AmazonTitanAdapter),  # artificial
-            ("meta.llama2-13b-chat-v1", MetaLlamaAdapter),
-            ("meta.llama2-70b-chat-v1", MetaLlamaAdapter),
-            ("meta.llama2-130b-v5", MetaLlamaAdapter),  # artificial
-            ("meta.llama3-8b-instruct-v1:0", MetaLlamaAdapter),
-            ("meta.llama3-70b-instruct-v1:0", MetaLlamaAdapter),
-            ("meta.llama3-130b-instruct-v5:9", MetaLlamaAdapter),  # artificial
-            ("mistral.mistral-7b-instruct-v0:2", MistralAdapter),
-            ("mistral.mixtral-8x7b-instruct-v0:1", MistralAdapter),
-            ("mistral.mistral-large-2402-v1:0", MistralAdapter),
-            ("mistral.mistral-medium-v8:0", MistralAdapter),  # artificial
-            ("unknown_model", None),
-            # meta llama 3.2
-            ("meta.llama3-2-1b-instruct-v1:0", MetaLlamaAdapter),
-            ("meta.llama3-2-3b-instruct-v1:0", MetaLlamaAdapter),
-            # cross region access
-            ("eu.meta.llama3-2-1b-instruct-v1:0", MetaLlamaAdapter),
-            ("eu.meta.llama3-2-3b-instruct-v1:0", MetaLlamaAdapter),
-            ("us.meta.llama3-2-1b-instruct-v1:0", MetaLlamaAdapter),
-            ("us.meta.llama3-2-3b-instruct-v1:0", MetaLlamaAdapter),
-        ],
-    )
-    def test_get_model_adapter(self, model: str, expected_model_adapter: Optional[Type[BedrockModelAdapter]]) -> None:
-        """
-        Test that the correct model adapter is returned for a given model
-        """
-        model_adapter = AmazonBedrockGenerator.get_model_adapter(model=model)
-        assert model_adapter == expected_model_adapter
