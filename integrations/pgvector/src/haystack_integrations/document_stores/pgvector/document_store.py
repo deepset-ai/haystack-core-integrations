@@ -132,7 +132,7 @@ class PgvectorDocumentStore:
         :param keyword_index_name: Index name for the Keyword index.
         :param connection_param_kwargs: A dictionary of parameters for the PostgreSQL connection.
             If you prefer not to use the `connection_string`, you can specify connection parameters here.
-            Common parameters include 'user', 'password', 'host', 'port', and 'dbname'. For a complete list, refer to the
+            Common parameters include 'user', 'password', 'host', 'port', & 'dbname'. For a complete list, refer to the
             [PostgreSQL documentation](https://www.postgresql.org/docs/current/libpq-connect.html#LIBPQ-PARAMKEYWORDS).
             Use the `Secret.from_env_var()` method to securely load parameters from environment variables.
             Note that parameters specified here take precedence over those in the `connection_string`.
