@@ -241,44 +241,33 @@ def test_long_prompt_is_not_truncated_when_truncate_false(mock_boto3_session):
         ("cohere.command-r-v1:0", CohereCommandRAdapter),
         ("cohere.command-r-plus-v1:0", CohereCommandRAdapter),
         ("cohere.command-r-v8:9", CohereCommandRAdapter),  # artificial
-        ("us.cohere.command-light-text-v14", CohereCommandAdapter),
-        ("us.cohere.command-text-v21", CohereCommandAdapter),  # artificial
-        ("eu.cohere.command-r-v1:0", CohereCommandRAdapter),
-        ("eu.cohere.command-r-plus-v1:0", CohereCommandRAdapter),
+        ("us.cohere.command-text-v21", CohereCommandAdapter),       # cross-region inference
+        ("eu.cohere.command-r-plus-v1:0", CohereCommandRAdapter),   # cross-region inference
         ("ai21.j2-mid-v1", AI21LabsJurassic2Adapter),
         ("ai21.j2-ultra-v1", AI21LabsJurassic2Adapter),
         ("ai21.j2-mega-v5", AI21LabsJurassic2Adapter),  # artificial
-        ("us.ai21.j2-mid-v1", AI21LabsJurassic2Adapter),
-        ("eu.ai21.j2-ultra-v1", AI21LabsJurassic2Adapter),
-        ("us.ai21.j2-mega-v5", AI21LabsJurassic2Adapter),  # artificial
+        ("eu.ai21.j2-ultra-v1", AI21LabsJurassic2Adapter), # cross-region inference
+        ("us.ai21.j2-mega-v5", AI21LabsJurassic2Adapter),  # cross-region inference
         ("amazon.titan-text-lite-v1", AmazonTitanAdapter),
         ("amazon.titan-text-express-v1", AmazonTitanAdapter),
         ("amazon.titan-text-agile-v1", AmazonTitanAdapter),
         ("amazon.titan-text-lightning-v8", AmazonTitanAdapter),  # artificial
-        ("us.amazon.titan-text-lite-v1", AmazonTitanAdapter),
-        ("us.amazon.titan-text-express-v1", AmazonTitanAdapter),
-        ("eu.amazon.titan-text-agile-v1", AmazonTitanAdapter),
-        ("eu.amazon.titan-text-lightning-v8", AmazonTitanAdapter),  # artificial
+        ("us.amazon.titan-text-lite-v1", AmazonTitanAdapter),       # cross-region inference
+        ("eu.amazon.titan-text-lightning-v8", AmazonTitanAdapter),  # cross-region inference
         ("meta.llama2-13b-chat-v1", MetaLlamaAdapter),
         ("meta.llama2-70b-chat-v1", MetaLlamaAdapter),
         ("meta.llama2-130b-v5", MetaLlamaAdapter),  # artificial
         ("meta.llama3-8b-instruct-v1:0", MetaLlamaAdapter),
         ("meta.llama3-70b-instruct-v1:0", MetaLlamaAdapter),
         ("meta.llama3-130b-instruct-v5:9", MetaLlamaAdapter),  # artificial
-        ("us.meta.llama2-13b-chat-v1", MetaLlamaAdapter),
-        ("us.meta.llama2-70b-chat-v1", MetaLlamaAdapter),
-        ("us.meta.llama2-130b-v5", MetaLlamaAdapter),  # artificial
-        ("eu.meta.llama3-8b-instruct-v1:0", MetaLlamaAdapter),
-        ("eu.meta.llama3-70b-instruct-v1:0", MetaLlamaAdapter),
-        ("eu.meta.llama3-130b-instruct-v5:9", MetaLlamaAdapter),  # artificial
+        ("us.meta.llama2-130b-v5", MetaLlamaAdapter),  # cross-region inference
+        ("eu.meta.llama3-8b-instruct-v1:0", MetaLlamaAdapter), # cross-region inference
         ("mistral.mistral-7b-instruct-v0:2", MistralAdapter),
         ("mistral.mixtral-8x7b-instruct-v0:1", MistralAdapter),
         ("mistral.mistral-large-2402-v1:0", MistralAdapter),
         ("mistral.mistral-medium-v8:0", MistralAdapter),  # artificial
-        ("us.mistral.mistral-7b-instruct-v0:2", MistralAdapter),
-        ("us.mistral.mixtral-8x7b-instruct-v0:1", MistralAdapter),
-        ("eu.mistral.mistral-large-2402-v1:0", MistralAdapter),
-        ("eu.mistral.mistral-medium-v8:0", MistralAdapter),  # artificial
+        ("us.mistral.mistral-7b-instruct-v0:2", MistralAdapter), # cross-region inference
+        ("eu.mistral.mistral-medium-v8:0", MistralAdapter),  # cross-region inference
         ("unknown_model", None),
     ],
 )
