@@ -80,6 +80,7 @@ class OllamaChatGenerator:
             self,
             model=self.model,
             url=self.url,
+            keep_alive=self.keep_alive,
             generation_kwargs=self.generation_kwargs,
             timeout=self.timeout,
             streaming_callback=callback_name,

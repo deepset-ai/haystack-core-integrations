@@ -91,6 +91,7 @@ class OllamaGenerator:
             system_prompt=self.system_prompt,
             model=self.model,
             url=self.url,
+            keep_alive=self.keep_alive,
             generation_kwargs=self.generation_kwargs,
             streaming_callback=callback_name,
         )
