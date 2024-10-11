@@ -56,14 +56,13 @@ class OllamaChatGenerator:
             A callback function that is called when a new token is received from the stream.
             The callback function accepts StreamingChunk as an argument.
         :param keep_alive:
-            The option that controls how long the model will stay loaded into memory following the request
-            (default: `5m`)
-
+            The option that controls how long the model will stay loaded into memory following the request.
+            If not set, it will use the default value from the Ollama (5 minutes).
             The value can be set to:
             - a duration string (such as "10m" or "24h")
             - a number in seconds (such as 3600)
             - any negative number which will keep the model loaded in memory (e.g. -1 or "-1m")
-            - '0' which will unload the model immediately after generating a response
+            - '0' which will unload the model immediately after generating a response.
         """
 
         self.timeout = timeout
