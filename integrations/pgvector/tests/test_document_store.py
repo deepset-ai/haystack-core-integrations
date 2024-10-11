@@ -93,7 +93,7 @@ def test_init_with_connection_param_kwargs(monkeypatch):
             "user": Secret.from_env_var("PG_USER"),
             "host": Secret.from_env_var("PG_HOST"),
             "password": Secret.from_env_var("PG_PASSWORD"),
-            "port": Secret.from_env_var("PG_PASSWORD"),
+            "port": Secret.from_env_var("PG_PORT"),
         },
     )
 
@@ -111,7 +111,7 @@ def test_init_with_connection_param_kwargs(monkeypatch):
         "user": Secret.from_env_var("PG_USER"),
         "host": Secret.from_env_var("PG_HOST"),
         "password": Secret.from_env_var("PG_PASSWORD"),
-        "port": Secret.from_env_var("PG_PASSWORD"),
+        "port": Secret.from_env_var("PG_PORT"),
     }
 
 
