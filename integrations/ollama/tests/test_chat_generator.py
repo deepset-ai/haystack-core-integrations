@@ -49,7 +49,7 @@ class TestOllamaChatGenerator:
             streaming_callback=print_streaming_chunk,
             url="custom_url",
             generation_kwargs={"max_tokens": 10, "some_test_param": "test-params"},
-            keep_alive="5m"
+            keep_alive="5m",
         )
         data = component.to_dict()
         assert data == {

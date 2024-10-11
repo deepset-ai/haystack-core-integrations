@@ -57,7 +57,7 @@ class OllamaChatGenerator:
             The callback function accepts StreamingChunk as an argument.
         :param keep_alive:
             The option that controls how long the model will stay loaded into memory following the request (default: `5m`)
-            
+
             The value can be set to:
             - a duration string (such as "10m" or "24h")
             - a number in seconds (such as 3600)
