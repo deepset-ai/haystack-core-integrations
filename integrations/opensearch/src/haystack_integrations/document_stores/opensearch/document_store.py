@@ -438,6 +438,7 @@ class OpenSearchDocumentStore:
         filters: Optional[Dict[str, Any]] = None,
         top_k: int = 10,
         custom_query: Optional[Dict[str, Any]] = None,
+        efficient_filtering: bool = False,
     ) -> List[Document]:
         """
         Retrieves documents that are most similar to the query embedding using a vector similarity metric.
@@ -474,6 +475,7 @@ class OpenSearchDocumentStore:
             }
             ```
 
+        :param efficient_filtering: If `True`, the filter will be applied during the approximate kNN search.
         :raises ValueError: If `query_embedding` is an empty list
         :returns: List of Document that are most similar to `query_embedding`
         """
@@ -509,7 +511,10 @@ class OpenSearchDocumentStore:
             }
 
             if filters:
-                body["query"]["bool"]["filter"] = normalize_filters(filters)
+                if efficient_filtering:
+                    body["query"]["bool"]["must"][0]["knn"]["embedding"]["filter"] = normalize_filters(filters)
+                else:
+                    body["query"]["bool"]["filter"] = normalize_filters(filters)
 
         body["size"] = top_k
 
