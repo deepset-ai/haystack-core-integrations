@@ -476,6 +476,7 @@ class OpenSearchDocumentStore:
             ```
 
         :param efficient_filtering: If `True`, the filter will be applied during the approximate kNN search.
+            This is only supported for knn engines "faiss" and "lucene" and does not work with the default "nmslib".
         :raises ValueError: If `query_embedding` is an empty list
         :returns: List of Document that are most similar to `query_embedding`
         """

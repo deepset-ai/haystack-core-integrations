@@ -87,6 +87,7 @@ class OpenSearchEmbeddingRetriever:
             If `True`, raises an exception if the API call fails.
             If `False`, logs a warning and returns an empty list.
         :param efficient_filtering: If `True`, the filter will be applied during the approximate kNN search.
+            This is only supported for knn engines "faiss" and "lucene" and does not work with the default "nmslib".
 
         :raises ValueError: If `document_store` is not an instance of OpenSearchDocumentStore.
         """
@@ -202,6 +203,7 @@ class OpenSearchEmbeddingRetriever:
         ```
 
         :param efficient_filtering: If `True`, the filter will be applied during the approximate kNN search.
+            This is only supported for knn engines "faiss" and "lucene" and does not work with the default "nmslib".
 
         :returns:
             Dictionary with key "documents" containing the retrieved Documents.
