@@ -23,6 +23,7 @@ from azure.search.documents.indexes.models import (
     VectorSearchAlgorithmMetric,
     VectorSearchProfile,
 )
+from azure.search.documents.models import VectorizedQuery
 from haystack import default_from_dict, default_to_dict
 from haystack.dataclasses import Document
 from haystack.document_stores.errors import DuplicateDocumentError
@@ -61,7 +62,7 @@ class AzureAISearchDocumentStore:
         api_key: Secret = Secret.from_env_var("AZURE_SEARCH_API_KEY", strict=False),
         azure_endpoint: Secret = Secret.from_env_var("AZURE_SEARCH_SERVICE_ENDPOINT", strict=False),
         index_name: str = "default",
-        embedding_dimension: int = 768,  # whats a better default value
+        embedding_dimension: int = 768,
         metadata_fields: Optional[Dict[str, type]] = None,
         vector_search_configuration: VectorSearch = None,
         create_index: bool = True,
@@ -102,6 +103,7 @@ class AzureAISearchDocumentStore:
         self._azure_endpoint = azure_endpoint
         self._index_name = index_name
         self._embedding_dimension = embedding_dimension
+        self._dummy_vector = [-10.0] * self._embedding_dimension
         self._metadata_fields = metadata_fields
         self._vector_search_configuration = vector_search_configuration or DEFAULT_VECTOR_SEARCH
         self._create_index = create_index
@@ -149,6 +151,7 @@ class AzureAISearchDocumentStore:
                 name="embedding",
                 type=SearchFieldDataType.Collection(SearchFieldDataType.Single),
                 searchable=True,
+                hidden=False,
                 vector_search_dimensions=self._embedding_dimension,
                 vector_search_profile_name="default-vector-config",
             ),
@@ -218,18 +221,19 @@ class AzureAISearchDocumentStore:
         :return: the number of documents added to index.
         """
 
-        if len(documents) > 0:
-            if not isinstance(documents[0], Document):
-                msg = "param 'documents' must contain a list of objects of type Document"
-                raise ValueError(msg)
-
         def _convert_input_document(documents: Document):
             document_dict = asdict(documents)
             if not isinstance(document_dict["id"], str):
                 msg = f"Document id {document_dict['id']} is not a string, "
                 raise Exception(msg)
             index_document = self._default_index_mapping(document_dict)
+
             return index_document
+
+        if len(documents) > 0:
+            if not isinstance(documents[0], Document):
+                msg = "param 'documents' must contain a list of objects of type Document"
+                raise ValueError(msg)
 
         documents_to_write = []
         for doc in documents:
@@ -343,12 +347,10 @@ class AzureAISearchDocumentStore:
 
         keys_to_remove = ["dataframe", "blob", "sparse_embedding", "score"]
         index_document = {k: v for k, v in document.items() if k not in keys_to_remove}
-
         metadata = index_document.pop("meta", None)
         for key, value in metadata.items():
             index_document[key] = value
         if index_document["embedding"] is None:
-            self._dummy_vector = [-10.0] * self._embedding_dimension
             index_document["embedding"] = self._dummy_vector
 
         return index_document
@@ -376,3 +378,37 @@ class AzureAISearchDocumentStore:
             metadata_field_mapping[key] = field_type
 
         return metadata_field_mapping
+
+    def _embedding_retrieval(
+        self,
+        query_embedding: List[float],
+        *,
+        top_k: int = 10,
+        fields: Optional[List[str]] = None,
+        filters: Optional[Dict[str, Any]] = None,  # TODO will be used in the future
+    ) -> List[Document]:
+        """
+        Retrieves documents that are most similar to the query embedding using a vector similarity metric.
+        It uses the vector configuration of the document store. By default it uses the HNSW algorithm with cosine similarity.
+
+        This method is not meant to be part of the public interface of
+        `AzureAISearchDocumentStore` nor called directly.
+        `AzureAISearchEmbeddingRetriever` uses this method directly and is the public interface for it.
+
+        :param query_embedding: Embedding of the query.
+        :param filters: Filters applied to the retrieved Documents. Defaults to None.
+            Filters are applied during the approximate kNN search to ensure that top_k matching documents are returned.
+        :param top_k: Maximum number of Documents to return, defaults to 10
+
+        :raises ValueError: If `query_embedding` is an empty list
+        :returns: List of Document that are most similar to `query_embedding`
+        """
+
+        if not query_embedding:
+            msg = "query_embedding must be a non-empty list of floats"
+            raise ValueError(msg)
+
+        vector_query = VectorizedQuery(vector=query_embedding, k_nearest_neighbors=3, fields="embedding")
+        result = self.client.search(search_text=None, vector_queries=[vector_query], select=fields, top=top_k)
+        azure_docs = list(result)
+        return self._convert_search_result_to_documents(azure_docs)

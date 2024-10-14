@@ -2,10 +2,10 @@ loaders:
   - type: haystack_pydoc_tools.loaders.CustomPythonLoader
     search_path: [../src]
     modules: [
-      "haystack_integrations.components.retrievers.opensearch.bm25_retriever",
-      "haystack_integrations.components.retrievers.opensearch.embedding_retriever",
-      "haystack_integrations.document_stores.opensearch.document_store",
-      "haystack_integrations.document_stores.opensearch.filters",
+      "haystack_integrations.components.retrievers.azure_ai_search.bm25_retriever",
+      "haystack_integrations.components.retrievers.azure_ai_search.embedding_retriever",
+      "haystack_integrations.document_stores.azure_ai_search.document_store",
+      "haystack_integrations.document_stores.azure_ai_search.filters",
     ]
     ignore_when_discovered: ["__init__"]
 processors:
@@ -18,10 +18,10 @@ processors:
   - type: crossref
 renderer:
   type: haystack_pydoc_tools.renderers.ReadmeIntegrationRenderer
-  excerpt: OpenSearch integration for Haystack
+  excerpt: Azure AI Search integration for Haystack
   category_slug: integrations-api
-  title: OpenSearch
-  slug: integrations-opensearch
+  title: Azure AI Search
+  slug: integrations-azure_ai_search
   order: 180
   markdown:
     descriptive_class_title: false
@@ -29,4 +29,4 @@ renderer:
     descriptive_module_title: true
     add_method_class_prefix: true
     add_member_class_prefix: false
-    filename: _readme_opensearch.md
+    filename: _readme_azure_ai_search.md

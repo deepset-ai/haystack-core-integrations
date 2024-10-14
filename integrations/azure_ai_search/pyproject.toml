@@ -22,7 +22,7 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
-dependencies = ["haystack-ai", "azure-search-documents>=11.5"]
+dependencies = ["haystack-ai", "azure-search-documents>=11.5", "azure-identity"]
 
 [project.urls]
 Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/opensearch#readme"
@@ -154,5 +154,5 @@ minversion = "6.0"
 markers = ["unit: unit tests", "integration: integration tests"]
 
 [[tool.mypy.overrides]]
-module = ["haystack.*", "haystack_integrations.*", "pytest.*", "azure-ai-search.*"]
+module = ["haystack.*", "haystack_integrations.*", "pytest.*", "azure-ai-search.*", "azure.identity.*"]
 ignore_missing_imports = true
