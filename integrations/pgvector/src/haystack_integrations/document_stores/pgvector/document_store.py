@@ -78,7 +78,6 @@ class PgvectorDocumentStore:
         self,
         *,
         connection_string: Secret = Secret.from_env_var("PG_CONN_STR"),
-        connection_param_kwargs: Optional[Dict[str, Secret]] = None,
         table_name: str = "haystack_documents",
         language: str = "english",
         embedding_dimension: int = 768,
@@ -98,12 +97,6 @@ class PgvectorDocumentStore:
 
         :param connection_string: The connection string to use to connect to the PostgreSQL database, defined as an
             environment variable, e.g.: `PG_CONN_STR="postgresql://USER:PASSWORD@HOST:PORT/DB_NAME"`
-        :param connection_param_kwargs: A dictionary of parameters for the PostgreSQL connection.
-            You can specify individual connections parameters here instead of a  `connection_string`
-            Common parameters include 'user', 'password', 'host', 'port', & 'dbname'. For a complete list, refer to the
-            [PostgreSQL documentation](https://www.postgresql.org/docs/current/libpq-connect.html#LIBPQ-PARAMKEYWORDS).
-            Use the `Secret.from_env_var()` method to securely load parameters from environment variables.
-            Note that parameters specified here take precedence over those in the `connection_string`.
         :param table_name: The name of the table to use to store Haystack documents.
         :param language: The language to be used to parse query and document content in keyword retrieval.
             To see the list of available languages, you can run the following SQL query in your PostgreSQL database:
@@ -139,7 +132,6 @@ class PgvectorDocumentStore:
         """
 
         self.connection_string = connection_string
-        self.connection_param_kwargs = connection_param_kwargs or {}
         self.table_name = table_name
         self.embedding_dimension = embedding_dimension
         if vector_function not in VALID_VECTOR_FUNCTIONS:
@@ -180,15 +172,8 @@ class PgvectorDocumentStore:
         return self._connection
 
     def _create_connection(self):
-        # if connection_param_kwargs are provided use them
-        if self.connection_param_kwargs:
-            params = {key: value.resolve_value() for key, value in self.connection_param_kwargs.items()}
-            connection = connect(**params)
-        # otherwise, use the connection string
-        else:
-            conn_str = self.connection_string.resolve_value() or ""
-            connection = connect(conn_str)
-
+        conn_str = self.connection_string.resolve_value() or ""
+        connection = connect(conn_str)
         connection.autocommit = True
         connection.execute("CREATE EXTENSION IF NOT EXISTS vector")
         register_vector(connection)  # Note: this must be called before creating the cursors.
@@ -229,7 +214,6 @@ class PgvectorDocumentStore:
             hnsw_ef_search=self.hnsw_ef_search,
             keyword_index_name=self.keyword_index_name,
             language=self.language,
-            connection_param_kwargs={key: value.to_dict() for key, value in self.connection_param_kwargs.items()},
         )
 
     @classmethod
@@ -242,9 +226,6 @@ class PgvectorDocumentStore:
         :returns:
             Deserialized component.
         """
-        connection_params = data["init_parameters"]["connection_param_kwargs"]
-        deserialize_secrets_inplace(connection_params, connection_params.keys())
-
         deserialize_secrets_inplace(data["init_parameters"], ["connection_string"])
         return default_from_dict(cls, data)
 
