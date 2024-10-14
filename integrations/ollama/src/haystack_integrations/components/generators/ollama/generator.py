@@ -1,4 +1,4 @@
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional, Union
 
 from haystack import component, default_from_dict, default_to_dict
 from haystack.dataclasses import StreamingChunk
@@ -36,6 +36,7 @@ class OllamaGenerator:
         template: Optional[str] = None,
         raw: bool = False,
         timeout: int = 120,
+        keep_alive: Optional[Union[float, str]] = None,
         streaming_callback: Optional[Callable[[StreamingChunk], None]] = None,
     ):
         """
@@ -59,6 +60,14 @@ class OllamaGenerator:
         :param streaming_callback:
             A callback function that is called when a new token is received from the stream.
             The callback function accepts StreamingChunk as an argument.
+        :param keep_alive:
+            The option that controls how long the model will stay loaded into memory following the request.
+            If not set, it will use the default value from the Ollama (5 minutes).
+            The value can be set to:
+            - a duration string (such as "10m" or "24h")
+            - a number in seconds (such as 3600)
+            - any negative number which will keep the model loaded in memory (e.g. -1 or "-1m")
+            - '0' which will unload the model immediately after generating a response.
         """
         self.timeout = timeout
         self.raw = raw
@@ -66,6 +75,7 @@ class OllamaGenerator:
         self.system_prompt = system_prompt
         self.model = model
         self.url = url
+        self.keep_alive = keep_alive
         self.generation_kwargs = generation_kwargs or {}
         self.streaming_callback = streaming_callback
 
@@ -87,6 +97,7 @@ class OllamaGenerator:
             system_prompt=self.system_prompt,
             model=self.model,
             url=self.url,
+            keep_alive=self.keep_alive,
             generation_kwargs=self.generation_kwargs,
             streaming_callback=callback_name,
         )
@@ -172,7 +183,9 @@ class OllamaGenerator:
 
         stream = self.streaming_callback is not None
 
-        response = self._client.generate(model=self.model, prompt=prompt, stream=stream, options=generation_kwargs)
+        response = self._client.generate(
+            model=self.model, prompt=prompt, stream=stream, keep_alive=self.keep_alive, options=generation_kwargs
+        )
 
         if stream:
             chunks: List[StreamingChunk] = self._handle_streaming_response(response)
