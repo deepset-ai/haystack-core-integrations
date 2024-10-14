@@ -3,8 +3,8 @@ import logging
 import re
 from typing import Any, Callable, ClassVar, Dict, List, Optional, Type
 
-from botocore.exceptions import ClientError
 from botocore.config import Config
+from botocore.exceptions import ClientError
 from haystack import component, default_from_dict, default_to_dict
 from haystack.dataclasses import StreamingChunk
 from haystack.utils import Secret, deserialize_callable, deserialize_secrets_inplace, serialize_callable
