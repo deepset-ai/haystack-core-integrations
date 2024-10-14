@@ -36,7 +36,7 @@ def test_to_dict(mock_boto3_session):
             "truncate": False,
             "temperature": 10,
             "streaming_callback": None,
-            "botot3_config": None,
+            "boto3_config": None,
         },
     }
 
