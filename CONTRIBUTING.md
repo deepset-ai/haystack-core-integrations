@@ -55,7 +55,7 @@ found a suitable issue and still need clarification, you can write your question
 search the internet for answers first.
 
 If you then still feel the need to ask a question and need clarification, you can use one of our
-[Community Channels](https://haystack.deepset.ai/community), Discord in particular is often very helpful.
+[Community Channels](https://haystack.deepset.ai/community). Discord in particular is often very helpful.
 
 ## Reporting Bugs
 
@@ -94,7 +94,7 @@ Once it's filed:
 
 - The project team will label the issue accordingly.
 - A team member will try to reproduce the issue with your provided steps. If there are no reproduction steps or no obvious way to reproduce the issue, the team will ask you for those steps.
-- If the team is able to reproduce the issue, the issue will scheduled for a fix, or left to be [implemented by someone](#contribute-code).
+- If the team can reproduce the issue, it will either be scheduled for a fix or made available for [community contribution](#contribute-code).
 
 
 ## Suggesting Enhancements
@@ -129,8 +129,8 @@ Enhancement suggestions are tracked as GitHub issues of type [Feature request fo
 If this is your first contribution, a good starting point is looking for an open issue that's marked with the label
 ["good first issue"](https://github.com/deepset-ai/haystack-core-integrations/issues?q=is%3Aopen+is%3Aissue+label%3A%22good+first+issue%22).
 The core contributors periodically mark certain issues as good for first-time contributors. Those issues are usually
-limited in scope, easy fixable and low priority, so there is absolutely no reason why you should not try fixing them,
-it's a good excuse to start looking into the project and a safe space for experimenting failure: if you don't get the
+limited in scope, easy fixable and low priority, so there is absolutely no reason why you should not try fixing them.
+It's also a good excuse to start looking into the project and a safe space for experimenting failure: if you don't get the
 grasp of something, pick another one!
 
 ### Setting up your development environment
