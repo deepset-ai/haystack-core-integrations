@@ -347,23 +347,26 @@ class GoogleAIGeminiChatGenerator:
         replies: List[ChatMessage] = []
         for chunk in stream:
             content: Union[str, Dict[str, Any]] = ""
-            metadata = chunk.to_dict()  # we store whole chunk as metadata in streaming calls
-            for candidate in chunk.candidates:
-                for part in candidate.content.parts:
-                    if part.text != "":
-                        content = part.text
-                        replies.append(ChatMessage(content=content, role=ChatRole.ASSISTANT, meta=metadata, name=None))
-                    elif part.function_call is not None:
-                        metadata["function_call"] = part.function_call
-                        content = dict(part.function_call.args.items())
+            dict_chunk = chunk.to_dict()  # we store whole chunk as metadata in streaming calls
+            for candidate in dict_chunk["candidates"]:
+                for part in candidate["content"]["parts"]:
+                    if "text" in part and part["text"] != "":
+                        content = part["text"]
+                        replies.append(
+                            ChatMessage(content=content, role=ChatRole.ASSISTANT, meta=dict_chunk, name=None)
+                        )
+                    elif "function_call" in part and len(part["function_call"]) > 0:
+                        metadata = dict(dict_chunk)
+                        metadata["function_call"] = part["function_call"]
+                        content = part["function_call"]["args"]
                         replies.append(
                             ChatMessage(
                                 content=content,
                                 role=ChatRole.ASSISTANT,
-                                name=part.function_call.name,
+                                name=part["function_call"]["name"],
                                 meta=metadata,
                             )
                         )
 
-                    streaming_callback(StreamingChunk(content=content, meta=metadata))
+                    streaming_callback(StreamingChunk(content=content, meta=dict_chunk))
         return replies
