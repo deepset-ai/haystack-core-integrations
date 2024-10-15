@@ -48,14 +48,14 @@ By participating, you are expected to uphold this code. Please report unacceptab
 ## I Have a Question
 
 > [!TIP]
-> If you want to ask a question, we assume that you have read the available [Documentation](https://docs.haystack.deepset.ai/v2.0/docs/intro).
+> If you want to ask a question, we assume that you have read the available [documentation](https://docs.haystack.deepset.ai/v2.0/docs/intro).
 
-Before you ask a question, it is best to search for existing [Issues](/../../issues) that might help you. In case you have
+Before you ask a question, it is best to search for existing [issues](/../../issues) that might help you. In case you have
 found a suitable issue and still need clarification, you can write your question in this issue. It is also advisable to
 search the internet for answers first.
 
 If you then still feel the need to ask a question and need clarification, you can use one of our
-[Community Channels](https://haystack.deepset.ai/community). Discord in particular is often very helpful.
+[community channels](https://haystack.deepset.ai/community). Discord in particular is often very helpful.
 
 ## Reporting Bugs
 
@@ -85,7 +85,7 @@ following steps in advance to help us fix any potential bug as fast as possible.
 
 We use GitHub issues to track bugs and errors. If you run into an issue with the project:
 
-- Open an [Issue of type Bug Report](/../../issues/new?assignees=&labels=bug&projects=&template=bug_report.md&title=).
+- Open an [issue of type Bug Report](/../../issues/new?assignees=&labels=bug&projects=&template=bug_report.md&title=).
 - Explain the behavior you would expect and the actual behavior.
 - Please provide as much context as possible and describe the *reproduction steps* that someone else can follow to recreate the issue on their own. This usually includes your code. For good bug reports you should isolate the problem and create a reduced test case.
 - Provide the information you collected in the previous section.
