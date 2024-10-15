@@ -94,7 +94,7 @@ Once it's filed:
 
 - The project team will label the issue accordingly.
 - A team member will try to reproduce the issue with your provided steps. If there are no reproduction steps or no obvious way to reproduce the issue, the team will ask you for those steps.
-- If the team is able to reproduce the issue, the issue will scheduled for a fix, or left to be [implemented by someone](#your-first-code-contribution).
+- If the team is able to reproduce the issue, the issue will scheduled for a fix, or left to be [implemented by someone](#contribute-code).
 
 
 ## Suggesting Enhancements
