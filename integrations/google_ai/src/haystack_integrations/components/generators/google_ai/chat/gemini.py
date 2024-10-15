@@ -348,14 +348,12 @@ class GoogleAIGeminiChatGenerator:
         for chunk in stream:
             content: Union[str, Dict[str, Any]] = ""
             dict_chunk = chunk.to_dict()
-            metadata = dict(dict_chunk) # we copy and store the whole chunk as metadata in streaming calls
+            metadata = dict(dict_chunk)  # we copy and store the whole chunk as metadata in streaming calls
             for candidate in dict_chunk["candidates"]:
                 for part in candidate["content"]["parts"]:
                     if "text" in part and part["text"] != "":
                         content = part["text"]
-                        replies.append(
-                            ChatMessage(content=content, role=ChatRole.ASSISTANT, meta=metadata, name=None)
-                        )
+                        replies.append(ChatMessage(content=content, role=ChatRole.ASSISTANT, meta=metadata, name=None))
                     elif "function_call" in part and len(part["function_call"]) > 0:
                         metadata["function_call"] = part["function_call"]
                         content = part["function_call"]["args"]
