@@ -58,12 +58,16 @@ def test_from_dict(mock_boto3_session):
                 "aws_profile_name": {"type": "env_var", "env_vars": ["AWS_PROFILE"], "strict": False},
                 "model": "anthropic.claude-v2",
                 "max_length": 99,
+                "boto3_config": {
+                    "read_timeout": 1000,
+                },
             },
         }
     )
 
     assert generator.max_length == 99
     assert generator.model == "anthropic.claude-v2"
+    assert generator.boto3_config == {"read_timeout": 1000}
 
 
 def test_default_constructor(mock_boto3_session, set_env_variables):
