@@ -226,6 +226,53 @@ class MongoDBAtlasDocumentStore:
             return
         self.collection.delete_many(filter={"id": {"$in": document_ids}})
 
+    def _fulltext_retrieval(
+        self,
+        query: str,
+        search_path: Union[str, List[str]] = "content",
+        filters: Optional[Dict[str, Any]] = None,
+        top_k: int = 10,
+    ) -> List[Document]:
+        """
+        Find the documents that are exact match provided `query`.
+
+        :param query: The text to search in the document store.
+        :param search_path: Field(s) to search within, e.g., "content" or ["content", "title"].
+        :param filters: Optional filters.
+        :param top_k: How many documents to return.
+        :returns: A list of Documents matching the full-text search query.
+        :raises ValueError: If `query` is empty.
+        :raises DocumentStoreError: If the retrieval of documents from MongoDB Atlas fails.
+        """
+        if not query:
+            msg = "query must not be empty"
+            raise ValueError(msg)
+
+        filters = _normalize_filters(filters) if filters else {}
+
+        pipeline = [
+            {
+                "$search": {
+                    "index": self.vector_search_index,
+                    "text": {
+                        "query": query,
+                        "path": search_path,
+                    },
+                }
+            },
+            {"$match": filters if filters else {}},
+            {"$limit": top_k},
+            {"$project": {"_id": 0, "content": 1, "meta": 1, "score": {"$meta": "searchScore"}}},
+        ]
+        try:
+            documents = list(self.collection.aggregate(pipeline))
+        except Exception as e:
+            msg = f"Retrieval of documents from MongoDB Atlas failed: {e}"
+            raise DocumentStoreError(msg) from e
+
+        documents = [self._mongo_doc_to_haystack_doc(doc) for doc in documents]
+        return documents
+
     def _embedding_retrieval(
         self,
         query_embedding: List[float],
