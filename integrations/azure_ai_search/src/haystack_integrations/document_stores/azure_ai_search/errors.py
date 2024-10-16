@@ -11,3 +11,10 @@ class AzureAISearchDocumentStoreConfigError(AzureAISearchDocumentStoreError):
     """Raised when a configuration is not valid for a AzureAISearchDocumentStore."""
 
     pass
+
+
+
+class AzureAISearchDocumentStoreFilterError(DocumentStoreError):
+    """Raised when filter is not valid for AzureAISearchDocumentStore."""
+
+    pass

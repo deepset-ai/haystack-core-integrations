@@ -31,6 +31,7 @@ from haystack.document_stores.types import DuplicatePolicy
 from haystack.utils import Secret, deserialize_secrets_inplace
 
 from .errors import AzureAISearchDocumentStoreConfigError
+from .filters import normalize_filters
 
 type_mapping = {str: "Edm.String", bool: "Edm.Boolean", int: "Edm.Int32", float: "Edm.Double"}
 
@@ -299,20 +300,30 @@ class AzureAISearchDocumentStore:
 
         search_text = "*"  # default to search all documents
         azure_docs = []
-        if filters:
+        if not filters:
+            result = self.client.search(search_text=search_text, top=self.count_documents())
+
+        elif filters:
             # Handle filtering by 'id' first
-            document_ids = filters.get("id")
-            if document_ids:
-                azure_docs = self._get_raw_documents_by_id(document_ids)
-                return self._convert_search_result_to_documents(azure_docs)
+            if "id" in filters:
+                document_ids = filters.get("id")
+                if document_ids:
+                    azure_docs = self._get_raw_documents_by_id(document_ids)
+                    return self._convert_search_result_to_documents(azure_docs)
 
             # Handle filtering by 'content'
-            search_text = filters.get("content", "*")
+            if "content" in filters:
+                search_text = filters.get("content")
 
+            else :
+                normalized_filters = normalize_filters(filters)
+                print ("Normalized filters: ", normalized_filters)
+
+                result = self.client.search(filter=normalized_filters)
+                print ("Result: ", result)
         # Perform search with pagination
-        result = self.client.search(search_text=search_text, top=self.count_documents())
-        azure_docs = list(result)
-        return self._convert_search_result_to_documents(azure_docs)
+        #azure_docs = list(result)
+        return self._convert_search_result_to_documents(result)
 
     def _convert_search_result_to_documents(self, azure_docs: List[Dict[str, Any]]) -> List[Document]:
 
@@ -408,7 +419,7 @@ class AzureAISearchDocumentStore:
             msg = "query_embedding must be a non-empty list of floats"
             raise ValueError(msg)
 
-        vector_query = VectorizedQuery(vector=query_embedding, k_nearest_neighbors=3, fields="embedding")
-        result = self.client.search(search_text=None, vector_queries=[vector_query], select=fields, top=top_k)
+        vector_query = VectorizedQuery(vector=query_embedding, k_nearest_neighbors=top_k, fields="embedding")
+        result = self.client.search(search_text=None, vector_queries=[vector_query], select=fields, filter=filters)
         azure_docs = list(result)
         return self._convert_search_result_to_documents(azure_docs)
