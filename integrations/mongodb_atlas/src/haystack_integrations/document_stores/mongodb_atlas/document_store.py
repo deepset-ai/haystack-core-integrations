@@ -230,7 +230,6 @@ class MongoDBAtlasDocumentStore:
         self,
         query: str,
         search_path: Union[str, List[str]] = "content",
-        filters: Optional[Dict[str, Any]] = None,
         top_k: int = 10,
     ) -> List[Document]:
         """
@@ -238,7 +237,6 @@ class MongoDBAtlasDocumentStore:
 
         :param query: The text to search in the document store.
         :param search_path: Field(s) to search within, e.g., "content" or ["content", "title"].
-        :param filters: Optional filters.
         :param top_k: How many documents to return.
         :returns: A list of Documents matching the full-text search query.
         :raises ValueError: If `query` is empty.
@@ -247,8 +245,6 @@ class MongoDBAtlasDocumentStore:
         if not query:
             msg = "query must not be empty"
             raise ValueError(msg)
-
-        filters = _normalize_filters(filters) if filters else {}
 
         pipeline = [
             {
@@ -260,7 +256,6 @@ class MongoDBAtlasDocumentStore:
                     },
                 }
             },
-            {"$match": filters if filters else {}},
             {"$limit": top_k},
             {"$project": {"_id": 0, "content": 1, "meta": 1, "score": {"$meta": "searchScore"}}},
         ]
