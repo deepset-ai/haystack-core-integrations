@@ -3,8 +3,9 @@ import logging
 from typing import Dict, List, Optional, Union
 from warnings import warn
 
-from astrapy.api import APIRequestError
-from astrapy.db import AstraDB
+from astrapy import DataAPIClient as AstraDBClient
+from astrapy.exceptions import CollectionAlreadyExistsException
+from astrapy.constants import ReturnDocument
 from haystack.version import __version__ as integration_version
 from pydantic.dataclasses import dataclass
 
@@ -65,83 +66,78 @@ class AstraClient:
         self.similarity_function = similarity_function
         self.namespace = namespace
 
-        # Build the Astra DB object
-        self._astra_db = AstraDB(
-            api_endpoint=api_endpoint,
-            token=token,
-            namespace=namespace,
-            caller_name=CALLER_NAME,
-            caller_version=integration_version,
+        # Get the keyspace from the collection name
+        my_client = AstraDBClient(
+            callers=[(CALLER_NAME, integration_version)],
         )
 
-        indexing_options = {"indexing": {"deny": NON_INDEXED_FIELDS}}
+        # Get the database object
+        self._astra_db = my_client.get_database(
+            api_endpoint=api_endpoint,
+            token=token,
+            keyspace=namespace,
+        )
+
+        indexing_options = {"deny": NON_INDEXED_FIELDS}
         try:
             # Create and connect to the newly created collection
             self._astra_db_collection = self._astra_db.create_collection(
-                collection_name=collection_name,
+                name=collection_name,
                 dimension=embedding_dimension,
-                options=indexing_options,
+                indexing=indexing_options,
             )
-        except APIRequestError:
+        except CollectionAlreadyExistsException as _:
             # possibly the collection is preexisting and has legacy
             # indexing settings: verify
-            get_coll_response = self._astra_db.get_collections(options={"explain": True})
-
-            collections = (get_coll_response["status"] or {}).get("collections") or []
-
-            preexisting = [collection for collection in collections if collection["name"] == collection_name]
+            preexisting = [
+                coll_descriptor
+                for coll_descriptor in self._astra_db.list_collections()
+                if coll_descriptor.name == collection_name
+            ]
 
             if preexisting:
-                pre_collection = preexisting[0]
                 # if it has no "indexing", it is a legacy collection;
-                # otherwise it's unexpected warn and proceed at user's risk
-                pre_col_options = pre_collection.get("options") or {}
-                if "indexing" not in pre_col_options:
+                # otherwise it's unexpected: warn and proceed at user's risk
+                pre_col_idx_opts = preexisting[0].options.indexing or {}
+                if not pre_col_idx_opts:
                     warn(
                         (
-                            f"Astra DB collection '{collection_name}' is "
-                            "detected as having indexing turned on for all "
-                            "fields (either created manually or by older "
-                            "versions of this plugin). This implies stricter "
-                            "limitations on the amount of text each string in a "
-                            "document can store. Consider indexing anew on a "
-                            "fresh collection to be able to store longer texts. "
-                            "See https://github.com/deepset-ai/haystack-core-"
-                            "integrations/blob/main/integrations/astra/README"
-                            ".md#warnings-about-indexing for more details."
+                            f"Collection '{collection_name}' is detected as "
+                            "having indexing turned on for all fields "
+                            "(either created manually or by older versions "
+                            "of this plugin). This implies stricter "
+                            "limitations on the amount of text"
+                            " each entry can store. Consider indexing anew on a"
+                            " fresh collection to be able to store longer texts."
                         ),
                         UserWarning,
                         stacklevel=2,
                     )
-                    self._astra_db_collection = self._astra_db.collection(
-                        collection_name=collection_name,
+                    self._astra_db_collection = self._astra_db.get_collection(
+                        collection_name,
                     )
-                elif pre_col_options["indexing"] != indexing_options["indexing"]:
-                    detected_options_json = json.dumps(pre_col_options["indexing"])
-                    indexing_options_json = json.dumps(indexing_options["indexing"])
-                    warn(
-                        (
-                            f"Astra DB collection '{collection_name}' is "
-                            "detected as having the following indexing policy: "
-                            f"{detected_options_json}. This does not match the requested "
-                            f"indexing policy for this object: {indexing_options_json}. "
-                            "In particular, there may be stricter "
-                            "limitations on the amount of text each string in a "
-                            "document can store. Consider indexing anew on a "
-                            "fresh collection to be able to store longer texts. "
-                            "See https://github.com/deepset-ai/haystack-core-"
-                            "integrations/blob/main/integrations/astra/README"
-                            ".md#warnings-about-indexing for more details."
-                        ),
-                        UserWarning,
-                        stacklevel=2,
-                    )
-                    self._astra_db_collection = self._astra_db.collection(
-                        collection_name=collection_name,
+                # check if the indexing options match entirely
+                elif pre_col_idx_opts == indexing_options:
+                    self._astra_db_collection = self._astra_db.get_collection(
+                        collection_name,
                     )
                 else:
-                    # the collection mismatch lies elsewhere than the indexing
-                    raise
+                    options_json = json.dumps(pre_col_idx_opts)
+                    warn(
+                        (
+                            f"Collection '{collection_name}' has unexpected 'indexing'"
+                            f" settings (options.indexing = {options_json})."
+                            " This can result in odd behaviour when running "
+                            " metadata filtering and/or unwarranted limitations"
+                            " on storing long texts. Consider indexing anew on a"
+                            " fresh collection."
+                        ),
+                        UserWarning,
+                        stacklevel=2,
+                    )
+                    self._collection = self._astra_db.get_collection(
+                        collection_name,
+                    )
             else:
                 # other exception
                 raise
@@ -180,7 +176,7 @@ class AstraClient:
         return formatted_response
 
     def _query_without_vector(self, top_k, filters=None):
-        query = {"filter": filters, "options": {"limit": top_k}}
+        query = {"filter": filters, "limit": top_k}
 
         return self.find_documents(query)
 
@@ -196,8 +192,11 @@ class AstraClient:
             score = response.pop("$similarity", None)
             text = response.pop("content", None)
             values = response.pop("$vector", None) if include_values else []
+
             metadata = response if include_metadata else {}  # Add all remaining fields to the metadata
+
             rsp = Response(_id, text, values, metadata, score)
+
             final_res.append(rsp)
 
         return QueryResponse(final_res)
@@ -219,17 +218,21 @@ class AstraClient:
         :param find_query: a dictionary with the query options
         :returns: the documents found in the index
         """
-        response_dict = self._astra_db_collection.find(
+        find_cursor = self._astra_db_collection.find(
             filter=find_query.get("filter"),
             sort=find_query.get("sort"),
-            options=find_query.get("options"),
+            limit=find_query.get("limit"),
             projection={"*": 1},
         )
 
-        if "data" in response_dict and "documents" in response_dict["data"]:
-            return response_dict["data"]["documents"]
-        else:
-            logger.warning(f"No documents found: {response_dict}")
+        find_results = []
+        for result in find_cursor:
+            find_results.append(result)
+
+        if not find_results:
+            logger.warning("No documents found.")
+
+        return find_results
 
     def find_one_document(self, find_query):
         """
@@ -238,16 +241,15 @@ class AstraClient:
         :param find_query: a dictionary with the query options
         :returns: the document found in the index
         """
-        response_dict = self._astra_db_collection.find_one(
+        find_result = self._astra_db_collection.find_one(
             filter=find_query.get("filter"),
-            options=find_query.get("options"),
             projection={"*": 1},
         )
 
-        if "data" in response_dict and "document" in response_dict["data"]:
-            return response_dict["data"]["document"]
-        else:
-            logger.warning(f"No document found: {response_dict}")
+        if not find_result:
+            logger.warning("No document found.")
+
+        return find_result
 
     def get_documents(self, ids: List[str], batch_size: int = 20) -> QueryResponse:
         """
@@ -281,15 +283,8 @@ class AstraClient:
         :param documents: a list of documents to insert
         :returns: the IDs of the inserted documents
         """
-        response_dict = self._astra_db_collection.insert_many(documents=documents)
-
-        inserted_ids = (
-            response_dict["status"]["insertedIds"]
-            if "status" in response_dict and "insertedIds" in response_dict["status"]
-            else []
-        )
-        if "errors" in response_dict:
-            logger.error(response_dict["errors"])
+        insert_result = self._astra_db_collection.insert_many(documents=documents)
+        inserted_ids = [str(_id) for _id in insert_result.inserted_ids]
 
         return inserted_ids
 
@@ -303,23 +298,21 @@ class AstraClient:
         """
         document_id = document.pop(id_key)
 
-        response_dict = self._astra_db_collection.find_one_and_update(
+        update_result = self._astra_db_collection.find_one_and_update(
             filter={id_key: document_id},
             update={"$set": document},
-            options={"returnDocument": "after"},
+            return_document=ReturnDocument.AFTER,
             projection={"*": 1},
         )
 
         document[id_key] = document_id
 
-        if "status" in response_dict and "errors" not in response_dict:
-            if "matchedCount" in response_dict["status"] and "modifiedCount" in response_dict["status"]:
-                if response_dict["status"]["matchedCount"] == 1 and response_dict["status"]["modifiedCount"] == 1:
-                    return True
+        if update_result is None:
+            logger.warning(f"Documents {document_id} not updated in Astra DB.")
 
-        logger.warning(f"Documents {document_id} not updated in Astra DB.")
+            return False
 
-        return False
+        return True
 
     def delete(
         self,
@@ -345,23 +338,13 @@ class AstraClient:
         if "filter" in query["deleteMany"]:
             filter_dict = query["deleteMany"]["filter"]
 
-        deletion_counter = 0
-        moredata = True
-        while moredata:
-            response_dict = self._astra_db_collection.delete_many(filter=filter_dict)
+        delete_result = self._astra_db_collection.delete_many(filter=filter_dict)
 
-            if "moreData" not in response_dict.get("status", {}):
-                moredata = False
+        return delete_result.deleted_count
 
-            deletion_counter += int(response_dict["status"].get("deletedCount", 0))
-
-        return deletion_counter
-
-    def count_documents(self) -> int:
+    def count_documents(self, upper_bound: int=10000) -> int:
         """
         Count the number of documents in the Astra index.
         :returns: the number of documents in the index
         """
-        documents_count = self._astra_db_collection.count_documents()
-
-        return documents_count["status"]["count"]
+        return self._astra_db_collection.count_documents({}, upper_bound=upper_bound)

@@ -6,17 +6,18 @@
 
 ```bash
 pip install astra-haystack
-
 ```
 
 ### Local Development
+
 install astra-haystack package locally to run integration tests:
 
 Open in gitpod:
 [![Open in Gitpod](https://gitpod.io/button/open-in-gitpod.svg)](https://gitpod.io/#https://github.com/Anant/astra-haystack/tree/main)
 
-Switch Python version to 3.9 (Requires 3.8+ but not 3.12)
-```
+Switch Python version to 3.9 (Requires 3.9+ but not 3.12)
+
+```bash
 pyenv install 3.9
 pyenv local 3.9
 ```
@@ -33,7 +34,8 @@ Install requirements
 `pip install -r requirements.txt`
 
 Export environment variables
-```
+
+```bash
 export ASTRA_DB_API_ENDPOINT="https://<id>-<region>.apps.astra.datastax.com"
 export ASTRA_DB_APPLICATION_TOKEN="AstraCS:..."
 export COLLECTION_NAME="my_collection"
@@ -49,22 +51,25 @@ or
 
 This package includes Astra Document Store and Astra Embedding Retriever classes that integrate with Haystack, allowing you to easily perform document retrieval or RAG with Astra, and include those functions in Haystack pipelines.
 
-### In order to use the Document Store directly:
+### Use the Document Store Directly
 
 Import the Document Store:
-```
+
+```python
 from haystack_integrations.document_stores.astra import AstraDocumentStore
 from haystack.document_stores.types.policy import DuplicatePolicy
 ```
 
 Load in environment variables:
-```
+
+```python
 namespace = os.environ.get("ASTRA_DB_KEYSPACE")
 collection_name = os.environ.get("COLLECTION_NAME", "haystack_vector_search")
 ```
 
 Create the Document Store object (API Endpoint and Token are read off the environment):
-```
+
+```python
 document_store = AstraDocumentStore(
     collection_name=collection_name,
     namespace=namespace,
@@ -80,7 +85,7 @@ Then you can use the document store functions like count_document below:
 
 Create the Document Store object like above, then import and create the Pipeline:
 
-```
+```python
 from haystack import Pipeline
 pipeline = Pipeline()
 ```
@@ -100,7 +105,6 @@ When creating an Astra DB document store, you may see a warning similar to the f
 or,
 
 > Astra DB collection '...' is detected as having the following indexing policy: {...}. This does not match the requested indexing policy for this object: {...}. In particular, there may be stricter limitations on the amount of text each string in a document can store. Consider indexing anew on a fresh collection to be able to store longer texts.
-
 
 The reason for the warning is that the requested collection already exists on the database, and it is configured to [index all of its fields for search](https://docs.datastax.com/en/astra-db-serverless/api-reference/collections.html#the-indexing-option), possibly implicitly, by default. When the Haystack object tries to create it, it attempts to enforce, instead, an indexing policy tailored to the prospected usage: this is both to enable storing very long texts and to avoid indexing fields that will never be used in filtering a search (indexing those would also have a slight performance cost for writes).
 
