@@ -4,7 +4,7 @@
 
 ### 🚀 Features
 
-- Depend on latest `astrapy` client library
+- Depend on a modern astrapy v1.x client library
 
 ### 🐛 Bug Fixes
 
