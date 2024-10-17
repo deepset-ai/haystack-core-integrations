@@ -337,7 +337,7 @@ def test_serialization_deserialization_pipeline():
     pipeline = Pipeline()
     template = [ChatMessage.from_user("Translate to {{ target_language }}. Context: {{ snippet }}; Translation:")]
     pipeline.add_component("prompt_builder", ChatPromptBuilder(template=template))
-    pipeline.add_component("gemini", VertexAIGeminiChatGenerator())
+    pipeline.add_component("gemini", VertexAIGeminiChatGenerator(project_id="TestID123"))
     pipeline.connect("prompt_builder.prompt", "gemini.messages")
 
     pipeline_dict = pipeline.to_dict()
