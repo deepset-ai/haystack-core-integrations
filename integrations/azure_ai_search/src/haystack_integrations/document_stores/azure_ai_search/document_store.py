@@ -269,64 +269,42 @@ class AzureAISearchDocumentStore:
         if documents:
             self.client.delete_documents(documents)
 
-    def _get_raw_documents_by_id(self, document_ids: List[str]):
-        """
-        Retrieves all Azure documents with a matching document_ids from the document store.
-
-        :param document_ids: ids of the documents to be retrieved.
-        :returns: list of retrieved Azure documents.
-        """
-        azure_documents = []
-        for doc_id in document_ids:
-            try:
-                document = self.client.get_document(doc_id)
-                azure_documents.append(document)
-            except ResourceNotFoundError:
-                logger.warning(f"Document with ID {doc_id} not found.")
-        return azure_documents
-
     def get_documents_by_id(self, document_ids: List[str]) -> List[Document]:
         return self._convert_search_result_to_documents(self._get_raw_documents_by_id(document_ids))
 
-    def filter_documents(self, filters: Optional[Dict[str, Any]] = None) -> List[Document]:
-
-        # TODO: Implement this method to filter documents based on metadata fields
-        # For now the implementation is similar to search_documents
+    def search_documents(self, search_text: Optional[str] = "*", top_k: Optional[int] = 10) -> List[Document]:
         """
-        Calls the Azure AI Search client's search method and handles pagination.
-        :param search_text: The text to search for. If not supplied, all documents will be retrieved.
+        Returns all documents that match the provided search_text.
+        If search_text is None, returns all documents.
+        :param search_text: the text to search for in the Document list.
+        :param top_k: Maximum number of documents to return.
+        :returns: A list of Documents that match the given search_text.
+        """
+        result = self.client.search(search_text=search_text, top=top_k)
+        return self._convert_search_result_to_documents(list(result))
+
+    def filter_documents(self, filters: Optional[Dict[str, Any]] = None) -> List[Document]:
+        """
+        Returns the documents that match the provided filters.
+        Filters should be given as a dictionary supporting filtering by metadata. For details on
+        filters, see the [metadata filtering documentation](https://docs.haystack.deepset.ai/docs/metadata-filtering).
+
+        :param filters: the filters to apply to the document list.
         :returns: A list of Documents that match the given filters.
         """
 
-        search_text = "*"  # default to search all documents
-        azure_docs = []
-        if not filters:
-            result = self.client.search(search_text=search_text, top=self.count_documents())
+        if filters:
+            normalized_filters = normalize_filters(filters)
+            print("Normalized filters: ", normalized_filters)
 
-        elif filters:
-            # Handle filtering by 'id' first
-            if "id" in filters:
-                document_ids = filters.get("id")
-                if document_ids:
-                    azure_docs = self._get_raw_documents_by_id(document_ids)
-                    return self._convert_search_result_to_documents(azure_docs)
-
-            # Handle filtering by 'content'
-            if "content" in filters:
-                search_text = filters.get("content")
-
-            else :
-                normalized_filters = normalize_filters(filters)
-                print ("Normalized filters: ", normalized_filters)
-
-                result = self.client.search(filter=normalized_filters)
-                print ("Result: ", result)
-        # Perform search with pagination
-        #azure_docs = list(result)
+            result = self.client.search(filter=normalized_filters)
+            print("Result: ", result)
         return self._convert_search_result_to_documents(result)
 
     def _convert_search_result_to_documents(self, azure_docs: List[Dict[str, Any]]) -> List[Document]:
-
+        """
+        Converts Azure search results to Haystack Documents.
+        """
         documents = []
         for azure_doc in azure_docs:
 
@@ -352,6 +330,22 @@ class AzureAISearchDocumentStore:
     def index_exists(self, index_name: Optional[str]) -> bool:
         if self._index_client and index_name:
             return index_name in self._index_client.list_index_names()
+
+    def _get_raw_documents_by_id(self, document_ids: List[str]):
+        """
+        Retrieves all Azure documents with a matching document_ids from the document store.
+
+        :param document_ids: ids of the documents to be retrieved.
+        :returns: list of retrieved Azure documents.
+        """
+        azure_documents = []
+        for doc_id in document_ids:
+            try:
+                document = self.client.get_document(doc_id)
+                azure_documents.append(document)
+            except ResourceNotFoundError:
+                logger.warning(f"Document with ID {doc_id} not found.")
+        return azure_documents
 
     def _default_index_mapping(self, document: Dict[str, Any]) -> Dict[str, Any]:
         """Map the document keys to fields of search index"""

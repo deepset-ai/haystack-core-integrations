@@ -13,7 +13,6 @@ class AzureAISearchDocumentStoreConfigError(AzureAISearchDocumentStoreError):
     pass
 
 
-
 class AzureAISearchDocumentStoreFilterError(DocumentStoreError):
     """Raised when filter is not valid for AzureAISearchDocumentStore."""
 
