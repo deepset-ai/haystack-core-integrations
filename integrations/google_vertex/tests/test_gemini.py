@@ -319,7 +319,7 @@ def test_serialization_deserialization_pipeline():
     pipeline = Pipeline()
 
     pipeline.add_component("prompt_builder", PromptBuilder(template=template))
-    pipeline.add_component("gemini", VertexAIGeminiGenerator())
+    pipeline.add_component("gemini", VertexAIGeminiGenerator(project_id="TestID123"))
     pipeline.connect("prompt_builder", "gemini")
 
     pipeline_dict = pipeline.to_dict()
