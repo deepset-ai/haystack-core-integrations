@@ -32,7 +32,7 @@ class VertexAIGeminiGenerator:
     from haystack_integrations.components.generators.google_vertex import VertexAIGeminiGenerator
 
 
-    gemini = VertexAIGeminiGenerator(project_id=project_id)
+    gemini = VertexAIGeminiGenerator()
     result = gemini.run(parts = ["What is the most interesting thing you know?"])
     for answer in result["replies"]:
         print(answer)

@@ -297,7 +297,7 @@ def test_run(mock_generative_model):
         ChatMessage.from_system("You are a helpful assistant"),
         ChatMessage.from_user("What's the capital of France?"),
     ]
-    gemini = VertexAIGeminiChatGenerator(project_id="TestID123", location=None)
+    gemini = VertexAIGeminiChatGenerator()
     response = gemini.run(messages=messages)
 
     mock_model.send_message.assert_called_once()
@@ -322,7 +322,7 @@ def test_run_with_streaming_callback(mock_generative_model):
         nonlocal streaming_callback_called
         streaming_callback_called = True
 
-    gemini = VertexAIGeminiChatGenerator(project_id="TestID123", location=None, streaming_callback=streaming_callback)
+    gemini = VertexAIGeminiChatGenerator(streaming_callback=streaming_callback)
     messages = [
         ChatMessage.from_system("You are a helpful assistant"),
         ChatMessage.from_user("What's the capital of France?"),
@@ -337,7 +337,7 @@ def test_serialization_deserialization_pipeline():
     pipeline = Pipeline()
     template = [ChatMessage.from_user("Translate to {{ target_language }}. Context: {{ snippet }}; Translation:")]
     pipeline.add_component("prompt_builder", ChatPromptBuilder(template=template))
-    pipeline.add_component("gemini", VertexAIGeminiChatGenerator(project_id="TestID123"))
+    pipeline.add_component("gemini", VertexAIGeminiChatGenerator())
     pipeline.connect("prompt_builder.prompt", "gemini.messages")
 
     pipeline_dict = pipeline.to_dict()

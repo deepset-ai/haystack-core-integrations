@@ -36,7 +36,7 @@ class VertexAIGeminiChatGenerator:
     from haystack.dataclasses import ChatMessage
     from haystack_integrations.components.generators.google_vertex import VertexAIGeminiChatGenerator
 
-    gemini_chat = VertexAIGeminiChatGenerator(project_id=project_id)
+    gemini_chat = VertexAIGeminiChatGenerator()
 
     messages = [ChatMessage.from_user("Tell me the name of a movie")]
     res = gemini_chat.run(messages)

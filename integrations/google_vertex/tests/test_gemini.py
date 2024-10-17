@@ -280,7 +280,7 @@ def test_run(mock_generative_model):
     mock_model.generate_content.return_value = MagicMock()
     mock_generative_model.return_value = mock_model
 
-    gemini = VertexAIGeminiGenerator(project_id="TestID123", location=None)
+    gemini = VertexAIGeminiGenerator()
 
     response = gemini.run(["What's the weather like today?"])
 
@@ -306,7 +306,7 @@ def test_run_with_streaming_callback(mock_generative_model):
         nonlocal streaming_callback_called
         streaming_callback_called = True
 
-    gemini = VertexAIGeminiGenerator(model="gemini-pro", project_id="TestID123", streaming_callback=streaming_callback)
+    gemini = VertexAIGeminiGenerator(model="gemini-pro", streaming_callback=streaming_callback)
     gemini.run(["Come on, stream!"])
     assert streaming_callback_called
 
@@ -319,7 +319,7 @@ def test_serialization_deserialization_pipeline():
     pipeline = Pipeline()
 
     pipeline.add_component("prompt_builder", PromptBuilder(template=template))
-    pipeline.add_component("gemini", VertexAIGeminiGenerator(project_id="TestID123"))
+    pipeline.add_component("gemini", VertexAIGeminiGenerator())
     pipeline.connect("prompt_builder", "gemini")
 
     pipeline_dict = pipeline.to_dict()
