@@ -64,7 +64,7 @@ python = ["3.9", "3.10"]
 [tool.hatch.envs.lint]
 installer = "uv"
 detached = true
-dependencies = [
+dependencies = ["pip", 
   "black>=23.1.0",
   "mypy>=1.0.0",
   "ruff>=0.0.243",
