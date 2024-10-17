@@ -2,10 +2,13 @@
 
 ## [integrations/astra-v0.9.4] - 2024-10-17
 
-### Features
+### 🚀 Features
 
 - Depend on latest `astrapy` client library
-- Fix "$in" operator
+
+### 🐛 Bug Fixes
+
+- Fix "$in" operator (#1139)
 
 ## [integrations/astra-v0.9.3] - 2024-09-12
 
