@@ -342,7 +342,7 @@ class AstraClient:
 
         return delete_result.deleted_count
 
-    def count_documents(self, upper_bound: int=10000) -> int:
+    def count_documents(self, upper_bound: int = 10000) -> int:
         """
         Count the number of documents in the Astra index.
         :returns: the number of documents in the index
