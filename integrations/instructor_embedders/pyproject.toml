@@ -64,6 +64,7 @@ root = "../.."
 git_describe_command = 'git describe --tags --match="integrations/instructor_embedders-v[0-9]*"'
 
 [tool.hatch.envs.default]
+installer = "uv"
 dependencies = [
   "coverage[toml]>=6.5",
   "pytest",
@@ -83,6 +84,7 @@ docs = ["pydoc-markdown pydoc/config.yml"]
 python = ["38", "39", "310", "311"]
 
 [tool.hatch.envs.lint]
+installer = "uv"
 detached = true
 dependencies = ["black>=23.1.0", "mypy>=1.0.0", "ruff>=0.0.243"]
 

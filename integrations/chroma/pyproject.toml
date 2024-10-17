@@ -41,6 +41,7 @@ root = "../.."
 git_describe_command = 'git describe --tags --match="integrations/chroma-v[0-9]*"'
 
 [tool.hatch.envs.default]
+installer = "uv"
 dependencies = [
   "coverage[toml]>=6.5",
   "pytest",
@@ -61,6 +62,7 @@ docs = ["pydoc-markdown pydoc/config.yml"]
 python = ["3.9", "3.10"]
 
 [tool.hatch.envs.lint]
+installer = "uv"
 detached = true
 dependencies = [
   "black>=23.1.0",

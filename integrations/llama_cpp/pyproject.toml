@@ -45,6 +45,7 @@ root = "../.."
 git_describe_command = 'git describe --tags --match="integrations/llama_cpp-v[0-9]*"'
 
 [tool.hatch.envs.default]
+installer = "uv"
 dependencies = [
     "coverage[toml]>=6.5",
     "pytest",
@@ -65,6 +66,7 @@ python = ["3.8", "3.9", "3.10", "3.11", "3.12"]
 
 
 [tool.hatch.envs.lint]
+installer = "uv"
 detached = true
 dependencies = ["black>=23.1.0", "mypy>=1.0.0", "ruff>=0.0.243"]
 
