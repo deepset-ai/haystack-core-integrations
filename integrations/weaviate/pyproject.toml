@@ -48,7 +48,8 @@ git_describe_command = 'git describe --tags --match="integrations/weaviate-v[0-9
 
 [tool.hatch.envs.default]
 installer = "uv"
-dependencies = ["coverage[toml]>=6.5", "pytest", "pytest-rerunfailures", "ipython"]
+dependencies = [
+  "setuptools","coverage[toml]>=6.5", "pytest", "pytest-rerunfailures", "ipython"]
 [tool.hatch.envs.default.scripts]
 test = "pytest {args:tests}"
 test-cov = "coverage run -m pytest {args:tests}"
