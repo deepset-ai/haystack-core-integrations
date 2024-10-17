@@ -8,6 +8,12 @@
 
 ## [integrations/amazon_bedrock-v1.0.3] - 2024-10-04
 
+### 🚀 Features
+
+- New generator for the bedrock converse API (#977)
+
+## [unreleased]
+
 ### 🐛 Bug Fixes
 
 - *(Bedrock)* Allow tools kwargs for AWS Bedrock Claude model (#976)
