@@ -7,7 +7,7 @@ name = "weaviate-haystack"
 dynamic = ["version"]
 description = "An integration of Weaviate vector database with Haystack"
 readme = "README.md"
-requires-python = ">=3.8"
+requires-python = ">=3.9"
 license = "Apache-2.0"
 keywords = []
 authors = [{ name = "deepset GmbH", email = "info@deepset.ai" }]
@@ -25,7 +25,7 @@ classifiers = [
 ]
 dependencies = [
   "haystack-ai",
-  "weaviate-client>=4.0",
+  "weaviate-client>=4.9",
   "haystack-pydoc-tools",
   "python-dateutil",
 ]
