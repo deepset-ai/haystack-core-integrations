@@ -1,5 +1,11 @@
 # Changelog
 
+## [integrations/amazon_bedrock-v1.0.4] - 2024-10-16
+
+### 🐛 Bug Fixes
+
+- Avoid bedrock read timeout (add boto3_config param) (#1135)
+
 ## [integrations/amazon_bedrock-v1.0.3] - 2024-10-04
 
 ### 🐛 Bug Fixes
