@@ -283,6 +283,7 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, FilterDocuments
         )
 
     def test_multiple_contains(self, document_store: ChromaDocumentStore, filterable_docs: List[Document]):
+        filterable_docs = [doc for doc in filterable_docs if doc.content]  # remove documents without content
         document_store.write_documents(filterable_docs)
         filters = {
             "operator": "OR",
@@ -340,25 +341,6 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, FilterDocuments
                     )
                 )
             ],
-        )
-
-    # Override inequality tests from FilterDocumentsTest
-    # because chroma doesn't return documents with absent meta fields
-
-    def test_comparison_not_equal(self, document_store, filterable_docs):
-        """Test filter_documents() with != comparator"""
-        document_store.write_documents(filterable_docs)
-        result = document_store.filter_documents({"field": "meta.number", "operator": "!=", "value": 100})
-        self.assert_documents_are_equal(
-            result, [d for d in filterable_docs if "number" in d.meta and d.meta.get("number") != 100]
-        )
-
-    def test_comparison_not_in(self, document_store, filterable_docs):
-        """Test filter_documents() with 'not in' comparator"""
-        document_store.write_documents(filterable_docs)
-        result = document_store.filter_documents({"field": "meta.number", "operator": "not in", "value": [2, 9]})
-        self.assert_documents_are_equal(
-            result, [d for d in filterable_docs if "number" in d.meta and d.meta.get("number") not in [2, 9]]
         )
 
     @pytest.mark.skip(reason="Filter on dataframe contents is not supported.")
