@@ -20,25 +20,14 @@ def mock_auth(monkeypatch):
     monkeypatch.setenv("ASTRA_DB_APPLICATION_TOKEN", "test_token")
 
 
-@mock.patch("haystack_integrations.document_stores.astra.astra_client.AstraDB")
+@mock.patch("haystack_integrations.document_stores.astra.astra_client.AstraDBClient")
 def test_init_is_lazy(_mock_client, mock_auth):  # noqa
     _ = AstraDocumentStore()
     _mock_client.assert_not_called()
 
 
-def test_namespace_init(mock_auth):  # noqa
-    with mock.patch("haystack_integrations.document_stores.astra.astra_client.AstraDB") as client:
-        _ = AstraDocumentStore().index
-        assert "namespace" in client.call_args.kwargs
-        assert client.call_args.kwargs["namespace"] is None
-
-        _ = AstraDocumentStore(namespace="foo").index
-        assert "namespace" in client.call_args.kwargs
-        assert client.call_args.kwargs["namespace"] == "foo"
-
-
 def test_to_dict(mock_auth):  # noqa
-    with mock.patch("haystack_integrations.document_stores.astra.astra_client.AstraDB"):
+    with mock.patch("haystack_integrations.document_stores.astra.astra_client.AstraDBClient"):
         ds = AstraDocumentStore()
         result = ds.to_dict()
         assert result["type"] == "haystack_integrations.document_stores.astra.document_store.AstraDocumentStore"
@@ -205,6 +194,17 @@ class TestDocumentStore(DocumentStoreBaseTests):
         document_store.write_documents(docs)
         result = document_store.filter_documents(filters={"field": "id", "operator": "==", "value": "1"})
         self.assert_documents_are_equal(result, [docs[0]])
+
+    def test_filter_documents_by_in_operator(self, document_store):
+        docs = [Document(id="3", content="test doc 3"), Document(id="4", content="test doc 4")]
+        document_store.write_documents(docs)
+        result = document_store.filter_documents(filters={"field": "id", "operator": "in", "value": ["3", "4"]})
+
+        # Sort the result in place by the id field
+        result.sort(key=lambda x: x.id)
+
+        self.assert_documents_are_equal([result[0]], [docs[0]])
+        self.assert_documents_are_equal([result[1]], [docs[1]])
 
     @pytest.mark.skip(reason="Unsupported filter operator not.")
     def test_not_operator(self, document_store, filterable_docs):
