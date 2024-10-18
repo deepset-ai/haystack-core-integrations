@@ -1,5 +1,11 @@
 # Changelog
 
+## [integrations/amazon_bedrock-v1.0.5] - 2024-10-17
+
+### 🚀 Features
+
+- Add prefixes to supported model patterns to allow cross region model ids (#1127)
+
 ## [integrations/amazon_bedrock-v1.0.4] - 2024-10-16
 
 ### 🐛 Bug Fixes
