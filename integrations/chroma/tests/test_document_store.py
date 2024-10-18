@@ -282,19 +282,29 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, FilterDocuments
             [doc for doc in filterable_docs if doc.content and "FOO" in doc.content],
         )
 
-    def test_multiple_contains(self, document_store: ChromaDocumentStore, filterable_docs: List[Document]):
-        document_store.write_documents(filterable_docs)
+    def test_multiple_contains(self, document_store: ChromaDocumentStore):
+
+        documents = [
+            Document(content="The cat chased the mouse in the garden."),
+            Document(content="The cat sat on the windowsill watching the birds."),
+            Document(content="The cat played with a ball of yarn."),
+            Document(content="The cat napped peacefully in the sun.")
+        ]
+
+        document_store.write_documents(documents)
+
         filters = {
-            "operator": "OR",
+            "operator": "AND",
             "conditions": [
-                {"field": "content", "operator": "contains", "value": "FOO"},
-                {"field": "content", "operator": "not contains", "value": "BAR"},
+                {"field": "content", "operator": "contains", "value": "cat"},
+                {"field": "content", "operator": "not contains", "value": "birds"},
             ],
         }
         result = document_store.filter_documents(filters=filters)
+
         self.assert_documents_are_equal(
             result,
-            [doc for doc in filterable_docs if doc.content and ("FOO" in doc.content or "BAR" not in doc.content)],
+            [doc for doc in documents if "cat" in doc.content and "birds" not in doc.content],
         )
 
     def test_nested_logical_filters(self, document_store: ChromaDocumentStore, filterable_docs: List[Document]):
