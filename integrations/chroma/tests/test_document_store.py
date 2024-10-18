@@ -9,7 +9,6 @@ from typing import List
 from unittest import mock
 
 import numpy as np
-import pandas as pd
 import pytest
 from chromadb.api.types import Documents, EmbeddingFunction, Embeddings
 from haystack import Document
