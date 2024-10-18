@@ -337,6 +337,27 @@ class TestDocumentStore(DocumentStoreBaseTests):
         yield store
         store.client.indices.delete(index=index, params={"ignore": [400, 404]})
 
+    @pytest.fixture
+    def document_store_embedding_dim_4_faiss(self, request):
+        """
+        This is the most basic requirement for the child class: provide
+        an instance of this document store so the base class can use it.
+        """
+        hosts = ["https://localhost:9200"]
+        # Use a different index for each test so we can run them in parallel
+        index = f"{request.node.name}"
+
+        store = OpenSearchDocumentStore(
+            hosts=hosts,
+            index=index,
+            http_auth=("admin", "admin"),
+            verify_certs=False,
+            embedding_dim=4,
+            method={"space_type": "innerproduct", "engine": "faiss", "name": "hnsw"},
+        )
+        yield store
+        store.client.indices.delete(index=index, params={"ignore": [400, 404]})
+
     def assert_documents_are_equal(self, received: List[Document], expected: List[Document]):
         """
         The OpenSearchDocumentStore.filter_documents() method returns a Documents with their score set.
@@ -686,6 +707,32 @@ class TestDocumentStore(DocumentStoreBaseTests):
         # TODO: remove top_k=3, when efficient filtering is supported for nmslib
         results = document_store_embedding_dim_4._embedding_retrieval(
             query_embedding=[0.1, 0.1, 0.1, 0.1], top_k=3, filters=filters
+        )
+        assert len(results) == 1
+        assert results[0].content == "Not very similar document with meta field"
+
+    def test_embedding_retrieval_with_filters_efficient_filtering(
+        self, document_store_embedding_dim_4_faiss: OpenSearchDocumentStore
+    ):
+        docs = [
+            Document(content="Most similar document", embedding=[1.0, 1.0, 1.0, 1.0]),
+            Document(content="2nd best document", embedding=[0.8, 0.8, 0.8, 1.0]),
+            Document(
+                content="Not very similar document with meta field",
+                embedding=[0.0, 0.8, 0.3, 0.9],
+                meta={"meta_field": "custom_value"},
+            ),
+        ]
+        document_store_embedding_dim_4_faiss.write_documents(docs)
+
+        filters = {"field": "meta_field", "operator": "==", "value": "custom_value"}
+        # we set top_k=3, to make the test pass as we are not sure whether efficient filtering is supported for nmslib
+        # TODO: remove top_k=3, when efficient filtering is supported for nmslib
+        results = document_store_embedding_dim_4_faiss._embedding_retrieval(
+            query_embedding=[0.1, 0.1, 0.1, 0.1],
+            top_k=3,
+            filters=filters,
+            efficient_filtering=True,
         )
         assert len(results) == 1
         assert results[0].content == "Not very similar document with meta field"
