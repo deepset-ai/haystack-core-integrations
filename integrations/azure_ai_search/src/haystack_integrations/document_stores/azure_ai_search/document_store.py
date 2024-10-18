@@ -4,6 +4,7 @@
 import logging
 import os
 from dataclasses import asdict
+from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from azure.core.credentials import AzureKeyCredential
@@ -33,7 +34,13 @@ from haystack.utils import Secret, deserialize_secrets_inplace
 from .errors import AzureAISearchDocumentStoreConfigError
 from .filters import normalize_filters
 
-type_mapping = {str: "Edm.String", bool: "Edm.Boolean", int: "Edm.Int32", float: "Edm.Double"}
+type_mapping = {
+    str: "Edm.String",
+    bool: "Edm.Boolean",
+    int: "Edm.Int32",
+    float: "Edm.Double",
+    datetime: "Edm.DateTimeOffset",
+}
 
 MAX_UPLOAD_BATCH_SIZE = 1000
 

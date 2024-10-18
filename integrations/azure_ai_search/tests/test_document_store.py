@@ -2,17 +2,19 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 import os
-from unittest.mock import patch
-from typing import List
 import random
+from datetime import datetime
+from typing import List
+from unittest.mock import patch
 
 import pytest
 from haystack.dataclasses.document import Document
+from haystack.errors import FilterError
 from haystack.testing.document_store import (
     CountDocumentsTest,
     DeleteDocumentsTest,
+    FilterDocumentsTest,
     WriteDocumentsTest,
-    FilterDocumentsTest
 )
 from haystack.utils.auth import EnvVarSecret, Secret
 
@@ -121,24 +123,28 @@ class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsT
         doc = document_store.get_documents_by_id(["1"])
         assert doc[0] == docs[0]
 
+
 def _random_embeddings(n):
-        return [random.random() for _ in range(n)]
+    return [round(random.random(), 7) for _ in range(n)]
+
+
 TEST_EMBEDDING_1 = _random_embeddings(768)
 TEST_EMBEDDING_2 = _random_embeddings(768)
+
 
 @pytest.mark.skipif(
     not os.environ.get("AZURE_SEARCH_SERVICE_ENDPOINT", None) and not os.environ.get("AZURE_SEARCH_API_KEY", None),
     reason="Missing AZURE_SEARCH_SERVICE_ENDPOINT or AZURE_SEARCH_API_KEY.",
 )
 @pytest.mark.parametrize(
-        "document_store",
-        [
-            {"metadata_fields": {"name": str, "page": str, "chapter": str, "number": int, "date": str}},
-        ],
-        indirect=True,
-    )
+    "document_store",
+    [
+        {"metadata_fields": {"name": str, "page": str, "chapter": str, "number": int, "date": datetime}},
+    ],
+    indirect=True,
+)
 class TestFilters(FilterDocumentsTest):
-    
+
     @pytest.fixture
     def filterable_docs(self) -> List[Document]:
         """Fixture that returns a list of Documents that can be used to test filtering."""
@@ -152,7 +158,7 @@ class TestFilters(FilterDocumentsTest):
                         "page": "100",
                         "chapter": "intro",
                         "number": 2,
-                        "date": "1969-07-21T20:17:40",
+                        "date": "1969-07-21T20:17:40Z",
                     },
                     embedding=_random_embeddings(768),
                 )
@@ -165,7 +171,7 @@ class TestFilters(FilterDocumentsTest):
                         "page": "123",
                         "chapter": "abstract",
                         "number": -2,
-                        "date": "1972-12-11T19:54:58",
+                        "date": "1972-12-11T19:54:58Z",
                     },
                     embedding=_random_embeddings(768),
                 )
@@ -178,12 +184,12 @@ class TestFilters(FilterDocumentsTest):
                         "page": "90",
                         "chapter": "conclusion",
                         "number": -10,
-                        "date": "1989-11-09T17:53:00",
+                        "date": "1989-11-09T17:53:00Z",
                     },
                     embedding=_random_embeddings(768),
                 )
             )
-            
+
             documents.append(
                 Document(content=f"Doc {i} with zeros emb", meta={"name": "zeros_doc"}, embedding=TEST_EMBEDDING_1)
             )
@@ -192,12 +198,145 @@ class TestFilters(FilterDocumentsTest):
             )
         return documents
 
+    # Overriding this method to compare the documents with the same order
+    def assert_documents_are_equal(self, received: List[Document], expected: List[Document]):
+        """
+        Assert that two lists of Documents are equal.
+
+        This is used in every test, if a Document Store implementation has a different behaviour
+        it should override this method. This can happen for example when the Document Store sets
+        a score to returned Documents. Since we can't know what the score will be, we can't compare
+        the Documents reliably.
+        """
+        sorted_recieved = sorted(received, key=lambda doc: doc.id)
+        sorted_expected = sorted(expected, key=lambda doc: doc.id)
+        assert sorted_recieved == sorted_expected
+
     def test_comparison_equal_with_dataframe(self, document_store, filterable_docs):
         pass
 
-    def test_comparison_equal_with_none(self, document_store, filterable_docs):
-        """Test filter_documents() with == comparator and None"""
+    def test_comparison_not_equal_with_dataframe(self, document_store, filterable_docs):
+        pass
+
+    def test_comparison_greater_than_with_dataframe(self, document_store, filterable_docs):
+        pass
+
+    def test_comparison_less_than_with_dataframe(self, document_store, filterable_docs):
+        pass
+
+    def test_comparison_greater_than_equal_with_dataframe(self, document_store, filterable_docs):
+        pass
+
+    def test_comparison_less_than_equal_with_dataframe(self, document_store, filterable_docs):
+        pass
+
+    def test_comparison_greater_than_with_iso_date(self, document_store, filterable_docs):
+        """Test filter_documents() with > comparator and datetime"""
         document_store.write_documents(filterable_docs)
-        result = document_store.filter_documents(filters={"field": "meta.number", "operator": "==", "value": None})
-        print (result)
-        self.assert_documents_are_equal(result, [d for d in filterable_docs if d.meta.get("number") is None])
+        result = document_store.filter_documents(
+            {"field": "meta.date", "operator": ">", "value": "1972-12-11T19:54:58Z"}
+        )
+        self.assert_documents_are_equal(
+            result,
+            [
+                d
+                for d in filterable_docs
+                if d.meta.get("date") is not None
+                and datetime.fromisoformat(d.meta["date"]) > datetime.fromisoformat("1972-12-11T19:54:58Z")
+            ],
+        )
+
+    def test_comparison_greater_than_equal_with_iso_date(self, document_store, filterable_docs):
+        """Test filter_documents() with >= comparator and datetime"""
+        document_store.write_documents(filterable_docs)
+        result = document_store.filter_documents(
+            {"field": "meta.date", "operator": ">=", "value": "1969-07-21T20:17:40Z"}
+        )
+        self.assert_documents_are_equal(
+            result,
+            [
+                d
+                for d in filterable_docs
+                if d.meta.get("date") is not None
+                and datetime.fromisoformat(d.meta["date"]) >= datetime.fromisoformat("1969-07-21T20:17:40Z")
+            ],
+        )
+
+    def test_comparison_less_than_with_iso_date(self, document_store, filterable_docs):
+        """Test filter_documents() with < comparator and datetime"""
+        document_store.write_documents(filterable_docs)
+        result = document_store.filter_documents(
+            {"field": "meta.date", "operator": "<", "value": "1969-07-21T20:17:40Z"}
+        )
+        self.assert_documents_are_equal(
+            result,
+            [
+                d
+                for d in filterable_docs
+                if d.meta.get("date") is not None
+                and datetime.fromisoformat(d.meta["date"]) < datetime.fromisoformat("1969-07-21T20:17:40Z")
+            ],
+        )
+
+    def test_comparison_less_than_equal_with_iso_date(self, document_store, filterable_docs):
+        """Test filter_documents() with <= comparator and datetime"""
+        document_store.write_documents(filterable_docs)
+        result = document_store.filter_documents(
+            {"field": "meta.date", "operator": "<=", "value": "1969-07-21T20:17:40Z"}
+        )
+        self.assert_documents_are_equal(
+            result,
+            [
+                d
+                for d in filterable_docs
+                if d.meta.get("date") is not None
+                and datetime.fromisoformat(d.meta["date"]) <= datetime.fromisoformat("1969-07-21T20:17:40Z")
+            ],
+        )
+
+    def test_comparison_greater_than_with_none(self, document_store, filterable_docs):
+        """Test filter_documents() with > comparator and None"""
+        document_store.write_documents(filterable_docs)
+        with pytest.raises(FilterError):
+            document_store.filter_documents(filters={"field": "meta.number", "operator": ">", "value": None})
+
+    def test_comparison_greater_than_equal_with_none(self, document_store, filterable_docs):
+        """Test filter_documents() with >= comparator and None"""
+        document_store.write_documents(filterable_docs)
+        with pytest.raises(FilterError):
+            document_store.filter_documents(filters={"field": "meta.number", "operator": ">=", "value": None})
+
+    def test_comparison_less_than_with_none(self, document_store, filterable_docs):
+        """Test filter_documents() with < comparator and None"""
+        document_store.write_documents(filterable_docs)
+        with pytest.raises(FilterError):
+            document_store.filter_documents(filters={"field": "meta.number", "operator": "<", "value": None})
+
+    def test_comparison_less_than_equal_with_none(self, document_store, filterable_docs):
+        """Test filter_documents() with <= comparator and None"""
+        document_store.write_documents(filterable_docs)
+        with pytest.raises(FilterError):
+            document_store.filter_documents(filters={"field": "meta.number", "operator": "<=", "value": None})
+
+    # Override this as Azure AI Search does not support in operator for integer fields
+    def test_comparison_in(self, document_store, filterable_docs):
+        """Test filter_documents() with 'in' comparator"""
+        document_store.write_documents(filterable_docs)
+        result = document_store.filter_documents({"field": "meta.page", "operator": "in", "value": ["100", "123"]})
+        assert len(result)
+        expected = [d for d in filterable_docs if d.meta.get("page") is not None and d.meta["page"] in ["100", "123"]]
+        self.assert_documents_are_equal(result, expected)
+
+    # Implementation needs to be fixed for NOT operator
+    def test_not_operator(self, document_store, filterable_docs):
+        pass
+
+    # not supported
+    def test_comparison_not_in(self, document_store, filterable_docs):
+        pass
+
+    def test_comparison_not_in_with_with_non_list(self, document_store, filterable_docs):
+        pass
+
+    def test_comparison_not_in_with_with_non_list_iterable(self, document_store, filterable_docs):
+        pass

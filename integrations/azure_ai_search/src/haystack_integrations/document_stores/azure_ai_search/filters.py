@@ -1,12 +1,15 @@
 from collections import defaultdict
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Any, Dict, List
 
+from dateutil import parser
 from haystack.utils import raise_on_invalid_filter_syntax
 
 from .errors import AzureAISearchDocumentStoreFilterError
 
 LOGICAL_OPERATORS = {"AND": "and", "OR": "or", "NOT": "not"}
+numeric_types = [int, float]
 
 
 def normalize_filters(filters: Dict[str, Any]) -> Dict[str, Any]:
@@ -29,7 +32,7 @@ def _parse_logical_condition(condition: Dict[str, Any]) -> Dict[str, Any]:
     if "conditions" not in condition:
         msg = f"'conditions' key missing in {condition}"
         raise AzureAISearchDocumentStoreFilterError(msg)
-    
+
     operator = condition["operator"]
     if operator not in LOGICAL_OPERATORS:
         msg = f"Unknown operator {operator}"
@@ -75,33 +78,36 @@ def _parse_comparison_condition(condition: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def _eq(field: str, value: Any) -> str:
-    if value == "null":
-        return f"{field} eq {value}"
-    if isinstance(value, str):
+    if isinstance(value, str) and value != "null":
         return f"{field} eq '{value}'"
     return f"{field} eq {value}"
 
 
 def _ne(field: str, value: Any) -> str:
-
-    if isinstance(value, str):
+    if isinstance(value, str) and value != "null":
         return f"not ({field} eq '{value}')"
     return f"not ({field} eq {value})"
 
 
 def _gt(field: str, value: Any) -> str:
+    _validate_type(value, "gt")
+    print(f"{field} gt {value}")
     return f"{field} gt {value}"
 
 
 def _ge(field: str, value: Any) -> str:
+    _validate_type(value, "ge")
     return f"{field} ge {value}"
 
 
 def _lt(field: str, value: Any) -> str:
+    # If value is a string, check if it's a valid ISO 8601 datetime string
+    _validate_type(value, "lt")
     return f"{field} lt {value}"
 
 
 def _le(field: str, value: Any) -> str:
+    _validate_type(value, "le")
     return f"{field} le {value}"
 
 
@@ -114,6 +120,26 @@ def _in(field: str, value: Any) -> str:
         raise AzureAISearchDocumentStoreFilterError(msg)
     values = ", ".join([str(v) for v in value])
     return f"search.in({field},'{values}')"
+
+
+def _validate_type(value: Any, operator: str) -> None:
+    """Validates that the value is either a number, datetime, or a valid ISO 8601 date string."""
+    msg = f"Invalid value type for '{operator}' comparator. Supported types are: int, float, or ISO 8601 string."
+
+    if isinstance(value, str):
+        # Attempt to parse the string as an ISO 8601 datetime
+        try:
+            parser.isoparse(value)
+        except ValueError:
+            raise AzureAISearchDocumentStoreFilterError(msg)
+    elif type(value) not in numeric_types:
+        raise AzureAISearchDocumentStoreFilterError(msg)
+
+
+def _comparison_operator(field: str, value: Any, operator: str) -> str:
+    """Generic function for comparison operators ('gt', 'ge', 'lt', 'le')."""
+    _validate_type(value, operator)
+    return f"{field} {operator} {value}"
 
 
 COMPARISON_OPERATORS = {

@@ -61,7 +61,8 @@ def document_store(request):
     store.delete_documents = delete_documents_and_wait
 
     yield store
-    #try:
-        #client.delete_index(index_name)
-    #except ResourceNotFoundError:
-        #pass
+    try:
+        client.delete_index(index_name)
+        print("deleting index")
+    except ResourceNotFoundError:
+        pass
