@@ -47,6 +47,8 @@ dependencies = [
   "pytest",
   "pytest-rerunfailures",
   "haystack-pydoc-tools",
+  "anthropic-haystack",
+  "cohere-haystack"
 ]
 [tool.hatch.envs.default.scripts]
 test = "pytest {args:tests}"
@@ -67,8 +69,8 @@ dependencies = ["black>=23.1.0", "mypy>=1.0.0", "ruff>=0.0.243"]
 
 [tool.hatch.envs.lint.scripts]
 typing = "mypy --install-types --non-interactive --explicit-package-bases {args:src/ tests}"
-style = ["ruff check {args:. --exclude tests/}", "black --check --diff {args:.}"]
-fmt = ["black {args:.}", "ruff --fix {args:. --exclude tests/}", "style"]
+style = ["ruff check {args:}", "black --check --diff {args:.}"]
+fmt = ["black {args:.}", "ruff check --fix {args:}", "style"]
 all = ["style", "typing"]
 
 [tool.hatch.metadata]
@@ -82,7 +84,10 @@ skip-string-normalization = true
 [tool.ruff]
 target-version = "py38"
 line-length = 120
-lint.select = [
+exclude = ["example", "tests"]
+
+[tool.ruff.lint]
+select = [
   "A",
   "ARG",
   "B",
@@ -108,8 +113,7 @@ lint.select = [
   "W",
   "YTT",
 ]
-
-lint.ignore = [
+ignore = [
   # Allow non-abstract empty methods in abstract base classes
   "B027",
   # Ignore checks for possible passwords
@@ -125,14 +129,13 @@ lint.ignore = [
   # Asserts
   "S101",
 ]
-lint.unfixable = [
+unfixable = [
   # Don't touch unused imports
   "F401",
 ]
-extend-exclude = ["tests", "example"]
 
 [tool.ruff.lint.isort]
-known-first-party = ["src"]
+known-first-party = ["haystack_integrations"]
 
 [tool.ruff.lint.flake8-tidy-imports]
 ban-relative-imports = "parents"

@@ -1,14 +1,31 @@
 # Changelog
 
-## [unreleased]
+## [integrations/amazon_bedrock-v1.0.5] - 2024-10-17
+
+### 🚀 Features
+
+- Add prefixes to supported model patterns to allow cross region model ids (#1127)
+
+## [integrations/amazon_bedrock-v1.0.4] - 2024-10-16
+
+### 🐛 Bug Fixes
+
+- Avoid bedrock read timeout (add boto3_config param) (#1135)
+
+## [integrations/amazon_bedrock-v1.0.3] - 2024-10-04
 
 ### 🐛 Bug Fixes
 
 - *(Bedrock)* Allow tools kwargs for AWS Bedrock Claude model (#976)
+- Chat roles for model responses in chat generators (#1030)
 
 ### 🚜 Refactor
 
 - Remove usage of deprecated `ChatMessage.to_openai_format` (#1007)
+
+### ⚙️ Miscellaneous Tasks
+
+- Update ruff linting scripts and settings (#1105)
 
 ## [integrations/amazon_bedrock-v1.0.1] - 2024-08-19
 

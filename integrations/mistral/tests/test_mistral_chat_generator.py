@@ -7,10 +7,11 @@ import pytz
 from haystack.components.generators.utils import print_streaming_chunk
 from haystack.dataclasses import ChatMessage, StreamingChunk
 from haystack.utils.auth import Secret
-from haystack_integrations.components.generators.mistral.chat.chat_generator import MistralChatGenerator
 from openai import OpenAIError
 from openai.types.chat import ChatCompletion, ChatCompletionMessage
 from openai.types.chat.chat_completion import Choice
+
+from haystack_integrations.components.generators.mistral.chat.chat_generator import MistralChatGenerator
 
 
 @pytest.fixture

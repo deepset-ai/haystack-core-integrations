@@ -124,6 +124,11 @@ integration:weaviate:
       - any-glob-to-any-file: "integrations/weaviate/**/*"
       - any-glob-to-any-file: ".github/workflows/weaviate.yml"
 
+integration:snowflake:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/snowflake/**/*"
+      - any-glob-to-any-file: ".github/workflows/snowflake.yml"
+
 integration:deepeval:
   - changed-files:
       - any-glob-to-any-file: "integrations/deepeval/**/*"

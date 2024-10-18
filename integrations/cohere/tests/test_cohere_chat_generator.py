@@ -7,6 +7,7 @@ from cohere.core import ApiError
 from haystack.components.generators.utils import print_streaming_chunk
 from haystack.dataclasses import ChatMessage, ChatRole, StreamingChunk
 from haystack.utils import Secret
+
 from haystack_integrations.components.generators.cohere import CohereChatGenerator
 
 pytestmark = pytest.mark.chat_generators
@@ -169,6 +170,9 @@ class TestCohereChatGenerator:
         assert len(results["replies"]) == 1
         message: ChatMessage = results["replies"][0]
         assert "Paris" in message.content
+        assert "usage" in message.meta
+        assert "prompt_tokens" in message.meta["usage"]
+        assert "completion_tokens" in message.meta["usage"]
 
     @pytest.mark.skipif(
         not os.environ.get("COHERE_API_KEY", None) and not os.environ.get("CO_API_KEY", None),
@@ -209,6 +213,10 @@ class TestCohereChatGenerator:
 
         assert callback.counter > 1
         assert "Paris" in callback.responses
+
+        assert "usage" in message.meta
+        assert "prompt_tokens" in message.meta["usage"]
+        assert "completion_tokens" in message.meta["usage"]
 
     @pytest.mark.skipif(
         not os.environ.get("COHERE_API_KEY", None) and not os.environ.get("CO_API_KEY", None),

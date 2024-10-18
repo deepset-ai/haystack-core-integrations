@@ -326,6 +326,17 @@ class TestNvidiaDocumentEmbedder:
         with pytest.raises(TypeError, match="NvidiaDocumentEmbedder expects a list of Documents as input"):
             embedder.run(documents=list_integers_input)
 
+    def test_run_empty_document(self):
+        model = "playground_nvolveqa_40k"
+        api_key = Secret.from_token("fake-api-key")
+        embedder = NvidiaDocumentEmbedder(model, api_key=api_key)
+
+        embedder.warm_up()
+        embedder.backend = MockBackend(model=model, api_key=api_key)
+
+        with pytest.raises(ValueError, match="no content to embed"):
+            embedder.run(documents=[Document(content="")])
+
     def test_run_on_empty_list(self):
         model = "playground_nvolveqa_40k"
         api_key = Secret.from_token("fake-api-key")
