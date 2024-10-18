@@ -1,25 +1,25 @@
 # SPDX-FileCopyrightText: 2023-present John Doe <jd@example.com>
 #
 # SPDX-License-Identifier: Apache-2.0
-from unittest import mock
-
 import logging
-import numpy as np
 import operator
-import pandas as pd
-import pytest
 import sys
 import uuid
-from chromadb.api.types import Documents, EmbeddingFunction, Embeddings
-from haystack_integrations.document_stores.chroma import ChromaDocumentStore
 from typing import List
+from unittest import mock
 
+import numpy as np
+import pandas as pd
+import pytest
+from chromadb.api.types import Documents, EmbeddingFunction, Embeddings
 from haystack import Document
 from haystack.testing.document_store import (
     CountDocumentsTest,
     DeleteDocumentsTest,
     FilterDocumentsTest,
 )
+
+from haystack_integrations.document_stores.chroma import ChromaDocumentStore
 
 
 class _TestEmbeddingFunction(EmbeddingFunction):
@@ -283,31 +283,20 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, FilterDocuments
             [doc for doc in filterable_docs if doc.content and "FOO" in doc.content],
         )
 
-    def test_multiple_contains(self, document_store: ChromaDocumentStore):
-
-        documents = [
-            Document(content="The cat chased the mouse in the garden."),
-            Document(content="The cat sat on the windowsill watching the birds."),
-            Document(content="The cat played with a ball of yarn."),
-            Document(content="The cat napped peacefully in the sun."),
-            Document(content=None),
-            Document(dataframe=pd.DataFrame({"text": ["Something irrelevant"]})),
-        ]
-
-        document_store.write_documents(documents)
-
+    def test_multiple_contains(self, document_store: ChromaDocumentStore, filterable_docs: List[Document]):
+        filterable_docs = [doc for doc in filterable_docs if doc.content]  # remove documents without content
+        document_store.write_documents(filterable_docs)
         filters = {
-            "operator": "AND",
+            "operator": "OR",
             "conditions": [
-                {"field": "content", "operator": "contains", "value": "cat"},
-                {"field": "content", "operator": "not contains", "value": "birds"},
+                {"field": "content", "operator": "contains", "value": "FOO"},
+                {"field": "content", "operator": "not contains", "value": "BAR"},
             ],
         }
         result = document_store.filter_documents(filters=filters)
-
         self.assert_documents_are_equal(
             result,
-            [doc for doc in documents if doc.content and "cat" in doc.content and "birds" not in doc.content],
+            [doc for doc in filterable_docs if doc.content and ("FOO" in doc.content or "BAR" not in doc.content)],
         )
 
     def test_nested_logical_filters(self, document_store: ChromaDocumentStore, filterable_docs: List[Document]):
@@ -353,25 +342,6 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, FilterDocuments
                     )
                 )
             ],
-        )
-
-    # Override inequality tests from FilterDocumentsTest
-    # because chroma doesn't return documents with absent meta fields
-
-    def test_comparison_not_equal(self, document_store, filterable_docs):
-        """Test filter_documents() with != comparator"""
-        document_store.write_documents(filterable_docs)
-        result = document_store.filter_documents({"field": "meta.number", "operator": "!=", "value": 100})
-        self.assert_documents_are_equal(
-            result, [d for d in filterable_docs if "number" in d.meta and d.meta.get("number") != 100]
-        )
-
-    def test_comparison_not_in(self, document_store, filterable_docs):
-        """Test filter_documents() with 'not in' comparator"""
-        document_store.write_documents(filterable_docs)
-        result = document_store.filter_documents({"field": "meta.number", "operator": "not in", "value": [2, 9]})
-        self.assert_documents_are_equal(
-            result, [d for d in filterable_docs if "number" in d.meta and d.meta.get("number") not in [2, 9]]
         )
 
     @pytest.mark.skip(reason="Filter on dataframe contents is not supported.")
