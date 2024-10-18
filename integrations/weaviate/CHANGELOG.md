@@ -1,10 +1,17 @@
 # Changelog
 
-## [integrations/weaviate-v3.0.0] - 2024-09-12
+## [integrations/weaviate-v4.0.0] - 2024-10-18
+
+### 🐛 Bug Fixes
+
+- Compatibility with Weaviate 4.9.0 (#1143)
 
 ### ⚙️ Miscellaneous Tasks
 
 - Weaviate - remove legacy filter support (#1070)
+- Update changelog after removing legacy filters (#1083)
+- Update ruff linting scripts and settings (#1105)
+- Adopt uv as installer (#1142)
 
 ## [integrations/weaviate-v2.2.1] - 2024-09-07
 
@@ -57,8 +64,6 @@
 
 This PR will also push the docs to Readme
 - Fix weaviate auth tests (#488)
-
-
 
 ### 📚 Documentation
 
