@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 import logging
 import operator
+import pandas as pd
 import sys
 import uuid
 from typing import List
@@ -288,7 +289,9 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, FilterDocuments
             Document(content="The cat chased the mouse in the garden."),
             Document(content="The cat sat on the windowsill watching the birds."),
             Document(content="The cat played with a ball of yarn."),
-            Document(content="The cat napped peacefully in the sun.")
+            Document(content="The cat napped peacefully in the sun."),
+            Document(content=None),
+            Document(dataframe=pd.DataFrame({"text": ["Something irrelevant"]})),
         ]
 
         document_store.write_documents(documents)
@@ -304,7 +307,7 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, FilterDocuments
 
         self.assert_documents_are_equal(
             result,
-            [doc for doc in documents if "cat" in doc.content and "birds" not in doc.content],
+            [doc for doc in documents if doc.content and "cat" in doc.content and "birds" not in doc.content],
         )
 
     def test_nested_logical_filters(self, document_store: ChromaDocumentStore, filterable_docs: List[Document]):
