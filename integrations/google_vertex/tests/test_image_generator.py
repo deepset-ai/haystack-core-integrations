@@ -30,7 +30,6 @@ def test_init(mock_model_class, mock_vertexai):
 def test_to_dict(_mock_model_class, _mock_vertexai):
     generator = VertexAIImageGenerator(
         model="imagetext",
-        project_id="myproject-123456",
         guidance_scale=12,
         number_of_images=3,
     )
@@ -38,7 +37,7 @@ def test_to_dict(_mock_model_class, _mock_vertexai):
         "type": "haystack_integrations.components.generators.google_vertex.image_generator.VertexAIImageGenerator",
         "init_parameters": {
             "model": "imagetext",
-            "project_id": "myproject-123456",
+            "project_id": None,
             "location": None,
             "guidance_scale": 12,
             "number_of_images": 3,
@@ -54,7 +53,7 @@ def test_from_dict(_mock_model_class, _mock_vertexai):
             "type": "haystack_integrations.components.generators.google_vertex.image_generator.VertexAIImageGenerator",
             "init_parameters": {
                 "model": "imagetext",
-                "project_id": "myproject-123456",
+                "project_id": None,
                 "location": None,
                 "guidance_scale": 12,
                 "number_of_images": 3,
@@ -62,7 +61,7 @@ def test_from_dict(_mock_model_class, _mock_vertexai):
         }
     )
     assert generator._model_name == "imagetext"
-    assert generator._project_id == "myproject-123456"
+    assert generator._project_id is None
     assert generator._location is None
     assert generator._kwargs == {
         "guidance_scale": 12,
@@ -78,7 +77,6 @@ def test_run_calls_generate_images(mock_model_class, _mock_vertexai):
     mock_model_class.from_pretrained.return_value = mock_model
     generator = VertexAIImageGenerator(
         model="imagetext",
-        project_id="myproject-123456",
         guidance_scale=12,
         number_of_images=3,
     )
