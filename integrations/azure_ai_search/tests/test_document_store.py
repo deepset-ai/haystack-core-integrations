@@ -3,6 +3,8 @@
 # SPDX-License-Identifier: Apache-2.0
 import os
 from unittest.mock import patch
+from typing import List
+import random
 
 import pytest
 from haystack.dataclasses.document import Document
@@ -10,6 +12,7 @@ from haystack.testing.document_store import (
     CountDocumentsTest,
     DeleteDocumentsTest,
     WriteDocumentsTest,
+    FilterDocumentsTest
 )
 from haystack.utils.auth import EnvVarSecret, Secret
 
@@ -117,3 +120,84 @@ class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsT
         document_store.write_documents(docs)
         doc = document_store.get_documents_by_id(["1"])
         assert doc[0] == docs[0]
+
+def _random_embeddings(n):
+        return [random.random() for _ in range(n)]
+TEST_EMBEDDING_1 = _random_embeddings(768)
+TEST_EMBEDDING_2 = _random_embeddings(768)
+
+@pytest.mark.skipif(
+    not os.environ.get("AZURE_SEARCH_SERVICE_ENDPOINT", None) and not os.environ.get("AZURE_SEARCH_API_KEY", None),
+    reason="Missing AZURE_SEARCH_SERVICE_ENDPOINT or AZURE_SEARCH_API_KEY.",
+)
+@pytest.mark.parametrize(
+        "document_store",
+        [
+            {"metadata_fields": {"name": str, "page": str, "chapter": str, "number": int, "date": str}},
+        ],
+        indirect=True,
+    )
+class TestFilters(FilterDocumentsTest):
+    
+    @pytest.fixture
+    def filterable_docs(self) -> List[Document]:
+        """Fixture that returns a list of Documents that can be used to test filtering."""
+        documents = []
+        for i in range(3):
+            documents.append(
+                Document(
+                    content=f"A Foo Document {i}",
+                    meta={
+                        "name": f"name_{i}",
+                        "page": "100",
+                        "chapter": "intro",
+                        "number": 2,
+                        "date": "1969-07-21T20:17:40",
+                    },
+                    embedding=_random_embeddings(768),
+                )
+            )
+            documents.append(
+                Document(
+                    content=f"A Bar Document {i}",
+                    meta={
+                        "name": f"name_{i}",
+                        "page": "123",
+                        "chapter": "abstract",
+                        "number": -2,
+                        "date": "1972-12-11T19:54:58",
+                    },
+                    embedding=_random_embeddings(768),
+                )
+            )
+            documents.append(
+                Document(
+                    content=f"A Foobar Document {i}",
+                    meta={
+                        "name": f"name_{i}",
+                        "page": "90",
+                        "chapter": "conclusion",
+                        "number": -10,
+                        "date": "1989-11-09T17:53:00",
+                    },
+                    embedding=_random_embeddings(768),
+                )
+            )
+            
+            documents.append(
+                Document(content=f"Doc {i} with zeros emb", meta={"name": "zeros_doc"}, embedding=TEST_EMBEDDING_1)
+            )
+            documents.append(
+                Document(content=f"Doc {i} with ones emb", meta={"name": "ones_doc"}, embedding=TEST_EMBEDDING_2)
+            )
+        return documents
+
+    def test_comparison_equal_with_dataframe(self, document_store, filterable_docs):
+        pass
+
+    def test_comparison_equal_with_none(self, document_store, filterable_docs):
+        """Test filter_documents() with == comparator and None"""
+        document_store.write_documents(filterable_docs)
+        result = document_store.filter_documents(filters={"field": "meta.number", "operator": "==", "value": None})
+        print (result)
+        self.assert_documents_are_equal(result, [d for d in filterable_docs if d.meta.get("number") is None])

@@ -39,7 +39,7 @@ def document_store(request):
         azure_endpoint=azure_endpoint,
         index_name=index_name,
         create_index=True,
-        embedding_dimension=15,
+        embedding_dimension=768,
         metadata_fields=metadata_fields,
     )
 
@@ -61,7 +61,7 @@ def document_store(request):
     store.delete_documents = delete_documents_and_wait
 
     yield store
-    try:
-        client.delete_index(index_name)
-    except ResourceNotFoundError:
-        pass
+    #try:
+        #client.delete_index(index_name)
+    #except ResourceNotFoundError:
+        #pass

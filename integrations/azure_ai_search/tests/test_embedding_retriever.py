@@ -7,7 +7,7 @@ from unittest.mock import Mock
 
 import pytest
 from azure.core.exceptions import HttpResponseError
-from haystack.dataclasses import Document, Pipeline
+from haystack.dataclasses import Document
 from haystack.document_stores.types import FilterPolicy
 from numpy.random import rand
 

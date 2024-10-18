@@ -35,7 +35,7 @@ def _parse_logical_condition(condition: Dict[str, Any]) -> Dict[str, Any]:
         msg = f"Unknown operator {operator}"
         raise AzureAISearchDocumentStoreFilterError(msg)
     conditions = [_parse_comparison_condition(c) for c in condition["conditions"]]
-    
+
     final_filter = f" {LOGICAL_OPERATORS[operator]} ".join([f"({c})" for c in conditions])
     return final_filter
 
@@ -65,6 +65,8 @@ def _parse_comparison_condition(condition: Dict[str, Any]) -> Dict[str, Any]:
         raise AzureAISearchDocumentStoreFilterError(msg)
     operator: str = condition["operator"]
     value: Any = condition["value"]
+    if value is None:
+        value = "null"
 
     if operator not in COMPARISON_OPERATORS:
         msg = f"Unknown operator {operator}. Valid operators are: {list(COMPARISON_OPERATORS.keys())}"
@@ -73,6 +75,8 @@ def _parse_comparison_condition(condition: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def _eq(field: str, value: Any) -> str:
+    if value == "null":
+        return f"{field} eq {value}"
     if isinstance(value, str):
         return f"{field} eq '{value}'"
     return f"{field} eq {value}"

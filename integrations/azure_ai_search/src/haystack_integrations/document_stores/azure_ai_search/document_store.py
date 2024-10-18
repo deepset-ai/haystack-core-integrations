@@ -292,14 +292,15 @@ class AzureAISearchDocumentStore:
         :param filters: the filters to apply to the document list.
         :returns: A list of Documents that match the given filters.
         """
-
         if filters:
             normalized_filters = normalize_filters(filters)
             print("Normalized filters: ", normalized_filters)
 
             result = self.client.search(filter=normalized_filters)
             print("Result: ", result)
-        return self._convert_search_result_to_documents(result)
+            return self._convert_search_result_to_documents(result)
+        else:
+            return self.search_documents()
 
     def _convert_search_result_to_documents(self, azure_docs: List[Dict[str, Any]]) -> List[Document]:
         """
@@ -316,7 +317,7 @@ class AzureAISearchDocumentStore:
             meta = {
                 key: value
                 for key, value in azure_doc.items()
-                if key not in ["id", "content", "embedding"] and not key.startswith("@")
+                if key not in ["id", "content", "embedding"] and not key.startswith("@") and value is not None
             }
 
             # Create the document with meta only if it's non-empty
