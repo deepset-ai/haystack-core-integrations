@@ -30,7 +30,14 @@ class VertexAIImageGenerator:
     ```
     """
 
-    def __init__(self, *, model: str = "imagegeneration", project_id: Optional[str] = None, location: Optional[str] = None, **kwargs):
+    def __init__(
+        self,
+        *,
+        model: str = "imagegeneration",
+        project_id: Optional[str] = None,
+        location: Optional[str] = None,
+        **kwargs,
+    ):
         """
         Generates images using a Google Vertex AI model.
 

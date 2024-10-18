@@ -62,9 +62,7 @@ def test_from_dict(_mock_model_class, _mock_vertexai):
 def test_run_calls_get_captions(mock_model_class, _mock_vertexai):
     mock_model = Mock()
     mock_model_class.from_pretrained.return_value = mock_model
-    captioner = VertexAIImageCaptioner(
-        model="imagetext", project_id="myproject-123456", number_of_results=1, language="it"
-    )
+    captioner = VertexAIImageCaptioner(model="imagetext", number_of_results=1, language="it")
 
     image = ByteStream(data=b"image data")
     captioner.run(image=image)

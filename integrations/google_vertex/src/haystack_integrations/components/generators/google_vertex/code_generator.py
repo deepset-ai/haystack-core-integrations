@@ -45,7 +45,9 @@ class VertexAICodeGenerator:
     ```
     """
 
-    def __init__(self, *, model: str = "code-bison", project_id: Optional[str] = None, location: Optional[str] = None, **kwargs):
+    def __init__(
+        self, *, model: str = "code-bison", project_id: Optional[str] = None, location: Optional[str] = None, **kwargs
+    ):
         """
         Generate code using a Google Vertex AI model.
 

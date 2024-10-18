@@ -22,9 +22,7 @@ def test_init(mock_model_class, mock_vertexai):
 @patch("haystack_integrations.components.generators.google_vertex.code_generator.vertexai")
 @patch("haystack_integrations.components.generators.google_vertex.code_generator.CodeGenerationModel")
 def test_to_dict(_mock_model_class, _mock_vertexai):
-    generator = VertexAICodeGenerator(
-        model="code-bison", candidate_count=3, temperature=0.5
-    )
+    generator = VertexAICodeGenerator(model="code-bison", candidate_count=3, temperature=0.5)
     assert generator.to_dict() == {
         "type": "haystack_integrations.components.generators.google_vertex.code_generator.VertexAICodeGenerator",
         "init_parameters": {
@@ -65,9 +63,7 @@ def test_run_calls_predict(mock_model_class, _mock_vertexai):
     mock_model = Mock()
     mock_model.predict.return_value = TextGenerationResponse("answer", None)
     mock_model_class.from_pretrained.return_value = mock_model
-    generator = VertexAICodeGenerator(
-        model="code-bison", candidate_count=1, temperature=0.5
-    )
+    generator = VertexAICodeGenerator(model="code-bison", candidate_count=1, temperature=0.5)
 
     prefix = "def print_json(data):\n"
     generator.run(prefix=prefix)
