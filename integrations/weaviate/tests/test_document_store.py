@@ -265,6 +265,7 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
                         "session_pool_connections": 20,
                         "session_pool_maxsize": 100,
                         "session_pool_max_retries": 3,
+                        "session_pool_timeout": 5,
                     },
                     "proxies": {"http": "http://proxy:1234", "https": None, "grpc": None},
                     "timeout": [30, 90],
@@ -302,6 +303,7 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
                         "connection": {
                             "session_pool_connections": 20,
                             "session_pool_maxsize": 20,
+                            "session_pool_timeout": 5,
                         },
                         "proxies": {"http": "http://proxy:1234"},
                         "timeout": [10, 60],
@@ -338,6 +340,7 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
         assert document_store._embedded_options.grpc_port == DEFAULT_GRPC_PORT
         assert document_store._additional_config.connection.session_pool_connections == 20
         assert document_store._additional_config.connection.session_pool_maxsize == 20
+        assert document_store._additional_config.connection.session_pool_timeout == 5
 
     def test_to_data_object(self, document_store, test_files_path):
         doc = Document(content="test doc")
