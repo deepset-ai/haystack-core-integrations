@@ -1,25 +1,25 @@
 # SPDX-FileCopyrightText: 2023-present John Doe <jd@example.com>
 #
 # SPDX-License-Identifier: Apache-2.0
-import logging
-import operator
-import pandas as pd
-import sys
-import uuid
-from typing import List
 from unittest import mock
 
+import logging
 import numpy as np
+import operator
+import pandas as pd
 import pytest
+import sys
+import uuid
 from chromadb.api.types import Documents, EmbeddingFunction, Embeddings
+from haystack_integrations.document_stores.chroma import ChromaDocumentStore
+from typing import List
+
 from haystack import Document
 from haystack.testing.document_store import (
     CountDocumentsTest,
     DeleteDocumentsTest,
     FilterDocumentsTest,
 )
-
-from haystack_integrations.document_stores.chroma import ChromaDocumentStore
 
 
 class _TestEmbeddingFunction(EmbeddingFunction):
