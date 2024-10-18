@@ -44,7 +44,6 @@ git_describe_command = 'git describe --tags --match="integrations/amazon_bedrock
 [tool.hatch.envs.default]
 installer = "uv"
 dependencies = [
-  "setuptools",
   "coverage[toml]>=6.5",
   "pytest",
   "pytest-rerunfailures",

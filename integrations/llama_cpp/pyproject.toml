@@ -47,7 +47,6 @@ git_describe_command = 'git describe --tags --match="integrations/llama_cpp-v[0-
 [tool.hatch.envs.default]
 installer = "uv"
 dependencies = [
-  "setuptools",
     "coverage[toml]>=6.5",
     "pytest",
     "pytest-rerunfailures",
