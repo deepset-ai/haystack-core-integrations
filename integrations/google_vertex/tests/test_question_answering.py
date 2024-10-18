@@ -26,14 +26,13 @@ def test_init(mock_model_class, mock_vertexai):
 def test_to_dict(_mock_model_class, _mock_vertexai):
     generator = VertexAIImageQA(
         model="imagetext",
-        project_id="myproject-123456",
         number_of_results=3,
     )
     assert generator.to_dict() == {
         "type": "haystack_integrations.components.generators.google_vertex.question_answering.VertexAIImageQA",
         "init_parameters": {
             "model": "imagetext",
-            "project_id": "myproject-123456",
+            "project_id": None,
             "location": None,
             "number_of_results": 3,
         },
@@ -48,14 +47,14 @@ def test_from_dict(_mock_model_class, _mock_vertexai):
             "type": "haystack_integrations.components.generators.google_vertex.question_answering.VertexAIImageQA",
             "init_parameters": {
                 "model": "imagetext",
-                "project_id": "myproject-123456",
+                "project_id": None,
                 "location": None,
                 "number_of_results": 3,
             },
         }
     )
     assert generator._model_name == "imagetext"
-    assert generator._project_id == "myproject-123456"
+    assert generator._project_id is None
     assert generator._location is None
     assert generator._kwargs == {"number_of_results": 3}
 
@@ -68,7 +67,6 @@ def test_run_calls_ask_question(mock_model_class, _mock_vertexai):
     mock_model_class.from_pretrained.return_value = mock_model
     generator = VertexAIImageQA(
         model="imagetext",
-        project_id="myproject-123456",
         number_of_results=3,
     )
 
