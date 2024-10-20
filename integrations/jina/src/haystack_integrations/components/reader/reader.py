@@ -29,6 +29,7 @@ headers = {
 
 response = requests.get(url, headers=headers)
 
+
 print(response.text)
 ##### End Jina Docs ######
 
