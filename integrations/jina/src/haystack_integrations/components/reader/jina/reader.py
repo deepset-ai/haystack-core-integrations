@@ -1,38 +1,3 @@
-######## Jina Reader Docs Implementation ########
-######## Read ########
-import requests
-
-url = 'https://r.jina.ai/https://example.com'
-headers = {
-    'Authorization': 'Bearer jina_123456'
-}
-
-response = requests.get(url, headers=headers)
-print(response.text)
-
-######### Search ##########
-url = 'https://s.jina.ai/When%20was%20Jina%20AI%20founded?'
-headers = {
-    'Authorization': 'Bearer jina_123456'
-}
-
-response = requests.get(url, headers=headers)
-
-print(response.text)
-
-###### Ground #######
-url = 'https://g.jina.ai/Jina%20AI%20was%20founded%20in%202020%20in%20Berlin.'
-headers = {
-    'Accept': 'application/json',
-    'Authorization': 'Bearer jina_123456'
-}
-
-response = requests.get(url, headers=headers)
-
-
-print(response.text)
-##### End Jina Docs ######
-
 ##### Haystack Implementation ######
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
@@ -48,10 +13,13 @@ from haystack.utils import Secret, deserialize_secrets_inplace
 
 class JinaReaderMode(Enum):
     """
-    Specifies how inputs to the NVIDIA embedding components are truncated.
-    If START, the input will be truncated from the start.
-    If END, the input will be truncated from the end.
-    If NONE, an error will be returned (if the input is too long).
+    Enum representing modes for the Jina Reader.
+
+    Modes:
+        READ: For reading documents.
+        SEARCH: For searching within documents.
+        GROUND: For grounding or fact checking.
+
     """
 
     READ = "READ"
@@ -83,10 +51,10 @@ class JinaReader():
 
     def __init__(
         self,
-        api_key: Secret = Secret.from_env_var("JINA_API_KEY"),
         mode: Union[JinaReaderMode, str],
-        url: Optional[str],
-        reader_query: Optional[str]
+        url: Optional[str] = None,
+        reader_query: Optional[str] = None,
+        api_key: Secret = Secret.from_env_var("JINA_API_KEY"),
     ):
 
         resolved_api_key = api_key.resolve_value()
@@ -117,9 +85,14 @@ class JinaReader():
         encoded_target = urllib.parse.quote(input, safe="")
         url = f"{base_url}{encoded_target}"
         response = self._session.get(
-            url,
-            headers=headers
+            url
         )
+        metadata = {
+            'content_type': response.headers['Content-Type'],
+            'url':input
+            }
+        document = [Document(content = response.content, meta = metadata)]
+        return document
 
         ... # do the rest and clean ups
         
