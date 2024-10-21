@@ -94,7 +94,7 @@ class JinaReader:
     @component.output_types(document=Document)
     def run(self, query: str):
         # check input depending on mode
-        mode_map = {JinaReaderMode.READ: "r", JinaReaderMode.SEARCH: "s", JinaReaderMode.GROUND: "g"}
+        mode_map = {"READ": "r", "SEARCH": "s", "GROUND": "g"}
         mode = mode_map[self.mode]
         base_url = f"https://{mode}.jina.ai/"
         encoded_target = urllib.parse.quote(query, safe="")
