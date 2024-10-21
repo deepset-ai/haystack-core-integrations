@@ -1,4 +1,3 @@
-
 ##### Haystack Implementation ######
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
@@ -20,6 +19,7 @@ class JinaReaderMode(Enum):
         READ: For reading documents.
         SEARCH: For searching within documents.
         GROUND: For grounding or fact checking.
+
     """
 
     READ = "READ"
