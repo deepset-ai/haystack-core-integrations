@@ -1,36 +1,3 @@
-######## Jina Reader Docs Implementation ########
-######## Read ########
-import requests
-
-url = 'https://r.jina.ai/https://example.com'
-headers = {
-    'Authorization': 'Bearer jina_123456'
-}
-
-response = requests.get(url, headers=headers)
-print(response.text)
-
-######### Search ##########
-url = 'https://s.jina.ai/When%20was%20Jina%20AI%20founded?'
-headers = {
-    'Authorization': 'Bearer jina_123456'
-}
-
-response = requests.get(url, headers=headers)
-
-print(response.text)
-
-###### Ground #######
-url = 'https://g.jina.ai/Jina%20AI%20was%20founded%20in%202020%20in%20Berlin.'
-headers = {
-    'Accept': 'application/json',
-    'Authorization': 'Bearer jina_123456'
-}
-
-response = requests.get(url, headers=headers)
-
-print(response.text)
-##### End Jina Docs ######
 
 ##### Haystack Implementation ######
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
@@ -85,8 +52,8 @@ class JinaReader():
     def __init__(
         self,
         mode: Union[JinaReaderMode, str],
-        url: Optional[str],
-        reader_query: Optional[str],
+        url: Optional[str] = None,
+        reader_query: Optional[str] = None,
         api_key: Secret = Secret.from_env_var("JINA_API_KEY"),
     ):
 
@@ -120,6 +87,12 @@ class JinaReader():
         response = self._session.get(
             url
         )
+        metadata = {
+            'content_type': response.headers['Content-Type'],
+            'url':input
+            }
+        document = [Document(content = response.content, meta = metadata)]
+        return document
 
         ... # do the rest and clean ups
         
