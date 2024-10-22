@@ -14,11 +14,35 @@ from reader_mode import JinaReaderMode
 
 @component
 class JinaReader:
+    """
+    A component that interacts with Jina AI's reader service to process queries and return documents.
+
+    This component supports different modes of operation: READ, SEARCH, and GROUND.
+
+    Usage example:
+    ```python
+    from haystack import Document
+    from haystack_integrations.components.readers.jina import JinaReader
+
+    reader = JinaReader(mode="READ")
+    query = "https://example.com"
+    result = reader.run(query=query)
+    document = result["document"]
+    print(document.content)
+    ```
+    """
     def __init__(
         self,
         mode: Union[JinaReaderMode, str],
         api_key: Secret = Secret.from_env_var("JINA_API_KEY"),
     ):
+        """
+        Initialize a JinaReader instance.
+
+        :param mode: The operation mode for the reader (READ, SEARCH, or GROUND).
+        :param api_key: The Jina API key. It can be explicitly provided or automatically read from the
+            environment variable JINA_API_KEY (recommended).
+        """
         resolved_api_key = api_key.resolve_value()
         self.api_key = api_key
         self.mode = mode
@@ -58,6 +82,12 @@ class JinaReader:
 
     @component.output_types(document=Document)
     def run(self, query: str):
+        """
+        Process the query using the Jina AI reader service.
+
+        :param query: The query string or URL to process.
+        :returns: A list containing a single Document object with the processed content and metadata.
+        """
         mode_map = {"READ": "r", "SEARCH": "s", "GROUND": "g"}
         mode = mode_map[self.mode]
         base_url = f"https://{mode}.jina.ai/"
