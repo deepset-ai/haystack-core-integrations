@@ -9,7 +9,8 @@ from typing import Any, Dict, Union
 import requests
 from haystack import Document, component, default_from_dict, default_to_dict
 from haystack.utils import Secret, deserialize_secrets_inplace
-from reader_mode import JinaReaderMode
+
+from haystack_integrations.components.reader.jina import JinaReaderMode
 
 
 @component
@@ -31,6 +32,7 @@ class JinaReader:
     print(document.content)
     ```
     """
+
     def __init__(
         self,
         mode: Union[JinaReaderMode, str],
@@ -39,7 +41,7 @@ class JinaReader:
         """
         Initialize a JinaReader instance.
 
-        :param mode: The operation mode for the reader (READ, SEARCH, or GROUND).
+        :param mode: The operation mode for the reader (READ, SEARCH, or GROUND). See each Mode and its function here https://jina.ai/reader/
         :param api_key: The Jina API key. It can be explicitly provided or automatically read from the
             environment variable JINA_API_KEY (recommended).
         """
