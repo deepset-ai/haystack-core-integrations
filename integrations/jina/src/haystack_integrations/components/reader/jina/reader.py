@@ -58,6 +58,11 @@ class JinaReader:
             }
         )
 
+        if isinstance(mode, JinaReaderMode):
+            self.mode = mode.value
+        elif isinstance(mode, str):
+            self.mode = mode.upper()
+
     def to_dict(self) -> Dict[str, Any]:
         """
         Serializes the component to a dictionary.
