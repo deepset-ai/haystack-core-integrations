@@ -47,8 +47,6 @@ class JinaReader:
         """
         resolved_api_key = api_key.resolve_value()
         self.api_key = api_key
-        self.mode = mode
-
         self._session = requests.Session()
         self._session.headers.update(
             {
