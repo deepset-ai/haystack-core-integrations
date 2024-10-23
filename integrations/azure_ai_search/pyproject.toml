@@ -22,12 +22,12 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
-dependencies = ["haystack-ai", "azure-search-documents>=11.5", "azure-identity"]
+dependencies = ["haystack-ai>=2.0", "azure-search-documents>=11.5", "azure-identity"]
 
 [project.urls]
-Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/opensearch#readme"
+Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/azure_ai_search#readme"
 Issues = "https://github.com/deepset-ai/haystack-core-integrations/issues"
-Source = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/opensearch"
+Source = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/azure_ai_search"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/haystack_integrations"]
@@ -64,7 +64,7 @@ detached = true
 dependencies = ["black>=23.1.0", "mypy>=1.0.0", "ruff>=0.0.243"]
 [tool.hatch.envs.lint.scripts]
 typing = "mypy --install-types --non-interactive --explicit-package-bases {args:src/ tests}"
-style = ["ruff check {args:.}", "black --check --diff {args:.}"]
+style = ["ruff check {args:src/}", "black --check --diff {args:.}"]
 fmt = ["black {args:.}", "ruff check --fix {args:.}", "style"]
 all = ["style", "typing"]
 
@@ -79,6 +79,8 @@ skip-string-normalization = true
 [tool.ruff]
 target-version = "py38"
 line-length = 120
+
+[tool.ruff.lint]
 select = [
   "A",
   "ARG",
@@ -127,15 +129,15 @@ unfixable = [
   "F401",
 ]
 
-[tool.ruff.isort]
+[tool.ruff.lint.isort]
 known-first-party = ["src"]
 
-[tool.ruff.flake8-tidy-imports]
+[tool.ruff.lint.flake8-tidy-imports]
 ban-relative-imports = "parents"
 
-[tool.ruff.per-file-ignores]
+[tool.ruff.lint.per-file-ignores]
 # Tests can use magic values, assertions, and relative imports
-"tests/**/*" = ["PLR2004", "S101", "TID252"]
+"tests/**/*" = ["PLR2004", "S101", "TID252", "S311"]
 
 [tool.coverage.run]
 source = ["haystack_integrations"]
@@ -154,5 +156,5 @@ minversion = "6.0"
 markers = ["unit: unit tests", "integration: integration tests"]
 
 [[tool.mypy.overrides]]
-module = ["haystack.*", "haystack_integrations.*", "pytest.*", "azure-ai-search.*", "azure.identity.*"]
+module = ["haystack.*", "haystack_integrations.*", "pytest.*", "azure.identity.*", "mypy.*", "azure.core.*", "azure.search.documents.*"]
 ignore_missing_imports = true

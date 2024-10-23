@@ -9,7 +9,7 @@ from haystack.document_stores.types import DuplicatePolicy
 
 from haystack_integrations.document_stores.azure_ai_search import AzureAISearchDocumentStore
 
-# This is the approximate time in seconds it takes for the documents to be available
+# This is the approximate time in seconds it takes for the documents to be available in Azure Search index
 SLEEP_TIME_IN_SECONDS = 5
 
 
@@ -63,6 +63,5 @@ def document_store(request):
     yield store
     try:
         client.delete_index(index_name)
-        print("deleting index")
     except ResourceNotFoundError:
         pass

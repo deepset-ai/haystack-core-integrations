@@ -9,7 +9,7 @@ import pytest
 from azure.core.exceptions import HttpResponseError
 from haystack.dataclasses import Document
 from haystack.document_stores.types import FilterPolicy
-from numpy.random import rand
+from numpy.random import rand  # type: ignore
 
 from haystack_integrations.components.retrievers.azure_ai_search import AzureAISearchEmbeddingRetriever
 from haystack_integrations.document_stores.azure_ai_search import DEFAULT_VECTOR_SEARCH, AzureAISearchDocumentStore
@@ -34,14 +34,13 @@ def test_to_dict():
     document_store = AzureAISearchDocumentStore(hosts="some fake host")
     retriever = AzureAISearchEmbeddingRetriever(document_store=document_store)
     res = retriever.to_dict()
-    type_s = "haystack_integrations.components.retrievers.azure_ai_search.embedding_retriever.AzureAISearchEmbeddingRetriever"
     assert res == {
-        "type": type_s,
+        "type": "haystack_integrations.components.retrievers.azure_ai_search.embedding_retriever.AzureAISearchEmbeddingRetriever",  # noqa: E501
         "init_parameters": {
             "filters": {},
             "top_k": 10,
             "document_store": {
-                "type": "haystack_integrations.document_stores.azure_ai_search.document_store.AzureAISearchDocumentStore",
+                "type": "haystack_integrations.document_stores.azure_ai_search.document_store.AzureAISearchDocumentStore",  # noqa: E501
                 "init_parameters": {
                     "azure_endpoint": {
                         "type": "env_var",
@@ -63,14 +62,13 @@ def test_to_dict():
 
 
 def test_from_dict():
-    type_s = "haystack_integrations.components.retrievers.azure_ai_search.embedding_retriever.AzureAISearchEmbeddingRetriever"
     data = {
-        "type": type_s,
+        "type": "haystack_integrations.components.retrievers.azure_ai_search.embedding_retriever.AzureAISearchEmbeddingRetriever",  # noqa: E501
         "init_parameters": {
             "filters": {},
             "top_k": 10,
             "document_store": {
-                "type": "haystack_integrations.document_stores.azure_ai_search.document_store.AzureAISearchDocumentStore",
+                "type": "haystack_integrations.document_stores.azure_ai_search.document_store.AzureAISearchDocumentStore",  # noqa: E501
                 "init_parameters": {
                     "azure_endpoint": {
                         "type": "env_var",
@@ -107,14 +105,14 @@ class TestRetriever:
         docs = [Document(id="1")]
         document_store.write_documents(docs)
         retriever = AzureAISearchEmbeddingRetriever(document_store=document_store)
-        res = retriever.run(query_embedding=[0.1] * 15)
+        res = retriever.run(query_embedding=[0.1] * 768)
         assert res["documents"] == docs
 
     def test_embedding_retrieval(self, document_store: AzureAISearchDocumentStore):
-        query_embedding = [0.1] * 15
-        most_similar_embedding = [0.8] * 15
-        second_best_embedding = [0.8] * 7 + [0.1] * 3 + [0.2] * 5
-        another_embedding = rand(15).tolist()
+        query_embedding = [0.1] * 768
+        most_similar_embedding = [0.8] * 768
+        second_best_embedding = [0.8] * 200 + [0.1] * 300 + [0.2] * 268
+        another_embedding = rand(768).tolist()
 
         docs = [
             Document(content="This is first document", embedding=most_similar_embedding),

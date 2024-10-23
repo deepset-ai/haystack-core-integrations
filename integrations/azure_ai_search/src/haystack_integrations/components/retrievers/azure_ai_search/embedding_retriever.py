@@ -5,7 +5,7 @@ from haystack import Document, component, default_from_dict, default_to_dict
 from haystack.document_stores.types import FilterPolicy
 from haystack.document_stores.types.filter_policy import apply_filter_policy
 
-from haystack_integrations.document_stores.azure_ai_search import AzureAISearchDocumentStore
+from haystack_integrations.document_stores.azure_ai_search import AzureAISearchDocumentStore, normalize_filters
 
 logger = logging.getLogger(__name__)
 
@@ -98,29 +98,28 @@ class AzureAISearchEmbeddingRetriever:
         :returns: a dictionary with the following keys:
             - `documents`: A list of documents retrieved from the AzureAISearchDocumentStore.
         """
-        filters = apply_filter_policy(self._filter_policy, self._filters, filters)
-        top_k = top_k or self._top_k
-        if filters is None:
-            filters = self._filters
-        if top_k is None:
-            top_k = self._top_k
 
-        docs: List[Document] = []
+        top_k = top_k or self._top_k
+        if filters is not None:
+            applied_filters = apply_filter_policy(self._filter_policy, self._filters, filters)
+            normalized_filters = normalize_filters(applied_filters)
+        else:
+            normalized_filters = ""
 
         try:
             docs = self._document_store._embedding_retrieval(
                 query_embedding=query_embedding,
-                filters=filters,
+                filters=normalized_filters,
                 top_k=top_k,
             )
         except Exception as e:
             if self._raise_on_failure:
                 raise e
-            else:
-                logger.warning(
-                    "An error during embedding retrieval occurred and will be ignored by returning empty results: %s",
-                    str(e),
-                    exc_info=True,
-                )
+            logger.warning(
+                "An error occurred during embedding retrieval and will be ignored, returning empty results: %s",
+                str(e),
+                exc_info=True,
+            )
+            docs = []
 
         return {"documents": docs}

@@ -125,7 +125,7 @@ class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsT
 
 
 def _random_embeddings(n):
-    return [round(random.random(), 7) for _ in range(n)]
+    return [round(random.random(), 7) for _ in range(n)]  # nosec: S311
 
 
 TEST_EMBEDDING_1 = _random_embeddings(768)
@@ -327,10 +327,6 @@ class TestFilters(FilterDocumentsTest):
         expected = [d for d in filterable_docs if d.meta.get("page") is not None and d.meta["page"] in ["100", "123"]]
         self.assert_documents_are_equal(result, expected)
 
-    # Implementation needs to be fixed for NOT operator
-    def test_not_operator(self, document_store, filterable_docs):
-        pass
-
     # not supported
     def test_comparison_not_in(self, document_store, filterable_docs):
         pass
@@ -340,3 +336,11 @@ class TestFilters(FilterDocumentsTest):
 
     def test_comparison_not_in_with_with_non_list_iterable(self, document_store, filterable_docs):
         pass
+
+    def test_missing_condition_operator_key(self, document_store, filterable_docs):
+        """Test filter_documents() with missing operator key"""
+        document_store.write_documents(filterable_docs)
+        with pytest.raises(FilterError):
+            document_store.filter_documents(
+                filters={"conditions": [{"field": "meta.name", "operator": "eq", "value": "test"}]}
+            )

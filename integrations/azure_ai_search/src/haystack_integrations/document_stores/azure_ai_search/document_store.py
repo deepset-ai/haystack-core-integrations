@@ -67,8 +67,8 @@ class AzureAISearchDocumentStore:
     def __init__(
         self,
         *,
-        api_key: Secret = Secret.from_env_var("AZURE_SEARCH_API_KEY", strict=False),
-        azure_endpoint: Secret = Secret.from_env_var("AZURE_SEARCH_SERVICE_ENDPOINT", strict=False),
+        api_key: Secret = Secret.from_env_var("AZURE_SEARCH_API_KEY", strict=False),  # noqa: B008
+        azure_endpoint: Secret = Secret.from_env_var("AZURE_SEARCH_SERVICE_ENDPOINT", strict=False),  # noqa: B008
         index_name: str = "default",
         embedding_dimension: int = 768,
         metadata_fields: Optional[Dict[str, type]] = None,
@@ -85,15 +85,17 @@ class AzureAISearchDocumentStore:
         :param index_name: Name of index in Azure AI Search, if it doesn't exist it will be created.
         :param embedding_dimension: Dimension of the embeddings.
         :param metadata_fields: A dictionary of metatada keys and their types to create
-        additional fields in index schema. As fields in Azure SearchIndex cannot be dynamic, it is necessary to specify the metadata fields in advance.
+            additional fields in index schema. As fields in Azure SearchIndex cannot be dynamic,
+            it is necessary to specify the metadata fields in advance.
         :param vector_search_configuration: Configuration option related to vector search.
-        Default configuration uses the HNSW algorithm with cosine similarity to handle vector searches.
+            Default configuration uses the HNSW algorithm with cosine similarity to handle vector searches.
 
         :param kwargs: Optional keyword parameters for Azure AI Search.
-        Some of the supported parameters:
-            - `api_version`: The Search API version to use for requests.
-            - `audience`: sets the Audience to use for authentication with Azure Active Directory (AAD).
-            The audience is not considered when using a shared key. If audience is not provided, the public cloud audience will be assumed.
+            Some of the supported parameters:
+                - `api_version`: The Search API version to use for requests.
+                - `audience`: sets the Audience to use for authentication with Azure Active Directory (AAD).
+                The audience is not considered when using a shared key. If audience is not provided,
+                the public cloud audience will be assumed.
 
         For more information on parameters, see the [official Azure AI Search documentation](https://learn.microsoft.com/en-us/azure/search/)
         """
@@ -136,11 +138,10 @@ class AzureAISearchDocumentStore:
                     self._index_name,
                 )
                 self.create_index(self._index_name)
+            self._client = self._index_client.get_search_client(self._index_name)
         except (HttpResponseError, ClientAuthenticationError) as error:
             msg = f"Failed to authenticate with Azure Search: {error}"
             raise AzureAISearchDocumentStoreConfigError(msg) from error
-
-        self._client = self._index_client.get_search_client(self._index_name)
         return self._client
 
     def create_index(self, index_name: str, **kwargs) -> None:
@@ -148,7 +149,6 @@ class AzureAISearchDocumentStore:
         Creates a new search index.
         :param index_name: Name of the index to create. If None, the index name from the constructor is used.
         :param kwargs: Optional keyword parameters.
-
         """
 
         # default fields to create index based on Haystack Document
@@ -301,10 +301,7 @@ class AzureAISearchDocumentStore:
         """
         if filters:
             normalized_filters = normalize_filters(filters)
-            print("Normalized filters: ", normalized_filters)
-
             result = self.client.search(filter=normalized_filters)
-            print("Result: ", result)
             return self._convert_search_result_to_documents(result)
         else:
             return self.search_documents()
@@ -336,8 +333,18 @@ class AzureAISearchDocumentStore:
         return documents
 
     def index_exists(self, index_name: Optional[str]) -> bool:
+        """
+        Check if the index exists in the Azure AI Search service.
+
+        :param index_name: The name of the index to check.
+        :returns bool: whether the index exists.
+        """
+
         if self._index_client and index_name:
             return index_name in self._index_client.list_index_names()
+        else:
+            msg = "Index name is required to check if the index exists."
+            raise ValueError(msg)
 
     def _get_raw_documents_by_id(self, document_ids: List[str]):
         """
@@ -381,6 +388,7 @@ class AzureAISearchDocumentStore:
 
     def _map_metadata_field_types(self, metadata: Dict[str, type]) -> Dict[str, str]:
         """Map metadata field types to Azure Search field types."""
+
         metadata_field_mapping = {}
 
         for key, value_type in metadata.items():
@@ -398,11 +406,12 @@ class AzureAISearchDocumentStore:
         *,
         top_k: int = 10,
         fields: Optional[List[str]] = None,
-        filters: Optional[Dict[str, Any]] = None,  # TODO will be used in the future
+        filters: Optional[Dict[str, Any]] = None,
     ) -> List[Document]:
         """
         Retrieves documents that are most similar to the query embedding using a vector similarity metric.
-        It uses the vector configuration of the document store. By default it uses the HNSW algorithm with cosine similarity.
+        It uses the vector configuration of the document store. By default it uses the HNSW algorithm
+        with cosine similarity.
 
         This method is not meant to be part of the public interface of
         `AzureAISearchDocumentStore` nor called directly.
