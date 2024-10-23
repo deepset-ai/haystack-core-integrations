@@ -19,6 +19,7 @@ def test_init_default():
     assert retriever._filters == {}
     assert retriever._top_k == 10
     assert retriever._filter_policy == FilterPolicy.REPLACE
+    assert retriever._efficient_filtering is False
 
     retriever = OpenSearchEmbeddingRetriever(document_store=mock_store, filter_policy="replace")
     assert retriever._filter_policy == FilterPolicy.REPLACE
@@ -82,6 +83,7 @@ def test_to_dict(_mock_opensearch_client):
             "filter_policy": "replace",
             "custom_query": {"some": "custom query"},
             "raise_on_failure": True,
+            "efficient_filtering": False,
         },
     }
 
@@ -101,6 +103,7 @@ def test_from_dict(_mock_opensearch_client):
             "filter_policy": "replace",
             "custom_query": {"some": "custom query"},
             "raise_on_failure": False,
+            "efficient_filtering": True,
         },
     }
     retriever = OpenSearchEmbeddingRetriever.from_dict(data)
@@ -110,6 +113,7 @@ def test_from_dict(_mock_opensearch_client):
     assert retriever._custom_query == {"some": "custom query"}
     assert retriever._raise_on_failure is False
     assert retriever._filter_policy == FilterPolicy.REPLACE
+    assert retriever._efficient_filtering is True
 
     # For backwards compatibility with older versions of the retriever without a filter policy
     data = {
@@ -139,6 +143,7 @@ def test_run():
         filters={},
         top_k=10,
         custom_query=None,
+        efficient_filtering=False,
     )
     assert len(res) == 1
     assert len(res["documents"]) == 1
@@ -150,7 +155,11 @@ def test_run_init_params():
     mock_store = Mock(spec=OpenSearchDocumentStore)
     mock_store._embedding_retrieval.return_value = [Document(content="Test doc", embedding=[0.1, 0.2])]
     retriever = OpenSearchEmbeddingRetriever(
-        document_store=mock_store, filters={"from": "init"}, top_k=11, custom_query="custom_query"
+        document_store=mock_store,
+        filters={"from": "init"},
+        top_k=11,
+        custom_query="custom_query",
+        efficient_filtering=True,
     )
     res = retriever.run(query_embedding=[0.5, 0.7])
     mock_store._embedding_retrieval.assert_called_once_with(
@@ -158,6 +167,7 @@ def test_run_init_params():
         filters={"from": "init"},
         top_k=11,
         custom_query="custom_query",
+        efficient_filtering=True,
     )
     assert len(res) == 1
     assert len(res["documents"]) == 1
@@ -169,12 +179,13 @@ def test_run_time_params():
     mock_store = Mock(spec=OpenSearchDocumentStore)
     mock_store._embedding_retrieval.return_value = [Document(content="Test doc", embedding=[0.1, 0.2])]
     retriever = OpenSearchEmbeddingRetriever(document_store=mock_store, filters={"from": "init"}, top_k=11)
-    res = retriever.run(query_embedding=[0.5, 0.7], filters={"from": "run"}, top_k=9)
+    res = retriever.run(query_embedding=[0.5, 0.7], filters={"from": "run"}, top_k=9, efficient_filtering=True)
     mock_store._embedding_retrieval.assert_called_once_with(
         query_embedding=[0.5, 0.7],
         filters={"from": "run"},
         top_k=9,
         custom_query=None,
+        efficient_filtering=True,
     )
     assert len(res) == 1
     assert len(res["documents"]) == 1
