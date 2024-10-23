@@ -153,7 +153,7 @@ class AmazonBedrockGenerator:
         model_max_length = kwargs.get("model_max_length", 4096)
 
         # we initialize the prompt handler only if truncate is True: we avoid unnecessarily downloading the tokenizer
-        if truncate:
+        if self.truncate:
             # Truncate prompt if prompt tokens > model_max_length-max_length
             # (max_length is the length of the generated text)
             # we use GPT2 tokenizer which will likely provide good token count approximation
