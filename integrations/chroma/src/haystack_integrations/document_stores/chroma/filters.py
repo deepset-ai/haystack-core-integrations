@@ -27,7 +27,7 @@ class ChromaFilter:
     """
     Dataclass to store the converted filter structure used in Chroma queries.
 
-    Following filter criterias are supported:
+    Following filter criteria are supported:
     - `ids`: A list of document IDs to filter by in Chroma collection.
     - `where`: A dictionary of metadata filters applied to the documents.
     - `where_document`: A dictionary of content-based filters applied to the documents' content.

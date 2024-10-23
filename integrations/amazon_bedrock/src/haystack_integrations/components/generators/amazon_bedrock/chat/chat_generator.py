@@ -58,9 +58,9 @@ class AmazonBedrockChatGenerator:
     """
 
     SUPPORTED_MODEL_PATTERNS: ClassVar[Dict[str, Type[BedrockModelChatAdapter]]] = {
-        r"(.+\.)?anthropic.claude.*": AnthropicClaudeChatAdapter,
-        r"meta.llama2.*": MetaLlama2ChatAdapter,
-        r"mistral.*": MistralChatAdapter,
+        r"([a-z]{2}\.)?anthropic.claude.*": AnthropicClaudeChatAdapter,
+        r"([a-z]{2}\.)?meta.llama2.*": MetaLlama2ChatAdapter,
+        r"([a-z]{2}\.)?mistral.*": MistralChatAdapter,
     }
 
     def __init__(

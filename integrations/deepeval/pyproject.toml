@@ -41,6 +41,7 @@ root = "../.."
 git_describe_command = 'git describe --tags --match="integrations/deepeval-v[0-9]*"'
 
 [tool.hatch.envs.default]
+installer = "uv"
 dependencies = ["coverage[toml]>=6.5", "pytest", "pytest-rerunfailures", "haystack-pydoc-tools"]
 [tool.hatch.envs.default.scripts]
 test = "pytest {args:tests}"
@@ -55,8 +56,9 @@ docs = ["pydoc-markdown pydoc/config.yml"]
 python = ["3.8", "3.9", "3.10", "3.11"]
 
 [tool.hatch.envs.lint]
+installer = "uv"
 detached = true
-dependencies = ["black>=23.1.0", "mypy>=1.0.0", "ruff>=0.0.243"]
+dependencies = ["pip", "black>=23.1.0", "mypy>=1.0.0", "ruff>=0.0.243"]
 [tool.hatch.envs.lint.scripts]
 typing = "mypy --install-types --non-interactive {args:src/}"
 style = ["ruff check {args:.}", "black --check --diff {args:.}"]
