@@ -108,6 +108,14 @@ def test_constructor_prompt_handler_initialized(mock_boto3_session, mock_prompt_
     assert layer.prompt_handler.model_max_length == 4096
 
 
+def test_prompt_handler_absent_when_truncate_false(mock_boto3_session):
+    """
+    Test that the prompt_handler is not initialized when truncate is set to False.
+    """
+    generator = AmazonBedrockGenerator(model="anthropic.claude-v2", truncate=False)
+    assert not hasattr(generator, "prompt_handler")
+
+
 def test_constructor_with_model_kwargs(mock_boto3_session):
     """
     Test that model_kwargs are correctly set in the constructor
