@@ -1,7 +1,7 @@
-# mongodb-atlas-haystack
+# azure-cosmos-db-nosql-haystack
 
-[![PyPI - Version](https://img.shields.io/pypi/v/mongodb-atlas-haystack.svg)](https://pypi.org/project/mongodb-atlas-haystack)
-[![PyPI - Python Version](https://img.shields.io/pypi/pyversions/mongodb-atlas-haystack.svg)](https://pypi.org/project/mongodb-atlas-haystack)
+[![PyPI - Version](https://img.shields.io/pypi/v/azure-cosmos-db-nosql-haystack.svg)](https://pypi.org/project/azure-cosmos-db-nosql-haystack)
+[![PyPI - Python Version](https://img.shields.io/pypi/pyversions/azure-cosmos-db-nosql-haystack.svg)](https://pypi.org/project/azure-cosmos-db-nosql-haystack)
 
 -----
 
@@ -14,7 +14,7 @@
 ## Installation
 
 ```console
-pip install azure_cosmos_db_nosql-haystack
+pip install azure-cosmos-db-nosql-haystack
 ```
 
 ## Contributing

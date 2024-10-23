@@ -1,7 +1,7 @@
-# mongodb-atlas-haystack
+# azure-cosmos-db-mongo-vcore-haystack
 
-[![PyPI - Version](https://img.shields.io/pypi/v/mongodb-atlas-haystack.svg)](https://pypi.org/project/mongodb-atlas-haystack)
-[![PyPI - Python Version](https://img.shields.io/pypi/pyversions/mongodb-atlas-haystack.svg)](https://pypi.org/project/mongodb-atlas-haystack)
+[![PyPI - Version](https://img.shields.io/pypi/v/azure-cosmos-db-mongo-vcore-haystack.svg)](https://pypi.org/project/azure-cosmos-db-mongo-vcore-haystack)
+[![PyPI - Python Version](https://img.shields.io/pypi/pyversions/azure-cosmos-db-mongo-vcore-haystack.svg)](https://pypi.org/project/azure-cosmos-db-mongo-vcore-haystack)
 
 -----
 
@@ -14,7 +14,7 @@
 ## Installation
 
 ```console
-pip install azure_cosmos_db_mongo_vcore-haystack
+pip install azure-cosmos-db-mongo-vcore-haystack
 ```
 
 ## Contributing
