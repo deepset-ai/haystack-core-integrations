@@ -1,5 +1,16 @@
 # Changelog
 
+## [integrations/google_vertex-v2.2.0] - 2024-10-23
+
+### 🐛 Bug Fixes
+
+- Make "project-id" parameter optional during initialization (#1141)
+- Make project-id optional in all VertexAI generators (#1147)
+
+### ⚙️ Miscellaneous Tasks
+
+- Adopt uv as installer (#1142)
+
 ## [integrations/google_vertex-v2.1.0] - 2024-10-04
 
 ### 🚀 Features
