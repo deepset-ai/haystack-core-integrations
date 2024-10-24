@@ -2,7 +2,6 @@ loaders:
   - type: haystack_pydoc_tools.loaders.CustomPythonLoader
     search_path: [../src]
     modules: [
-      "haystack_integrations.components.retrievers.azure_ai_search.bm25_retriever",
       "haystack_integrations.components.retrievers.azure_ai_search.embedding_retriever",
       "haystack_integrations.document_stores.azure_ai_search.document_store",
       "haystack_integrations.document_stores.azure_ai_search.filters",

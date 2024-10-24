@@ -108,7 +108,7 @@ class AzureAISearchDocumentStore:
 
         self._client = None
         self._index_client = None
-        self._index_fields = None  # stores all fields in the final schema of index
+        self._index_fields = []  # type: List[Any]  # stores all fields in the final schema of index
         self._api_key = api_key
         self._azure_endpoint = azure_endpoint
         self._index_name = index_name
@@ -138,10 +138,17 @@ class AzureAISearchDocumentStore:
                     self._index_name,
                 )
                 self.create_index(self._index_name)
-            self._client = self._index_client.get_search_client(self._index_name)
         except (HttpResponseError, ClientAuthenticationError) as error:
             msg = f"Failed to authenticate with Azure Search: {error}"
             raise AzureAISearchDocumentStoreConfigError(msg) from error
+
+        # Get the search client, if index client is initialized
+        if self._index_client:
+            self._client = self._index_client.get_search_client(self._index_name)
+        else:
+            msg = "Search Index Client is not initialized."
+            raise AzureAISearchDocumentStoreConfigError(msg)
+
         return self._client
 
     def create_index(self, index_name: str, **kwargs) -> None:
@@ -151,7 +158,7 @@ class AzureAISearchDocumentStore:
         :param kwargs: Optional keyword parameters.
         """
 
-        # default fields to create index based on Haystack Document
+        # default fields to create index based on Haystack Document (id, content, embedding)
         default_fields = [
             SimpleField(name="id", type=SearchFieldDataType.String, key=True, filterable=True),
             SearchableField(name="content", type=SearchFieldDataType.String),
@@ -167,13 +174,15 @@ class AzureAISearchDocumentStore:
 
         if not index_name:
             index_name = self._index_name
-        fields = default_fields
         if self._metadata_fields:
-            fields.extend(self._create_metadata_index_fields(self._metadata_fields))
+            default_fields.extend(self._create_metadata_index_fields(self._metadata_fields))
 
-        self._index_fields = fields
-        index = SearchIndex(name=index_name, fields=fields, vector_search=self._vector_search_configuration, **kwargs)
-        self._index_client.create_index(index)
+        self._index_fields = default_fields
+        index = SearchIndex(
+            name=index_name, fields=default_fields, vector_search=self._vector_search_configuration, **kwargs
+        )
+        if self._index_client:
+            self._index_client.create_index(index)
 
     def to_dict(self) -> Dict[str, Any]:
         # This is not the best solution to serialise this class but is the fastest to implement.

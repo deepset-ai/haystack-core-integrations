@@ -22,7 +22,7 @@ def normalize_filters(filters: Dict[str, Any]) -> str:
 
 
 def _parse_logical_condition(condition: Dict[str, Any]) -> str:
-    missing_keys = [key for key in ("operator", "value") if key not in condition]
+    missing_keys = [key for key in ("operator", "conditions") if key not in condition]
     if missing_keys:
         msg = f"""Missing key(s) {missing_keys} in {condition}.
         See https://docs.haystack.deepset.ai/docs/metadata-filtering for details on filters syntax."""

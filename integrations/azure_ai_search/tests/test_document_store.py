@@ -145,6 +145,7 @@ TEST_EMBEDDING_2 = _random_embeddings(768)
 )
 class TestFilters(FilterDocumentsTest):
 
+    # Overriding to change "date" to compatible ISO format and remove incompatible fields (dataframes) for search index
     @pytest.fixture
     def filterable_docs(self) -> List[Document]:
         """Fixture that returns a list of Documents that can be used to test filtering."""
@@ -198,7 +199,7 @@ class TestFilters(FilterDocumentsTest):
             )
         return documents
 
-    # Overriding this method to compare the documents with the same order
+    # Overriding to compare the documents with the same order
     def assert_documents_are_equal(self, received: List[Document], expected: List[Document]):
         """
         Assert that two lists of Documents are equal.
@@ -212,6 +213,7 @@ class TestFilters(FilterDocumentsTest):
         sorted_expected = sorted(expected, key=lambda doc: doc.id)
         assert sorted_recieved == sorted_expected
 
+    # Dataframes are not supported in serach index
     def test_comparison_equal_with_dataframe(self, document_store, filterable_docs):
         pass
 
@@ -230,6 +232,7 @@ class TestFilters(FilterDocumentsTest):
     def test_comparison_less_than_equal_with_dataframe(self, document_store, filterable_docs):
         pass
 
+    # Azure search index supports UTC datetime in ISO format
     def test_comparison_greater_than_with_iso_date(self, document_store, filterable_docs):
         """Test filter_documents() with > comparator and datetime"""
         document_store.write_documents(filterable_docs)
@@ -294,6 +297,7 @@ class TestFilters(FilterDocumentsTest):
             ],
         )
 
+    # Override as comparison operators with None/null raise errors
     def test_comparison_greater_than_with_none(self, document_store, filterable_docs):
         """Test filter_documents() with > comparator and None"""
         document_store.write_documents(filterable_docs)
@@ -318,7 +322,7 @@ class TestFilters(FilterDocumentsTest):
         with pytest.raises(FilterError):
             document_store.filter_documents(filters={"field": "meta.number", "operator": "<=", "value": None})
 
-    # Override this as Azure AI Search does not support in operator for integer fields
+    # Override as Azure AI Search supports 'in' operator only for strings
     def test_comparison_in(self, document_store, filterable_docs):
         """Test filter_documents() with 'in' comparator"""
         document_store.write_documents(filterable_docs)
