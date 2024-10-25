@@ -10,7 +10,7 @@ from haystack.document_stores.types import DuplicatePolicy
 from haystack_integrations.document_stores.azure_ai_search import AzureAISearchDocumentStore
 
 # This is the approximate time in seconds it takes for the documents to be available in Azure Search index
-SLEEP_TIME_IN_SECONDS = 10
+SLEEP_TIME_IN_SECONDS = 5
 
 
 @pytest.fixture()
@@ -46,7 +46,7 @@ def document_store(request):
     # Override some methods to wait for the documents to be available
     original_write_documents = store.write_documents
 
-    def write_documents_and_wait(documents, policy=DuplicatePolicy.NONE):
+    def write_documents_and_wait(documents, policy=DuplicatePolicy.OVERWRITE):
         written_docs = original_write_documents(documents, policy)
         time.sleep(SLEEP_TIME_IN_SECONDS)
         return written_docs
