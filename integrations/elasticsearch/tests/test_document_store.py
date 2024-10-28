@@ -23,6 +23,20 @@ def test_init_is_lazy(_mock_es_client):
 
 
 @patch("haystack_integrations.document_stores.elasticsearch.document_store.Elasticsearch")
+def test_headers_are_supported(_mock_es_client):
+    _ = ElasticsearchDocumentStore(hosts="testhost", headers={"header1": "value1", "header2": "value2"}).client
+
+    assert _mock_es_client.call_count == 1
+    _, kwargs = _mock_es_client.call_args
+
+    headers_found = kwargs["headers"]
+    assert headers_found["header1"] == "value1"
+    assert headers_found["header2"] == "value2"
+
+    assert headers_found["user-agent"].startswith("haystack-py-ds/")
+
+
+@patch("haystack_integrations.document_stores.elasticsearch.document_store.Elasticsearch")
 def test_to_dict(_mock_elasticsearch_client):
     document_store = ElasticsearchDocumentStore(hosts="some hosts")
     res = document_store.to_dict()
