@@ -36,7 +36,18 @@ def test_to_dict(monkeypatch):
             "embedding_dimension": 768,
             "metadata_fields": None,
             "create_index": True,
-            "vector_search_configuration": DEFAULT_VECTOR_SEARCH,
+            "vector_search_configuration": {
+                "profiles": [
+                    {"name": "default-vector-config", "algorithm_configuration_name": "cosine-algorithm-config"}
+                ],
+                "algorithms": [
+                    {
+                        "name": "cosine-algorithm-config",
+                        "kind": "hnsw",
+                        "parameters": {"m": 4, "ef_construction": 400, "ef_search": 500, "metric": "cosine"},
+                    }
+                ],
+            },
         },
     }
 

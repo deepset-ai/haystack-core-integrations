@@ -70,7 +70,7 @@ class AzureAISearchDocumentStore:
         api_key: Secret = Secret.from_env_var("AZURE_SEARCH_API_KEY", strict=False),  # noqa: B008
         azure_endpoint: Secret = Secret.from_env_var("AZURE_SEARCH_SERVICE_ENDPOINT", strict=False),  # noqa: B008
         index_name: str = "default",
-        embedding_dimension: int = 768,
+        embedding_dimension: Optional[int] = 768,
         metadata_fields: Optional[Dict[str, type]] = None,
         vector_search_configuration: VectorSearch = None,
         create_index: bool = True,
@@ -104,6 +104,7 @@ class AzureAISearchDocumentStore:
         if not azure_endpoint:
             msg = "Please provide an Azure endpoint or set the environment variable AZURE_OPENAI_ENDPOINT."
             raise ValueError(msg)
+
         api_key = api_key or os.environ.get("AZURE_SEARCH_API_KEY")
 
         self._client = None
@@ -122,15 +123,16 @@ class AzureAISearchDocumentStore:
     @property
     def client(self) -> SearchClient:
 
-        if isinstance(self._azure_endpoint, Secret):
-            self._azure_endpoint = self._azure_endpoint.resolve_value()
+        # resolve secrets for authentication
+        resolved_endpoint = (
+            self._azure_endpoint.resolve_value() if isinstance(self._azure_endpoint, Secret) else self._azure_endpoint
+        )
+        resolved_key = self._api_key.resolve_value() if isinstance(self._api_key, Secret) else self._api_key
 
-        if isinstance(self._api_key, Secret):
-            self._api_key = self._api_key.resolve_value()
-        credential = AzureKeyCredential(self._api_key) if self._api_key else DefaultAzureCredential()
+        credential = AzureKeyCredential(resolved_key) if resolved_key else DefaultAzureCredential()
         try:
             if not self._index_client:
-                self._index_client = SearchIndexClient(self._azure_endpoint, credential, **self._kwargs)
+                self._index_client = SearchIndexClient(resolved_endpoint, credential, **self._kwargs)
             if not self.index_exists(self._index_name):
                 # Create a new index if it does not exist
                 logger.debug(
@@ -202,7 +204,7 @@ class AzureAISearchDocumentStore:
             create_index=self._create_index,
             embedding_dimension=self._embedding_dimension,
             metadata_fields=self._metadata_fields,
-            vector_search_configuration=self._vector_search_configuration,
+            vector_search_configuration=self._vector_search_configuration.as_dict(),
             **self._kwargs,
         )
 
@@ -219,6 +221,8 @@ class AzureAISearchDocumentStore:
         """
 
         deserialize_secrets_inplace(data["init_parameters"], keys=["api_key", "azure_endpoint"])
+        if (vector_search_configuration := data["init_parameters"].get("vector_search_configuration")) is not None:
+            data["init_parameters"]["vector_search_configuration"] = VectorSearch.from_dict(vector_search_configuration)
         return default_from_dict(cls, data)
 
     def count_documents(self, **kwargs: Any) -> int:
