@@ -1,5 +1,6 @@
 import os
 import time
+import uuid
 
 import pytest
 from azure.core.credentials import AzureKeyCredential
@@ -10,7 +11,7 @@ from haystack.document_stores.types import DuplicatePolicy
 from haystack_integrations.document_stores.azure_ai_search import AzureAISearchDocumentStore
 
 # This is the approximate time in seconds it takes for the documents to be available in Azure Search index
-SLEEP_TIME_IN_SECONDS = 10
+SLEEP_TIME_IN_SECONDS = 5
 
 
 @pytest.fixture()
@@ -24,7 +25,8 @@ def document_store(request):
     This is the most basic requirement for the child class: provide
     an instance of this document store so the base class can use it.
     """
-    index_name = "haystack_test_integration"
+    index_name = f"haystack_test_{uuid.uuid4().hex}"
+    print (index_name)
     metadata_fields = getattr(request, "param", {}).get("metadata_fields", None)
 
     azure_endpoint = os.environ["AZURE_SEARCH_SERVICE_ENDPOINT"]
