@@ -26,7 +26,6 @@ def document_store(request):
     an instance of this document store so the base class can use it.
     """
     index_name = f"haystack_test_{uuid.uuid4().hex}"
-    print (index_name)
     metadata_fields = getattr(request, "param", {}).get("metadata_fields", None)
 
     azure_endpoint = os.environ["AZURE_SEARCH_SERVICE_ENDPOINT"]

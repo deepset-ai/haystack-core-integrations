@@ -7,8 +7,9 @@ from haystack_integrations.components.retrievers.azure_ai_search import AzureAIS
 from haystack_integrations.document_stores.azure_ai_search import AzureAISearchDocumentStore
 
 """
-This example demonstrates how to use the AzureAISearchEmbeddingRetriever to retrieve documents using embeddings based on a query.
-To run this example, you'll need an Azure Search service endpoint and API key, which can either be
+This example demonstrates how to use the AzureAISearchEmbeddingRetriever to retrieve documents
+using embeddings based on a query. To run this example, you'll need an Azure Search service endpoint
+and API key, which can either be
 set as environment variables (AZURE_SEARCH_SERVICE_ENDPOINT and AZURE_SEARCH_API_KEY) or
 provided directly to AzureAISearchDocumentStore(as params "api_key", "azure_endpoint").
 Otherwise you can use DefaultAzureCredential to authenticate with Azure services.
