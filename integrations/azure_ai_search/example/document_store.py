@@ -41,5 +41,4 @@ filters = {
 }
 
 results = document_store.filter_documents(filters)
-for doc in results:
-    print(doc)
+print(results)
