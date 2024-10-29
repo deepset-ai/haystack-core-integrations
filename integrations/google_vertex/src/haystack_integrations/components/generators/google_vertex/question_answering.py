@@ -23,7 +23,7 @@ class VertexAIImageQA:
     from haystack.dataclasses.byte_stream import ByteStream
     from haystack_integrations.components.generators.google_vertex import VertexAIImageQA
 
-    qa = VertexAIImageQA(project_id=project_id)
+    qa = VertexAIImageQA()
 
     image = ByteStream.from_file_path("dog.jpg")
 
@@ -35,14 +35,16 @@ class VertexAIImageQA:
     ```
     """
 
-    def __init__(self, *, model: str = "imagetext", project_id: str, location: Optional[str] = None, **kwargs):
+    def __init__(
+        self, *, model: str = "imagetext", project_id: Optional[str] = None, location: Optional[str] = None, **kwargs
+    ):
         """
         Answers questions about an image using a Google Vertex AI model.
 
         Authenticates using Google Cloud Application Default Credentials (ADCs).
         For more information see the official [Google documentation](https://cloud.google.com/docs/authentication/provide-credentials-adc).
 
-        :param project_id: ID of the GCP project to use.
+        :param project_id: ID of the GCP project to use. By default, it is set during Google Cloud authentication.
         :param model: Name of the model to use.
         :param location: The default location to use when making API calls, if not set uses us-central-1.
         :param kwargs: Additional keyword arguments to pass to the model.
