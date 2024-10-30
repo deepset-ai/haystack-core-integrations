@@ -121,9 +121,8 @@ class JinaReaderConnector:
             if self.mode == "SEARCH":
                 documents = [self.parse_json_response(record) for record in response_json]
                 return documents
-            else:
-                return [self.parse_json_response(response_json)]
+            return [self.parse_json_response(response_json)]
         else:
             metadata = {"content_type": response.headers["Content-Type"], "query": query}
-            document = [Document(content=response.content, meta=metadata)]
-        return document
+            documents = [Document(content=response.content, meta=metadata)]
+        return documents
