@@ -5,7 +5,7 @@
 
 import json
 import urllib
-from typing import Any, Dict, Union
+from typing import Any, Dict, List, Union
 
 import requests
 from haystack import Document, component, default_from_dict, default_to_dict
@@ -92,8 +92,16 @@ class JinaReaderConnector:
         deserialize_secrets_inplace(data["init_parameters"], keys=["api_key"])
         return default_from_dict(cls, data)
 
+    def parse_json_response(self, data: dict) -> Document:
+        if self.mode == "GROUND":
+            content = data.pop("reason")
+        else:
+            content = data.pop("content")
+        document = Document(content=content, meta=data)
+        return document
+
     # TODO add headers param
-    @component.output_types(document=Document)
+    @component.output_types(document=List[Document])
     def run(self, query: str):
         """
         Process the query using the Jina AI reader service.
@@ -109,22 +117,12 @@ class JinaReaderConnector:
         response = self._session.get(url)
 
         if self.json_response:
-            if self.mode == "READ":
-                response_json = json.loads(response.content).get("data", {})
-                content = response_json.pop("content")
-                document = [Document(content=content, meta=response_json)]
+            response_json = json.loads(response.content).get("data", {})
             if self.mode == "SEARCH":
-                document = []
-                response_json = json.loads(response.content).get("data", {})
-                for record in response_json:
-                    content = record.pop("content")
-                    doc = [Document(content=content, meta=record)]
-                    document.append(doc)
-                return document
+                documents = [self.parse_json_response(record) for record in response_json]
+                return documents
             else:
-                response_json = json.loads(response.content).get("data", {})
-                content = response_json.pop("reason")
-                document = [Document(content=content, meta=response_json)]
+                return [self.parse_json_response(response_json)]
         else:
             metadata = {"content_type": response.headers["Content-Type"], "query": query}
             document = [Document(content=response.content, meta=metadata)]
