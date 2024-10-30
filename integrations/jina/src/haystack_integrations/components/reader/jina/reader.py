@@ -3,6 +3,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import json
 import urllib
 from typing import Any, Dict, Union
 
@@ -14,7 +15,7 @@ from haystack_integrations.components.reader.jina import JinaReaderMode
 
 
 @component
-class JinaReader:
+class JinaReaderConnector:
     """
     A component that interacts with Jina AI's reader service to process queries and return documents.
 
@@ -37,6 +38,7 @@ class JinaReader:
         self,
         mode: Union[JinaReaderMode, str],
         api_key: Secret = Secret.from_env_var("JINA_API_KEY"),
+        json_response: bool = True,
     ):
         """
         Initialize a JinaReader instance.
@@ -48,6 +50,7 @@ class JinaReader:
         resolved_api_key = api_key.resolve_value()
         self.api_key = api_key
         self._session = requests.Session()
+        self.json_response = json_response
         self._session.headers.update(
             {
                 "Authorization": f"Bearer {resolved_api_key}",
@@ -55,6 +58,9 @@ class JinaReader:
                 "Content-type": "application/json",
             }
         )
+
+        if self.json_response:
+            self._session.headers.update({"Accept": "application/json"})
 
         if isinstance(mode, JinaReaderMode):
             self.mode = mode.value
@@ -71,10 +77,11 @@ class JinaReader:
             self,
             api_key=self.api_key.to_dict(),
             mode=self.mode,
+            json_response=self.json_response,
         )
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "JinaReader":
+    def from_dict(cls, data: Dict[str, Any]) -> "JinaReaderConnector":
         """
         Deserializes the component from a dictionary.
         :param data:
@@ -85,6 +92,7 @@ class JinaReader:
         deserialize_secrets_inplace(data["init_parameters"], keys=["api_key"])
         return default_from_dict(cls, data)
 
+    # TODO add headers param
     @component.output_types(document=Document)
     def run(self, query: str):
         """
@@ -99,6 +107,25 @@ class JinaReader:
         encoded_target = urllib.parse.quote(query, safe="")
         url = f"{base_url}{encoded_target}"
         response = self._session.get(url)
-        metadata = {"content_type": response.headers["Content-Type"], "query": query}
-        document = [Document(content=response.content, meta=metadata)]
+
+        if self.json_response:
+            if self.mode == "READ":
+                response_json = json.loads(response.content).get("data", {})
+                content = response_json.pop("content")
+                document = [Document(content=content, meta=response_json)]
+            if self.mode == "SEARCH":
+                document = []
+                response_json = json.loads(response.content).get("data", {})
+                for record in response_json:
+                    content = record.pop("content")
+                    doc = [Document(content=content, meta=record)]
+                    document.append(doc)
+                return document
+            else:
+                response_json = json.loads(response.content).get("data", {})
+                content = response_json.pop("reason")
+                document = [Document(content=content, meta=response_json)]
+        else:
+            metadata = {"content_type": response.headers["Content-Type"], "query": query}
+            document = [Document(content=response.content, meta=metadata)]
         return document
