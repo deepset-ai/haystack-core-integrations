@@ -1,5 +1,6 @@
 import contextlib
 import os
+from datetime import datetime
 from typing import Any, Dict, Iterator, Optional, Union
 
 from haystack.components.generators.openai_utils import _convert_message_to_openai_format
@@ -148,7 +149,14 @@ class LangfuseTracer(Tracer):
             replies = span._data.get("haystack.component.output", {}).get("replies")
             if replies:
                 meta = replies[0].meta
-                span._span.update(usage=meta.get("usage") or None, model=meta.get("model"))
+                completion_start_time = meta.get("completion_start_time")
+                if completion_start_time:
+                    completion_start_time = datetime.fromisoformat(completion_start_time)
+                span._span.update(
+                    usage=meta.get("usage") or None,
+                    model=meta.get("model"),
+                    completion_start_time=completion_start_time,
+                )
 
         pipeline_input = tags.get("haystack.pipeline.input_data", None)
         if pipeline_input:
