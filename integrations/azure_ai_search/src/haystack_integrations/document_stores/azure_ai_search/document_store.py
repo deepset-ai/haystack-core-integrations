@@ -73,7 +73,6 @@ class AzureAISearchDocumentStore:
         embedding_dimension: int = 768,
         metadata_fields: Optional[Dict[str, type]] = None,
         vector_search_configuration: VectorSearch = None,
-        create_index: bool = True,
         **kwargs,
     ):
         """
@@ -117,7 +116,6 @@ class AzureAISearchDocumentStore:
         self._dummy_vector = [-10.0] * self._embedding_dimension
         self._metadata_fields = metadata_fields
         self._vector_search_configuration = vector_search_configuration or DEFAULT_VECTOR_SEARCH
-        self._create_index = create_index
         self._kwargs = kwargs
 
     @property
@@ -133,13 +131,13 @@ class AzureAISearchDocumentStore:
         try:
             if not self._index_client:
                 self._index_client = SearchIndexClient(resolved_endpoint, credential, **self._kwargs)
-            if not self.index_exists(self._index_name):
+            if not self._index_exists(self._index_name):
                 # Create a new index if it does not exist
                 logger.debug(
                     "The index '%s' does not exist. A new index will be created.",
                     self._index_name,
                 )
-                self.create_index(self._index_name)
+                self._create_index(self._index_name)
         except (HttpResponseError, ClientAuthenticationError) as error:
             msg = f"Failed to authenticate with Azure Search: {error}"
             raise AzureAISearchDocumentStoreConfigError(msg) from error
@@ -155,7 +153,7 @@ class AzureAISearchDocumentStore:
 
         return self._client
 
-    def create_index(self, index_name: str, **kwargs) -> None:
+    def _create_index(self, index_name: str, **kwargs) -> None:
         """
         Creates a new search index.
         :param index_name: Name of the index to create. If None, the index name from the constructor is used.
@@ -201,7 +199,6 @@ class AzureAISearchDocumentStore:
             azure_endpoint=self._azure_endpoint.to_dict() if self._azure_endpoint is not None else None,
             api_key=self._api_key.to_dict() if self._api_key is not None else None,
             index_name=self._index_name,
-            create_index=self._create_index,
             embedding_dimension=self._embedding_dimension,
             metadata_fields=self._metadata_fields,
             vector_search_configuration=self._vector_search_configuration.as_dict(),
@@ -225,14 +222,13 @@ class AzureAISearchDocumentStore:
             data["init_parameters"]["vector_search_configuration"] = VectorSearch.from_dict(vector_search_configuration)
         return default_from_dict(cls, data)
 
-    def count_documents(self, **kwargs: Any) -> int:
+    def count_documents(self) -> int:
         """
         Returns how many documents are present in the search index.
 
-        :param kwargs: additional keyword parameters.
         :returns: list of retrieved documents.
         """
-        return self.client.get_document_count(**kwargs)
+        return self.client.get_document_count()
 
     def write_documents(self, documents: List[Document], policy: DuplicatePolicy = DuplicatePolicy.FAIL) -> int:
         """
@@ -292,7 +288,7 @@ class AzureAISearchDocumentStore:
     def get_documents_by_id(self, document_ids: List[str]) -> List[Document]:
         return self._convert_search_result_to_documents(self._get_raw_documents_by_id(document_ids))
 
-    def search_documents(self, search_text: Optional[str] = "*", top_k: Optional[int] = 10) -> List[Document]:
+    def search_documents(self, search_text: str = "*", top_k: int = 10) -> List[Document]:
         """
         Returns all documents that match the provided search_text.
         If search_text is None, returns all documents.
@@ -345,7 +341,7 @@ class AzureAISearchDocumentStore:
             documents.append(doc)
         return documents
 
-    def index_exists(self, index_name: Optional[str]) -> bool:
+    def _index_exists(self, index_name: Optional[str]) -> bool:
         """
         Check if the index exists in the Azure AI Search service.
 
@@ -403,14 +399,19 @@ class AzureAISearchDocumentStore:
 
         for key, value_type in metadata.items():
 
-            # Azure Search index only allows field names starting with letters
-            field_name = next((key[i:] for i, char in enumerate(key) if char.isalpha()), key)
+            if not key[0].isalpha():
+                msg = (
+                    f"Azure Search index only allows field names starting with letters. "
+                    f"Invalid key: {key} will be dropped."
+                )
+                logger.warning(msg)
+                continue
 
             field_type = type_mapping.get(value_type)
             if not field_type:
-                error_message = f"Unsupported field type for key '{field_name}': {value_type}"
+                error_message = f"Unsupported field type for key '{key}': {value_type}"
                 raise ValueError(error_message)
-            metadata_field_mapping[field_name] = field_type
+            metadata_field_mapping[key] = field_type
 
         return metadata_field_mapping
 

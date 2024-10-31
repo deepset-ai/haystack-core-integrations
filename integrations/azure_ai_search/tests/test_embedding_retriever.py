@@ -49,7 +49,6 @@ def test_to_dict():
                     },
                     "api_key": {"type": "env_var", "env_vars": ["AZURE_SEARCH_API_KEY"], "strict": False},
                     "index_name": "default",
-                    "create_index": True,
                     "embedding_dimension": 768,
                     "metadata_fields": None,
                     "vector_search_configuration": {
@@ -88,7 +87,6 @@ def test_from_dict():
                     },
                     "api_key": {"type": "env_var", "env_vars": ["AZURE_SEARCH_API_KEY"], "strict": False},
                     "index_name": "default",
-                    "create_index": True,
                     "embedding_dimension": 768,
                     "metadata_fields": None,
                     "vector_search_configuration": DEFAULT_VECTOR_SEARCH,

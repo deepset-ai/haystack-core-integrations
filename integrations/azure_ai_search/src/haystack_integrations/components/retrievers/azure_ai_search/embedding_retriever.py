@@ -25,7 +25,6 @@ class AzureAISearchEmbeddingRetriever:
         filters: Optional[Dict[str, Any]] = None,
         top_k: int = 10,
         filter_policy: Union[str, FilterPolicy] = FilterPolicy.REPLACE,
-        raise_on_failure: bool = True,
     ):
         """
         Create the AzureAISearchEmbeddingRetriever component.
@@ -44,7 +43,6 @@ class AzureAISearchEmbeddingRetriever:
         self._filter_policy = (
             filter_policy if isinstance(filter_policy, FilterPolicy) else FilterPolicy.from_str(filter_policy)
         )
-        self._raise_on_failure = raise_on_failure
 
         if not isinstance(document_store, AzureAISearchDocumentStore):
             message = "document_store must be an instance of AzureAISearchDocumentStore"
@@ -113,13 +111,6 @@ class AzureAISearchEmbeddingRetriever:
                 top_k=top_k,
             )
         except Exception as e:
-            if self._raise_on_failure:
-                raise e
-            logger.warning(
-                "An error occurred during embedding retrieval and will be ignored, returning empty results: %s",
-                str(e),
-                exc_info=True,
-            )
-            docs = []
+            raise e
 
         return {"documents": docs}

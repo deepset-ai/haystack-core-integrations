@@ -35,7 +35,6 @@ def test_to_dict(monkeypatch):
             "index_name": "default",
             "embedding_dimension": 768,
             "metadata_fields": None,
-            "create_index": True,
             "vector_search_configuration": {
                 "profiles": [
                     {"name": "default-vector-config", "algorithm_configuration_name": "cosine-algorithm-config"}
@@ -65,7 +64,6 @@ def test_from_dict(monkeypatch):
             "embedding_dimension": 768,
             "index_name": "default",
             "metadata_fields": None,
-            "create_index": False,
             "vector_search_configuration": DEFAULT_VECTOR_SEARCH,
         },
     }
@@ -75,7 +73,6 @@ def test_from_dict(monkeypatch):
     assert document_store._index_name == "default"
     assert document_store._embedding_dimension == 768
     assert document_store._metadata_fields is None
-    assert document_store._create_index is False
     assert document_store._vector_search_configuration == DEFAULT_VECTOR_SEARCH
 
 
@@ -92,13 +89,11 @@ def test_init(_mock_azure_search_client):
         api_key=Secret.from_token("fake-api-key"),
         azure_endpoint=Secret.from_token("fake_endpoint"),
         index_name="my_index",
-        create_index=False,
         embedding_dimension=15,
         metadata_fields={"Title": str, "Pages": int},
     )
 
     assert document_store._index_name == "my_index"
-    assert document_store._create_index is False
     assert document_store._embedding_dimension == 15
     assert document_store._metadata_fields == {"Title": str, "Pages": int}
     assert document_store._vector_search_configuration == DEFAULT_VECTOR_SEARCH
@@ -156,7 +151,8 @@ TEST_EMBEDDING_2 = _random_embeddings(768)
 )
 class TestFilters(FilterDocumentsTest):
 
-    # Overriding to change "date" to compatible ISO format and remove incompatible fields (dataframes) for search index
+    # Overriding to change "date" to compatible ISO 8601 format
+    # and remove incompatible fields (dataframes) for Azure search index
     @pytest.fixture
     def filterable_docs(self) -> List[Document]:
         """Fixture that returns a list of Documents that can be used to test filtering."""
@@ -224,26 +220,25 @@ class TestFilters(FilterDocumentsTest):
         sorted_expected = sorted(expected, key=lambda doc: doc.id)
         assert sorted_recieved == sorted_expected
 
-    # Dataframes are not supported in serach index
-    def test_comparison_equal_with_dataframe(self, document_store, filterable_docs):
-        pass
+    @pytest.mark.skip(reason="Azure AI search index does not support dataframes")
+    def test_comparison_equal_with_dataframe(self, document_store, filterable_docs): ...
 
-    def test_comparison_not_equal_with_dataframe(self, document_store, filterable_docs):
-        pass
+    @pytest.mark.skip(reason="Azure AI search index does not support dataframes")
+    def test_comparison_not_equal_with_dataframe(self, document_store, filterable_docs): ...
 
-    def test_comparison_greater_than_with_dataframe(self, document_store, filterable_docs):
-        pass
+    @pytest.mark.skip(reason="Azure AI search index does not support dataframes")
+    def test_comparison_greater_than_with_dataframe(self, document_store, filterable_docs): ...
 
-    def test_comparison_less_than_with_dataframe(self, document_store, filterable_docs):
-        pass
+    @pytest.mark.skip(reason="Azure AI search index does not support dataframes")
+    def test_comparison_less_than_with_dataframe(self, document_store, filterable_docs): ...
 
-    def test_comparison_greater_than_equal_with_dataframe(self, document_store, filterable_docs):
-        pass
+    @pytest.mark.skip(reason="Azure AI search index does not support dataframes")
+    def test_comparison_greater_than_equal_with_dataframe(self, document_store, filterable_docs): ...
 
-    def test_comparison_less_than_equal_with_dataframe(self, document_store, filterable_docs):
-        pass
+    @pytest.mark.skip(reason="Azure AI search index does not support dataframes")
+    def test_comparison_less_than_equal_with_dataframe(self, document_store, filterable_docs): ...
 
-    # Azure search index supports UTC datetime in ISO format
+    # Azure search index supports UTC datetime in ISO 8601 format
     def test_comparison_greater_than_with_iso_date(self, document_store, filterable_docs):
         """Test filter_documents() with > comparator and datetime"""
         document_store.write_documents(filterable_docs)
@@ -346,15 +341,14 @@ class TestFilters(FilterDocumentsTest):
         expected = [d for d in filterable_docs if d.meta.get("page") is not None and d.meta["page"] in ["100", "123"]]
         self.assert_documents_are_equal(result, expected)
 
-    # not supported
-    def test_comparison_not_in(self, document_store, filterable_docs):
-        pass
+    @pytest.mark.skip(reason="Azure AI search index does not support not in operator")
+    def test_comparison_not_in(self, document_store, filterable_docs): ...
 
-    def test_comparison_not_in_with_with_non_list(self, document_store, filterable_docs):
-        pass
+    @pytest.mark.skip(reason="Azure AI search index does not support not in operator")
+    def test_comparison_not_in_with_with_non_list(self, document_store, filterable_docs): ...
 
-    def test_comparison_not_in_with_with_non_list_iterable(self, document_store, filterable_docs):
-        pass
+    @pytest.mark.skip(reason="Azure AI search index does not support not in operator")
+    def test_comparison_not_in_with_with_non_list_iterable(self, document_store, filterable_docs): ...
 
     def test_missing_condition_operator_key(self, document_store, filterable_docs):
         """Test filter_documents() with missing operator key"""
