@@ -157,6 +157,7 @@ def test_to_dict_with_params(_mock_vertexai_init, _mock_generative_model):
                                     "unit": {"type_": "STRING", "enum": ["celsius", "fahrenheit"]},
                                 },
                                 "required": ["location"],
+                                "property_ordering": ["location", "unit"],
                             },
                         }
                     ]
