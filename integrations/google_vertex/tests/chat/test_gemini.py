@@ -252,6 +252,7 @@ def test_from_dict_with_param(_mock_vertexai_init, _mock_generative_model):
                                             ],
                                         },
                                     },
+                                    "property_ordering": ["unit", "location"],
                                     "required": ["location"],
                                 },
                             }
