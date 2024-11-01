@@ -55,7 +55,6 @@ class JinaReaderConnector:
             {
                 "Authorization": f"Bearer {resolved_api_key}",
                 "Accept-Encoding": "identity",
-                "Content-type": "application/json",
             }
         )
 
