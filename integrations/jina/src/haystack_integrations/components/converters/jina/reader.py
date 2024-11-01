@@ -108,7 +108,7 @@ class JinaReaderConnector:
         """
         if headers:
             self._session.headers.update(headers)
-        mode_map = {"READ": "r", "SEARCH": "s", "GROUND": "g"}
+        mode_map = {JinaReaderMode.READ: "r", JinaReaderMode.SEARCH: "s", JinaReaderMode.GROUND: "g"}
         mode = mode_map[self.mode]
         base_url = f"https://{mode}.jina.ai/"
         encoded_target = urllib.parse.quote(query, safe="")
