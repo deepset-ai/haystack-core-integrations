@@ -61,10 +61,8 @@ class JinaReaderConnector:
         if self.json_response:
             self._session.headers.update({"Accept": "application/json"})
 
-        if isinstance(mode, JinaReaderMode):
-            self.mode = mode.value
-        elif isinstance(mode, str):
-            self.mode = mode.upper()
+        if isinstance(mode, str):
+            self.mode = JinaReaderMode.from_str(mode)
 
     def to_dict(self) -> Dict[str, Any]:
         """
