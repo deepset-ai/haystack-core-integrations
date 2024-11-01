@@ -73,7 +73,7 @@ class JinaReaderConnector:
         return default_to_dict(
             self,
             api_key=self.api_key.to_dict(),
-            mode=self.mode,
+            mode=str(self.mode),
             json_response=self.json_response,
         )
 
