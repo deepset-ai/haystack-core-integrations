@@ -90,7 +90,7 @@ class JinaReaderConnector:
         return default_from_dict(cls, data)
 
     def parse_json_response(self, data: dict) -> Document:
-        if self.mode == "GROUND":
+        if self.mode == JinaReaderMode.GROUND:
             content = data.pop("reason")
         else:
             content = data.pop("content")
