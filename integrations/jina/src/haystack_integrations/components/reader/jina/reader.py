@@ -5,7 +5,7 @@
 
 import json
 import urllib
-from typing import Any, Dict, List, Union
+from typing import Any, Dict, List, Optional, Union
 
 import requests
 from haystack import Document, component, default_from_dict, default_to_dict
@@ -102,13 +102,15 @@ class JinaReaderConnector:
 
     # TODO add headers param
     @component.output_types(document=List[Document])
-    def run(self, query: str):
+    def run(self, query: str, headers: Optional[Dict[str, str]] = None):
         """
         Process the query using the Jina AI reader service.
 
         :param query: The query string or URL to process.
         :returns: A list containing a single Document object with the processed content and metadata.
         """
+        if headers:
+            self._session.headers.update(headers)
         mode_map = {"READ": "r", "SEARCH": "s", "GROUND": "g"}
         mode = mode_map[self.mode]
         base_url = f"https://{mode}.jina.ai/"
