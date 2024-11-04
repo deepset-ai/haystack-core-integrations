@@ -249,6 +249,7 @@ class ChromaDocumentStore:
             if doc.content is None:
                 logger.warning(
                     "ChromaDocumentStore cannot store documents without `content`. "
+                    "`array`, `dataframe` and `blob` are not supported. "
                     "Document with id %s will be skipped.",
                     doc.id,
                 )
