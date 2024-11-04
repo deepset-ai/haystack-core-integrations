@@ -13,9 +13,12 @@ import pytest
 from chromadb.api.types import Documents, EmbeddingFunction, Embeddings
 from haystack import Document
 from haystack.testing.document_store import (
+    TEST_EMBEDDING_1,
+    TEST_EMBEDDING_2,
     CountDocumentsTest,
     DeleteDocumentsTest,
     FilterDocumentsTest,
+    _random_embeddings,
 )
 
 from haystack_integrations.document_stores.chroma import ChromaDocumentStore
@@ -50,6 +53,67 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, FilterDocuments
         ) as get_func:
             get_func.return_value = _TestEmbeddingFunction()
             return ChromaDocumentStore(embedding_function="test_function", collection_name=str(uuid.uuid1()))
+
+    @pytest.fixture
+    def filterable_docs(self) -> List[Document]:
+        """
+        This fixture has been copied from haystack/testing/document_store.py and modified to
+        remove the documents that don't have textual content, as Chroma does not support writing them.
+        """
+        documents = []
+        for i in range(3):
+            documents.append(
+                Document(
+                    content=f"A Foo Document {i}",
+                    meta={
+                        "name": f"name_{i}",
+                        "page": "100",
+                        "chapter": "intro",
+                        "number": 2,
+                        "date": "1969-07-21T20:17:40",
+                    },
+                    embedding=_random_embeddings(768),
+                )
+            )
+            documents.append(
+                Document(
+                    content=f"A Bar Document {i}",
+                    meta={
+                        "name": f"name_{i}",
+                        "page": "123",
+                        "chapter": "abstract",
+                        "number": -2,
+                        "date": "1972-12-11T19:54:58",
+                    },
+                    embedding=_random_embeddings(768),
+                )
+            )
+            documents.append(
+                Document(
+                    content=f"A Foobar Document {i}",
+                    meta={
+                        "name": f"name_{i}",
+                        "page": "90",
+                        "chapter": "conclusion",
+                        "number": -10,
+                        "date": "1989-11-09T17:53:00",
+                    },
+                    embedding=_random_embeddings(768),
+                )
+            )
+            documents.append(
+                Document(
+                    content=f"Document {i} without embedding",
+                    meta={"name": f"name_{i}", "no_embedding": True, "chapter": "conclusion"},
+                )
+            )
+            documents.append(
+                Document(content=f"Doc {i} with zeros emb", meta={"name": "zeros_doc"}, embedding=TEST_EMBEDDING_1)
+            )
+            documents.append(
+                Document(content=f"Doc {i} with ones emb", meta={"name": "ones_doc"}, embedding=TEST_EMBEDDING_2)
+            )
+        return documents
 
     def assert_documents_are_equal(self, received: List[Document], expected: List[Document]):
         """
@@ -283,7 +347,6 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, FilterDocuments
         )
 
     def test_multiple_contains(self, document_store: ChromaDocumentStore, filterable_docs: List[Document]):
-        filterable_docs = [doc for doc in filterable_docs if doc.content]  # remove documents without content
         document_store.write_documents(filterable_docs)
         filters = {
             "operator": "OR",
