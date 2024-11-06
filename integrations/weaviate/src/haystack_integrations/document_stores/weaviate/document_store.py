@@ -268,7 +268,8 @@ class WeaviateDocumentStore:
         total = self.collection.aggregate.over_all(total_count=True).total_count
         return total if total else 0
 
-    def _to_data_object(self, document: Document) -> Dict[str, Any]:
+    @staticmethod
+    def _to_data_object(document: Document) -> Dict[str, Any]:
         """
         Converts a Document to a Weaviate data object ready to be saved.
         """
@@ -298,7 +299,8 @@ class WeaviateDocumentStore:
 
         return data
 
-    def _to_document(self, data: DataObject[Dict[str, Any], None]) -> Document:
+    @staticmethod
+    def _to_document(data: DataObject[Dict[str, Any], None]) -> Document:
         """
         Converts a data object read from Weaviate into a Document.
         """
@@ -337,9 +339,8 @@ class WeaviateDocumentStore:
         return Document.from_dict(document_data)
 
     def _query(self) -> List[Dict[str, Any]]:
-        properties = [p.name for p in self.collection.config.get().properties]
         try:
-            result = self.collection.iterator(include_vector=True, return_properties=properties)
+            result = self.collection.iterator(include_vector=True)
         except weaviate.exceptions.WeaviateQueryError as e:
             msg = f"Failed to query documents in Weaviate. Error: {e.message}"
             raise DocumentStoreError(msg) from e
@@ -351,9 +352,9 @@ class WeaviateDocumentStore:
         # a cursor with after is not possible. See the official docs:
         # https://weaviate.io/developers/weaviate/api/graphql/additional-operators#cursor-with-after
         #
-        # Nonetheless there's also another issue, paginating with limit and offset is not efficient
+        # Nonetheless there's also another issue, paginating with limit and offset is not efficient,
         # and it's still restricted by the QUERY_MAXIMUM_RESULTS environment variable.
-        # If the sum of limit and offest is greater than QUERY_MAXIMUM_RESULTS an error is raised.
+        # If the sum of limit and offset is greater than QUERY_MAXIMUM_RESULTS an error is raised.
         # See the official docs for more:
         # https://weaviate.io/developers/weaviate/api/graphql/additional-operators#performance-considerations
         offset = 0
@@ -390,11 +391,11 @@ class WeaviateDocumentStore:
             msg = "Invalid filter syntax. See https://docs.haystack.deepset.ai/docs/metadata-filtering for details."
             raise ValueError(msg)
 
-        result = []
         if filters:
             result = self._query_with_filters(filters)
         else:
             result = self._query()
+
         return [self._to_document(doc) for doc in result]
 
     def _batch_write(self, documents: List[Document]) -> int:
@@ -441,7 +442,7 @@ class WeaviateDocumentStore:
     def _write(self, documents: List[Document], policy: DuplicatePolicy) -> int:
         """
         Writes documents to Weaviate using the specified policy.
-        This doesn't uses the batch API, so it's slower than _batch_write.
+        This doesn't use the batch API, so it's slower than _batch_write.
         If policy is set to SKIP it will skip any document that already exists.
         If policy is set to FAIL it will raise an exception if any of the documents already exists.
         """
