@@ -132,7 +132,6 @@ class AmazonBedrockChatGenerator:
         self.truncate = truncate
         self.boto3_config = boto3_config
 
-
         # get the model adapter for the given model
         model_adapter_cls = self.get_model_adapter(model=model)
         if not model_adapter_cls:
