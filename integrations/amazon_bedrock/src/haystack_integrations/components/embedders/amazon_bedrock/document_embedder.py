@@ -2,6 +2,7 @@ import json
 import logging
 from typing import Any, Dict, List, Literal, Optional
 
+from botocore.config import Config
 from botocore.exceptions import ClientError
 from haystack import component, default_from_dict, default_to_dict
 from haystack.dataclasses import Document
@@ -73,6 +74,7 @@ class AmazonBedrockDocumentEmbedder:
         progress_bar: bool = True,
         meta_fields_to_embed: Optional[List[str]] = None,
         embedding_separator: str = "\n",
+        boto3_config: Optional[Dict[str, Any]] = None,
         **kwargs,
     ):
         """
@@ -98,6 +100,7 @@ class AmazonBedrockDocumentEmbedder:
             to keep the logs clean.
         :param meta_fields_to_embed: List of meta fields that should be embedded along with the Document text.
         :param embedding_separator: Separator used to concatenate the meta fields to the Document text.
+        :param boto3_config: The configuration for the boto3 client.
         :param kwargs: Additional parameters to pass for model inference. For example, `input_type` and `truncate` for
             Cohere models.
         :raises ValueError: If the model is not supported.
@@ -110,6 +113,8 @@ class AmazonBedrockDocumentEmbedder:
             )
             raise ValueError(msg)
 
+        self.boto3_config = boto3_config
+
         def resolve_secret(secret: Optional[Secret]) -> Optional[str]:
             return secret.resolve_value() if secret else None
 
@@ -121,7 +126,10 @@ class AmazonBedrockDocumentEmbedder:
                 aws_region_name=resolve_secret(aws_region_name),
                 aws_profile_name=resolve_secret(aws_profile_name),
             )
-            self._client = session.client("bedrock-runtime")
+            config: Optional[Config] = None
+            if self.boto3_config:
+                config = Config(**self.boto3_config)
+            self._client = session.client("bedrock-runtime", config=config)
         except Exception as exception:
             msg = (
                 "Could not connect to Amazon Bedrock. Make sure the AWS environment is configured correctly. "
@@ -269,6 +277,7 @@ class AmazonBedrockDocumentEmbedder:
             progress_bar=self.progress_bar,
             meta_fields_to_embed=self.meta_fields_to_embed,
             embedding_separator=self.embedding_separator,
+            boto3_config=self.boto3_config,
             **self.kwargs,
         )
 

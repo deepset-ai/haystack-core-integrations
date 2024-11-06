@@ -86,6 +86,7 @@ class TestAmazonBedrockDocumentEmbedder:
                 "progress_bar": True,
                 "meta_fields_to_embed": [],
                 "embedding_separator": "\n",
+                "boto3_config": None,
             },
         }
 
@@ -106,6 +107,9 @@ class TestAmazonBedrockDocumentEmbedder:
                 "progress_bar": True,
                 "meta_fields_to_embed": [],
                 "embedding_separator": "\n",
+                "boto3_config": {
+                    "read_timeout": 1000,
+                },
             },
         }
 
@@ -117,6 +121,7 @@ class TestAmazonBedrockDocumentEmbedder:
         assert embedder.progress_bar
         assert embedder.meta_fields_to_embed == []
         assert embedder.embedding_separator == "\n"
+        assert embedder.boto3_config == {"read_timeout": 1000}
 
     def test_init_invalid_model(self):
         with pytest.raises(ValueError):
