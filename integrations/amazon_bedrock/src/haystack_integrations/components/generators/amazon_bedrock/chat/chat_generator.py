@@ -113,7 +113,7 @@ class AmazonBedrockChatGenerator:
         switches the streaming mode on.
         :param truncate: Whether to truncate the prompt messages or not.
         :param boto3_config: The configuration for the boto3 client.
-        
+
         :raises ValueError: If the model name is empty or None.
         :raises AmazonBedrockConfigurationError: If the AWS environment is not configured correctly or the model is
             not supported.
