@@ -1,5 +1,16 @@
 # Changelog
 
+## [integrations/chroma-v1.0.0] - 2024-11-06
+
+### 🐛 Bug Fixes
+
+- Fixing Chroma tests due `chromadb` update behaviour change (#1148)
+- Adapt our implementation to breaking changes in Chroma 0.5.17  (#1165)
+
+### ⚙️ Miscellaneous Tasks
+
+- Adopt uv as installer (#1142)
+
 ## [integrations/chroma-v0.22.1] - 2024-09-30
 
 ### Chroma
