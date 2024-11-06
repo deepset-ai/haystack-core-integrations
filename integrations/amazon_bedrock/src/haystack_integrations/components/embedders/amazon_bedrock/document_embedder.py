@@ -113,7 +113,18 @@ class AmazonBedrockDocumentEmbedder:
             )
             raise ValueError(msg)
 
+        self.model = model
+        self.aws_access_key_id = aws_access_key_id
+        self.aws_secret_access_key = aws_secret_access_key
+        self.aws_session_token = aws_session_token
+        self.aws_region_name = aws_region_name
+        self.aws_profile_name = aws_profile_name
+        self.batch_size = batch_size
+        self.progress_bar = progress_bar
+        self.meta_fields_to_embed = meta_fields_to_embed or []
+        self.embedding_separator = embedding_separator
         self.boto3_config = boto3_config
+        self.kwargs = kwargs
 
         def resolve_secret(secret: Optional[Secret]) -> Optional[str]:
             return secret.resolve_value() if secret else None
@@ -136,18 +147,6 @@ class AmazonBedrockDocumentEmbedder:
                 "See https://boto3.amazonaws.com/v1/documentation/api/latest/guide/quickstart.html#configuration"
             )
             raise AmazonBedrockConfigurationError(msg) from exception
-
-        self.model = model
-        self.aws_access_key_id = aws_access_key_id
-        self.aws_secret_access_key = aws_secret_access_key
-        self.aws_session_token = aws_session_token
-        self.aws_region_name = aws_region_name
-        self.aws_profile_name = aws_profile_name
-        self.batch_size = batch_size
-        self.progress_bar = progress_bar
-        self.meta_fields_to_embed = meta_fields_to_embed or []
-        self.embedding_separator = embedding_separator
-        self.kwargs = kwargs
 
     def _prepare_texts_to_embed(self, documents: List[Document]) -> List[str]:
         """
