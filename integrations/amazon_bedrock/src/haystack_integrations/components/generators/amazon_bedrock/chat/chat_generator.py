@@ -3,6 +3,7 @@ import logging
 import re
 from typing import Any, Callable, ClassVar, Dict, List, Optional, Type
 
+from botocore.config import Config
 from botocore.exceptions import ClientError
 from haystack import component, default_from_dict, default_to_dict
 from haystack.dataclasses import ChatMessage, StreamingChunk
@@ -77,6 +78,7 @@ class AmazonBedrockChatGenerator:
         stop_words: Optional[List[str]] = None,
         streaming_callback: Optional[Callable[[StreamingChunk], None]] = None,
         truncate: Optional[bool] = True,
+        boto3_config: Optional[Dict[str, Any]] = None,
     ):
         """
         Initializes the `AmazonBedrockChatGenerator` with the provided parameters. The parameters are passed to the
@@ -110,6 +112,11 @@ class AmazonBedrockChatGenerator:
           [StreamingChunk](https://docs.haystack.deepset.ai/docs/data-classes#streamingchunk) object and
         switches the streaming mode on.
         :param truncate: Whether to truncate the prompt messages or not.
+        :param boto3_config: The configuration for the boto3 client.
+        
+        :raises ValueError: If the model name is empty or None.
+        :raises AmazonBedrockConfigurationError: If the AWS environment is not configured correctly or the model is
+            not supported.
         """
         if not model:
             msg = "'model' cannot be None or empty string"
@@ -121,6 +128,7 @@ class AmazonBedrockChatGenerator:
         self.aws_region_name = aws_region_name
         self.aws_profile_name = aws_profile_name
         self.truncate = truncate
+        self.boto3_config = boto3_config
 
         # get the model adapter for the given model
         model_adapter_cls = self.get_model_adapter(model=model)
@@ -141,7 +149,10 @@ class AmazonBedrockChatGenerator:
                 aws_region_name=resolve_secret(aws_region_name),
                 aws_profile_name=resolve_secret(aws_profile_name),
             )
-            self.client = session.client("bedrock-runtime")
+            config: Optional[Config] = None
+            if self.boto3_config:
+                config = Config(**self.boto3_config)
+            self.client = session.client("bedrock-runtime", config=config)
         except Exception as exception:
             msg = (
                 "Could not connect to Amazon Bedrock. Make sure the AWS environment is configured correctly. "
@@ -256,6 +267,7 @@ class AmazonBedrockChatGenerator:
             generation_kwargs=self.model_adapter.generation_kwargs,
             streaming_callback=callback_name,
             truncate=self.truncate,
+            boto3_config=self.boto3_config,
         )
 
     @classmethod
