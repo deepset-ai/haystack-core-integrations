@@ -1,6 +1,6 @@
 from collections import defaultdict
 from dataclasses import dataclass
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from chromadb.api.types import validate_where, validate_where_document
 
@@ -34,8 +34,8 @@ class ChromaFilter:
     """
 
     ids: List[str]
-    where: Dict[str, Any]
-    where_document: Dict[str, Any]
+    where: Optional[Dict[str, Any]]
+    where_document: Optional[Dict[str, Any]]
 
 
 def _convert_filters(filters: Dict[str, Any]) -> ChromaFilter:
@@ -80,7 +80,7 @@ def _convert_filters(filters: Dict[str, Any]) -> ChromaFilter:
         msg = f"Invalid '{test_clause}' : {e}"
         raise ChromaDocumentStoreFilterError(msg) from e
 
-    return ChromaFilter(ids=ids, where=where, where_document=where_document)
+    return ChromaFilter(ids=ids, where=where or None, where_document=where_document or None)
 
 
 def _convert_filter_clause(filters: Dict[str, Any]) -> Dict[str, Any]:
