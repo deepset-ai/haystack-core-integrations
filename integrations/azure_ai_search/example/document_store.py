@@ -18,16 +18,16 @@ document_store = AzureAISearchDocumentStore(
 
 documents = [
     Document(
-        content="Use pip to install a basic version of Haystack's latest release: pip install farm-haystack.",
-        meta={"version": 1.15, "label": "first"},
+        content="This is an introduction to using Python for data analysis.",
+        meta={"version": 1.0, "label": "chapter_one"},
     ),
     Document(
-        content="Use pip to install a Haystack's latest release: pip install farm-haystack[inference].",
-        meta={"version": 1.22, "label": "second"},
+        content="Learn how to use Python libraries for machine learning.",
+        meta={"version": 1.5, "label": "chapter_two"},
     ),
     Document(
-        content="Use pip to install only the Haystack 2.0 code: pip install haystack-ai.",
-        meta={"version": 2.0, "label": "third"},
+        content="Advanced Python techniques for data visualization.",
+        meta={"version": 2.0, "label": "chapter_three"},
     ),
 ]
 document_store.write_documents(documents, policy=DuplicatePolicy.SKIP)
@@ -35,8 +35,8 @@ document_store.write_documents(documents, policy=DuplicatePolicy.SKIP)
 filters = {
     "operator": "AND",
     "conditions": [
-        {"field": "meta.version", "operator": ">", "value": 1.21},
-        {"field": "meta.label", "operator": "in", "value": ["first", "third"]},
+        {"field": "meta.version", "operator": ">", "value": 1.2},
+        {"field": "meta.label", "operator": "in", "value": ["chapter_one", "chapter_three"]},
     ],
 }
 

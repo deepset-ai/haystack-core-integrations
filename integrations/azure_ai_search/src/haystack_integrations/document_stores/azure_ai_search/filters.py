@@ -32,8 +32,16 @@ def _parse_logical_condition(condition: Dict[str, Any]) -> str:
     if operator not in LOGICAL_OPERATORS:
         msg = f"Unknown operator {operator}"
         raise AzureAISearchDocumentStoreFilterError(msg)
-    conditions = [_parse_comparison_condition(c) for c in condition["conditions"]]
+    conditions = []
+    for c in condition["conditions"]:
+        # Recursively parse if the condition itself is a logical condition
+        if isinstance(c, dict) and "operator" in c and c["operator"] in LOGICAL_OPERATORS:
+            conditions.append(_parse_logical_condition(c))
+        else:
+            # Otherwise, parse it as a comparison condition
+            conditions.append(_parse_comparison_condition(c))
 
+    # Format the result based on the operator
     if operator == "NOT":
         return f"not ({' and '.join([f'({c})' for c in conditions])})"
     else:

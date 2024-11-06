@@ -30,7 +30,7 @@ def test_to_dict(monkeypatch):
     assert res == {
         "type": "haystack_integrations.document_stores.azure_ai_search.document_store.AzureAISearchDocumentStore",
         "init_parameters": {
-            "azure_endpoint": {"env_vars": ["AZURE_SEARCH_SERVICE_ENDPOINT"], "strict": False, "type": "env_var"},
+            "azure_endpoint": {"env_vars": ["AZURE_SEARCH_SERVICE_ENDPOINT"], "strict": True, "type": "env_var"},
             "api_key": {"env_vars": ["AZURE_SEARCH_API_KEY"], "strict": False, "type": "env_var"},
             "index_name": "default",
             "embedding_dimension": 768,
@@ -59,7 +59,7 @@ def test_from_dict(monkeypatch):
     data = {
         "type": "haystack_integrations.document_stores.azure_ai_search.document_store.AzureAISearchDocumentStore",
         "init_parameters": {
-            "azure_endpoint": {"env_vars": ["AZURE_SEARCH_SERVICE_ENDPOINT"], "strict": False, "type": "env_var"},
+            "azure_endpoint": {"env_vars": ["AZURE_SEARCH_SERVICE_ENDPOINT"], "strict": True, "type": "env_var"},
             "api_key": {"env_vars": ["AZURE_SEARCH_API_KEY"], "strict": False, "type": "env_var"},
             "embedding_dimension": 768,
             "index_name": "default",
@@ -78,7 +78,7 @@ def test_from_dict(monkeypatch):
 
 @patch("haystack_integrations.document_stores.azure_ai_search.document_store.AzureAISearchDocumentStore")
 def test_init_is_lazy(_mock_azure_search_client):
-    AzureAISearchDocumentStore(azure_endppoint=Secret.from_token("test_endpoint"))
+    AzureAISearchDocumentStore(azure_endpoint=Secret.from_token("test_endpoint"))
     _mock_azure_search_client.assert_not_called()
 
 
@@ -128,6 +128,12 @@ class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsT
         document_store.write_documents(docs)
         doc = document_store.get_documents_by_id(["1"])
         assert doc[0] == docs[0]
+
+    @pytest.mark.skip(reason="Azure AI search index overwrites duplicate documents by default")
+    def test_write_documents_duplicate_fail(self, document_store: AzureAISearchDocumentStore): ...
+
+    @pytest.mark.skip(reason="Azure AI search index overwrites duplicate documents by default")
+    def test_write_documents_duplicate_skip(self, document_store: AzureAISearchDocumentStore): ...
 
 
 def _random_embeddings(n):
@@ -357,3 +363,48 @@ class TestFilters(FilterDocumentsTest):
             document_store.filter_documents(
                 filters={"conditions": [{"field": "meta.name", "operator": "eq", "value": "test"}]}
             )
+
+    def test_nested_logical_filters(self, document_store, filterable_docs):
+        document_store.write_documents(filterable_docs)
+        filters = {
+            "operator": "OR",
+            "conditions": [
+                {"field": "meta.name", "operator": "==", "value": "name_0"},
+                {
+                    "operator": "AND",
+                    "conditions": [
+                        {"field": "meta.number", "operator": "!=", "value": 0},
+                        {"field": "meta.page", "operator": "==", "value": "123"},
+                    ],
+                },
+                {
+                    "operator": "AND",
+                    "conditions": [
+                        {"field": "meta.chapter", "operator": "==", "value": "conclusion"},
+                        {"field": "meta.page", "operator": "==", "value": "90"},
+                    ],
+                },
+            ],
+        }
+        result = document_store.filter_documents(filters=filters)
+        self.assert_documents_are_equal(
+            result,
+            [
+                doc
+                for doc in filterable_docs
+                if (
+                    # Ensure all required fields are present in doc.meta
+                    ("name" in doc.meta and doc.meta.get("name") == "name_0")
+                    or (
+                        all(key in doc.meta for key in ["number", "page"])
+                        and doc.meta.get("number") != 0
+                        and doc.meta.get("page") == "123"
+                    )
+                    or (
+                        all(key in doc.meta for key in ["page", "chapter"])
+                        and doc.meta.get("chapter") == "conclusion"
+                        and doc.meta.get("page") == "90"
+                    )
+                )
+            ],
+        )

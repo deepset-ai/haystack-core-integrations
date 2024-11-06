@@ -45,7 +45,7 @@ def test_to_dict():
                     "azure_endpoint": {
                         "type": "env_var",
                         "env_vars": ["AZURE_SEARCH_SERVICE_ENDPOINT"],
-                        "strict": False,
+                        "strict": True,
                     },
                     "api_key": {"type": "env_var", "env_vars": ["AZURE_SEARCH_API_KEY"], "strict": False},
                     "index_name": "default",
@@ -83,7 +83,7 @@ def test_from_dict():
                     "azure_endpoint": {
                         "type": "env_var",
                         "env_vars": ["AZURE_SEARCH_SERVICE_ENDPOINT"],
-                        "strict": False,
+                        "strict": True,
                     },
                     "api_key": {"type": "env_var", "env_vars": ["AZURE_SEARCH_API_KEY"], "strict": False},
                     "index_name": "default",
@@ -132,9 +132,7 @@ class TestRetriever:
         document_store.write_documents(docs)
         retriever = AzureAISearchEmbeddingRetriever(document_store=document_store)
         results = retriever.run(query_embedding=query_embedding)
-        results = document_store._embedding_retrieval(query_embedding=query_embedding, top_k=1)
-        assert len(results) == 1
-        assert results[0].content == "This is first document"
+        assert results["documents"][0].content == "This is first document"
 
     def test_empty_query_embedding(self, document_store: AzureAISearchDocumentStore):
         query_embedding: List[float] = []

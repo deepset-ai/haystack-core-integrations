@@ -27,7 +27,6 @@ from azure.search.documents.indexes.models import (
 from azure.search.documents.models import VectorizedQuery
 from haystack import default_from_dict, default_to_dict
 from haystack.dataclasses import Document
-from haystack.document_stores.errors import DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
 from haystack.utils import Secret, deserialize_secrets_inplace
 
@@ -41,8 +40,6 @@ type_mapping = {
     float: "Edm.Double",
     datetime: "Edm.DateTimeOffset",
 }
-
-MAX_UPLOAD_BATCH_SIZE = 1000
 
 DEFAULT_VECTOR_SEARCH = VectorSearch(
     profiles=[
@@ -68,7 +65,7 @@ class AzureAISearchDocumentStore:
         self,
         *,
         api_key: Secret = Secret.from_env_var("AZURE_SEARCH_API_KEY", strict=False),  # noqa: B008
-        azure_endpoint: Secret = Secret.from_env_var("AZURE_SEARCH_SERVICE_ENDPOINT", strict=False),  # noqa: B008
+        azure_endpoint: Secret = Secret.from_env_var("AZURE_SEARCH_SERVICE_ENDPOINT", strict=True),  # noqa: B008
         index_name: str = "default",
         embedding_dimension: int = 768,
         metadata_fields: Optional[Dict[str, type]] = None,
@@ -83,9 +80,10 @@ class AzureAISearchDocumentStore:
         :param api_key: The API key to use for authentication.
         :param index_name: Name of index in Azure AI Search, if it doesn't exist it will be created.
         :param embedding_dimension: Dimension of the embeddings.
-        :param metadata_fields: A dictionary of metatada keys and their types to create
+        :param metadata_fields: A dictionary of metadata keys and their types to create
             additional fields in index schema. As fields in Azure SearchIndex cannot be dynamic,
             it is necessary to specify the metadata fields in advance.
+            (e.g. metadata_fields = {"author": str, "date": datetime})
         :param vector_search_configuration: Configuration option related to vector search.
             Default configuration uses the HNSW algorithm with cosine similarity to handle vector searches.
 
@@ -142,7 +140,7 @@ class AzureAISearchDocumentStore:
             msg = f"Failed to authenticate with Azure Search: {error}"
             raise AzureAISearchDocumentStoreConfigError(msg) from error
 
-        if self._index_client:  # type: ignore # self._index_client is not None (verified in the run method)
+        if self._index_client:
             # Get the search client, if index client is initialized
             index_fields = self._index_client.get_index(self._index_name).fields
             self._index_fields = [field.name for field in index_fields]
@@ -230,7 +228,7 @@ class AzureAISearchDocumentStore:
         """
         return self.client.get_document_count()
 
-    def write_documents(self, documents: List[Document], policy: DuplicatePolicy = DuplicatePolicy.FAIL) -> int:
+    def write_documents(self, documents: List[Document], policy: DuplicatePolicy = DuplicatePolicy.NONE) -> int:
         """
         Writes the provided documents to search index.
 
@@ -252,25 +250,16 @@ class AzureAISearchDocumentStore:
                 msg = "param 'documents' must contain a list of objects of type Document"
                 raise ValueError(msg)
 
-        documents_to_write = []
-        for doc in documents:
-            try:
-                self.client.get_document(doc.id)
-                if policy == DuplicatePolicy.SKIP:
-                    logger.info(f"Document with ID {doc.id} already exists. Skipping.")
-                    continue
-                elif policy == DuplicatePolicy.FAIL:
-                    msg = f"Document with ID {doc.id} already exists."
-                    raise DuplicateDocumentError(msg)
-                elif policy == DuplicatePolicy.OVERWRITE:
-                    logger.info(f"Document with ID {doc.id} already exists. Overwriting.")
-                    documents_to_write.append(_convert_input_document(doc))
-            except ResourceNotFoundError:
-                # Document does not exist, safe to add
-                documents_to_write.append(_convert_input_document(doc))
+        if policy not in [DuplicatePolicy.NONE, DuplicatePolicy.OVERWRITE]:
+            logger.warning(
+                f"AzureAISearchDocumentStore only supports `DuplicatePolicy.OVERWRITE`"
+                f"but got {policy}. Overwriting duplicates is enabled by default."
+            )
+        client = self.client
+        documents_to_write = [(_convert_input_document(doc)) for doc in documents]
 
         if documents_to_write != []:
-            self.client.upload_documents(documents_to_write)
+            client.upload_documents(documents_to_write)
         return len(documents_to_write)
 
     def delete_documents(self, document_ids: List[str]) -> None:
@@ -279,7 +268,7 @@ class AzureAISearchDocumentStore:
 
         :param document_ids: ids of the documents to be deleted.
         """
-        if self.count_documents == 0:
+        if self.count_documents() == 0:
             return
         documents = self._get_raw_documents_by_id(document_ids)
         if documents:
