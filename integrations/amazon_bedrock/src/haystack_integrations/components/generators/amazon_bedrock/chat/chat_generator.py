@@ -127,8 +127,11 @@ class AmazonBedrockChatGenerator:
         self.aws_session_token = aws_session_token
         self.aws_region_name = aws_region_name
         self.aws_profile_name = aws_profile_name
+        self.stop_words = stop_words or []
+        self.streaming_callback = streaming_callback
         self.truncate = truncate
         self.boto3_config = boto3_config
+
 
         # get the model adapter for the given model
         model_adapter_cls = self.get_model_adapter(model=model)
@@ -159,9 +162,6 @@ class AmazonBedrockChatGenerator:
                 "See https://boto3.amazonaws.com/v1/documentation/api/latest/guide/quickstart.html#configuration"
             )
             raise AmazonBedrockConfigurationError(msg) from exception
-
-        self.stop_words = stop_words or []
-        self.streaming_callback = streaming_callback
 
     @component.output_types(replies=List[ChatMessage])
     def run(
