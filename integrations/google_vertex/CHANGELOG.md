@@ -1,11 +1,24 @@
 # Changelog
 
-## [unreleased]
+## [integrations/google_vertex-v2.2.0] - 2024-10-23
+
+### 🐛 Bug Fixes
+
+- Make "project-id" parameter optional during initialization (#1141)
+- Make project-id optional in all VertexAI generators (#1147)
+
+### ⚙️ Miscellaneous Tasks
+
+- Adopt uv as installer (#1142)
+
+## [integrations/google_vertex-v2.1.0] - 2024-10-04
 
 ### 🚀 Features
 
 - Enable streaming for VertexAIGeminiChatGenerator (#1014)
 - Add tests for VertexAIGeminiGenerator and enable streaming (#1012)
+- Add chatrole tests and meta for GeminiChatGenerators (#1090)
+- Add custom params to VertexAIGeminiGenerator and VertexAIGeminiChatGenerator (#1100)
 
 ### 🐛 Bug Fixes
 
@@ -21,6 +34,7 @@
 
 - Retry tests to reduce flakyness (#836)
 - Update ruff invocation to include check parameter (#853)
+- Update ruff linting scripts and settings (#1105)
 
 ## [integrations/google_vertex-v1.1.0] - 2024-03-28
 

@@ -30,6 +30,7 @@ dependencies = [
   # Commenting some of them to not interfere with the dependencies of Haystack.
   #"transformers==4.20.0",
   "datasets>=2.2.0",
+  "huggingface_hub<0.26.0",
   #"pyarrow==8.0.0",
   "jsonlines",
   "numpy",
@@ -64,6 +65,7 @@ root = "../.."
 git_describe_command = 'git describe --tags --match="integrations/instructor_embedders-v[0-9]*"'
 
 [tool.hatch.envs.default]
+installer = "uv"
 dependencies = [
   "coverage[toml]>=6.5",
   "pytest",
@@ -83,8 +85,9 @@ docs = ["pydoc-markdown pydoc/config.yml"]
 python = ["38", "39", "310", "311"]
 
 [tool.hatch.envs.lint]
+installer = "uv"
 detached = true
-dependencies = ["black>=23.1.0", "mypy>=1.0.0", "ruff>=0.0.243"]
+dependencies = ["pip", "black>=23.1.0", "mypy>=1.0.0", "ruff>=0.0.243"]
 
 [tool.hatch.envs.lint.scripts]
 typing = "mypy --install-types --non-interactive --explicit-package-bases {args:src/ tests}"

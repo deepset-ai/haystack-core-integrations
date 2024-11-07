@@ -3,6 +3,7 @@ import logging
 import re
 from typing import Any, Callable, ClassVar, Dict, List, Optional, Type
 
+from botocore.config import Config
 from botocore.exceptions import ClientError
 from haystack import component, default_from_dict, default_to_dict
 from haystack.dataclasses import StreamingChunk
@@ -65,13 +66,13 @@ class AmazonBedrockGenerator:
     """
 
     SUPPORTED_MODEL_PATTERNS: ClassVar[Dict[str, Type[BedrockModelAdapter]]] = {
-        r"amazon.titan-text.*": AmazonTitanAdapter,
-        r"ai21.j2.*": AI21LabsJurassic2Adapter,
-        r"cohere.command-[^r].*": CohereCommandAdapter,
-        r"cohere.command-r.*": CohereCommandRAdapter,
-        r"anthropic.claude.*": AnthropicClaudeAdapter,
-        r"meta.llama.*": MetaLlamaAdapter,
-        r"mistral.*": MistralAdapter,
+        r"([a-z]{2}\.)?amazon.titan-text.*": AmazonTitanAdapter,
+        r"([a-z]{2}\.)?ai21.j2.*": AI21LabsJurassic2Adapter,
+        r"([a-z]{2}\.)?cohere.command-[^r].*": CohereCommandAdapter,
+        r"([a-z]{2}\.)?cohere.command-r.*": CohereCommandRAdapter,
+        r"([a-z]{2}\.)?anthropic.claude.*": AnthropicClaudeAdapter,
+        r"([a-z]{2}\.)?meta.llama.*": MetaLlamaAdapter,
+        r"([a-z]{2}\.)?mistral.*": MistralAdapter,
     }
 
     def __init__(
@@ -87,6 +88,7 @@ class AmazonBedrockGenerator:
         max_length: Optional[int] = 100,
         truncate: Optional[bool] = True,
         streaming_callback: Optional[Callable[[StreamingChunk], None]] = None,
+        boto3_config: Optional[Dict[str, Any]] = None,
         **kwargs,
     ):
         """
@@ -102,6 +104,7 @@ class AmazonBedrockGenerator:
         :param truncate: Whether to truncate the prompt or not.
         :param streaming_callback: A callback function that is called when a new token is received from the stream.
             The callback function accepts StreamingChunk as an argument.
+        :param boto3_config: The configuration for the boto3 client.
         :param kwargs: Additional keyword arguments to be passed to the model.
         These arguments are specific to the model. You can find them in the model's documentation.
         :raises ValueError: If the model name is empty or None.
@@ -120,6 +123,7 @@ class AmazonBedrockGenerator:
         self.aws_region_name = aws_region_name
         self.aws_profile_name = aws_profile_name
         self.streaming_callback = streaming_callback
+        self.boto3_config = boto3_config
         self.kwargs = kwargs
 
         def resolve_secret(secret: Optional[Secret]) -> Optional[str]:
@@ -133,7 +137,10 @@ class AmazonBedrockGenerator:
                 aws_region_name=resolve_secret(aws_region_name),
                 aws_profile_name=resolve_secret(aws_profile_name),
             )
-            self.client = session.client("bedrock-runtime")
+            config: Optional[Config] = None
+            if self.boto3_config:
+                config = Config(**self.boto3_config)
+            self.client = session.client("bedrock-runtime", config=config)
         except Exception as exception:
             msg = (
                 "Could not connect to Amazon Bedrock. Make sure the AWS environment is configured correctly. "
@@ -145,15 +152,16 @@ class AmazonBedrockGenerator:
         # We pop the model_max_length as it is not sent to the model but used to truncate the prompt if needed
         model_max_length = kwargs.get("model_max_length", 4096)
 
-        # Truncate prompt if prompt tokens > model_max_length-max_length
-        # (max_length is the length of the generated text)
-        # we use GPT2 tokenizer which will likely provide good token count approximation
-
-        self.prompt_handler = DefaultPromptHandler(
-            tokenizer="gpt2",
-            model_max_length=model_max_length,
-            max_length=self.max_length or 100,
-        )
+        # we initialize the prompt handler only if truncate is True: we avoid unnecessarily downloading the tokenizer
+        if self.truncate:
+            # Truncate prompt if prompt tokens > model_max_length-max_length
+            # (max_length is the length of the generated text)
+            # we use GPT2 tokenizer which will likely provide good token count approximation
+            self.prompt_handler = DefaultPromptHandler(
+                tokenizer="gpt2",
+                model_max_length=model_max_length,
+                max_length=self.max_length or 100,
+            )
 
         model_adapter_cls = self.get_model_adapter(model=model)
         if not model_adapter_cls:
@@ -273,6 +281,7 @@ class AmazonBedrockGenerator:
             max_length=self.max_length,
             truncate=self.truncate,
             streaming_callback=callback_name,
+            boto3_config=self.boto3_config,
             **self.kwargs,
         )
 

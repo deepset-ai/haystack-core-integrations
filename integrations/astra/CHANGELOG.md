@@ -1,5 +1,16 @@
 # Changelog
 
+## [integrations/astra-v0.10.0] - 2024-10-22
+
+### 🚀 Features
+
+- Update astradb integration for latest client library (#1145)
+
+### ⚙️ Miscellaneous Tasks
+
+- Update ruff linting scripts and settings (#1105)
+- Adopt uv as installer (#1142)
+
 ## [integrations/astra-v0.9.3] - 2024-09-12
 
 ### 🐛 Bug Fixes
@@ -23,9 +34,7 @@
 ### 🐛 Bug Fixes
 
 - Fix astra nightly
-
 - Fix typing checks
-
 - `Astra` - Fallback to default filter policy when deserializing retrievers without the init parameter (#896)
 
 ### ⚙️ Miscellaneous Tasks
@@ -50,8 +59,6 @@
 
 - Fix haystack-ai pin (#649)
 
-
-
 ## [integrations/astra-v0.5.0] - 2024-03-18
 
 ### 📚 Documentation
@@ -74,8 +81,6 @@
 
 This PR will also push the docs to Readme
 - Fix integration tests (#450)
-
-
 
 ## [integrations/astra-v0.4.0] - 2024-02-20
 
