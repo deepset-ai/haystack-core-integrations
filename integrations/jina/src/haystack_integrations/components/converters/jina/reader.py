@@ -97,7 +97,6 @@ class JinaReaderConnector:
         document = Document(content=content, meta=data)
         return document
 
-    # TODO add headers param
     @component.output_types(document=List[Document])
     def run(self, query: str, headers: Optional[Dict[str, str]] = None):
         """
