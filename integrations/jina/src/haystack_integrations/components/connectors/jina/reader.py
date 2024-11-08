@@ -46,7 +46,7 @@ class JinaReaderConnector:
         :param mode: The operation mode for the reader (READ, SEARCH, or GROUND). See each Mode and its function here https://jina.ai/reader/
         :param api_key: The Jina API key. It can be explicitly provided or automatically read from the
             environment variable JINA_API_KEY (recommended).
-        :param json_response: A boolean to indicate whether to return the response in JSON format. Default is True. 
+        :param json_response: A boolean to indicate whether to return the response in JSON format. Default is True.
             If set to False, the response will be in markdown format.
         """
         resolved_api_key = api_key.resolve_value()
