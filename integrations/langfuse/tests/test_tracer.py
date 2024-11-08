@@ -104,6 +104,24 @@ class TestLangfuseTracer:
         assert span.raw_span()._data["model"] == "test_model"
         assert span.raw_span()._data["completion_start_time"] == datetime.datetime(2021, 7, 27, 16, 2, 8, 12345)
 
+    def test_trace_generation_invalid_start_time(self):
+        tracer = LangfuseTracer(tracer=MockTracer(), name="Haystack", public=False)
+        tags = {
+            "haystack.component.type": "OpenAIChatGenerator",
+            "haystack.component.output": {
+                "replies": [
+                    ChatMessage.from_assistant(
+                        "", meta={"completion_start_time": "foobar", "model": "test_model"}
+                    )
+                ]
+            },
+        }
+        with tracer.trace(operation_name="operation_name", tags=tags) as span:
+            ...
+        assert span.raw_span()._data["usage"] is None
+        assert span.raw_span()._data["model"] == "test_model"
+        assert span.raw_span()._data["completion_start_time"] is None
+
     def test_update_span_gets_flushed_by_default(self):
         tracer_mock = Mock()
 
