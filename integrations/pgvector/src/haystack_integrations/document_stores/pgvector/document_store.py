@@ -1,6 +1,7 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
+import time
 import logging
 from typing import Any, Dict, List, Literal, Optional
 
@@ -150,32 +151,66 @@ class PgvectorDocumentStore:
         self.hnsw_ef_search = hnsw_ef_search
         self.keyword_index_name = keyword_index_name
         self.language = language
+        self._max_retries = 3
+        self._retry_delay = 1  # seconds
         self._connection = None
         self._cursor = None
         self._dict_cursor = None
 
     @property
     def cursor(self):
+        self._ensure_connection()
+        if self._cursor is None or self._cursor.closed:
         if self._cursor is None:
             self._create_connection()
 
         return self._cursor
 
-    @property
+    def dict_cursor(self):
+        self._ensure_connection()
+        if self._dict_cursor is None or self._dict_cursor.closed:
     def dict_cursor(self):
         if self._dict_cursor is None:
             self._create_connection()
 
         return self._dict_cursor
 
-    @property
+    def connection(self):
+        self._ensure_connection()
+        return self._connection
     def connection(self):
         if self._connection is None:
             self._create_connection()
 
         return self._connection
 
+    def _ensure_connection(self):
+        """
+        Ensures that the connection to the database is active.
+        If the connection is lost, it attempts to reconnect.
+        """
+        for attempt in range(self._max_retries):
+            try:
+                if self._connection is None or self._connection.closed:
+                    self._create_connection()
+                else:
+                    # Test the connection
+                    self._connection.execute("SELECT 1")
+                return  # Connection is good, exit the method
+            except Error:
+                if attempt < self._max_retries - 1:
+                    logger.warning(f"Connection lost. Retrying in {self._retry_delay} seconds...")
+                    time.sleep(self._retry_delay)
+                else:
+                    logger.error("Failed to reconnect after multiple attempts.")
+                    raise
+
     def _create_connection(self):
+        """
+        Creates a new connection to the database.
+        """
+        if self._connection:
+            self._connection.close()
         conn_str = self.connection_string.resolve_value() or ""
         connection = connect(conn_str)
         connection.autocommit = True
