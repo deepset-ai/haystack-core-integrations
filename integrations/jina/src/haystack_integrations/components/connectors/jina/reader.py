@@ -11,7 +11,7 @@ import requests
 from haystack import Document, component, default_from_dict, default_to_dict
 from haystack.utils import Secret, deserialize_secrets_inplace
 
-from haystack_integrations.components.reader.jina import JinaReaderMode
+from haystack_integrations.components.connectors.jina import JinaReaderMode
 
 
 @component
@@ -24,7 +24,7 @@ class JinaReaderConnector:
     Usage example:
     ```python
     from haystack import Document
-    from haystack_integrations.components.readers.jina import JinaReader
+    from haystack_integrations.components.connectors.jina import JinaReader
 
     reader = JinaReader(mode="READ")
     query = "https://example.com"
@@ -46,6 +46,8 @@ class JinaReaderConnector:
         :param mode: The operation mode for the reader (READ, SEARCH, or GROUND). See each Mode and its function here https://jina.ai/reader/
         :param api_key: The Jina API key. It can be explicitly provided or automatically read from the
             environment variable JINA_API_KEY (recommended).
+        :param json_response: A boolean to indicate whether to return the response in JSON format. Default is True. 
+            If set to False, the response will be in markdown format.
         """
         resolved_api_key = api_key.resolve_value()
         self.api_key = api_key
@@ -103,6 +105,7 @@ class JinaReaderConnector:
         Process the query using the Jina AI reader service.
 
         :param query: The query string or URL to process.
+        :param headers: Optional headers to include in the request.
         :returns: A list containing a single Document object with the processed content and metadata.
         """
         if headers:
