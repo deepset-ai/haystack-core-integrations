@@ -110,9 +110,7 @@ class TestLangfuseTracer:
             "haystack.component.type": "OpenAIChatGenerator",
             "haystack.component.output": {
                 "replies": [
-                    ChatMessage.from_assistant(
-                        "", meta={"completion_start_time": "foobar", "model": "test_model"}
-                    )
+                    ChatMessage.from_assistant("", meta={"completion_start_time": "foobar", "model": "test_model"}),
                 ]
             },
         }

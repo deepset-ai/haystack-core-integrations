@@ -11,7 +11,6 @@ from haystack.tracing import utils as tracing_utils
 
 import langfuse
 
-
 logger = logging.getLogger(__name__)
 
 HAYSTACK_LANGFUSE_ENFORCE_FLUSH_ENV_VAR = "HAYSTACK_LANGFUSE_ENFORCE_FLUSH"
