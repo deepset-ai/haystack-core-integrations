@@ -90,7 +90,7 @@ class AzureAISearchHybridRetriever:
         query: str,
         query_embedding: List[float],
         filters: Optional[Dict[str, Any]] = None,
-        top_k: Optional[int] = None
+        top_k: Optional[int] = None,
     ):
         """Retrieve documents from the AzureAISearchDocumentStore.
 

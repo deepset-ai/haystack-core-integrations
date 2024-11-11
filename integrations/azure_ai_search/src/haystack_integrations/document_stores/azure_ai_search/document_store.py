@@ -490,8 +490,10 @@ class AzureAISearchDocumentStore:
         result = self.client.search(
             search_text=query,
             vector_queries=[vector_query],
-            select=fields, filter=filters,
-            top=top_k, query_type="simple"
+            select=fields,
+            filter=filters,
+            top=top_k,
+            query_type="simple",
         )
         azure_docs = list(result)
         return self._convert_search_result_to_documents(azure_docs)
