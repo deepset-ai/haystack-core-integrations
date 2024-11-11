@@ -495,4 +495,3 @@ class AzureAISearchDocumentStore:
         )
         azure_docs = list(result)
         return self._convert_search_result_to_documents(azure_docs)
-    
