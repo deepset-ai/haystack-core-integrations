@@ -438,7 +438,7 @@ class AzureAISearchDocumentStore:
         result = self.client.search(search_text=None, vector_queries=[vector_query], select=fields, filter=filters)
         azure_docs = list(result)
         return self._convert_search_result_to_documents(azure_docs)
-    
+
     def _bm25_retrieval(
         self,
         query: str,
@@ -487,6 +487,12 @@ class AzureAISearchDocumentStore:
             raise ValueError(msg)
 
         vector_query = VectorizedQuery(vector=query_embedding, k_nearest_neighbors=top_k, fields="embedding")
-        result = self.client.search(search_text=query, vector_queries=[vector_query], select=fields, filter=filters, top=top_k, query_type="simple")
+        result = self.client.search(
+            search_text=query, 
+            vector_queries=[vector_query], 
+            select=fields, filter=filters, 
+            top=top_k, query_type="simple"
+        )
         azure_docs = list(result)
         return self._convert_search_result_to_documents(azure_docs)
+    

@@ -86,7 +86,11 @@ class AzureAISearchHybridRetriever:
 
     @component.output_types(documents=List[Document])
     def run(
-        self, query: str, query_embedding: List[float], filters: Optional[Dict[str, Any]] = None, top_k: Optional[int] = None
+        self, 
+        query: str, 
+        query_embedding: List[float], 
+        filters: Optional[Dict[str, Any]] = None, 
+        top_k: Optional[int] = None
     ):
         """Retrieve documents from the AzureAISearchDocumentStore.
 
