@@ -438,3 +438,55 @@ class AzureAISearchDocumentStore:
         result = self.client.search(search_text=None, vector_queries=[vector_query], select=fields, filter=filters)
         azure_docs = list(result)
         return self._convert_search_result_to_documents(azure_docs)
+    
+    def _bm25_retrieval(
+        self,
+        query: str,
+        top_k: int = 10,
+        fields: Optional[List[str]] = None,
+        filters: Optional[Dict[str, Any]] = None,
+    ) -> List[Document]:
+        """
+        Retrieves documents that are most similar to `query`, using the BM25 algorithm
+
+        This method is not meant to be part of the public interface of
+        `AzureAISearchDocumentStore` nor called directly.
+        `AzureAISearchBM25Retriever` uses this method directly and is the public interface for it.
+
+        :param query: Text of the query.
+        :param filters: Filters applied to the retrieved Documents. Defaults to None.
+            Filters are applied during the approximate kNN search to ensure that top_k matching documents are returned.
+        :param top_k: Maximum number of Documents to return, defaults to 10
+
+        :raises ValueError: If `query` is an empty string
+        :returns: List of Document that are most similar to `query`
+        """
+
+        if query is None:
+            msg = "query must not be None"
+            raise ValueError(msg)
+
+        result = self.client.search(search_text=query, select=fields, filter=filters, top=top_k, query_type="simple")
+        azure_docs = list(result)
+        return self._convert_search_result_to_documents(azure_docs)
+
+    def _hybrid_retrieval(
+        self,
+        query: str,
+        query_embedding: List[float],
+        top_k: int = 10,
+        fields: Optional[List[str]] = None,
+        filters: Optional[Dict[str, Any]] = None,
+    ) -> List[Document]:
+
+        if query is None:
+            msg = "query must not be None"
+            raise ValueError(msg)
+        if not query_embedding:
+            msg = "query_embedding must be a non-empty list of floats"
+            raise ValueError(msg)
+
+        vector_query = VectorizedQuery(vector=query_embedding, k_nearest_neighbors=top_k, fields="embedding")
+        result = self.client.search(search_text=query, vector_queries=[vector_query], select=fields, filter=filters, top=top_k, query_type="simple")
+        azure_docs = list(result)
+        return self._convert_search_result_to_documents(azure_docs)
