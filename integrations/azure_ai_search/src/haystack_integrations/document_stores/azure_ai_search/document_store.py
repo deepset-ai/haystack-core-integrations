@@ -488,9 +488,9 @@ class AzureAISearchDocumentStore:
 
         vector_query = VectorizedQuery(vector=query_embedding, k_nearest_neighbors=top_k, fields="embedding")
         result = self.client.search(
-            search_text=query, 
-            vector_queries=[vector_query], 
-            select=fields, filter=filters, 
+            search_text=query,
+            vector_queries=[vector_query],
+            select=fields, filter=filters,
             top=top_k, query_type="simple"
         )
         azure_docs = list(result)
