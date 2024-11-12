@@ -88,6 +88,7 @@ class SnowflakeTableRetriever:
         :param warehouse: Name of the warehouse to use.
         :param login_timeout: Timeout in seconds for login. By default, 60 seconds.
         :param private_key_file: Location of private key
+            mutually exclusive to password, if key_file is provided this auth method will be used.
         :param private_key_file_pwd: Password for private key file
         """
 
@@ -292,12 +293,10 @@ class SnowflakeTableRetriever:
         if not query:
             return df
         try:
-            # Create a new connection with every run
-            conn = self._snowflake_connector(
-                connect_params={
+            # Build up param connection
+            connect_params={
                     "user": self.user,
                     "account": self.account,
-                    "password": self.api_key,
                     "private_key_file": self.private_key_file,
                     "private_key_file_pwd": self.private_key_file_pwd,
                     "database": self.database,
@@ -306,6 +305,14 @@ class SnowflakeTableRetriever:
                     "role": self.role,
                     "login_timeout": self.login_timeout
                 }
+            
+            # Check if private key has been provided
+            if self.private_key_file is None:
+                connect_params["password"] = self.api_key.resolve_value()
+            
+            # Create a new connection with every run
+            conn = self._snowflake_connector(
+                connect_params=connect_params
             )
             if conn is None:
                 return df
