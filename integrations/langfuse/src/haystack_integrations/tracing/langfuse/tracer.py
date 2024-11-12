@@ -2,7 +2,7 @@ import contextlib
 import logging
 import os
 from datetime import datetime
-from typing import Any, Dict, Iterator, Optional, Union
+from typing import Any, Dict, Iterator, List, Optional, Union
 
 from haystack.components.generators.openai_utils import _convert_message_to_openai_format
 from haystack.dataclasses import ChatMessage
@@ -30,6 +30,8 @@ _SUPPORTED_CHAT_GENERATORS = [
     "HuggingFaceLocalChatGenerator",
     "CohereChatGenerator",
 ]
+COMPONENT_TYPE_KEY = "haystack.component.type"
+COMPONENT_OUTPUT_KEY = "haystack.component.output"
 _ALL_SUPPORTED_GENERATORS = _SUPPORTED_GENERATORS + _SUPPORTED_CHAT_GENERATORS
 
 
@@ -86,7 +88,7 @@ class LangfuseSpan(Span):
 
         self._data[key] = value
 
-    def raw_span(self) -> Any:
+    def raw_span(self) -> "Union[langfuse.client.StatefulSpanClient, langfuse.client.StatefulTraceClient]":
         """
         Return the underlying span instance.
 
@@ -115,86 +117,105 @@ class LangfuseTracer(Tracer):
         and only accessible to the Langfuse account owner.
         """
         self._tracer = tracer
-        self._context: list[LangfuseSpan] = []
+        self._context: List[LangfuseSpan] = []
         self._name = name
         self._public = public
         self.enforce_flush = os.getenv(HAYSTACK_LANGFUSE_ENFORCE_FLUSH_ENV_VAR, "true").lower() == "true"
 
+        root_span_raw = self._tracer.trace(name=self._name)
+        self._root_span = LangfuseSpan(root_span_raw)
+        # Do not add root span to self._context
+
     @contextlib.contextmanager
-    def trace(self, operation_name: str, tags: Optional[Dict[str, Any]] = None) -> Iterator[Span]:
-        """
-        Start and manage a new trace span.
-        :param operation_name: The name of the operation.
-        :param tags: A dictionary of tags to attach to the span.
-        :return: A context manager yielding the span.
-        """
+    def trace(
+        self, operation_name: str, tags: Optional[Dict[str, Any]] = None, parent_span: Optional[Span] = None
+    ) -> Iterator[Span]:
         tags = tags or {}
         span_name = tags.get("haystack.component.name", operation_name)
 
-        if tags.get("haystack.component.type") in _ALL_SUPPORTED_GENERATORS:
-            span = LangfuseSpan(self.current_span().raw_span().generation(name=span_name))
-        else:
-            span = LangfuseSpan(self.current_span().raw_span().span(name=span_name))
+        # Determine if we need to create and push the root span onto the context stack
+        created_root_span = False
+        if not self._context:
+            self._context.append(self._root_span)
+            created_root_span = True
 
+        parent_raw_span: Optional[Union[langfuse.client.StatefulSpanClient, langfuse.client.StatefulTraceClient]] = None
+
+        if parent_span is not None:
+            parent_raw_span = parent_span.raw_span()
+        else:
+            current_span = self.current_span()
+            if current_span is not None:
+                parent_raw_span = current_span.raw_span()
+            else:
+                parent_raw_span = None
+
+        if tags.get(COMPONENT_TYPE_KEY) in _ALL_SUPPORTED_GENERATORS:
+            new_span_raw = (
+                parent_raw_span.generation(name=span_name)
+                if parent_raw_span
+                else self._tracer.generation(name=span_name)
+            )
+        elif parent_raw_span:
+            new_span_raw = parent_raw_span.span(name=span_name)
+        else:
+            new_span_raw = self._tracer.span(name=span_name)
+
+        span = LangfuseSpan(new_span_raw)
         self._context.append(span)
         span.set_tags(tags)
 
-        yield span
-
-        if tags.get("haystack.component.type") in _SUPPORTED_GENERATORS:
-            meta = span._data.get("haystack.component.output", {}).get("meta")
-            if meta:
-                # Haystack returns one meta dict for each message, but the 'usage' value
-                # is always the same, let's just pick the first item
-                m = meta[0]
-                span._span.update(usage=m.get("usage") or None, model=m.get("model"))
-        elif tags.get("haystack.component.type") in _SUPPORTED_CHAT_GENERATORS:
-            replies = span._data.get("haystack.component.output", {}).get("replies")
-            if replies:
-                meta = replies[0].meta
-                completion_start_time = meta.get("completion_start_time")
-                if completion_start_time:
-                    try:
-                        completion_start_time = datetime.fromisoformat(completion_start_time)
-                    except ValueError:
-                        logger.error(f"Failed to parse completion_start_time: {completion_start_time}")
-                        completion_start_time = None
-                span._span.update(
-                    usage=meta.get("usage") or None,
-                    model=meta.get("model"),
-                    completion_start_time=completion_start_time,
-                )
-
-        pipeline_input = tags.get("haystack.pipeline.input_data", None)
-        if pipeline_input:
-            span._span.update(input=tags["haystack.pipeline.input_data"])
-        pipeline_output = tags.get("haystack.pipeline.output_data", None)
-        if pipeline_output:
-            span._span.update(output=tags["haystack.pipeline.output_data"])
-
-        span.raw_span().end()
-        self._context.pop()
-
-        if len(self._context) == 1:
-            # The root span has to be a trace, which need to be removed from the context after the pipeline run
+        try:
+            yield span
+        finally:
             self._context.pop()
+            if created_root_span:
+                self._context.pop()
 
+            # Update span metadata based on component type
+            if tags.get(COMPONENT_TYPE_KEY) in _SUPPORTED_GENERATORS:
+                meta = span._data.get(COMPONENT_TYPE_KEY, {}).get("meta")
+                if meta:
+                    # Haystack returns one meta dict for each message, but the 'usage' value
+                    # is always the same, let's just pick the first item
+                    m = meta[0]
+                    span._span.update(usage=m.get("usage") or None, model=m.get("model"))
+                    # add prompt object to generator #1154
+                    # if m.get("prompt_name") is not None:
+                    #     prompt_name = m["prompt_name"]
+                    #     prompt_obj = self.get_pipeline_run_context().get(prompt_name)
+                    #     if prompt_obj:
+                    #         span._span.update(prompt=prompt_obj)
+                    span._span.update(usage=m.get("usage") or None, model=m.get("model"))
+            elif tags.get(COMPONENT_TYPE_KEY) in _SUPPORTED_CHAT_GENERATORS:
+                replies = span._data.get(COMPONENT_OUTPUT_KEY, {}).get("replies")
+                if replies:
+                    meta = replies[0].meta
+                    completion_start_time = meta.get("completion_start_time")
+                    if completion_start_time:
+                        try:
+                            completion_start_time = datetime.fromisoformat(completion_start_time)
+                        except ValueError:
+                            logger.error(f"Failed to parse completion_start_time: {completion_start_time}")
+                            completion_start_time = None
+                    span._span.update(
+                        usage=meta.get("usage") or None,
+                        model=meta.get("model"),
+                        completion_start_time=completion_start_time,
+                    )
             if self.enforce_flush:
                 self.flush()
 
     def flush(self):
         self._tracer.flush()
 
-    def current_span(self) -> Span:
+    def current_span(self) -> Optional[Span]:
         """
-        Return the currently active span.
+        Return the current active span.
 
-        :return: The currently active span.
+        :return: The current span if available, else None.
         """
-        if not self._context:
-            # The root span has to be a trace
-            self._context.append(LangfuseSpan(self._tracer.trace(name=self._name, public=self._public)))
-        return self._context[-1]
+        return self._context[-1] if self._context else None
 
     def get_trace_url(self) -> str:
         """
