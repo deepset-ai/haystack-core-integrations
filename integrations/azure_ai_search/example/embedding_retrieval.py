@@ -1,7 +1,6 @@
 from haystack import Document, Pipeline
 from haystack.components.embedders import SentenceTransformersDocumentEmbedder, SentenceTransformersTextEmbedder
 from haystack.components.writers import DocumentWriter
-from haystack.document_stores.types import DuplicatePolicy
 
 from haystack_integrations.components.retrievers.azure_ai_search import AzureAISearchEmbeddingRetriever
 from haystack_integrations.document_stores.azure_ai_search import AzureAISearchDocumentStore
@@ -38,9 +37,7 @@ document_embedder.warm_up()
 # Indexing Pipeline
 indexing_pipeline = Pipeline()
 indexing_pipeline.add_component(instance=document_embedder, name="doc_embedder")
-indexing_pipeline.add_component(
-    instance=DocumentWriter(document_store=document_store, policy=DuplicatePolicy.SKIP), name="doc_writer"
-)
+indexing_pipeline.add_component(instance=DocumentWriter(document_store=document_store), name="doc_writer")
 indexing_pipeline.connect("doc_embedder", "doc_writer")
 
 indexing_pipeline.run({"doc_embedder": {"documents": documents}})

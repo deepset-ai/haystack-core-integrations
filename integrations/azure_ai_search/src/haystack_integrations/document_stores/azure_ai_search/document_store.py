@@ -87,19 +87,20 @@ class AzureAISearchDocumentStore:
         :param vector_search_configuration: Configuration option related to vector search.
             Default configuration uses the HNSW algorithm with cosine similarity to handle vector searches.
 
-        :param kwargs: Optional keyword parameters for Azure AI Search.
+        :param kwargs: Optional keyword parameters to be passed to SearchIndex during index creation.
             Some of the supported parameters:
-                - `api_version`: The Search API version to use for requests.
-                - `audience`: sets the Audience to use for authentication with Azure Active Directory (AAD).
-                The audience is not considered when using a shared key. If audience is not provided,
-                the public cloud audience will be assumed.
+                - `semantic_search`: Defines semantic configuration of the search index. This parameter is needed
+                to enable semantic search capabilities in index.
+                - `similarity`: The type of similarity algorithm to be used when scoring and ranking the documents
+                matching a search query. The similarity algorithm can only be defined at index creation time and
+                cannot be modified on existing indexes.
 
         For more information on parameters, see the [official Azure AI Search documentation](https://learn.microsoft.com/en-us/azure/search/)
         """
 
         azure_endpoint = azure_endpoint or os.environ.get("AZURE_SEARCH_SERVICE_ENDPOINT") or None
         if not azure_endpoint:
-            msg = "Please provide an Azure endpoint or set the environment variable AZURE_OPENAI_ENDPOINT."
+            msg = "Please provide an Azure endpoint or set the environment variable AZURE_SEARCH_SERVICE_ENDPOINT."
             raise ValueError(msg)
 
         api_key = api_key or os.environ.get("AZURE_SEARCH_API_KEY") or None
@@ -128,7 +129,10 @@ class AzureAISearchDocumentStore:
         credential = AzureKeyCredential(resolved_key) if resolved_key else DefaultAzureCredential()
         try:
             if not self._index_client:
-                self._index_client = SearchIndexClient(resolved_endpoint, credential, **self._kwargs)
+                self._index_client = SearchIndexClient(
+                    resolved_endpoint,
+                    credential,
+                )
             if not self._index_exists(self._index_name):
                 # Create a new index if it does not exist
                 logger.debug(
@@ -151,7 +155,7 @@ class AzureAISearchDocumentStore:
 
         return self._client
 
-    def _create_index(self, index_name: str, **kwargs) -> None:
+    def _create_index(self, index_name: str) -> None:
         """
         Creates a new search index.
         :param index_name: Name of the index to create. If None, the index name from the constructor is used.
@@ -177,7 +181,7 @@ class AzureAISearchDocumentStore:
         if self._metadata_fields:
             default_fields.extend(self._create_metadata_index_fields(self._metadata_fields))
         index = SearchIndex(
-            name=index_name, fields=default_fields, vector_search=self._vector_search_configuration, **kwargs
+            name=index_name, fields=default_fields, vector_search=self._vector_search_configuration, **self._kwargs
         )
         if self._index_client:
             self._index_client.create_index(index)
@@ -411,6 +415,7 @@ class AzureAISearchDocumentStore:
         top_k: int = 10,
         fields: Optional[List[str]] = None,
         filters: Optional[Dict[str, Any]] = None,
+        **kwargs,
     ) -> List[Document]:
         """
         Retrieves documents that are most similar to the query embedding using a vector similarity metric.
@@ -435,6 +440,8 @@ class AzureAISearchDocumentStore:
             raise ValueError(msg)
 
         vector_query = VectorizedQuery(vector=query_embedding, k_nearest_neighbors=top_k, fields="embedding")
-        result = self.client.search(search_text=None, vector_queries=[vector_query], select=fields, filter=filters)
+        result = self.client.search(
+            search_text=None, vector_queries=[vector_query], select=fields, filter=filters, **kwargs
+        )
         azure_docs = list(result)
         return self._convert_search_result_to_documents(azure_docs)

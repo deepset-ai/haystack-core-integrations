@@ -25,6 +25,7 @@ class AzureAISearchEmbeddingRetriever:
         filters: Optional[Dict[str, Any]] = None,
         top_k: int = 10,
         filter_policy: Union[str, FilterPolicy] = FilterPolicy.REPLACE,
+        **kwargs,
     ):
         """
         Create the AzureAISearchEmbeddingRetriever component.
@@ -43,6 +44,7 @@ class AzureAISearchEmbeddingRetriever:
         self._filter_policy = (
             filter_policy if isinstance(filter_policy, FilterPolicy) else FilterPolicy.from_str(filter_policy)
         )
+        self._kwargs = kwargs
 
         if not isinstance(document_store, AzureAISearchDocumentStore):
             message = "document_store must be an instance of AzureAISearchDocumentStore"
@@ -106,9 +108,7 @@ class AzureAISearchEmbeddingRetriever:
 
         try:
             docs = self._document_store._embedding_retrieval(
-                query_embedding=query_embedding,
-                filters=normalized_filters,
-                top_k=top_k,
+                query_embedding=query_embedding, filters=normalized_filters, top_k=top_k, **self._kwargs
             )
         except Exception as e:
             raise e
