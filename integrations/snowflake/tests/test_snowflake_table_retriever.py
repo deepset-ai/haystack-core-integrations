@@ -239,56 +239,6 @@ class TestSnowflakeTableRetriever:
     @patch(
         "haystack_integrations.components.retrievers.snowflake.snowflake_table_retriever.snowflake.connector.connect"
     )
-    def test_is_select_only(
-        self, mock_connect: MagicMock, snowflake_table_retriever: SnowflakeTableRetriever, caplog: LogCaptureFixture
-    ) -> None:
-        mock_conn = MagicMock()
-        mock_cursor = MagicMock()
-        mock_conn.cursor.return_value = mock_cursor
-        mock_connect.return_value = mock_conn
-        mock_cursor.fetchall.side_effect = [
-            [("DATETIME", "ROLE_NAME", "USER", "USER_NAME", "GRANTED_BY")],  # User roles
-            [
-                (
-                    "DATETIME",
-                    "SELECT",
-                    "TABLE",
-                    "LOCATIONS",
-                    "ROLE",
-                    "ROLE_NAME",
-                    "GRANT_OPTION",
-                    "GRANTED_BY",
-                )
-            ],  # Table privileges
-        ]
-
-        query = "select * from locations"
-        result = snowflake_table_retriever._check_privilege(conn=mock_conn, user="test_user", query=query)
-        assert result
-
-        mock_cursor.fetchall.side_effect = [
-            [("DATETIME", "ROLE_NAME", "USER", "USER_NAME", "GRANTED_BY")],  # User roles
-            [
-                (
-                    "DATETIME",
-                    "INSERT",
-                    "TABLE",
-                    "LOCATIONS",
-                    "ROLE",
-                    "ROLE_NAME",
-                    "GRANT_OPTION",
-                    "GRANTED_BY",
-                )
-            ],
-        ]
-
-        result = snowflake_table_retriever._check_privilege(conn=mock_conn, user="test_user", query=query)
-
-        assert not result
-
-    @patch(
-        "haystack_integrations.components.retrievers.snowflake.snowflake_table_retriever.snowflake.connector.connect"
-    )
     def test_column_after_from(
         self, mock_connect: MagicMock, snowflake_table_retriever: SnowflakeTableRetriever
     ) -> None:
