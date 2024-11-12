@@ -231,7 +231,7 @@ class SnowflakeTableRetriever:
             ):
                 return True
             else:
-                False
+                return False
 
         return True
 
@@ -305,11 +305,9 @@ class SnowflakeTableRetriever:
                     "role": self.role,
                     "login_timeout": self.login_timeout
                 }
-            
             # Check if private key has been provided
             if self.private_key_file is None:
                 connect_params["password"] = self.api_key.resolve_value()
-            
             # Create a new connection with every run
             conn = self._snowflake_connector(
                 connect_params=connect_params
