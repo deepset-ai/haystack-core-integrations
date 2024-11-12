@@ -11,7 +11,7 @@ import requests
 from haystack import Document, component, default_from_dict, default_to_dict
 from haystack.utils import Secret, deserialize_secrets_inplace
 
-from haystack_integrations.components.connectors.jina import JinaReaderMode
+from .reader_mode import JinaReaderMode
 
 
 @component
