@@ -62,7 +62,7 @@ class GoogleAIGeminiGenerator:
     ```
     """
 
-    def __new__(cls, *args, **kwargs):  # noqa: ARG003 - we cannote remove *args
+    def __new__(cls, *_, **kwargs):
         if "tools" in kwargs:
             msg = (
                 "GoogleAIGeminiGenerator does not support the `tools` parameter. "
