@@ -221,7 +221,7 @@ class SnowflakeTableRetriever:
         :param privileges: List of privileges.
         :param table_name: Name of the table.
         """
-        print(privileges)
+
         for privilege in reversed(privileges):
             if table_name.lower() == privilege[3].lower() and re.match(
                 pattern="select",
