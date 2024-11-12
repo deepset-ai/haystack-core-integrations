@@ -2,5 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 from .reader import JinaReaderConnector
+from .reader_mode import JinaReaderMode
 
-__all__ = ["JinaReaderConnector"]
+__all__ = ["JinaReaderConnector", "JinaReaderMode"]
