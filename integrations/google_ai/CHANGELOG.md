@@ -1,5 +1,15 @@
 # Changelog
 
+## [integrations/google_ai-v3.0.0] - 2024-11-12
+
+### 🐛 Bug Fixes
+
+- `GoogleAIGeminiGenerator` - remove support for tools and change output type (#1177)
+
+### ⚙️ Miscellaneous Tasks
+
+- Adopt uv as installer (#1142)
+
 ## [integrations/google_ai-v2.0.1] - 2024-10-15
 
 ### 🚀 Features

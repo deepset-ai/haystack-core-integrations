@@ -1,5 +1,15 @@
 # Changelog
 
+## [integrations/amazon_bedrock-v1.1.0] - 2024-10-23
+
+### 🚜 Refactor
+
+- Avoid downloading tokenizer if `truncate` is `False` (#1152)
+
+### ⚙️ Miscellaneous Tasks
+
+- Adopt uv as installer (#1142)
+
 ## [integrations/amazon_bedrock-v1.0.5] - 2024-10-17
 
 ### 🚀 Features

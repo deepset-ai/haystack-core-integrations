@@ -24,14 +24,12 @@ def test_init(mock_model_class, mock_vertexai):
 @patch("haystack_integrations.components.generators.google_vertex.text_generator.TextGenerationModel")
 def test_to_dict(_mock_model_class, _mock_vertexai):
     grounding_source = GroundingSource.VertexAISearch("1234", "us-central-1")
-    generator = VertexAITextGenerator(
-        model="text-bison", project_id="myproject-123456", temperature=0.2, grounding_source=grounding_source
-    )
+    generator = VertexAITextGenerator(model="text-bison", temperature=0.2, grounding_source=grounding_source)
     assert generator.to_dict() == {
         "type": "haystack_integrations.components.generators.google_vertex.text_generator.VertexAITextGenerator",
         "init_parameters": {
             "model": "text-bison",
-            "project_id": "myproject-123456",
+            "project_id": None,
             "location": None,
             "temperature": 0.2,
             "grounding_source": {
@@ -55,7 +53,7 @@ def test_from_dict(_mock_model_class, _mock_vertexai):
             "type": "haystack_integrations.components.generators.google_vertex.text_generator.VertexAITextGenerator",
             "init_parameters": {
                 "model": "text-bison",
-                "project_id": "myproject-123456",
+                "project_id": None,
                 "location": None,
                 "temperature": 0.2,
                 "grounding_source": {
@@ -71,7 +69,7 @@ def test_from_dict(_mock_model_class, _mock_vertexai):
         }
     )
     assert generator._model_name == "text-bison"
-    assert generator._project_id == "myproject-123456"
+    assert generator._project_id is None
     assert generator._location is None
     assert generator._kwargs == {
         "temperature": 0.2,
@@ -86,9 +84,7 @@ def test_run_calls_get_captions(mock_model_class, _mock_vertexai):
     mock_model.predict.return_value = MagicMock()
     mock_model_class.from_pretrained.return_value = mock_model
     grounding_source = GroundingSource.VertexAISearch("1234", "us-central-1")
-    generator = VertexAITextGenerator(
-        model="text-bison", project_id="myproject-123456", temperature=0.2, grounding_source=grounding_source
-    )
+    generator = VertexAITextGenerator(model="text-bison", temperature=0.2, grounding_source=grounding_source)
 
     prompt = "What is the answer?"
     generator.run(prompt=prompt)
