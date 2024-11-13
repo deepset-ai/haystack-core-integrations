@@ -42,7 +42,7 @@ class TestJinaReaderConnector:
         component_dict = {
             "type": "haystack_integrations.components.connectors.jina.reader.JinaReaderConnector",
             "init_parameters": {
-                "api_key": {"type": "env_var", "env_vars": ["JINA_API_KEY"]},
+                "api_key": {"type": "env_var", "env_vars": ["JINA_API_KEY"], "strict": True},
                 "mode": "READ",
                 "json_response": True,
             },
