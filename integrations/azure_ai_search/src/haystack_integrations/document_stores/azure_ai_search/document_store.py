@@ -198,8 +198,8 @@ class AzureAISearchDocumentStore:
         """
         return default_to_dict(
             self,
-            azure_endpoint=self._azure_endpoint.to_dict() if self._azure_endpoint is not None else None,
-            api_key=self._api_key.to_dict() if self._api_key is not None else None,
+            azure_endpoint=self._azure_endpoint.to_dict() if self._azure_endpoint else None,
+            api_key=self._api_key.to_dict() if self._api_key else None,
             index_name=self._index_name,
             embedding_dimension=self._embedding_dimension,
             metadata_fields=self._metadata_fields,

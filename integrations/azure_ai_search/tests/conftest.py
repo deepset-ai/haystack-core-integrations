@@ -7,6 +7,7 @@ from azure.core.credentials import AzureKeyCredential
 from azure.core.exceptions import ResourceNotFoundError
 from azure.search.documents.indexes import SearchIndexClient
 from haystack import logging
+from haystack.document_stores.types import DuplicatePolicy
 
 from haystack_integrations.document_stores.azure_ai_search import AzureAISearchDocumentStore
 
@@ -48,8 +49,8 @@ def document_store(request):
     original_write_documents = store.write_documents
     original_delete_documents = store.delete_documents
 
-    def write_documents_and_wait(documents, policy):
-        written_docs = original_write_documents(documents, policy=policy)
+    def write_documents_and_wait(documents, policy=DuplicatePolicy.OVERWRITE):
+        written_docs = original_write_documents(documents, policy)
         time.sleep(SLEEP_TIME_IN_SECONDS)
         return written_docs
 
