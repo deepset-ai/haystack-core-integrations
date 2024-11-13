@@ -23,7 +23,7 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
-dependencies = ["haystack-ai>=2.0.1", "fastembed>=0.2.5", "onnxruntime<1.20.0"]
+dependencies = ["haystack-ai>=2.0.1", "fastembed>=0.4.2"]
 
 [project.urls]
 Source = "https://github.com/deepset-ai/haystack-core-integrations"
@@ -153,6 +153,10 @@ parallel = false
 omit = ["*/tests/*", "*/__init__.py"]
 show_missing = true
 exclude_lines = ["no cov", "if __name__ == .__main__.:", "if TYPE_CHECKING:"]
+
+[tool.pytest.ini_options]
+minversion = "6.0"
+markers = ["unit: unit tests", "integration: integration tests"]
 
 [[tool.mypy.overrides]]
 module = [
