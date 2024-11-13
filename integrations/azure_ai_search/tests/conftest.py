@@ -6,12 +6,12 @@ import pytest
 from azure.core.credentials import AzureKeyCredential
 from azure.core.exceptions import ResourceNotFoundError
 from azure.search.documents.indexes import SearchIndexClient
-from haystack.document_stores.types import DuplicatePolicy
+from haystack import logging
 
 from haystack_integrations.document_stores.azure_ai_search import AzureAISearchDocumentStore
 
 # This is the approximate time in seconds it takes for the documents to be available in Azure Search index
-SLEEP_TIME_IN_SECONDS = 5
+SLEEP_TIME_IN_SECONDS = 10
 
 
 @pytest.fixture()
@@ -46,17 +46,25 @@ def document_store(request):
 
     # Override some methods to wait for the documents to be available
     original_write_documents = store.write_documents
+    original_delete_documents = store.delete_documents
 
-    def write_documents_and_wait(documents, policy=DuplicatePolicy.OVERWRITE):
-        written_docs = original_write_documents(documents, policy)
+    def write_documents_and_wait(documents, policy):
+        written_docs = original_write_documents(documents, policy=policy)
         time.sleep(SLEEP_TIME_IN_SECONDS)
         return written_docs
-
-    original_delete_documents = store.delete_documents
 
     def delete_documents_and_wait(filters):
         original_delete_documents(filters)
         time.sleep(SLEEP_TIME_IN_SECONDS)
+
+    # Helper function to wait for the index to be deleted, needed to cover latency
+    def wait_for_index_deletion(client, index_name):
+        start_time = time.time()
+        while time.time() - start_time < SLEEP_TIME_IN_SECONDS:
+            if index_name not in client.list_index_names():
+                return True
+            time.sleep(1)
+        return False
 
     store.write_documents = write_documents_and_wait
     store.delete_documents = delete_documents_and_wait
@@ -64,5 +72,9 @@ def document_store(request):
     yield store
     try:
         client.delete_index(index_name)
+        if not wait_for_index_deletion(client, index_name):
+            logging.error(f"Index {index_name} was not properly deleted.")
     except ResourceNotFoundError:
-        pass
+        logging.info(f"Index {index_name} was already deleted or not found.")
+    except Exception as e:
+        logging.error(f"Unexpected error when deleting index {index_name}: {e}")

@@ -87,7 +87,7 @@ class AzureAISearchDocumentStore:
         :param vector_search_configuration: Configuration option related to vector search.
             Default configuration uses the HNSW algorithm with cosine similarity to handle vector searches.
 
-        :param kwargs: Optional keyword parameters to be passed to SearchIndex during index creation.
+        :param kwargs: Optional keyword parameters to be passed to SearchIndex class during index creation.
             Some of the supported parameters:
                 - `semantic_search`: Defines semantic configuration of the search index. This parameter is needed
                 to enable semantic search capabilities in index.
@@ -413,7 +413,6 @@ class AzureAISearchDocumentStore:
         query_embedding: List[float],
         *,
         top_k: int = 10,
-        fields: Optional[List[str]] = None,
         filters: Optional[Dict[str, Any]] = None,
         **kwargs,
     ) -> List[Document]:
@@ -427,9 +426,10 @@ class AzureAISearchDocumentStore:
         `AzureAISearchEmbeddingRetriever` uses this method directly and is the public interface for it.
 
         :param query_embedding: Embedding of the query.
+        :param top_k: Maximum number of Documents to return, defaults to 10.
         :param filters: Filters applied to the retrieved Documents. Defaults to None.
             Filters are applied during the approximate kNN search to ensure that top_k matching documents are returned.
-        :param top_k: Maximum number of Documents to return, defaults to 10
+        :param kwargs: Optional keyword arguments to pass to the Azure AI's search endpoint.
 
         :raises ValueError: If `query_embedding` is an empty list
         :returns: List of Document that are most similar to `query_embedding`
@@ -440,8 +440,6 @@ class AzureAISearchDocumentStore:
             raise ValueError(msg)
 
         vector_query = VectorizedQuery(vector=query_embedding, k_nearest_neighbors=top_k, fields="embedding")
-        result = self.client.search(
-            search_text=None, vector_queries=[vector_query], select=fields, filter=filters, **kwargs
-        )
+        result = self.client.search(vector_queries=[vector_query], filter=filters, **kwargs)
         azure_docs = list(result)
         return self._convert_search_result_to_documents(azure_docs)

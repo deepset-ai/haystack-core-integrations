@@ -32,10 +32,16 @@ class AzureAISearchEmbeddingRetriever:
 
         :param document_store: An instance of AzureAISearchDocumentStore to use with the Retriever.
         :param filters: Filters applied when fetching documents from the Document Store.
-            Filters are applied during the approximate kNN search to ensure the Retriever returns
-              `top_k` matching documents.
         :param top_k: Maximum number of documents to return.
-        :filter_policy: Policy to determine how filters are applied. Possible options:
+        :param filter_policy: Policy to determine how filters are applied.
+        :param kwargs: Additional keyword arguments to pass to the Azure AI's search endpoint.
+        Some of the supported parameters:
+                - `query_type`: A string indicating the type of query to perform. Possible values are
+                'simple','full' and 'semantic'.
+                - `semantic_configuration_name`: The name of semantic configuration to be used when
+                processing semantic queries.
+
+        For more information on parameters, see the [official Azure AI Search documentation](https://learn.microsoft.com/en-us/azure/search/)
 
         """
         self._filters = filters or {}
@@ -63,6 +69,7 @@ class AzureAISearchEmbeddingRetriever:
             top_k=self._top_k,
             document_store=self._document_store.to_dict(),
             filter_policy=self._filter_policy.value,
+            **self._kwargs,
         )
 
     @classmethod
