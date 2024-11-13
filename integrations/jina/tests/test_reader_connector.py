@@ -8,6 +8,7 @@ from haystack_integrations.components.connectors.jina import JinaReaderConnector
 
 os.environ["TEST_KEY"] = "test-api-key"
 
+
 class TestJinaReaderConnector:
     @pytest.fixture
     def mock_session(self):
