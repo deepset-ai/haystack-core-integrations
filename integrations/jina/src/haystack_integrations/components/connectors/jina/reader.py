@@ -24,9 +24,9 @@ class JinaReaderConnector:
     Usage example:
     ```python
     from haystack import Document
-    from haystack_integrations.components.connectors.jina import JinaReader
+    from haystack_integrations.components.connectors.jina import JinaReaderConnector
 
-    reader = JinaReader(mode="READ")
+    reader = JinaReaderConnector(mode="READ")
     query = "https://example.com"
     result = reader.run(query=query)
     document = result["document"]

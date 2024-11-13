@@ -6,6 +6,7 @@ from haystack.utils import Secret
 
 from haystack_integrations.components.connectors.jina import JinaReaderConnector, JinaReaderMode
 
+os.environ["JINA_API_KEY"] = "test-api-key"
 os.environ["TEST_KEY"] = "test-api-key"
 
 
@@ -41,15 +42,15 @@ class TestJinaReaderConnector:
         component_dict = {
             "type": "haystack_integrations.components.connectors.jina.reader.JinaReaderConnector",
             "init_parameters": {
-                "mode": "GROUND",
-                "json_response": False,
-                "api_key": {"type": "env_var", "env_vars": ["TEST_KEY"]},
+                "api_key": {"type": "env_var", "env_vars": ["JINA_API_KEY"]},
+                "mode": "READ",
+                "json_response": True,
             },
         }
 
         reader = JinaReaderConnector.from_dict(component_dict)
 
         assert isinstance(reader, JinaReaderConnector)
-        assert reader.mode == JinaReaderMode.GROUND
-        assert reader.json_response is False
+        assert reader.mode == JinaReaderMode.READ
+        assert reader.json_response is True
         assert reader.api_key.resolve_value() == "test-api-key"
