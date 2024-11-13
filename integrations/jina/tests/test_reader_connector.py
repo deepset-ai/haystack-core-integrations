@@ -1,3 +1,4 @@
+import os
 from unittest.mock import patch
 
 import pytest
@@ -5,6 +6,7 @@ from haystack.utils import Secret
 
 from haystack_integrations.components.connectors.jina import JinaReaderConnector, JinaReaderMode
 
+os.environ["TEST_KEY"] = "test-api-key"
 
 class TestJinaReaderConnector:
     @pytest.fixture
@@ -13,7 +15,7 @@ class TestJinaReaderConnector:
             yield mock.return_value
 
     def test_init_with_custom_parameters(self):
-        reader = JinaReaderConnector(mode="READ", api_key=Secret.from_token("test-api-key"), json_response=False)
+        reader = JinaReaderConnector(mode="READ", api_key=Secret.from_env_var("TEST_KEY"), json_response=False)
 
         assert reader.mode == JinaReaderMode.READ
         assert reader.api_key.resolve_value() == "test-api-key"
@@ -21,7 +23,7 @@ class TestJinaReaderConnector:
         assert "application/json" not in reader._session.headers.values()
 
     def test_to_dict(self):
-        reader = JinaReaderConnector(mode="SEARCH", api_key=Secret.from_token("test-api-key"), json_response=True)
+        reader = JinaReaderConnector(mode="SEARCH", api_key=Secret.from_env_var("TEST_KEY"), json_response=True)
 
         serialized = reader.to_dict()
 
@@ -41,7 +43,7 @@ class TestJinaReaderConnector:
             "init_parameters": {
                 "mode": "GROUND",
                 "json_response": False,
-                "api_key": {"type": "secret", "value": "another-test-key"},
+                "api_key": Secret.from_env_var("TEST_KEY"),
             },
         }
 
@@ -50,4 +52,4 @@ class TestJinaReaderConnector:
         assert isinstance(reader, JinaReaderConnector)
         assert reader.mode == JinaReaderMode.GROUND
         assert reader.json_response is False
-        assert reader.api_key.resolve_value() == "another-test-key"
+        assert reader.api_key.resolve_value() == "test-api-key"
