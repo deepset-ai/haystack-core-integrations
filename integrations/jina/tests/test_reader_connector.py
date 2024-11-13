@@ -35,7 +35,7 @@ class TestJinaReaderConnector:
         assert init_params["mode"] == "SEARCH"
         assert init_params["json_response"] is True
         assert "api_key" in init_params
-        assert init_params["api_key"]["type"] == "secret"
+        assert init_params["api_key"]["type"] == "env_var"
         assert "value" in init_params["api_key"]
 
     def test_from_dict(self):
