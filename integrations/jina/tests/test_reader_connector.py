@@ -43,7 +43,7 @@ class TestJinaReaderConnector:
             "init_parameters": {
                 "mode": "GROUND",
                 "json_response": False,
-                "api_key": Secret.from_env_var("TEST_KEY"),
+                "api_key": {"type": "env_var", "env_vars": ["TEST_KEY"]},
             },
         }
 
