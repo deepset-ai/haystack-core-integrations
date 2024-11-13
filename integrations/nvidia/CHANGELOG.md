@@ -1,15 +1,17 @@
 # Changelog
 
-## [unreleased]
+## [integrations/nvidia-v0.1.0] - 2024-11-13
 
 ### 🚀 Features
 
 - Update default embedding model to nvidia/nv-embedqa-e5-v5 (#1015)
 - Add NVIDIA NIM ranker support (#1023)
+- Raise error when attempting to embed empty documents/strings with Nvidia embedders (#1118)
 
 ### 🐛 Bug Fixes
 
 - Lints in `nvidia-haystack` (#993)
+- Missing Nvidia embedding truncate mode (#1043)
 
 ### 🚜 Refactor
 
@@ -27,6 +29,8 @@
 
 - Retry tests to reduce flakyness (#836)
 - Update ruff invocation to include check parameter (#853)
+- Update ruff linting scripts and settings (#1105)
+- Adopt uv as installer (#1142)
 
 ### Docs
 
