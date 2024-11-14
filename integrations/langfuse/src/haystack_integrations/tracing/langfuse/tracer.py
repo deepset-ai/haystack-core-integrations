@@ -174,18 +174,11 @@ class LangfuseTracer(Tracer):
 
             # Update span metadata based on component type
             if tags.get(COMPONENT_TYPE_KEY) in _SUPPORTED_GENERATORS:
-                meta = span._data.get(COMPONENT_TYPE_KEY, {}).get("meta")
+                meta = span._data.get(COMPONENT_OUTPUT_KEY, {}).get("meta")
                 if meta:
                     # Haystack returns one meta dict for each message, but the 'usage' value
                     # is always the same, let's just pick the first item
                     m = meta[0]
-                    span._span.update(usage=m.get("usage") or None, model=m.get("model"))
-                    # add prompt object to generator #1154
-                    # if m.get("prompt_name") is not None:
-                    #     prompt_name = m["prompt_name"]
-                    #     prompt_obj = self.get_pipeline_run_context().get(prompt_name)
-                    #     if prompt_obj:
-                    #         span._span.update(prompt=prompt_obj)
                     span._span.update(usage=m.get("usage") or None, model=m.get("model"))
             elif tags.get(COMPONENT_TYPE_KEY) in _SUPPORTED_CHAT_GENERATORS:
                 replies = span._data.get(COMPONENT_OUTPUT_KEY, {}).get("replies")
