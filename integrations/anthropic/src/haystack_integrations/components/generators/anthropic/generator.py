@@ -1,11 +1,10 @@
-import os
 from typing import Any, Callable, ClassVar, Dict, List, Optional, Union
 
 from haystack import component, default_from_dict, default_to_dict, logging
 from haystack.dataclasses import StreamingChunk
 from haystack.utils import Secret, deserialize_callable, deserialize_secrets_inplace, serialize_callable
 
-from anthropic import Stream
+from anthropic import Anthropic, Stream
 from anthropic.types import (
     ContentBlockDeltaEvent,
     Message,
@@ -14,8 +13,6 @@ from anthropic.types import (
     MessageStartEvent,
     MessageStreamEvent,
 )
-
-from .adapter import AnthropicAdapter, AnthropicVertexAdapter, BaseAdapter
 
 logger = logging.getLogger(__name__)
 
@@ -55,9 +52,7 @@ class AnthropicGenerator:
 
     def __init__(
         self,
-        api_key: Optional[Secret] = Secret.from_env_var("ANTHROPIC_API_KEY"),  # noqa: B008
-        region: Optional[str] = None,
-        project_id: Optional[str] = None,
+        api_key: Secret = Secret.from_env_var("ANTHROPIC_API_KEY"),  # noqa: B008
         model: str = "claude-3-sonnet-20240229",
         streaming_callback: Optional[Callable[[StreamingChunk], None]] = None,
         system_prompt: Optional[str] = None,
@@ -73,25 +68,11 @@ class AnthropicGenerator:
         :param generation_kwargs: Additional keyword arguments for generation.
         """
         self.api_key = api_key
-        self.region = region or os.environ.get("REGION") or None
-        self.project_id = project_id or os.environ.get("PROJECT_ID")
         self.model = model
         self.generation_kwargs = generation_kwargs or {}
         self.streaming_callback = streaming_callback
         self.system_prompt = system_prompt
-
-    def get_model_adapter(self) -> "BaseAdapter":
-        """
-        Factory method to select model adapter based on provided secrets.
-        """
-        if self.region and self.project_id:
-            return AnthropicVertexAdapter(region=self.region, project_id=self.project_id)
-        elif self.api_key:
-            return AnthropicAdapter(api_key=self.api_key)
-        else:
-            msg = "Failed to select a model:'ANTHROPIC_API_KEY' env variable must be provided for Anthropic,"
-            "or both 'REGION' and 'PROJECT_ID' env variables must be provided for AnthropicVertex."
-            raise ValueError(msg)
+        self.client = Anthropic(api_key=self.api_key.resolve_value())
 
     def _get_telemetry_data(self) -> Dict[str, Any]:
         """
@@ -115,9 +96,7 @@ class AnthropicGenerator:
             streaming_callback=callback_name,
             system_prompt=self.system_prompt,
             generation_kwargs=self.generation_kwargs,
-            api_key=self.api_key.to_dict() if self.api_key else None,
-            region=self.region,
-            project_id=self.project_id,
+            api_key=self.api_key.to_dict(),
         )
 
     @classmethod
@@ -147,12 +126,6 @@ class AnthropicGenerator:
          - `replies`: A list of generated replies.
          - `meta`: A list of metadata dictionaries for each reply.
         """
-
-        # Select the model adapter based on the provided env variables
-        model_adapter_cls = self.get_model_adapter()
-        client = model_adapter_cls.client()
-        model_name = model_adapter_cls.set_model(self.model)  # set the model name in the format required by the API
-
         # update generation kwargs by merging with the generation kwargs passed to the run method
         generation_kwargs = {**self.generation_kwargs, **(generation_kwargs or {})}
         filtered_generation_kwargs = {k: v for k, v in generation_kwargs.items() if k in self.ALLOWED_PARAMS}
@@ -163,10 +136,10 @@ class AnthropicGenerator:
                 f"Allowed parameters are {self.ALLOWED_PARAMS}."
             )
 
-        response: Union[Message, Stream[MessageStreamEvent]] = client.messages.create(
+        response: Union[Message, Stream[MessageStreamEvent]] = self.client.messages.create(
             max_tokens=filtered_generation_kwargs.pop("max_tokens", 512),
             system=self.system_prompt if self.system_prompt else filtered_generation_kwargs.pop("system", ""),
-            model=model_name,
+            model=self.model,
             messages=[MessageParam(content=prompt, role="user")],
             stream=self.streaming_callback is not None,
             **filtered_generation_kwargs,
