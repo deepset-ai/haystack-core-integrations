@@ -1,5 +1,15 @@
 # Changelog
 
+## [integrations/google_vertex-v3.0.0] - 2024-11-14
+
+### 🐛 Bug Fixes
+
+- VertexAIGeminiGenerator - remove support for tools and change output type (#1180)
+
+### ⚙️ Miscellaneous Tasks
+
+- Fix Vertex tests (#1163)
+
 ## [integrations/google_vertex-v2.2.0] - 2024-10-23
 
 ### 🐛 Bug Fixes
