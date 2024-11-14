@@ -285,7 +285,7 @@ class SnowflakeTableRetriever:
             return df
         try:
             # Build up param connection
-            connect_params={
+            connect_params = {
                 "user": self.user,
                 "account": self.account,
                 "private_key_file": self.private_key_file,
@@ -293,7 +293,7 @@ class SnowflakeTableRetriever:
                 "database": self.database,
                 "schema": self.db_schema,
                 "warehouse": self.warehouse,
-                "login_timeout": self.login_timeout
+                "login_timeout": self.login_timeout,
             }
             # Check if private key has been provided
             if self.private_key_file is None:
