@@ -47,6 +47,7 @@ def test_init(monkeypatch):
     monkeypatch.setenv("PG_CONN_STR", "some_connection_string")
 
     document_store = PgvectorDocumentStore(
+        schema_name="my_schema",
         table_name="my_table",
         embedding_dimension=512,
         vector_function="l2_distance",
@@ -59,6 +60,7 @@ def test_init(monkeypatch):
         keyword_index_name="my_keyword_index",
     )
 
+    assert document_store.schema_name == "my_schema"
     assert document_store.table_name == "my_table"
     assert document_store.embedding_dimension == 512
     assert document_store.vector_function == "l2_distance"
@@ -93,6 +95,7 @@ def test_to_dict(monkeypatch):
         "init_parameters": {
             "connection_string": {"env_vars": ["PG_CONN_STR"], "strict": True, "type": "env_var"},
             "table_name": "my_table",
+            "schema_name": "public",
             "embedding_dimension": 512,
             "vector_function": "l2_distance",
             "recreate_table": True,
