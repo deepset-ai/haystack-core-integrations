@@ -69,6 +69,8 @@ class SnowflakeTableRetriever:
         user: str,
         account: str,
         api_key: Secret = Secret.from_env_var("SNOWFLAKE_API_KEY"),  # noqa: B008
+        private_key_file: Optional[str] = None,
+        private_key_file_pwd: Optional[str] = None,
         database: Optional[str] = None,
         db_schema: Optional[str] = None,
         warehouse: Optional[str] = None,
@@ -82,11 +84,16 @@ class SnowflakeTableRetriever:
         :param db_schema: Name of the schema to use.
         :param warehouse: Name of the warehouse to use.
         :param login_timeout: Timeout in seconds for login. By default, 60 seconds.
+        :param private_key_file: Location of private key
+            mutually exclusive to password, if key_file is provided this auth method will be used.
+        :param private_key_file_pwd: Password for private key file
         """
 
         self.user = user
         self.account = account
         self.api_key = api_key
+        self.private_key_file = private_key_file
+        self.private_key_file_pwd = private_key_file_pwd
         self.database = database
         self.db_schema = db_schema
         self.warehouse = warehouse
@@ -104,6 +111,8 @@ class SnowflakeTableRetriever:
             user=self.user,
             account=self.account,
             api_key=self.api_key.to_dict(),
+            private_key_file=self.private_key_file,
+            private_key_file_pwd=self.private_key_file_pwd,
             database=self.database,
             db_schema=self.db_schema,
             warehouse=self.warehouse,
@@ -275,17 +284,25 @@ class SnowflakeTableRetriever:
         if not query:
             return df
         try:
-            # Create a new connection with every run
-            conn = self._snowflake_connector(
-                connect_params={
+            # Build up param connection
+            connect_params={
                     "user": self.user,
                     "account": self.account,
-                    "password": self.api_key.resolve_value(),
+                    "private_key_file": self.private_key_file,
+                    "private_key_file_pwd": self.private_key_file_pwd,
                     "database": self.database,
                     "schema": self.db_schema,
                     "warehouse": self.warehouse,
-                    "login_timeout": self.login_timeout,
+                    "login_timeout": self.login_timeout
                 }
+            
+            # Check if private key has been provided
+            if self.private_key_file is None:
+                connect_params["password"] = self.api_key.resolve_value()
+            
+            # Create a new connection with every run
+            conn = self._snowflake_connector(
+                connect_params=connect_params
             )
             if conn is None:
                 return df

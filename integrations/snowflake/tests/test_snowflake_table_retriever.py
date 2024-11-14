@@ -473,6 +473,8 @@ class TestSnowflakeTableRetriever:
             db_schema="test_schema",
             warehouse="test_warehouse",
             login_timeout=30,
+            private_key_file=None,
+            private_key_file_pwd=None
         )
 
         data = component.to_dict()
@@ -494,6 +496,8 @@ class TestSnowflakeTableRetriever:
                 "db_schema": "test_schema",
                 "warehouse": "test_warehouse",
                 "login_timeout": 30,
+                "private_key_file": None,
+                "private_key_file_pwd": None
             },
         }
 
@@ -529,6 +533,8 @@ class TestSnowflakeTableRetriever:
                 "db_schema": "SMALL_TOWNS",
                 "warehouse": "COMPUTE_WH",
                 "login_timeout": 30,
+                "private_key_file": None,
+                "private_key_file_pwd": None
             },
         }
 
