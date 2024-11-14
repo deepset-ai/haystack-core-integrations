@@ -104,7 +104,7 @@ class NvidiaTextEmbedder:
                 "Default model is set as: {model_name}. \n"
                 "Set model using model parameter. \n"
                 "To get available models use available_models property.",
-                model_name=name
+                model_name=name,
             )
             warnings.warn(
                 f"Default model is set as: {name}. \n"
