@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: 2022-present deepset GmbH <info@deepset.ai>
+# SPDX-FileCopyrightText: 2024-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
 
@@ -10,7 +10,6 @@ from haystack.utils import Secret, deserialize_secrets_inplace
 
 from haystack_integrations.components.embedders.nvidia.truncate import EmbeddingTruncateMode
 from haystack_integrations.utils.nvidia import NimBackend, is_hosted, url_validation
-
 
 _DEFAULT_API_URL = "https://ai.api.nvidia.com/v1/retrieval/nvidia"
 

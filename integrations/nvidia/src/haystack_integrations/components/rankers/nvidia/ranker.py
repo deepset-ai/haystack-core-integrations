@@ -1,7 +1,8 @@
-# SPDX-FileCopyrightText: 2022-present deepset GmbH <info@deepset.ai>
+# SPDX-FileCopyrightText: 2024-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import warnings
 from typing import Any, Dict, List, Optional, Union
 
 from haystack import Document, component, default_from_dict, default_to_dict, logging
@@ -9,7 +10,6 @@ from haystack.utils import Secret, deserialize_secrets_inplace
 
 from haystack_integrations.components.rankers.nvidia.truncate import RankerTruncateMode
 from haystack_integrations.utils.nvidia import NimBackend, url_validation
-
 
 logger = logging.getLogger(__name__)
 
@@ -196,6 +196,7 @@ class NvidiaRanker:
         top_k = top_k if top_k is not None else self._top_k
         if top_k < 1:
             logger.warning("top_k should be at least 1, returning nothing")
+            warnings.warn("top_k should be at least 1, returning nothing", stacklevel=2)
             return {"documents": []}
 
         assert self._backend is not None

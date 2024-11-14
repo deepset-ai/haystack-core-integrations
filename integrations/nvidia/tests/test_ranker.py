@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: 2022-present deepset GmbH <info@deepset.ai>
+# SPDX-FileCopyrightText: 2024-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
 
@@ -260,3 +260,48 @@ class TestNvidiaRanker:
         backend = client._backend
         client.warm_up()
         assert backend == client._backend
+
+    def test_to_dict(self) -> None:
+        client = NvidiaRanker()
+        assert client.to_dict() == {
+            "type": "haystack_integrations.components.rankers.nvidia.ranker.NvidiaRanker",
+            "init_parameters": {
+                "model": "nvidia/nv-rerankqa-mistral-4b-v3",
+                "top_k": 5,
+                "truncate": None,
+                "api_url": None,
+                "api_key": {"type": "env_var", "env_vars": ["NVIDIA_API_KEY"], "strict": True},
+            },
+        }
+
+    def test_from_dict(self) -> None:
+        client = NvidiaRanker.from_dict(
+            {
+                "type": "haystack_integrations.components.rankers.nvidia.ranker.NvidiaRanker",
+                "init_parameters": {
+                    "model": "nvidia/nv-rerankqa-mistral-4b-v3",
+                    "top_k": 5,
+                    "truncate": None,
+                    "api_url": None,
+                    "api_key": {"type": "env_var", "env_vars": ["NVIDIA_API_KEY"], "strict": True},
+                },
+            }
+        )
+        assert client._model == "nvidia/nv-rerankqa-mistral-4b-v3"
+        assert client._top_k == 5
+        assert client._truncate is None
+        assert client._api_url is None
+        assert client._api_key == Secret.from_env_var("NVIDIA_API_KEY")
+
+    def test_from_dict_defaults(self) -> None:
+        client = NvidiaRanker.from_dict(
+            {
+                "type": "haystack_integrations.components.rankers.nvidia.ranker.NvidiaRanker",
+                "init_parameters": {},
+            }
+        )
+        assert client._model == "nvidia/nv-rerankqa-mistral-4b-v3"
+        assert client._top_k == 5
+        assert client._truncate is None
+        assert client._api_url is None
+        assert client._api_key == Secret.from_env_var("NVIDIA_API_KEY")
