@@ -25,7 +25,7 @@ class VertexAITextGenerator:
     ```python
         from haystack_integrations.components.generators.google_vertex import VertexAITextGenerator
 
-        generator = VertexAITextGenerator(project_id=project_id)
+        generator = VertexAITextGenerator()
         res = generator.run("Tell me a good interview question for a software engineer.")
 
         print(res["replies"][0])
@@ -45,14 +45,16 @@ class VertexAITextGenerator:
     ```
     """
 
-    def __init__(self, *, model: str = "text-bison", project_id: str, location: Optional[str] = None, **kwargs):
+    def __init__(
+        self, *, model: str = "text-bison", project_id: Optional[str] = None, location: Optional[str] = None, **kwargs
+    ):
         """
         Generate text using a Google Vertex AI model.
 
         Authenticates using Google Cloud Application Default Credentials (ADCs).
         For more information see the official [Google documentation](https://cloud.google.com/docs/authentication/provide-credentials-adc).
 
-        :param project_id: ID of the GCP project to use.
+        :param project_id: ID of the GCP project to use. By default, it is set during Google Cloud authentication.
         :param model: Name of the model to use.
         :param location: The default location to use when making API calls, if not set uses us-central-1.
         :param kwargs: Additional keyword arguments to pass to the model.

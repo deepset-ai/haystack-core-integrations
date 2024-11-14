@@ -1,11 +1,26 @@
 # Changelog
 
-## [unreleased]
+## [integrations/fastembed-v1.4.0] - 2024-11-13
+
+### ⚙️ Miscellaneous Tasks
+
+- Adopt uv as installer (#1142)
+
+## [integrations/fastembed-v1.3.0] - 2024-10-07
+
+### 🚀 Features
+
+- Introduce `model_kwargs` in Sparse Embedders (can be used for BM25 parameters) (#1126)
+
+### 🧪 Testing
+
+- Do not retry tests in `hatch run test` command (#954)
 
 ### ⚙️ Miscellaneous Tasks
 
 - Retry tests to reduce flakyness (#836)
 - Update ruff invocation to include check parameter (#853)
+- Update ruff linting scripts and settings (#1105)
 
 ### Fix
 

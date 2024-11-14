@@ -1,0 +1,31 @@
+loaders:
+  - type: haystack_pydoc_tools.loaders.CustomPythonLoader
+    search_path: [../src]
+    modules: [
+      "haystack_integrations.components.retrievers.azure_ai_search.embedding_retriever",
+      "haystack_integrations.document_stores.azure_ai_search.document_store",
+      "haystack_integrations.document_stores.azure_ai_search.filters",
+    ]
+    ignore_when_discovered: ["__init__"]
+processors:
+  - type: filter
+    expression:
+    documented_only: true
+    do_not_filter_modules: false
+    skip_empty_modules: true
+  - type: smart
+  - type: crossref
+renderer:
+  type: haystack_pydoc_tools.renderers.ReadmeIntegrationRenderer
+  excerpt: Azure AI Search integration for Haystack
+  category_slug: integrations-api
+  title: Azure AI Search
+  slug: integrations-azure_ai_search
+  order: 180
+  markdown:
+    descriptive_class_title: false
+    classdef_code_block: false
+    descriptive_module_title: true
+    add_method_class_prefix: true
+    add_member_class_prefix: false
+    filename: _readme_azure_ai_search.md

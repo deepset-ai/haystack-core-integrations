@@ -15,7 +15,7 @@ defaults:
     working-directory: integrations/anthropic
 
 concurrency:
-  group: cohere-${{ github.head_ref }}
+  group: anthropic-${{ github.head_ref }}
   cancel-in-progress: true
 
 env:

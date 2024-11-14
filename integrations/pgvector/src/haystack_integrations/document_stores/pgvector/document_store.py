@@ -97,7 +97,11 @@ class PgvectorDocumentStore:
         A specific table to store Haystack documents will be created if it doesn't exist yet.
 
         :param connection_string: The connection string to use to connect to the PostgreSQL database, defined as an
-            environment variable, e.g.: `PG_CONN_STR="postgresql://USER:PASSWORD@HOST:PORT/DB_NAME"`
+            environment variable. It can be provided in either URI format
+            e.g.: `PG_CONN_STR="postgresql://USER:PASSWORD@HOST:PORT/DB_NAME"`, or keyword/value format
+            e.g.: `PG_CONN_STR="host=HOST port=PORT dbname=DBNAME user=USER password=PASSWORD"`
+            See [PostgreSQL Documentation](https://www.postgresql.org/docs/current/libpq-connect.html#LIBPQ-CONNSTRING)
+            for more details.
         :param table_name: The name of the table to use to store Haystack documents.
         :param schema_name: The name of the schema the table is created in. The schema must already exist.
         :param language: The language to be used to parse query and document content in keyword retrieval.

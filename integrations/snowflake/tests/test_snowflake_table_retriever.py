@@ -10,9 +10,9 @@ import pandas as pd
 import pytest
 from dateutil.tz import tzlocal
 from haystack import Pipeline
+from haystack.components.builders import PromptBuilder
 from haystack.components.converters import OutputAdapter
 from haystack.components.generators import OpenAIGenerator
-from haystack.components.builders import PromptBuilder
 from haystack.utils import Secret
 from openai.types.chat import ChatCompletion, ChatCompletionMessage
 from openai.types.chat.chat_completion import Choice
@@ -478,7 +478,10 @@ class TestSnowflakeTableRetriever:
         data = component.to_dict()
 
         assert data == {
-            "type": "haystack_integrations.components.retrievers.snowflake.snowflake_table_retriever.SnowflakeTableRetriever",
+            "type": (
+                "haystack_integrations.components.retrievers.snowflake."
+                "snowflake_table_retriever.SnowflakeTableRetriever"
+            ),
             "init_parameters": {
                 "api_key": {
                     "env_vars": ["SNOWFLAKE_API_KEY"],
@@ -510,7 +513,10 @@ class TestSnowflakeTableRetriever:
         data = component.to_dict()
 
         assert data == {
-            "type": "haystack_integrations.components.retrievers.snowflake.snowflake_table_retriever.SnowflakeTableRetriever",
+            "type": (
+                "haystack_integrations.components.retrievers.snowflake."
+                "snowflake_table_retriever.SnowflakeTableRetriever"
+            ),
             "init_parameters": {
                 "api_key": {
                     "env_vars": ["SNOWFLAKE_API_KEY"],

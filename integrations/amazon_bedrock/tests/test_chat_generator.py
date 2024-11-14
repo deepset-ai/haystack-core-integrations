@@ -243,7 +243,7 @@ def test_long_prompt_is_not_truncated_when_truncate_false(mock_boto3_session):
             generator.run(messages=messages)
 
         # Ensure _ensure_token_limit was not called
-        mock_ensure_token_limit.assert_not_called(),
+        mock_ensure_token_limit.assert_not_called()
 
         # Check the prompt passed to prepare_body
         generator.model_adapter.prepare_body.assert_called_with(messages=messages, stop_words=[], stream=False)
@@ -254,11 +254,16 @@ def test_long_prompt_is_not_truncated_when_truncate_false(mock_boto3_session):
     [
         ("anthropic.claude-v1", AnthropicClaudeChatAdapter),
         ("anthropic.claude-v2", AnthropicClaudeChatAdapter),
+        ("eu.anthropic.claude-v1", AnthropicClaudeChatAdapter),  # cross-region inference
+        ("us.anthropic.claude-v2", AnthropicClaudeChatAdapter),  # cross-region inference
         ("anthropic.claude-instant-v1", AnthropicClaudeChatAdapter),
         ("anthropic.claude-super-v5", AnthropicClaudeChatAdapter),  # artificial
         ("meta.llama2-13b-chat-v1", MetaLlama2ChatAdapter),
         ("meta.llama2-70b-chat-v1", MetaLlama2ChatAdapter),
         ("meta.llama2-130b-v5", MetaLlama2ChatAdapter),  # artificial
+        ("us.meta.llama2-13b-chat-v1", MetaLlama2ChatAdapter),  # cross-region inference
+        ("eu.meta.llama2-70b-chat-v1", MetaLlama2ChatAdapter),  # cross-region inference
+        ("de.meta.llama2-130b-v5", MetaLlama2ChatAdapter),  # cross-region inference
         ("unknown_model", None),
     ],
 )
@@ -515,7 +520,6 @@ class TestMetaLlama2ChatAdapter:
     @pytest.mark.parametrize("model_name", MODELS_TO_TEST)
     @pytest.mark.integration
     def test_default_inference_params(self, model_name, chat_messages):
-
         client = AmazonBedrockChatGenerator(model=model_name)
         response = client.run(chat_messages)
 

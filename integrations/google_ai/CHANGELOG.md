@@ -1,10 +1,26 @@
 # Changelog
 
-## [unreleased]
+## [integrations/google_ai-v3.0.0] - 2024-11-12
+
+### 🐛 Bug Fixes
+
+- `GoogleAIGeminiGenerator` - remove support for tools and change output type (#1177)
+
+### ⚙️ Miscellaneous Tasks
+
+- Adopt uv as installer (#1142)
+
+## [integrations/google_ai-v2.0.1] - 2024-10-15
+
+### 🚀 Features
+
+- Add chatrole tests and meta for GeminiChatGenerators (#1090)
 
 ### 🐛 Bug Fixes
 
 - Remove the use of deprecated gemini models (#1032)
+- Chat roles for model responses in chat generators (#1030)
+- Make sure that streaming works with function calls - (drop python3.8) (#1137)
 
 ### 🧪 Testing
 
@@ -14,6 +30,7 @@
 
 - Retry tests to reduce flakyness (#836)
 - Update ruff invocation to include check parameter (#853)
+- Update ruff linting scripts and settings (#1105)
 
 ### Docs
 

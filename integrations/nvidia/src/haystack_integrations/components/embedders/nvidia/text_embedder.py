@@ -1,12 +1,15 @@
+# SPDX-FileCopyrightText: 2024-present deepset GmbH <info@deepset.ai>
+#
+# SPDX-License-Identifier: Apache-2.0
+
 import warnings
 from typing import Any, Dict, List, Optional, Union
 
 from haystack import component, default_from_dict, default_to_dict
 from haystack.utils import Secret, deserialize_secrets_inplace
 
+from haystack_integrations.components.embedders.nvidia.truncate import EmbeddingTruncateMode
 from haystack_integrations.utils.nvidia import NimBackend, is_hosted, url_validation
-
-from .truncate import EmbeddingTruncateMode
 
 _DEFAULT_API_URL = "https://ai.api.nvidia.com/v1/retrieval/nvidia"
 
@@ -175,6 +178,9 @@ class NvidiaTextEmbedder:
                 "In case you want to embed a list of Documents, please use the NvidiaDocumentEmbedder."
             )
             raise TypeError(msg)
+        elif not text:
+            msg = "Cannot embed an empty string."
+            raise ValueError(msg)
 
         assert self.backend is not None
         text_to_embed = self.prefix + text + self.suffix

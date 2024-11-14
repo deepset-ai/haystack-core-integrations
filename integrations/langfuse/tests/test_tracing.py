@@ -1,16 +1,17 @@
 import os
 import random
 import time
-import pytest
 from urllib.parse import urlparse
+
+import pytest
 import requests
-from requests.auth import HTTPBasicAuth
 from haystack import Pipeline
 from haystack.components.builders import ChatPromptBuilder
-from haystack.dataclasses import ChatMessage
-from haystack_integrations.components.connectors.langfuse import LangfuseConnector
 from haystack.components.generators.chat import OpenAIChatGenerator
+from haystack.dataclasses import ChatMessage
+from requests.auth import HTTPBasicAuth
 
+from haystack_integrations.components.connectors.langfuse import LangfuseConnector
 from haystack_integrations.components.generators.anthropic import AnthropicChatGenerator
 from haystack_integrations.components.generators.cohere import CohereChatGenerator
 
@@ -42,7 +43,12 @@ def test_tracing_integration(llm_class, env_var, expected_trace):
         ChatMessage.from_user("Tell me about {{location}}"),
     ]
 
-    response = pipe.run(data={"prompt_builder": {"template_variables": {"location": "Berlin"}, "template": messages}})
+    response = pipe.run(
+        data={
+            "prompt_builder": {"template_variables": {"location": "Berlin"}, "template": messages},
+            "tracer": {"invocation_context": {"user_id": "user_42"}},
+        }
+    )
     assert "Berlin" in response["llm"]["replies"][0].content
     assert response["tracer"]["trace_url"]
 
@@ -64,5 +70,7 @@ def test_tracing_integration(llm_class, env_var, expected_trace):
         assert expected_trace in str(response.content)
         # check if the trace contains the expected generation span
         assert "GENERATION" in str(response.content)
+        # check if the trace contains the expected user_id
+        assert "user_42" in str(response.content)
     except requests.exceptions.RequestException as e:
         pytest.fail(f"Failed to retrieve data from Langfuse API: {e}")

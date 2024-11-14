@@ -1,5 +1,7 @@
 import contextlib
+import logging
 import os
+from datetime import datetime
 from typing import Any, Dict, Iterator, Optional, Union
 
 from haystack.components.generators.openai_utils import _convert_message_to_openai_format
@@ -8,6 +10,8 @@ from haystack.tracing import Span, Tracer, tracer
 from haystack.tracing import utils as tracing_utils
 
 import langfuse
+
+logger = logging.getLogger(__name__)
 
 HAYSTACK_LANGFUSE_ENFORCE_FLUSH_ENV_VAR = "HAYSTACK_LANGFUSE_ENFORCE_FLUSH"
 _SUPPORTED_GENERATORS = [
@@ -148,7 +152,18 @@ class LangfuseTracer(Tracer):
             replies = span._data.get("haystack.component.output", {}).get("replies")
             if replies:
                 meta = replies[0].meta
-                span._span.update(usage=meta.get("usage") or None, model=meta.get("model"))
+                completion_start_time = meta.get("completion_start_time")
+                if completion_start_time:
+                    try:
+                        completion_start_time = datetime.fromisoformat(completion_start_time)
+                    except ValueError:
+                        logger.error(f"Failed to parse completion_start_time: {completion_start_time}")
+                        completion_start_time = None
+                span._span.update(
+                    usage=meta.get("usage") or None,
+                    model=meta.get("model"),
+                    completion_start_time=completion_start_time,
+                )
 
         pipeline_input = tags.get("haystack.pipeline.input_data", None)
         if pipeline_input:

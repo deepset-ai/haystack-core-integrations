@@ -35,6 +35,7 @@ class FastembedSparseTextEmbedder:
         progress_bar: bool = True,
         parallel: Optional[int] = None,
         local_files_only: bool = False,
+        model_kwargs: Optional[Dict[str, Any]] = None,
     ):
         """
         Create a FastembedSparseTextEmbedder component.
@@ -50,6 +51,7 @@ class FastembedSparseTextEmbedder:
                 If 0, use all available cores.
                 If None, don't use data-parallel processing, use default onnxruntime threading instead.
         :param local_files_only: If `True`, only use the model files in the `cache_dir`.
+        :param model_kwargs: Dictionary containing model parameters such as `k`, `b`, `avg_len`, `language`.
         """
 
         self.model_name = model
@@ -58,6 +60,7 @@ class FastembedSparseTextEmbedder:
         self.progress_bar = progress_bar
         self.parallel = parallel
         self.local_files_only = local_files_only
+        self.model_kwargs = model_kwargs
 
     def to_dict(self) -> Dict[str, Any]:
         """
@@ -74,6 +77,7 @@ class FastembedSparseTextEmbedder:
             progress_bar=self.progress_bar,
             parallel=self.parallel,
             local_files_only=self.local_files_only,
+            model_kwargs=self.model_kwargs,
         )
 
     def warm_up(self):
@@ -86,6 +90,7 @@ class FastembedSparseTextEmbedder:
                 cache_dir=self.cache_dir,
                 threads=self.threads,
                 local_files_only=self.local_files_only,
+                model_kwargs=self.model_kwargs,
             )
 
     @component.output_types(sparse_embedding=SparseEmbedding)

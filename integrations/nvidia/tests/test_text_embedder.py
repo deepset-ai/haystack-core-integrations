@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2024-present deepset GmbH <info@deepset.ai>
+#
+# SPDX-License-Identifier: Apache-2.0
+
 import os
 
 import pytest
@@ -77,7 +81,7 @@ class TestNvidiaTextEmbedder:
             },
         }
 
-    def from_dict(self, monkeypatch):
+    def test_from_dict(self, monkeypatch):
         monkeypatch.setenv("NVIDIA_API_KEY", "fake-api-key")
         data = {
             "type": "haystack_integrations.components.embedders.nvidia.text_embedder.NvidiaTextEmbedder",
@@ -95,7 +99,20 @@ class TestNvidiaTextEmbedder:
         assert component.api_url == "https://example.com/v1"
         assert component.prefix == "prefix"
         assert component.suffix == "suffix"
-        assert component.truncate == "START"
+        assert component.truncate == EmbeddingTruncateMode.START
+
+    def test_from_dict_defaults(self, monkeypatch):
+        monkeypatch.setenv("NVIDIA_API_KEY", "fake-api-key")
+        data = {
+            "type": "haystack_integrations.components.embedders.nvidia.text_embedder.NvidiaTextEmbedder",
+            "init_parameters": {},
+        }
+        component = NvidiaTextEmbedder.from_dict(data)
+        assert component.model == "nvidia/nv-embedqa-e5-v5"
+        assert component.api_url == "https://ai.api.nvidia.com/v1/retrieval/nvidia"
+        assert component.prefix == ""
+        assert component.suffix == ""
+        assert component.truncate is None
 
     @pytest.mark.usefixtures("mock_local_models")
     def test_run_default_model(self):
@@ -146,6 +163,17 @@ class TestNvidiaTextEmbedder:
 
         with pytest.raises(TypeError, match="NvidiaTextEmbedder expects a string as an input"):
             embedder.run(text=list_integers_input)
+
+    def test_run_empty_string(self):
+        model = "playground_nvolveqa_40k"
+        api_key = Secret.from_token("fake-api-key")
+        embedder = NvidiaTextEmbedder(model, api_key=api_key)
+
+        embedder.warm_up()
+        embedder.backend = MockBackend(model=model, api_key=api_key)
+
+        with pytest.raises(ValueError, match="empty string"):
+            embedder.run(text="")
 
     @pytest.mark.skipif(
         not os.environ.get("NVIDIA_NIM_EMBEDDER_MODEL", None) or not os.environ.get("NVIDIA_NIM_ENDPOINT_URL", None),

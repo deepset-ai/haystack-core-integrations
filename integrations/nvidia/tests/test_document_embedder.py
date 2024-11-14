@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2024-present deepset GmbH <info@deepset.ai>
+#
+# SPDX-License-Identifier: Apache-2.0
+
 import os
 
 import pytest
@@ -104,7 +108,7 @@ class TestNvidiaDocumentEmbedder:
             },
         }
 
-    def from_dict(self, monkeypatch):
+    def test_from_dict(self, monkeypatch):
         monkeypatch.setenv("NVIDIA_API_KEY", "fake-api-key")
         data = {
             "type": "haystack_integrations.components.embedders.nvidia.document_embedder.NvidiaDocumentEmbedder",
@@ -122,15 +126,32 @@ class TestNvidiaDocumentEmbedder:
             },
         }
         component = NvidiaDocumentEmbedder.from_dict(data)
-        assert component.model == "nvolveqa_40k"
+        assert component.model == "playground_nvolveqa_40k"
         assert component.api_url == "https://example.com/v1"
         assert component.prefix == "prefix"
         assert component.suffix == "suffix"
+        assert component.batch_size == 10
+        assert component.progress_bar is False
+        assert component.meta_fields_to_embed == ["test_field"]
+        assert component.embedding_separator == " | "
+        assert component.truncate == EmbeddingTruncateMode.START
+
+    def test_from_dict_defaults(self, monkeypatch):
+        monkeypatch.setenv("NVIDIA_API_KEY", "fake-api-key")
+        data = {
+            "type": "haystack_integrations.components.embedders.nvidia.document_embedder.NvidiaDocumentEmbedder",
+            "init_parameters": {},
+        }
+        component = NvidiaDocumentEmbedder.from_dict(data)
+        assert component.model == "nvidia/nv-embedqa-e5-v5"
+        assert component.api_url == "https://ai.api.nvidia.com/v1/retrieval/nvidia"
+        assert component.prefix == ""
+        assert component.suffix == ""
         assert component.batch_size == 32
         assert component.progress_bar
         assert component.meta_fields_to_embed == []
         assert component.embedding_separator == "\n"
-        assert component.truncate == EmbeddingTruncateMode.START
+        assert component.truncate is None
 
     def test_prepare_texts_to_embed_w_metadata(self):
         documents = [
@@ -325,6 +346,17 @@ class TestNvidiaDocumentEmbedder:
 
         with pytest.raises(TypeError, match="NvidiaDocumentEmbedder expects a list of Documents as input"):
             embedder.run(documents=list_integers_input)
+
+    def test_run_empty_document(self):
+        model = "playground_nvolveqa_40k"
+        api_key = Secret.from_token("fake-api-key")
+        embedder = NvidiaDocumentEmbedder(model, api_key=api_key)
+
+        embedder.warm_up()
+        embedder.backend = MockBackend(model=model, api_key=api_key)
+
+        with pytest.raises(ValueError, match="no content to embed"):
+            embedder.run(documents=[Document(content="")])
 
     def test_run_on_empty_list(self):
         model = "playground_nvolveqa_40k"
