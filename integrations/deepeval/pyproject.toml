@@ -22,7 +22,7 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
-dependencies = ["haystack-ai", "deepeval==0.20.57"]
+dependencies = ["haystack-ai", "deepeval==0.20.57", "langchain<0.3; python_version < '3.10'"]
 
 [project.urls]
 Source = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/deepeval"
