@@ -474,7 +474,7 @@ class TestSnowflakeTableRetriever:
             warehouse="test_warehouse",
             login_timeout=30,
             private_key_file=None,
-            private_key_file_pwd=None
+            private_key_file_pwd=None,
         )
 
         data = component.to_dict()
@@ -497,7 +497,7 @@ class TestSnowflakeTableRetriever:
                 "warehouse": "test_warehouse",
                 "login_timeout": 30,
                 "private_key_file": None,
-                "private_key_file_pwd": None
+                "private_key_file_pwd": None,
             },
         }
 
@@ -534,7 +534,7 @@ class TestSnowflakeTableRetriever:
                 "warehouse": "COMPUTE_WH",
                 "login_timeout": 30,
                 "private_key_file": None,
-                "private_key_file_pwd": None
+                "private_key_file_pwd": None,
             },
         }
 

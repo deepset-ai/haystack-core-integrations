@@ -299,9 +299,7 @@ class SnowflakeTableRetriever:
             if self.private_key_file is None:
                 connect_params["password"] = self.api_key.resolve_value()
             # Create a new connection with every run
-            conn = self._snowflake_connector(
-                connect_params=connect_params
-            )
+            conn = self._snowflake_connector(connect_params=connect_params)
             if conn is None:
                 return df
         except (ForbiddenError, ProgrammingError) as e:
