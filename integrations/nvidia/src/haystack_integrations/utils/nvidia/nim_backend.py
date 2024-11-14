@@ -7,7 +7,6 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple
 
 import requests
-from haystack import Document
 from haystack.utils import Secret
 
 REQUEST_TIMEOUT = 60.0
