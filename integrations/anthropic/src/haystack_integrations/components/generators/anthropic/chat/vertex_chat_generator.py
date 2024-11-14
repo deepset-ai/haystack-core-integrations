@@ -3,13 +3,11 @@ from typing import Any, Callable, Dict, Optional
 
 from haystack import component, default_from_dict, default_to_dict, logging
 from haystack.dataclasses import StreamingChunk
-from haystack.lazy_imports import LazyImport
 from haystack.utils import deserialize_callable, serialize_callable
 
-from .chat_generator import AnthropicChatGenerator
+from anthropic import AnthropicVertex
 
-with LazyImport('Run pip install -U google-cloud-aiplatform "anthropic[vertex]".'):
-    from anthropic import AnthropicVertex
+from .chat_generator import AnthropicChatGenerator
 
 logger = logging.getLogger(__name__)
 
