@@ -1,4 +1,5 @@
 import io
+from typing import Any, Dict, Optional
 from unittest.mock import patch
 
 import pytest
@@ -66,10 +67,20 @@ class TestAmazonBedrockDocumentEmbedder:
                 input_type="fake_input_type",
             )
 
-    def test_to_dict(self, mock_boto3_session):
+    @pytest.mark.parametrize(
+        "boto3_config",
+        [
+            None,
+            {
+                "read_timeout": 1000,
+            },
+        ],
+    )
+    def test_to_dict(self, mock_boto3_session: Any, boto3_config: Optional[Dict[str, Any]]):
         embedder = AmazonBedrockDocumentEmbedder(
             model="cohere.embed-english-v3",
             input_type="search_document",
+            boto3_config=boto3_config,
         )
 
         expected_dict = {
@@ -86,13 +97,22 @@ class TestAmazonBedrockDocumentEmbedder:
                 "progress_bar": True,
                 "meta_fields_to_embed": [],
                 "embedding_separator": "\n",
-                "boto3_config": None,
+                "boto3_config": boto3_config,
             },
         }
 
         assert embedder.to_dict() == expected_dict
 
-    def test_from_dict(self, mock_boto3_session):
+    @pytest.mark.parametrize(
+        "boto3_config",
+        [
+            None,
+            {
+                "read_timeout": 1000,
+            },
+        ],
+    )
+    def test_from_dict(self, mock_boto3_session: Any, boto3_config: Optional[Dict[str, Any]]):
         data = {
             "type": TYPE,
             "init_parameters": {
@@ -107,9 +127,7 @@ class TestAmazonBedrockDocumentEmbedder:
                 "progress_bar": True,
                 "meta_fields_to_embed": [],
                 "embedding_separator": "\n",
-                "boto3_config": {
-                    "read_timeout": 1000,
-                },
+                "boto3_config": boto3_config,
             },
         }
 
@@ -121,7 +139,7 @@ class TestAmazonBedrockDocumentEmbedder:
         assert embedder.progress_bar
         assert embedder.meta_fields_to_embed == []
         assert embedder.embedding_separator == "\n"
-        assert embedder.boto3_config == {"read_timeout": 1000}
+        assert embedder.boto3_config == boto3_config
 
     def test_init_invalid_model(self):
         with pytest.raises(ValueError):

@@ -1,7 +1,7 @@
 import json
 import logging
 import os
-from typing import Optional, Type
+from typing import Any, Dict, Optional, Type
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -26,7 +26,16 @@ MISTRAL_MODELS = [
 ]
 
 
-def test_to_dict(mock_boto3_session):
+@pytest.mark.parametrize(
+    "boto3_config",
+    [
+        None,
+        {
+            "read_timeout": 1000,
+        },
+    ],
+)
+def test_to_dict(mock_boto3_session: Any, boto3_config: Optional[Dict[str, Any]]):
     """
     Test that the to_dict method returns the correct dictionary without aws credentials
     """
@@ -34,6 +43,7 @@ def test_to_dict(mock_boto3_session):
         model="anthropic.claude-v2",
         generation_kwargs={"temperature": 0.7},
         streaming_callback=print_streaming_chunk,
+        boto3_config=boto3_config,
     )
     expected_dict = {
         "type": KLASS,
@@ -48,14 +58,23 @@ def test_to_dict(mock_boto3_session):
             "stop_words": [],
             "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
             "truncate": True,
-            "boto3_config": None,
+            "boto3_config": boto3_config,
         },
     }
 
     assert generator.to_dict() == expected_dict
 
 
-def test_from_dict(mock_boto3_session):
+@pytest.mark.parametrize(
+    "boto3_config",
+    [
+        None,
+        {
+            "read_timeout": 1000,
+        },
+    ],
+)
+def test_from_dict(mock_boto3_session: Any, boto3_config: Optional[Dict[str, Any]]):
     """
     Test that the from_dict method returns the correct object
     """
@@ -72,16 +91,14 @@ def test_from_dict(mock_boto3_session):
                 "generation_kwargs": {"temperature": 0.7},
                 "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
                 "truncate": True,
-                "boto3_config": {
-                    "read_timeout": 1000,
-                },
+                "boto3_config": boto3_config,
             },
         }
     )
     assert generator.model == "anthropic.claude-v2"
     assert generator.model_adapter.generation_kwargs == {"temperature": 0.7}
     assert generator.streaming_callback == print_streaming_chunk
-    assert generator.boto3_config == {"read_timeout": 1000}
+    assert generator.boto3_config == boto3_config
 
 
 def test_default_constructor(mock_boto3_session, set_env_variables):

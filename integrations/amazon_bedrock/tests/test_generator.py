@@ -1,4 +1,4 @@
-from typing import Optional, Type
+from typing import Any, Dict, Optional, Type
 from unittest.mock import MagicMock, call, patch
 
 import pytest
@@ -17,11 +17,22 @@ from haystack_integrations.components.generators.amazon_bedrock.adapters import 
 )
 
 
-def test_to_dict(mock_boto3_session):
+@pytest.mark.parametrize(
+    "boto3_config",
+    [
+        None,
+        {
+            "read_timeout": 1000,
+        },
+    ],
+)
+def test_to_dict(mock_boto3_session: Any, boto3_config: Optional[Dict[str, Any]]):
     """
     Test that the to_dict method returns the correct dictionary without aws credentials
     """
-    generator = AmazonBedrockGenerator(model="anthropic.claude-v2", max_length=99, truncate=False, temperature=10)
+    generator = AmazonBedrockGenerator(
+        model="anthropic.claude-v2", max_length=99, truncate=False, temperature=10, boto3_config=boto3_config
+    )
 
     expected_dict = {
         "type": "haystack_integrations.components.generators.amazon_bedrock.generator.AmazonBedrockGenerator",
@@ -36,14 +47,23 @@ def test_to_dict(mock_boto3_session):
             "truncate": False,
             "temperature": 10,
             "streaming_callback": None,
-            "boto3_config": None,
+            "boto3_config": boto3_config,
         },
     }
 
     assert generator.to_dict() == expected_dict
 
 
-def test_from_dict(mock_boto3_session):
+@pytest.mark.parametrize(
+    "boto3_config",
+    [
+        None,
+        {
+            "read_timeout": 1000,
+        },
+    ],
+)
+def test_from_dict(mock_boto3_session: Any, boto3_config: Optional[Dict[str, Any]]):
     """
     Test that the from_dict method returns the correct object
     """
@@ -58,16 +78,14 @@ def test_from_dict(mock_boto3_session):
                 "aws_profile_name": {"type": "env_var", "env_vars": ["AWS_PROFILE"], "strict": False},
                 "model": "anthropic.claude-v2",
                 "max_length": 99,
-                "boto3_config": {
-                    "read_timeout": 1000,
-                },
+                "boto3_config": boto3_config,
             },
         }
     )
 
     assert generator.max_length == 99
     assert generator.model == "anthropic.claude-v2"
-    assert generator.boto3_config == {"read_timeout": 1000}
+    assert generator.boto3_config == boto3_config
 
 
 def test_default_constructor(mock_boto3_session, set_env_variables):
