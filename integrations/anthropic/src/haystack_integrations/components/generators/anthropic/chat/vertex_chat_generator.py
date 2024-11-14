@@ -38,7 +38,7 @@ class AnthropicVertexChatGenerator(AnthropicChatGenerator):
     from haystack.dataclasses import ChatMessage
 
     messages = [ChatMessage.from_user("What's Natural Language Processing?")]
-    client = AnthropicChatGenerator(model="claude-3-sonnet@20240229")
+    client = AnthropicVertexChatGenerator(model="claude-3-sonnet@20240229")
     response = client.run(messages)
     print(response)
 
@@ -59,7 +59,7 @@ class AnthropicVertexChatGenerator(AnthropicChatGenerator):
         self,
         region: Optional[str] = "us-central1",
         project_id: Optional[str] = None,
-        model: str = "claude-3-sonnet@20240229",
+        model: str = "claude-3-5-sonnet@20240620",
         streaming_callback: Optional[Callable[[StreamingChunk], None]] = None,
         generation_kwargs: Optional[Dict[str, Any]] = None,
         ignore_tools_thinking_messages: bool = True,
@@ -118,7 +118,7 @@ class AnthropicVertexChatGenerator(AnthropicChatGenerator):
         )
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "AnthropicChatGenerator":
+    def from_dict(cls, data: Dict[str, Any]) -> "AnthropicVertexChatGenerator":
         """
         Deserialize this component from a dictionary.
 
