@@ -108,7 +108,7 @@ class TestNvidiaDocumentEmbedder:
             },
         }
 
-    def from_dict(self, monkeypatch):
+    def test_from_dict(self, monkeypatch):
         monkeypatch.setenv("NVIDIA_API_KEY", "fake-api-key")
         data = {
             "type": "haystack_integrations.components.embedders.nvidia.document_embedder.NvidiaDocumentEmbedder",
