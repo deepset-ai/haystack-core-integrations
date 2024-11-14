@@ -15,18 +15,19 @@ logger = logging.getLogger(__name__)
 @component
 class AnthropicVertexChatGenerator(AnthropicChatGenerator):
     """
-    Enables text generation using state-of-the-art Claude 3 LLMs through
-    the Anthropic Vertex AI API.
 
-    It supports models like `Claude 3.5 Sonnet`, `Claude 3 Opus`, `Claude 3 Sonnet`, and `Claude 3 Haiku`,
-    accessed through Vertex AI API endpoint. To use AnthropicVertex, you need a GCP project with Vertex AI enabled.
-    Additionally, ensure that the Anthropic model you intend to use is enabled in the Vertex AI Model Garden.
-    Before running requests you may need to authenticate with GCP using `gcloud auth login`.
-    For more details, see [guide] (https://docs.anthropic.com/en/api/claude-on-vertex-ai).
+    Enables text generation using state-of-the-art Claude 3 LLMs via the Anthropic Vertex AI API.
+    It supports models such as `Claude 3.5 Sonnet`, `Claude 3 Opus`, `Claude 3 Sonnet`, and `Claude 3 Haiku`,
+    accessible through the Vertex AI API endpoint.
 
-    Any text generation parameters that are valid for the Anthropic messaging API can be passed to the
-    AnthropicVertex API. Users can pass these parameteres directly to the component
-    via the `generation_kwargs` parameter in `__init__` or the `generation_kwargs` parameter in the `run` method.
+    To use AnthropicVertexChatGenerator, you must have a GCP project with Vertex AI enabled.
+    Additionally, ensure that the desired Anthropic model is activated in the Vertex AI Model Garden.
+    Before making requests, you may need to authenticate with GCP using `gcloud auth login`.
+    For more details, refer to the [guide] (https://docs.anthropic.com/en/api/claude-on-vertex-ai).
+
+    Any valid text generation parameters for the Anthropic messaging API can be passed to
+    the AnthropicVertex API. Users can provide these parameters directly to the component via
+    the `generation_kwargs` parameter in `__init__` or the `run` method.
 
     For more details on the parameters supported by the Anthropic API, refer to the
     Anthropic Message API [documentation](https://docs.anthropic.com/en/api/messages).
@@ -36,7 +37,10 @@ class AnthropicVertexChatGenerator(AnthropicChatGenerator):
     from haystack.dataclasses import ChatMessage
 
     messages = [ChatMessage.from_user("What's Natural Language Processing?")]
-    client = AnthropicVertexChatGenerator(model="claude-3-sonnet@20240229")
+    client = AnthropicVertexChatGenerator(
+                model="claude-3-sonnet@20240229",
+                project_id="your-project-id", region="your-region"
+            )
     response = client.run(messages)
     print(response)
 
