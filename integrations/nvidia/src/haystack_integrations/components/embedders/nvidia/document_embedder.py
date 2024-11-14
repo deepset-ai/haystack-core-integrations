@@ -167,7 +167,9 @@ class NvidiaDocumentEmbedder:
         :returns:
             The deserialized component.
         """
-        deserialize_secrets_inplace(data["init_parameters"], keys=["api_key"])
+        init_parameters = data.get("init_parameters", {})
+        if init_parameters:
+            deserialize_secrets_inplace(data["init_parameters"], keys=["api_key"])
         return default_from_dict(cls, data)
 
     def _prepare_texts_to_embed(self, documents: List[Document]) -> List[str]:
