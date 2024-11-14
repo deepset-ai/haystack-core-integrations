@@ -102,8 +102,8 @@ class PgvectorDocumentStore:
             e.g.: `PG_CONN_STR="host=HOST port=PORT dbname=DBNAME user=USER password=PASSWORD"`
             See [PostgreSQL Documentation](https://www.postgresql.org/docs/current/libpq-connect.html#LIBPQ-CONNSTRING)
             for more details.
-        :param table_name: The name of the table to use to store Haystack documents.
         :param schema_name: The name of the schema the table is created in. The schema must already exist.
+        :param table_name: The name of the table to use to store Haystack documents.
         :param language: The language to be used to parse query and document content in keyword retrieval.
             To see the list of available languages, you can run the following SQL query in your PostgreSQL database:
             `SELECT cfgname FROM pg_ts_config;`.
