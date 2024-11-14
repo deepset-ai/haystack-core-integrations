@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import os
 import warnings
 from typing import Any, Dict, List, Optional, Union
 
@@ -58,6 +59,11 @@ class NvidiaRanker:
         api_url: Optional[str] = None,
         api_key: Optional[Secret] = Secret.from_env_var("NVIDIA_API_KEY"),
         top_k: int = 5,
+        query_prefix: str = "",
+        document_prefix: str = "",
+        meta_fields_to_embed: Optional[List[str]] = None,
+        embedding_separator: str = "\n",
+        timeout: Optional[float] = None,
     ):
         """
         Create a NvidiaRanker component.
@@ -72,6 +78,19 @@ class NvidiaRanker:
             Custom API URL for the NVIDIA NIM.
         :param top_k:
             Number of documents to return.
+        :param query_prefix:
+            A string to add at the beginning of the query text before ranking.
+            Use it to prepend the text with an instruction, as required by reranking models like `bge`.
+        :param document_prefix:
+            A string to add at the beginning of each document before ranking. You can use it to prepend the document
+            with an instruction, as required by embedding models like `bge`.
+        :param meta_fields_to_embed:
+            List of metadata fields to embed with the document.
+        :param embedding_separator:
+            Separator to concatenate metadata fields to the document.
+        :param timeout:
+            Timeout for request calls, if not set it is inferred from the `NVIDIA_TIMEOUT` environment variable
+            or set to 60 by default.
         """
         if model is not None and not isinstance(model, str):
             msg = "Ranker expects the `model` parameter to be a string."
@@ -107,6 +126,14 @@ class NvidiaRanker:
         self._initialized = False
         self._backend: Optional[Any] = None
 
+        self.query_prefix = query_prefix
+        self.document_prefix = document_prefix
+        self.meta_fields_to_embed = meta_fields_to_embed or []
+        self.embedding_separator = embedding_separator
+        if timeout is None:
+            timeout = float(os.environ.get("NVIDIA_TIMEOUT", 60.0))
+        self.timeout = timeout
+
     def to_dict(self) -> Dict[str, Any]:
         """
         Serialize the ranker to a dictionary.
@@ -120,6 +147,10 @@ class NvidiaRanker:
             truncate=self._truncate,
             api_url=self._api_url,
             api_key=self._api_key.to_dict() if self._api_key else None,
+            query_prefix=self.query_prefix,
+            document_prefix=self.document_prefix,
+            meta_fields_to_embed=self.meta_fields_to_embed,
+            embedding_separator=self.embedding_separator,
         )
 
     @classmethod
@@ -146,10 +177,11 @@ class NvidiaRanker:
             if self._truncate is not None:
                 model_kwargs.update(truncate=str(self._truncate))
             self._backend = NimBackend(
-                self._model,
+                model=self._model,
                 api_url=self._api_url,
                 api_key=self._api_key,
                 model_kwargs=model_kwargs,
+                timeout=self.timeout,
             )
             if not self._model:
                 self._model = _DEFAULT_MODEL
@@ -200,10 +232,20 @@ class NvidiaRanker:
             return {"documents": []}
 
         assert self._backend is not None
+
+        query_text = self.query_prefix + query
+        document_texts = []
+        for doc in documents:
+            meta_values_to_embed = [
+                str(doc.meta[key]) for key in self.meta_fields_to_embed if key in doc.meta and doc.meta[key]
+            ]
+            text_to_embed = self.embedding_separator.join(meta_values_to_embed + [doc.content or ""])
+            document_texts.append(self.document_prefix + text_to_embed)
+
         # rank result is list[{index: int, logit: float}] sorted by logit
         sorted_indexes_and_scores = self._backend.rank(
-            query,
-            documents,
+            query_text=query_text,
+            document_texts=document_texts,
             endpoint=self._endpoint,
         )
         sorted_documents = []

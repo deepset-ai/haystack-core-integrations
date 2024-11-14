@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import os
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -9,7 +10,7 @@ import requests
 from haystack import Document
 from haystack.utils import Secret
 
-REQUEST_TIMEOUT = 60
+REQUEST_TIMEOUT = 60.0
 
 
 @dataclass
@@ -35,6 +36,7 @@ class NimBackend:
         api_url: str,
         api_key: Optional[Secret] = Secret.from_env_var("NVIDIA_API_KEY"),
         model_kwargs: Optional[Dict[str, Any]] = None,
+        timeout: Optional[float] = None,
     ):
         headers = {
             "Content-Type": "application/json",
@@ -50,6 +52,9 @@ class NimBackend:
         self.model = model
         self.api_url = api_url
         self.model_kwargs = model_kwargs or {}
+        if timeout is None:
+            timeout = float(os.environ.get("NVIDIA_TIMEOUT", REQUEST_TIMEOUT))
+        self.timeout = timeout
 
     def embed(self, texts: List[str]) -> Tuple[List[List[float]], Dict[str, Any]]:
         url = f"{self.api_url}/embeddings"
@@ -62,7 +67,7 @@ class NimBackend:
                     "input": texts,
                     **self.model_kwargs,
                 },
-                timeout=REQUEST_TIMEOUT,
+                timeout=self.timeout,
             )
             res.raise_for_status()
         except requests.HTTPError as e:
@@ -94,7 +99,7 @@ class NimBackend:
                     ],
                     **self.model_kwargs,
                 },
-                timeout=REQUEST_TIMEOUT,
+                timeout=self.timeout,
             )
             res.raise_for_status()
         except requests.HTTPError as e:
@@ -132,7 +137,7 @@ class NimBackend:
 
         res = self.session.get(
             url,
-            timeout=REQUEST_TIMEOUT,
+            timeout=self.timeout,
         )
         res.raise_for_status()
 
@@ -145,8 +150,8 @@ class NimBackend:
 
     def rank(
         self,
-        query: str,
-        documents: List[Document],
+        query_text: str,
+        document_texts: List[str],
         endpoint: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         url = endpoint or f"{self.api_url}/ranking"
@@ -156,11 +161,11 @@ class NimBackend:
                 url,
                 json={
                     "model": self.model,
-                    "query": {"text": query},
-                    "passages": [{"text": doc.content} for doc in documents],
+                    "query": {"text": query_text},
+                    "passages": [{"text": text} for text in document_texts],
                     **self.model_kwargs,
                 },
-                timeout=REQUEST_TIMEOUT,
+                timeout=self.timeout,
             )
             res.raise_for_status()
         except requests.HTTPError as e:

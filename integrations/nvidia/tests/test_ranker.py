@@ -271,6 +271,10 @@ class TestNvidiaRanker:
                 "truncate": None,
                 "api_url": None,
                 "api_key": {"type": "env_var", "env_vars": ["NVIDIA_API_KEY"], "strict": True},
+                "query_prefix": "",
+                "document_prefix": "",
+                "meta_fields_to_embed": [],
+                "embedding_separator": "\n",
             },
         }
 

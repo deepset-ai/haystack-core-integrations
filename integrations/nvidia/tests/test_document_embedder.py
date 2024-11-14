@@ -347,7 +347,7 @@ class TestNvidiaDocumentEmbedder:
         with pytest.raises(TypeError, match="NvidiaDocumentEmbedder expects a list of Documents as input"):
             embedder.run(documents=list_integers_input)
 
-    def test_run_empty_document(self):
+    def test_run_empty_document(self, caplog):
         model = "playground_nvolveqa_40k"
         api_key = Secret.from_token("fake-api-key")
         embedder = NvidiaDocumentEmbedder(model, api_key=api_key)
@@ -355,8 +355,10 @@ class TestNvidiaDocumentEmbedder:
         embedder.warm_up()
         embedder.backend = MockBackend(model=model, api_key=api_key)
 
-        with pytest.raises(ValueError, match="no content to embed"):
+        # Write check using caplog that a logger.warning is raised
+        with caplog.at_level("WARNING"):
             embedder.run(documents=[Document(content="")])
+            assert "has no content to embed." in caplog.text
 
     def test_run_on_empty_list(self):
         model = "playground_nvolveqa_40k"
