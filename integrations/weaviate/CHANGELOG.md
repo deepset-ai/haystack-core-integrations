@@ -1,5 +1,11 @@
 # Changelog
 
+## [integrations/weaviate-v4.0.2] - 2024-11-13
+
+### 🐛 Bug Fixes
+
+- Dependency for weaviate document store (#1186)
+
 ## [integrations/weaviate-v4.0.1] - 2024-11-11
 
 ## [integrations/weaviate-v4.0.0] - 2024-10-18
