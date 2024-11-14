@@ -286,15 +286,15 @@ class SnowflakeTableRetriever:
         try:
             # Build up param connection
             connect_params={
-                    "user": self.user,
-                    "account": self.account,
-                    "private_key_file": self.private_key_file,
-                    "private_key_file_pwd": self.private_key_file_pwd,
-                    "database": self.database,
-                    "schema": self.db_schema,
-                    "warehouse": self.warehouse,
-                    "login_timeout": self.login_timeout
-                }
+                "user": self.user,
+                "account": self.account,
+                "private_key_file": self.private_key_file,
+                "private_key_file_pwd": self.private_key_file_pwd,
+                "database": self.database,
+                "schema": self.db_schema,
+                "warehouse": self.warehouse,
+                "login_timeout": self.login_timeout
+            }
             # Check if private key has been provided
             if self.private_key_file is None:
                 connect_params["password"] = self.api_key.resolve_value()
