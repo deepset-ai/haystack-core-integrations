@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2024-present deepset GmbH <info@deepset.ai>
+#
+# SPDX-License-Identifier: Apache-2.0
+
 import os
 
 import pytest
@@ -77,7 +81,7 @@ class TestNvidiaTextEmbedder:
             },
         }
 
-    def from_dict(self, monkeypatch):
+    def test_from_dict(self, monkeypatch):
         monkeypatch.setenv("NVIDIA_API_KEY", "fake-api-key")
         data = {
             "type": "haystack_integrations.components.embedders.nvidia.text_embedder.NvidiaTextEmbedder",
@@ -95,7 +99,20 @@ class TestNvidiaTextEmbedder:
         assert component.api_url == "https://example.com/v1"
         assert component.prefix == "prefix"
         assert component.suffix == "suffix"
-        assert component.truncate == "START"
+        assert component.truncate == EmbeddingTruncateMode.START
+
+    def test_from_dict_defaults(self, monkeypatch):
+        monkeypatch.setenv("NVIDIA_API_KEY", "fake-api-key")
+        data = {
+            "type": "haystack_integrations.components.embedders.nvidia.text_embedder.NvidiaTextEmbedder",
+            "init_parameters": {},
+        }
+        component = NvidiaTextEmbedder.from_dict(data)
+        assert component.model == "nvidia/nv-embedqa-e5-v5"
+        assert component.api_url == "https://ai.api.nvidia.com/v1/retrieval/nvidia"
+        assert component.prefix == ""
+        assert component.suffix == ""
+        assert component.truncate is None
 
     @pytest.mark.usefixtures("mock_local_models")
     def test_run_default_model(self):
