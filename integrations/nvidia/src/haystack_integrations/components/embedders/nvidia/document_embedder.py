@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2022-present deepset GmbH <info@deepset.ai>
+#
+# SPDX-License-Identifier: Apache-2.0
+
 import warnings
 from typing import Any, Dict, List, Optional, Tuple, Union
 
@@ -5,9 +9,9 @@ from haystack import Document, component, default_from_dict, default_to_dict
 from haystack.utils import Secret, deserialize_secrets_inplace
 from tqdm import tqdm
 
+from haystack_integrations.components.embedders.nvidia.truncate import EmbeddingTruncateMode
 from haystack_integrations.utils.nvidia import NimBackend, is_hosted, url_validation
 
-from .truncate import EmbeddingTruncateMode
 
 _DEFAULT_API_URL = "https://ai.api.nvidia.com/v1/retrieval/nvidia"
 
