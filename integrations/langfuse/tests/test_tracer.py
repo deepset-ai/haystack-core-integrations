@@ -1,7 +1,41 @@
-import os
+import datetime
 from unittest.mock import MagicMock, Mock, patch
 
+from haystack.dataclasses import ChatMessage
 from haystack_integrations.tracing.langfuse.tracer import LangfuseTracer
+
+
+class MockSpan:
+    def __init__(self):
+        self._data = {}
+        self._span = self
+        self.operation_name = "operation_name"
+
+    def raw_span(self):
+        return self
+
+    def span(self, name=None):
+        # assert correct operation name passed to the span
+        assert name == "operation_name"
+        return self
+
+    def update(self, **kwargs):
+        self._data.update(kwargs)
+
+    def generation(self, name=None):
+        return self
+
+    def end(self):
+        pass
+
+
+class MockTracer:
+
+    def trace(self, name, **kwargs):
+        return MockSpan()
+
+    def flush(self):
+        pass
 
 
 class TestLangfuseTracer:
@@ -45,43 +79,46 @@ class TestLangfuseTracer:
 
     # check that update method is called on the span instance with the provided key value pairs
     def test_update_span_with_pipeline_input_output_data(self):
-        class MockTracer:
-
-            def trace(self, name, **kwargs):
-                return MockSpan()
-
-            def flush(self):
-                pass
-
-        class MockSpan:
-            def __init__(self):
-                self._data = {}
-                self._span = self
-                self.operation_name = "operation_name"
-
-            def raw_span(self):
-                return self
-
-            def span(self, name=None):
-                # assert correct operation name passed to the span
-                assert name == "operation_name"
-                return self
-
-            def update(self, **kwargs):
-                self._data.update(kwargs)
-
-            def generation(self, name=None):
-                return self
-
-            def end(self):
-                pass
-
         tracer = LangfuseTracer(tracer=MockTracer(), name="Haystack", public=False)
         with tracer.trace(operation_name="operation_name", tags={"haystack.pipeline.input_data": "hello"}) as span:
             assert span.raw_span()._data["metadata"] == {"haystack.pipeline.input_data": "hello"}
 
         with tracer.trace(operation_name="operation_name", tags={"haystack.pipeline.output_data": "bye"}) as span:
             assert span.raw_span()._data["metadata"] == {"haystack.pipeline.output_data": "bye"}
+
+    def test_trace_generation(self):
+        tracer = LangfuseTracer(tracer=MockTracer(), name="Haystack", public=False)
+        tags = {
+            "haystack.component.type": "OpenAIChatGenerator",
+            "haystack.component.output": {
+                "replies": [
+                    ChatMessage.from_assistant(
+                        "", meta={"completion_start_time": "2021-07-27T16:02:08.012345", "model": "test_model"}
+                    )
+                ]
+            },
+        }
+        with tracer.trace(operation_name="operation_name", tags=tags) as span:
+            ...
+        assert span.raw_span()._data["usage"] is None
+        assert span.raw_span()._data["model"] == "test_model"
+        assert span.raw_span()._data["completion_start_time"] == datetime.datetime(2021, 7, 27, 16, 2, 8, 12345)
+
+    def test_trace_generation_invalid_start_time(self):
+        tracer = LangfuseTracer(tracer=MockTracer(), name="Haystack", public=False)
+        tags = {
+            "haystack.component.type": "OpenAIChatGenerator",
+            "haystack.component.output": {
+                "replies": [
+                    ChatMessage.from_assistant("", meta={"completion_start_time": "foobar", "model": "test_model"}),
+                ]
+            },
+        }
+        with tracer.trace(operation_name="operation_name", tags=tags) as span:
+            ...
+        assert span.raw_span()._data["usage"] is None
+        assert span.raw_span()._data["model"] == "test_model"
+        assert span.raw_span()._data["completion_start_time"] is None
 
     def test_update_span_gets_flushed_by_default(self):
         tracer_mock = Mock()

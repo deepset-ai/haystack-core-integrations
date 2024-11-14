@@ -3,46 +3,51 @@ requires = ["hatchling", "hatch-vcs"]
 build-backend = "hatchling.build"
 
 [project]
-name = "deepeval-haystack"
+name = "azure-ai-search-haystack"
 dynamic = ["version"]
-description = 'An integration of DeepEvla LLM evaluation framework with Haystack'
+description = 'Haystack 2.x Document Store for Azure AI Search'
 readme = "README.md"
-requires-python = ">=3.8"
+requires-python = ">=3.8,<3.13"
 license = "Apache-2.0"
 keywords = []
-authors = [{ name = "deepset GmbH", email = "info@deepset.ai" }]
+authors = [{ name = "deepset", email = "info@deepset.ai" }]
 classifiers = [
   "License :: OSI Approved :: Apache Software License",
   "Development Status :: 4 - Beta",
   "Programming Language :: Python",
-  "Programming Language :: Python :: 3.8",
   "Programming Language :: Python :: 3.9",
   "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
-dependencies = ["haystack-ai", "deepeval==0.20.57", "langchain<0.3; python_version < '3.10'"]
+dependencies = ["haystack-ai", "azure-search-documents>=11.5", "azure-identity"]
 
 [project.urls]
-Source = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/deepeval"
-Documentation = "https://github.com/deepset-ai/haystack-core-integrations/blob/main/integrations/deepeval/README.md"
+Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/azure_ai_search#readme"
 Issues = "https://github.com/deepset-ai/haystack-core-integrations/issues"
+Source = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/azure_ai_search"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/haystack_integrations"]
 
 [tool.hatch.version]
 source = "vcs"
-tag-pattern = 'integrations\/deepeval-v(?P<version>.*)'
+tag-pattern = 'integrations\/azure-ai-search-v(?P<version>.*)'
 
 [tool.hatch.version.raw-options]
 root = "../.."
-git_describe_command = 'git describe --tags --match="integrations/deepeval-v[0-9]*"'
+git_describe_command = 'git describe --tags --match="integrations/azure-ai-search-v[0-9]*"'
 
 [tool.hatch.envs.default]
-installer = "uv"
-dependencies = ["coverage[toml]>=6.5", "pytest", "pytest-rerunfailures", "haystack-pydoc-tools"]
+dependencies = [
+  "coverage[toml]>=6.5",
+  "pytest",
+  "pytest-rerunfailures",
+  "pytest-xdist",
+  "haystack-pydoc-tools",
+]
+
 [tool.hatch.envs.default.scripts]
 test = "pytest {args:tests}"
 test-cov = "coverage run -m pytest {args:tests}"
@@ -56,14 +61,16 @@ docs = ["pydoc-markdown pydoc/config.yml"]
 python = ["3.8", "3.9", "3.10", "3.11"]
 
 [tool.hatch.envs.lint]
-installer = "uv"
 detached = true
-dependencies = ["pip", "black>=23.1.0", "mypy>=1.0.0", "ruff>=0.0.243"]
+dependencies = ["black>=23.1.0", "mypy>=1.0.0", "ruff>=0.0.243"]
 [tool.hatch.envs.lint.scripts]
-typing = "mypy --install-types --non-interactive {args:src/}"
-style = ["ruff check {args:.}", "black --check --diff {args:.}"]
+typing = "mypy --install-types --non-interactive --explicit-package-bases {args:src/ tests}"
+style = ["ruff check {args:src/}", "black --check --diff {args:.}"]
 fmt = ["black {args:.}", "ruff check --fix {args:.}", "style"]
 all = ["style", "typing"]
+
+[tool.hatch.metadata]
+allow-direct-references = true
 
 [tool.black]
 target-version = ["py38"]
@@ -73,7 +80,6 @@ skip-string-normalization = true
 [tool.ruff]
 target-version = "py38"
 line-length = 120
-exclude = ["example", "tests"]
 
 [tool.ruff.lint]
 select = [
@@ -118,24 +124,23 @@ ignore = [
   "PLR0912",
   "PLR0913",
   "PLR0915",
-  # Misc
-  "S101",
-  "TID252",
 ]
 unfixable = [
   # Don't touch unused imports
   "F401",
 ]
+exclude = ["example"]
 
 [tool.ruff.lint.isort]
-known-first-party = ["haystack_integrations"]
+known-first-party = ["src"]
 
 [tool.ruff.lint.flake8-tidy-imports]
-ban-relative-imports = "all"
+ban-relative-imports = "parents"
 
 [tool.ruff.lint.per-file-ignores]
 # Tests can use magic values, assertions, and relative imports
-"tests/**/*" = ["PLR2004", "S101", "TID252"]
+"tests/**/*" = ["PLR2004", "S101", "TID252", "S311"]
+"example/**/*" = ["T201"]
 
 [tool.coverage.run]
 source = ["haystack_integrations"]
@@ -149,13 +154,10 @@ show_missing = true
 exclude_lines = ["no cov", "if __name__ == .__main__.:", "if TYPE_CHECKING:"]
 
 
+[tool.pytest.ini_options]
+minversion = "6.0"
+markers = ["unit: unit tests", "integration: integration tests"]
+
 [[tool.mypy.overrides]]
-module = [
-  "haystack.*",
-  "pytest.*",
-  "deepeval.*",
-  "numpy",
-  "grpc",
-  "haystack_integrations.*",
-]
+module = ["haystack.*", "haystack_integrations.*", "pytest.*", "azure.identity.*", "mypy.*", "azure.core.*", "azure.search.documents.*"]
 ignore_missing_imports = true

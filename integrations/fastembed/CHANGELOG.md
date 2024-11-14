@@ -1,5 +1,11 @@
 # Changelog
 
+## [integrations/fastembed-v1.4.0] - 2024-11-13
+
+### ⚙️ Miscellaneous Tasks
+
+- Adopt uv as installer (#1142)
+
 ## [integrations/fastembed-v1.3.0] - 2024-10-07
 
 ### 🚀 Features
