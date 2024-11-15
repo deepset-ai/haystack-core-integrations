@@ -126,16 +126,16 @@ class TestNvidiaGenerator:
 
     def test_setting_timeout(self, monkeypatch):
         monkeypatch.setenv("NVIDIA_API_KEY", "fake-api-key")
-        generator = NvidiaGenerator(timeout=10.)
+        generator = NvidiaGenerator(timeout=10.0)
         generator.warm_up()
-        assert generator._backend.timeout == 10.
+        assert generator._backend.timeout == 10.0
 
     def test_setting_timeout_env(self, monkeypatch):
         monkeypatch.setenv("NVIDIA_API_KEY", "fake-api-key")
         monkeypatch.setenv("NVIDIA_TIMEOUT", "45")
         generator = NvidiaGenerator()
         generator.warm_up()
-        assert generator._backend.timeout == 45.
+        assert generator._backend.timeout == 45.0
 
     @pytest.mark.skipif(
         not os.environ.get("NVIDIA_NIM_GENERATOR_MODEL", None) or not os.environ.get("NVIDIA_NIM_ENDPOINT_URL", None),
