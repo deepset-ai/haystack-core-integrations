@@ -7,7 +7,10 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple
 
 import requests
+from haystack import logging
 from haystack.utils import Secret
+
+logger = logging.getLogger(__name__)
 
 REQUEST_TIMEOUT = 60.0
 
@@ -70,6 +73,7 @@ class NimBackend:
             )
             res.raise_for_status()
         except requests.HTTPError as e:
+            logger.error("Error when calling NIM embedding endpoint: Error - {error}", error=e.response.text)
             msg = f"Failed to query embedding endpoint: Error - {e.response.text}"
             raise ValueError(msg) from e
 
@@ -102,6 +106,7 @@ class NimBackend:
             )
             res.raise_for_status()
         except requests.HTTPError as e:
+            logger.error("Error when calling NIM chat completion endpoint: Error - {error}", error=e.response.text)
             msg = f"Failed to query chat completion endpoint: Error - {e.response.text}"
             raise ValueError(msg) from e
 
@@ -143,6 +148,7 @@ class NimBackend:
         data = res.json()["data"]
         models = [Model(element["id"]) for element in data if "id" in element]
         if not models:
+            logger.error("No hosted model were found at URL '{u}'.", u=url)
             msg = f"No hosted model were found at URL '{url}'."
             raise ValueError(msg)
         return models
@@ -168,10 +174,14 @@ class NimBackend:
             )
             res.raise_for_status()
         except requests.HTTPError as e:
+            logger.error("Error when calling NIM ranking endpoint: Error - {error}", error=e.response.text)
             msg = f"Failed to rank endpoint: Error - {e.response.text}"
             raise ValueError(msg) from e
 
         data = res.json()
-        assert "rankings" in data, f"Expected 'rankings' in response, got {data}"
+        if "rankings" not in data:
+            logger.error("Expected 'rankings' in response, got {d}", d=data)
+            msg = f"Expected 'rankings' in response, got {data}"
+            raise ValueError(msg)
 
         return data["rankings"]
