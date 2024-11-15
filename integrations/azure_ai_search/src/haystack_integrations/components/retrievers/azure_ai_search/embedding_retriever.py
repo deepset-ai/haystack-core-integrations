@@ -35,7 +35,7 @@ class AzureAISearchEmbeddingRetriever:
         :param top_k: Maximum number of documents to return.
         :param filter_policy: Policy to determine how filters are applied.
         :param kwargs: Additional keyword arguments to pass to the Azure AI's search endpoint.
-        Some of the supported parameters:
+            Some of the supported parameters:
                 - `query_type`: A string indicating the type of query to perform. Possible values are
                 'simple','full' and 'semantic'.
                 - `semantic_configuration_name`: The name of semantic configuration to be used when
@@ -117,7 +117,7 @@ class AzureAISearchEmbeddingRetriever:
             docs = self._document_store._embedding_retrieval(
                 query_embedding=query_embedding, filters=normalized_filters, top_k=top_k, **self._kwargs
             )
-        except Exception as e:
-            raise e
+        except Exception:
+            raise
 
         return {"documents": docs}

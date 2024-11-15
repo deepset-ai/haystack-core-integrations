@@ -70,7 +70,7 @@ class AzureAISearchDocumentStore:
         embedding_dimension: int = 768,
         metadata_fields: Optional[Dict[str, type]] = None,
         vector_search_configuration: VectorSearch = None,
-        **kwargs,
+        **index_creation_kwargs,
     ):
         """
         A document store using [Azure AI Search](https://azure.microsoft.com/products/ai-services/ai-search/)
@@ -87,8 +87,8 @@ class AzureAISearchDocumentStore:
         :param vector_search_configuration: Configuration option related to vector search.
             Default configuration uses the HNSW algorithm with cosine similarity to handle vector searches.
 
-        :param kwargs: Optional keyword parameters to be passed to SearchIndex class during index creation.
-            Some of the supported parameters:
+        :param index_creation_kwargs: Optional keyword parameters to be passed to `SearchIndex` class
+            during index creation. Some of the supported parameters:
                 - `semantic_search`: Defines semantic configuration of the search index. This parameter is needed
                 to enable semantic search capabilities in index.
                 - `similarity`: The type of similarity algorithm to be used when scoring and ranking the documents
@@ -115,7 +115,7 @@ class AzureAISearchDocumentStore:
         self._dummy_vector = [-10.0] * self._embedding_dimension
         self._metadata_fields = metadata_fields
         self._vector_search_configuration = vector_search_configuration or DEFAULT_VECTOR_SEARCH
-        self._kwargs = kwargs
+        self._index_creation_kwargs = index_creation_kwargs
 
     @property
     def client(self) -> SearchClient:
@@ -181,7 +181,10 @@ class AzureAISearchDocumentStore:
         if self._metadata_fields:
             default_fields.extend(self._create_metadata_index_fields(self._metadata_fields))
         index = SearchIndex(
-            name=index_name, fields=default_fields, vector_search=self._vector_search_configuration, **self._kwargs
+            name=index_name,
+            fields=default_fields,
+            vector_search=self._vector_search_configuration,
+            **self._index_creation_kwargs,
         )
         if self._index_client:
             self._index_client.create_index(index)
@@ -204,7 +207,7 @@ class AzureAISearchDocumentStore:
             embedding_dimension=self._embedding_dimension,
             metadata_fields=self._metadata_fields,
             vector_search_configuration=self._vector_search_configuration.as_dict(),
-            **self._kwargs,
+            **self._index_creation_kwargs,
         )
 
     @classmethod

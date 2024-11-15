@@ -13,6 +13,7 @@ from haystack_integrations.document_stores.azure_ai_search import AzureAISearchD
 
 # This is the approximate time in seconds it takes for the documents to be available in Azure Search index
 SLEEP_TIME_IN_SECONDS = 10
+MAX_WAIT_TIME_FOR_INDEX_DELETION = 5
 
 
 @pytest.fixture()
@@ -61,7 +62,7 @@ def document_store(request):
     # Helper function to wait for the index to be deleted, needed to cover latency
     def wait_for_index_deletion(client, index_name):
         start_time = time.time()
-        while time.time() - start_time < SLEEP_TIME_IN_SECONDS:
+        while time.time() - start_time < MAX_WAIT_TIME_FOR_INDEX_DELETION:
             if index_name not in client.list_index_names():
                 return True
             time.sleep(1)
