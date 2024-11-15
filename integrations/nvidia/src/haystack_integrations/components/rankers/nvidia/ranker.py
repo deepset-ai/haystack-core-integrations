@@ -187,6 +187,18 @@ class NvidiaRanker:
                 self.model = _DEFAULT_MODEL
             self._initialized = True
 
+    def _prepare_documents_to_embed(self, documents: List[Document]) -> List[str]:
+        document_texts = []
+        for doc in documents:
+            meta_values_to_embed = [
+                str(doc.meta[key])
+                for key in self.meta_fields_to_embed
+                if key in doc.meta and doc.meta[key]  # noqa: RUF019
+            ]
+            text_to_embed = self.embedding_separator.join([*meta_values_to_embed, doc.content or ""])
+            document_texts.append(self.document_prefix + text_to_embed)
+        return document_texts
+
     @component.output_types(documents=List[Document])
     def run(
         self,
@@ -234,15 +246,7 @@ class NvidiaRanker:
         assert self._backend is not None
 
         query_text = self.query_prefix + query
-        document_texts = []
-        for doc in documents:
-            meta_values_to_embed = [
-                str(doc.meta[key])
-                for key in self.meta_fields_to_embed
-                if key in doc.meta and doc.meta[key]  # noqa: RUF019
-            ]
-            text_to_embed = self.embedding_separator.join([*meta_values_to_embed, doc.content or ""])
-            document_texts.append(self.document_prefix + text_to_embed)
+        document_texts = self._prepare_documents_to_embed(documents=documents)
 
         # rank result is list[{index: int, logit: float}] sorted by logit
         sorted_indexes_and_scores = self._backend.rank(

@@ -322,3 +322,26 @@ class TestNvidiaRanker:
         client = NvidiaRanker()
         client.warm_up()
         assert client._backend.timeout == 45.0
+
+    def test_prepare_texts_to_embed_w_metadata(self):
+        documents = [
+            Document(content=f"document number {i}:\ncontent", meta={"meta_field": f"meta_value {i}"}) for i in range(5)
+        ]
+
+        ranker = NvidiaRanker(
+            model=None,
+            api_key=Secret.from_token("fake-api-key"),
+            meta_fields_to_embed=["meta_field"],
+            embedding_separator=" | ",
+        )
+
+        prepared_texts = ranker._prepare_documents_to_embed(documents)
+
+        # note that newline is replaced by space
+        assert prepared_texts == [
+            "meta_value 0 | document number 0:\ncontent",
+            "meta_value 1 | document number 1:\ncontent",
+            "meta_value 2 | document number 2:\ncontent",
+            "meta_value 3 | document number 3:\ncontent",
+            "meta_value 4 | document number 4:\ncontent",
+        ]
