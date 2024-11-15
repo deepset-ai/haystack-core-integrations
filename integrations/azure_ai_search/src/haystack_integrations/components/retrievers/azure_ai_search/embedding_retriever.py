@@ -97,13 +97,13 @@ class AzureAISearchEmbeddingRetriever:
     def run(self, query_embedding: List[float], filters: Optional[Dict[str, Any]] = None, top_k: Optional[int] = None):
         """Retrieve documents from the AzureAISearchDocumentStore.
 
-        :param query_embedding: floats representing the query embedding
+        :param query_embedding: A list of floats representing the query embedding.
         :param filters: Filters applied to the retrieved Documents. The way runtime filters are applied depends on
                         the `filter_policy` chosen at retriever initialization. See init method docstring for more
                         details.
-        :param top_k: the maximum number of documents to retrieve.
-        :returns: a dictionary with the following keys:
-            - `documents`: A list of documents retrieved from the AzureAISearchDocumentStore.
+        :param top_k: The maximum number of documents to retrieve.
+        :returns: Dictionary with the following keys:
+                    - `documents`: A list of documents retrieved from the AzureAISearchDocumentStore.
         """
 
         top_k = top_k or self._top_k
@@ -117,7 +117,11 @@ class AzureAISearchEmbeddingRetriever:
             docs = self._document_store._embedding_retrieval(
                 query_embedding=query_embedding, filters=normalized_filters, top_k=top_k, **self._kwargs
             )
-        except Exception:
-            raise
+        except Exception as e:
+            msg = (
+                "An error occurred during the embedding retrieval process from the AzureAISearchDocumentStore. "
+                "Ensure that the query embedding is valid, the document store is correctly configured."
+            )
+            raise RuntimeError(msg) from e
 
         return {"documents": docs}
