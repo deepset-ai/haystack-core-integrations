@@ -19,8 +19,8 @@ class TestNvidiaRanker:
     def test_init_default(self, monkeypatch):
         monkeypatch.setenv("NVIDIA_API_KEY", "fake-api-key")
         client = NvidiaRanker()
-        assert client._model == _DEFAULT_MODEL
-        assert client._api_key == Secret.from_env_var("NVIDIA_API_KEY")
+        assert client.model == _DEFAULT_MODEL
+        assert client.api_key == Secret.from_env_var("NVIDIA_API_KEY")
 
     def test_init_with_parameters(self):
         client = NvidiaRanker(
@@ -29,10 +29,10 @@ class TestNvidiaRanker:
             top_k=3,
             truncate="END",
         )
-        assert client._api_key == Secret.from_token("fake-api-key")
-        assert client._model == _DEFAULT_MODEL
-        assert client._top_k == 3
-        assert client._truncate == RankerTruncateMode.END
+        assert client.api_key == Secret.from_token("fake-api-key")
+        assert client.model == _DEFAULT_MODEL
+        assert client.top_k == 3
+        assert client.truncate == RankerTruncateMode.END
 
     def test_init_fail_wo_api_key(self, monkeypatch):
         monkeypatch.delenv("NVIDIA_API_KEY", raising=False)
@@ -43,7 +43,7 @@ class TestNvidiaRanker:
     def test_init_pass_wo_api_key_w_api_url(self):
         url = "https://url.bogus/v1"
         client = NvidiaRanker(api_url=url)
-        assert client._api_url == url
+        assert client.api_url == url
 
     def test_warm_up_required(self):
         client = NvidiaRanker()
@@ -291,11 +291,11 @@ class TestNvidiaRanker:
                 },
             }
         )
-        assert client._model == "nvidia/nv-rerankqa-mistral-4b-v3"
-        assert client._top_k == 5
-        assert client._truncate is None
-        assert client._api_url is None
-        assert client._api_key == Secret.from_env_var("NVIDIA_API_KEY")
+        assert client.model == "nvidia/nv-rerankqa-mistral-4b-v3"
+        assert client.top_k == 5
+        assert client.truncate is None
+        assert client.api_url is None
+        assert client.api_key == Secret.from_env_var("NVIDIA_API_KEY")
 
     def test_from_dict_defaults(self) -> None:
         client = NvidiaRanker.from_dict(
@@ -304,8 +304,8 @@ class TestNvidiaRanker:
                 "init_parameters": {},
             }
         )
-        assert client._model == "nvidia/nv-rerankqa-mistral-4b-v3"
-        assert client._top_k == 5
-        assert client._truncate is None
-        assert client._api_url is None
-        assert client._api_key == Secret.from_env_var("NVIDIA_API_KEY")
+        assert client.model == "nvidia/nv-rerankqa-mistral-4b-v3"
+        assert client.top_k == 5
+        assert client.truncate is None
+        assert client.api_url is None
+        assert client.api_key == Secret.from_env_var("NVIDIA_API_KEY")

@@ -105,24 +105,24 @@ class NvidiaRanker:
             raise TypeError(msg)
 
         # todo: detect default in non-hosted case (when api_url is provided)
-        self._model = model or _DEFAULT_MODEL
-        self._truncate = truncate
-        self._api_key = api_key
+        self.model = model or _DEFAULT_MODEL
+        self.truncate = truncate
+        self.api_key = api_key
         # if no api_url is provided, we're using a hosted model and can
         #  - assume the default url will work, because there's only one model
         #  - assume we won't call backend.models()
         if api_url is not None:
-            self._api_url = url_validation(api_url, None, ["v1/ranking"])
-            self._endpoint = None  # we let backend.rank() handle the endpoint
+            self.api_url = url_validation(api_url, None, ["v1/ranking"])
+            self.endpoint = None  # we let backend.rank() handle the endpoint
         else:
-            if self._model not in _MODEL_ENDPOINT_MAP:
+            if self.model not in _MODEL_ENDPOINT_MAP:
                 msg = f"Model '{model}' is unknown. Please provide an api_url to access it."
                 raise ValueError(msg)
-            self._api_url = None  # we handle the endpoint
-            self._endpoint = _MODEL_ENDPOINT_MAP[self._model]
+            self.api_url = None  # we handle the endpoint
+            self.endpoint = _MODEL_ENDPOINT_MAP[self.model]
             if api_key is None:
                 self._api_key = Secret.from_env_var("NVIDIA_API_KEY")
-        self._top_k = top_k
+        self.top_k = top_k
         self._initialized = False
         self._backend: Optional[Any] = None
 
@@ -142,11 +142,11 @@ class NvidiaRanker:
         """
         return default_to_dict(
             self,
-            model=self._model,
-            top_k=self._top_k,
-            truncate=self._truncate,
-            api_url=self._api_url,
-            api_key=self._api_key.to_dict() if self._api_key else None,
+            model=self.model,
+            top_k=self.top_k,
+            truncate=self.truncate,
+            api_url=self.api_url,
+            api_key=self.api_key.to_dict() if self.api_key else None,
             query_prefix=self.query_prefix,
             document_prefix=self.document_prefix,
             meta_fields_to_embed=self.meta_fields_to_embed,
@@ -174,17 +174,17 @@ class NvidiaRanker:
         """
         if not self._initialized:
             model_kwargs = {}
-            if self._truncate is not None:
-                model_kwargs.update(truncate=str(self._truncate))
+            if self.truncate is not None:
+                model_kwargs.update(truncate=str(self.truncate))
             self._backend = NimBackend(
-                model=self._model,
-                api_url=self._api_url,
-                api_key=self._api_key,
+                model=self.model,
+                api_url=self.api_url,
+                api_key=self.api_key,
                 model_kwargs=model_kwargs,
                 timeout=self.timeout,
             )
-            if not self._model:
-                self._model = _DEFAULT_MODEL
+            if not self.model:
+                self.model = _DEFAULT_MODEL
             self._initialized = True
 
     @component.output_types(documents=List[Document])
@@ -225,7 +225,7 @@ class NvidiaRanker:
         if len(documents) == 0:
             return {"documents": []}
 
-        top_k = top_k if top_k is not None else self._top_k
+        top_k = top_k if top_k is not None else self.top_k
         if top_k < 1:
             logger.warning("top_k should be at least 1, returning nothing")
             warnings.warn("top_k should be at least 1, returning nothing", stacklevel=2)
@@ -248,7 +248,7 @@ class NvidiaRanker:
         sorted_indexes_and_scores = self._backend.rank(
             query_text=query_text,
             document_texts=document_texts,
-            endpoint=self._endpoint,
+            endpoint=self.endpoint,
         )
         sorted_documents = []
         for item in sorted_indexes_and_scores[:top_k]:
