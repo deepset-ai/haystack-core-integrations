@@ -2,14 +2,11 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 import os
-from typing import List
 from unittest.mock import Mock
 
 import pytest
-from azure.core.exceptions import HttpResponseError
 from haystack.dataclasses import Document
 from haystack.document_stores.types import FilterPolicy
-from numpy.random import rand  # type: ignore
 
 from haystack_integrations.components.retrievers.azure_ai_search import AzureAISearchBM25Retriever
 from haystack_integrations.document_stores.azure_ai_search import AzureAISearchDocumentStore
@@ -35,7 +32,7 @@ def test_to_dict():
     retriever = AzureAISearchBM25Retriever(document_store=document_store)
     res = retriever.to_dict()
     assert res == {
-        "type": "haystack_integrations.components.retrievers.azure_ai_search.bm25_retriever.AzureAISearchBM25Retriever",  # noqa: E501
+        "type": "haystack_integrations.components.retrievers.azure_ai_search.bm25_retriever.AzureAISearchBM25Retriever",
         "init_parameters": {
             "filters": {},
             "top_k": 10,
@@ -73,7 +70,7 @@ def test_to_dict():
 
 def test_from_dict():
     data = {
-        "type": "haystack_integrations.components.retrievers.azure_ai_search.bm25_retriever.AzureAISearchBM25Retriever",  # noqa: E501
+        "type": "haystack_integrations.components.retrievers.azure_ai_search.bm25_retriever.AzureAISearchBM25Retriever",
         "init_parameters": {
             "filters": {},
             "top_k": 10,
