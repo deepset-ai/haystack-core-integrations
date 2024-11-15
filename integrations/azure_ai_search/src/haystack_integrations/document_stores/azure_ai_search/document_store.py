@@ -31,7 +31,7 @@ from haystack.document_stores.types import DuplicatePolicy
 from haystack.utils import Secret, deserialize_secrets_inplace
 
 from .errors import AzureAISearchDocumentStoreConfigError
-from .filters import normalize_filters
+from .filters import _normalize_filters
 
 type_mapping = {
     str: "Edm.String",
@@ -70,7 +70,7 @@ class AzureAISearchDocumentStore:
         embedding_dimension: int = 768,
         metadata_fields: Optional[Dict[str, type]] = None,
         vector_search_configuration: VectorSearch = None,
-        **kwargs,
+        **index_creation_kwargs,
     ):
         """
         A document store using [Azure AI Search](https://azure.microsoft.com/products/ai-services/ai-search/)
@@ -87,19 +87,20 @@ class AzureAISearchDocumentStore:
         :param vector_search_configuration: Configuration option related to vector search.
             Default configuration uses the HNSW algorithm with cosine similarity to handle vector searches.
 
-        :param kwargs: Optional keyword parameters for Azure AI Search.
-            Some of the supported parameters:
-                - `api_version`: The Search API version to use for requests.
-                - `audience`: sets the Audience to use for authentication with Azure Active Directory (AAD).
-                The audience is not considered when using a shared key. If audience is not provided,
-                the public cloud audience will be assumed.
+        :param index_creation_kwargs: Optional keyword parameters to be passed to `SearchIndex` class
+            during index creation. Some of the supported parameters:
+                - `semantic_search`: Defines semantic configuration of the search index. This parameter is needed
+                to enable semantic search capabilities in index.
+                - `similarity`: The type of similarity algorithm to be used when scoring and ranking the documents
+                matching a search query. The similarity algorithm can only be defined at index creation time and
+                cannot be modified on existing indexes.
 
-        For more information on parameters, see the [official Azure AI Search documentation](https://learn.microsoft.com/en-us/azure/search/)
+        For more information on parameters, see the [official Azure AI Search documentation](https://learn.microsoft.com/en-us/azure/search/).
         """
 
         azure_endpoint = azure_endpoint or os.environ.get("AZURE_SEARCH_SERVICE_ENDPOINT") or None
         if not azure_endpoint:
-            msg = "Please provide an Azure endpoint or set the environment variable AZURE_OPENAI_ENDPOINT."
+            msg = "Please provide an Azure endpoint or set the environment variable AZURE_SEARCH_SERVICE_ENDPOINT."
             raise ValueError(msg)
 
         api_key = api_key or os.environ.get("AZURE_SEARCH_API_KEY") or None
@@ -114,7 +115,7 @@ class AzureAISearchDocumentStore:
         self._dummy_vector = [-10.0] * self._embedding_dimension
         self._metadata_fields = metadata_fields
         self._vector_search_configuration = vector_search_configuration or DEFAULT_VECTOR_SEARCH
-        self._kwargs = kwargs
+        self._index_creation_kwargs = index_creation_kwargs
 
     @property
     def client(self) -> SearchClient:
@@ -128,7 +129,10 @@ class AzureAISearchDocumentStore:
         credential = AzureKeyCredential(resolved_key) if resolved_key else DefaultAzureCredential()
         try:
             if not self._index_client:
-                self._index_client = SearchIndexClient(resolved_endpoint, credential, **self._kwargs)
+                self._index_client = SearchIndexClient(
+                    resolved_endpoint,
+                    credential,
+                )
             if not self._index_exists(self._index_name):
                 # Create a new index if it does not exist
                 logger.debug(
@@ -151,7 +155,7 @@ class AzureAISearchDocumentStore:
 
         return self._client
 
-    def _create_index(self, index_name: str, **kwargs) -> None:
+    def _create_index(self, index_name: str) -> None:
         """
         Creates a new search index.
         :param index_name: Name of the index to create. If None, the index name from the constructor is used.
@@ -177,7 +181,10 @@ class AzureAISearchDocumentStore:
         if self._metadata_fields:
             default_fields.extend(self._create_metadata_index_fields(self._metadata_fields))
         index = SearchIndex(
-            name=index_name, fields=default_fields, vector_search=self._vector_search_configuration, **kwargs
+            name=index_name,
+            fields=default_fields,
+            vector_search=self._vector_search_configuration,
+            **self._index_creation_kwargs,
         )
         if self._index_client:
             self._index_client.create_index(index)
@@ -194,13 +201,13 @@ class AzureAISearchDocumentStore:
         """
         return default_to_dict(
             self,
-            azure_endpoint=self._azure_endpoint.to_dict() if self._azure_endpoint is not None else None,
-            api_key=self._api_key.to_dict() if self._api_key is not None else None,
+            azure_endpoint=self._azure_endpoint.to_dict() if self._azure_endpoint else None,
+            api_key=self._api_key.to_dict() if self._api_key else None,
             index_name=self._index_name,
             embedding_dimension=self._embedding_dimension,
             metadata_fields=self._metadata_fields,
             vector_search_configuration=self._vector_search_configuration.as_dict(),
-            **self._kwargs,
+            **self._index_creation_kwargs,
         )
 
     @classmethod
@@ -298,7 +305,7 @@ class AzureAISearchDocumentStore:
         :returns: A list of Documents that match the given filters.
         """
         if filters:
-            normalized_filters = normalize_filters(filters)
+            normalized_filters = _normalize_filters(filters)
             result = self.client.search(filter=normalized_filters)
             return self._convert_search_result_to_documents(result)
         else:
@@ -409,8 +416,8 @@ class AzureAISearchDocumentStore:
         query_embedding: List[float],
         *,
         top_k: int = 10,
-        fields: Optional[List[str]] = None,
         filters: Optional[Dict[str, Any]] = None,
+        **kwargs,
     ) -> List[Document]:
         """
         Retrieves documents that are most similar to the query embedding using a vector similarity metric.
@@ -422,9 +429,10 @@ class AzureAISearchDocumentStore:
         `AzureAISearchEmbeddingRetriever` uses this method directly and is the public interface for it.
 
         :param query_embedding: Embedding of the query.
+        :param top_k: Maximum number of Documents to return, defaults to 10.
         :param filters: Filters applied to the retrieved Documents. Defaults to None.
             Filters are applied during the approximate kNN search to ensure that top_k matching documents are returned.
-        :param top_k: Maximum number of Documents to return, defaults to 10
+        :param kwargs: Optional keyword arguments to pass to the Azure AI's search endpoint.
 
         :raises ValueError: If `query_embedding` is an empty list
         :returns: List of Document that are most similar to `query_embedding`
@@ -435,7 +443,7 @@ class AzureAISearchDocumentStore:
             raise ValueError(msg)
 
         vector_query = VectorizedQuery(vector=query_embedding, k_nearest_neighbors=top_k, fields="embedding")
-        result = self.client.search(search_text=None, vector_queries=[vector_query], select=fields, filter=filters)
+        result = self.client.search(vector_queries=[vector_query], filter=filters, **kwargs)
         azure_docs = list(result)
         return self._convert_search_result_to_documents(azure_docs)
 
