@@ -31,7 +31,7 @@ from haystack.document_stores.types import DuplicatePolicy
 from haystack.utils import Secret, deserialize_secrets_inplace
 
 from .errors import AzureAISearchDocumentStoreConfigError
-from .filters import normalize_filters
+from .filters import _normalize_filters
 
 type_mapping = {
     str: "Edm.String",
@@ -95,7 +95,7 @@ class AzureAISearchDocumentStore:
                 matching a search query. The similarity algorithm can only be defined at index creation time and
                 cannot be modified on existing indexes.
 
-        For more information on parameters, see the [official Azure AI Search documentation](https://learn.microsoft.com/en-us/azure/search/)
+        For more information on parameters, see the [official Azure AI Search documentation](https://learn.microsoft.com/en-us/azure/search/).
         """
 
         azure_endpoint = azure_endpoint or os.environ.get("AZURE_SEARCH_SERVICE_ENDPOINT") or None
@@ -305,7 +305,7 @@ class AzureAISearchDocumentStore:
         :returns: A list of Documents that match the given filters.
         """
         if filters:
-            normalized_filters = normalize_filters(filters)
+            normalized_filters = _normalize_filters(filters)
             result = self.client.search(filter=normalized_filters)
             return self._convert_search_result_to_documents(result)
         else:

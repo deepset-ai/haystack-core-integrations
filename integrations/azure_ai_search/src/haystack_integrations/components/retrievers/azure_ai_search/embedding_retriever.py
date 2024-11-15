@@ -5,7 +5,7 @@ from haystack import Document, component, default_from_dict, default_to_dict
 from haystack.document_stores.types import FilterPolicy
 from haystack.document_stores.types.filter_policy import apply_filter_policy
 
-from haystack_integrations.document_stores.azure_ai_search import AzureAISearchDocumentStore, normalize_filters
+from haystack_integrations.document_stores.azure_ai_search import AzureAISearchDocumentStore, _normalize_filters
 
 logger = logging.getLogger(__name__)
 
@@ -40,8 +40,8 @@ class AzureAISearchEmbeddingRetriever:
                 'simple','full' and 'semantic'.
                 - `semantic_configuration_name`: The name of semantic configuration to be used when
                 processing semantic queries.
-
-        For more information on parameters, see the [official Azure AI Search documentation](https://learn.microsoft.com/en-us/azure/search/)
+            For more information on parameters, see the
+            [official Azure AI Search documentation](https://learn.microsoft.com/en-us/azure/search/).
 
         """
         self._filters = filters or {}
@@ -99,17 +99,17 @@ class AzureAISearchEmbeddingRetriever:
 
         :param query_embedding: A list of floats representing the query embedding.
         :param filters: Filters applied to the retrieved Documents. The way runtime filters are applied depends on
-                        the `filter_policy` chosen at retriever initialization. See init method docstring for more
-                        details.
+                the `filter_policy` chosen at retriever initialization. See `__init__` method docstring for more
+                details.
         :param top_k: The maximum number of documents to retrieve.
         :returns: Dictionary with the following keys:
-                    - `documents`: A list of documents retrieved from the AzureAISearchDocumentStore.
+                - `documents`: A list of documents retrieved from the AzureAISearchDocumentStore.
         """
 
         top_k = top_k or self._top_k
         if filters is not None:
             applied_filters = apply_filter_policy(self._filter_policy, self._filters, filters)
-            normalized_filters = normalize_filters(applied_filters)
+            normalized_filters = _normalize_filters(applied_filters)
         else:
             normalized_filters = ""
 
@@ -120,7 +120,7 @@ class AzureAISearchEmbeddingRetriever:
         except Exception as e:
             msg = (
                 "An error occurred during the embedding retrieval process from the AzureAISearchDocumentStore. "
-                "Ensure that the query embedding is valid, the document store is correctly configured."
+                "Ensure that the query embedding is valid and the document store is correctly configured."
             )
             raise RuntimeError(msg) from e
 
