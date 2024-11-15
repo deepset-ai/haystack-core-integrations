@@ -59,8 +59,8 @@ class AnthropicVertexChatGenerator(AnthropicChatGenerator):
 
     def __init__(
         self,
-        region: Optional[str] = "us-central1",
-        project_id: Optional[str] = None,
+        region: str = "us-central1",
+        project_id: str = "gcp-project-id",
         model: str = "claude-3-5-sonnet@20240620",
         streaming_callback: Optional[Callable[[StreamingChunk], None]] = None,
         generation_kwargs: Optional[Dict[str, Any]] = None,
