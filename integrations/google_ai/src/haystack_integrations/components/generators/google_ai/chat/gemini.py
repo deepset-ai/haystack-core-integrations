@@ -317,6 +317,15 @@ class GoogleAIGeminiChatGenerator:
             candidate_metadata = metadata["candidates"][idx]
             candidate_metadata.pop("content", None)  # we remove content from the metadata
 
+            # align openai api response
+            usage_metadata = metadata.get("usage_metadata")
+            if usage_metadata:
+                candidate_metadata["usage"] = {
+                    "prompt_tokens": usage_metadata["prompt_token_count"],
+                    "completion_tokens": usage_metadata["candidates_token_count"],
+                    "total_tokens": usage_metadata["total_token_count"],
+                }
+
             for part in candidate.content.parts:
                 if part.text != "":
                     replies.append(
