@@ -309,3 +309,16 @@ class TestNvidiaRanker:
         assert client.truncate is None
         assert client.api_url is None
         assert client.api_key == Secret.from_env_var("NVIDIA_API_KEY")
+
+    def test_setting_timeout(self, monkeypatch):
+        monkeypatch.setenv("NVIDIA_API_KEY", "fake-api-key")
+        client = NvidiaRanker(timeout=10.)
+        client.warm_up()
+        assert client._backend.timeout == 10.
+
+    def test_setting_timeout_env(self, monkeypatch):
+        monkeypatch.setenv("NVIDIA_API_KEY", "fake-api-key")
+        monkeypatch.setenv("NVIDIA_TIMEOUT", "45")
+        client = NvidiaRanker()
+        client.warm_up()
+        assert client._backend.timeout == 45.
