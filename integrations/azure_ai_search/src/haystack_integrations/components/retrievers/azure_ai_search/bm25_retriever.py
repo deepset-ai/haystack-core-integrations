@@ -5,7 +5,7 @@ from haystack import Document, component, default_from_dict, default_to_dict
 from haystack.document_stores.types import FilterPolicy
 from haystack.document_stores.types.filter_policy import apply_filter_policy
 
-from haystack_integrations.document_stores.azure_ai_search import AzureAISearchDocumentStore, normalize_filters
+from haystack_integrations.document_stores.azure_ai_search import AzureAISearchDocumentStore, _normalize_filters
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +25,7 @@ class AzureAISearchBM25Retriever:
         filters: Optional[Dict[str, Any]] = None,
         top_k: int = 10,
         filter_policy: Union[str, FilterPolicy] = FilterPolicy.REPLACE,
+        **kwargs,
     ):
         """
         Create the AzureAISearchBM25Retriever component.
@@ -34,7 +35,16 @@ class AzureAISearchBM25Retriever:
             Filters are applied during the BM25 search to ensure the Retriever returns
               `top_k` matching documents.
         :param top_k: Maximum number of documents to return.
-        :filter_policy: Policy to determine how filters are applied. Possible options:
+        :filter_policy: Policy to determine how filters are applied.
+        :param kwargs: Additional keyword arguments to pass to the Azure AI's search endpoint.
+            Some of the supported parameters:
+                - `query_type`: A string indicating the type of query to perform. Possible values are
+                'simple','full' and 'semantic'.
+                - `semantic_configuration_name`: The name of semantic configuration to be used when
+                processing semantic queries.
+            For more information on parameters, see the
+            [official Azure AI Search documentation](https://learn.microsoft.com/en-us/azure/search/).
+
 
         """
         self._filters = filters or {}
@@ -43,7 +53,7 @@ class AzureAISearchBM25Retriever:
         self._filter_policy = (
             filter_policy if isinstance(filter_policy, FilterPolicy) else FilterPolicy.from_str(filter_policy)
         )
-
+        self._kwargs = kwargs
         if not isinstance(document_store, AzureAISearchDocumentStore):
             message = "document_store must be an instance of AzureAISearchDocumentStore"
             raise Exception(message)
@@ -61,6 +71,7 @@ class AzureAISearchBM25Retriever:
             top_k=self._top_k,
             document_store=self._document_store.to_dict(),
             filter_policy=self._filter_policy.value,
+            **self._kwargs,
         )
 
     @classmethod
@@ -100,7 +111,7 @@ class AzureAISearchBM25Retriever:
         top_k = top_k or self._top_k
         if filters is not None:
             applied_filters = apply_filter_policy(self._filter_policy, self._filters, filters)
-            normalized_filters = normalize_filters(applied_filters)
+            normalized_filters = _normalize_filters(applied_filters)
         else:
             normalized_filters = ""
 
@@ -109,8 +120,13 @@ class AzureAISearchBM25Retriever:
                 query=query,
                 filters=normalized_filters,
                 top_k=top_k,
+                **self._kwargs,
             )
         except Exception as e:
-            raise e
+            msg = (
+                "An error occurred during the bm25 retrieval process from the AzureAISearchDocumentStore. "
+                "Ensure that the query is valid and the document store is correctly configured."
+            )
+            raise RuntimeError(msg) from e
 
         return {"documents": docs}

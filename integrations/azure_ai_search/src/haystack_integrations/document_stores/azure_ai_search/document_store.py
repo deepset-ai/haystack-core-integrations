@@ -421,7 +421,7 @@ class AzureAISearchDocumentStore:
     ) -> List[Document]:
         """
         Retrieves documents that are most similar to the query embedding using a vector similarity metric.
-        It uses the vector configuration of the document store. By default it uses the HNSW algorithm
+        It uses the vector configuration specified in the document store. By default, it uses the HNSW algorithm
         with cosine similarity.
 
         This method is not meant to be part of the public interface of
@@ -429,13 +429,12 @@ class AzureAISearchDocumentStore:
         `AzureAISearchEmbeddingRetriever` uses this method directly and is the public interface for it.
 
         :param query_embedding: Embedding of the query.
-        :param top_k: Maximum number of Documents to return, defaults to 10.
-        :param filters: Filters applied to the retrieved Documents. Defaults to None.
-            Filters are applied during the approximate kNN search to ensure that top_k matching documents are returned.
+        :param top_k: Maximum number of Documents to return.
+        :param filters: Filters applied to the retrieved Documents.
         :param kwargs: Optional keyword arguments to pass to the Azure AI's search endpoint.
 
-        :raises ValueError: If `query_embedding` is an empty list
-        :returns: List of Document that are most similar to `query_embedding`
+        :raises ValueError: If `query_embedding` is an empty list.
+        :returns: List of Document that are most similar to `query_embedding`.
         """
 
         if not query_embedding:
@@ -451,30 +450,31 @@ class AzureAISearchDocumentStore:
         self,
         query: str,
         top_k: int = 10,
-        fields: Optional[List[str]] = None,
         filters: Optional[Dict[str, Any]] = None,
+        **kwargs,
     ) -> List[Document]:
         """
-        Retrieves documents that are most similar to `query`, using the BM25 algorithm
+        Retrieves documents that are most similar to `query`, using the BM25 algorithm.
 
         This method is not meant to be part of the public interface of
         `AzureAISearchDocumentStore` nor called directly.
         `AzureAISearchBM25Retriever` uses this method directly and is the public interface for it.
 
         :param query: Text of the query.
-        :param filters: Filters applied to the retrieved Documents. Defaults to None.
-            Filters are applied during the approximate kNN search to ensure that top_k matching documents are returned.
-        :param top_k: Maximum number of Documents to return, defaults to 10
+        :param filters: Filters applied to the retrieved Documents.
+        :param top_k: Maximum number of Documents to return.
+        :param kwargs: Optional keyword arguments to pass to the Azure AI's search endpoint.
 
-        :raises ValueError: If `query` is an empty string
-        :returns: List of Document that are most similar to `query`
+
+        :raises ValueError: If `query` is an empty string.
+        :returns: List of Document that are most similar to `query`.
         """
 
         if query is None:
             msg = "query must not be None"
             raise ValueError(msg)
 
-        result = self.client.search(search_text=query, select=fields, filter=filters, top=top_k, query_type="simple")
+        result = self.client.search(search_text=query, filter=filters, top=top_k, query_type="simple", **kwargs)
         azure_docs = list(result)
         return self._convert_search_result_to_documents(azure_docs)
 
@@ -483,9 +483,25 @@ class AzureAISearchDocumentStore:
         query: str,
         query_embedding: List[float],
         top_k: int = 10,
-        fields: Optional[List[str]] = None,
         filters: Optional[Dict[str, Any]] = None,
+        **kwargs,
     ) -> List[Document]:
+        """
+        Retrieves documents similar to query using the vector configuration in the document store and
+        the BM25 algorithm. This method combines vector similarity and BM25 for improved retrieval.
+
+        This method is not meant to be part of the public interface of
+        `AzureAISearchDocumentStore` nor called directly.
+        `AzureAISearchHybridRetriever` uses this method directly and is the public interface for it.
+
+        :param query: Text of the query.
+        :param filters: Filters applied to the retrieved Documents.
+        :param top_k: Maximum number of Documents to return.
+        :param kwargs: Optional keyword arguments to pass to the Azure AI's search endpoint.
+
+        :raises ValueError: If `query` or `query_embedding` is empty.
+        :returns: List of Document that are most similar to `query`.
+        """
 
         if query is None:
             msg = "query must not be None"
@@ -498,10 +514,10 @@ class AzureAISearchDocumentStore:
         result = self.client.search(
             search_text=query,
             vector_queries=[vector_query],
-            select=fields,
             filter=filters,
             top=top_k,
             query_type="simple",
+            **kwargs,
         )
         azure_docs = list(result)
         return self._convert_search_result_to_documents(azure_docs)
