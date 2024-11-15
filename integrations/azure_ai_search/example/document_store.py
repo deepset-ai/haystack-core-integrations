@@ -1,5 +1,4 @@
 from haystack import Document
-from haystack.document_stores.types import DuplicatePolicy
 
 from haystack_integrations.document_stores.azure_ai_search import AzureAISearchDocumentStore
 
@@ -30,7 +29,7 @@ documents = [
         meta={"version": 2.0, "label": "chapter_three"},
     ),
 ]
-document_store.write_documents(documents, policy=DuplicatePolicy.SKIP)
+document_store.write_documents(documents)
 
 filters = {
     "operator": "AND",
