@@ -190,10 +190,10 @@ class LangfuseTracer(Tracer):
                         model=meta.get("model"),
                         completion_start_time=completion_start_time,
                     )
-                    
+
             span.raw_span().end()
             self._context.pop()
-            
+
             if created_root_span:
                 self._context.pop()
 
