@@ -168,16 +168,10 @@ class LangfuseTracer(Tracer):
         try:
             yield span
         finally:
-            self._context.pop()
-            if created_root_span:
-                self._context.pop()
-
             # Update span metadata based on component type
             if tags.get(COMPONENT_TYPE_KEY) in _SUPPORTED_GENERATORS:
                 meta = span._data.get(COMPONENT_OUTPUT_KEY, {}).get("meta")
                 if meta:
-                    # Haystack returns one meta dict for each message, but the 'usage' value
-                    # is always the same, let's just pick the first item
                     m = meta[0]
                     span._span.update(usage=m.get("usage") or None, model=m.get("model"))
             elif tags.get(COMPONENT_TYPE_KEY) in _SUPPORTED_CHAT_GENERATORS:
@@ -196,6 +190,13 @@ class LangfuseTracer(Tracer):
                         model=meta.get("model"),
                         completion_start_time=completion_start_time,
                     )
+                    
+            span.raw_span().end()
+            self._context.pop()
+            
+            if created_root_span:
+                self._context.pop()
+
             if self.enforce_flush:
                 self.flush()
 
