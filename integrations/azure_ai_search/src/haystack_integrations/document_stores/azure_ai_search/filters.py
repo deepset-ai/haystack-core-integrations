@@ -7,7 +7,7 @@ from .errors import AzureAISearchDocumentStoreFilterError
 LOGICAL_OPERATORS = {"AND": "and", "OR": "or", "NOT": "not"}
 
 
-def normalize_filters(filters: Dict[str, Any]) -> str:
+def _normalize_filters(filters: Dict[str, Any]) -> str:
     """
     Converts Haystack filters in Azure AI Search compatible filters.
     """
