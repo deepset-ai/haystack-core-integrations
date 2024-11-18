@@ -1,7 +1,8 @@
+import json
 import os
 from unittest.mock import patch
 
-import pytest
+from haystack import Document
 from haystack.utils import Secret
 
 from haystack_integrations.components.connectors.jina import JinaReaderConnector, JinaReaderMode
@@ -11,11 +12,6 @@ os.environ["TEST_KEY"] = "test-api-key"
 
 
 class TestJinaReaderConnector:
-    @pytest.fixture
-    def mock_session(self):
-        with patch("requests.Session") as mock:
-            yield mock.return_value
-
     def test_init_with_custom_parameters(self):
         reader = JinaReaderConnector(mode="READ", api_key=Secret.from_env_var("TEST_KEY"), json_response=False)
 
@@ -54,3 +50,23 @@ class TestJinaReaderConnector:
         assert reader.mode == JinaReaderMode.READ
         assert reader.json_response is True
         assert reader.api_key.resolve_value() == "test-api-key"
+
+    @patch("requests.Session")
+    def test_run_with_mocked_response(self, mock_session):
+        mock_json_response = {
+            "data": {"content": "Mocked content", "title": "Mocked Title", "url": "https://example.com"}
+        }
+
+        mock_response = mock_session.return_value.get.return_value
+        mock_response.content = json.dumps(mock_json_response).encode("utf-8")
+        mock_response.headers = {"Content-Type": "application/json"}
+
+        reader = JinaReaderConnector(mode="READ")
+        result = reader.run(query="https://example.com")
+
+        assert len(result) == 1
+        document = result[0]
+        assert isinstance(document, Document)
+        assert document.content == "Mocked content"
+        assert document.meta["title"] == "Mocked Title"
+        assert document.meta["url"] == "https://example.com"
