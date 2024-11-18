@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 import logging
 import re
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Literal, Optional, Union
 
 from haystack import default_from_dict, default_to_dict
 from haystack.dataclasses.document import Document
@@ -49,7 +49,8 @@ class MongoDBAtlasDocumentStore:
 
     store = MongoDBAtlasDocumentStore(database_name="your_existing_db",
                                       collection_name="your_existing_collection",
-                                      vector_search_index="your_existing_index")
+                                      vector_search_index="your_existing_index"
+                                      full_text_search_index="your_existing_index")
     print(store.count_documents())
     ```
     """
@@ -61,6 +62,7 @@ class MongoDBAtlasDocumentStore:
         database_name: str,
         collection_name: str,
         vector_search_index: str,
+        full_text_search_index: str,
     ):
         """
         Creates a new MongoDBAtlasDocumentStore instance.
@@ -76,6 +78,10 @@ class MongoDBAtlasDocumentStore:
             Create a vector_search_index in the Atlas web UI and specify the init params of MongoDBAtlasDocumentStore. \
             For more details refer to MongoDB
             Atlas [documentation](https://www.mongodb.com/docs/atlas/atlas-vector-search/create-index/#std-label-avs-create-index).
+        :param full_text_search_index: The name of the search index to use for full-text search operations.
+            Create a full_text_search_index in the Atlas web UI and specify the init params of
+            MongoDBAtlasDocumentStore. For more details refer to MongoDB Atlas
+            [documentation](https://www.mongodb.com/docs/atlas/atlas-search/create-index/).
 
         :raises ValueError: If the collection name contains invalid characters.
         """
@@ -88,6 +94,7 @@ class MongoDBAtlasDocumentStore:
         self.database_name = database_name
         self.collection_name = collection_name
         self.vector_search_index = vector_search_index
+        self.full_text_search_index = full_text_search_index
         self._connection: Optional[MongoClient] = None
         self._collection: Optional[Collection] = None
 
@@ -124,6 +131,7 @@ class MongoDBAtlasDocumentStore:
             database_name=self.database_name,
             collection_name=self.collection_name,
             vector_search_index=self.vector_search_index,
+            full_text_search_index=self.full_text_search_index,
         )
 
     @classmethod
@@ -284,6 +292,106 @@ class MongoDBAtlasDocumentStore:
 
         documents = [self._mongo_doc_to_haystack_doc(doc) for doc in documents]
         return documents
+
+    def _fulltext_retrieval(
+        self,
+        query: Union[str, List[str]],
+        fuzzy: Optional[Dict[str, int]] = None,
+        match_criteria: Optional[Literal["any", "all"]] = None,
+        score: Optional[Dict[str, Dict]] = None,
+        synonyms: Optional[str] = None,
+        filters: Optional[Dict[str, Any]] = None,
+        top_k: int = 10,
+    ) -> List[Document]:
+        """
+        Retrieve documents similar to the provided `query` using a full-text search.
+
+        :param query: The query string or a list of query strings to search for.
+            If the query contains multiple terms, Atlas Search evaluates each term separately for matches.
+        :param fuzzy: Enables finding strings similar to the search term(s).
+            Note, `fuzzy` cannot be used with `synonyms`. Configurable options include `maxEdits`, `prefixLength`,
+            and `maxExpansions`. For more details refer to MongoDB Atlas
+            [documentation](https://www.mongodb.com/docs/atlas/atlas-search/text/#fields).
+        :param match_criteria: Defines how terms in the query are matched. Supported options are `"any"` and `"all"`.
+            For more details refer to MongoDB Atlas
+            [documentation](https://www.mongodb.com/docs/atlas/atlas-search/text/#fields).
+        :param score: Specifies the scoring method for matching results. Supported options include `boost`, `constant`,
+            and `function`. For more details refer to MongoDB Atlas
+            [documentation](https://www.mongodb.com/docs/atlas/atlas-search/text/#fields).
+        :param synonyms: The name of the synonym mapping definition in the index. This value cannot be an empty string.
+            Note, `synonyms` can not be used with `fuzzy`.
+        :param filters: Optional filters.
+        :param top_k: How many documents to return.
+        :returns: A list of Documents that are most similar to the given `query`
+        :raises ValueError: If `query` or `synonyms` is empty.
+        :raises ValueError: If `synonyms` and `fuzzy` are used together.
+        :raises DocumentStoreError: If the retrieval of documents from MongoDB Atlas fails.
+        """
+        # Validate user input according to MongoDB Atlas Search requirements
+        if not query:
+            msg = "Argument query must not be empty."
+            raise ValueError(msg)
+
+        if isinstance(synonyms, str) and not synonyms:
+            msg = "Argument synonyms cannot be an empty string."
+            raise ValueError(msg)
+
+        if synonyms and fuzzy:
+            msg = "Cannot use both synonyms and fuzzy search together."
+            raise ValueError(msg)
+
+        if synonyms and not match_criteria:
+            logger.warning(
+                "Specify matchCriteria when using synonyms. "
+                "Atlas Search matches terms in exact order by default, which may change in future versions."
+            )
+
+        filters = _normalize_filters(filters) if filters else {}
+
+        # Build the text search options
+        text_search: Dict[str, Any] = {"path": "content", "query": query}
+        if match_criteria:
+            text_search["matchCriteria"] = match_criteria
+        if synonyms:
+            text_search["synonyms"] = synonyms
+        if fuzzy:
+            text_search["fuzzy"] = fuzzy
+        if score:
+            text_search["score"] = score
+
+        # Define the pipeline for MongoDB aggregation
+        pipeline = [
+            {
+                "$search": {
+                    "index": self.full_text_search_index,
+                    "compound": {"must": [{"text": text_search}]},
+                }
+            },
+            # TODO: Use compound filter. See: (https://www.mongodb.com/docs/atlas/atlas-search/performance/query-performance/#avoid--match-after--search)
+            {"$match": filters},
+            {"$limit": top_k},
+            {
+                "$project": {
+                    "_id": 0,
+                    "content": 1,
+                    "dataframe": 1,
+                    "blob": 1,
+                    "meta": 1,
+                    "embedding": 1,
+                    "score": {"$meta": "searchScore"},
+                }
+            },
+        ]
+
+        try:
+            documents = list(self.collection.aggregate(pipeline))
+        except Exception as e:
+            error_msg = f"Failed to retrieve documents from MongoDB Atlas: {e}"
+            if filters:
+                error_msg += "\nEnsure fields in filters are included in the `keyword_search_index` configuration."
+            raise DocumentStoreError(error_msg) from e
+
+        return [self._mongo_doc_to_haystack_doc(doc) for doc in documents]
 
     def _mongo_doc_to_haystack_doc(self, mongo_doc: Dict[str, Any]) -> Document:
         """

@@ -72,6 +72,7 @@ class TestRetriever:
             database_name="haystack_integration_test",
             collection_name="test_embeddings_collection",
             vector_search_index="cosine_index",
+            full_text_search_index="full_text_index",
         )
 
         retriever = MongoDBAtlasEmbeddingRetriever(document_store=document_store, filters={"field": "value"}, top_k=5)
@@ -90,6 +91,7 @@ class TestRetriever:
                         "database_name": "haystack_integration_test",
                         "collection_name": "test_embeddings_collection",
                         "vector_search_index": "cosine_index",
+                        "full_text_search_index": "full_text_index",
                     },
                 },
                 "filters": {"field": "value"},
@@ -115,6 +117,7 @@ class TestRetriever:
                         "database_name": "haystack_integration_test",
                         "collection_name": "test_embeddings_collection",
                         "vector_search_index": "cosine_index",
+                        "full_text_search_index": "full_text_index",
                     },
                 },
                 "filters": {"field": "value"},
@@ -131,6 +134,7 @@ class TestRetriever:
         assert document_store.database_name == "haystack_integration_test"
         assert document_store.collection_name == "test_embeddings_collection"
         assert document_store.vector_search_index == "cosine_index"
+        assert document_store.full_text_search_index == "full_text_index"
         assert retriever.filters == {"field": "value"}
         assert retriever.top_k == 5
         assert retriever.filter_policy == FilterPolicy.REPLACE
@@ -152,6 +156,7 @@ class TestRetriever:
                         "database_name": "haystack_integration_test",
                         "collection_name": "test_embeddings_collection",
                         "vector_search_index": "cosine_index",
+                        "full_text_search_index": "full_text_index",
                     },
                 },
                 "filters": {"field": "value"},
@@ -167,6 +172,7 @@ class TestRetriever:
         assert document_store.database_name == "haystack_integration_test"
         assert document_store.collection_name == "test_embeddings_collection"
         assert document_store.vector_search_index == "cosine_index"
+        assert document_store.full_text_search_index == "full_text_index"
         assert retriever.filters == {"field": "value"}
         assert retriever.top_k == 5
         assert retriever.filter_policy == FilterPolicy.REPLACE  # defaults to REPLACE
