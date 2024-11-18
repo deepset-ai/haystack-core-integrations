@@ -46,7 +46,6 @@ class AzureAISearchHybridRetriever:
             [official Azure AI Search documentation](https://learn.microsoft.com/en-us/azure/search/).
         :raises TypeError: If the document store is not an instance of AzureAISearchDocumentStore.
         :raises RuntimeError: If query or query_embedding are invalid, or if document store is not correctly configured.
-        
         """
         self._filters = filters or {}
         self._top_k = top_k
