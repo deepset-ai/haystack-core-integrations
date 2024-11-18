@@ -1,9 +1,10 @@
 import contextlib
-import logging
 import os
+from contextvars import ContextVar
 from datetime import datetime
 from typing import Any, Dict, Iterator, List, Optional, Union
 
+from haystack import logging
 from haystack.components.generators.openai_utils import _convert_message_to_openai_format
 from haystack.dataclasses import ChatMessage
 from haystack.tracing import Span, Tracer, tracer
@@ -30,9 +31,18 @@ _SUPPORTED_CHAT_GENERATORS = [
     "HuggingFaceLocalChatGenerator",
     "CohereChatGenerator",
 ]
-COMPONENT_TYPE_KEY = "haystack.component.type"
-COMPONENT_OUTPUT_KEY = "haystack.component.output"
 _ALL_SUPPORTED_GENERATORS = _SUPPORTED_GENERATORS + _SUPPORTED_CHAT_GENERATORS
+
+# These are the keys used by Haystack for traces and span.
+# We keep them here to avoid making typos when using them.
+_PIPELINE_RUN_KEY = "haystack.pipeline.run"
+_COMPONENT_NAME_KEY = "haystack.component.name"
+_COMPONENT_TYPE_KEY = "haystack.component.type"
+_COMPONENT_OUTPUT_KEY = "haystack.component.output"
+
+# Context var used to keep track of tracing related info.
+# This mainly useful for parents spans.
+tracing_context_var: ContextVar[Dict[Any, Any]] = ContextVar("tracing_context", default={})
 
 
 class LangfuseSpan(Span):
@@ -122,80 +132,69 @@ class LangfuseTracer(Tracer):
         self._public = public
         self.enforce_flush = os.getenv(HAYSTACK_LANGFUSE_ENFORCE_FLUSH_ENV_VAR, "true").lower() == "true"
 
-        root_span_raw = self._tracer.trace(name=self._name)
-        self._root_span = LangfuseSpan(root_span_raw)
-        # Do not add root span to self._context
-
     @contextlib.contextmanager
     def trace(
         self, operation_name: str, tags: Optional[Dict[str, Any]] = None, parent_span: Optional[Span] = None
     ) -> Iterator[Span]:
         tags = tags or {}
-        span_name = tags.get("haystack.component.name", operation_name)
+        span_name = tags.get(_COMPONENT_NAME_KEY, operation_name)
 
-        # Determine if we need to create and push the root span onto the context stack
-        created_root_span = False
-        if not self._context:
-            self._context.append(self._root_span)
-            created_root_span = True
-
-        parent_raw_span: Optional[Union[langfuse.client.StatefulSpanClient, langfuse.client.StatefulTraceClient]] = None
-
-        if parent_span is not None:
-            parent_raw_span = parent_span.raw_span()
-        else:
-            current_span = self.current_span()
-            if current_span is not None:
-                parent_raw_span = current_span.raw_span()
-            else:
-                parent_raw_span = None
-
-        if tags.get(COMPONENT_TYPE_KEY) in _ALL_SUPPORTED_GENERATORS:
-            new_span_raw = (
-                parent_raw_span.generation(name=span_name)
-                if parent_raw_span
-                else self._tracer.generation(name=span_name)
+        # Create new span depending whether there's a parent span or not
+        if not parent_span:
+            if operation_name != _PIPELINE_RUN_KEY:
+                logger.warning(
+                    "Creating a new trace without a parent span is not recommended for operation '{operation_name}'.",
+                    operation_name=operation_name,
+                )
+            # Create a new trace if no parent span is provided
+            span = LangfuseSpan(
+                self._tracer.trace(
+                    name=self._name,
+                    public=self._public,
+                    id=tracing_context_var.get().get("trace_id"),
+                    user_id=tracing_context_var.get().get("user_id"),
+                    session_id=tracing_context_var.get().get("session_id"),
+                    tags=tracing_context_var.get().get("tags"),
+                    version=tracing_context_var.get().get("version"),
+                )
             )
-        elif parent_raw_span:
-            new_span_raw = parent_raw_span.span(name=span_name)
+        elif tags.get(_COMPONENT_TYPE_KEY) in _ALL_SUPPORTED_GENERATORS:
+            span = LangfuseSpan(parent_span.raw_span().generation(name=span_name))
         else:
-            new_span_raw = self._tracer.span(name=span_name)
+            span = LangfuseSpan(parent_span.raw_span().span(name=span_name))
 
-        span = LangfuseSpan(new_span_raw)
         self._context.append(span)
         span.set_tags(tags)
 
-        try:
-            yield span
-        finally:
-            # Update span metadata based on component type
-            if tags.get(COMPONENT_TYPE_KEY) in _SUPPORTED_GENERATORS:
-                meta = span._data.get(COMPONENT_OUTPUT_KEY, {}).get("meta")
-                if meta:
-                    m = meta[0]
-                    span._span.update(usage=m.get("usage") or None, model=m.get("model"))
-            elif tags.get(COMPONENT_TYPE_KEY) in _SUPPORTED_CHAT_GENERATORS:
-                replies = span._data.get(COMPONENT_OUTPUT_KEY, {}).get("replies")
-                if replies:
-                    meta = replies[0].meta
-                    completion_start_time = meta.get("completion_start_time")
-                    if completion_start_time:
-                        try:
-                            completion_start_time = datetime.fromisoformat(completion_start_time)
-                        except ValueError:
-                            logger.error(f"Failed to parse completion_start_time: {completion_start_time}")
-                            completion_start_time = None
-                    span._span.update(
-                        usage=meta.get("usage") or None,
-                        model=meta.get("model"),
-                        completion_start_time=completion_start_time,
-                    )
+        yield span
+
+        # Update span metadata based on component type
+        if tags.get(_COMPONENT_TYPE_KEY) in _SUPPORTED_GENERATORS:
+            # Haystack returns one meta dict for each message, but the 'usage' value
+            # is always the same, let's just pick the first item
+            meta = span._data.get(_COMPONENT_OUTPUT_KEY, {}).get("meta")
+            if meta:
+                m = meta[0]
+                span._span.update(usage=m.get("usage") or None, model=m.get("model"))
+        elif tags.get(_COMPONENT_TYPE_KEY) in _SUPPORTED_CHAT_GENERATORS:
+            replies = span._data.get(_COMPONENT_OUTPUT_KEY, {}).get("replies")
+            if replies:
+                meta = replies[0].meta
+                completion_start_time = meta.get("completion_start_time")
+                if completion_start_time:
+                    try:
+                        completion_start_time = datetime.fromisoformat(completion_start_time)
+                    except ValueError:
+                        logger.error(f"Failed to parse completion_start_time: {completion_start_time}")
+                        completion_start_time = None
+                span._span.update(
+                    usage=meta.get("usage") or None,
+                    model=meta.get("model"),
+                    completion_start_time=completion_start_time,
+                )
 
             span.raw_span().end()
             self._context.pop()
-
-            if created_root_span:
-                self._context.pop()
 
             if self.enforce_flush:
                 self.flush()
