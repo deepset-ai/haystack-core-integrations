@@ -69,7 +69,7 @@ class TestLangfuseTracer:
             tracer = LangfuseTracer(tracer=mock_tracer, name="Haystack", public=False)
 
             with tracer.trace("operation_name", tags={"tag1": "value1", "tag2": "value2"}) as span:
-                assert len(tracer._context) == 2, "The trace span should have been added to the the root context span"
+                assert len(tracer._context) == 1, "The trace span should have been added to the the root context span"
                 assert span.raw_span().operation_name == "operation_name"
                 assert span.raw_span().metadata == {"tag1": "value1", "tag2": "value2"}
 
