@@ -105,6 +105,7 @@ class AzureAISearchBM25Retriever:
                         the `filter_policy` chosen at retriever initialization. See init method docstring for more
                         details.
         :param top_k: the maximum number of documents to retrieve.
+        :raises RuntimeError: If an error occurs during the BM25 retrieval process.
         :returns: a dictionary with the following keys:
             - `documents`: A list of documents retrieved from the AzureAISearchDocumentStore.
         """

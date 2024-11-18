@@ -113,6 +113,7 @@ class AzureAISearchHybridRetriever:
                         the `filter_policy` chosen at retriever initialization. See `__init__` method docstring for more
                         details.
         :param top_k: The maximum number of documents to retrieve.
+        :raises RuntimeError: If an error occurs during the hybrid retrieval process.
         :returns: A dictionary with the following keys:
             - `documents`: A list of documents retrieved from the AzureAISearchDocumentStore.
         """
