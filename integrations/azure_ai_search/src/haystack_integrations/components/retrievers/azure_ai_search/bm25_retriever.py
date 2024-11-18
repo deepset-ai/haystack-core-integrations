@@ -44,7 +44,8 @@ class AzureAISearchBM25Retriever:
                 processing semantic queries.
             For more information on parameters, see the
             [official Azure AI Search documentation](https://learn.microsoft.com/en-us/azure/search/).
-
+        :raises TypeError: If the document store is not an instance of AzureAISearchDocumentStore.
+        :raises RuntimeError: If the query is not valid, or if the document store is not correctly configured.
 
         """
         self._filters = filters or {}
@@ -56,7 +57,7 @@ class AzureAISearchBM25Retriever:
         self._kwargs = kwargs
         if not isinstance(document_store, AzureAISearchDocumentStore):
             message = "document_store must be an instance of AzureAISearchDocumentStore"
-            raise Exception(message)
+            raise TypeError(message)
 
     def to_dict(self) -> Dict[str, Any]:
         """

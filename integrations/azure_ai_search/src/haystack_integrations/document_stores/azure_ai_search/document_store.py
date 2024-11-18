@@ -240,6 +240,9 @@ class AzureAISearchDocumentStore:
         Writes the provided documents to search index.
 
         :param documents: documents to write to the index.
+        :param policy: Policy to determine how duplicates are handled.
+        :raises ValueError: If the documents are not of type Document.
+        :raises TypeError: If the document ids are not strings.
         :return: the number of documents added to index.
         """
 
@@ -247,7 +250,7 @@ class AzureAISearchDocumentStore:
             document_dict = asdict(documents)
             if not isinstance(document_dict["id"], str):
                 msg = f"Document id {document_dict['id']} is not a string, "
-                raise Exception(msg)
+                raise TypeError(msg)
             index_document = self._convert_haystack_documents_to_azure(document_dict)
 
             return index_document

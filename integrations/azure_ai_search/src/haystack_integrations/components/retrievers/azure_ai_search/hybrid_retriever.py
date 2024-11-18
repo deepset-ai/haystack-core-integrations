@@ -35,7 +35,7 @@ class AzureAISearchHybridRetriever:
             Filters are applied during the hybrid search to ensure the Retriever returns
               `top_k` matching documents.
         :param top_k: Maximum number of documents to return.
-        :filter_policy: Policy to determine how filters are applied.
+        :param filter_policy: Policy to determine how filters are applied.
         :param kwargs: Additional keyword arguments to pass to the Azure AI's search endpoint.
             Some of the supported parameters:
                 - `query_type`: A string indicating the type of query to perform. Possible values are
@@ -44,8 +44,9 @@ class AzureAISearchHybridRetriever:
                 processing semantic queries.
             For more information on parameters, see the
             [official Azure AI Search documentation](https://learn.microsoft.com/en-us/azure/search/).
-
-
+        :raises TypeError: If the document store is not an instance of AzureAISearchDocumentStore.
+        :raises RuntimeError: If query or query_embedding are invalid, or if document store is not correctly configured.
+        
         """
         self._filters = filters or {}
         self._top_k = top_k
@@ -57,7 +58,7 @@ class AzureAISearchHybridRetriever:
 
         if not isinstance(document_store, AzureAISearchDocumentStore):
             message = "document_store must be an instance of AzureAISearchDocumentStore"
-            raise Exception(message)
+            raise TypeError(message)
 
     def to_dict(self) -> Dict[str, Any]:
         """
