@@ -193,11 +193,13 @@ class LangfuseTracer(Tracer):
                     completion_start_time=completion_start_time,
                 )
 
-            span.raw_span().end()
-            self._context.pop()
+        raw_span = span.raw_span()
+        if isinstance(raw_span, langfuse.client.StatefulSpanClient):
+            raw_span.end()
+        self._context.pop()
 
-            if self.enforce_flush:
-                self.flush()
+        if self.enforce_flush:
+            self.flush()
 
     def flush(self):
         self._tracer.flush()
