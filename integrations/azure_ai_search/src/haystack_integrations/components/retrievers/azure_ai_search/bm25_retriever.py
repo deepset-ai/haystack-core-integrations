@@ -35,7 +35,7 @@ class AzureAISearchBM25Retriever:
             Filters are applied during the BM25 search to ensure the Retriever returns
               `top_k` matching documents.
         :param top_k: Maximum number of documents to return.
-        :filter_policy: Policy to determine how filters are applied.
+        :param filter_policy: Policy to determine how filters are applied.
         :param kwargs: Additional keyword arguments to pass to the Azure AI's search endpoint.
             Some of the supported parameters:
                 - `query_type`: A string indicating the type of query to perform. Possible values are
