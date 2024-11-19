@@ -23,7 +23,24 @@ body = """
     {% for commit in commits %}
         - {% if commit.scope %}*({{ commit.scope }})* {% endif %}\
             {% if commit.breaking %}[**breaking**] {% endif %}\
-            {{ commit.message | upper_first }}\
+            {#
+                We first try to render the conventional commit message if present.
+                If it's not a conventional commit we get the PR title if present.
+                If the commit is neither conventional, nor has a PR title set
+                we fallback to whatever the commit message is.
+
+                We do this cause when merging PRs with multiple commits that don't
+                have a title following conventional commit guidelines we might get
+                a commit message that is multiple lines. That makes the changelog
+                look a bit funky so we handle it like so.
+            #}\
+            {% if commit.conventional %}\
+                {{ commit.message | upper_first }}\
+            {% elif commit.remote.pr_title %}\
+                {{ commit.remote.pr_title | upper_first }}\
+            {% else %}\
+                {{ commit.message | upper_first }}\
+            {% endif %}\
     {% endfor %}
 {% endfor %}\n
 """
@@ -84,3 +101,7 @@ topo_order = false
 sort_commits = "oldest"
 # limit the number of commits included in the changelog.
 # limit_commits = 42
+
+[remote.github]
+owner = "deepset-ai"
+repo = "haystack-core-integrations"
