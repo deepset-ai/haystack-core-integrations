@@ -51,7 +51,7 @@ class MongoDBAtlasDocumentStore:
 
     store = MongoDBAtlasDocumentStore(database_name="your_existing_db",
                                       collection_name="your_existing_collection",
-                                      vector_search_index="your_existing_index"
+                                      vector_search_index="your_existing_index",
                                       full_text_search_index="your_existing_index")
     print(store.count_documents())
     ```
