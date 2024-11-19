@@ -313,18 +313,24 @@ class GoogleAIGeminiChatGenerator:
         """
         replies: List[ChatMessage] = []
         metadata = response_body.to_dict()
+
+        # currently Google only supports one candidate and usage metadata reflects this
+        # this should be refactored when multiple candidates are supported
+        usage_metadata_openai_format = {}
+
+        usage_metadata = metadata.get("usage_metadata")
+        if usage_metadata:
+            usage_metadata_openai_format = {
+                "prompt_tokens": usage_metadata["prompt_token_count"],
+                "completion_tokens": usage_metadata["candidates_token_count"],
+                "total_tokens": usage_metadata["total_token_count"],
+            }
+
         for idx, candidate in enumerate(response_body.candidates):
             candidate_metadata = metadata["candidates"][idx]
             candidate_metadata.pop("content", None)  # we remove content from the metadata
-
-            # align openai api response
-            usage_metadata = metadata.get("usage_metadata")
-            if usage_metadata:
-                candidate_metadata["usage"] = {
-                    "prompt_tokens": usage_metadata["prompt_token_count"],
-                    "completion_tokens": usage_metadata["candidates_token_count"],
-                    "total_tokens": usage_metadata["total_token_count"],
-                }
+            if usage_metadata_openai_format:
+                candidate_metadata["usage"] = usage_metadata_openai_format
 
             for part in candidate.content.parts:
                 if part.text != "":
