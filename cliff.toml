@@ -19,8 +19,23 @@ body = """
     ## [unreleased]
 {% endif %}\
 {% for group, commits in commits | group_by(attribute="group") %}
+    {#
+        Skip the whole section if it contains only a single commit
+        and it's the commit that updated the changelog.
+        If we don't do this we get an empty section since we don't show
+        commits that update the changelog
+    #}\
+    {% if commits | length == 1 and commits[0].message == 'Update the changelog' %}\
+        {% continue %}\
+    {% endif %}\
     ### {{ group | striptags | trim | upper_first }}
-    {% for commit in commits %}
+    {% for commit in commits %}\
+        {#
+            Skip commits that update the changelog, they're not useful to the user
+        #}\
+        {% if commit.message == 'Update the changelog' %}\
+            {% continue %}\
+        {% endif %}
         - {% if commit.scope %}*({{ commit.scope }})* {% endif %}\
             {% if commit.breaking %}[**breaking**] {% endif %}\
             {#
