@@ -84,8 +84,10 @@ class SnowflakeTableRetriever:
         :param db_schema: Name of the schema to use.
         :param warehouse: Name of the warehouse to use.
         :param login_timeout: Timeout in seconds for login. By default, 60 seconds.
-        :param private_key_file: Location of private key
-            mutually exclusive to password, if key_file is provided this auth method will be used.
+        :param private_key_file: Location of private key-pair file.
+            This is mutually exclusive to password, if key_file is provided this auth method will be used.
+            See Snowflake documentation on Key-Pair authentication for further information:
+              https://docs.snowflake.com/en/user-guide/key-pair-auth
         :param private_key_file_pwd: Password for private key file
         """
 
