@@ -87,16 +87,16 @@ commit_preprocessors = [
 ]
 # regex for parsing and grouping commits
 commit_parsers = [
-    { message = "^feat", group = "<!-- 0 -->🚀 Features" },
-    { message = "^fix", group = "<!-- 1 -->🐛 Bug Fixes" },
-    { message = "^doc", group = "<!-- 3 -->📚 Documentation" },
-    { message = "^perf", group = "<!-- 4 -->⚡ Performance" },
-    { message = "^refactor", group = "<!-- 2 -->🚜 Refactor" },
-    { message = "^style", group = "<!-- 5 -->🎨 Styling" },
-    { message = "^test", group = "<!-- 6 -->🧪 Testing" },
-    { body = ".*security", group = "<!-- 7 -->🛡️ Security" },
-    { message = "^revert", group = "<!-- 8 -->◀️ Revert" },
-    { message = "^ci", group = "<!-- 9 -->⚙️ CI" },
+    { message = "^feat", group = "<!-- 00 -->🚀 Features" },
+    { message = "^fix", group = "<!-- 01 -->🐛 Bug Fixes" },
+    { message = "^refactor", group = "<!-- 02 -->🚜 Refactor" },
+    { message = "^doc", group = "<!-- 03 -->📚 Documentation" },
+    { message = "^perf", group = "<!-- 04 -->⚡ Performance" },
+    { message = "^style", group = "<!-- 05 -->🎨 Styling" },
+    { message = "^test", group = "<!-- 06 -->🧪 Testing" },
+    { body = ".*security", group = "<!-- 07 -->🛡️ Security" },
+    { message = "^revert", group = "<!-- 08 -->◀️ Revert" },
+    { message = "^ci", group = "<!-- 09 -->⚙️ CI" },
     { message = "^chore", group = "<!-- 10 -->🧹 Chores" },
     { message = ".*", group = "<!-- 11 -->🌀 Miscellaneous" },
 ]
