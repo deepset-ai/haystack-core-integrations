@@ -37,7 +37,7 @@ body = """
             {% if commit.conventional %}\
                 {{ commit.message | upper_first }}\
             {% elif commit.remote.pr_title %}\
-                {{ commit.remote.pr_title | upper_first }}\
+                {{ commit.remote.pr_title | upper_first }} (#{{ commit.remote.pr_number }})\
             {% else %}\
                 {{ commit.message | upper_first }}\
             {% endif %}\
