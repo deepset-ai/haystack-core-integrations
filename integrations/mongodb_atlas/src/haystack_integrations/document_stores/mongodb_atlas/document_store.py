@@ -37,8 +37,10 @@ class MongoDBAtlasDocumentStore:
     Python driver. Creating databases and collections is beyond the scope of MongoDBAtlasDocumentStore. The primary
     purpose of this document store is to read and write documents to an existing collection.
 
-    The last parameter users needs to provide is a `vector_search_index` - used for vector search operations. This index
-    can support a chosen metric (i.e. cosine, dot product, or euclidean) and can be created in the Atlas web UI.
+    Users must provide both a `vector_search_index` for vector search operations and a `full_text_search_index`
+    for full-text search operations. The `vector_search_index` supports a chosen metric
+    (e.g., cosine, dot product, or Euclidean), while the `full_text_search_index` enables efficient text-based searches.
+    Both indexes can be created through the Atlas web UI.
 
     For more details on MongoDB Atlas, see the official
     MongoDB Atlas [documentation](https://www.mongodb.com/docs/atlas/getting-started/).
