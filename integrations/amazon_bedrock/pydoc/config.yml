@@ -7,6 +7,7 @@ loaders:
       "haystack_integrations.common.amazon_bedrock.errors",
       "haystack_integrations.components.generators.amazon_bedrock.handlers",
       "haystack_integrations.components.generators.amazon_bedrock.chat.chat_generator",
+      "haystack_integrations.components.generators.amazon_bedrock.converse.converse_generator",
       "haystack_integrations.components.embedders.amazon_bedrock.text_embedder",
       "haystack_integrations.components.embedders.amazon_bedrock.document_embedder",
     ]
