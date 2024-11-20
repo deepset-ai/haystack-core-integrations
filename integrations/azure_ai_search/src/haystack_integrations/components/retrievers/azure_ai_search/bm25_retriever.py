@@ -111,7 +111,8 @@ class AzureAISearchBM25Retriever:
         """
 
         top_k = top_k or self._top_k
-        if filters is not None:
+        filters = filters or self._filters
+        if filters:
             applied_filters = apply_filter_policy(self._filter_policy, self._filters, filters)
             normalized_filters = _normalize_filters(applied_filters)
         else:

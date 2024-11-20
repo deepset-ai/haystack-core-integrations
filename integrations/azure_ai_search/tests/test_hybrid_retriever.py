@@ -103,6 +103,72 @@ def test_from_dict():
     assert retriever._filter_policy == FilterPolicy.REPLACE
 
 
+def test_run():
+    mock_store = Mock(spec=AzureAISearchDocumentStore)
+    mock_store._hybrid_retrieval.return_value = [Document(content="Test doc", embedding=[0.1, 0.2])]
+    retriever = AzureAISearchHybridRetriever(document_store=mock_store)
+    res = retriever.run(query_embedding=[0.5, 0.7], query="Test query")
+    mock_store._hybrid_retrieval.assert_called_once_with(
+        query="Test query",
+        query_embedding=[0.5, 0.7],
+        filters="",
+        top_k=10,
+    )
+    assert len(res) == 1
+    assert len(res["documents"]) == 1
+    assert res["documents"][0].content == "Test doc"
+    assert res["documents"][0].embedding == [0.1, 0.2]
+
+
+def test_run_init_params():
+    mock_store = Mock(spec=AzureAISearchDocumentStore)
+    mock_store._hybrid_retrieval.return_value = [Document(content="Test doc", embedding=[0.1, 0.2])]
+    retriever = AzureAISearchHybridRetriever(
+        document_store=mock_store,
+        filters={"field": "type", "operator": "==", "value": "article"},
+        top_k=11,
+    )
+    res = retriever.run(query_embedding=[0.5, 0.7], query="Test query")
+    mock_store._hybrid_retrieval.assert_called_once_with(
+        query="Test query",
+        query_embedding=[0.5, 0.7],
+        filters="type eq 'article'",
+        top_k=11,
+    )
+    assert len(res) == 1
+    assert len(res["documents"]) == 1
+    assert res["documents"][0].content == "Test doc"
+    assert res["documents"][0].embedding == [0.1, 0.2]
+
+
+def test_run_time_params():
+    mock_store = Mock(spec=AzureAISearchDocumentStore)
+    mock_store._hybrid_retrieval.return_value = [Document(content="Test doc", embedding=[0.1, 0.2])]
+    retriever = AzureAISearchHybridRetriever(
+        document_store=mock_store,
+        filters={"field": "type", "operator": "==", "value": "article"},
+        top_k=11,
+        select="name",
+    )
+    res = retriever.run(
+        query_embedding=[0.5, 0.7],
+        query="Test query",
+        filters={"field": "type", "operator": "==", "value": "book"},
+        top_k=9,
+    )
+    mock_store._hybrid_retrieval.assert_called_once_with(
+        query="Test query",
+        query_embedding=[0.5, 0.7],
+        filters="type eq 'book'",
+        top_k=9,
+        select="name",
+    )
+    assert len(res) == 1
+    assert len(res["documents"]) == 1
+    assert res["documents"][0].content == "Test doc"
+    assert res["documents"][0].embedding == [0.1, 0.2]
+
+
 @pytest.mark.skipif(
     not os.environ.get("AZURE_SEARCH_SERVICE_ENDPOINT", None) and not os.environ.get("AZURE_SEARCH_API_KEY", None),
     reason="Missing AZURE_SEARCH_SERVICE_ENDPOINT or AZURE_SEARCH_API_KEY.",
@@ -117,7 +183,7 @@ class TestRetriever:
         res = retriever.run(query="Test document", query_embedding=[0.1] * 768)
         assert res["documents"] == docs
 
-    def test_embedding_retrieval(self, document_store: AzureAISearchDocumentStore):
+    def test_hybrid_retrieval(self, document_store: AzureAISearchDocumentStore):
         query_embedding = [0.1] * 768
         most_similar_embedding = [0.8] * 768
         second_best_embedding = [0.8] * 200 + [0.1] * 300 + [0.2] * 268

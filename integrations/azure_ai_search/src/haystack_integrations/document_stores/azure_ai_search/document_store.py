@@ -498,6 +498,7 @@ class AzureAISearchDocumentStore:
         `AzureAISearchHybridRetriever` uses this method directly and is the public interface for it.
 
         :param query: Text of the query.
+        :param query_embedding: Embedding of the query.
         :param filters: Filters applied to the retrieved Documents.
         :param top_k: Maximum number of Documents to return.
         :param kwargs: Optional keyword arguments to pass to the Azure AI's search endpoint.

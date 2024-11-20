@@ -98,6 +98,56 @@ def test_from_dict():
     assert retriever._filter_policy == FilterPolicy.REPLACE
 
 
+def test_run():
+    mock_store = Mock(spec=AzureAISearchDocumentStore)
+    mock_store._bm25_retrieval.return_value = [Document(content="Test doc")]
+    retriever = AzureAISearchBM25Retriever(document_store=mock_store)
+    res = retriever.run(query="Test query")
+    mock_store._bm25_retrieval.assert_called_once_with(
+        query="Test query",
+        filters="",
+        top_k=10,
+    )
+    assert len(res) == 1
+    assert len(res["documents"]) == 1
+    assert res["documents"][0].content == "Test doc"
+
+
+def test_run_init_params():
+    mock_store = Mock(spec=AzureAISearchDocumentStore)
+    mock_store._bm25_retrieval.return_value = [Document(content="Test doc")]
+    retriever = AzureAISearchBM25Retriever(
+        document_store=mock_store, filters={"field": "type", "operator": "==", "value": "article"}, top_k=11
+    )
+    res = retriever.run(query="Test query")
+    mock_store._bm25_retrieval.assert_called_once_with(
+        query="Test query",
+        filters="type eq 'article'",
+        top_k=11,
+    )
+    assert len(res) == 1
+    assert len(res["documents"]) == 1
+    assert res["documents"][0].content == "Test doc"
+
+
+def test_run_time_params():
+    mock_store = Mock(spec=AzureAISearchDocumentStore)
+    mock_store._bm25_retrieval.return_value = [Document(content="Test doc")]
+    retriever = AzureAISearchBM25Retriever(
+        document_store=mock_store,
+        filters={"field": "type", "operator": "==", "value": "article"},
+        top_k=11,
+        select="name",
+    )
+    res = retriever.run(query="Test query", filters={"field": "type", "operator": "==", "value": "book"}, top_k=5)
+    mock_store._bm25_retrieval.assert_called_once_with(
+        query="Test query", filters="type eq 'book'", top_k=5, select="name"
+    )
+    assert len(res) == 1
+    assert len(res["documents"]) == 1
+    assert res["documents"][0].content == "Test doc"
+
+
 @pytest.mark.skipif(
     not os.environ.get("AZURE_SEARCH_SERVICE_ENDPOINT", None) and not os.environ.get("AZURE_SEARCH_API_KEY", None),
     reason="Missing AZURE_SEARCH_SERVICE_ENDPOINT or AZURE_SEARCH_API_KEY.",
