@@ -45,6 +45,7 @@ class TestOllamaGenerator:
         assert component.template is None
         assert component.raw is False
         assert component.timeout == 120
+        assert component.keep_alive is None
         assert component.streaming_callback is None
 
     def test_init(self):
@@ -57,6 +58,7 @@ class TestOllamaGenerator:
             generation_kwargs={"temperature": 0.5},
             system_prompt="You are Luigi from Super Mario Bros.",
             timeout=5,
+            keep_alive="10m",
             streaming_callback=callback,
         )
         assert component.model == "llama2"
@@ -66,6 +68,7 @@ class TestOllamaGenerator:
         assert component.template is None
         assert component.raw is False
         assert component.timeout == 5
+        assert component.keep_alive == "10m"
         assert component.streaming_callback == callback
 
         component = OllamaGenerator()
@@ -80,6 +83,7 @@ class TestOllamaGenerator:
                 "model": "orca-mini",
                 "url": "http://localhost:11434",
                 "streaming_callback": None,
+                "keep_alive": None,
                 "generation_kwargs": {},
             },
         }
@@ -89,6 +93,7 @@ class TestOllamaGenerator:
             model="llama2",
             streaming_callback=print_streaming_chunk,
             url="going_to_51_pegasi_b_for_weekend",
+            keep_alive="10m",
             generation_kwargs={"max_tokens": 10, "some_test_param": "test-params"},
         )
         data = component.to_dict()
@@ -100,6 +105,7 @@ class TestOllamaGenerator:
                 "template": None,
                 "system_prompt": None,
                 "model": "llama2",
+                "keep_alive": "10m",
                 "url": "going_to_51_pegasi_b_for_weekend",
                 "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
                 "generation_kwargs": {"max_tokens": 10, "some_test_param": "test-params"},
@@ -115,6 +121,7 @@ class TestOllamaGenerator:
                 "template": None,
                 "system_prompt": None,
                 "model": "llama2",
+                "keep_alive": "5m",
                 "url": "going_to_51_pegasi_b_for_weekend",
                 "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
                 "generation_kwargs": {"max_tokens": 10, "some_test_param": "test-params"},
@@ -125,6 +132,7 @@ class TestOllamaGenerator:
         assert component.streaming_callback is print_streaming_chunk
         assert component.url == "going_to_51_pegasi_b_for_weekend"
         assert component.generation_kwargs == {"max_tokens": 10, "some_test_param": "test-params"}
+        assert component.keep_alive == "5m"
 
     @pytest.mark.integration
     def test_ollama_generator_run_streaming(self):

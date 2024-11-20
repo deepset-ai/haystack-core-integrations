@@ -26,12 +26,14 @@ class TestOllamaChatGenerator:
         assert component.url == "http://localhost:11434"
         assert component.generation_kwargs == {}
         assert component.timeout == 120
+        assert component.keep_alive is None
 
     def test_init(self):
         component = OllamaChatGenerator(
             model="llama2",
             url="http://my-custom-endpoint:11434",
             generation_kwargs={"temperature": 0.5},
+            keep_alive="10m",
             timeout=5,
         )
 
@@ -39,6 +41,7 @@ class TestOllamaChatGenerator:
         assert component.url == "http://my-custom-endpoint:11434"
         assert component.generation_kwargs == {"temperature": 0.5}
         assert component.timeout == 5
+        assert component.keep_alive == "10m"
 
     def test_to_dict(self):
         component = OllamaChatGenerator(
@@ -46,6 +49,7 @@ class TestOllamaChatGenerator:
             streaming_callback=print_streaming_chunk,
             url="custom_url",
             generation_kwargs={"max_tokens": 10, "some_test_param": "test-params"},
+            keep_alive="5m",
         )
         data = component.to_dict()
         assert data == {
@@ -53,6 +57,7 @@ class TestOllamaChatGenerator:
             "init_parameters": {
                 "timeout": 120,
                 "model": "llama2",
+                "keep_alive": "5m",
                 "url": "custom_url",
                 "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
                 "generation_kwargs": {"max_tokens": 10, "some_test_param": "test-params"},
@@ -66,6 +71,7 @@ class TestOllamaChatGenerator:
                 "timeout": 120,
                 "model": "llama2",
                 "url": "custom_url",
+                "keep_alive": "5m",
                 "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
                 "generation_kwargs": {"max_tokens": 10, "some_test_param": "test-params"},
             },
@@ -75,6 +81,7 @@ class TestOllamaChatGenerator:
         assert component.streaming_callback is print_streaming_chunk
         assert component.url == "custom_url"
         assert component.generation_kwargs == {"max_tokens": 10, "some_test_param": "test-params"}
+        assert component.keep_alive == "5m"
 
     def test_build_message_from_ollama_response(self):
         model = "some_model"

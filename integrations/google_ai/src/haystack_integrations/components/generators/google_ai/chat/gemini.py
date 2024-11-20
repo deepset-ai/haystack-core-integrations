@@ -313,9 +313,24 @@ class GoogleAIGeminiChatGenerator:
         """
         replies: List[ChatMessage] = []
         metadata = response_body.to_dict()
+
+        # currently Google only supports one candidate and usage metadata reflects this
+        # this should be refactored when multiple candidates are supported
+        usage_metadata_openai_format = {}
+
+        usage_metadata = metadata.get("usage_metadata")
+        if usage_metadata:
+            usage_metadata_openai_format = {
+                "prompt_tokens": usage_metadata["prompt_token_count"],
+                "completion_tokens": usage_metadata["candidates_token_count"],
+                "total_tokens": usage_metadata["total_token_count"],
+            }
+
         for idx, candidate in enumerate(response_body.candidates):
             candidate_metadata = metadata["candidates"][idx]
             candidate_metadata.pop("content", None)  # we remove content from the metadata
+            if usage_metadata_openai_format:
+                candidate_metadata["usage"] = usage_metadata_openai_format
 
             for part in candidate.content.parts:
                 if part.text != "":
@@ -347,20 +362,21 @@ class GoogleAIGeminiChatGenerator:
         replies: List[ChatMessage] = []
         for chunk in stream:
             content: Union[str, Dict[str, Any]] = ""
-            metadata = chunk.to_dict()  # we store whole chunk as metadata in streaming calls
-            for candidate in chunk.candidates:
-                for part in candidate.content.parts:
-                    if part.text != "":
-                        content = part.text
+            dict_chunk = chunk.to_dict()
+            metadata = dict(dict_chunk)  # we copy and store the whole chunk as metadata in streaming calls
+            for candidate in dict_chunk["candidates"]:
+                for part in candidate["content"]["parts"]:
+                    if "text" in part and part["text"] != "":
+                        content = part["text"]
                         replies.append(ChatMessage(content=content, role=ChatRole.ASSISTANT, meta=metadata, name=None))
-                    elif part.function_call is not None:
-                        metadata["function_call"] = part.function_call
-                        content = dict(part.function_call.args.items())
+                    elif "function_call" in part and len(part["function_call"]) > 0:
+                        metadata["function_call"] = part["function_call"]
+                        content = part["function_call"]["args"]
                         replies.append(
                             ChatMessage(
                                 content=content,
                                 role=ChatRole.ASSISTANT,
-                                name=part.function_call.name,
+                                name=part["function_call"]["name"],
                                 meta=metadata,
                             )
                         )

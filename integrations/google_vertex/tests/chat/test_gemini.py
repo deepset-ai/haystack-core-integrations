@@ -22,11 +22,11 @@ GET_CURRENT_WEATHER_FUNC = FunctionDeclaration(
     name="get_current_weather",
     description="Get the current weather in a given location",
     parameters={
-        "type_": "OBJECT",
+        "type": "object",
         "properties": {
-            "location": {"type_": "STRING", "description": "The city and state, e.g. San Francisco, CA"},
+            "location": {"type": "string", "description": "The city and state, e.g. San Francisco, CA"},
             "unit": {
-                "type_": "STRING",
+                "type": "string",
                 "enum": [
                     "celsius",
                     "fahrenheit",
@@ -90,14 +90,12 @@ def test_init(mock_vertexai_init, _mock_generative_model):
 @patch("haystack_integrations.components.generators.google_vertex.chat.gemini.GenerativeModel")
 def test_to_dict(_mock_vertexai_init, _mock_generative_model):
 
-    gemini = VertexAIGeminiChatGenerator(
-        project_id="TestID123",
-    )
+    gemini = VertexAIGeminiChatGenerator()
     assert gemini.to_dict() == {
         "type": "haystack_integrations.components.generators.google_vertex.chat.gemini.VertexAIGeminiChatGenerator",
         "init_parameters": {
             "model": "gemini-1.5-flash",
-            "project_id": "TestID123",
+            "project_id": None,
             "location": None,
             "generation_config": None,
             "safety_settings": None,
@@ -132,6 +130,7 @@ def test_to_dict_with_params(_mock_vertexai_init, _mock_generative_model):
 
     gemini = VertexAIGeminiChatGenerator(
         project_id="TestID123",
+        location="TestLocation",
         generation_config=generation_config,
         safety_settings=safety_settings,
         tools=[tool],
@@ -144,7 +143,7 @@ def test_to_dict_with_params(_mock_vertexai_init, _mock_generative_model):
         "init_parameters": {
             "model": "gemini-1.5-flash",
             "project_id": "TestID123",
-            "location": None,
+            "location": "TestLocation",
             "generation_config": {
                 "temperature": 0.5,
                 "top_p": 0.5,
@@ -171,6 +170,7 @@ def test_to_dict_with_params(_mock_vertexai_init, _mock_generative_model):
                                     "unit": {"type_": "STRING", "enum": ["celsius", "fahrenheit"]},
                                 },
                                 "required": ["location"],
+                                "property_ordering": ["location", "unit"],
                             },
                         }
                     ]
@@ -194,7 +194,7 @@ def test_from_dict(_mock_vertexai_init, _mock_generative_model):
         {
             "type": "haystack_integrations.components.generators.google_vertex.chat.gemini.VertexAIGeminiChatGenerator",
             "init_parameters": {
-                "project_id": "TestID123",
+                "project_id": None,
                 "model": "gemini-1.5-flash",
                 "generation_config": None,
                 "safety_settings": None,
@@ -205,7 +205,7 @@ def test_from_dict(_mock_vertexai_init, _mock_generative_model):
     )
 
     assert gemini._model_name == "gemini-1.5-flash"
-    assert gemini._project_id == "TestID123"
+    assert gemini._project_id is None
     assert gemini._safety_settings is None
     assert gemini._tools is None
     assert gemini._tool_config is None
@@ -221,6 +221,7 @@ def test_from_dict_with_param(_mock_vertexai_init, _mock_generative_model):
             "type": "haystack_integrations.components.generators.google_vertex.chat.gemini.VertexAIGeminiChatGenerator",
             "init_parameters": {
                 "project_id": "TestID123",
+                "location": "TestLocation",
                 "model": "gemini-1.5-flash",
                 "generation_config": {
                     "temperature": 0.5,
@@ -238,13 +239,19 @@ def test_from_dict_with_param(_mock_vertexai_init, _mock_generative_model):
                                 "name": "get_current_weather",
                                 "description": "Get the current weather in a given location",
                                 "parameters": {
-                                    "type_": "OBJECT",
+                                    "type": "object",
                                     "properties": {
                                         "location": {
-                                            "type_": "STRING",
+                                            "type": "string",
                                             "description": "The city and state, e.g. San Francisco, CA",
                                         },
-                                        "unit": {"type_": "STRING", "enum": ["celsius", "fahrenheit"]},
+                                        "unit": {
+                                            "type": "string",
+                                            "enum": [
+                                                "celsius",
+                                                "fahrenheit",
+                                            ],
+                                        },
                                     },
                                     "required": ["location"],
                                 },
@@ -266,6 +273,7 @@ def test_from_dict_with_param(_mock_vertexai_init, _mock_generative_model):
 
     assert gemini._model_name == "gemini-1.5-flash"
     assert gemini._project_id == "TestID123"
+    assert gemini._location == "TestLocation"
     assert gemini._safety_settings == {HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_ONLY_HIGH}
     assert repr(gemini._tools) == repr([Tool(function_declarations=[GET_CURRENT_WEATHER_FUNC])])
     assert isinstance(gemini._tool_config, ToolConfig)
@@ -290,7 +298,7 @@ def test_run(mock_generative_model):
         ChatMessage.from_system("You are a helpful assistant"),
         ChatMessage.from_user("What's the capital of France?"),
     ]
-    gemini = VertexAIGeminiChatGenerator(project_id="TestID123", location=None)
+    gemini = VertexAIGeminiChatGenerator()
     response = gemini.run(messages=messages)
 
     mock_model.send_message.assert_called_once()
@@ -315,7 +323,7 @@ def test_run_with_streaming_callback(mock_generative_model):
         nonlocal streaming_callback_called
         streaming_callback_called = True
 
-    gemini = VertexAIGeminiChatGenerator(project_id="TestID123", location=None, streaming_callback=streaming_callback)
+    gemini = VertexAIGeminiChatGenerator(streaming_callback=streaming_callback)
     messages = [
         ChatMessage.from_system("You are a helpful assistant"),
         ChatMessage.from_user("What's the capital of France?"),

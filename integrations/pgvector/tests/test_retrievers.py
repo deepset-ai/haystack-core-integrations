@@ -50,6 +50,7 @@ class TestEmbeddingRetriever:
                     "type": "haystack_integrations.document_stores.pgvector.document_store.PgvectorDocumentStore",
                     "init_parameters": {
                         "connection_string": {"env_vars": ["PG_CONN_STR"], "strict": True, "type": "env_var"},
+                        "schema_name": "public",
                         "table_name": "haystack",
                         "embedding_dimension": 768,
                         "vector_function": "cosine_similarity",
@@ -175,6 +176,7 @@ class TestKeywordRetriever:
                     "type": "haystack_integrations.document_stores.pgvector.document_store.PgvectorDocumentStore",
                     "init_parameters": {
                         "connection_string": {"env_vars": ["PG_CONN_STR"], "strict": True, "type": "env_var"},
+                        "schema_name": "public",
                         "table_name": "haystack",
                         "embedding_dimension": 768,
                         "vector_function": "cosine_similarity",

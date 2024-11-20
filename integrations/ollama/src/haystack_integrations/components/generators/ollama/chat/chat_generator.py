@@ -1,4 +1,4 @@
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional, Union
 
 from haystack import component, default_from_dict, default_to_dict
 from haystack.dataclasses import ChatMessage, StreamingChunk
@@ -38,6 +38,7 @@ class OllamaChatGenerator:
         url: str = "http://localhost:11434",
         generation_kwargs: Optional[Dict[str, Any]] = None,
         timeout: int = 120,
+        keep_alive: Optional[Union[float, str]] = None,
         streaming_callback: Optional[Callable[[StreamingChunk], None]] = None,
     ):
         """
@@ -54,12 +55,21 @@ class OllamaChatGenerator:
         :param streaming_callback:
             A callback function that is called when a new token is received from the stream.
             The callback function accepts StreamingChunk as an argument.
+        :param keep_alive:
+            The option that controls how long the model will stay loaded into memory following the request.
+            If not set, it will use the default value from the Ollama (5 minutes).
+            The value can be set to:
+            - a duration string (such as "10m" or "24h")
+            - a number in seconds (such as 3600)
+            - any negative number which will keep the model loaded in memory (e.g. -1 or "-1m")
+            - '0' which will unload the model immediately after generating a response.
         """
 
         self.timeout = timeout
         self.generation_kwargs = generation_kwargs or {}
         self.url = url
         self.model = model
+        self.keep_alive = keep_alive
         self.streaming_callback = streaming_callback
 
         self._client = Client(host=self.url, timeout=self.timeout)
@@ -76,6 +86,7 @@ class OllamaChatGenerator:
             self,
             model=self.model,
             url=self.url,
+            keep_alive=self.keep_alive,
             generation_kwargs=self.generation_kwargs,
             timeout=self.timeout,
             streaming_callback=callback_name,
@@ -165,7 +176,9 @@ class OllamaChatGenerator:
 
         stream = self.streaming_callback is not None
         messages = [self._message_to_dict(message) for message in messages]
-        response = self._client.chat(model=self.model, messages=messages, stream=stream, options=generation_kwargs)
+        response = self._client.chat(
+            model=self.model, messages=messages, stream=stream, keep_alive=self.keep_alive, options=generation_kwargs
+        )
 
         if stream:
             chunks: List[StreamingChunk] = self._handle_streaming_response(response)

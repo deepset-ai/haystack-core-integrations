@@ -2,7 +2,7 @@ import logging
 from typing import Any, Callable, Dict, List, Optional, Union
 
 import google.generativeai as genai
-from google.ai.generativelanguage import Content, Part, Tool
+from google.ai.generativelanguage import Content, Part
 from google.generativeai import GenerationConfig, GenerativeModel
 from google.generativeai.types import GenerateContentResponse, HarmBlockThreshold, HarmCategory
 from haystack.core.component import component
@@ -62,6 +62,16 @@ class GoogleAIGeminiGenerator:
     ```
     """
 
+    def __new__(cls, *_, **kwargs):
+        if "tools" in kwargs:
+            msg = (
+                "GoogleAIGeminiGenerator does not support the `tools` parameter. "
+                " Use GoogleAIGeminiChatGenerator instead."
+            )
+            raise TypeError(msg)
+        return super(GoogleAIGeminiGenerator, cls).__new__(cls)  # noqa: UP008
+        # super(__class__, cls) is needed because of the component decorator
+
     def __init__(
         self,
         *,
@@ -69,7 +79,6 @@ class GoogleAIGeminiGenerator:
         model: str = "gemini-1.5-flash",
         generation_config: Optional[Union[GenerationConfig, Dict[str, Any]]] = None,
         safety_settings: Optional[Dict[HarmCategory, HarmBlockThreshold]] = None,
-        tools: Optional[List[Tool]] = None,
         streaming_callback: Optional[Callable[[StreamingChunk], None]] = None,
     ):
         """
@@ -86,7 +95,6 @@ class GoogleAIGeminiGenerator:
         :param safety_settings: The safety settings to use.
             A dictionary with `HarmCategory` as keys and `HarmBlockThreshold` as values.
             For more information, see [the API reference](https://ai.google.dev/api)
-        :param tools: A list of Tool objects that can be used for [Function calling](https://ai.google.dev/docs/function_calling).
         :param streaming_callback: A callback function that is called when a new token is received from the stream.
             The callback function accepts StreamingChunk as an argument.
         """
@@ -96,8 +104,7 @@ class GoogleAIGeminiGenerator:
         self._model_name = model
         self._generation_config = generation_config
         self._safety_settings = safety_settings
-        self._tools = tools
-        self._model = GenerativeModel(self._model_name, tools=self._tools)
+        self._model = GenerativeModel(self._model_name)
         self._streaming_callback = streaming_callback
 
     def _generation_config_to_dict(self, config: Union[GenerationConfig, Dict[str, Any]]) -> Dict[str, Any]:
@@ -126,11 +133,8 @@ class GoogleAIGeminiGenerator:
             model=self._model_name,
             generation_config=self._generation_config,
             safety_settings=self._safety_settings,
-            tools=self._tools,
             streaming_callback=callback_name,
         )
-        if (tools := data["init_parameters"].get("tools")) is not None:
-            data["init_parameters"]["tools"] = [Tool.serialize(t) for t in tools]
         if (generation_config := data["init_parameters"].get("generation_config")) is not None:
             data["init_parameters"]["generation_config"] = self._generation_config_to_dict(generation_config)
         if (safety_settings := data["init_parameters"].get("safety_settings")) is not None:
@@ -149,8 +153,6 @@ class GoogleAIGeminiGenerator:
         """
         deserialize_secrets_inplace(data["init_parameters"], keys=["api_key"])
 
-        if (tools := data["init_parameters"].get("tools")) is not None:
-            data["init_parameters"]["tools"] = [Tool.deserialize(t) for t in tools]
         if (generation_config := data["init_parameters"].get("generation_config")) is not None:
             data["init_parameters"]["generation_config"] = GenerationConfig(**generation_config)
         if (safety_settings := data["init_parameters"].get("safety_settings")) is not None:
@@ -178,7 +180,7 @@ class GoogleAIGeminiGenerator:
             msg = f"Unsupported type {type(part)} for part {part}"
             raise ValueError(msg)
 
-    @component.output_types(replies=List[Union[str, Dict[str, str]]])
+    @component.output_types(replies=List[str])
     def run(
         self,
         parts: Variadic[Union[str, ByteStream, Part]],
@@ -192,7 +194,7 @@ class GoogleAIGeminiGenerator:
         :param streaming_callback: A callback function that is called when a new token is received from the stream.
         :returns:
             A dictionary containing the following key:
-            - `replies`: A list of strings or dictionaries with function calls.
+            - `replies`: A list of strings containing the generated responses.
         """
 
         # check if streaming_callback is passed
@@ -221,12 +223,6 @@ class GoogleAIGeminiGenerator:
             for part in candidate.content.parts:
                 if part.text != "":
                     replies.append(part.text)
-                elif part.function_call is not None:
-                    function_call = {
-                        "name": part.function_call.name,
-                        "args": dict(part.function_call.args.items()),
-                    }
-                    replies.append(function_call)
         return replies
 
     def _get_stream_response(

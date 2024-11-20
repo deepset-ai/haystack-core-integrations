@@ -1,5 +1,15 @@
 # Changelog
 
+## [integrations/ollama-v1.1.0] - 2024-10-11
+
+### 🚀 Features
+
+- Add `keep_alive` parameter to Ollama Generators (#1131)
+
+### ⚙️ Miscellaneous Tasks
+
+- Update ruff linting scripts and settings (#1105)
+
 ## [integrations/ollama-v1.0.1] - 2024-09-26
 
 ### 🐛 Bug Fixes

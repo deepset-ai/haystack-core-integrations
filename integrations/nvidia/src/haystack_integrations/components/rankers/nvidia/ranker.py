@@ -1,17 +1,23 @@
+# SPDX-FileCopyrightText: 2024-present deepset GmbH <info@deepset.ai>
+#
+# SPDX-License-Identifier: Apache-2.0
+
 import warnings
 from typing import Any, Dict, List, Optional, Union
 
-from haystack import Document, component, default_from_dict, default_to_dict
+from haystack import Document, component, default_from_dict, default_to_dict, logging
 from haystack.utils import Secret, deserialize_secrets_inplace
 
+from haystack_integrations.components.rankers.nvidia.truncate import RankerTruncateMode
 from haystack_integrations.utils.nvidia import NimBackend, url_validation
 
-from .truncate import RankerTruncateMode
+logger = logging.getLogger(__name__)
 
 _DEFAULT_MODEL = "nvidia/nv-rerankqa-mistral-4b-v3"
 
 _MODEL_ENDPOINT_MAP = {
     "nvidia/nv-rerankqa-mistral-4b-v3": "https://ai.api.nvidia.com/v1/retrieval/nvidia/nv-rerankqa-mistral-4b-v3/reranking",
+    "nvidia/llama-3.2-nv-rerankqa-1b-v1": "https://ai.api.nvidia.com/v1/retrieval/nvidia/llama-3_2-nv-rerankqa-1b-v1/reranking",
 }
 
 
@@ -50,7 +56,7 @@ class NvidiaRanker:
         model: Optional[str] = None,
         truncate: Optional[Union[RankerTruncateMode, str]] = None,
         api_url: Optional[str] = None,
-        api_key: Optional[Secret] = None,
+        api_key: Optional[Secret] = Secret.from_env_var("NVIDIA_API_KEY"),
         top_k: int = 5,
     ):
         """
@@ -99,6 +105,7 @@ class NvidiaRanker:
                 self._api_key = Secret.from_env_var("NVIDIA_API_KEY")
         self._top_k = top_k
         self._initialized = False
+        self._backend: Optional[Any] = None
 
     def to_dict(self) -> Dict[str, Any]:
         """
@@ -112,7 +119,7 @@ class NvidiaRanker:
             top_k=self._top_k,
             truncate=self._truncate,
             api_url=self._api_url,
-            api_key=self._api_key,
+            api_key=self._api_key.to_dict() if self._api_key else None,
         )
 
     @classmethod
@@ -123,7 +130,9 @@ class NvidiaRanker:
         :param data: A dictionary containing the ranker's attributes.
         :returns: The deserialized ranker.
         """
-        deserialize_secrets_inplace(data, keys=["api_key"])
+        init_parameters = data.get("init_parameters", {})
+        if init_parameters:
+            deserialize_secrets_inplace(data["init_parameters"], keys=["api_key"])
         return default_from_dict(cls, data)
 
     def warm_up(self):
@@ -169,16 +178,16 @@ class NvidiaRanker:
             msg = "The ranker has not been loaded. Please call warm_up() before running."
             raise RuntimeError(msg)
         if not isinstance(query, str):
-            msg = "Ranker expects the `query` parameter to be a string."
+            msg = "NvidiaRanker expects the `query` parameter to be a string."
             raise TypeError(msg)
         if not isinstance(documents, list):
-            msg = "Ranker expects the `documents` parameter to be a list."
+            msg = "NvidiaRanker expects the `documents` parameter to be a list."
             raise TypeError(msg)
         if not all(isinstance(doc, Document) for doc in documents):
-            msg = "Ranker expects the `documents` parameter to be a list of Document objects."
+            msg = "NvidiaRanker expects the `documents` parameter to be a list of Document objects."
             raise TypeError(msg)
         if top_k is not None and not isinstance(top_k, int):
-            msg = "Ranker expects the `top_k` parameter to be an integer."
+            msg = "NvidiaRanker expects the `top_k` parameter to be an integer."
             raise TypeError(msg)
 
         if len(documents) == 0:
@@ -186,6 +195,7 @@ class NvidiaRanker:
 
         top_k = top_k if top_k is not None else self._top_k
         if top_k < 1:
+            logger.warning("top_k should be at least 1, returning nothing")
             warnings.warn("top_k should be at least 1, returning nothing", stacklevel=2)
             return {"documents": []}
 

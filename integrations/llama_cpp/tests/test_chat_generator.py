@@ -342,7 +342,7 @@ class TestLlamaCppChatGeneratorFunctionary:
         hf_tokenizer_path = "meetkai/functionary-small-v2.4-GGUF"
         generator = LlamaCppChatGenerator(
             model=model_path,
-            n_ctx=8192,
+            n_ctx=512,
             n_batch=512,
             model_kwargs={
                 "chat_format": "functionary-v2",
@@ -399,7 +399,6 @@ class TestLlamaCppChatGeneratorFunctionary:
                                 "type": "string",
                                 "description": "The city and state, e.g. San Francisco, CA",
                             },
-                            "unit": {"type": "string", "enum": ["celsius", "fahrenheit"]},
                         },
                         "required": ["location"],
                     },
@@ -407,7 +406,8 @@ class TestLlamaCppChatGeneratorFunctionary:
             }
         ]
 
-        response = generator.run(messages=messages, generation_kwargs={"tools": tools})
+        tool_choice = {"type": "function", "function": {"name": "get_current_temperature"}}
+        response = generator.run(messages=messages, generation_kwargs={"tools": tools, "tool_choice": tool_choice})
 
         available_functions = {
             "get_current_temperature": self.get_current_temperature,

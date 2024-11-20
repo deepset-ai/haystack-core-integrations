@@ -1,5 +1,25 @@
 # Changelog
 
+## [integrations/langfuse-v0.6.0] - 2024-11-18
+
+### 🚀 Features
+
+- Add support for ttft (#1161)
+
+### ⚙️ Miscellaneous Tasks
+
+- Adopt uv as installer (#1142)
+
+## [integrations/langfuse-v0.5.0] - 2024-10-01
+
+### ⚙️ Miscellaneous Tasks
+
+- Update ruff linting scripts and settings (#1105)
+
+### Langfuse
+
+- Add invocation_context to identify traces (#1089)
+
 ## [integrations/langfuse-v0.4.0] - 2024-09-17
 
 ### 🚀 Features

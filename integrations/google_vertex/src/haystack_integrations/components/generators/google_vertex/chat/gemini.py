@@ -36,7 +36,7 @@ class VertexAIGeminiChatGenerator:
     from haystack.dataclasses import ChatMessage
     from haystack_integrations.components.generators.google_vertex import VertexAIGeminiChatGenerator
 
-    gemini_chat = VertexAIGeminiChatGenerator(project_id=project_id)
+    gemini_chat = VertexAIGeminiChatGenerator()
 
     messages = [ChatMessage.from_user("Tell me the name of a movie")]
     res = gemini_chat.run(messages)
@@ -50,7 +50,7 @@ class VertexAIGeminiChatGenerator:
         self,
         *,
         model: str = "gemini-1.5-flash",
-        project_id: str,
+        project_id: Optional[str] = None,
         location: Optional[str] = None,
         generation_config: Optional[Union[GenerationConfig, Dict[str, Any]]] = None,
         safety_settings: Optional[Dict[HarmCategory, HarmBlockThreshold]] = None,
@@ -65,7 +65,7 @@ class VertexAIGeminiChatGenerator:
         Authenticates using Google Cloud Application Default Credentials (ADCs).
         For more information see the official [Google documentation](https://cloud.google.com/docs/authentication/provide-credentials-adc).
 
-        :param project_id: ID of the GCP project to use.
+        :param project_id: ID of the GCP project to use. By default, it is set during Google Cloud authentication.
         :param model: Name of the model to use. For available models, see https://cloud.google.com/vertex-ai/generative-ai/docs/learn/models.
         :param location: The default location to use when making API calls, if not set uses us-central-1.
             Defaults to None.

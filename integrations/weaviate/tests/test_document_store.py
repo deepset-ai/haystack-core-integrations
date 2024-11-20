@@ -265,6 +265,7 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
                         "session_pool_connections": 20,
                         "session_pool_maxsize": 100,
                         "session_pool_max_retries": 3,
+                        "session_pool_timeout": 5,
                     },
                     "proxies": {"http": "http://proxy:1234", "https": None, "grpc": None},
                     "timeout": [30, 90],
@@ -302,6 +303,7 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
                         "connection": {
                             "session_pool_connections": 20,
                             "session_pool_maxsize": 20,
+                            "session_pool_timeout": 5,
                         },
                         "proxies": {"http": "http://proxy:1234"},
                         "timeout": [10, 60],
@@ -338,6 +340,7 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
         assert document_store._embedded_options.grpc_port == DEFAULT_GRPC_PORT
         assert document_store._additional_config.connection.session_pool_connections == 20
         assert document_store._additional_config.connection.session_pool_maxsize == 20
+        assert document_store._additional_config.connection.session_pool_timeout == 5
 
     def test_to_data_object(self, document_store, test_files_path):
         doc = Document(content="test doc")
@@ -504,6 +507,30 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
     @pytest.mark.skip(reason="Weaviate for some reason is not returning what we expect")
     def test_comparison_not_equal_with_dataframe(self, document_store, filterable_docs):
         return super().test_comparison_not_equal_with_dataframe(document_store, filterable_docs)
+
+    def test_meta_split_overlap_is_skipped(self, document_store):
+        doc = Document(
+            content="The moonlight shimmered ",
+            meta={
+                "source_id": "62049ba1d1e1d5ebb1f6230b0b00c5356b8706c56e0b9c36b1dfc86084cd75f0",
+                "page_number": 1,
+                "split_id": 0,
+                "split_idx_start": 0,
+                "_split_overlap": [
+                    {"doc_id": "68ed48ba830048c5d7815874ed2de794722e6d10866b6c55349a914fd9a0df65", "range": (0, 20)}
+                ],
+            },
+        )
+        document_store.write_documents([doc])
+
+        written_doc = document_store.filter_documents()[0]
+
+        assert written_doc.content == "The moonlight shimmered "
+        assert written_doc.meta["source_id"] == "62049ba1d1e1d5ebb1f6230b0b00c5356b8706c56e0b9c36b1dfc86084cd75f0"
+        assert written_doc.meta["page_number"] == 1.0
+        assert written_doc.meta["split_id"] == 0.0
+        assert written_doc.meta["split_idx_start"] == 0.0
+        assert "_split_overlap" not in written_doc.meta
 
     def test_bm25_retrieval(self, document_store):
         document_store.write_documents(
