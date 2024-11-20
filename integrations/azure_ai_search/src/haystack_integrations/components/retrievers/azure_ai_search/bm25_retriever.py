@@ -11,9 +11,9 @@ logger = logging.getLogger(__name__)
 
 
 @component
-class AzureAISearchEmbeddingRetriever:
+class AzureAISearchBM25Retriever:
     """
-    Retrieves documents from the AzureAISearchDocumentStore using a vector similarity metric.
+    Retrieves documents from the AzureAISearchDocumentStore using BM25 retrieval.
     Must be connected to the AzureAISearchDocumentStore to run.
 
     """
@@ -28,10 +28,12 @@ class AzureAISearchEmbeddingRetriever:
         **kwargs,
     ):
         """
-        Create the AzureAISearchEmbeddingRetriever component.
+        Create the AzureAISearchBM25Retriever component.
 
         :param document_store: An instance of AzureAISearchDocumentStore to use with the Retriever.
         :param filters: Filters applied when fetching documents from the Document Store.
+            Filters are applied during the BM25 search to ensure the Retriever returns
+              `top_k` matching documents.
         :param top_k: Maximum number of documents to return.
         :param filter_policy: Policy to determine how filters are applied.
         :param kwargs: Additional keyword arguments to pass to the Azure AI's search endpoint.
@@ -42,6 +44,8 @@ class AzureAISearchEmbeddingRetriever:
                 processing semantic queries.
             For more information on parameters, see the
             [official Azure AI Search documentation](https://learn.microsoft.com/en-us/azure/search/).
+        :raises TypeError: If the document store is not an instance of AzureAISearchDocumentStore.
+        :raises RuntimeError: If the query is not valid, or if the document store is not correctly configured.
 
         """
         self._filters = filters or {}
@@ -51,10 +55,9 @@ class AzureAISearchEmbeddingRetriever:
             filter_policy if isinstance(filter_policy, FilterPolicy) else FilterPolicy.from_str(filter_policy)
         )
         self._kwargs = kwargs
-
         if not isinstance(document_store, AzureAISearchDocumentStore):
             message = "document_store must be an instance of AzureAISearchDocumentStore"
-            raise Exception(message)
+            raise TypeError(message)
 
     def to_dict(self) -> Dict[str, Any]:
         """
@@ -73,7 +76,7 @@ class AzureAISearchEmbeddingRetriever:
         )
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "AzureAISearchEmbeddingRetriever":
+    def from_dict(cls, data: Dict[str, Any]) -> "AzureAISearchBM25Retriever":
         """
         Deserializes the component from a dictionary.
 
@@ -94,16 +97,17 @@ class AzureAISearchEmbeddingRetriever:
         return default_from_dict(cls, data)
 
     @component.output_types(documents=List[Document])
-    def run(self, query_embedding: List[float], filters: Optional[Dict[str, Any]] = None, top_k: Optional[int] = None):
+    def run(self, query: str, filters: Optional[Dict[str, Any]] = None, top_k: Optional[int] = None):
         """Retrieve documents from the AzureAISearchDocumentStore.
 
-        :param query_embedding: A list of floats representing the query embedding.
+        :param query: Text of the query.
         :param filters: Filters applied to the retrieved Documents. The way runtime filters are applied depends on
-                the `filter_policy` chosen at retriever initialization. See `__init__` method docstring for more
-                details.
-        :param top_k: The maximum number of documents to retrieve.
-        :returns: Dictionary with the following keys:
-                - `documents`: A list of documents retrieved from the AzureAISearchDocumentStore.
+                        the `filter_policy` chosen at retriever initialization. See init method docstring for more
+                        details.
+        :param top_k: the maximum number of documents to retrieve.
+        :raises RuntimeError: If an error occurs during the BM25 retrieval process.
+        :returns: a dictionary with the following keys:
+            - `documents`: A list of documents retrieved from the AzureAISearchDocumentStore.
         """
 
         top_k = top_k or self._top_k
@@ -115,13 +119,16 @@ class AzureAISearchEmbeddingRetriever:
             normalized_filters = ""
 
         try:
-            docs = self._document_store._embedding_retrieval(
-                query_embedding=query_embedding, filters=normalized_filters, top_k=top_k, **self._kwargs
+            docs = self._document_store._bm25_retrieval(
+                query=query,
+                filters=normalized_filters,
+                top_k=top_k,
+                **self._kwargs,
             )
         except Exception as e:
             msg = (
-                "An error occurred during the embedding retrieval process from the AzureAISearchDocumentStore. "
-                "Ensure that the query embedding is valid and the document store is correctly configured."
+                "An error occurred during the bm25 retrieval process from the AzureAISearchDocumentStore. "
+                "Ensure that the query is valid and the document store is correctly configured."
             )
             raise RuntimeError(msg) from e
 
