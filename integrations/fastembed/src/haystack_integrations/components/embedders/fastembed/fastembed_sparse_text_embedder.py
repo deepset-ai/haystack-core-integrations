@@ -19,7 +19,7 @@ class FastembedSparseTextEmbedder:
             "The disk comes and it does not, only Windows. Do Not order this if you have a Mac!!")
 
     sparse_text_embedder = FastembedSparseTextEmbedder(
-        model="prithvida/Splade_PP_en_v1"
+        model="prithivida/Splade_PP_en_v1"
     )
     sparse_text_embedder.warm_up()
 
@@ -29,7 +29,7 @@ class FastembedSparseTextEmbedder:
 
     def __init__(
         self,
-        model: str = "prithvida/Splade_PP_en_v1",
+        model: str = "prithivida/Splade_PP_en_v1",
         cache_dir: Optional[str] = None,
         threads: Optional[int] = None,
         progress_bar: bool = True,
@@ -40,7 +40,7 @@ class FastembedSparseTextEmbedder:
         """
         Create a FastembedSparseTextEmbedder component.
 
-        :param model: Local path or name of the model in Fastembed's model hub, such as `prithvida/Splade_PP_en_v1`
+        :param model: Local path or name of the model in Fastembed's model hub, such as `prithivida/Splade_PP_en_v1`
         :param cache_dir: The path to the cache directory.
                 Can be set using the `FASTEMBED_CACHE_PATH` env variable.
                 Defaults to `fastembed_cache` in the system's temp directory.
