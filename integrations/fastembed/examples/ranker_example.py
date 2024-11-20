@@ -15,7 +15,7 @@ ranker.warm_up()
 reranked_documents = ranker.run(query=query, documents=documents)["documents"]
 
 
-print(reranked_documents["documents"][0])
+print(reranked_documents[0])
 
 # Document(id=...,
 #  content: 'fastembed is supported by and maintained by Qdrant.',

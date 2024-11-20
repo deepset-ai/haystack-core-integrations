@@ -52,25 +52,28 @@ def test_tracing_integration(llm_class, env_var, expected_trace):
     assert "Berlin" in response["llm"]["replies"][0].content
     assert response["tracer"]["trace_url"]
 
-    # add a random delay between 1 and 3 seconds to make sure the trace is flushed
-    # and that the trace is available in Langfuse when we fetch it below
-    time.sleep(random.uniform(1, 3))
-
-    url = "https://cloud.langfuse.com/api/public/traces/"
     trace_url = response["tracer"]["trace_url"]
     uuid = os.path.basename(urlparse(trace_url).path)
+    url = f"https://cloud.langfuse.com/api/public/traces/{uuid}"
 
-    try:
-        response = requests.get(
-            url + uuid, auth=HTTPBasicAuth(os.environ["LANGFUSE_PUBLIC_KEY"], os.environ["LANGFUSE_SECRET_KEY"])
+    # Poll the Langfuse API a bit as the trace might not be ready right away
+    attempts = 5
+    delay = 1
+    while attempts >= 0:
+        res = requests.get(
+            url, auth=HTTPBasicAuth(os.environ["LANGFUSE_PUBLIC_KEY"], os.environ["LANGFUSE_SECRET_KEY"])
         )
-        assert response.status_code == 200, f"Failed to retrieve data from Langfuse API: {response.status_code}"
+        if attempts > 0 and res.status_code != 200:
+            attempts -= 1
+            time.sleep(delay)
+            delay *= 2
+            continue
+        assert res.status_code == 200, f"Failed to retrieve data from Langfuse API: {res.status_code}"
 
         # check if the trace contains the expected LLM name
-        assert expected_trace in str(response.content)
+        assert expected_trace in str(res.content)
         # check if the trace contains the expected generation span
-        assert "GENERATION" in str(response.content)
+        assert "GENERATION" in str(res.content)
         # check if the trace contains the expected user_id
-        assert "user_42" in str(response.content)
-    except requests.exceptions.RequestException as e:
-        pytest.fail(f"Failed to retrieve data from Langfuse API: {e}")
+        assert "user_42" in str(res.content)
+        break

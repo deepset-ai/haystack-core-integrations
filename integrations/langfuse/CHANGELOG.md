@@ -1,5 +1,15 @@
 # Changelog
 
+## [integrations/langfuse-v0.6.0] - 2024-11-18
+
+### 🚀 Features
+
+- Add support for ttft (#1161)
+
+### ⚙️ Miscellaneous Tasks
+
+- Adopt uv as installer (#1142)
+
 ## [integrations/langfuse-v0.5.0] - 2024-10-01
 
 ### ⚙️ Miscellaneous Tasks
