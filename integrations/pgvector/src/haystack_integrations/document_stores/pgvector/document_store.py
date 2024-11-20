@@ -172,14 +172,6 @@ class PgvectorDocumentStore:
 
         return self._dict_cursor
 
-    @staticmethod
-    def _check_connection(connection):
-        try:
-            connection.execute("")
-        except Error:
-            return False
-        return True
-
     @property
     def connection(self):
         if self._connection is None or not self._check_connection(self._connection):
@@ -188,6 +180,11 @@ class PgvectorDocumentStore:
         return self._connection
 
     def _create_connection(self):
+        """
+        Internal method to create a connection to the PostgreSQL database.
+        """
+
+        # close the connection if it already exists
         if self._connection:
             try:
                 self._connection.close()
@@ -223,6 +220,21 @@ class PgvectorDocumentStore:
             self._handle_hnsw()
 
         self._table_initialized = True
+
+    @staticmethod
+    def _check_connection(connection):
+        """
+        Internal method to check if the connection is still valid.
+        """
+
+        # implementation inspired to psycopg pool
+        # https://github.com/psycopg/psycopg/blob/d38cf7798b0c602ff43dac9f20bbab96237a9c38/psycopg_pool/psycopg_pool/pool.py#L528
+
+        try:
+            connection.execute("")
+        except Error:
+            return False
+        return True
 
     def to_dict(self) -> Dict[str, Any]:
         """
