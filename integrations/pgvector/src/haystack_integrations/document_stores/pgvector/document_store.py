@@ -156,29 +156,44 @@ class PgvectorDocumentStore:
         self._connection = None
         self._cursor = None
         self._dict_cursor = None
+        self._table_initialized = False
 
     @property
     def cursor(self):
-        if self._cursor is None:
+        if self._cursor is None or not self._check_connection(self._connection):
             self._create_connection()
 
         return self._cursor
 
     @property
     def dict_cursor(self):
-        if self._dict_cursor is None:
+        if self._dict_cursor is None or not self._check_connection(self._connection):
             self._create_connection()
 
         return self._dict_cursor
 
+    @staticmethod
+    def _check_connection(connection):
+        try:
+            connection.execute("")
+        except Error:
+            return False
+        return True
+
     @property
     def connection(self):
-        if self._connection is None:
+        if self._connection is None or not self._check_connection(self._connection):
             self._create_connection()
 
         return self._connection
 
     def _create_connection(self):
+        if self._connection:
+            try:
+                self._connection.close()
+            except Error as e:
+                logger.debug("Failed to close connection: %s", str(e))
+
         conn_str = self.connection_string.resolve_value() or ""
         connection = connect(conn_str)
         connection.autocommit = True
@@ -189,16 +204,25 @@ class PgvectorDocumentStore:
         self._cursor = self._connection.cursor()
         self._dict_cursor = self._connection.cursor(row_factory=dict_row)
 
-        # Init schema
+        if not self._table_initialized:
+            self._initialize_table()
+
+        return self._connection
+
+    def _initialize_table(self):
+        """
+        Internal method to initialize the table.
+        """
         if self.recreate_table:
             self.delete_table()
+
         self._create_table_if_not_exists()
         self._create_keyword_index_if_not_exists()
 
         if self.search_strategy == "hnsw":
             self._handle_hnsw()
 
-        return self._connection
+        self._table_initialized = True
 
     def to_dict(self) -> Dict[str, Any]:
         """
