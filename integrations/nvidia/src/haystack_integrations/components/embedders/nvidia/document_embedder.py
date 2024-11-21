@@ -78,7 +78,7 @@ class NvidiaDocumentEmbedder:
         :param embedding_separator:
             Separator used to concatenate the meta fields to the Document text.
         :param truncate:
-            Specifies how inputs longer that the maximum token length should be truncated.
+            Specifies how inputs longer than the maximum token length should be truncated.
             If None the behavior is model-dependent, see the official documentation for more information.
         :param timeout:
             Timeout for request calls, if not set it is inferred from the `NVIDIA_TIMEOUT` environment variable
