@@ -56,6 +56,7 @@ class TestNvidiaTextEmbedder:
                 "prefix": "",
                 "suffix": "",
                 "truncate": None,
+                "timeout": 60.0,
             },
         }
 
@@ -67,6 +68,7 @@ class TestNvidiaTextEmbedder:
             prefix="prefix",
             suffix="suffix",
             truncate=EmbeddingTruncateMode.START,
+            timeout=10.0,
         )
         data = component.to_dict()
         assert data == {
@@ -78,6 +80,7 @@ class TestNvidiaTextEmbedder:
                 "prefix": "prefix",
                 "suffix": "suffix",
                 "truncate": "START",
+                "timeout": 10.0,
             },
         }
 
@@ -92,6 +95,7 @@ class TestNvidiaTextEmbedder:
                 "prefix": "prefix",
                 "suffix": "suffix",
                 "truncate": "START",
+                "timeout": 10.0,
             },
         }
         component = NvidiaTextEmbedder.from_dict(data)
@@ -100,6 +104,7 @@ class TestNvidiaTextEmbedder:
         assert component.prefix == "prefix"
         assert component.suffix == "suffix"
         assert component.truncate == EmbeddingTruncateMode.START
+        assert component.timeout == 10.0
 
     def test_from_dict_defaults(self, monkeypatch):
         monkeypatch.setenv("NVIDIA_API_KEY", "fake-api-key")

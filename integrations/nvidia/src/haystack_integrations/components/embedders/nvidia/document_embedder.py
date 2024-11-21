@@ -170,6 +170,7 @@ class NvidiaDocumentEmbedder:
             meta_fields_to_embed=self.meta_fields_to_embed,
             embedding_separator=self.embedding_separator,
             truncate=str(self.truncate) if self.truncate is not None else None,
+            timeout=self.timeout,
         )
 
     @classmethod

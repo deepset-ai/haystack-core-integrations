@@ -151,6 +151,7 @@ class NvidiaRanker:
             document_prefix=self.document_prefix,
             meta_fields_to_embed=self.meta_fields_to_embed,
             embedding_separator=self.embedding_separator,
+            timeout=self.timeout,
         )
 
     @classmethod

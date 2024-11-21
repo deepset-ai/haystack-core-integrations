@@ -75,6 +75,7 @@ class TestNvidiaDocumentEmbedder:
                 "meta_fields_to_embed": [],
                 "embedding_separator": "\n",
                 "truncate": None,
+                "timeout": 60.0,
             },
         }
 
@@ -90,6 +91,7 @@ class TestNvidiaDocumentEmbedder:
             meta_fields_to_embed=["test_field"],
             embedding_separator=" | ",
             truncate=EmbeddingTruncateMode.END,
+            timeout=45.0,
         )
         data = component.to_dict()
         assert data == {
@@ -105,6 +107,7 @@ class TestNvidiaDocumentEmbedder:
                 "meta_fields_to_embed": ["test_field"],
                 "embedding_separator": " | ",
                 "truncate": "END",
+                "timeout": 45.0,
             },
         }
 
@@ -123,6 +126,7 @@ class TestNvidiaDocumentEmbedder:
                 "meta_fields_to_embed": ["test_field"],
                 "embedding_separator": " | ",
                 "truncate": "START",
+                "timeout": 45.0,
             },
         }
         component = NvidiaDocumentEmbedder.from_dict(data)
@@ -135,6 +139,7 @@ class TestNvidiaDocumentEmbedder:
         assert component.meta_fields_to_embed == ["test_field"]
         assert component.embedding_separator == " | "
         assert component.truncate == EmbeddingTruncateMode.START
+        assert component.timeout == 45.0
 
     def test_from_dict_defaults(self, monkeypatch):
         monkeypatch.setenv("NVIDIA_API_KEY", "fake-api-key")
@@ -152,6 +157,7 @@ class TestNvidiaDocumentEmbedder:
         assert component.meta_fields_to_embed == []
         assert component.embedding_separator == "\n"
         assert component.truncate is None
+        assert component.timeout == 60.0
 
     def test_prepare_texts_to_embed_w_metadata(self):
         documents = [

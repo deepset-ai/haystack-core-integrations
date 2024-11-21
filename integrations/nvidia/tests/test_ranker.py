@@ -275,6 +275,7 @@ class TestNvidiaRanker:
                 "document_prefix": "",
                 "meta_fields_to_embed": [],
                 "embedding_separator": "\n",
+                "timeout": 60.0,
             },
         }
 
@@ -288,6 +289,11 @@ class TestNvidiaRanker:
                     "truncate": None,
                     "api_url": None,
                     "api_key": {"type": "env_var", "env_vars": ["NVIDIA_API_KEY"], "strict": True},
+                    "query_prefix": "",
+                    "document_prefix": "",
+                    "meta_fields_to_embed": [],
+                    "embedding_separator": "\n",
+                    "timeout": 45.0,
                 },
             }
         )
@@ -296,6 +302,11 @@ class TestNvidiaRanker:
         assert client.truncate is None
         assert client.api_url is None
         assert client.api_key == Secret.from_env_var("NVIDIA_API_KEY")
+        assert client.query_prefix == ""
+        assert client.document_prefix == ""
+        assert client.meta_fields_to_embed == []
+        assert client.embedding_separator == "\n"
+        assert client.timeout == 45.0
 
     def test_from_dict_defaults(self) -> None:
         client = NvidiaRanker.from_dict(
@@ -309,6 +320,11 @@ class TestNvidiaRanker:
         assert client.truncate is None
         assert client.api_url is None
         assert client.api_key == Secret.from_env_var("NVIDIA_API_KEY")
+        assert client.query_prefix == ""
+        assert client.document_prefix == ""
+        assert client.meta_fields_to_embed == []
+        assert client.embedding_separator == "\n"
+        assert client.timeout == 60.0
 
     def test_setting_timeout(self, monkeypatch):
         monkeypatch.setenv("NVIDIA_API_KEY", "fake-api-key")

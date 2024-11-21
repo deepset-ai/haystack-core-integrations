@@ -156,6 +156,7 @@ class NvidiaTextEmbedder:
             prefix=self.prefix,
             suffix=self.suffix,
             truncate=str(self.truncate) if self.truncate is not None else None,
+            timeout=self.timeout,
         )
 
     @classmethod
