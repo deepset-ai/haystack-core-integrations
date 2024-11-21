@@ -44,7 +44,7 @@ class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsT
     def test_connection_check_and_recreation(self, document_store: PgvectorDocumentStore):
         original_connection = document_store.connection
 
-        with patch.object(PgvectorDocumentStore, "_check_connection", return_value=False):
+        with patch.object(PgvectorDocumentStore, "_connection_is_valid", return_value=False):
             new_connection = document_store.connection
 
         # verify that a new connection is created
@@ -56,7 +56,7 @@ class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsT
         assert document_store._dict_cursor is not None
 
         # test with new connection
-        with patch.object(PgvectorDocumentStore, "_check_connection", return_value=True):
+        with patch.object(PgvectorDocumentStore, "_connection_is_valid", return_value=True):
             same_connection = document_store.connection
             assert same_connection is document_store._connection
 

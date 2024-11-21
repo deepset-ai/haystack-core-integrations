@@ -160,21 +160,21 @@ class PgvectorDocumentStore:
 
     @property
     def cursor(self):
-        if self._cursor is None or not self._check_connection(self._connection):
+        if self._cursor is None or not self._connection_is_valid(self._connection):
             self._create_connection()
 
         return self._cursor
 
     @property
     def dict_cursor(self):
-        if self._dict_cursor is None or not self._check_connection(self._connection):
+        if self._dict_cursor is None or not self._connection_is_valid(self._connection):
             self._create_connection()
 
         return self._dict_cursor
 
     @property
     def connection(self):
-        if self._connection is None or not self._check_connection(self._connection):
+        if self._connection is None or not self._connection_is_valid(self._connection):
             self._create_connection()
 
         return self._connection
@@ -222,7 +222,7 @@ class PgvectorDocumentStore:
         self._table_initialized = True
 
     @staticmethod
-    def _check_connection(connection):
+    def _connection_is_valid(connection):
         """
         Internal method to check if the connection is still valid.
         """
