@@ -41,6 +41,25 @@ class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsT
         retrieved_docs = document_store.filter_documents()
         assert retrieved_docs == docs
 
+    def test_connection_check_and_recreation(self, document_store: PgvectorDocumentStore):
+        original_connection = document_store.connection
+
+        with patch.object(PgvectorDocumentStore, "_connection_is_valid", return_value=False):
+            new_connection = document_store.connection
+
+        # verify that a new connection is created
+        assert new_connection is not original_connection
+        assert document_store._connection == new_connection
+        assert original_connection.closed
+
+        assert document_store._cursor is not None
+        assert document_store._dict_cursor is not None
+
+        # test with new connection
+        with patch.object(PgvectorDocumentStore, "_connection_is_valid", return_value=True):
+            same_connection = document_store.connection
+            assert same_connection is document_store._connection
+
 
 @pytest.mark.usefixtures("patches_for_unit_tests")
 def test_init(monkeypatch):
