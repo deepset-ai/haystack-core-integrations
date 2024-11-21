@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import os
 import warnings
 from typing import Any, Dict, List, Optional, Union
 
@@ -58,6 +59,11 @@ class NvidiaRanker:
         api_url: Optional[str] = None,
         api_key: Optional[Secret] = Secret.from_env_var("NVIDIA_API_KEY"),
         top_k: int = 5,
+        query_prefix: str = "",
+        document_prefix: str = "",
+        meta_fields_to_embed: Optional[List[str]] = None,
+        embedding_separator: str = "\n",
+        timeout: Optional[float] = None,
     ):
         """
         Create a NvidiaRanker component.
@@ -72,6 +78,19 @@ class NvidiaRanker:
             Custom API URL for the NVIDIA NIM.
         :param top_k:
             Number of documents to return.
+        :param query_prefix:
+            A string to add at the beginning of the query text before ranking.
+            Use it to prepend the text with an instruction, as required by reranking models like `bge`.
+        :param document_prefix:
+            A string to add at the beginning of each document before ranking. You can use it to prepend the document
+            with an instruction, as required by embedding models like `bge`.
+        :param meta_fields_to_embed:
+            List of metadata fields to embed with the document.
+        :param embedding_separator:
+            Separator to concatenate metadata fields to the document.
+        :param timeout:
+            Timeout for request calls, if not set it is inferred from the `NVIDIA_TIMEOUT` environment variable
+            or set to 60 by default.
         """
         if model is not None and not isinstance(model, str):
             msg = "Ranker expects the `model` parameter to be a string."
@@ -86,26 +105,34 @@ class NvidiaRanker:
             raise TypeError(msg)
 
         # todo: detect default in non-hosted case (when api_url is provided)
-        self._model = model or _DEFAULT_MODEL
-        self._truncate = truncate
-        self._api_key = api_key
+        self.model = model or _DEFAULT_MODEL
+        self.truncate = truncate
+        self.api_key = api_key
         # if no api_url is provided, we're using a hosted model and can
         #  - assume the default url will work, because there's only one model
         #  - assume we won't call backend.models()
         if api_url is not None:
-            self._api_url = url_validation(api_url, None, ["v1/ranking"])
-            self._endpoint = None  # we let backend.rank() handle the endpoint
+            self.api_url = url_validation(api_url, None, ["v1/ranking"])
+            self.endpoint = None  # we let backend.rank() handle the endpoint
         else:
-            if self._model not in _MODEL_ENDPOINT_MAP:
+            if self.model not in _MODEL_ENDPOINT_MAP:
                 msg = f"Model '{model}' is unknown. Please provide an api_url to access it."
                 raise ValueError(msg)
-            self._api_url = None  # we handle the endpoint
-            self._endpoint = _MODEL_ENDPOINT_MAP[self._model]
+            self.api_url = None  # we handle the endpoint
+            self.endpoint = _MODEL_ENDPOINT_MAP[self.model]
             if api_key is None:
                 self._api_key = Secret.from_env_var("NVIDIA_API_KEY")
-        self._top_k = top_k
+        self.top_k = top_k
         self._initialized = False
         self._backend: Optional[Any] = None
+
+        self.query_prefix = query_prefix
+        self.document_prefix = document_prefix
+        self.meta_fields_to_embed = meta_fields_to_embed or []
+        self.embedding_separator = embedding_separator
+        if timeout is None:
+            timeout = float(os.environ.get("NVIDIA_TIMEOUT", 60.0))
+        self.timeout = timeout
 
     def to_dict(self) -> Dict[str, Any]:
         """
@@ -115,11 +142,16 @@ class NvidiaRanker:
         """
         return default_to_dict(
             self,
-            model=self._model,
-            top_k=self._top_k,
-            truncate=self._truncate,
-            api_url=self._api_url,
-            api_key=self._api_key.to_dict() if self._api_key else None,
+            model=self.model,
+            top_k=self.top_k,
+            truncate=self.truncate,
+            api_url=self.api_url,
+            api_key=self.api_key.to_dict() if self.api_key else None,
+            query_prefix=self.query_prefix,
+            document_prefix=self.document_prefix,
+            meta_fields_to_embed=self.meta_fields_to_embed,
+            embedding_separator=self.embedding_separator,
+            timeout=self.timeout,
         )
 
     @classmethod
@@ -143,17 +175,30 @@ class NvidiaRanker:
         """
         if not self._initialized:
             model_kwargs = {}
-            if self._truncate is not None:
-                model_kwargs.update(truncate=str(self._truncate))
+            if self.truncate is not None:
+                model_kwargs.update(truncate=str(self.truncate))
             self._backend = NimBackend(
-                self._model,
-                api_url=self._api_url,
-                api_key=self._api_key,
+                model=self.model,
+                api_url=self.api_url,
+                api_key=self.api_key,
                 model_kwargs=model_kwargs,
+                timeout=self.timeout,
             )
-            if not self._model:
-                self._model = _DEFAULT_MODEL
+            if not self.model:
+                self.model = _DEFAULT_MODEL
             self._initialized = True
+
+    def _prepare_documents_to_embed(self, documents: List[Document]) -> List[str]:
+        document_texts = []
+        for doc in documents:
+            meta_values_to_embed = [
+                str(doc.meta[key])
+                for key in self.meta_fields_to_embed
+                if key in doc.meta and doc.meta[key]  # noqa: RUF019
+            ]
+            text_to_embed = self.embedding_separator.join([*meta_values_to_embed, doc.content or ""])
+            document_texts.append(self.document_prefix + text_to_embed)
+        return document_texts
 
     @component.output_types(documents=List[Document])
     def run(
@@ -193,18 +238,22 @@ class NvidiaRanker:
         if len(documents) == 0:
             return {"documents": []}
 
-        top_k = top_k if top_k is not None else self._top_k
+        top_k = top_k if top_k is not None else self.top_k
         if top_k < 1:
             logger.warning("top_k should be at least 1, returning nothing")
             warnings.warn("top_k should be at least 1, returning nothing", stacklevel=2)
             return {"documents": []}
 
         assert self._backend is not None
+
+        query_text = self.query_prefix + query
+        document_texts = self._prepare_documents_to_embed(documents=documents)
+
         # rank result is list[{index: int, logit: float}] sorted by logit
         sorted_indexes_and_scores = self._backend.rank(
-            query,
-            documents,
-            endpoint=self._endpoint,
+            query_text=query_text,
+            document_texts=document_texts,
+            endpoint=self.endpoint,
         )
         sorted_documents = []
         for item in sorted_indexes_and_scores[:top_k]:
