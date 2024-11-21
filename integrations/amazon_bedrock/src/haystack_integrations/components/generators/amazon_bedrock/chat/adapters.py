@@ -212,6 +212,8 @@ class AnthropicClaudeChatAdapter(BedrockModelChatAdapter):
         stop_sequences = inference_kwargs.get("stop_sequences", []) + inference_kwargs.pop("stop_words", [])
         if stop_sequences:
             inference_kwargs["stop_sequences"] = stop_sequences
+        # pop stream kwarg from inference_kwargs as Anthropic does not support it (if provided)
+        inference_kwargs.pop("stream", None)
         params = self._get_params(inference_kwargs, default_params, self.ALLOWED_PARAMS)
         body = {**self.prepare_chat_messages(messages=messages), **params}
         return body
