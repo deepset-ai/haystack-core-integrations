@@ -1,11 +1,10 @@
-##### Haystack Implementation ######
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
 
 import json
-import urllib
 from typing import Any, Dict, List, Optional, Union
+from urllib.parse import quote
 
 import requests
 from haystack import Document, component, default_from_dict, default_to_dict
@@ -13,24 +12,31 @@ from haystack.utils import Secret, deserialize_secrets_inplace
 
 from .reader_mode import JinaReaderMode
 
+READER_ENDPOINT_URL_BY_MODE = {
+    JinaReaderMode.READ: "https://r.jina.ai/",
+    JinaReaderMode.SEARCH: "https://s.jina.ai/",
+    JinaReaderMode.GROUND: "https://g.jina.ai/",
+}
+
 
 @component
 class JinaReaderConnector:
     """
     A component that interacts with Jina AI's reader service to process queries and return documents.
 
-    This component supports different modes of operation: READ, SEARCH, and GROUND.
+    This component supports different modes of operation: `read`, `search`, and `ground`.
 
     Usage example:
     ```python
-    from haystack import Document
     from haystack_integrations.components.connectors.jina import JinaReaderConnector
 
-    reader = JinaReaderConnector(mode="READ")
+    reader = JinaReaderConnector(mode="read")
     query = "https://example.com"
     result = reader.run(query=query)
-    document = result["document"]
+    document = result["documents"][0]
     print(document.content)
+
+    >>> "This domain is for use in illustrative examples..."
     ```
     """
 
@@ -43,28 +49,23 @@ class JinaReaderConnector:
         """
         Initialize a JinaReader instance.
 
-        :param mode: The operation mode for the reader (READ, SEARCH, or GROUND). See each Mode and its function here https://jina.ai/reader/
+        :param mode: The operation mode for the reader (`read`, `search` or `ground`).
+            - `read`: process a URL and return the textual content of the page.
+            - `search`: search the web and return textual content of the most relevant pages.
+            - `ground`: call the grounding engine to perform fact checking.
+            For more information on the modes, see the [Jina Reader documentation](https://jina.ai/reader/).
         :param api_key: The Jina API key. It can be explicitly provided or automatically read from the
             environment variable JINA_API_KEY (recommended).
-        :param json_response: A boolean to indicate whether to return the response in JSON format. Default is True.
-            If set to False, the response will be in markdown format.
+        :param json_response: Controls the response format from the Jina Reader API.
+            If `True`, requests a JSON response, resulting in Documents with rich structured metadata.
+            If `False`, requests a raw response, resulting in one Document with minimal metadata.
         """
-        resolved_api_key = api_key.resolve_value()
         self.api_key = api_key
-        self._session = requests.Session()
         self.json_response = json_response
-        self._session.headers.update(
-            {
-                "Authorization": f"Bearer {resolved_api_key}",
-                "Accept-Encoding": "identity",
-            }
-        )
-
-        if self.json_response:
-            self._session.headers.update({"Accept": "application/json"})
 
         if isinstance(mode, str):
-            self.mode = JinaReaderMode.from_str(mode)
+            mode = JinaReaderMode.from_str(mode)
+        self.mode = mode
 
     def to_dict(self) -> Dict[str, Any]:
         """
@@ -91,7 +92,10 @@ class JinaReaderConnector:
         deserialize_secrets_inplace(data["init_parameters"], keys=["api_key"])
         return default_from_dict(cls, data)
 
-    def parse_json_response(self, data: dict) -> Document:
+    def _json_to_document(self, data: dict) -> Document:
+        """
+        Convert a JSON response/record to a Document, depending on the reader mode.
+        """
         if self.mode == JinaReaderMode.GROUND:
             content = data.pop("reason")
         else:
@@ -102,28 +106,36 @@ class JinaReaderConnector:
     @component.output_types(document=List[Document])
     def run(self, query: str, headers: Optional[Dict[str, str]] = None):
         """
-        Process the query using the Jina AI reader service.
+        Process the query/URL using the Jina AI reader service.
 
         :param query: The query string or URL to process.
-        :param headers: Optional headers to include in the request.
-        :returns: A list containing a single Document object with the processed content and metadata.
+        :param headers: Optional headers to include in the request for customization. Refer to the
+            [Jina Reader documentation](https://jina.ai/reader/) for more information.
+
+        :returns:
+            A dictionary with the following keys:
+                - `documents`: A list of `Document` objects.
         """
-        if headers:
-            self._session.headers.update(headers)
-        mode_map = {JinaReaderMode.READ: "r", JinaReaderMode.SEARCH: "s", JinaReaderMode.GROUND: "g"}
-        mode = mode_map[self.mode]
-        base_url = f"https://{mode}.jina.ai/"
-        encoded_target = urllib.parse.quote(query, safe="")
-        url = f"{base_url}{encoded_target}"
-        response = self._session.get(url)
+        headers = headers or {}
+        headers["Authorization"] = f"Bearer {self.api_key.resolve_value()}"
 
         if self.json_response:
-            response_json = json.loads(response.content).get("data", {})
-            if self.mode == "SEARCH":
-                documents = [self.parse_json_response(record) for record in response_json]
-                return documents
-            return [self.parse_json_response(response_json)]
-        else:
-            metadata = {"content_type": response.headers["Content-Type"], "query": query}
-            documents = [Document(content=response.content, meta=metadata)]
-        return documents
+            headers["Accept"] = "application/json"
+
+        endpoint_url = READER_ENDPOINT_URL_BY_MODE[self.mode]
+        encoded_target = quote(query, safe="")
+        url = f"{endpoint_url}{encoded_target}"
+
+        response = requests.get(url, headers=headers, timeout=60)
+
+        # raw response: we just return a single Document with text
+        if not self.json_response:
+            meta = {"content_type": response.headers["Content-Type"], "query": query}
+            return {"documents": [Document(content=response.content, meta=meta)]}
+
+        response_json = json.loads(response.content).get("data", {})
+        if self.mode == JinaReaderMode.SEARCH:
+            documents = [self._json_to_document(record) for record in response_json]
+            return {"documents": documents}
+
+        return {"documents": [self._json_to_document(response_json)]}

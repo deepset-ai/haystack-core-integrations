@@ -1,4 +1,3 @@
-##### Haystack Implementation ######
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
@@ -10,15 +9,15 @@ class JinaReaderMode(Enum):
     Enum representing modes for the Jina Reader.
 
     Modes:
-        READ: For reading documents.
-        SEARCH: For searching within documents.
-        GROUND: For grounding or fact checking.
+        READ: Process a URL and return the textual content of the page.
+        SEARCH: Search the web and return the textual content of the most relevant pages.
+        GROUND: Call the grounding engine to perform fact checking.
 
     """
 
-    READ = "READ"
-    SEARCH = "SEARCH"
-    GROUND = "GROUND"
+    READ = "read"
+    SEARCH = "search"
+    GROUND = "ground"
 
     def __str__(self):
         return self.value
