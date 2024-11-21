@@ -19,8 +19,7 @@ pip install azure-ai-search-haystack
 ```
 
 ## Examples
-You can find a code example showing how to use the Document Store and the Retriever in the documentation or in [this Colab](https://colab.research.google.com/drive/1YpDetI8BRbObPDEVdfqUcwhEX9UUXP-m?usp=sharing).
-
+You can find a code example showing how to use the Document Store and the Retriever in the documentation.
 ## License
 
 `azure-ai-search-haystack` is distributed under the terms of the [Apache-2.0](https://spdx.org/licenses/Apache-2.0.html) license.
