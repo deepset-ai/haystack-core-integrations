@@ -19,7 +19,8 @@ pip install azure-ai-search-haystack
 ```
 
 ## Examples
-You can find a code example showing how to use the Document Store and the Retriever in the documentation.
+Refer to the documentation for code examples on utilizing the Document Store and its associated Retrievers. For more usage scenarios, check out the [examples](https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/azure_ai_search/example).
+
 ## License
 
 `azure-ai-search-haystack` is distributed under the terms of the [Apache-2.0](https://spdx.org/licenses/Apache-2.0.html) license.
