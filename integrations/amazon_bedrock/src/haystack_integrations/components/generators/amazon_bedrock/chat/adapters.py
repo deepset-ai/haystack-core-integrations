@@ -386,6 +386,10 @@ class MistralChatAdapter(BedrockModelChatAdapter):
         stop_words = inference_kwargs.pop("stop_words", [])
         if stop_words:
             inference_kwargs["stop"] = stop_words
+
+        # pop stream kwarg from inference_kwargs as Mistral does not support it (if provided)
+        inference_kwargs.pop("stream", None)
+
         params = self._get_params(inference_kwargs, default_params, self.ALLOWED_PARAMS)
         body = {"prompt": self.prepare_chat_messages(messages=messages), **params}
         return body
