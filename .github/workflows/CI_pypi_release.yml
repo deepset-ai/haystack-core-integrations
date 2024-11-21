@@ -54,7 +54,7 @@ jobs:
         with:
           config: cliff.toml
           args: >
-            --include-path "${{ steps.pathfinder.outputs.project_path }}/*"
+            --include-path "${{ steps.pathfinder.outputs.project_path }}/**/*"
             --tag-pattern "${{ steps.pathfinder.outputs.project_path }}-v*"
 
       - name: Commit changelog
