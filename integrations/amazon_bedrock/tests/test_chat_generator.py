@@ -5,13 +5,8 @@ from haystack.dataclasses import ChatMessage, ChatRole, StreamingChunk
 from haystack_integrations.components.generators.amazon_bedrock import AmazonBedrockChatGenerator
 
 KLASS = "haystack_integrations.components.generators.amazon_bedrock.chat.chat_generator.AmazonBedrockChatGenerator"
-MODELS_TO_TEST = ["anthropic.claude-3-5-sonnet-20240620-v1:0"]
-MODELS_TO_TEST_WITH_TOOLS = ["anthropic.claude-3-haiku-20240307-v1:0"]
-MISTRAL_MODELS = [
-    "mistral.mistral-7b-instruct-v0:2",
-    "mistral.mixtral-8x7b-instruct-v0:1",
-    "mistral.mistral-large-2402-v1:0",
-]
+MODELS_TO_TEST = ["anthropic.claude-3-5-sonnet-20240620-v1:0", "cohere.command-r-plus-v1:0", "mistral.mistral-large-2402-v1:0"]
+MODELS_TO_TEST_WITH_TOOLS = ["anthropic.claude-3-5-sonnet-20240620-v1:0"]
 
 
 @pytest.fixture
