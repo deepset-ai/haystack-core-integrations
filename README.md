@@ -85,3 +85,8 @@ GitHub. The GitHub Actions workflow will take care of the rest.
     git push --tags origin
     ```
 3. Wait for the CI to do its magic
+
+> [!IMPORTANT]  
+> When releasing a new integration version, always tag a commit that includes the changes for that integration 
+> (usually the PR merge commit). If you tag a commit that doesn’t include changes for the integration being released, 
+> the generated changelog will be incorrect.
