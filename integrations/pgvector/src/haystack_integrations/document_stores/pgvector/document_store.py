@@ -78,6 +78,7 @@ class PgvectorDocumentStore:
         self,
         *,
         connection_string: Secret = Secret.from_env_var("PG_CONN_STR"),
+        create_extension: bool = True,
         schema_name: str = "public",
         table_name: str = "haystack_documents",
         language: str = "english",
@@ -90,7 +91,6 @@ class PgvectorDocumentStore:
         hnsw_index_name: str = "haystack_hnsw_index",
         hnsw_ef_search: Optional[int] = None,
         keyword_index_name: str = "haystack_keyword_index",
-        create_extension: bool = True,
     ):
         """
         Creates a new PgvectorDocumentStore instance.
@@ -103,6 +103,10 @@ class PgvectorDocumentStore:
             e.g.: `PG_CONN_STR="host=HOST port=PORT dbname=DBNAME user=USER password=PASSWORD"`
             See [PostgreSQL Documentation](https://www.postgresql.org/docs/current/libpq-connect.html#LIBPQ-CONNSTRING)
             for more details.
+        :param create_extension: Whether to create the pgvector extension if it doesn't exist.
+            Set this to `True` (default) to automatically create the extension if it is missing.
+            Creating the extension may require superuser privileges.
+            If set to `False`, ensure the extension is already installed; otherwise, an error will be raised.
         :param schema_name: The name of the schema the table is created in. The schema must already exist.
         :param table_name: The name of the table to use to store Haystack documents.
         :param language: The language to be used to parse query and document content in keyword retrieval.
@@ -136,10 +140,10 @@ class PgvectorDocumentStore:
             `"hnsw"`. You can find more information about this parameter in the
             [pgvector documentation](https://github.com/pgvector/pgvector?tab=readme-ov-file#hnsw).
         :param keyword_index_name: Index name for the Keyword index.
-        :param create_extension: create pgvector extension if it doesn't exist.'
         """
 
         self.connection_string = connection_string
+        self.create_extension = create_extension
         self.table_name = table_name
         self.schema_name = schema_name
         self.embedding_dimension = embedding_dimension
@@ -155,7 +159,6 @@ class PgvectorDocumentStore:
         self.hnsw_ef_search = hnsw_ef_search
         self.keyword_index_name = keyword_index_name
         self.language = language
-        self.create_extension = create_extension
         self._connection = None
         self._cursor = None
         self._dict_cursor = None
@@ -250,6 +253,7 @@ class PgvectorDocumentStore:
         return default_to_dict(
             self,
             connection_string=self.connection_string.to_dict(),
+            create_extension=self.create_extension,
             schema_name=self.schema_name,
             table_name=self.table_name,
             embedding_dimension=self.embedding_dimension,
