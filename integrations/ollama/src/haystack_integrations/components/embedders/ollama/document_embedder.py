@@ -122,7 +122,7 @@ class OllamaDocumentEmbedder:
             - `documents`: Documents with embedding information attached
             - `meta`: The metadata collected during the embedding process
         """
-        if not isinstance(documents, list) or documents and not isinstance(documents[0], Document):
+        if not isinstance(documents, list) or (documents and not isinstance(documents[0], Document)):
             msg = (
                 "OllamaDocumentEmbedder expects a list of Documents as input."
                 "In case you want to embed a list of strings, please use the OllamaTextEmbedder."
