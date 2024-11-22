@@ -1,5 +1,11 @@
 # Changelog
 
+## [integrations/ollama-v2.0.0] - 2024-11-22
+
+### 🐛 Bug Fixes
+
+- Adapt to Ollama client 0.4.0 (#1209)
+
 ## [integrations/ollama-v1.1.0] - 2024-10-11
 
 ### 🚀 Features
