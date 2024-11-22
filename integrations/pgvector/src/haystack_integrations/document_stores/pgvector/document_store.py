@@ -90,6 +90,7 @@ class PgvectorDocumentStore:
         hnsw_index_name: str = "haystack_hnsw_index",
         hnsw_ef_search: Optional[int] = None,
         keyword_index_name: str = "haystack_keyword_index",
+        create_extension: bool = True,
     ):
         """
         Creates a new PgvectorDocumentStore instance.
@@ -135,6 +136,7 @@ class PgvectorDocumentStore:
             `"hnsw"`. You can find more information about this parameter in the
             [pgvector documentation](https://github.com/pgvector/pgvector?tab=readme-ov-file#hnsw).
         :param keyword_index_name: Index name for the Keyword index.
+        :param create_extension: create pgvector extension if it doesn't exist.'
         """
 
         self.connection_string = connection_string
@@ -153,6 +155,7 @@ class PgvectorDocumentStore:
         self.hnsw_ef_search = hnsw_ef_search
         self.keyword_index_name = keyword_index_name
         self.language = language
+        self.create_extension = create_extension
         self._connection = None
         self._cursor = None
         self._dict_cursor = None
@@ -194,7 +197,8 @@ class PgvectorDocumentStore:
         conn_str = self.connection_string.resolve_value() or ""
         connection = connect(conn_str)
         connection.autocommit = True
-        connection.execute("CREATE EXTENSION IF NOT EXISTS vector")
+        if self.create_extension:
+            connection.execute("CREATE EXTENSION IF NOT EXISTS vector")
         register_vector(connection)  # Note: this must be called before creating the cursors.
 
         self._connection = connection
