@@ -202,7 +202,7 @@ class AstraClient:
         return QueryResponse(final_res)
 
     def _query(self, vector, top_k, filters=None):
-        query = {"sort": {"$vector": vector}, "options": {"limit": top_k, "includeSimilarity": True}}
+        query = {"sort": {"$vector": vector}, "limit": top_k, "includeSimilarity": True}
 
         if filters is not None:
             query["filter"] = filters
@@ -222,6 +222,7 @@ class AstraClient:
             filter=find_query.get("filter"),
             sort=find_query.get("sort"),
             limit=find_query.get("limit"),
+            include_similarity=find_query.get("includeSimilarity"),
             projection={"*": 1},
         )
 
