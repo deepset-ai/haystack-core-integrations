@@ -78,6 +78,7 @@ class PgvectorDocumentStore:
         self,
         *,
         connection_string: Secret = Secret.from_env_var("PG_CONN_STR"),
+        create_extension: bool = True,
         schema_name: str = "public",
         table_name: str = "haystack_documents",
         language: str = "english",
@@ -102,6 +103,10 @@ class PgvectorDocumentStore:
             e.g.: `PG_CONN_STR="host=HOST port=PORT dbname=DBNAME user=USER password=PASSWORD"`
             See [PostgreSQL Documentation](https://www.postgresql.org/docs/current/libpq-connect.html#LIBPQ-CONNSTRING)
             for more details.
+        :param create_extension: Whether to create the pgvector extension if it doesn't exist.
+            Set this to `True` (default) to automatically create the extension if it is missing.
+            Creating the extension may require superuser privileges.
+            If set to `False`, ensure the extension is already installed; otherwise, an error will be raised.
         :param schema_name: The name of the schema the table is created in. The schema must already exist.
         :param table_name: The name of the table to use to store Haystack documents.
         :param language: The language to be used to parse query and document content in keyword retrieval.
@@ -138,6 +143,7 @@ class PgvectorDocumentStore:
         """
 
         self.connection_string = connection_string
+        self.create_extension = create_extension
         self.table_name = table_name
         self.schema_name = schema_name
         self.embedding_dimension = embedding_dimension
@@ -194,7 +200,8 @@ class PgvectorDocumentStore:
         conn_str = self.connection_string.resolve_value() or ""
         connection = connect(conn_str)
         connection.autocommit = True
-        connection.execute("CREATE EXTENSION IF NOT EXISTS vector")
+        if self.create_extension:
+            connection.execute("CREATE EXTENSION IF NOT EXISTS vector")
         register_vector(connection)  # Note: this must be called before creating the cursors.
 
         self._connection = connection
@@ -246,6 +253,7 @@ class PgvectorDocumentStore:
         return default_to_dict(
             self,
             connection_string=self.connection_string.to_dict(),
+            create_extension=self.create_extension,
             schema_name=self.schema_name,
             table_name=self.table_name,
             embedding_dimension=self.embedding_dimension,
