@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/azure_ai_search-v0.1.1] - 2024-11-22
+
+### 🐛 Bug Fixes
+
+- Fix error in README file (#1207)
+
+
 ## [integrations/azure_ai_search-v0.1.0] - 2024-11-21
 
 ### 🚀 Features
