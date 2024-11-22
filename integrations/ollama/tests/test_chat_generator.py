@@ -4,7 +4,7 @@ from unittest.mock import Mock
 import pytest
 from haystack.components.generators.utils import print_streaming_chunk
 from haystack.dataclasses import ChatMessage, ChatRole
-from ollama._types import ResponseError
+from ollama._types import ChatResponse, ResponseError
 
 from haystack_integrations.components.generators.ollama import OllamaChatGenerator
 
@@ -86,18 +86,18 @@ class TestOllamaChatGenerator:
     def test_build_message_from_ollama_response(self):
         model = "some_model"
 
-        ollama_response = {
-            "model": model,
-            "created_at": "2023-12-12T14:13:43.416799Z",
-            "message": {"role": "assistant", "content": "Hello! How are you today?"},
-            "done": True,
-            "total_duration": 5191566416,
-            "load_duration": 2154458,
-            "prompt_eval_count": 26,
-            "prompt_eval_duration": 383809000,
-            "eval_count": 298,
-            "eval_duration": 4799921000,
-        }
+        ollama_response = ChatResponse(
+            model=model,
+            created_at="2023-12-12T14:13:43.416799Z",
+            message={"role": "assistant", "content": "Hello! How are you today?"},
+            done=True,
+            total_duration=5191566416,
+            load_duration=2154458,
+            prompt_eval_count=26,
+            prompt_eval_duration=383809000,
+            eval_count=298,
+            eval_duration=4799921000,
+        )
 
         observed = OllamaChatGenerator(model=model)._build_message_from_ollama_response(ollama_response)
 
