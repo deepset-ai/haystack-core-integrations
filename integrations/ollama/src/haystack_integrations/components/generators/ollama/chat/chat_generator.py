@@ -4,7 +4,7 @@ from haystack import component, default_from_dict, default_to_dict
 from haystack.dataclasses import ChatMessage, StreamingChunk
 from haystack.utils.callable_serialization import deserialize_callable, serialize_callable
 
-from ollama import Client
+from ollama import ChatResponse, Client
 
 
 @component
@@ -111,12 +111,13 @@ class OllamaChatGenerator:
     def _message_to_dict(self, message: ChatMessage) -> Dict[str, str]:
         return {"role": message.role.value, "content": message.content}
 
-    def _build_message_from_ollama_response(self, ollama_response: Dict[str, Any]) -> ChatMessage:
+    def _build_message_from_ollama_response(self, ollama_response: ChatResponse) -> ChatMessage:
         """
         Converts the non-streaming response from the Ollama API to a ChatMessage.
         """
-        message = ChatMessage.from_assistant(content=ollama_response["message"]["content"])
-        message.meta.update({key: value for key, value in ollama_response.items() if key != "message"})
+        response_dict = ollama_response.model_dump()
+        message = ChatMessage.from_assistant(content=response_dict["message"]["content"])
+        message.meta.update({key: value for key, value in response_dict.items() if key != "message"})
         return message
 
     def _convert_to_streaming_response(self, chunks: List[StreamingChunk]) -> Dict[str, List[Any]]:
@@ -133,9 +134,11 @@ class OllamaChatGenerator:
         """
         Converts the response from the Ollama API to a StreamingChunk.
         """
-        content = chunk_response["message"]["content"]
-        meta = {key: value for key, value in chunk_response.items() if key != "message"}
-        meta["role"] = chunk_response["message"]["role"]
+        chunk_response_dict = chunk_response.model_dump()
+
+        content = chunk_response_dict["message"]["content"]
+        meta = {key: value for key, value in chunk_response_dict.items() if key != "message"}
+        meta["role"] = chunk_response_dict["message"]["role"]
 
         chunk_message = StreamingChunk(content, meta)
         return chunk_message

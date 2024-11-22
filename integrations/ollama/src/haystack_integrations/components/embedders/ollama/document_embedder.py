@@ -100,7 +100,7 @@ class OllamaDocumentEmbedder:
             range(0, len(texts_to_embed), batch_size), disable=not self.progress_bar, desc="Calculating embeddings"
         ):
             batch = texts_to_embed[i]  # Single batch only
-            result = self._client.embeddings(model=self.model, prompt=batch, options=generation_kwargs)
+            result = self._client.embeddings(model=self.model, prompt=batch, options=generation_kwargs).model_dump()
             all_embeddings.append(result["embedding"])
 
         meta["model"] = self.model
@@ -122,7 +122,7 @@ class OllamaDocumentEmbedder:
             - `documents`: Documents with embedding information attached
             - `meta`: The metadata collected during the embedding process
         """
-        if not isinstance(documents, list) or documents and not isinstance(documents[0], Document):
+        if not isinstance(documents, list) or (documents and not isinstance(documents[0], Document)):
             msg = (
                 "OllamaDocumentEmbedder expects a list of Documents as input."
                 "In case you want to embed a list of strings, please use the OllamaTextEmbedder."

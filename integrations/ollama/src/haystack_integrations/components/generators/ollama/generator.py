@@ -4,7 +4,7 @@ from haystack import component, default_from_dict, default_to_dict
 from haystack.dataclasses import StreamingChunk
 from haystack.utils.callable_serialization import deserialize_callable, serialize_callable
 
-from ollama import Client
+from ollama import Client, GenerateResponse
 
 
 @component
@@ -118,15 +118,14 @@ class OllamaGenerator:
             data["init_parameters"]["streaming_callback"] = deserialize_callable(serialized_callback_handler)
         return default_from_dict(cls, data)
 
-    def _convert_to_response(self, ollama_response: Dict[str, Any]) -> Dict[str, List[Any]]:
+    def _convert_to_response(self, ollama_response: GenerateResponse) -> Dict[str, List[Any]]:
         """
         Converts a response from the Ollama API to the required Haystack format.
         """
+        reply = ollama_response.response
+        meta = {key: value for key, value in ollama_response.model_dump().items() if key != "response"}
 
-        replies = [ollama_response["response"]]
-        meta = {key: value for key, value in ollama_response.items() if key != "response"}
-
-        return {"replies": replies, "meta": [meta]}
+        return {"replies": [reply], "meta": [meta]}
 
     def _convert_to_streaming_response(self, chunks: List[StreamingChunk]) -> Dict[str, List[Any]]:
         """
@@ -154,8 +153,9 @@ class OllamaGenerator:
         """
         Converts the response from the Ollama API to a StreamingChunk.
         """
-        content = chunk_response["response"]
-        meta = {key: value for key, value in chunk_response.items() if key != "response"}
+        chunk_response_dict = chunk_response.model_dump()
+        content = chunk_response_dict["response"]
+        meta = {key: value for key, value in chunk_response_dict.items() if key != "response"}
 
         chunk_message = StreamingChunk(content, meta)
         return chunk_message
