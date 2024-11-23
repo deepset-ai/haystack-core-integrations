@@ -8,7 +8,7 @@ from .fastembed_text_embedder import FastembedTextEmbedder
 
 __all__ = [
     "FastembedDocumentEmbedder",
-    "FastembedTextEmbedder",
     "FastembedSparseDocumentEmbedder",
     "FastembedSparseTextEmbedder",
+    "FastembedTextEmbedder",
 ]

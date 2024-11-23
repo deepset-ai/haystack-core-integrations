@@ -158,7 +158,7 @@ class InstructorDocumentEmbedder:
 
         param documents: A list of Documents to embed.
         """
-        if not isinstance(documents, list) or documents and not isinstance(documents[0], Document):
+        if not isinstance(documents, list) or (documents and not isinstance(documents[0], Document)):
             msg = (
                 "InstructorDocumentEmbedder expects a list of Documents as input. "
                 "In case you want to embed a list of strings, please use the InstructorTextEmbedder."

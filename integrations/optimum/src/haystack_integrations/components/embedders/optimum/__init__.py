@@ -10,10 +10,10 @@ from .quantization import OptimumEmbedderQuantizationConfig, OptimumEmbedderQuan
 
 __all__ = [
     "OptimumDocumentEmbedder",
-    "OptimumEmbedderOptimizationMode",
     "OptimumEmbedderOptimizationConfig",
+    "OptimumEmbedderOptimizationMode",
     "OptimumEmbedderPooling",
-    "OptimumEmbedderQuantizationMode",
     "OptimumEmbedderQuantizationConfig",
+    "OptimumEmbedderQuantizationMode",
     "OptimumTextEmbedder",
 ]

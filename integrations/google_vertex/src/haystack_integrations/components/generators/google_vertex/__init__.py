@@ -11,8 +11,8 @@ from .text_generator import VertexAITextGenerator
 
 __all__ = [
     "VertexAICodeGenerator",
-    "VertexAIGeminiGenerator",
     "VertexAIGeminiChatGenerator",
+    "VertexAIGeminiGenerator",
     "VertexAIImageCaptioner",
     "VertexAIImageGenerator",
     "VertexAIImageQA",
