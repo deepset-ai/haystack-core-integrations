@@ -146,7 +146,7 @@ class CohereDocumentEmbedder:
             - `meta`: metadata about the embedding process.
         :raises TypeError: if the input is not a list of `Documents`.
         """
-        if not isinstance(documents, list) or documents and not isinstance(documents[0], Document):
+        if not isinstance(documents, list) or (documents and not isinstance(documents[0], Document)):
             msg = (
                 "CohereDocumentEmbedder expects a list of Documents as input."
                 "In case you want to embed a string, please use the CohereTextEmbedder."

@@ -5,4 +5,4 @@ from .chat.chat_generator import AnthropicChatGenerator
 from .chat.vertex_chat_generator import AnthropicVertexChatGenerator
 from .generator import AnthropicGenerator
 
-__all__ = ["AnthropicGenerator", "AnthropicChatGenerator", "AnthropicVertexChatGenerator"]
+__all__ = ["AnthropicChatGenerator", "AnthropicGenerator", "AnthropicVertexChatGenerator"]

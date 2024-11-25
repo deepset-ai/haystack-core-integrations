@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/pgvector-v1.2.0] - 2024-11-22
+
+### 🚀 Features
+
+- Add `create_extension` parameter to control vector extension creation (#1213)
+
+
 ## [integrations/pgvector-v1.1.0] - 2024-11-21
 
 ### 🚀 Features

@@ -161,13 +161,13 @@ def test_to_dict_with_params(_mock_vertexai_init, _mock_generative_model):
                             "name": "get_current_weather",
                             "description": "Get the current weather in a given location",
                             "parameters": {
-                                "type_": "OBJECT",
+                                "type": "OBJECT",
                                 "properties": {
                                     "location": {
-                                        "type_": "STRING",
+                                        "type": "STRING",
                                         "description": "The city and state, e.g. San Francisco, CA",
                                     },
-                                    "unit": {"type_": "STRING", "enum": ["celsius", "fahrenheit"]},
+                                    "unit": {"type": "STRING", "enum": ["celsius", "fahrenheit"]},
                                 },
                                 "required": ["location"],
                                 "property_ordering": ["location", "unit"],

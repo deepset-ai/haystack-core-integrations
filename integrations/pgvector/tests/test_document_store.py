@@ -66,6 +66,7 @@ def test_init(monkeypatch):
     monkeypatch.setenv("PG_CONN_STR", "some_connection_string")
 
     document_store = PgvectorDocumentStore(
+        create_extension=True,
         schema_name="my_schema",
         table_name="my_table",
         embedding_dimension=512,
@@ -79,6 +80,7 @@ def test_init(monkeypatch):
         keyword_index_name="my_keyword_index",
     )
 
+    assert document_store.create_extension
     assert document_store.schema_name == "my_schema"
     assert document_store.table_name == "my_table"
     assert document_store.embedding_dimension == 512
@@ -97,6 +99,7 @@ def test_to_dict(monkeypatch):
     monkeypatch.setenv("PG_CONN_STR", "some_connection_string")
 
     document_store = PgvectorDocumentStore(
+        create_extension=False,
         table_name="my_table",
         embedding_dimension=512,
         vector_function="l2_distance",
@@ -113,6 +116,7 @@ def test_to_dict(monkeypatch):
         "type": "haystack_integrations.document_stores.pgvector.document_store.PgvectorDocumentStore",
         "init_parameters": {
             "connection_string": {"env_vars": ["PG_CONN_STR"], "strict": True, "type": "env_var"},
+            "create_extension": False,
             "table_name": "my_table",
             "schema_name": "public",
             "embedding_dimension": 512,

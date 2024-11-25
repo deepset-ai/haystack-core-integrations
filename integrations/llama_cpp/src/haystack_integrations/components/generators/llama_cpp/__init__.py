@@ -5,4 +5,4 @@
 from .chat.chat_generator import LlamaCppChatGenerator
 from .generator import LlamaCppGenerator
 
-__all__ = ["LlamaCppGenerator", "LlamaCppChatGenerator"]
+__all__ = ["LlamaCppChatGenerator", "LlamaCppGenerator"]

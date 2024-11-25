@@ -4,4 +4,4 @@
 from .chat.gemini import GoogleAIGeminiChatGenerator
 from .gemini import GoogleAIGeminiGenerator
 
-__all__ = ["GoogleAIGeminiGenerator", "GoogleAIGeminiChatGenerator"]
+__all__ = ["GoogleAIGeminiChatGenerator", "GoogleAIGeminiGenerator"]
