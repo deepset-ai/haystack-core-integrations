@@ -14,6 +14,11 @@ integration:astra:
       - any-glob-to-any-file: "integrations/astra/**/*"
       - any-glob-to-any-file: ".github/workflows/astra.yml"
 
+integration:azure-ai-search:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/azure_ai_search/**/*"
+      - any-glob-to-any-file: ".github/workflows/azure_ai_search.yml"
+
 integration:chroma:
   - changed-files:
       - any-glob-to-any-file: "integrations/chroma/**/*"
