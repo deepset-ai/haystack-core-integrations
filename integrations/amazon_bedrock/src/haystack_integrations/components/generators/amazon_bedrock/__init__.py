@@ -4,4 +4,4 @@
 from .chat.chat_generator import AmazonBedrockChatGenerator
 from .generator import AmazonBedrockGenerator
 
-__all__ = ["AmazonBedrockGenerator", "AmazonBedrockChatGenerator"]
+__all__ = ["AmazonBedrockChatGenerator", "AmazonBedrockGenerator"]
