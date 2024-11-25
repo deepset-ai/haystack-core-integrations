@@ -157,7 +157,7 @@ class FastembedRanker:
 
         :raises ValueError: If `top_k` is not > 0.
         """
-        if not isinstance(documents, list) or documents and not isinstance(documents[0], Document):
+        if not isinstance(documents, list) or (documents and not isinstance(documents[0], Document)):
             msg = "FastembedRanker expects a list of Documents as input. "
             raise TypeError(msg)
         if query == "":

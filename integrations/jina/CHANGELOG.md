@@ -1,16 +1,48 @@
 # Changelog
 
+## [integrations/jina-v0.5.0] - 2024-11-21
+
+### 🚀 Features
+
+- Add `JinaReaderConnector` (#1150)
+
+### 📚 Documentation
+
+- Update docstrings of JinaDocumentEmbedder and JinaTextEmbedder (#1092)
+
+### ⚙️ CI
+
+- Adopt uv as installer (#1142)
+
+### 🧹 Chores
+
+- Update ruff linting scripts and settings (#1105)
+
+
 ## [integrations/jina-v0.4.0] - 2024-09-18
 
 ### 🧪 Testing
 
 - Do not retry tests in `hatch run test` command (#954)
 
-### ⚙️ Miscellaneous Tasks
+### ⚙️ CI
 
 - Retry tests to reduce flakyness (#836)
+
+### 🧹 Chores
+
 - Update ruff invocation to include check parameter (#853)
 - Update Jina Embedder usage for V3 release (#1077)
+
+### 🌀 Miscellaneous
+
+- Remove references to Python 3.7 (#601)
+- Jina - add missing ranker to API reference (#610)
+- Jina ranker: fix wrong URL in docstring (#628)
+- Chore: add license classifiers (#680)
+- Chore: change the pydoc renderer class (#718)
+- Ci: install `pytest-rerunfailures` where needed; add retry config to `test-cov` script (#845)
+- Chore: Jina - ruff update, don't ruff tests (#982)
 
 ## [integrations/jina-v0.3.0] - 2024-03-19
 
@@ -22,12 +54,16 @@
 
 - Fix order of API docs (#447)
 
-This PR will also push the docs to Readme
-
 ### 📚 Documentation
 
 - Update category slug (#442)
 - Disable-class-def (#556)
+
+### 🌀 Miscellaneous
+
+- Jina - remove dead code (#422)
+- Jina - review docstrings (#504)
+- Make tests show coverage (#566)
 
 ## [integrations/jina-v0.2.0] - 2024-02-14
 
@@ -39,7 +75,7 @@ This PR will also push the docs to Readme
 
 - Update paths and titles (#397)
 
-### Jina
+### 🌀 Miscellaneous
 
 - Update secrets management (#411)
 
@@ -47,17 +83,21 @@ This PR will also push the docs to Readme
 
 ### 🐛 Bug Fixes
 
-- Fix project urls (#96)
-
-
+- Fix project URLs (#96)
 
 ### 🚜 Refactor
 
 - Use `hatch_vcs` to manage integrations versioning (#103)
 
-### ⚙️ Miscellaneous Tasks
+### 🧹 Chores
 
 - [**breaking**] Rename model_name to model in the Jina integration (#230)
+
+### 🌀 Miscellaneous
+
+- Change metadata to meta (#152)
+- Optimize API key reading (#162)
+- Refact!:change import paths (#254)
 
 ## [integrations/jina-v0.0.1] - 2023-12-11
 

@@ -41,12 +41,32 @@ class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsT
         retrieved_docs = document_store.filter_documents()
         assert retrieved_docs == docs
 
+    def test_connection_check_and_recreation(self, document_store: PgvectorDocumentStore):
+        original_connection = document_store.connection
+
+        with patch.object(PgvectorDocumentStore, "_connection_is_valid", return_value=False):
+            new_connection = document_store.connection
+
+        # verify that a new connection is created
+        assert new_connection is not original_connection
+        assert document_store._connection == new_connection
+        assert original_connection.closed
+
+        assert document_store._cursor is not None
+        assert document_store._dict_cursor is not None
+
+        # test with new connection
+        with patch.object(PgvectorDocumentStore, "_connection_is_valid", return_value=True):
+            same_connection = document_store.connection
+            assert same_connection is document_store._connection
+
 
 @pytest.mark.usefixtures("patches_for_unit_tests")
 def test_init(monkeypatch):
     monkeypatch.setenv("PG_CONN_STR", "some_connection_string")
 
     document_store = PgvectorDocumentStore(
+        create_extension=True,
         schema_name="my_schema",
         table_name="my_table",
         embedding_dimension=512,
@@ -60,6 +80,7 @@ def test_init(monkeypatch):
         keyword_index_name="my_keyword_index",
     )
 
+    assert document_store.create_extension
     assert document_store.schema_name == "my_schema"
     assert document_store.table_name == "my_table"
     assert document_store.embedding_dimension == 512
@@ -78,6 +99,7 @@ def test_to_dict(monkeypatch):
     monkeypatch.setenv("PG_CONN_STR", "some_connection_string")
 
     document_store = PgvectorDocumentStore(
+        create_extension=False,
         table_name="my_table",
         embedding_dimension=512,
         vector_function="l2_distance",
@@ -94,6 +116,7 @@ def test_to_dict(monkeypatch):
         "type": "haystack_integrations.document_stores.pgvector.document_store.PgvectorDocumentStore",
         "init_parameters": {
             "connection_string": {"env_vars": ["PG_CONN_STR"], "strict": True, "type": "env_var"},
+            "create_extension": False,
             "table_name": "my_table",
             "schema_name": "public",
             "embedding_dimension": 512,

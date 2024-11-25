@@ -19,8 +19,8 @@ class TestNvidiaRanker:
     def test_init_default(self, monkeypatch):
         monkeypatch.setenv("NVIDIA_API_KEY", "fake-api-key")
         client = NvidiaRanker()
-        assert client._model == _DEFAULT_MODEL
-        assert client._api_key == Secret.from_env_var("NVIDIA_API_KEY")
+        assert client.model == _DEFAULT_MODEL
+        assert client.api_key == Secret.from_env_var("NVIDIA_API_KEY")
 
     def test_init_with_parameters(self):
         client = NvidiaRanker(
@@ -29,10 +29,10 @@ class TestNvidiaRanker:
             top_k=3,
             truncate="END",
         )
-        assert client._api_key == Secret.from_token("fake-api-key")
-        assert client._model == _DEFAULT_MODEL
-        assert client._top_k == 3
-        assert client._truncate == RankerTruncateMode.END
+        assert client.api_key == Secret.from_token("fake-api-key")
+        assert client.model == _DEFAULT_MODEL
+        assert client.top_k == 3
+        assert client.truncate == RankerTruncateMode.END
 
     def test_init_fail_wo_api_key(self, monkeypatch):
         monkeypatch.delenv("NVIDIA_API_KEY", raising=False)
@@ -43,7 +43,7 @@ class TestNvidiaRanker:
     def test_init_pass_wo_api_key_w_api_url(self):
         url = "https://url.bogus/v1"
         client = NvidiaRanker(api_url=url)
-        assert client._api_url == url
+        assert client.api_url == url
 
     def test_warm_up_required(self):
         client = NvidiaRanker()
@@ -271,6 +271,11 @@ class TestNvidiaRanker:
                 "truncate": None,
                 "api_url": None,
                 "api_key": {"type": "env_var", "env_vars": ["NVIDIA_API_KEY"], "strict": True},
+                "query_prefix": "",
+                "document_prefix": "",
+                "meta_fields_to_embed": [],
+                "embedding_separator": "\n",
+                "timeout": 60.0,
             },
         }
 
@@ -284,14 +289,24 @@ class TestNvidiaRanker:
                     "truncate": None,
                     "api_url": None,
                     "api_key": {"type": "env_var", "env_vars": ["NVIDIA_API_KEY"], "strict": True},
+                    "query_prefix": "",
+                    "document_prefix": "",
+                    "meta_fields_to_embed": [],
+                    "embedding_separator": "\n",
+                    "timeout": 45.0,
                 },
             }
         )
-        assert client._model == "nvidia/nv-rerankqa-mistral-4b-v3"
-        assert client._top_k == 5
-        assert client._truncate is None
-        assert client._api_url is None
-        assert client._api_key == Secret.from_env_var("NVIDIA_API_KEY")
+        assert client.model == "nvidia/nv-rerankqa-mistral-4b-v3"
+        assert client.top_k == 5
+        assert client.truncate is None
+        assert client.api_url is None
+        assert client.api_key == Secret.from_env_var("NVIDIA_API_KEY")
+        assert client.query_prefix == ""
+        assert client.document_prefix == ""
+        assert client.meta_fields_to_embed == []
+        assert client.embedding_separator == "\n"
+        assert client.timeout == 45.0
 
     def test_from_dict_defaults(self) -> None:
         client = NvidiaRanker.from_dict(
@@ -300,8 +315,49 @@ class TestNvidiaRanker:
                 "init_parameters": {},
             }
         )
-        assert client._model == "nvidia/nv-rerankqa-mistral-4b-v3"
-        assert client._top_k == 5
-        assert client._truncate is None
-        assert client._api_url is None
-        assert client._api_key == Secret.from_env_var("NVIDIA_API_KEY")
+        assert client.model == "nvidia/nv-rerankqa-mistral-4b-v3"
+        assert client.top_k == 5
+        assert client.truncate is None
+        assert client.api_url is None
+        assert client.api_key == Secret.from_env_var("NVIDIA_API_KEY")
+        assert client.query_prefix == ""
+        assert client.document_prefix == ""
+        assert client.meta_fields_to_embed == []
+        assert client.embedding_separator == "\n"
+        assert client.timeout == 60.0
+
+    def test_setting_timeout(self, monkeypatch):
+        monkeypatch.setenv("NVIDIA_API_KEY", "fake-api-key")
+        client = NvidiaRanker(timeout=10.0)
+        client.warm_up()
+        assert client._backend.timeout == 10.0
+
+    def test_setting_timeout_env(self, monkeypatch):
+        monkeypatch.setenv("NVIDIA_API_KEY", "fake-api-key")
+        monkeypatch.setenv("NVIDIA_TIMEOUT", "45")
+        client = NvidiaRanker()
+        client.warm_up()
+        assert client._backend.timeout == 45.0
+
+    def test_prepare_texts_to_embed_w_metadata(self):
+        documents = [
+            Document(content=f"document number {i}:\ncontent", meta={"meta_field": f"meta_value {i}"}) for i in range(5)
+        ]
+
+        ranker = NvidiaRanker(
+            model=None,
+            api_key=Secret.from_token("fake-api-key"),
+            meta_fields_to_embed=["meta_field"],
+            embedding_separator=" | ",
+        )
+
+        prepared_texts = ranker._prepare_documents_to_embed(documents)
+
+        # note that newline is replaced by space
+        assert prepared_texts == [
+            "meta_value 0 | document number 0:\ncontent",
+            "meta_value 1 | document number 1:\ncontent",
+            "meta_value 2 | document number 2:\ncontent",
+            "meta_value 3 | document number 3:\ncontent",
+            "meta_value 4 | document number 4:\ncontent",
+        ]

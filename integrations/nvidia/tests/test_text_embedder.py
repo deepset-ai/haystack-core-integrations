@@ -56,6 +56,7 @@ class TestNvidiaTextEmbedder:
                 "prefix": "",
                 "suffix": "",
                 "truncate": None,
+                "timeout": 60.0,
             },
         }
 
@@ -67,6 +68,7 @@ class TestNvidiaTextEmbedder:
             prefix="prefix",
             suffix="suffix",
             truncate=EmbeddingTruncateMode.START,
+            timeout=10.0,
         )
         data = component.to_dict()
         assert data == {
@@ -78,6 +80,7 @@ class TestNvidiaTextEmbedder:
                 "prefix": "prefix",
                 "suffix": "suffix",
                 "truncate": "START",
+                "timeout": 10.0,
             },
         }
 
@@ -92,6 +95,7 @@ class TestNvidiaTextEmbedder:
                 "prefix": "prefix",
                 "suffix": "suffix",
                 "truncate": "START",
+                "timeout": 10.0,
             },
         }
         component = NvidiaTextEmbedder.from_dict(data)
@@ -100,6 +104,7 @@ class TestNvidiaTextEmbedder:
         assert component.prefix == "prefix"
         assert component.suffix == "suffix"
         assert component.truncate == EmbeddingTruncateMode.START
+        assert component.timeout == 10.0
 
     def test_from_dict_defaults(self, monkeypatch):
         monkeypatch.setenv("NVIDIA_API_KEY", "fake-api-key")
@@ -174,6 +179,19 @@ class TestNvidiaTextEmbedder:
 
         with pytest.raises(ValueError, match="empty string"):
             embedder.run(text="")
+
+    def test_setting_timeout(self, monkeypatch):
+        monkeypatch.setenv("NVIDIA_API_KEY", "fake-api-key")
+        embedder = NvidiaTextEmbedder(timeout=10.0)
+        embedder.warm_up()
+        assert embedder.backend.timeout == 10.0
+
+    def test_setting_timeout_env(self, monkeypatch):
+        monkeypatch.setenv("NVIDIA_API_KEY", "fake-api-key")
+        monkeypatch.setenv("NVIDIA_TIMEOUT", "45")
+        embedder = NvidiaTextEmbedder()
+        embedder.warm_up()
+        assert embedder.backend.timeout == 45.0
 
     @pytest.mark.skipif(
         not os.environ.get("NVIDIA_NIM_EMBEDDER_MODEL", None) or not os.environ.get("NVIDIA_NIM_ENDPOINT_URL", None),

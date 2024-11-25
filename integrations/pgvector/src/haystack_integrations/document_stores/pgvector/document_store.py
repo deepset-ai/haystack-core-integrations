@@ -78,6 +78,7 @@ class PgvectorDocumentStore:
         self,
         *,
         connection_string: Secret = Secret.from_env_var("PG_CONN_STR"),
+        create_extension: bool = True,
         schema_name: str = "public",
         table_name: str = "haystack_documents",
         language: str = "english",
@@ -102,6 +103,10 @@ class PgvectorDocumentStore:
             e.g.: `PG_CONN_STR="host=HOST port=PORT dbname=DBNAME user=USER password=PASSWORD"`
             See [PostgreSQL Documentation](https://www.postgresql.org/docs/current/libpq-connect.html#LIBPQ-CONNSTRING)
             for more details.
+        :param create_extension: Whether to create the pgvector extension if it doesn't exist.
+            Set this to `True` (default) to automatically create the extension if it is missing.
+            Creating the extension may require superuser privileges.
+            If set to `False`, ensure the extension is already installed; otherwise, an error will be raised.
         :param schema_name: The name of the schema the table is created in. The schema must already exist.
         :param table_name: The name of the table to use to store Haystack documents.
         :param language: The language to be used to parse query and document content in keyword retrieval.
@@ -138,6 +143,7 @@ class PgvectorDocumentStore:
         """
 
         self.connection_string = connection_string
+        self.create_extension = create_extension
         self.table_name = table_name
         self.schema_name = schema_name
         self.embedding_dimension = embedding_dimension
@@ -156,49 +162,86 @@ class PgvectorDocumentStore:
         self._connection = None
         self._cursor = None
         self._dict_cursor = None
+        self._table_initialized = False
 
     @property
     def cursor(self):
-        if self._cursor is None:
+        if self._cursor is None or not self._connection_is_valid(self._connection):
             self._create_connection()
 
         return self._cursor
 
     @property
     def dict_cursor(self):
-        if self._dict_cursor is None:
+        if self._dict_cursor is None or not self._connection_is_valid(self._connection):
             self._create_connection()
 
         return self._dict_cursor
 
     @property
     def connection(self):
-        if self._connection is None:
+        if self._connection is None or not self._connection_is_valid(self._connection):
             self._create_connection()
 
         return self._connection
 
     def _create_connection(self):
+        """
+        Internal method to create a connection to the PostgreSQL database.
+        """
+
+        # close the connection if it already exists
+        if self._connection:
+            try:
+                self._connection.close()
+            except Error as e:
+                logger.debug("Failed to close connection: %s", str(e))
+
         conn_str = self.connection_string.resolve_value() or ""
         connection = connect(conn_str)
         connection.autocommit = True
-        connection.execute("CREATE EXTENSION IF NOT EXISTS vector")
+        if self.create_extension:
+            connection.execute("CREATE EXTENSION IF NOT EXISTS vector")
         register_vector(connection)  # Note: this must be called before creating the cursors.
 
         self._connection = connection
         self._cursor = self._connection.cursor()
         self._dict_cursor = self._connection.cursor(row_factory=dict_row)
 
-        # Init schema
+        if not self._table_initialized:
+            self._initialize_table()
+
+        return self._connection
+
+    def _initialize_table(self):
+        """
+        Internal method to initialize the table.
+        """
         if self.recreate_table:
             self.delete_table()
+
         self._create_table_if_not_exists()
         self._create_keyword_index_if_not_exists()
 
         if self.search_strategy == "hnsw":
             self._handle_hnsw()
 
-        return self._connection
+        self._table_initialized = True
+
+    @staticmethod
+    def _connection_is_valid(connection):
+        """
+        Internal method to check if the connection is still valid.
+        """
+
+        # implementation inspired to psycopg pool
+        # https://github.com/psycopg/psycopg/blob/d38cf7798b0c602ff43dac9f20bbab96237a9c38/psycopg_pool/psycopg_pool/pool.py#L528
+
+        try:
+            connection.execute("")
+        except Error:
+            return False
+        return True
 
     def to_dict(self) -> Dict[str, Any]:
         """
@@ -210,6 +253,7 @@ class PgvectorDocumentStore:
         return default_to_dict(
             self,
             connection_string=self.connection_string.to_dict(),
+            create_extension=self.create_extension,
             schema_name=self.schema_name,
             table_name=self.table_name,
             embedding_dimension=self.embedding_dimension,
