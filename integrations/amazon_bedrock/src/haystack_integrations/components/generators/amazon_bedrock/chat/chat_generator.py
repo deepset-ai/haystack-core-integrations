@@ -1,3 +1,4 @@
+import json
 import logging
 from typing import Any, Callable, Dict, List, Optional
 
@@ -20,10 +21,10 @@ logger = logging.getLogger(__name__)
 @component
 class AmazonBedrockChatGenerator:
     """
-    Completes chats using LLMs hosted on Amazon Bedrock.
+    Completes chats using LLMs hosted on Amazon Bedrock available via the Bedrock Converse API.
 
     For example, to use the Anthropic Claude 3 Sonnet model, initialize this component with the
-    'anthropic.claude-3-sonnet-20240229-v1:0' model name.
+    'anthropic.claude-3-5-sonnet-20240620-v1:0' model name.
 
     ### Usage example
 
@@ -36,7 +37,7 @@ class AmazonBedrockChatGenerator:
                 ChatMessage.from_user("What's Natural Language Processing?")]
 
 
-    client = AmazonBedrockChatGenerator(model="anthropic.claude-3-sonnet-20240229-v1:0",
+    client = AmazonBedrockChatGenerator(model="anthropic.claude-3-5-sonnet-20240620-v1:0",
                                         streaming_callback=print_streaming_chunk)
     client.run(messages, generation_kwargs={"max_tokens": 512})
 
@@ -198,46 +199,59 @@ class AmazonBedrockChatGenerator:
         generation_kwargs: Optional[Dict[str, Any]] = None,
     ):
         generation_kwargs = generation_kwargs or {}
-        inference_config = self.generation_kwargs.copy()
-        inference_config.update(generation_kwargs)
 
-        # Prepare system prompts if any
-        system_prompts: List[Dict[str, Any]] = []  # Type annotation added
+        # Merge generation_kwargs with defaults
+        merged_kwargs = self.generation_kwargs.copy()
+        merged_kwargs.update(generation_kwargs)
+
+        # Extract known inference parameters
+        # See https://docs.aws.amazon.com/bedrock/latest/APIReference/API_runtime_InferenceConfiguration.html
+        inference_config = {
+            key: merged_kwargs.pop(key, None)
+            for key in ["maxTokens", "stopSequences", "temperature", "topP"]
+            if key in merged_kwargs
+        }
+
+        # Extract tool configuration if present
+        # See https://docs.aws.amazon.com/bedrock/latest/APIReference/API_runtime_ToolConfiguration.html
+        tool_config = merged_kwargs.pop("toolConfig", None)
+
+        # Any remaining kwargs go to additionalModelRequestFields
+        additional_fields = merged_kwargs if merged_kwargs else None
+
+        # Prepare system prompts and messages
+        system_prompts = []
         if messages and messages[0].is_from(ChatRole.SYSTEM):
-            system_message = messages[0]
-            system_prompts = [{"text": system_message.content}]
+            system_prompts = [{"text": messages[0].content}]
             messages = messages[1:]
 
-        # Prepare messages
-        messages_list = []
-        for msg in messages:
-            message_dict = {"role": msg.role.value, "content": [{"text": msg.content}]}
-            messages_list.append(message_dict)
+        messages_list = [
+            {"role": msg.role.value, "content": [{"text": msg.content}]}
+            for msg in messages
+        ]
 
         try:
-            if streaming_callback or self.streaming_callback:
-                response = self.client.converse_stream(
-                    modelId=self.model,
-                    messages=messages_list,
-                    system=system_prompts,  # Now properly typed
-                    inferenceConfig=inference_config,
-                )
+            # Build API parameters
+            params = {
+                "modelId": self.model,
+                "messages": messages_list,
+                "system": system_prompts,
+                "inferenceConfig": inference_config,
+            }
+            if tool_config:
+                params["toolConfig"] = tool_config
+            if additional_fields:
+                params["additionalModelRequestFields"] = additional_fields
+            callback = streaming_callback or self.streaming_callback
+            if callback:
+                response = self.client.converse_stream(**params)
                 response_stream = response.get("stream")
                 if not response_stream:
                     msg = "No stream found in the response."
                     raise AmazonBedrockInferenceError(msg)
-                callback = streaming_callback or self.streaming_callback
-                if callback is None:  # This should never happen due to the if condition above
-                    msg = "No streaming callback provided"
-                    raise ValueError(msg)
                 replies = self.process_streaming_response(response_stream, callback)
             else:
-                response = self.client.converse(
-                    modelId=self.model,
-                    messages=messages_list,
-                    system=system_prompts,  # Now properly typed
-                    inferenceConfig=inference_config,
-                )
+                response = self.client.converse(**params)
                 replies = self.extract_replies_from_response(response)
         except ClientError as exception:
             msg = f"Could not generate inference for Amazon Bedrock model {self.model} due: {exception}"
@@ -251,25 +265,36 @@ class AmazonBedrockChatGenerator:
             message = response_body["output"]["message"]
             if message["role"] == "assistant":
                 content_blocks = message["content"]
-                text = ""
-                for content_block in content_blocks:
-                    if "text" in content_block:
-                        text += content_block["text"]
 
-                # Convert usage format from Bedrock to OpenAI format
-                usage = response_body.get("usage", {})
-                meta = {
+                # Common meta information
+                base_meta = {
                     "model": self.model,
                     "index": 0,
                     "finish_reason": response_body.get("stopReason"),
                     "usage": {
-                        "prompt_tokens": usage.get("inputTokens", 0),
-                        "completion_tokens": usage.get("outputTokens", 0),
-                        "total_tokens": usage.get("totalTokens", 0),
-                    },
+                        # OpenAI's format for usage for cross ChatGenerator compatibility
+                        "prompt_tokens": response_body.get("usage", {}).get("inputTokens", 0),
+                        "completion_tokens": response_body.get("usage", {}).get("outputTokens", 0),
+                        "total_tokens": response_body.get("usage", {}).get("totalTokens", 0),
+                    }
                 }
 
-                replies.append(ChatMessage.from_assistant(content=text, meta=meta))
+                # Process each content block separately
+                for content_block in content_blocks:
+                    if "text" in content_block:
+                        replies.append(
+                            ChatMessage.from_assistant(
+                                content=content_block["text"],
+                                meta=base_meta.copy()
+                            )
+                        )
+                    elif "toolUse" in content_block:
+                        replies.append(
+                            ChatMessage.from_assistant(
+                                content=json.dumps(content_block["toolUse"]),
+                                meta={**base_meta.copy()}
+                            )
+                        )
         return replies
 
     def process_streaming_response(
@@ -282,8 +307,6 @@ class AmazonBedrockChatGenerator:
         }
 
         for event in response_stream:
-            # if "messageStart" in event:
-            #     role = event["messageStart"]["role"]
             if "contentBlockDelta" in event:
                 delta = event["contentBlockDelta"]["delta"]
                 delta_text = delta.get("text", "")
@@ -297,6 +320,7 @@ class AmazonBedrockChatGenerator:
                 metadata = event["metadata"]
                 if "usage" in metadata:
                     usage = metadata["usage"]
+                    # use OpenAI's format for usage for cross ChatGenerator compatibility
                     meta["usage"] = {
                         "prompt_tokens": usage.get("inputTokens", 0),
                         "completion_tokens": usage.get("outputTokens", 0),

@@ -1,3 +1,5 @@
+import json
+
 import pytest
 from haystack.components.generators.utils import print_streaming_chunk
 from haystack.dataclasses import ChatMessage, ChatRole, StreamingChunk
@@ -6,7 +8,7 @@ from haystack_integrations.components.generators.amazon_bedrock import AmazonBed
 
 KLASS = "haystack_integrations.components.generators.amazon_bedrock.chat.chat_generator.AmazonBedrockChatGenerator"
 MODELS_TO_TEST = ["anthropic.claude-3-5-sonnet-20240620-v1:0", "cohere.command-r-plus-v1:0", "mistral.mistral-large-2402-v1:0"]
-MODELS_TO_TEST_WITH_TOOLS = ["anthropic.claude-3-5-sonnet-20240620-v1:0"]
+MODELS_TO_TEST_WITH_TOOLS = ["anthropic.claude-3-5-sonnet-20240620-v1:0","cohere.command-r-plus-v1:0", "mistral.mistral-large-2402-v1:0"]
 
 
 @pytest.fixture
@@ -187,3 +189,72 @@ class TestAmazonBedrockChatGeneratorInference:
         assert ChatMessage.is_from(first_reply, ChatRole.ASSISTANT), "First reply is not from the assistant"
         assert "paris" in first_reply.content.lower(), "First reply does not contain 'paris'"
         assert first_reply.meta, "First reply has no metadata"
+
+    @pytest.mark.parametrize("model_name", MODELS_TO_TEST_WITH_TOOLS)
+    @pytest.mark.integration
+    def test_tools_use(self, model_name):
+        """
+        Test function calling with AWS Bedrock Anthropic adapter
+        """
+        # See https://docs.aws.amazon.com/bedrock/latest/APIReference/API_runtime_ToolConfiguration.html
+        tool_config = {
+            "tools": [
+                {
+                    "toolSpec": {
+                        "name": "top_song",
+                        "description": "Get the most popular song played on a radio station.",
+                        "inputSchema": {
+                            "json": {
+                                "type": "object",
+                                "properties": {
+                                    "sign": {
+                                        "type": "string",
+                                        "description": "The call sign for the radio station for which you want the most popular song. Example calls signs are WZPZ and WKRP."
+                                    }
+                                },
+                                "required": [
+                                    "sign"
+                                ]
+                            }
+                        }
+                    }
+                }
+            ],
+            # See https://docs.aws.amazon.com/bedrock/latest/APIReference/API_runtime_ToolChoice.html
+            "toolChoice": {"auto": {}}
+        }
+
+        messages = []
+        messages.append(ChatMessage.from_user("What is the most popular song on WZPZ?"))
+        client = AmazonBedrockChatGenerator(model=model_name)
+        response = client.run(messages=messages, generation_kwargs={"toolConfig": tool_config})
+        replies = response["replies"]
+        assert isinstance(replies, list), "Replies is not a list"
+        assert len(replies) > 0, "No replies received"
+
+        first_reply = replies[0]
+        assert isinstance(first_reply, ChatMessage), "First reply is not a ChatMessage instance"
+        assert first_reply.content, "First reply has no content"
+        assert ChatMessage.is_from(first_reply, ChatRole.ASSISTANT), "First reply is not from the assistant"
+        assert first_reply.meta, "First reply has no metadata"
+
+
+        # Some models return thinking message as first and the second one as the tool call
+        if len(replies) > 1:
+            second_reply = replies[1]
+            assert isinstance(second_reply, ChatMessage), "Second reply is not a ChatMessage instance"
+            assert second_reply.content, "Second reply has no content"
+            assert ChatMessage.is_from(second_reply, ChatRole.ASSISTANT), "Second reply is not from the assistant"
+            tool_call = json.loads(second_reply.content)
+            assert "toolUseId" in tool_call, "Tool call does not contain 'toolUseId' key"
+            assert tool_call["name"] == "top_song", f"Tool call {tool_call} does not contain the correct 'name' value"
+            assert "input" in tool_call, f"Tool call {tool_call} does not contain 'input' key"
+            assert tool_call["input"]["sign"] == "WZPZ", f"Tool call {tool_call} does not contain the correct 'input' value"
+        else:
+            # case where the model returns the tool call as the first message
+            # double check that the tool call is correct
+            tool_call = json.loads(first_reply.content)
+            assert "toolUseId" in tool_call, "Tool call does not contain 'toolUseId' key"
+            assert tool_call["name"] == "top_song", f"Tool call {tool_call} does not contain the correct 'name' value"
+            assert "input" in tool_call, f"Tool call {tool_call} does not contain 'input' key"
+            assert tool_call["input"]["sign"] == "WZPZ", f"Tool call {tool_call} does not contain the correct 'input' value"
