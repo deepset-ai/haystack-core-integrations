@@ -1,5 +1,15 @@
 # Changelog
 
+## [integrations/jina-v0.5.1] - 2024-11-26
+
+### 🧹 Chores
+
+- Fix linting/isort (#1215)
+
+### 🌀 Miscellaneous
+
+- Fix: `JinaReaderConnector` - fix the name of the output edge (#1217)
+
 ## [integrations/jina-v0.5.0] - 2024-11-21
 
 ### 🚀 Features
