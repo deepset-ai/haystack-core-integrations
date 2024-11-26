@@ -300,32 +300,76 @@ class AmazonBedrockChatGenerator:
     def process_streaming_response(
         self, response_stream, streaming_callback: Callable[[StreamingChunk], None]
     ) -> List[ChatMessage]:
-        content = ""
-        meta = {
+        replies = []
+        current_content = ""
+        current_tool_use = None
+        base_meta = {
             "model": self.model,
             "index": 0,
         }
 
         for event in response_stream:
-            if "contentBlockDelta" in event:
-                delta = event["contentBlockDelta"]["delta"]
-                delta_text = delta.get("text", "")
-                if delta_text:
-                    content += delta_text
-                    streaming_chunk = StreamingChunk(content=delta_text, meta=None)
-                    streaming_callback(streaming_chunk)
-            if "messageStop" in event:
-                meta["finish_reason"] = event["messageStop"].get("stopReason")
-            if "metadata" in event:
-                metadata = event["metadata"]
-                if "usage" in metadata:
-                    usage = metadata["usage"]
-                    # use OpenAI's format for usage for cross ChatGenerator compatibility
-                    meta["usage"] = {
-                        "prompt_tokens": usage.get("inputTokens", 0),
-                        "completion_tokens": usage.get("outputTokens", 0),
-                        "total_tokens": usage.get("totalTokens", 0),
+            if "contentBlockStart" in event:
+                # Reset accumulators for new message
+                current_content = ""
+                current_tool_use = None
+                block_start = event["contentBlockStart"]
+                if "start" in block_start and "toolUse" in block_start["start"]:
+                    tool_start = block_start["start"]["toolUse"]
+                    current_tool_use = {
+                        "toolUseId": tool_start["toolUseId"],
+                        "name": tool_start["name"],
+                        "input": ""  # Will accumulate deltas as string
                     }
 
-        replies = [ChatMessage.from_assistant(content=content, meta=meta)]
+            elif "contentBlockDelta" in event:
+                delta = event["contentBlockDelta"]["delta"]
+                if "text" in delta:
+                    delta_text = delta["text"]
+                    current_content += delta_text
+                    streaming_chunk = StreamingChunk(content=delta_text, meta=None)
+                    # it only makes sense to call callback on text deltas
+                    streaming_callback(streaming_chunk)
+                elif "toolUse" in delta and current_tool_use:
+                    # Accumulate tool use input deltas
+                    current_tool_use["input"] += delta["toolUse"].get("input", "")
+            elif "contentBlockStop" in event:
+                if current_tool_use:
+                    # Parse accumulated input if it's a JSON string
+                    try:
+                        input_json = json.loads(current_tool_use["input"])
+                        current_tool_use["input"] = input_json
+                    except json.JSONDecodeError:
+                        # Keep as string if not valid JSON
+                        pass
+
+                    tool_content = json.dumps(current_tool_use)
+                    replies.append(
+                        ChatMessage.from_assistant(
+                            content=tool_content,
+                            meta=base_meta.copy()
+                        )
+                    )
+                elif current_content:
+                    replies.append(
+                        ChatMessage.from_assistant(content=current_content, meta=base_meta.copy())
+                    )
+
+            elif "messageStop" in event:
+                # not 100% correct for multiple messages but no way around it
+                for reply in replies:
+                    reply.meta["finish_reason"] = event["messageStop"].get("stopReason")
+
+            elif "metadata" in event:
+                metadata = event["metadata"]
+                # not 100% correct for multiple messages but no way around it
+                for reply in replies:
+                    if "usage" in metadata:
+                        usage = metadata["usage"]
+                        reply.meta["usage"] = {
+                            "prompt_tokens": usage.get("inputTokens", 0),
+                            "completion_tokens": usage.get("outputTokens", 0),
+                            "total_tokens": usage.get("totalTokens", 0),
+                        }
+
         return replies
