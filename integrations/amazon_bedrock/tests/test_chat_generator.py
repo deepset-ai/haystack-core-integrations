@@ -25,7 +25,7 @@ def test_to_dict(mock_boto3_session):
     Test that the to_dict method returns the correct dictionary without aws credentials
     """
     generator = AmazonBedrockChatGenerator(
-        model="anthropic.claude-v2",
+        model="cohere.command-r-plus-v1:0",
         generation_kwargs={"temperature": 0.7},
         streaming_callback=print_streaming_chunk,
         boto3_config=boto3_config,
@@ -38,7 +38,7 @@ def test_to_dict(mock_boto3_session):
             "aws_session_token": {"type": "env_var", "env_vars": ["AWS_SESSION_TOKEN"], "strict": False},
             "aws_region_name": {"type": "env_var", "env_vars": ["AWS_DEFAULT_REGION"], "strict": False},
             "aws_profile_name": {"type": "env_var", "env_vars": ["AWS_PROFILE"], "strict": False},
-            "model": "anthropic.claude-v2",
+            "model": "cohere.command-r-plus-v1:0",
             "generation_kwargs": {"temperature": 0.7},
             "stop_words": [],
             "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
@@ -72,7 +72,7 @@ def test_from_dict(mock_boto3_session: Any, boto3_config: Optional[Dict[str, Any
                 "aws_session_token": {"type": "env_var", "env_vars": ["AWS_SESSION_TOKEN"], "strict": False},
                 "aws_region_name": {"type": "env_var", "env_vars": ["AWS_DEFAULT_REGION"], "strict": False},
                 "aws_profile_name": {"type": "env_var", "env_vars": ["AWS_PROFILE"], "strict": False},
-                "model": "anthropic.claude-v2",
+                "model": "anthropic.claude-3-5-sonnet-20240620-v1:0",
                 "generation_kwargs": {"temperature": 0.7},
                 "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
                 "truncate": True,
@@ -80,7 +80,7 @@ def test_from_dict(mock_boto3_session: Any, boto3_config: Optional[Dict[str, Any
             },
         }
     )
-    assert generator.model == "anthropic.claude-v2"
+    assert generator.model == "anthropic.claude-3-5-sonnet-20240620-v1:0"
     assert generator.streaming_callback == print_streaming_chunk
     assert generator.boto3_config == boto3_config
 
@@ -91,10 +91,10 @@ def test_default_constructor(mock_boto3_session, set_env_variables):
     """
 
     layer = AmazonBedrockChatGenerator(
-        model="anthropic.claude-v2",
+        model="anthropic.claude-3-5-sonnet-20240620-v1:0",
     )
 
-    assert layer.model == "anthropic.claude-v2"
+    assert layer.model == "anthropic.claude-3-5-sonnet-20240620-v1:0"
     assert layer.truncate is True
 
     # assert mocked boto3 client called exactly once
@@ -116,7 +116,7 @@ def test_constructor_with_generation_kwargs(mock_boto3_session):
     """
     generation_kwargs = {"temperature": 0.7}
 
-    layer = AmazonBedrockChatGenerator(model="anthropic.claude-v2", generation_kwargs=generation_kwargs)
+    layer = AmazonBedrockChatGenerator(model="anthropic.claude-3-5-sonnet-20240620-v1:0", generation_kwargs=generation_kwargs)
     assert layer.generation_kwargs == generation_kwargs
 
 
@@ -124,7 +124,7 @@ def test_constructor_with_truncate(mock_boto3_session):
     """
     Test that truncate param is correctly set in the model constructor
     """
-    layer = AmazonBedrockChatGenerator(model="anthropic.claude-v2", truncate=False)
+    layer = AmazonBedrockChatGenerator(model="anthropic.claude-3-5-sonnet-20240620-v1:0", truncate=False)
     assert layer.truncate is False
 
 
