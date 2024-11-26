@@ -225,10 +225,7 @@ class AmazonBedrockChatGenerator:
             system_prompts = [{"text": messages[0].content}]
             messages = messages[1:]
 
-        messages_list = [
-            {"role": msg.role.value, "content": [{"text": msg.content}]}
-            for msg in messages
-        ]
+        messages_list = [{"role": msg.role.value, "content": [{"text": msg.content}]} for msg in messages]
 
         try:
             # Build API parameters
@@ -276,23 +273,17 @@ class AmazonBedrockChatGenerator:
                         "prompt_tokens": response_body.get("usage", {}).get("inputTokens", 0),
                         "completion_tokens": response_body.get("usage", {}).get("outputTokens", 0),
                         "total_tokens": response_body.get("usage", {}).get("totalTokens", 0),
-                    }
+                    },
                 }
 
                 # Process each content block separately
                 for content_block in content_blocks:
                     if "text" in content_block:
-                        replies.append(
-                            ChatMessage.from_assistant(
-                                content=content_block["text"],
-                                meta=base_meta.copy()
-                            )
-                        )
+                        replies.append(ChatMessage.from_assistant(content=content_block["text"], meta=base_meta.copy()))
                     elif "toolUse" in content_block:
                         replies.append(
                             ChatMessage.from_assistant(
-                                content=json.dumps(content_block["toolUse"]),
-                                meta={**base_meta.copy()}
+                                content=json.dumps(content_block["toolUse"]), meta=base_meta.copy()
                             )
                         )
         return replies
@@ -319,7 +310,7 @@ class AmazonBedrockChatGenerator:
                     current_tool_use = {
                         "toolUseId": tool_start["toolUseId"],
                         "name": tool_start["name"],
-                        "input": ""  # Will accumulate deltas as string
+                        "input": "",  # Will accumulate deltas as string
                     }
 
             elif "contentBlockDelta" in event:
@@ -344,16 +335,9 @@ class AmazonBedrockChatGenerator:
                         pass
 
                     tool_content = json.dumps(current_tool_use)
-                    replies.append(
-                        ChatMessage.from_assistant(
-                            content=tool_content,
-                            meta=base_meta.copy()
-                        )
-                    )
+                    replies.append(ChatMessage.from_assistant(content=tool_content, meta=base_meta.copy()))
                 elif current_content:
-                    replies.append(
-                        ChatMessage.from_assistant(content=current_content, meta=base_meta.copy())
-                    )
+                    replies.append(ChatMessage.from_assistant(content=current_content, meta=base_meta.copy()))
 
             elif "messageStop" in event:
                 # not 100% correct for multiple messages but no way around it

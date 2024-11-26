@@ -7,8 +7,16 @@ from haystack.dataclasses import ChatMessage, ChatRole, StreamingChunk
 from haystack_integrations.components.generators.amazon_bedrock import AmazonBedrockChatGenerator
 
 KLASS = "haystack_integrations.components.generators.amazon_bedrock.chat.chat_generator.AmazonBedrockChatGenerator"
-MODELS_TO_TEST = ["anthropic.claude-3-5-sonnet-20240620-v1:0", "cohere.command-r-plus-v1:0", "mistral.mistral-large-2402-v1:0"]
-MODELS_TO_TEST_WITH_TOOLS = ["anthropic.claude-3-5-sonnet-20240620-v1:0", "cohere.command-r-plus-v1:0", "mistral.mistral-large-2402-v1:0"]
+MODELS_TO_TEST = [
+    "anthropic.claude-3-5-sonnet-20240620-v1:0",
+    "cohere.command-r-plus-v1:0",
+    "mistral.mistral-large-2402-v1:0",
+]
+MODELS_TO_TEST_WITH_TOOLS = [
+    "anthropic.claude-3-5-sonnet-20240620-v1:0",
+    "cohere.command-r-plus-v1:0",
+    "mistral.mistral-large-2402-v1:0",
+]
 
 # so far we've discovered these models support streaming and tool use
 STREAMING_TOOL_MODELS = ["anthropic.claude-3-5-sonnet-20240620-v1:0", "cohere.command-r-plus-v1:0"]
@@ -119,7 +127,9 @@ def test_constructor_with_generation_kwargs(mock_boto3_session):
     """
     generation_kwargs = {"temperature": 0.7}
 
-    layer = AmazonBedrockChatGenerator(model="anthropic.claude-3-5-sonnet-20240620-v1:0", generation_kwargs=generation_kwargs)
+    layer = AmazonBedrockChatGenerator(
+        model="anthropic.claude-3-5-sonnet-20240620-v1:0", generation_kwargs=generation_kwargs
+    )
     assert layer.generation_kwargs == generation_kwargs
 
 
@@ -212,19 +222,19 @@ class TestAmazonBedrockChatGeneratorInference:
                                 "properties": {
                                     "sign": {
                                         "type": "string",
-                                        "description": "The call sign for the radio station for which you want the most popular song. Example calls signs are WZPZ and WKRP."
+                                        "description": "The call sign for the radio station "
+                                        "for which you want the most popular song. "
+                                        "Example calls signs are WZPZ and WKRP.",
                                     }
                                 },
-                                "required": [
-                                    "sign"
-                                ]
+                                "required": ["sign"],
                             }
-                        }
+                        },
                     }
                 }
             ],
             # See https://docs.aws.amazon.com/bedrock/latest/APIReference/API_runtime_ToolChoice.html
-            "toolChoice": {"auto": {}}
+            "toolChoice": {"auto": {}},
         }
 
         messages = []
@@ -241,7 +251,6 @@ class TestAmazonBedrockChatGeneratorInference:
         assert ChatMessage.is_from(first_reply, ChatRole.ASSISTANT), "First reply is not from the assistant"
         assert first_reply.meta, "First reply has no metadata"
 
-
         # Some models return thinking message as first and the second one as the tool call
         if len(replies) > 1:
             second_reply = replies[1]
@@ -252,7 +261,9 @@ class TestAmazonBedrockChatGeneratorInference:
             assert "toolUseId" in tool_call, "Tool call does not contain 'toolUseId' key"
             assert tool_call["name"] == "top_song", f"Tool call {tool_call} does not contain the correct 'name' value"
             assert "input" in tool_call, f"Tool call {tool_call} does not contain 'input' key"
-            assert tool_call["input"]["sign"] == "WZPZ", f"Tool call {tool_call} does not contain the correct 'input' value"
+            assert (
+                tool_call["input"]["sign"] == "WZPZ"
+            ), f"Tool call {tool_call} does not contain the correct 'input' value"
         else:
             # case where the model returns the tool call as the first message
             # double check that the tool call is correct
@@ -260,7 +271,9 @@ class TestAmazonBedrockChatGeneratorInference:
             assert "toolUseId" in tool_call, "Tool call does not contain 'toolUseId' key"
             assert tool_call["name"] == "top_song", f"Tool call {tool_call} does not contain the correct 'name' value"
             assert "input" in tool_call, f"Tool call {tool_call} does not contain 'input' key"
-            assert tool_call["input"]["sign"] == "WZPZ", f"Tool call {tool_call} does not contain the correct 'input' value"
+            assert (
+                tool_call["input"]["sign"] == "WZPZ"
+            ), f"Tool call {tool_call} does not contain the correct 'input' value"
 
     @pytest.mark.parametrize("model_name", STREAMING_TOOL_MODELS)
     @pytest.mark.integration
@@ -281,19 +294,19 @@ class TestAmazonBedrockChatGeneratorInference:
                                 "properties": {
                                     "sign": {
                                         "type": "string",
-                                        "description": "The call sign for the radio station for which you want the most popular song. Example calls signs are WZPZ and WKRP."
+                                        "description": "The call sign for the radio station "
+                                        "for which you want the most popular song. Example "
+                                        "calls signs are WZPZ and WKRP.",
                                     }
                                 },
-                                "required": [
-                                    "sign"
-                                ]
+                                "required": ["sign"],
                             }
-                        }
+                        },
                     }
                 }
             ],
             # See https://docs.aws.amazon.com/bedrock/latest/APIReference/API_runtime_ToolChoice.html
-            "toolChoice": {"auto": {}}
+            "toolChoice": {"auto": {}},
         }
 
         messages = []
@@ -320,7 +333,9 @@ class TestAmazonBedrockChatGeneratorInference:
             assert "toolUseId" in tool_call, "Tool call does not contain 'toolUseId' key"
             assert tool_call["name"] == "top_song", f"Tool call {tool_call} does not contain the correct 'name' value"
             assert "input" in tool_call, f"Tool call {tool_call} does not contain 'input' key"
-            assert tool_call["input"]["sign"] == "WZPZ", f"Tool call {tool_call} does not contain the correct 'input' value"
+            assert (
+                tool_call["input"]["sign"] == "WZPZ"
+            ), f"Tool call {tool_call} does not contain the correct 'input' value"
         else:
             # case where the model returns the tool call as the first message
             # double check that the tool call is correct
@@ -328,4 +343,6 @@ class TestAmazonBedrockChatGeneratorInference:
             assert "toolUseId" in tool_call, "Tool call does not contain 'toolUseId' key"
             assert tool_call["name"] == "top_song", f"Tool call {tool_call} does not contain the correct 'name' value"
             assert "input" in tool_call, f"Tool call {tool_call} does not contain 'input' key"
-            assert tool_call["input"]["sign"] == "WZPZ", f"Tool call {tool_call} does not contain the correct 'input' value"
+            assert (
+                tool_call["input"]["sign"] == "WZPZ"
+            ), f"Tool call {tool_call} does not contain the correct 'input' value"
