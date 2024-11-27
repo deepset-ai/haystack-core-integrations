@@ -334,19 +334,14 @@ class GoogleAIGeminiChatGenerator:
 
             for part in candidate.content.parts:
                 if part.text != "":
-                    replies.append(
-                        ChatMessage(content=part.text, role=ChatRole.ASSISTANT, name=None, meta=candidate_metadata)
-                    )
+                    replies.append(ChatMessage.from_assistant(content=part.text, meta=candidate_metadata))
                 elif part.function_call:
                     candidate_metadata["function_call"] = part.function_call
-                    replies.append(
-                        ChatMessage(
-                            content=dict(part.function_call.args.items()),
-                            role=ChatRole.ASSISTANT,
-                            name=part.function_call.name,
-                            meta=candidate_metadata,
-                        )
+                    new_message = ChatMessage.from_assistant(
+                        content=dict(part.function_call.args.items()), meta=candidate_metadata
                     )
+                    new_message.name = part.function_call.name
+                    replies.append(new_message)
         return replies
 
     def _get_stream_response(
@@ -368,18 +363,13 @@ class GoogleAIGeminiChatGenerator:
                 for part in candidate["content"]["parts"]:
                     if "text" in part and part["text"] != "":
                         content = part["text"]
-                        replies.append(ChatMessage(content=content, role=ChatRole.ASSISTANT, meta=metadata, name=None))
+                        replies.append(ChatMessage.from_assistant(content=content, meta=metadata))
                     elif "function_call" in part and len(part["function_call"]) > 0:
                         metadata["function_call"] = part["function_call"]
                         content = part["function_call"]["args"]
-                        replies.append(
-                            ChatMessage(
-                                content=content,
-                                role=ChatRole.ASSISTANT,
-                                name=part["function_call"]["name"],
-                                meta=metadata,
-                            )
-                        )
+                        new_message = ChatMessage.from_assistant(content=content, meta=metadata)
+                        new_message.name = part["function_call"]["name"]
+                        replies.append(new_message)
 
                     streaming_callback(StreamingChunk(content=content, meta=metadata))
         return replies

@@ -226,10 +226,8 @@ def test_long_prompt_is_not_truncated_when_truncate_false(mock_boto3_session):
 
             generator.model_adapter.get_responses = MagicMock(
                 return_value=[
-                    ChatMessage(
+                    ChatMessage.from_assistant(
                         content="Some text",
-                        role=ChatRole.ASSISTANT,
-                        name=None,
                         meta={
                             "model": "claude-3-sonnet-20240229",
                             "index": 0,
