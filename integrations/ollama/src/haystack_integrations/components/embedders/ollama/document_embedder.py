@@ -101,7 +101,7 @@ class OllamaDocumentEmbedder:
         ):
             batch = texts_to_embed[i : i + batch_size]
             result = self._client.embed(model=self.model, prompt=batch, options=generation_kwargs)
-            all_embeddings.append(result["embeddings"])
+            all_embeddings.extend(result["embeddings"])
 
         meta["model"] = self.model
 
