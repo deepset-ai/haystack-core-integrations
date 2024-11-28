@@ -45,7 +45,6 @@ root = "../.."
 git_describe_command = 'git describe --tags --match="integrations/chroma-v[0-9]*"'
 
 [tool.hatch.envs.default]
-python = "3.8"
 installer = "uv"
 dependencies = [
   "coverage[toml]>=6.5",
