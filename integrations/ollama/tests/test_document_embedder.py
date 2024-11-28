@@ -43,10 +43,23 @@ class TestOllamaDocumentEmbedder:
 
     @pytest.mark.integration
     def test_run(self):
-        embedder = OllamaDocumentEmbedder(model="nomic-embed-text")
+        embedder = OllamaDocumentEmbedder(model="nomic-embed-text", batch_size=1)
         list_of_docs = [Document(content="This is a document containing some text.")]
         reply = embedder.run(list_of_docs)
 
+        assert isinstance(reply, dict)
+        assert all(isinstance(element, float) for element in reply["documents"][0].embedding)
+        assert reply["meta"]["model"] == "nomic-embed-text"
+
+    @pytest.mark.integration
+    def test_bulk_run(self):
+        embedder = OllamaDocumentEmbedder(model="nomic-embed-text", batch_size=3)
+        list_of_docs = [
+            Document(content="Llamas are amazing animals known for their soft wool and gentle demeanor."),
+            Document(content="The Andes mountains are the natural habitat of many llamas."),
+            Document(content="Llamas have been used as pack animals for centuries, especially in South America."),
+        ]
+        reply = embedder.run(list_of_docs)
         assert isinstance(reply, dict)
         assert all(isinstance(element, float) for element in reply["documents"][0].embedding)
         assert reply["meta"]["model"] == "nomic-embed-text"
