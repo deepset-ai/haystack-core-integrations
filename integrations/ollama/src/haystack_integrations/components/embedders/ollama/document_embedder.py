@@ -53,7 +53,7 @@ class OllamaDocumentEmbedder:
         self.generation_kwargs = generation_kwargs or {}
         self.url = url
         self.model = model
-        self.batch_size = 1  # API only supports a single call at the moment
+        self.batch_size = 32
         self.progress_bar = progress_bar
         self.meta_fields_to_embed = meta_fields_to_embed
         self.embedding_separator = embedding_separator
@@ -99,9 +99,9 @@ class OllamaDocumentEmbedder:
         for i in tqdm(
             range(0, len(texts_to_embed), batch_size), disable=not self.progress_bar, desc="Calculating embeddings"
         ):
-            batch = texts_to_embed[i]  # Single batch only
-            result = self._client.embeddings(model=self.model, prompt=batch, options=generation_kwargs).model_dump()
-            all_embeddings.append(result["embedding"])
+            batch = texts_to_embed[i : i + batch_size]
+            result = self._client.embed(model=self.model, prompt=batch, options=generation_kwargs)
+            all_embeddings.append(result["embeddings"])
 
         meta["model"] = self.model
 
