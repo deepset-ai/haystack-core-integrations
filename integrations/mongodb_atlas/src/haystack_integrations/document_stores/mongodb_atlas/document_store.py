@@ -390,7 +390,7 @@ class MongoDBAtlasDocumentStore:
         except Exception as e:
             error_msg = f"Failed to retrieve documents from MongoDB Atlas: {e}"
             if filters:
-                error_msg += "\nEnsure fields in filters are included in the `keyword_search_index` configuration."
+                error_msg += "\nEnsure fields in filters are included in the `full_text_search_index` configuration."
             raise DocumentStoreError(error_msg) from e
 
         return [self._mongo_doc_to_haystack_doc(doc) for doc in documents]
