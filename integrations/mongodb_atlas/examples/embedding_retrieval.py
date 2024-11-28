@@ -29,6 +29,7 @@ document_store = MongoDBAtlasDocumentStore(
     database_name="haystack_test",
     collection_name="test_collection",
     vector_search_index="test_vector_search_index",
+    full_text_search_index="test_full_text_search_index",
 )
 
 # Create the indexing Pipeline and index some documents
