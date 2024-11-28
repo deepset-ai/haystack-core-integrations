@@ -279,19 +279,14 @@ class VertexAIGeminiChatGenerator:
                 # Remove content from metadata
                 metadata.pop("content", None)
                 if part._raw_part.text != "":
-                    replies.append(
-                        ChatMessage(content=part._raw_part.text, role=ChatRole.ASSISTANT, name=None, meta=metadata)
-                    )
+                    replies.append(ChatMessage.from_assistant(content=part._raw_part.text, meta=metadata))
                 elif part.function_call:
                     metadata["function_call"] = part.function_call
-                    replies.append(
-                        ChatMessage(
-                            content=dict(part.function_call.args.items()),
-                            role=ChatRole.ASSISTANT,
-                            name=part.function_call.name,
-                            meta=metadata,
-                        )
+                    new_message = ChatMessage.from_assistant(
+                        content=dict(part.function_call.args.items()), meta=metadata
                     )
+                    new_message.name = part.function_call.name
+                    replies.append(new_message)
         return replies
 
     def _get_stream_response(
@@ -313,18 +308,13 @@ class VertexAIGeminiChatGenerator:
                 for part in candidate.content.parts:
                     if part._raw_part.text:
                         content = chunk.text
-                        replies.append(ChatMessage(content, role=ChatRole.ASSISTANT, name=None, meta=metadata))
+                        replies.append(ChatMessage.from_assistant(content, meta=metadata))
                     elif part.function_call:
                         metadata["function_call"] = part.function_call
                         content = dict(part.function_call.args.items())
-                        replies.append(
-                            ChatMessage(
-                                content=content,
-                                role=ChatRole.ASSISTANT,
-                                name=part.function_call.name,
-                                meta=metadata,
-                            )
-                        )
+                        new_message = ChatMessage.from_assistant(content, meta=metadata)
+                        new_message.name = part.function_call.name
+                        replies.append(new_message)
                     streaming_callback(StreamingChunk(content=content, meta=metadata))
 
         return replies
