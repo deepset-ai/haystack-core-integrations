@@ -30,6 +30,7 @@ class OllamaDocumentEmbedder:
         model: str = "nomic-embed-text",
         url: str = "http://localhost:11434",
         generation_kwargs: Optional[Dict[str, Any]] = None,
+        batch_size = 32,
         timeout: int = 120,
         prefix: str = "",
         suffix: str = "",
@@ -53,7 +54,7 @@ class OllamaDocumentEmbedder:
         self.generation_kwargs = generation_kwargs or {}
         self.url = url
         self.model = model
-        self.batch_size = 32
+        self.batch_size = batch_size
         self.progress_bar = progress_bar
         self.meta_fields_to_embed = meta_fields_to_embed
         self.embedding_separator = embedding_separator
