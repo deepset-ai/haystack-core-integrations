@@ -3,7 +3,7 @@ from unittest.mock import Mock
 
 import pytest
 from haystack.components.generators.utils import print_streaming_chunk
-from haystack.dataclasses import ChatMessage, ChatRole
+from haystack.dataclasses import ChatMessage
 from ollama._types import ChatResponse, ResponseError
 
 from haystack_integrations.components.generators.ollama import OllamaChatGenerator
@@ -128,16 +128,12 @@ class TestOllamaChatGenerator:
         chat_generator = OllamaChatGenerator()
 
         chat_history = [
-            {"role": "user", "content": "What is the largest city in the United Kingdom by population?"},
-            {"role": "assistant", "content": "London is the largest city in the United Kingdom by population"},
-            {"role": "user", "content": "And what is the second largest?"},
+            ChatMessage.from_user("What is the largest city in the United Kingdom by population?"),
+            ChatMessage.from_assistant("London is the largest city in the United Kingdom by population"),
+            ChatMessage.from_user("And what is the second largest?"),
         ]
 
-        chat_messages = [
-            ChatMessage(role=ChatRole(message["role"]), content=message["content"], name=None)
-            for message in chat_history
-        ]
-        response = chat_generator.run(chat_messages)
+        response = chat_generator.run(chat_history)
 
         assert isinstance(response, dict)
         assert isinstance(response["replies"], list)
@@ -159,17 +155,12 @@ class TestOllamaChatGenerator:
         chat_generator = OllamaChatGenerator(streaming_callback=streaming_callback)
 
         chat_history = [
-            {"role": "user", "content": "What is the largest city in the United Kingdom by population?"},
-            {"role": "assistant", "content": "London is the largest city in the United Kingdom by population"},
-            {"role": "user", "content": "And what is the second largest?"},
+            ChatMessage.from_user("What is the largest city in the United Kingdom by population?"),
+            ChatMessage.from_assistant("London is the largest city in the United Kingdom by population"),
+            ChatMessage.from_user("And what is the second largest?"),
         ]
 
-        chat_messages = [
-            ChatMessage(role=ChatRole(message["role"]), content=message["content"], name=None)
-            for message in chat_history
-        ]
-
-        response = chat_generator.run(chat_messages)
+        response = chat_generator.run(chat_history)
 
         streaming_callback.assert_called()
 

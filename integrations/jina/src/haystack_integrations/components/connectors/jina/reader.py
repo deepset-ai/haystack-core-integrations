@@ -103,7 +103,7 @@ class JinaReaderConnector:
         document = Document(content=content, meta=data)
         return document
 
-    @component.output_types(document=List[Document])
+    @component.output_types(documents=List[Document])
     def run(self, query: str, headers: Optional[Dict[str, str]] = None):
         """
         Process the query/URL using the Jina AI reader service.

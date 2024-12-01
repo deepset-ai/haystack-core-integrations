@@ -42,7 +42,7 @@ _COMPONENT_OUTPUT_KEY = "haystack.component.output"
 
 # Context var used to keep track of tracing related info.
 # This mainly useful for parents spans.
-tracing_context_var: ContextVar[Dict[Any, Any]] = ContextVar("tracing_context", default={})
+tracing_context_var: ContextVar[Dict[Any, Any]] = ContextVar("tracing_context")
 
 
 class LangfuseSpan(Span):
@@ -147,15 +147,16 @@ class LangfuseTracer(Tracer):
                     operation_name=operation_name,
                 )
             # Create a new trace if no parent span is provided
+            context = tracing_context_var.get({})
             span = LangfuseSpan(
                 self._tracer.trace(
                     name=self._name,
                     public=self._public,
-                    id=tracing_context_var.get().get("trace_id"),
-                    user_id=tracing_context_var.get().get("user_id"),
-                    session_id=tracing_context_var.get().get("session_id"),
-                    tags=tracing_context_var.get().get("tags"),
-                    version=tracing_context_var.get().get("version"),
+                    id=context.get("trace_id"),
+                    user_id=context.get("user_id"),
+                    session_id=context.get("session_id"),
+                    tags=context.get("tags"),
+                    version=context.get("version"),
                 )
             )
         elif tags.get(_COMPONENT_TYPE_KEY) in _ALL_SUPPORTED_GENERATORS:
