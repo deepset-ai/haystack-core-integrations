@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 import os
 from typing import List, Union
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -24,6 +25,58 @@ class TestFullTextRetrieval:
             vector_search_index="cosine_index",
             full_text_search_index="full_text_index",
         )
+
+    def test_pipeline_correctly_passes_parameters(self, document_store: MongoDBAtlasDocumentStore):
+        mock_collection = MagicMock()
+        document_store._collection = mock_collection
+        mock_collection.aggregate.return_value = []
+        document_store._fulltext_retrieval(
+            query=["spam", "eggs"],
+            fuzzy={"maxEdits": 1},
+            match_criteria="any",
+            score={"boost": {"value": 3}},
+            filters={"field": "meta.meta_field", "operator": "==", "value": "right_value"},
+            top_k=5,
+        )
+
+        # Assert aggregate was called with the correct pipeline
+        assert mock_collection.aggregate.called
+        actual_pipeline = mock_collection.aggregate.call_args[0][0]
+        expected_pipeline = [
+            {
+                "$search": {
+                    "compound": {
+                        "must": [
+                            {
+                                "text": {
+                                    "fuzzy": {"maxEdits": 1},
+                                    "matchCriteria": "any",
+                                    "path": "content",
+                                    "query": ["spam", "eggs"],
+                                    "score": {"boost": {"value": 3}},
+                                }
+                            }
+                        ]
+                    },
+                    "index": "full_text_index",
+                }
+            },
+            {"$match": {"meta.meta_field": {"$eq": "right_value"}}},
+            {"$limit": 5},
+            {
+                "$project": {
+                    "_id": 0,
+                    "blob": 1,
+                    "content": 1,
+                    "dataframe": 1,
+                    "embedding": 1,
+                    "meta": 1,
+                    "score": {"$meta": "searchScore"},
+                }
+            },
+        ]
+
+        assert actual_pipeline == expected_pipeline
 
     def test_query_retrieval(self, document_store: MongoDBAtlasDocumentStore):
         results = document_store._fulltext_retrieval(query="fox", top_k=2)
