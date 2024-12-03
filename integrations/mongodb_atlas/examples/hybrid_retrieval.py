@@ -23,7 +23,8 @@ from haystack_integrations.document_stores.mongodb_atlas import MongoDBAtlasDocu
 
 # To use the MongoDBAtlasDocumentStore, you must have a running MongoDB Atlas database.
 # For details, see https://www.mongodb.com/docs/atlas/getting-started/
-# NOTE: you need to create manually the vector search index and the full text search index in your MongoDB Atlas database.
+# NOTE: you need to create manually the vector search index and the full text search
+#       index in your MongoDB Atlas database.
 
 # Once your database is set, set the environment variable `MONGO_CONNECTION_STRING`
 # with the connection string to your MongoDB Atlas database.
@@ -43,7 +44,7 @@ file_paths = glob.glob("neural-search-pills/pills/*.md")
 print(f"Cleaning up collection {document_store.collection_name}")
 document_store.collection.delete_many({})
 
-print(f"Creating indexing pipeline with")
+print("Creating indexing pipeline")
 indexing = Pipeline()
 indexing.add_component("converter", MarkdownToDocument())
 indexing.add_component("splitter", DocumentSplitter(split_by="sentence", split_length=2))
