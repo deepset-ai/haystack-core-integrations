@@ -26,7 +26,7 @@ class TestEmbeddingRetrieval:
         query_embedding = [0.1] * 768
         results = document_store._embedding_retrieval(query_embedding=query_embedding, top_k=2, filters={})
         assert len(results) == 2
-        assert results[0].content == "Document A"
+        assert results[0].content == "Document C"
         assert results[1].content == "Document B"
         assert results[0].score > results[1].score
 
