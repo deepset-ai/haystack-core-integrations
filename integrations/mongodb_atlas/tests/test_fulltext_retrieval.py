@@ -5,6 +5,7 @@ import os
 from typing import List, Union
 from unittest.mock import MagicMock
 
+from haystack import Document
 import pytest
 
 from haystack_integrations.document_stores.mongodb_atlas import MongoDBAtlasDocumentStore
@@ -25,6 +26,18 @@ class TestFullTextRetrieval:
             vector_search_index="cosine_index",
             full_text_search_index="full_text_index",
         )
+
+    @pytest.fixture(autouse=True)
+    def setup_teardown(self, document_store):
+        document_store.collection.delete_many({})
+        document_store.write_documents([
+            Document(content="The quick brown fox chased the dog", meta={"meta_field": "right_value"}),
+            Document(content="The fox was brown", meta={"meta_field": "right_value"}),
+            Document(content="The lazy dog"),
+            Document(content="fox fox fox"),
+        ])
+
+        yield
 
     def test_pipeline_correctly_passes_parameters(self, document_store: MongoDBAtlasDocumentStore):
         mock_collection = MagicMock()
