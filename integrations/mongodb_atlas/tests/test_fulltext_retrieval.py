@@ -5,8 +5,8 @@ import os
 from typing import List, Union
 from unittest.mock import MagicMock
 
-from haystack import Document
 import pytest
+from haystack import Document
 
 from haystack_integrations.document_stores.mongodb_atlas import MongoDBAtlasDocumentStore
 
@@ -30,12 +30,14 @@ class TestFullTextRetrieval:
     @pytest.fixture(autouse=True)
     def setup_teardown(self, document_store):
         document_store.collection.delete_many({})
-        document_store.write_documents([
-            Document(content="The quick brown fox chased the dog", meta={"meta_field": "right_value"}),
-            Document(content="The fox was brown", meta={"meta_field": "right_value"}),
-            Document(content="The lazy dog"),
-            Document(content="fox fox fox"),
-        ])
+        document_store.write_documents(
+            [
+                Document(content="The quick brown fox chased the dog", meta={"meta_field": "right_value"}),
+                Document(content="The fox was brown", meta={"meta_field": "right_value"}),
+                Document(content="The lazy dog"),
+                Document(content="fox fox fox"),
+            ]
+        )
 
         yield
 
