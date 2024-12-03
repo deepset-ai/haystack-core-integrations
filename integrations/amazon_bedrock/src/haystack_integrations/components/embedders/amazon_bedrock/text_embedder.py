@@ -2,6 +2,7 @@ import json
 import logging
 from typing import Any, Dict, List, Literal, Optional
 
+from botocore.config import Config
 from botocore.exceptions import ClientError
 from haystack import component, default_from_dict, default_to_dict
 from haystack.utils.auth import Secret, deserialize_secrets_inplace
@@ -62,6 +63,7 @@ class AmazonBedrockTextEmbedder:
         aws_session_token: Optional[Secret] = Secret.from_env_var("AWS_SESSION_TOKEN", strict=False),  # noqa: B008
         aws_region_name: Optional[Secret] = Secret.from_env_var("AWS_DEFAULT_REGION", strict=False),  # noqa: B008
         aws_profile_name: Optional[Secret] = Secret.from_env_var("AWS_PROFILE", strict=False),  # noqa: B008
+        boto3_config: Optional[Dict[str, Any]] = None,
         **kwargs,
     ):
         """
@@ -81,6 +83,7 @@ class AmazonBedrockTextEmbedder:
         :param aws_session_token: AWS session token.
         :param aws_region_name: AWS region name.
         :param aws_profile_name: AWS profile name.
+        :param boto3_config: The configuration for the boto3 client.
         :param kwargs: Additional parameters to pass for model inference. For example, `input_type` and `truncate` for
             Cohere models.
         :raises ValueError: If the model is not supported.
@@ -91,6 +94,15 @@ class AmazonBedrockTextEmbedder:
                 SUPPORTED_EMBEDDING_MODELS
             )
             raise ValueError(msg)
+
+        self.model = model
+        self.aws_access_key_id = aws_access_key_id
+        self.aws_secret_access_key = aws_secret_access_key
+        self.aws_session_token = aws_session_token
+        self.aws_region_name = aws_region_name
+        self.aws_profile_name = aws_profile_name
+        self.boto3_config = boto3_config
+        self.kwargs = kwargs
 
         def resolve_secret(secret: Optional[Secret]) -> Optional[str]:
             return secret.resolve_value() if secret else None
@@ -103,21 +115,16 @@ class AmazonBedrockTextEmbedder:
                 aws_region_name=resolve_secret(aws_region_name),
                 aws_profile_name=resolve_secret(aws_profile_name),
             )
-            self._client = session.client("bedrock-runtime")
+            config: Optional[Config] = None
+            if self.boto3_config:
+                config = Config(**self.boto3_config)
+            self._client = session.client("bedrock-runtime", config=config)
         except Exception as exception:
             msg = (
                 "Could not connect to Amazon Bedrock. Make sure the AWS environment is configured correctly. "
                 "See https://boto3.amazonaws.com/v1/documentation/api/latest/guide/quickstart.html#configuration"
             )
             raise AmazonBedrockConfigurationError(msg) from exception
-
-        self.model = model
-        self.aws_access_key_id = aws_access_key_id
-        self.aws_secret_access_key = aws_secret_access_key
-        self.aws_session_token = aws_session_token
-        self.aws_region_name = aws_region_name
-        self.aws_profile_name = aws_profile_name
-        self.kwargs = kwargs
 
     @component.output_types(embedding=List[float])
     def run(self, text: str):
@@ -185,6 +192,7 @@ class AmazonBedrockTextEmbedder:
             aws_region_name=self.aws_region_name.to_dict() if self.aws_region_name else None,
             aws_profile_name=self.aws_profile_name.to_dict() if self.aws_profile_name else None,
             model=self.model,
+            boto3_config=self.boto3_config,
             **self.kwargs,
         )
 
