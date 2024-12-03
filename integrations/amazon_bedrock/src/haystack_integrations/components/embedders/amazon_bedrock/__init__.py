@@ -4,4 +4,4 @@
 from .document_embedder import AmazonBedrockDocumentEmbedder
 from .text_embedder import AmazonBedrockTextEmbedder
 
-__all__ = ["AmazonBedrockTextEmbedder", "AmazonBedrockDocumentEmbedder"]
+__all__ = ["AmazonBedrockDocumentEmbedder", "AmazonBedrockTextEmbedder"]

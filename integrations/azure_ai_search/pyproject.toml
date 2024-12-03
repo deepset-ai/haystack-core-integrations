@@ -33,11 +33,11 @@ packages = ["src/haystack_integrations"]
 
 [tool.hatch.version]
 source = "vcs"
-tag-pattern = 'integrations\/azure-ai-search-v(?P<version>.*)'
+tag-pattern = 'integrations\/azure_ai_search-v(?P<version>.*)'
 
 [tool.hatch.version.raw-options]
 root = "../.."
-git_describe_command = 'git describe --tags --match="integrations/azure-ai-search-v[0-9]*"'
+git_describe_command = 'git describe --tags --match="integrations/azure_ai_search-v[0-9]*"'
 
 [tool.hatch.envs.default]
 dependencies = [

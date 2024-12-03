@@ -22,7 +22,12 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
-dependencies = ["haystack-ai", "chromadb>=0.5.17", "typing_extensions>=4.8.0"]
+dependencies = [
+  "haystack-ai",
+  "chromadb>=0.5.17",
+  "typing_extensions>=4.8.0",
+  "tokenizers>=0.13.2,<=0.20.3"  # TODO: remove when Chroma pins tokenizers internally
+]
 
 [project.urls]
 Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/chroma#readme"

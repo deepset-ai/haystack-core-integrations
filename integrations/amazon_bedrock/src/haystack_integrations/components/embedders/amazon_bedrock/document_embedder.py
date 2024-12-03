@@ -243,7 +243,7 @@ class AmazonBedrockDocumentEmbedder:
             - `documents`: The `Document`s with the `embedding` field populated.
         :raises AmazonBedrockInferenceError: If the inference fails.
         """
-        if not isinstance(documents, list) or documents and not isinstance(documents[0], Document):
+        if not isinstance(documents, list) or (documents and not isinstance(documents[0], Document)):
             msg = (
                 "AmazonBedrockDocumentEmbedder expects a list of Documents as input."
                 "In case you want to embed a string, please use the AmazonBedrockTextEmbedder."

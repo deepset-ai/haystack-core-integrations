@@ -295,5 +295,11 @@ def test_past_conversation():
     ]
     response = gemini_chat.run(messages=messages)
     assert "replies" in response
-    assert len(response["replies"]) > 0
-    assert all(reply.role == ChatRole.ASSISTANT for reply in response["replies"])
+    replies = response["replies"]
+    assert len(replies) > 0
+    assert all(reply.role == ChatRole.ASSISTANT for reply in replies)
+
+    assert all("usage" in reply.meta for reply in replies)
+    assert all("prompt_tokens" in reply.meta["usage"] for reply in replies)
+    assert all("completion_tokens" in reply.meta["usage"] for reply in replies)
+    assert all("total_tokens" in reply.meta["usage"] for reply in replies)

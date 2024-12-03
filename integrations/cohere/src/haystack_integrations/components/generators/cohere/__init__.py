@@ -4,4 +4,4 @@
 from .chat.chat_generator import CohereChatGenerator
 from .generator import CohereGenerator
 
-__all__ = ["CohereGenerator", "CohereChatGenerator"]
+__all__ = ["CohereChatGenerator", "CohereGenerator"]

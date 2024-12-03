@@ -17,7 +17,7 @@ from haystack_integrations.components.generators.amazon_bedrock.chat.adapters im
 )
 
 KLASS = "haystack_integrations.components.generators.amazon_bedrock.chat.chat_generator.AmazonBedrockChatGenerator"
-MODELS_TO_TEST = ["anthropic.claude-3-sonnet-20240229-v1:0", "anthropic.claude-v2:1", "meta.llama2-13b-chat-v1"]
+MODELS_TO_TEST = ["anthropic.claude-3-sonnet-20240229-v1:0", "anthropic.claude-v2:1"]
 MODELS_TO_TEST_WITH_TOOLS = ["anthropic.claude-3-haiku-20240307-v1:0"]
 MISTRAL_MODELS = [
     "mistral.mistral-7b-instruct-v0:2",
@@ -248,10 +248,8 @@ def test_long_prompt_is_not_truncated_when_truncate_false(mock_boto3_session):
 
             generator.model_adapter.get_responses = MagicMock(
                 return_value=[
-                    ChatMessage(
+                    ChatMessage.from_assistant(
                         content="Some text",
-                        role=ChatRole.ASSISTANT,
-                        name=None,
                         meta={
                             "model": "claude-3-sonnet-20240229",
                             "index": 0,

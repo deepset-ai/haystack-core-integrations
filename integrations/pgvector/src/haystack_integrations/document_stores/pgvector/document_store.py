@@ -24,7 +24,7 @@ from .filters import _convert_filters_to_where_clause_and_params
 logger = logging.getLogger(__name__)
 
 CREATE_TABLE_STATEMENT = """
-CREATE TABLE IF NOT EXISTS {table_name} (
+CREATE TABLE IF NOT EXISTS {schema_name}.{table_name} (
 id VARCHAR(128) PRIMARY KEY,
 embedding VECTOR({embedding_dimension}),
 content TEXT,
@@ -36,7 +36,7 @@ meta JSONB)
 """
 
 INSERT_STATEMENT = """
-INSERT INTO {table_name}
+INSERT INTO {schema_name}.{table_name}
 (id, embedding, content, dataframe, blob_data, blob_meta, blob_mime_type, meta)
 VALUES (%(id)s, %(embedding)s, %(content)s, %(dataframe)s, %(blob_data)s, %(blob_meta)s, %(blob_mime_type)s, %(meta)s)
 """
@@ -54,7 +54,7 @@ meta = EXCLUDED.meta
 
 KEYWORD_QUERY = """
 SELECT {table_name}.*, ts_rank_cd(to_tsvector({language}, content), query) AS score
-FROM {table_name}, plainto_tsquery({language}, %s) query
+FROM {schema_name}.{table_name}, plainto_tsquery({language}, %s) query
 WHERE to_tsvector({language}, content) @@ query
 """
 
@@ -78,6 +78,8 @@ class PgvectorDocumentStore:
         self,
         *,
         connection_string: Secret = Secret.from_env_var("PG_CONN_STR"),
+        create_extension: bool = True,
+        schema_name: str = "public",
         table_name: str = "haystack_documents",
         language: str = "english",
         embedding_dimension: int = 768,
@@ -101,6 +103,11 @@ class PgvectorDocumentStore:
             e.g.: `PG_CONN_STR="host=HOST port=PORT dbname=DBNAME user=USER password=PASSWORD"`
             See [PostgreSQL Documentation](https://www.postgresql.org/docs/current/libpq-connect.html#LIBPQ-CONNSTRING)
             for more details.
+        :param create_extension: Whether to create the pgvector extension if it doesn't exist.
+            Set this to `True` (default) to automatically create the extension if it is missing.
+            Creating the extension may require superuser privileges.
+            If set to `False`, ensure the extension is already installed; otherwise, an error will be raised.
+        :param schema_name: The name of the schema the table is created in. The schema must already exist.
         :param table_name: The name of the table to use to store Haystack documents.
         :param language: The language to be used to parse query and document content in keyword retrieval.
             To see the list of available languages, you can run the following SQL query in your PostgreSQL database:
@@ -136,7 +143,9 @@ class PgvectorDocumentStore:
         """
 
         self.connection_string = connection_string
+        self.create_extension = create_extension
         self.table_name = table_name
+        self.schema_name = schema_name
         self.embedding_dimension = embedding_dimension
         if vector_function not in VALID_VECTOR_FUNCTIONS:
             msg = f"vector_function must be one of {VALID_VECTOR_FUNCTIONS}, but got {vector_function}"
@@ -153,49 +162,86 @@ class PgvectorDocumentStore:
         self._connection = None
         self._cursor = None
         self._dict_cursor = None
+        self._table_initialized = False
 
     @property
     def cursor(self):
-        if self._cursor is None:
+        if self._cursor is None or not self._connection_is_valid(self._connection):
             self._create_connection()
 
         return self._cursor
 
     @property
     def dict_cursor(self):
-        if self._dict_cursor is None:
+        if self._dict_cursor is None or not self._connection_is_valid(self._connection):
             self._create_connection()
 
         return self._dict_cursor
 
     @property
     def connection(self):
-        if self._connection is None:
+        if self._connection is None or not self._connection_is_valid(self._connection):
             self._create_connection()
 
         return self._connection
 
     def _create_connection(self):
+        """
+        Internal method to create a connection to the PostgreSQL database.
+        """
+
+        # close the connection if it already exists
+        if self._connection:
+            try:
+                self._connection.close()
+            except Error as e:
+                logger.debug("Failed to close connection: %s", str(e))
+
         conn_str = self.connection_string.resolve_value() or ""
         connection = connect(conn_str)
         connection.autocommit = True
-        connection.execute("CREATE EXTENSION IF NOT EXISTS vector")
+        if self.create_extension:
+            connection.execute("CREATE EXTENSION IF NOT EXISTS vector")
         register_vector(connection)  # Note: this must be called before creating the cursors.
 
         self._connection = connection
         self._cursor = self._connection.cursor()
         self._dict_cursor = self._connection.cursor(row_factory=dict_row)
 
-        # Init schema
+        if not self._table_initialized:
+            self._initialize_table()
+
+        return self._connection
+
+    def _initialize_table(self):
+        """
+        Internal method to initialize the table.
+        """
         if self.recreate_table:
             self.delete_table()
+
         self._create_table_if_not_exists()
         self._create_keyword_index_if_not_exists()
 
         if self.search_strategy == "hnsw":
             self._handle_hnsw()
 
-        return self._connection
+        self._table_initialized = True
+
+    @staticmethod
+    def _connection_is_valid(connection):
+        """
+        Internal method to check if the connection is still valid.
+        """
+
+        # implementation inspired to psycopg pool
+        # https://github.com/psycopg/psycopg/blob/d38cf7798b0c602ff43dac9f20bbab96237a9c38/psycopg_pool/psycopg_pool/pool.py#L528
+
+        try:
+            connection.execute("")
+        except Error:
+            return False
+        return True
 
     def to_dict(self) -> Dict[str, Any]:
         """
@@ -207,6 +253,8 @@ class PgvectorDocumentStore:
         return default_to_dict(
             self,
             connection_string=self.connection_string.to_dict(),
+            create_extension=self.create_extension,
+            schema_name=self.schema_name,
             table_name=self.table_name,
             embedding_dimension=self.embedding_dimension,
             vector_function=self.vector_function,
@@ -266,7 +314,9 @@ class PgvectorDocumentStore:
         """
 
         create_sql = SQL(CREATE_TABLE_STATEMENT).format(
-            table_name=Identifier(self.table_name), embedding_dimension=SQLLiteral(self.embedding_dimension)
+            schema_name=Identifier(self.schema_name),
+            table_name=Identifier(self.table_name),
+            embedding_dimension=SQLLiteral(self.embedding_dimension),
         )
 
         self._execute_sql(create_sql, error_msg="Could not create table in PgvectorDocumentStore")
@@ -274,12 +324,18 @@ class PgvectorDocumentStore:
     def delete_table(self):
         """
         Deletes the table used to store Haystack documents.
-        The name of the table (`table_name`) is defined when initializing the `PgvectorDocumentStore`.
+        The name of the schema (`schema_name`) and the name of the table (`table_name`)
+        are defined when initializing the `PgvectorDocumentStore`.
         """
+        delete_sql = SQL("DROP TABLE IF EXISTS {schema_name}.{table_name}").format(
+            schema_name=Identifier(self.schema_name),
+            table_name=Identifier(self.table_name),
+        )
 
-        delete_sql = SQL("DROP TABLE IF EXISTS {table_name}").format(table_name=Identifier(self.table_name))
-
-        self._execute_sql(delete_sql, error_msg=f"Could not delete table {self.table_name} in PgvectorDocumentStore")
+        self._execute_sql(
+            delete_sql,
+            error_msg=f"Could not delete table {self.schema_name}.{self.table_name} in PgvectorDocumentStore",
+        )
 
     def _create_keyword_index_if_not_exists(self):
         """
@@ -287,15 +343,16 @@ class PgvectorDocumentStore:
         """
         index_exists = bool(
             self._execute_sql(
-                "SELECT 1 FROM pg_indexes WHERE tablename = %s AND indexname = %s",
-                (self.table_name, self.keyword_index_name),
+                "SELECT 1 FROM pg_indexes WHERE schemaname = %s AND tablename = %s AND indexname = %s",
+                (self.schema_name, self.table_name, self.keyword_index_name),
                 "Could not check if keyword index exists",
             ).fetchone()
         )
 
         sql_create_index = SQL(
-            "CREATE INDEX {index_name} ON {table_name} USING GIN (to_tsvector({language}, content))"
+            "CREATE INDEX {index_name} ON {schema_name}.{table_name} USING GIN (to_tsvector({language}, content))"
         ).format(
+            schema_name=Identifier(self.schema_name),
             index_name=Identifier(self.keyword_index_name),
             table_name=Identifier(self.table_name),
             language=SQLLiteral(self.language),
@@ -318,8 +375,8 @@ class PgvectorDocumentStore:
 
         index_exists = bool(
             self._execute_sql(
-                "SELECT 1 FROM pg_indexes WHERE tablename = %s AND indexname = %s",
-                (self.table_name, self.hnsw_index_name),
+                "SELECT 1 FROM pg_indexes WHERE schemaname = %s AND tablename = %s AND indexname = %s",
+                (self.schema_name, self.table_name, self.hnsw_index_name),
                 "Could not check if HNSW index exists",
             ).fetchone()
         )
@@ -349,8 +406,13 @@ class PgvectorDocumentStore:
             if key in HNSW_INDEX_CREATION_VALID_KWARGS
         }
 
-        sql_create_index = SQL("CREATE INDEX {index_name} ON {table_name} USING hnsw (embedding {ops}) ").format(
-            index_name=Identifier(self.hnsw_index_name), table_name=Identifier(self.table_name), ops=SQL(pg_ops)
+        sql_create_index = SQL(
+            "CREATE INDEX {index_name} ON {schema_name}.{table_name} USING hnsw (embedding {ops}) "
+        ).format(
+            schema_name=Identifier(self.schema_name),
+            index_name=Identifier(self.hnsw_index_name),
+            table_name=Identifier(self.table_name),
+            ops=SQL(pg_ops),
         )
 
         if actual_hnsw_index_creation_kwargs:
@@ -369,7 +431,9 @@ class PgvectorDocumentStore:
         Returns how many documents are present in the document store.
         """
 
-        sql_count = SQL("SELECT COUNT(*) FROM {table_name}").format(table_name=Identifier(self.table_name))
+        sql_count = SQL("SELECT COUNT(*) FROM {schema_name}.{table_name}").format(
+            schema_name=Identifier(self.schema_name), table_name=Identifier(self.table_name)
+        )
 
         count = self._execute_sql(sql_count, error_msg="Could not count documents in PgvectorDocumentStore").fetchone()[
             0
@@ -395,7 +459,9 @@ class PgvectorDocumentStore:
                 msg = "Invalid filter syntax. See https://docs.haystack.deepset.ai/docs/metadata-filtering for details."
                 raise ValueError(msg)
 
-        sql_filter = SQL("SELECT * FROM {table_name}").format(table_name=Identifier(self.table_name))
+        sql_filter = SQL("SELECT * FROM {schema_name}.{table_name}").format(
+            schema_name=Identifier(self.schema_name), table_name=Identifier(self.table_name)
+        )
 
         params = ()
         if filters:
@@ -434,7 +500,9 @@ class PgvectorDocumentStore:
 
         db_documents = self._from_haystack_to_pg_documents(documents)
 
-        sql_insert = SQL(INSERT_STATEMENT).format(table_name=Identifier(self.table_name))
+        sql_insert = SQL(INSERT_STATEMENT).format(
+            schema_name=Identifier(self.schema_name), table_name=Identifier(self.table_name)
+        )
 
         if policy == DuplicatePolicy.OVERWRITE:
             sql_insert += SQL(UPDATE_STATEMENT)
@@ -543,8 +611,10 @@ class PgvectorDocumentStore:
 
         document_ids_str = ", ".join(f"'{document_id}'" for document_id in document_ids)
 
-        delete_sql = SQL("DELETE FROM {table_name} WHERE id IN ({document_ids_str})").format(
-            table_name=Identifier(self.table_name), document_ids_str=SQL(document_ids_str)
+        delete_sql = SQL("DELETE FROM {schema_name}.{table_name} WHERE id IN ({document_ids_str})").format(
+            schema_name=Identifier(self.schema_name),
+            table_name=Identifier(self.table_name),
+            document_ids_str=SQL(document_ids_str),
         )
 
         self._execute_sql(delete_sql, error_msg="Could not delete documents from PgvectorDocumentStore")
@@ -570,6 +640,7 @@ class PgvectorDocumentStore:
             raise ValueError(msg)
 
         sql_select = SQL(KEYWORD_QUERY).format(
+            schema_name=Identifier(self.schema_name),
             table_name=Identifier(self.table_name),
             language=SQLLiteral(self.language),
             query=SQLLiteral(query),
@@ -643,7 +714,8 @@ class PgvectorDocumentStore:
         elif vector_function == "l2_distance":
             score_definition = f"embedding <-> {query_embedding_for_postgres} AS score"
 
-        sql_select = SQL("SELECT *, {score} FROM {table_name}").format(
+        sql_select = SQL("SELECT *, {score} FROM {schema_name}.{table_name}").format(
+            schema_name=Identifier(self.schema_name),
             table_name=Identifier(self.table_name),
             score=SQL(score_definition),
         )
