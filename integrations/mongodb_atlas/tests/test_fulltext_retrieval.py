@@ -2,32 +2,38 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 import os
+from time import sleep
 from typing import List, Union
 from unittest.mock import MagicMock
 
 import pytest
 from haystack import Document
+from haystack.utils import Secret
 
 from haystack_integrations.document_stores.mongodb_atlas import MongoDBAtlasDocumentStore
 
 
+def get_document_store():
+    return MongoDBAtlasDocumentStore(
+        mongo_connection_string=Secret.from_env_var("MONGO_CONNECTION_STRING_2"),
+        database_name="haystack_test",
+        collection_name="test_collection",
+        vector_search_index="cosine_index",
+        full_text_search_index="full_text_index",
+    )
+
+
 @pytest.mark.skipif(
-    "MONGO_CONNECTION_STRING" not in os.environ,
+    "MONGO_CONNECTION_STRING_2" not in os.environ,
     reason="No MongoDB Atlas connection string provided",
 )
 @pytest.mark.integration
 class TestFullTextRetrieval:
-
-    @pytest.fixture()
+    @pytest.fixture(scope="class")
     def document_store(self) -> MongoDBAtlasDocumentStore:
-        return MongoDBAtlasDocumentStore(
-            database_name="haystack_integration_test",
-            collection_name="test_full_text_collection",
-            vector_search_index="cosine_index",
-            full_text_search_index="full_text_index",
-        )
+        return get_document_store()
 
-    @pytest.fixture(autouse=True)
+    @pytest.fixture(autouse=True, scope="class")
     def setup_teardown(self, document_store):
         document_store.collection.delete_many({})
         document_store.write_documents(
@@ -39,9 +45,13 @@ class TestFullTextRetrieval:
             ]
         )
 
+        # Wait for documents to be indexed
+        sleep(5)
+
         yield
 
-    def test_pipeline_correctly_passes_parameters(self, document_store: MongoDBAtlasDocumentStore):
+    def test_pipeline_correctly_passes_parameters(self):
+        document_store = get_document_store()
         mock_collection = MagicMock()
         document_store._collection = mock_collection
         mock_collection.aggregate.return_value = []
