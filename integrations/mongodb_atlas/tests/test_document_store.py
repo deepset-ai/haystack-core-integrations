@@ -25,6 +25,7 @@ def test_init_is_lazy(_mock_client):
         database_name="database_name",
         collection_name="collection_name",
         vector_search_index="cosine_index",
+        full_text_search_index="full_text_index",
     )
     _mock_client.assert_not_called()
 
@@ -53,6 +54,7 @@ class TestDocumentStore(DocumentStoreBaseTests):
             database_name=database_name,
             collection_name=collection_name,
             vector_search_index="cosine_index",
+            full_text_search_index="full_text_index",
         )
         yield store
         database[collection_name].drop()
@@ -92,6 +94,7 @@ class TestDocumentStore(DocumentStoreBaseTests):
                 },
                 "database_name": "haystack_integration_test",
                 "vector_search_index": "cosine_index",
+                "full_text_search_index": "full_text_index",
             },
         }
 
@@ -110,6 +113,7 @@ class TestDocumentStore(DocumentStoreBaseTests):
                     "database_name": "haystack_integration_test",
                     "collection_name": "test_embeddings_collection",
                     "vector_search_index": "cosine_index",
+                    "full_text_search_index": "full_text_index",
                 },
             }
         )
@@ -117,6 +121,7 @@ class TestDocumentStore(DocumentStoreBaseTests):
         assert docstore.database_name == "haystack_integration_test"
         assert docstore.collection_name == "test_embeddings_collection"
         assert docstore.vector_search_index == "cosine_index"
+        assert docstore.full_text_search_index == "full_text_index"
 
     def test_complex_filter(self, document_store, filterable_docs):
         document_store.write_documents(filterable_docs)

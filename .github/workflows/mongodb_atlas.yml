@@ -4,11 +4,11 @@ name: Test / mongodb_atlas
 
 on:
   schedule:
-    - cron: "0 0 * * *"
+    - cron: '0 0 * * *'
   pull_request:
     paths:
-      - "integrations/mongodb_atlas/**"
-      - ".github/workflows/mongodb_atlas.yml"
+      - 'integrations/mongodb_atlas/**'
+      - '.github/workflows/mongodb_atlas.yml'
 
 defaults:
   run:
@@ -19,9 +19,10 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  PYTHONUNBUFFERED: "1"
-  FORCE_COLOR: "1"
+  PYTHONUNBUFFERED: '1'
+  FORCE_COLOR: '1'
   MONGO_CONNECTION_STRING: ${{ secrets.MONGO_CONNECTION_STRING }}
+  MONGO_CONNECTION_STRING_2: ${{ secrets.MONGO_CONNECTION_STRING_2 }}
 
 jobs:
   run:
@@ -31,7 +32,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
-        python-version: ["3.9", "3.10", "3.11"]
+        python-version: ['3.9', '3.10', '3.11']
 
     steps:
       - uses: actions/checkout@v4
