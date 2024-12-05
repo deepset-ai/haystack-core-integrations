@@ -1,4 +1,5 @@
 import json
+from typing import Any, Dict, Optional
 
 import pytest
 from haystack.components.generators.utils import print_streaming_chunk
@@ -30,8 +31,16 @@ def chat_messages():
     ]
     return messages
 
-
-def test_to_dict(mock_boto3_session):
+@pytest.mark.parametrize(
+    "boto3_config",
+    [
+        None,
+        {
+            "read_timeout": 1000,
+        },
+    ],
+)
+def test_to_dict(mock_boto3_session, boto3_config):
     """
     Test that the to_dict method returns the correct dictionary without aws credentials
     """
