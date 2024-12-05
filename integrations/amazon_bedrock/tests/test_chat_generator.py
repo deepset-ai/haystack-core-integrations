@@ -31,6 +31,7 @@ def chat_messages():
     ]
     return messages
 
+
 @pytest.mark.parametrize(
     "boto3_config",
     [
