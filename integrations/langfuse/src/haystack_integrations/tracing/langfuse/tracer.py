@@ -7,7 +7,8 @@ from typing import Any, Dict, Iterator, List, Optional, Union
 from haystack import logging
 from haystack.components.generators.openai_utils import _convert_message_to_openai_format
 from haystack.dataclasses import ChatMessage
-from haystack.tracing import Span, Tracer, tracer
+from haystack.tracing import Span, Tracer
+from haystack.tracing import tracer as proxy_tracer
 from haystack.tracing import utils as tracing_utils
 
 import langfuse
@@ -78,7 +79,7 @@ class LangfuseSpan(Span):
         :param key: The content tag key.
         :param value: The content tag value.
         """
-        if not tracer.is_content_tracing_enabled:
+        if not proxy_tracer.is_content_tracing_enabled:
             return
         if key.endswith(".input"):
             if "messages" in value:
@@ -126,6 +127,12 @@ class LangfuseTracer(Tracer):
         be publicly accessible to anyone with the tracing URL. If set to `False`, the tracing data will be private
         and only accessible to the Langfuse account owner.
         """
+        if not proxy_tracer.is_content_tracing_enabled:
+            logger.warning(
+                "Traces will not be logged to Langfuse because Haystack tracing is disabled. "
+                "To enable, set the HAYSTACK_CONTENT_TRACING_ENABLED environment variable to true "
+                "before importing Haystack."
+            )
         self._tracer = tracer
         self._context: List[LangfuseSpan] = []
         self._name = name
