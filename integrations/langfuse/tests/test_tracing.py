@@ -49,7 +49,7 @@ def test_tracing_integration(llm_class, env_var, expected_trace):
             "tracer": {"invocation_context": {"user_id": "user_42"}},
         }
     )
-    assert "Berlin" in response["llm"]["replies"][0].content
+    assert "Berlin" in response["llm"]["replies"][0].text
     assert response["tracer"]["trace_url"]
 
     trace_url = response["tracer"]["trace_url"]
