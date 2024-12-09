@@ -102,7 +102,7 @@ class TestOllamaChatGenerator:
         observed = OllamaChatGenerator(model=model)._build_message_from_ollama_response(ollama_response)
 
         assert observed.role == "assistant"
-        assert observed.content == "Hello! How are you today?"
+        assert observed.text == "Hello! How are you today?"
 
     @pytest.mark.integration
     def test_run(self):
@@ -121,7 +121,7 @@ class TestOllamaChatGenerator:
 
             assert isinstance(response, dict)
             assert isinstance(response["replies"], list)
-            assert answer in response["replies"][0].content
+            assert answer in response["replies"][0].text
 
     @pytest.mark.integration
     def test_run_with_chat_history(self):
@@ -137,7 +137,7 @@ class TestOllamaChatGenerator:
 
         assert isinstance(response, dict)
         assert isinstance(response["replies"], list)
-        assert "Manchester" in response["replies"][-1].content or "Glasgow" in response["replies"][-1].content
+        assert "Manchester" in response["replies"][-1].text or "Glasgow" in response["replies"][-1].text
 
     @pytest.mark.integration
     def test_run_model_unavailable(self):
@@ -166,4 +166,4 @@ class TestOllamaChatGenerator:
 
         assert isinstance(response, dict)
         assert isinstance(response["replies"], list)
-        assert "Manchester" in response["replies"][-1].content or "Glasgow" in response["replies"][-1].content
+        assert "Manchester" in response["replies"][-1].text or "Glasgow" in response["replies"][-1].text

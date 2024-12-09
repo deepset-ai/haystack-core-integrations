@@ -109,7 +109,7 @@ class OllamaChatGenerator:
         return default_from_dict(cls, data)
 
     def _message_to_dict(self, message: ChatMessage) -> Dict[str, str]:
-        return {"role": message.role.value, "content": message.content}
+        return {"role": message.role.value, "content": message.text}
 
     def _build_message_from_ollama_response(self, ollama_response: ChatResponse) -> ChatMessage:
         """
