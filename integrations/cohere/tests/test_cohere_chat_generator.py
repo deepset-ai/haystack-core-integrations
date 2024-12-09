@@ -169,7 +169,7 @@ class TestCohereChatGenerator:
         results = component.run(chat_messages)
         assert len(results["replies"]) == 1
         message: ChatMessage = results["replies"][0]
-        assert "Paris" in message.content
+        assert "Paris" in message.text
         assert "usage" in message.meta
         assert "prompt_tokens" in message.meta["usage"]
         assert "completion_tokens" in message.meta["usage"]
@@ -205,7 +205,7 @@ class TestCohereChatGenerator:
 
         assert len(results["replies"]) == 1
         message: ChatMessage = results["replies"][0]
-        assert "Paris" in message.content
+        assert "Paris" in message.text
 
         assert message.meta["finish_reason"] == "COMPLETE"
 
@@ -227,7 +227,7 @@ class TestCohereChatGenerator:
         results = component.run(chat_messages, generation_kwargs={"connectors": [{"id": "web-search"}]})
         assert len(results["replies"]) == 1
         message: ChatMessage = results["replies"][0]
-        assert "Paris" in message.content
+        assert "Paris" in message.text
         assert message.meta["documents"] is not None
         assert "citations" in message.meta  # Citations might be None
 
@@ -253,7 +253,7 @@ class TestCohereChatGenerator:
 
         assert len(results["replies"]) == 1
         message: ChatMessage = results["replies"][0]
-        assert "Paris" in message.content
+        assert "Paris" in message.text
 
         assert message.meta["finish_reason"] == "COMPLETE"
 
@@ -291,10 +291,10 @@ class TestCohereChatGenerator:
 
         first_reply = replies[0]
         assert isinstance(first_reply, ChatMessage), "First reply is not a ChatMessage instance"
-        assert first_reply.content, "First reply has no content"
+        assert first_reply.text, "First reply has no text"
         assert ChatMessage.is_from(first_reply, ChatRole.ASSISTANT), "First reply is not from the assistant"
-        assert "get_stock_price" in first_reply.content.lower(), "First reply does not contain get_stock_price"
+        assert "get_stock_price" in first_reply.text.lower(), "First reply does not contain get_stock_price"
         assert first_reply.meta, "First reply has no metadata"
-        fc_response = json.loads(first_reply.content)
+        fc_response = json.loads(first_reply.text)
         assert "name" in fc_response, "First reply does not contain name of the tool"
         assert "parameters" in fc_response, "First reply does not contain parameters of the tool"
