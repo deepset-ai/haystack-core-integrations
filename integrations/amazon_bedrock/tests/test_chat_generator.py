@@ -447,3 +447,52 @@ class TestAmazonBedrockChatGeneratorInference:
         assert tool_content["toolUseId"] == "456"
         assert tool_content["name"] == "search_tool"
         assert tool_content["input"] == {"query": "test"}
+
+    def test_process_streaming_response(self, mock_boto3_session):
+        """
+        Test that process_streaming_response correctly handles streaming events and accumulates responses
+        """
+        generator = AmazonBedrockChatGenerator(model="anthropic.claude-3-5-sonnet-20240620-v1:0")
+
+        streaming_chunks = []
+        def test_callback(chunk: StreamingChunk):
+            streaming_chunks.append(chunk)
+
+        # Simulate a stream of events for both text and tool use
+        events = [
+            {"contentBlockStart": {"start": {"text": ""}}},
+            {"contentBlockDelta": {"delta": {"text": "Let me "}}},
+            {"contentBlockDelta": {"delta": {"text": "help you."}}},
+            {"contentBlockStop": {}},
+            {"contentBlockStart": {"start": {"toolUse": {"toolUseId": "123", "name": "search_tool"}}}},
+            {"contentBlockDelta": {"delta": {"toolUse": {"input": '{"query":'}}}},
+            {"contentBlockDelta": {"delta": {"toolUse": {"input": '"test"}'}}}},
+            {"contentBlockStop": {}},
+            {"messageStop": {"stopReason": "complete"}},
+            {"metadata": {"usage": {"inputTokens": 10, "outputTokens": 20, "totalTokens": 30}}}
+        ]
+
+        replies = generator.process_streaming_response(events, test_callback)
+
+        # Verify streaming chunks were received for text content
+        assert len(streaming_chunks) == 2
+        assert streaming_chunks[0].content == "Let me "
+        assert streaming_chunks[1].content == "help you."
+
+        # Verify final replies
+        assert len(replies) == 2
+        # Check text reply
+        assert replies[0].content == "Let me help you."
+        assert replies[0].meta["model"] == "anthropic.claude-3-5-sonnet-20240620-v1:0"
+        assert replies[0].meta["finish_reason"] == "complete"
+        assert replies[0].meta["usage"] == {
+            "prompt_tokens": 10,
+            "completion_tokens": 20,
+            "total_tokens": 30
+        }
+
+        # Check tool use reply
+        tool_content = json.loads(replies[1].content)
+        assert tool_content["toolUseId"] == "123"
+        assert tool_content["name"] == "search_tool"
+        assert tool_content["input"] == {"query": "test"}
