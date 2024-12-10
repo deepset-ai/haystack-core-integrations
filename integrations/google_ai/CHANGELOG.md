@@ -1,5 +1,19 @@
 # Changelog
 
+## [integrations/google_ai-v4.0.0] - 2024-12-10
+
+### 🐛 Bug Fixes
+
+- GoogleAI - fix the content type of `ChatMessage` `content` from function (#1241)
+
+### 🧹 Chores
+
+- Fix linting/isort (#1215)
+
+### 🌀 Miscellaneous
+
+- Chore: use class methods to create `ChatMessage` (#1222)
+
 ## [integrations/google_ai-v3.0.2] - 2024-11-19
 
 ### 🐛 Bug Fixes
