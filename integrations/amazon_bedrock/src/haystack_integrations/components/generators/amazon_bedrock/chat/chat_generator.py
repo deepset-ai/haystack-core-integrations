@@ -3,6 +3,7 @@ import logging
 from typing import Any, Callable, Dict, List, Optional
 
 from botocore.config import Config
+from botocore.eventstream import EventStream
 from botocore.exceptions import ClientError
 from haystack import component, default_from_dict, default_to_dict
 from haystack.dataclasses import ChatMessage, ChatRole, StreamingChunk
@@ -240,7 +241,7 @@ class AmazonBedrockChatGenerator:
         try:
             if callback:
                 response = self.client.converse_stream(**params)
-                response_stream = response.get("stream")
+                response_stream: EventStream = response.get("stream")
                 if not response_stream:
                     msg = "No stream found in the response."
                     raise AmazonBedrockInferenceError(msg)
@@ -287,7 +288,7 @@ class AmazonBedrockChatGenerator:
         return replies
 
     def process_streaming_response(
-        self, response_stream, streaming_callback: Callable[[StreamingChunk], None]
+        self, response_stream: EventStream, streaming_callback: Callable[[StreamingChunk], None]
     ) -> List[ChatMessage]:
         replies = []
         current_content = ""
