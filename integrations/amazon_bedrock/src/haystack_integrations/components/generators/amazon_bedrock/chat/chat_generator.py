@@ -223,19 +223,21 @@ class AmazonBedrockChatGenerator:
 
         messages_list = [{"role": msg.role.value, "content": [{"text": msg.content}]} for msg in messages]
 
+        # Build API parameters
+        params = {
+            "modelId": self.model,
+            "messages": messages_list,
+            "system": system_prompts,
+            "inferenceConfig": inference_config,
+        }
+        if tool_config:
+            params["toolConfig"] = tool_config
+        if additional_fields:
+            params["additionalModelRequestFields"] = additional_fields
+
+        callback = streaming_callback or self.streaming_callback
+
         try:
-            # Build API parameters
-            params = {
-                "modelId": self.model,
-                "messages": messages_list,
-                "system": system_prompts,
-                "inferenceConfig": inference_config,
-            }
-            if tool_config:
-                params["toolConfig"] = tool_config
-            if additional_fields:
-                params["additionalModelRequestFields"] = additional_fields
-            callback = streaming_callback or self.streaming_callback
             if callback:
                 response = self.client.converse_stream(**params)
                 response_stream = response.get("stream")
