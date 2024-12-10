@@ -1,4 +1,6 @@
 import datetime
+import logging
+import sys
 from unittest.mock import MagicMock, Mock, patch
 
 from haystack.dataclasses import ChatMessage
@@ -149,3 +151,17 @@ class TestLangfuseTracer:
             pass
 
         assert tracer._context == []
+
+    def test_init_with_tracing_disabled(self, monkeypatch, caplog):
+        # Clear haystack modules because ProxyTracer is initialized whenever haystack is imported
+        modules_to_clear = [name for name in sys.modules if name.startswith('haystack')]
+        for name in modules_to_clear:
+            sys.modules.pop(name, None)
+
+        # Re-import LangfuseTracer and instantiate it with tracing disabled
+        with caplog.at_level(logging.WARNING):
+            monkeypatch.setenv("HAYSTACK_CONTENT_TRACING_ENABLED", "false")
+            from haystack_integrations.tracing.langfuse import LangfuseTracer
+
+            LangfuseTracer(tracer=MockTracer(), name="Haystack", public=False)
+            assert "tracing is disabled" in caplog.text

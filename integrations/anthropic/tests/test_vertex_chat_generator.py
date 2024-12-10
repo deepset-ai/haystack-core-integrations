@@ -188,9 +188,9 @@ class TestAnthropicVertexChatGenerator:
 
         first_reply = replies[0]
         assert isinstance(first_reply, ChatMessage), "First reply is not a ChatMessage instance"
-        assert first_reply.content, "First reply has no content"
+        assert first_reply.text, "First reply has no text"
         assert ChatMessage.is_from(first_reply, ChatRole.ASSISTANT), "First reply is not from the assistant"
-        assert "paris" in first_reply.content.lower(), "First reply does not contain 'paris'"
+        assert "paris" in first_reply.text.lower(), "First reply does not contain 'paris'"
         assert first_reply.meta, "First reply has no metadata"
 
     # Anthropic messages API is similar for AnthropicVertex and Anthropic endpoint,
