@@ -405,7 +405,7 @@ class TestAmazonBedrockChatGeneratorInference:
 
         replies = generator.extract_replies_from_response(mixed_response)
         assert len(replies) == 2
-        assert replies[0].content == "Let me help you with that."
+        assert replies[0].content == "Let me help you with that. I'll use the search tool to find the answer."
         tool_content = json.loads(replies[1].content)
         assert tool_content["toolUseId"] == "456"
         assert tool_content["name"] == "search_tool"
