@@ -354,18 +354,9 @@ class TestAmazonBedrockChatGeneratorInference:
 
         # Test case 1: Simple text response
         text_response = {
-            "output": {
-                "message": {
-                    "role": "assistant",
-                    "content": [{"text": "This is a test response"}]
-                }
-            },
+            "output": {"message": {"role": "assistant", "content": [{"text": "This is a test response"}]}},
             "stopReason": "complete",
-            "usage": {
-                "inputTokens": 10,
-                "outputTokens": 20,
-                "totalTokens": 30
-            }
+            "usage": {"inputTokens": 10, "outputTokens": 20, "totalTokens": 30},
         }
 
         replies = generator.extract_replies_from_response(text_response)
@@ -374,32 +365,18 @@ class TestAmazonBedrockChatGeneratorInference:
         assert replies[0].role == ChatRole.ASSISTANT
         assert replies[0].meta["model"] == "anthropic.claude-3-5-sonnet-20240620-v1:0"
         assert replies[0].meta["finish_reason"] == "complete"
-        assert replies[0].meta["usage"] == {
-            "prompt_tokens": 10,
-            "completion_tokens": 20,
-            "total_tokens": 30
-        }
+        assert replies[0].meta["usage"] == {"prompt_tokens": 10, "completion_tokens": 20, "total_tokens": 30}
 
         # Test case 2: Tool use response
         tool_response = {
             "output": {
                 "message": {
                     "role": "assistant",
-                    "content": [{
-                        "toolUse": {
-                            "toolUseId": "123",
-                            "name": "test_tool",
-                            "input": {"key": "value"}
-                        }
-                    }]
+                    "content": [{"toolUse": {"toolUseId": "123", "name": "test_tool", "input": {"key": "value"}}}],
                 }
             },
             "stopReason": "tool_call",
-            "usage": {
-                "inputTokens": 15,
-                "outputTokens": 25,
-                "totalTokens": 40
-            }
+            "usage": {"inputTokens": 15, "outputTokens": 25, "totalTokens": 40},
         }
 
         replies = generator.extract_replies_from_response(tool_response)
@@ -409,11 +386,7 @@ class TestAmazonBedrockChatGeneratorInference:
         assert tool_content["name"] == "test_tool"
         assert tool_content["input"] == {"key": "value"}
         assert replies[0].meta["finish_reason"] == "tool_call"
-        assert replies[0].meta["usage"] == {
-            "prompt_tokens": 15,
-            "completion_tokens": 25,
-            "total_tokens": 40
-        }
+        assert replies[0].meta["usage"] == {"prompt_tokens": 15, "completion_tokens": 25, "total_tokens": 40}
 
         # Test case 3: Mixed content response
         mixed_response = {
@@ -422,22 +395,12 @@ class TestAmazonBedrockChatGeneratorInference:
                     "role": "assistant",
                     "content": [
                         {"text": "Let me help you with that. I'll use the search tool to find the answer."},
-                        {
-                            "toolUse": {
-                                "toolUseId": "456",
-                                "name": "search_tool",
-                                "input": {"query": "test"}
-                            }
-                        }
-                    ]
+                        {"toolUse": {"toolUseId": "456", "name": "search_tool", "input": {"query": "test"}}},
+                    ],
                 }
             },
             "stopReason": "complete",
-            "usage": {
-                "inputTokens": 25,
-                "outputTokens": 35,
-                "totalTokens": 60
-            }
+            "usage": {"inputTokens": 25, "outputTokens": 35, "totalTokens": 60},
         }
 
         replies = generator.extract_replies_from_response(mixed_response)
@@ -455,6 +418,7 @@ class TestAmazonBedrockChatGeneratorInference:
         generator = AmazonBedrockChatGenerator(model="anthropic.claude-3-5-sonnet-20240620-v1:0")
 
         streaming_chunks = []
+
         def test_callback(chunk: StreamingChunk):
             streaming_chunks.append(chunk)
 
@@ -469,7 +433,7 @@ class TestAmazonBedrockChatGeneratorInference:
             {"contentBlockDelta": {"delta": {"toolUse": {"input": '"test"}'}}}},
             {"contentBlockStop": {}},
             {"messageStop": {"stopReason": "complete"}},
-            {"metadata": {"usage": {"inputTokens": 10, "outputTokens": 20, "totalTokens": 30}}}
+            {"metadata": {"usage": {"inputTokens": 10, "outputTokens": 20, "totalTokens": 30}}},
         ]
 
         replies = generator.process_streaming_response(events, test_callback)
@@ -485,11 +449,7 @@ class TestAmazonBedrockChatGeneratorInference:
         assert replies[0].content == "Let me help you."
         assert replies[0].meta["model"] == "anthropic.claude-3-5-sonnet-20240620-v1:0"
         assert replies[0].meta["finish_reason"] == "complete"
-        assert replies[0].meta["usage"] == {
-            "prompt_tokens": 10,
-            "completion_tokens": 20,
-            "total_tokens": 30
-        }
+        assert replies[0].meta["usage"] == {"prompt_tokens": 10, "completion_tokens": 20, "total_tokens": 30}
 
         # Check tool use reply
         tool_content = json.loads(replies[1].content)
