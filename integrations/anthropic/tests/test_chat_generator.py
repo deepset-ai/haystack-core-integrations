@@ -188,9 +188,9 @@ class TestAnthropicChatGenerator:
 
         first_reply = replies[0]
         assert isinstance(first_reply, ChatMessage), "First reply is not a ChatMessage instance"
-        assert first_reply.content, "First reply has no content"
+        assert first_reply.text, "First reply has no text"
         assert ChatMessage.is_from(first_reply, ChatRole.ASSISTANT), "First reply is not from the assistant"
-        assert "paris" in first_reply.content.lower(), "First reply does not contain 'paris'"
+        assert "paris" in first_reply.text.lower(), "First reply does not contain 'paris'"
         assert first_reply.meta, "First reply has no metadata"
 
     @pytest.mark.skipif(
@@ -221,9 +221,9 @@ class TestAnthropicChatGenerator:
 
         first_reply = replies[0]
         assert isinstance(first_reply, ChatMessage), "First reply is not a ChatMessage instance"
-        assert first_reply.content, "First reply has no content"
+        assert first_reply.text, "First reply has no text"
         assert ChatMessage.is_from(first_reply, ChatRole.ASSISTANT), "First reply is not from the assistant"
-        assert "paris" in first_reply.content.lower(), "First reply does not contain 'paris'"
+        assert "paris" in first_reply.text.lower(), "First reply does not contain 'paris'"
         assert first_reply.meta, "First reply has no metadata"
 
     @pytest.mark.skipif(
@@ -255,11 +255,11 @@ class TestAnthropicChatGenerator:
 
         first_reply = replies[0]
         assert isinstance(first_reply, ChatMessage), "First reply is not a ChatMessage instance"
-        assert first_reply.content, "First reply has no content"
+        assert first_reply.text, "First reply has no text"
         assert ChatMessage.is_from(first_reply, ChatRole.ASSISTANT), "First reply is not from the assistant"
-        assert "get_stock_price" in first_reply.content.lower(), "First reply does not contain get_stock_price"
+        assert "get_stock_price" in first_reply.text.lower(), "First reply does not contain get_stock_price"
         assert first_reply.meta, "First reply has no metadata"
-        fc_response = json.loads(first_reply.content)
+        fc_response = json.loads(first_reply.text)
         assert "name" in fc_response, "First reply does not contain name of the tool"
         assert "input" in fc_response, "First reply does not contain input of the tool"
 

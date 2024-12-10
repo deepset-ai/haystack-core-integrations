@@ -67,4 +67,4 @@ class CohereGenerator(CohereChatGenerator):
         chat_message = ChatMessage.from_user(prompt)
         # Note we have to call super() like this because of the way components are dynamically built with the decorator
         results = super(CohereGenerator, self).run([chat_message])  # noqa
-        return {"replies": [results["replies"][0].content], "meta": [results["replies"][0].meta]}
+        return {"replies": [results["replies"][0].text], "meta": [results["replies"][0].meta]}

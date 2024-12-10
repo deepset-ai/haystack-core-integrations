@@ -136,7 +136,7 @@ class CohereChatGenerator:
 
     def _message_to_dict(self, message: ChatMessage) -> Dict[str, str]:
         role = "User" if message.role == ChatRole.USER else "Chatbot"
-        chat_message = {"user_name": role, "text": message.content}
+        chat_message = {"user_name": role, "text": message.text}
         return chat_message
 
     @component.output_types(replies=List[ChatMessage])
@@ -157,7 +157,7 @@ class CohereChatGenerator:
         chat_history = [self._message_to_dict(m) for m in messages[:-1]]
         if self.streaming_callback:
             response = self.client.chat_stream(
-                message=messages[-1].content,
+                message=messages[-1].text,
                 model=self.model,
                 chat_history=chat_history,
                 **generation_kwargs,
@@ -190,7 +190,7 @@ class CohereChatGenerator:
                 )
         else:
             response = self.client.chat(
-                message=messages[-1].content,
+                message=messages[-1].text,
                 model=self.model,
                 chat_history=chat_history,
                 **generation_kwargs,
