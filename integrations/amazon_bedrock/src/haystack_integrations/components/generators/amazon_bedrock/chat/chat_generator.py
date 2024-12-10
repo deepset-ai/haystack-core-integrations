@@ -219,7 +219,7 @@ class AmazonBedrockChatGenerator:
         # Prepare system prompts and messages
         system_prompts = []
         if messages and messages[0].is_from(ChatRole.SYSTEM):
-            system_prompts = [{"text": messages[0].content}]
+            system_prompts = [{"text": messages[0].text}]
             messages = messages[1:]
 
         messages_list = [{"role": msg.role.value, "content": [{"text": msg.content}]} for msg in messages]
