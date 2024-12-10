@@ -80,6 +80,6 @@ def document_store(request):
         if not wait_for_index_deletion(client, index_name):
             logger.error(f"Index {index_name} was not properly deleted.")
     except ResourceNotFoundError:
-        logger.info(f"Index {index_name} was already deleted or not found.")
+        logger.error(f"Index {index_name} was already deleted or not found.")
     except Exception as e:
         logger.error(f"Unexpected error when deleting index {index_name}: {e}")
