@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/amazon_bedrock-v2.0.0] - 2024-12-10
+
+### 🚀 Features
+
+- Update AmazonBedrockChatGenerator to use Converse API (BREAKING CHANGE) (#1219)
+
+
 ## [integrations/amazon_bedrock-v1.1.1] - 2024-12-03
 
 ### 🐛 Bug Fixes
