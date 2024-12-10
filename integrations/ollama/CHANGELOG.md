@@ -1,5 +1,11 @@
 # Changelog
 
+## [integrations/ollama-v2.1.1] - 2024-12-10
+
+### 🌀 Miscellaneous
+
+- Chore: use `text` instead of `content` for `ChatMessage` in Ollama (#1239)
+
 ## [integrations/ollama-v2.1.0] - 2024-11-28
 
 ### 🚀 Features
