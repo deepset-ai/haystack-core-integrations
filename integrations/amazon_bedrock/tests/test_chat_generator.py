@@ -63,7 +63,6 @@ def test_to_dict(mock_boto3_session, boto3_config):
             "generation_kwargs": {"temperature": 0.7},
             "stop_words": [],
             "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
-            "truncate": True,
             "boto3_config": boto3_config,
         },
     }
@@ -96,7 +95,6 @@ def test_from_dict(mock_boto3_session: Any, boto3_config: Optional[Dict[str, Any
                 "model": "anthropic.claude-3-5-sonnet-20240620-v1:0",
                 "generation_kwargs": {"temperature": 0.7},
                 "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
-                "truncate": True,
                 "boto3_config": boto3_config,
             },
         }
@@ -116,7 +114,6 @@ def test_default_constructor(mock_boto3_session, set_env_variables):
     )
 
     assert layer.model == "anthropic.claude-3-5-sonnet-20240620-v1:0"
-    assert layer.truncate is True
 
     # assert mocked boto3 client called exactly once
     mock_boto3_session.assert_called_once()
@@ -141,14 +138,6 @@ def test_constructor_with_generation_kwargs(mock_boto3_session):
         model="anthropic.claude-3-5-sonnet-20240620-v1:0", generation_kwargs=generation_kwargs
     )
     assert layer.generation_kwargs == generation_kwargs
-
-
-def test_constructor_with_truncate(mock_boto3_session):
-    """
-    Test that truncate param is correctly set in the model constructor
-    """
-    layer = AmazonBedrockChatGenerator(model="anthropic.claude-3-5-sonnet-20240620-v1:0", truncate=False)
-    assert layer.truncate is False
 
 
 def test_constructor_with_empty_model():

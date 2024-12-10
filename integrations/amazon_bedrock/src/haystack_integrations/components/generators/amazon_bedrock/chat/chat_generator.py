@@ -67,8 +67,7 @@ class AmazonBedrockChatGenerator:
         aws_profile_name: Optional[Secret] = Secret.from_env_var(["AWS_PROFILE"], strict=False),  # noqa: B008
         generation_kwargs: Optional[Dict[str, Any]] = None,
         stop_words: Optional[List[str]] = None,
-        streaming_callback: Optional[Callable[[StreamingChunk], None]] = None,
-        truncate: Optional[bool] = True,
+        streaming_callback: Optional[Callable[[StreamingChunk], None]] = None,        
         boto3_config: Optional[Dict[str, Any]] = None,
     ):
         """
@@ -102,7 +101,6 @@ class AmazonBedrockChatGenerator:
         function that handles the streaming chunks. The callback function receives a
           [StreamingChunk](https://docs.haystack.deepset.ai/docs/data-classes#streamingchunk) object and
         switches the streaming mode on.
-        :param truncate: Whether to truncate the prompt messages or not.
         :param boto3_config: The configuration for the boto3 client.
 
         :raises ValueError: If the model name is empty or None.
@@ -119,8 +117,7 @@ class AmazonBedrockChatGenerator:
         self.aws_region_name = aws_region_name
         self.aws_profile_name = aws_profile_name
         self.stop_words = stop_words or []
-        self.streaming_callback = streaming_callback
-        self.truncate = truncate
+        self.streaming_callback = streaming_callback        
         self.boto3_config = boto3_config
 
         def resolve_secret(secret: Optional[Secret]) -> Optional[str]:
@@ -167,8 +164,7 @@ class AmazonBedrockChatGenerator:
             model=self.model,
             stop_words=self.stop_words,
             generation_kwargs=self.generation_kwargs,
-            streaming_callback=callback_name,
-            truncate=self.truncate,
+            streaming_callback=callback_name,            
             boto3_config=self.boto3_config,
         )
 
