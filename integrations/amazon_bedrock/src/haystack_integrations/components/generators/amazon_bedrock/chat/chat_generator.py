@@ -222,7 +222,7 @@ class AmazonBedrockChatGenerator:
             system_prompts = [{"text": messages[0].text}]
             messages = messages[1:]
 
-        messages_list = [{"role": msg.role.value, "content": [{"text": msg.content}]} for msg in messages]
+        messages_list = [{"role": msg.role.value, "content": [{"text": msg.text}]} for msg in messages]
 
         # Build API parameters
         params = {
