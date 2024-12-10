@@ -1,3 +1,4 @@
+import json
 import os
 from unittest.mock import patch
 
@@ -223,9 +224,9 @@ def test_run():
     # check the first response is a function call
     chat_message = response["replies"][0]
     assert "function_call" in chat_message.meta
-    assert chat_message.content == {"location": "Berlin", "unit": "celsius"}
+    assert json.loads(chat_message.text) == {"location": "Berlin", "unit": "celsius"}
 
-    weather = get_current_weather(**chat_message.content)
+    weather = get_current_weather(**json.loads(chat_message.text))
     messages += response["replies"] + [ChatMessage.from_function(content=weather, name="get_current_weather")]
     response = gemini_chat.run(messages=messages)
     assert "replies" in response
@@ -235,7 +236,7 @@ def test_run():
     # check the second response is not a function call
     chat_message = response["replies"][0]
     assert "function_call" not in chat_message.meta
-    assert isinstance(chat_message.content, str)
+    assert isinstance(chat_message.text, str)
 
 
 @pytest.mark.skipif(not os.environ.get("GOOGLE_API_KEY", None), reason="GOOGLE_API_KEY env var not set")
@@ -269,9 +270,9 @@ def test_run_with_streaming_callback():
     # check the first response is a function call
     chat_message = response["replies"][0]
     assert "function_call" in chat_message.meta
-    assert chat_message.content == {"location": "Berlin", "unit": "celsius"}
+    assert json.loads(chat_message.text) == {"location": "Berlin", "unit": "celsius"}
 
-    weather = get_current_weather(**response["replies"][0].content)
+    weather = get_current_weather(**json.loads(response["replies"][0].text))
     messages += response["replies"] + [ChatMessage.from_function(content=weather, name="get_current_weather")]
     response = gemini_chat.run(messages=messages)
     assert "replies" in response
@@ -281,7 +282,7 @@ def test_run_with_streaming_callback():
     # check the second response is not a function call
     chat_message = response["replies"][0]
     assert "function_call" not in chat_message.meta
-    assert isinstance(chat_message.content, str)
+    assert isinstance(chat_message.text, str)
 
 
 @pytest.mark.skipif(not os.environ.get("GOOGLE_API_KEY", None), reason="GOOGLE_API_KEY env var not set")
