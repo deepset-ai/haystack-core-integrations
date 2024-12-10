@@ -17,7 +17,7 @@ def _convert_message_to_llamacpp_format(message: ChatMessage) -> Dict[str, str]:
         - `content`
         - `name` (optional)
     """
-    formatted_msg = {"role": message.role.value, "content": message.content}
+    formatted_msg = {"role": message.role.value, "content": message.text}
     if message.name:
         formatted_msg["name"] = message.name
 
