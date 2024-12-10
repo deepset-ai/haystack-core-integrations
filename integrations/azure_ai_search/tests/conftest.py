@@ -11,9 +11,12 @@ from haystack.document_stores.types import DuplicatePolicy
 
 from haystack_integrations.document_stores.azure_ai_search import AzureAISearchDocumentStore
 
+logger = logging.getLogger(__name__)
+
+
 # This is the approximate time in seconds it takes for the documents to be available in Azure Search index
 SLEEP_TIME_IN_SECONDS = 10
-MAX_WAIT_TIME_FOR_INDEX_DELETION = 5
+MAX_WAIT_TIME_FOR_INDEX_DELETION = 10
 
 
 @pytest.fixture()
@@ -75,8 +78,8 @@ def document_store(request):
     try:
         client.delete_index(index_name)
         if not wait_for_index_deletion(client, index_name):
-            logging.error(f"Index {index_name} was not properly deleted.")
+            logger.error(f"Index {index_name} was not properly deleted.")
     except ResourceNotFoundError:
-        logging.info(f"Index {index_name} was already deleted or not found.")
+        logger.error(f"Index {index_name} was already deleted or not found.")
     except Exception as e:
-        logging.error(f"Unexpected error when deleting index {index_name}: {e}")
+        logger.error(f"Unexpected error when deleting index {index_name}: {e}")
