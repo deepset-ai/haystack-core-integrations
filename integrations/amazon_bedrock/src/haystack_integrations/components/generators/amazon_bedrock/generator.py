@@ -281,7 +281,8 @@ class AmazonBedrockGenerator:
         :param model: The model name.
         :param model_family: The model family.
         :returns: The model adapter class, or None if no adapter is found.
-        :raises AmazonBedrockConfigurationError: If the model family is not supported or the model cannot be auto-detected.
+        :raises AmazonBedrockConfigurationError: If the model family is not supported or the model cannot be
+            auto-detected.
         """
         if model_family:
             if model_family not in cls.SUPPORTED_MODEL_FAMILIES:
