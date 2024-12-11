@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/amazon_bedrock-v2.1.0] - 2024-12-11
+
+### 🚀 Features
+
+- Support model_arn in AmazonBedrockGenerator (#1244)
+
+
 ## [integrations/amazon_bedrock-v2.0.0] - 2024-12-10
 
 ### 🚀 Features
