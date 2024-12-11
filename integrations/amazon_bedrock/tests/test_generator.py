@@ -15,6 +15,7 @@ from haystack_integrations.components.generators.amazon_bedrock.adapters import 
     MetaLlamaAdapter,
     MistralAdapter,
 )
+from integrations.amazon_bedrock.src.haystack_integrations.common.amazon_bedrock.errors import AmazonBedrockConfigurationError
 
 
 @pytest.mark.parametrize(
@@ -294,15 +295,51 @@ def test_long_prompt_is_not_truncated_when_truncate_false(mock_boto3_session):
         ("eu.mistral.mixtral-8x7b-instruct-v0:1", MistralAdapter),  # cross-region inference
         ("us.mistral.mistral-large-2402-v1:0", MistralAdapter),  # cross-region inference
         ("mistral.mistral-medium-v8:0", MistralAdapter),  # artificial
-        ("unknown_model", None),
     ],
 )
 def test_get_model_adapter(model: str, expected_model_adapter: Optional[Type[BedrockModelAdapter]]):
     """
     Test that the correct model adapter is returned for a given model
     """
-    model_adapter = AmazonBedrockGenerator.get_model_adapter(model=model)
+    model_adapter = AmazonBedrockGenerator.get_model_adapter(model=model, model_family=None)
     assert model_adapter == expected_model_adapter
+
+
+@pytest.mark.parametrize(
+    "model_family, expected_model_adapter",
+    [
+        ("anthropic.claude", AnthropicClaudeAdapter),
+        ("cohere.command", CohereCommandAdapter),
+        ("cohere.command-r", CohereCommandRAdapter),
+        ("ai21.j2", AI21LabsJurassic2Adapter),
+        ("amazon.titan-text", AmazonTitanAdapter),
+        ("meta.llama", MetaLlamaAdapter),
+        ("mistral", MistralAdapter),
+    ],
+)
+def test_get_model_adapter_with_model_family(model_family: str, expected_model_adapter: Optional[Type[BedrockModelAdapter]]):
+    """
+    Test that the correct model adapter is returned for a given model
+    """
+    model_adapter = AmazonBedrockGenerator.get_model_adapter(model="arn:123435423", model_family=model_family)
+    assert model_adapter == expected_model_adapter
+
+
+def test_get_model_adapter_with_invalid_model_family():
+    """
+    Test that the correct model adapter is returned for a given model
+    """
+    with pytest.raises(AmazonBedrockConfigurationError):
+        AmazonBedrockGenerator.get_model_adapter(model="arn:123435423", model_family="invalid")
+
+
+def test_get_model_adapter_auto_detect_family_fails():
+    """
+    Test that the correct model adapter is returned for a given model
+    """
+    with pytest.raises(AmazonBedrockConfigurationError):
+        AmazonBedrockGenerator.get_model_adapter(model="arn:123435423", model_family=None)
+
 
 
 class TestAnthropicClaudeAdapter:
