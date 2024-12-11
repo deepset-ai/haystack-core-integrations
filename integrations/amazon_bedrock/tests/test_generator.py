@@ -4,6 +4,9 @@ from unittest.mock import MagicMock, call, patch
 import pytest
 from haystack.dataclasses import StreamingChunk
 
+from haystack_integrations.common.amazon_bedrock.errors import (
+    AmazonBedrockConfigurationError,
+)
 from haystack_integrations.components.generators.amazon_bedrock import AmazonBedrockGenerator
 from haystack_integrations.components.generators.amazon_bedrock.adapters import (
     AI21LabsJurassic2Adapter,
@@ -15,7 +18,6 @@ from haystack_integrations.components.generators.amazon_bedrock.adapters import 
     MetaLlamaAdapter,
     MistralAdapter,
 )
-from integrations.amazon_bedrock.src.haystack_integrations.common.amazon_bedrock.errors import AmazonBedrockConfigurationError
 
 
 @pytest.mark.parametrize(
@@ -49,6 +51,7 @@ def test_to_dict(mock_boto3_session: Any, boto3_config: Optional[Dict[str, Any]]
             "temperature": 10,
             "streaming_callback": None,
             "boto3_config": boto3_config,
+            "model_family": None,
         },
     }
 
@@ -80,6 +83,7 @@ def test_from_dict(mock_boto3_session: Any, boto3_config: Optional[Dict[str, Any
                 "model": "anthropic.claude-v2",
                 "max_length": 99,
                 "boto3_config": boto3_config,
+                "model_family": "anthropic.claude",
             },
         }
     )
@@ -87,6 +91,7 @@ def test_from_dict(mock_boto3_session: Any, boto3_config: Optional[Dict[str, Any
     assert generator.max_length == 99
     assert generator.model == "anthropic.claude-v2"
     assert generator.boto3_config == boto3_config
+    assert generator.model_family == "anthropic.claude"
 
 
 def test_default_constructor(mock_boto3_session, set_env_variables):
@@ -317,7 +322,9 @@ def test_get_model_adapter(model: str, expected_model_adapter: Optional[Type[Bed
         ("mistral", MistralAdapter),
     ],
 )
-def test_get_model_adapter_with_model_family(model_family: str, expected_model_adapter: Optional[Type[BedrockModelAdapter]]):
+def test_get_model_adapter_with_model_family(
+    model_family: str, expected_model_adapter: Optional[Type[BedrockModelAdapter]]
+):
     """
     Test that the correct model adapter is returned for a given model model_family
     """

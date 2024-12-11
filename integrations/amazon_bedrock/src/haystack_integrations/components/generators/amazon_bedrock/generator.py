@@ -126,7 +126,8 @@ class AmazonBedrockGenerator:
         :param streaming_callback: A callback function that is called when a new token is received from the stream.
             The callback function accepts StreamingChunk as an argument.
         :param boto3_config: The configuration for the boto3 client.
-        :param model_family: The model family to use. If not provided, the model adapter is selected based on the model name.
+        :param model_family: The model family to use. If not provided, the model adapter is selected based on the model
+            name.
         :param kwargs: Additional keyword arguments to be passed to the model.
         These arguments are specific to the model. You can find them in the model's documentation.
         :raises ValueError: If the model name is empty or None.
@@ -147,6 +148,7 @@ class AmazonBedrockGenerator:
         self.streaming_callback = streaming_callback
         self.boto3_config = boto3_config
         self.kwargs = kwargs
+        self.model_family = model_family
 
         def resolve_secret(secret: Optional[Secret]) -> Optional[str]:
             return secret.resolve_value() if secret else None
@@ -285,8 +287,11 @@ class AmazonBedrockGenerator:
         for pattern, adapter in cls.SUPPORTED_MODEL_PATTERNS.items():
             if re.fullmatch(pattern, model):
                 return adapter
-    
-        msg = f"Could not auto-detect model family of {model}. `model_family` parameter must be one of {get_args(cls.MODEL_FAMILIES)}."
+
+        msg = (
+            f"Could not auto-detect model family of {model}. "
+            f"`model_family` parameter must be one of {get_args(cls.MODEL_FAMILIES)}."
+        )
         raise AmazonBedrockConfigurationError(msg)
 
     def to_dict(self) -> Dict[str, Any]:
@@ -309,6 +314,7 @@ class AmazonBedrockGenerator:
             truncate=self.truncate,
             streaming_callback=callback_name,
             boto3_config=self.boto3_config,
+            model_family=self.model_family,
             **self.kwargs,
         )
 
