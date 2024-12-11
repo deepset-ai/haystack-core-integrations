@@ -306,7 +306,7 @@ def test_get_model_adapter(model: str, expected_model_adapter: Optional[Type[Bed
     """
     Test that the correct model adapter is returned for a given model
     """
-    model_adapter = AmazonBedrockGenerator.get_model_adapter(model=model, model_family=None)
+    model_adapter = AmazonBedrockGenerator.get_model_adapter(model=model)
     assert model_adapter == expected_model_adapter
 
 
@@ -345,7 +345,7 @@ def test_get_model_adapter_auto_detect_family_fails():
     Test that an error is raised when auto-detection of model_family fails
     """
     with pytest.raises(AmazonBedrockConfigurationError):
-        AmazonBedrockGenerator.get_model_adapter(model="arn:123435423", model_family=None)
+        AmazonBedrockGenerator.get_model_adapter(model="arn:123435423")
 
 
 def test_get_model_adapter_model_family_over_auto_detection():

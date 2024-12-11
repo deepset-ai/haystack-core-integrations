@@ -271,12 +271,17 @@ class AmazonBedrockGenerator:
         return {"replies": replies}
 
     @classmethod
-    def get_model_adapter(cls, model: str, model_family: Optional[str]) -> Type[BedrockModelAdapter]:
+    def get_model_adapter(cls, model: str, model_family: Optional[str] = None) -> Type[BedrockModelAdapter]:
         """
         Gets the model adapter for the given model.
 
+        If `model_family` is provided, the adapter for the model family is returned.
+        If `model_family` is not provided, the adapter is auto-detected based on the model name.
+
         :param model: The model name.
+        :param model_family: The model family.
         :returns: The model adapter class, or None if no adapter is found.
+        :raises AmazonBedrockConfigurationError: If the model family is not supported or the model cannot be auto-detected.
         """
         if model_family:
             if model_family not in cls.SUPPORTED_MODEL_FAMILIES:
