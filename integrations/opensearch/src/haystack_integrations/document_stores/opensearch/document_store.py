@@ -340,7 +340,7 @@ class OpenSearchDocumentStore:
         query: str,
         *,
         filters: Optional[Dict[str, Any]] = None,
-        fuzziness: str = "AUTO",
+        fuzziness: Union[int, str] = "AUTO",
         top_k: int = 10,
         scale_score: bool = False,
         all_terms_must_match: bool = False,
@@ -357,8 +357,14 @@ class OpenSearchDocumentStore:
 
         :param query: String to search in saved Documents' text.
         :param filters: Optional filters to narrow down the search space.
-        :param fuzziness: Fuzziness parameter passed to OpenSearch, defaults to "AUTO". see the official documentation
-                          for valid [fuzziness values](https://www.elastic.co/guide/en/OpenSearch/reference/current/common-options.html#fuzziness)
+        :param fuzziness: Determines how approximate string matching is applied in full-text queries.
+            This parameter sets the number of character edits (insertions, deletions, or substitutions)
+            required to transform one word into another. For example, the "fuzziness" between the words
+            "wined" and "wind" is 1 because only one edit is needed to match them.
+
+            Use "AUTO" (the default) for automatic adjustment based on term length, which is optimal for
+            most scenarios. For detailed guidance, refer to the
+            [OpenSearch fuzzy query documentation](https://opensearch.org/docs/latest/query-dsl/term/fuzzy/).
         :param top_k: Maximum number of Documents to return, defaults to 10
         :param scale_score: If `True` scales the Document`s scores between 0 and 1, defaults to False
         :param all_terms_must_match: If `True` all terms in `query` must be present in the Document, defaults to False
