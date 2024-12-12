@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/opensearch-v1.2.0] - 2024-12-12
+
+### 🧹 Chores
+
+- Update docstring and type of fuzziness (#1243)
+
+
 ## [integrations/opensearch-v1.1.0] - 2024-10-29
 
 ### 🚀 Features
@@ -14,22 +21,28 @@
 
 - Do not retry tests in `hatch run test` command (#954)
 
-### ⚙️ Miscellaneous Tasks
+### ⚙️ CI
+
+- Adopt uv as installer (#1142)
+
+### 🧹 Chores
 
 - OpenSearch - remove legacy filter support (#1067)
 - Update changelog after removing legacy filters (#1083)
 - Update ruff linting scripts and settings (#1105)
-- Adopt uv as installer (#1142)
 
-### Docs
+### 🌀 Miscellaneous
 
+- Docs: Update OpenSearchEmbeddingRetriever docstrings (#947)
 - Update BM25 docstrings (#945)
+- Chore: opensearch - ruff update, don't ruff tests (#988)
 
 ## [integrations/opensearch-v0.9.0] - 2024-08-01
 
 ### 🚀 Features
 
 - Support aws authentication with OpenSearchDocumentStore (#920)
+
 
 ## [integrations/opensearch-v0.8.1] - 2024-07-15
 
@@ -42,9 +55,13 @@
 
 - `OpenSearch` - Fallback to default filter policy when deserializing retrievers without the init parameter (#895)
 
-### ⚙️ Miscellaneous Tasks
+### 🧹 Chores
 
 - Update ruff invocation to include check parameter (#853)
+
+### 🌀 Miscellaneous
+
+- Chore: Minor retriever pydoc fix (#884)
 
 ## [integrations/opensearch-v0.7.1] - 2024-06-27
 
@@ -52,6 +69,7 @@
 
 - Serialization for custom_query in OpenSearch retrievers (#851)
 - Support legacy filters with OpenSearchDocumentStore (#850)
+
 
 ## [integrations/opensearch-v0.7.0] - 2024-06-25
 
@@ -67,8 +85,6 @@
 
 - Fix order of API docs (#447)
 
-This PR will also push the docs to Readme
-
 ### 📚 Documentation
 
 - Update category slug (#442)
@@ -76,13 +92,21 @@ This PR will also push the docs to Readme
 - Small consistency improvements (#536)
 - Disable-class-def (#556)
 
-### ⚙️ Miscellaneous Tasks
+### ⚙️ CI
 
 - Retry tests to reduce flakyness (#836)
 
-### Opensearch
+### 🌀 Miscellaneous
 
 - Generate API docs (#324)
+- Make tests show coverage (#566)
+- Refactor tests (#574)
+- Fix opensearch errors bulk write (#594)
+- Remove references to Python 3.7 (#601)
+- [Elasticsearch] fix: Filters not working with metadata that contain a space or capitalization (#639)
+- Chore: add license classifiers (#680)
+- Chore: change the pydoc renderer class (#718)
+- Ci: install `pytest-rerunfailures` where needed; add retry config to `test-cov` script (#845)
 
 ## [integrations/opensearch-v0.2.0] - 2024-01-17
 
@@ -94,11 +118,16 @@ This PR will also push the docs to Readme
 
 - Use `hatch_vcs` to manage integrations versioning (#103)
 
+### 🌀 Miscellaneous
+
+- Fix opensearch test badge (#97)
+- Move package under haystack_integrations/* (#212)
+
 ## [integrations/opensearch-v0.1.1] - 2023-12-05
 
 ### 🐛 Bug Fixes
 
-- Fix import and increase version (#77)
+- Document Stores: fix protocol import (#77)
 
 ## [integrations/opensearch-v0.1.0] - 2023-12-04
 
@@ -106,13 +135,17 @@ This PR will also push the docs to Readme
 
 - Fix license headers
 
+### 🌀 Miscellaneous
+
+- Remove Document Store decorator (#76)
+
 ## [integrations/opensearch-v0.0.2] - 2023-11-30
 
 ### 🚀 Features
 
 - Extend OpenSearch params support (#70)
 
-### Build
+### 🌀 Miscellaneous
 
 - Bump OpenSearch integration version to 0.0.2 (#71)
 
