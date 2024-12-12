@@ -330,7 +330,7 @@ class SnowflakeTableRetriever:
         if not query:
             logger.error("Provide a valid SQL query.")
             return {
-                "dataframe": pd.DataFrame,
+                "dataframe": pd.DataFrame(),
                 "table": "",
             }
         else:
