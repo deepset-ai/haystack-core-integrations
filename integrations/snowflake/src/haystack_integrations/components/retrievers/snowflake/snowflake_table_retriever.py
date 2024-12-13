@@ -73,6 +73,7 @@ class SnowflakeTableRetriever:
         db_schema: Optional[str] = None,
         warehouse: Optional[str] = None,
         login_timeout: Optional[int] = None,
+        application_name: Optional[str] = None,
     ) -> None:
         """
         :param user: User's login.
@@ -82,6 +83,7 @@ class SnowflakeTableRetriever:
         :param db_schema: Name of the schema to use.
         :param warehouse: Name of the warehouse to use.
         :param login_timeout: Timeout in seconds for login. By default, 60 seconds.
+        :param application_name: Name of the application to use when connecting to Snowflake.
         """
 
         self.user = user
@@ -91,6 +93,7 @@ class SnowflakeTableRetriever:
         self.db_schema = db_schema
         self.warehouse = warehouse
         self.login_timeout = login_timeout or 60
+        self.application_name = application_name
 
     def to_dict(self) -> Dict[str, Any]:
         """
@@ -108,6 +111,7 @@ class SnowflakeTableRetriever:
             db_schema=self.db_schema,
             warehouse=self.warehouse,
             login_timeout=self.login_timeout,
+            application_name=self.application_name,
         )
 
     @classmethod
@@ -285,6 +289,7 @@ class SnowflakeTableRetriever:
                     "schema": self.db_schema,
                     "warehouse": self.warehouse,
                     "login_timeout": self.login_timeout,
+                    **({"application": self.application_name} if self.application_name else {}),
                 }
             )
             if conn is None:
@@ -325,7 +330,7 @@ class SnowflakeTableRetriever:
         if not query:
             logger.error("Provide a valid SQL query.")
             return {
-                "dataframe": pd.DataFrame,
+                "dataframe": pd.DataFrame(),
                 "table": "",
             }
         else:
