@@ -83,3 +83,28 @@ def document_store(request):
         logger.error(f"Index {index_name} was already deleted or not found.")
     except Exception as e:
         logger.error(f"Unexpected error when deleting index {index_name}: {e}")
+        raise
+
+
+@pytest.fixture(scope="session", autouse=True)
+def cleanup_indexes():
+    """
+    Fixture to clean up all remaining indexes at the end of the test session.
+    Automatically runs after all tests.
+    """
+    azure_endpoint = os.environ["AZURE_SEARCH_SERVICE_ENDPOINT"]
+    api_key = os.environ["AZURE_SEARCH_API_KEY"]
+
+    client = SearchIndexClient(azure_endpoint, AzureKeyCredential(api_key))
+
+    yield  # Allow tests to run before performing cleanup
+
+    # Cleanup: Delete all remaining indexes
+    logger.info("Starting session-level cleanup of all Azure Search indexes.")
+    existing_indexes = client.list_index_names()
+    for index in existing_indexes:
+        try:
+            logger.info(f"Deleting leftover index: {index}")
+            client.delete_index(index)
+        except Exception as e:
+            logger.error(f"Failed to delete index {index}: {e}")
