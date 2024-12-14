@@ -6,12 +6,9 @@ import pytest
 from azure.core.credentials import AzureKeyCredential
 from azure.core.exceptions import ResourceNotFoundError
 from azure.search.documents.indexes import SearchIndexClient
-from haystack import logging
 from haystack.document_stores.types import DuplicatePolicy
 
 from haystack_integrations.document_stores.azure_ai_search import AzureAISearchDocumentStore
-
-logger = logging.getLogger(__name__)
 
 
 # This is the approximate time in seconds it takes for the documents to be available in Azure Search index
@@ -78,11 +75,11 @@ def document_store(request):
     try:
         client.delete_index(index_name)
         if not wait_for_index_deletion(client, index_name):
-            logger.error(f"Index {index_name} was not properly deleted.")
+            print(f"Index {index_name} was not properly deleted.")
     except ResourceNotFoundError:
-        logger.error(f"Index {index_name} was already deleted or not found.")
+        print(f"Index {index_name} was already deleted or not found.")
     except Exception as e:
-        logger.error(f"Unexpected error when deleting index {index_name}: {e}")
+        print(f"Unexpected error when deleting index {index_name}: {e}")
         raise
 
 
@@ -100,11 +97,10 @@ def cleanup_indexes():
     yield  # Allow tests to run before performing cleanup
 
     # Cleanup: Delete all remaining indexes
-    logger.info("Starting session-level cleanup of all Azure Search indexes.")
+    print("Starting session-level cleanup of all Azure Search indexes.")
     existing_indexes = client.list_index_names()
     for index in existing_indexes:
         try:
-            logger.info(f"Deleting leftover index: {index}")
             client.delete_index(index)
         except Exception as e:
-            logger.error(f"Failed to delete index {index}: {e}")
+            print(f"Failed to delete index during clean up {index}: {e}")
