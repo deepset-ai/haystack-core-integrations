@@ -5,9 +5,10 @@ from dataclasses import dataclass
 import pytest
 from datasets import Dataset
 from haystack import DeserializationError
-from haystack_integrations.components.evaluators.ragas import RagasEvaluator, RagasMetric
 from ragas.evaluation import Result
 from ragas.metrics.base import Metric
+
+from haystack_integrations.components.evaluators.ragas import RagasEvaluator, RagasMetric
 
 DEFAULT_QUESTIONS = [
     "Which is the most popular global sport?",

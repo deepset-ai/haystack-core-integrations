@@ -7,6 +7,7 @@ from cohere.core import ApiError
 from haystack.components.generators.utils import print_streaming_chunk
 from haystack.dataclasses import ChatMessage, ChatRole, StreamingChunk
 from haystack.utils import Secret
+
 from haystack_integrations.components.generators.cohere import CohereChatGenerator
 
 pytestmark = pytest.mark.chat_generators
@@ -26,7 +27,7 @@ def streaming_chunk(text: str):
 
 @pytest.fixture
 def chat_messages():
-    return [ChatMessage(content="What's the capital of France", role=ChatRole.ASSISTANT, name=None)]
+    return [ChatMessage.from_assistant(content="What's the capital of France")]
 
 
 class TestCohereChatGenerator:
@@ -163,12 +164,15 @@ class TestCohereChatGenerator:
     )
     @pytest.mark.integration
     def test_live_run(self):
-        chat_messages = [ChatMessage(content="What's the capital of France", role=ChatRole.USER, name="", meta={})]
+        chat_messages = [ChatMessage.from_user(content="What's the capital of France")]
         component = CohereChatGenerator(generation_kwargs={"temperature": 0.8})
         results = component.run(chat_messages)
         assert len(results["replies"]) == 1
         message: ChatMessage = results["replies"][0]
-        assert "Paris" in message.content
+        assert "Paris" in message.text
+        assert "usage" in message.meta
+        assert "prompt_tokens" in message.meta["usage"]
+        assert "completion_tokens" in message.meta["usage"]
 
     @pytest.mark.skipif(
         not os.environ.get("COHERE_API_KEY", None) and not os.environ.get("CO_API_KEY", None),
@@ -197,18 +201,20 @@ class TestCohereChatGenerator:
 
         callback = Callback()
         component = CohereChatGenerator(streaming_callback=callback)
-        results = component.run(
-            [ChatMessage(content="What's the capital of France? answer in a word", role=ChatRole.USER, name=None)]
-        )
+        results = component.run([ChatMessage.from_user(content="What's the capital of France? answer in a word")])
 
         assert len(results["replies"]) == 1
         message: ChatMessage = results["replies"][0]
-        assert "Paris" in message.content
+        assert "Paris" in message.text
 
         assert message.meta["finish_reason"] == "COMPLETE"
 
         assert callback.counter > 1
         assert "Paris" in callback.responses
+
+        assert "usage" in message.meta
+        assert "prompt_tokens" in message.meta["usage"]
+        assert "completion_tokens" in message.meta["usage"]
 
     @pytest.mark.skipif(
         not os.environ.get("COHERE_API_KEY", None) and not os.environ.get("CO_API_KEY", None),
@@ -216,12 +222,12 @@ class TestCohereChatGenerator:
     )
     @pytest.mark.integration
     def test_live_run_with_connector(self):
-        chat_messages = [ChatMessage(content="What's the capital of France", role=ChatRole.USER, name="", meta={})]
+        chat_messages = [ChatMessage.from_user(content="What's the capital of France")]
         component = CohereChatGenerator(generation_kwargs={"temperature": 0.8})
         results = component.run(chat_messages, generation_kwargs={"connectors": [{"id": "web-search"}]})
         assert len(results["replies"]) == 1
         message: ChatMessage = results["replies"][0]
-        assert "Paris" in message.content
+        assert "Paris" in message.text
         assert message.meta["documents"] is not None
         assert "citations" in message.meta  # Citations might be None
 
@@ -241,13 +247,13 @@ class TestCohereChatGenerator:
                 self.responses += chunk.content if chunk.content else ""
 
         callback = Callback()
-        chat_messages = [ChatMessage(content="What's the capital of France? answer in a word", role=None, name=None)]
+        chat_messages = [ChatMessage.from_user(content="What's the capital of France? answer in a word")]
         component = CohereChatGenerator(streaming_callback=callback)
         results = component.run(chat_messages, generation_kwargs={"connectors": [{"id": "web-search"}]})
 
         assert len(results["replies"]) == 1
         message: ChatMessage = results["replies"][0]
-        assert "Paris" in message.content
+        assert "Paris" in message.text
 
         assert message.meta["finish_reason"] == "COMPLETE"
 
@@ -285,10 +291,10 @@ class TestCohereChatGenerator:
 
         first_reply = replies[0]
         assert isinstance(first_reply, ChatMessage), "First reply is not a ChatMessage instance"
-        assert first_reply.content, "First reply has no content"
+        assert first_reply.text, "First reply has no text"
         assert ChatMessage.is_from(first_reply, ChatRole.ASSISTANT), "First reply is not from the assistant"
-        assert "get_stock_price" in first_reply.content.lower(), "First reply does not contain get_stock_price"
+        assert "get_stock_price" in first_reply.text.lower(), "First reply does not contain get_stock_price"
         assert first_reply.meta, "First reply has no metadata"
-        fc_response = json.loads(first_reply.content)
+        fc_response = json.loads(first_reply.text)
         assert "name" in fc_response, "First reply does not contain name of the tool"
         assert "parameters" in fc_response, "First reply does not contain parameters of the tool"

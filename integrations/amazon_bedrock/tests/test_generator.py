@@ -1,9 +1,12 @@
-from typing import Optional, Type
+from typing import Any, Dict, Optional, Type
 from unittest.mock import MagicMock, call, patch
 
 import pytest
 from haystack.dataclasses import StreamingChunk
 
+from haystack_integrations.common.amazon_bedrock.errors import (
+    AmazonBedrockConfigurationError,
+)
 from haystack_integrations.components.generators.amazon_bedrock import AmazonBedrockGenerator
 from haystack_integrations.components.generators.amazon_bedrock.adapters import (
     AI21LabsJurassic2Adapter,
@@ -17,11 +20,22 @@ from haystack_integrations.components.generators.amazon_bedrock.adapters import 
 )
 
 
-def test_to_dict(mock_boto3_session):
+@pytest.mark.parametrize(
+    "boto3_config",
+    [
+        None,
+        {
+            "read_timeout": 1000,
+        },
+    ],
+)
+def test_to_dict(mock_boto3_session: Any, boto3_config: Optional[Dict[str, Any]]):
     """
     Test that the to_dict method returns the correct dictionary without aws credentials
     """
-    generator = AmazonBedrockGenerator(model="anthropic.claude-v2", max_length=99, truncate=False, temperature=10)
+    generator = AmazonBedrockGenerator(
+        model="anthropic.claude-v2", max_length=99, truncate=False, temperature=10, boto3_config=boto3_config
+    )
 
     expected_dict = {
         "type": "haystack_integrations.components.generators.amazon_bedrock.generator.AmazonBedrockGenerator",
@@ -36,13 +50,24 @@ def test_to_dict(mock_boto3_session):
             "truncate": False,
             "temperature": 10,
             "streaming_callback": None,
+            "boto3_config": boto3_config,
+            "model_family": None,
         },
     }
 
     assert generator.to_dict() == expected_dict
 
 
-def test_from_dict(mock_boto3_session):
+@pytest.mark.parametrize(
+    "boto3_config",
+    [
+        None,
+        {
+            "read_timeout": 1000,
+        },
+    ],
+)
+def test_from_dict(mock_boto3_session: Any, boto3_config: Optional[Dict[str, Any]]):
     """
     Test that the from_dict method returns the correct object
     """
@@ -57,12 +82,16 @@ def test_from_dict(mock_boto3_session):
                 "aws_profile_name": {"type": "env_var", "env_vars": ["AWS_PROFILE"], "strict": False},
                 "model": "anthropic.claude-v2",
                 "max_length": 99,
+                "boto3_config": boto3_config,
+                "model_family": "anthropic.claude",
             },
         }
     )
 
     assert generator.max_length == 99
     assert generator.model == "anthropic.claude-v2"
+    assert generator.boto3_config == boto3_config
+    assert generator.model_family == "anthropic.claude"
 
 
 def test_default_constructor(mock_boto3_session, set_env_variables):
@@ -101,6 +130,14 @@ def test_constructor_prompt_handler_initialized(mock_boto3_session, mock_prompt_
     layer = AmazonBedrockGenerator(model="anthropic.claude-v2", prompt_handler=mock_prompt_handler)
     assert layer.prompt_handler is not None
     assert layer.prompt_handler.model_max_length == 4096
+
+
+def test_prompt_handler_absent_when_truncate_false(mock_boto3_session):
+    """
+    Test that the prompt_handler is not initialized when truncate is set to False.
+    """
+    generator = AmazonBedrockGenerator(model="anthropic.claude-v2", truncate=False)
+    assert not hasattr(generator, "prompt_handler")
 
 
 def test_constructor_with_model_kwargs(mock_boto3_session):
@@ -220,7 +257,7 @@ def test_long_prompt_is_not_truncated_when_truncate_false(mock_boto3_session):
             generator.run(prompt=long_prompt_text)
 
         # Ensure _ensure_token_limit was not called
-        mock_ensure_token_limit.assert_not_called(),
+        mock_ensure_token_limit.assert_not_called()
 
         # Check the prompt passed to prepare_body
         generator.model_adapter.prepare_body.assert_called_with(prompt=long_prompt_text, stream=False)
@@ -231,6 +268,8 @@ def test_long_prompt_is_not_truncated_when_truncate_false(mock_boto3_session):
     [
         ("anthropic.claude-v1", AnthropicClaudeAdapter),
         ("anthropic.claude-v2", AnthropicClaudeAdapter),
+        ("eu.anthropic.claude-v1", AnthropicClaudeAdapter),  # cross-region inference
+        ("us.anthropic.claude-v2", AnthropicClaudeAdapter),  # cross-region inference
         ("anthropic.claude-instant-v1", AnthropicClaudeAdapter),
         ("anthropic.claude-super-v5", AnthropicClaudeAdapter),  # artificial
         ("cohere.command-text-v14", CohereCommandAdapter),
@@ -244,10 +283,13 @@ def test_long_prompt_is_not_truncated_when_truncate_false(mock_boto3_session):
         ("ai21.j2-mega-v5", AI21LabsJurassic2Adapter),  # artificial
         ("amazon.titan-text-lite-v1", AmazonTitanAdapter),
         ("amazon.titan-text-express-v1", AmazonTitanAdapter),
+        ("us.amazon.titan-text-express-v1", AmazonTitanAdapter),  # cross-region inference
         ("amazon.titan-text-agile-v1", AmazonTitanAdapter),
         ("amazon.titan-text-lightning-v8", AmazonTitanAdapter),  # artificial
         ("meta.llama2-13b-chat-v1", MetaLlamaAdapter),
         ("meta.llama2-70b-chat-v1", MetaLlamaAdapter),
+        ("eu.meta.llama2-13b-chat-v1", MetaLlamaAdapter),  # cross-region inference
+        ("us.meta.llama2-70b-chat-v1", MetaLlamaAdapter),  # cross-region inference
         ("meta.llama2-130b-v5", MetaLlamaAdapter),  # artificial
         ("meta.llama3-8b-instruct-v1:0", MetaLlamaAdapter),
         ("meta.llama3-70b-instruct-v1:0", MetaLlamaAdapter),
@@ -255,8 +297,9 @@ def test_long_prompt_is_not_truncated_when_truncate_false(mock_boto3_session):
         ("mistral.mistral-7b-instruct-v0:2", MistralAdapter),
         ("mistral.mixtral-8x7b-instruct-v0:1", MistralAdapter),
         ("mistral.mistral-large-2402-v1:0", MistralAdapter),
+        ("eu.mistral.mixtral-8x7b-instruct-v0:1", MistralAdapter),  # cross-region inference
+        ("us.mistral.mistral-large-2402-v1:0", MistralAdapter),  # cross-region inference
         ("mistral.mistral-medium-v8:0", MistralAdapter),  # artificial
-        ("unknown_model", None),
     ],
 )
 def test_get_model_adapter(model: str, expected_model_adapter: Optional[Type[BedrockModelAdapter]]):
@@ -265,6 +308,54 @@ def test_get_model_adapter(model: str, expected_model_adapter: Optional[Type[Bed
     """
     model_adapter = AmazonBedrockGenerator.get_model_adapter(model=model)
     assert model_adapter == expected_model_adapter
+
+
+@pytest.mark.parametrize(
+    "model_family, expected_model_adapter",
+    [
+        ("anthropic.claude", AnthropicClaudeAdapter),
+        ("cohere.command", CohereCommandAdapter),
+        ("cohere.command-r", CohereCommandRAdapter),
+        ("ai21.j2", AI21LabsJurassic2Adapter),
+        ("amazon.titan-text", AmazonTitanAdapter),
+        ("meta.llama", MetaLlamaAdapter),
+        ("mistral", MistralAdapter),
+    ],
+)
+def test_get_model_adapter_with_model_family(
+    model_family: str, expected_model_adapter: Optional[Type[BedrockModelAdapter]]
+):
+    """
+    Test that the correct model adapter is returned for a given model model_family
+    """
+    model_adapter = AmazonBedrockGenerator.get_model_adapter(model="arn:123435423", model_family=model_family)
+    assert model_adapter == expected_model_adapter
+
+
+def test_get_model_adapter_with_invalid_model_family():
+    """
+    Test that an error is raised when an invalid model_family is provided
+    """
+    with pytest.raises(AmazonBedrockConfigurationError):
+        AmazonBedrockGenerator.get_model_adapter(model="arn:123435423", model_family="invalid")
+
+
+def test_get_model_adapter_auto_detect_family_fails():
+    """
+    Test that an error is raised when auto-detection of model_family fails
+    """
+    with pytest.raises(AmazonBedrockConfigurationError):
+        AmazonBedrockGenerator.get_model_adapter(model="arn:123435423")
+
+
+def test_get_model_adapter_model_family_over_auto_detection():
+    """
+    Test that the model_family is used over auto-detection
+    """
+    model_adapter = AmazonBedrockGenerator.get_model_adapter(
+        model="cohere.command-text-v14", model_family="anthropic.claude"
+    )
+    assert model_adapter == AnthropicClaudeAdapter
 
 
 class TestAnthropicClaudeAdapter:

@@ -1,8 +1,9 @@
 import json
 import logging
 import re
-from typing import Any, Callable, ClassVar, Dict, List, Optional, Type
+from typing import Any, Callable, ClassVar, Dict, List, Literal, Optional, Type, get_args
 
+from botocore.config import Config
 from botocore.exceptions import ClientError
 from haystack import component, default_from_dict, default_to_dict
 from haystack.dataclasses import StreamingChunk
@@ -65,14 +66,34 @@ class AmazonBedrockGenerator:
     """
 
     SUPPORTED_MODEL_PATTERNS: ClassVar[Dict[str, Type[BedrockModelAdapter]]] = {
-        r"amazon.titan-text.*": AmazonTitanAdapter,
-        r"ai21.j2.*": AI21LabsJurassic2Adapter,
-        r"cohere.command-[^r].*": CohereCommandAdapter,
-        r"cohere.command-r.*": CohereCommandRAdapter,
-        r"anthropic.claude.*": AnthropicClaudeAdapter,
-        r"meta.llama.*": MetaLlamaAdapter,
-        r"mistral.*": MistralAdapter,
+        r"([a-z]{2}\.)?amazon.titan-text.*": AmazonTitanAdapter,
+        r"([a-z]{2}\.)?ai21.j2.*": AI21LabsJurassic2Adapter,
+        r"([a-z]{2}\.)?cohere.command-[^r].*": CohereCommandAdapter,
+        r"([a-z]{2}\.)?cohere.command-r.*": CohereCommandRAdapter,
+        r"([a-z]{2}\.)?anthropic.claude.*": AnthropicClaudeAdapter,
+        r"([a-z]{2}\.)?meta.llama.*": MetaLlamaAdapter,
+        r"([a-z]{2}\.)?mistral.*": MistralAdapter,
     }
+
+    SUPPORTED_MODEL_FAMILIES: ClassVar[Dict[str, Type[BedrockModelAdapter]]] = {
+        "amazon.titan-text": AmazonTitanAdapter,
+        "ai21.j2": AI21LabsJurassic2Adapter,
+        "cohere.command": CohereCommandAdapter,
+        "cohere.command-r": CohereCommandRAdapter,
+        "anthropic.claude": AnthropicClaudeAdapter,
+        "meta.llama": MetaLlamaAdapter,
+        "mistral": MistralAdapter,
+    }
+
+    MODEL_FAMILIES = Literal[
+        "amazon.titan-text",
+        "ai21.j2",
+        "cohere.command",
+        "cohere.command-r",
+        "anthropic.claude",
+        "meta.llama",
+        "mistral",
+    ]
 
     def __init__(
         self,
@@ -87,6 +108,8 @@ class AmazonBedrockGenerator:
         max_length: Optional[int] = 100,
         truncate: Optional[bool] = True,
         streaming_callback: Optional[Callable[[StreamingChunk], None]] = None,
+        boto3_config: Optional[Dict[str, Any]] = None,
+        model_family: Optional[MODEL_FAMILIES] = None,
         **kwargs,
     ):
         """
@@ -102,6 +125,9 @@ class AmazonBedrockGenerator:
         :param truncate: Whether to truncate the prompt or not.
         :param streaming_callback: A callback function that is called when a new token is received from the stream.
             The callback function accepts StreamingChunk as an argument.
+        :param boto3_config: The configuration for the boto3 client.
+        :param model_family: The model family to use. If not provided, the model adapter is selected based on the model
+            name.
         :param kwargs: Additional keyword arguments to be passed to the model.
         These arguments are specific to the model. You can find them in the model's documentation.
         :raises ValueError: If the model name is empty or None.
@@ -120,7 +146,9 @@ class AmazonBedrockGenerator:
         self.aws_region_name = aws_region_name
         self.aws_profile_name = aws_profile_name
         self.streaming_callback = streaming_callback
+        self.boto3_config = boto3_config
         self.kwargs = kwargs
+        self.model_family = model_family
 
         def resolve_secret(secret: Optional[Secret]) -> Optional[str]:
             return secret.resolve_value() if secret else None
@@ -133,7 +161,10 @@ class AmazonBedrockGenerator:
                 aws_region_name=resolve_secret(aws_region_name),
                 aws_profile_name=resolve_secret(aws_profile_name),
             )
-            self.client = session.client("bedrock-runtime")
+            config: Optional[Config] = None
+            if self.boto3_config:
+                config = Config(**self.boto3_config)
+            self.client = session.client("bedrock-runtime", config=config)
         except Exception as exception:
             msg = (
                 "Could not connect to Amazon Bedrock. Make sure the AWS environment is configured correctly. "
@@ -145,20 +176,18 @@ class AmazonBedrockGenerator:
         # We pop the model_max_length as it is not sent to the model but used to truncate the prompt if needed
         model_max_length = kwargs.get("model_max_length", 4096)
 
-        # Truncate prompt if prompt tokens > model_max_length-max_length
-        # (max_length is the length of the generated text)
-        # we use GPT2 tokenizer which will likely provide good token count approximation
+        # we initialize the prompt handler only if truncate is True: we avoid unnecessarily downloading the tokenizer
+        if self.truncate:
+            # Truncate prompt if prompt tokens > model_max_length-max_length
+            # (max_length is the length of the generated text)
+            # we use GPT2 tokenizer which will likely provide good token count approximation
+            self.prompt_handler = DefaultPromptHandler(
+                tokenizer="gpt2",
+                model_max_length=model_max_length,
+                max_length=self.max_length or 100,
+            )
 
-        self.prompt_handler = DefaultPromptHandler(
-            tokenizer="gpt2",
-            model_max_length=model_max_length,
-            max_length=self.max_length or 100,
-        )
-
-        model_adapter_cls = self.get_model_adapter(model=model)
-        if not model_adapter_cls:
-            msg = f"AmazonBedrockGenerator doesn't support the model {model}."
-            raise AmazonBedrockConfigurationError(msg)
+        model_adapter_cls = self.get_model_adapter(model=model, model_family=model_family)
         self.model_adapter = model_adapter_cls(model_kwargs=model_input_kwargs, max_length=self.max_length)
 
     def _ensure_token_limit(self, prompt: str) -> str:
@@ -242,17 +271,34 @@ class AmazonBedrockGenerator:
         return {"replies": replies}
 
     @classmethod
-    def get_model_adapter(cls, model: str) -> Optional[Type[BedrockModelAdapter]]:
+    def get_model_adapter(cls, model: str, model_family: Optional[str] = None) -> Type[BedrockModelAdapter]:
         """
         Gets the model adapter for the given model.
 
+        If `model_family` is provided, the adapter for the model family is returned.
+        If `model_family` is not provided, the adapter is auto-detected based on the model name.
+
         :param model: The model name.
+        :param model_family: The model family.
         :returns: The model adapter class, or None if no adapter is found.
+        :raises AmazonBedrockConfigurationError: If the model family is not supported or the model cannot be
+            auto-detected.
         """
+        if model_family:
+            if model_family not in cls.SUPPORTED_MODEL_FAMILIES:
+                msg = f"Model family {model_family} is not supported. Must be one of {get_args(cls.MODEL_FAMILIES)}."
+                raise AmazonBedrockConfigurationError(msg)
+            return cls.SUPPORTED_MODEL_FAMILIES[model_family]
+
         for pattern, adapter in cls.SUPPORTED_MODEL_PATTERNS.items():
             if re.fullmatch(pattern, model):
                 return adapter
-        return None
+
+        msg = (
+            f"Could not auto-detect model family of {model}. "
+            f"`model_family` parameter must be one of {get_args(cls.MODEL_FAMILIES)}."
+        )
+        raise AmazonBedrockConfigurationError(msg)
 
     def to_dict(self) -> Dict[str, Any]:
         """
@@ -273,6 +319,8 @@ class AmazonBedrockGenerator:
             max_length=self.max_length,
             truncate=self.truncate,
             streaming_callback=callback_name,
+            boto3_config=self.boto3_config,
+            model_family=self.model_family,
             **self.kwargs,
         )
 

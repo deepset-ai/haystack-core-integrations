@@ -2,17 +2,18 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 from haystack.utils.auth import Secret
+from huggingface_hub.utils import RepositoryNotFoundError
+
 from haystack_integrations.components.embedders.optimum import OptimumTextEmbedder
-from haystack_integrations.components.embedders.optimum.pooling import OptimumEmbedderPooling
 from haystack_integrations.components.embedders.optimum.optimization import (
     OptimumEmbedderOptimizationConfig,
     OptimumEmbedderOptimizationMode,
 )
+from haystack_integrations.components.embedders.optimum.pooling import OptimumEmbedderPooling
 from haystack_integrations.components.embedders.optimum.quantization import (
     OptimumEmbedderQuantizationConfig,
     OptimumEmbedderQuantizationMode,
 )
-from huggingface_hub.utils import RepositoryNotFoundError
 
 
 @pytest.fixture

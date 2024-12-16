@@ -362,7 +362,6 @@ class QdrantDocumentStore:
 
         document_objects = self._handle_duplicate_documents(
             documents=documents,
-            index=self.index,
             policy=policy,
         )
 
@@ -468,7 +467,6 @@ class QdrantDocumentStore:
     def get_documents_by_id(
         self,
         ids: List[str],
-        index: Optional[str] = None,
     ) -> List[Document]:
         """
         Retrieves documents from Qdrant by their IDs.
@@ -480,13 +478,11 @@ class QdrantDocumentStore:
         :returns:
             A list of documents.
         """
-        index = index or self.index
-
         documents: List[Document] = []
 
         ids = [convert_id(_id) for _id in ids]
         records = self.client.retrieve(
-            collection_name=index,
+            collection_name=self.index,
             ids=ids,
             with_payload=True,
             with_vectors=True,
@@ -987,7 +983,6 @@ class QdrantDocumentStore:
     def _handle_duplicate_documents(
         self,
         documents: List[Document],
-        index: Optional[str] = None,
         policy: DuplicatePolicy = None,
     ):
         """
@@ -995,31 +990,28 @@ class QdrantDocumentStore:
         documents that are not in the index yet.
 
         :param documents: A list of Haystack Document objects.
-        :param index: name of the index
         :param policy: The duplicate policy to use when writing documents.
         :returns: A list of Haystack Document objects.
         """
 
-        index = index or self.index
         if policy in (DuplicatePolicy.SKIP, DuplicatePolicy.FAIL):
-            documents = self._drop_duplicate_documents(documents, index)
-            documents_found = self.get_documents_by_id(ids=[doc.id for doc in documents], index=index)
+            documents = self._drop_duplicate_documents(documents)
+            documents_found = self.get_documents_by_id(ids=[doc.id for doc in documents])
             ids_exist_in_db: List[str] = [doc.id for doc in documents_found]
 
             if len(ids_exist_in_db) > 0 and policy == DuplicatePolicy.FAIL:
-                msg = f"Document with ids '{', '.join(ids_exist_in_db)} already exists in index = '{index}'."
+                msg = f"Document with ids '{', '.join(ids_exist_in_db)} already exists in index = '{self.index}'."
                 raise DuplicateDocumentError(msg)
 
             documents = list(filter(lambda doc: doc.id not in ids_exist_in_db, documents))
 
         return documents
 
-    def _drop_duplicate_documents(self, documents: List[Document], index: Optional[str] = None) -> List[Document]:
+    def _drop_duplicate_documents(self, documents: List[Document]) -> List[Document]:
         """
         Drop duplicate documents based on same hash ID.
 
         :param documents: A list of Haystack Document objects.
-        :param index: Name of the index.
         :returns: A list of Haystack Document objects.
         """
         _hash_ids: Set = set()
@@ -1030,7 +1022,7 @@ class QdrantDocumentStore:
                 logger.info(
                     "Duplicate Documents: Document with id '%s' already exists in index '%s'",
                     document.id,
-                    index or self.index,
+                    self.index,
                 )
                 continue
             _documents.append(document)

@@ -1,12 +1,18 @@
+# SPDX-FileCopyrightText: 2024-present deepset GmbH <info@deepset.ai>
+#
+# SPDX-License-Identifier: Apache-2.0
+
+import os
 import warnings
 from typing import Any, Dict, List, Optional, Union
 
-from haystack import component, default_from_dict, default_to_dict
+from haystack import component, default_from_dict, default_to_dict, logging
 from haystack.utils import Secret, deserialize_secrets_inplace
 
+from haystack_integrations.components.embedders.nvidia.truncate import EmbeddingTruncateMode
 from haystack_integrations.utils.nvidia import NimBackend, is_hosted, url_validation
 
-from .truncate import EmbeddingTruncateMode
+logger = logging.getLogger(__name__)
 
 _DEFAULT_API_URL = "https://ai.api.nvidia.com/v1/retrieval/nvidia"
 
@@ -41,6 +47,7 @@ class NvidiaTextEmbedder:
         prefix: str = "",
         suffix: str = "",
         truncate: Optional[Union[EmbeddingTruncateMode, str]] = None,
+        timeout: Optional[float] = None,
     ):
         """
         Create a NvidiaTextEmbedder component.
@@ -61,6 +68,9 @@ class NvidiaTextEmbedder:
         :param truncate:
             Specifies how inputs longer that the maximum token length should be truncated.
             If None the behavior is model-dependent, see the official documentation for more information.
+        :param timeout:
+            Timeout for request calls, if not set it is inferred from the `NVIDIA_TIMEOUT` environment variable
+            or set to 60 by default.
         """
 
         self.api_key = api_key
@@ -79,6 +89,10 @@ class NvidiaTextEmbedder:
         if is_hosted(api_url) and not self.model:  # manually set default model
             self.model = "nvidia/nv-embedqa-e5-v5"
 
+        if timeout is None:
+            timeout = float(os.environ.get("NVIDIA_TIMEOUT", 60.0))
+        self.timeout = timeout
+
     def default_model(self):
         """Set default model in local NIM mode."""
         valid_models = [
@@ -86,6 +100,12 @@ class NvidiaTextEmbedder:
         ]
         name = next(iter(valid_models), None)
         if name:
+            logger.warning(
+                "Default model is set as: {model_name}. \n"
+                "Set model using model parameter. \n"
+                "To get available models use available_models property.",
+                model_name=name,
+            )
             warnings.warn(
                 f"Default model is set as: {name}. \n"
                 "Set model using model parameter. \n"
@@ -109,10 +129,11 @@ class NvidiaTextEmbedder:
         if self.truncate is not None:
             model_kwargs["truncate"] = str(self.truncate)
         self.backend = NimBackend(
-            self.model,
+            model=self.model,
             api_url=self.api_url,
             api_key=self.api_key,
             model_kwargs=model_kwargs,
+            timeout=self.timeout,
         )
 
         self._initialized = True
@@ -135,6 +156,7 @@ class NvidiaTextEmbedder:
             prefix=self.prefix,
             suffix=self.suffix,
             truncate=str(self.truncate) if self.truncate is not None else None,
+            timeout=self.timeout,
         )
 
     @classmethod
@@ -147,7 +169,9 @@ class NvidiaTextEmbedder:
         :returns:
             The deserialized component.
         """
-        deserialize_secrets_inplace(data["init_parameters"], keys=["api_key"])
+        init_parameters = data.get("init_parameters", {})
+        if init_parameters:
+            deserialize_secrets_inplace(data["init_parameters"], keys=["api_key"])
         return default_from_dict(cls, data)
 
     @component.output_types(embedding=List[float], meta=Dict[str, Any])
@@ -159,7 +183,7 @@ class NvidiaTextEmbedder:
             The text to embed.
         :returns:
             A dictionary with the following keys and values:
-            - `embedding` - Embeddng of the text.
+            - `embedding` - Embedding of the text.
             - `meta` - Metadata on usage statistics, etc.
         :raises RuntimeError:
             If the component was not initialized.
@@ -175,6 +199,9 @@ class NvidiaTextEmbedder:
                 "In case you want to embed a list of Documents, please use the NvidiaDocumentEmbedder."
             )
             raise TypeError(msg)
+        elif not text:
+            msg = "Cannot embed an empty string."
+            raise ValueError(msg)
 
         assert self.backend is not None
         text_to_embed = self.prefix + text + self.suffix

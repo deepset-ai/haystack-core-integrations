@@ -1,3 +1,4 @@
 from haystack_integrations.components.retrievers.mongodb_atlas.embedding_retriever import MongoDBAtlasEmbeddingRetriever
+from haystack_integrations.components.retrievers.mongodb_atlas.full_text_retriever import MongoDBAtlasFullTextRetriever
 
-__all__ = ["MongoDBAtlasEmbeddingRetriever"]
+__all__ = ["MongoDBAtlasEmbeddingRetriever", "MongoDBAtlasFullTextRetriever"]

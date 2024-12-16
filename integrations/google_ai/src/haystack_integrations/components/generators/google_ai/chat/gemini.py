@@ -1,3 +1,4 @@
+import json
 import logging
 from typing import Any, Callable, Dict, List, Optional, Union
 
@@ -36,12 +37,12 @@ class GoogleAIGeminiChatGenerator:
     messages = [ChatMessage.from_user("What is the most interesting thing you know?")]
     res = gemini_chat.run(messages=messages)
     for reply in res["replies"]:
-        print(reply.content)
+        print(reply.text)
 
     messages += res["replies"] + [ChatMessage.from_user("Tell me more about it")]
     res = gemini_chat.run(messages=messages)
     for reply in res["replies"]:
-        print(reply.content)
+        print(reply.text)
     ```
 
 
@@ -85,14 +86,14 @@ class GoogleAIGeminiChatGenerator:
     gemini_chat = GoogleAIGeminiChatGenerator(model="gemini-pro", api_key=Secret.from_token("<MY_API_KEY>"),
                                               tools=[tool])
 
-    messages = [ChatMessage.from_user(content = "What is the temperature in celsius in Berlin?")]
+    messages = [ChatMessage.from_user("What is the temperature in celsius in Berlin?")]
     res = gemini_chat.run(messages=messages)
 
-    weather = get_current_weather(**res["replies"][0].content)
+    weather = get_current_weather(**json.loads(res["replies"][0].text))
     messages += res["replies"] + [ChatMessage.from_function(content=weather, name="get_current_weather")]
     res = gemini_chat.run(messages=messages)
     for reply in res["replies"]:
-        print(reply.content)
+        print(reply.text)
     ```
     """
 
@@ -230,45 +231,45 @@ class GoogleAIGeminiChatGenerator:
             raise ValueError(msg)
 
     def _message_to_part(self, message: ChatMessage) -> Part:
-        if message.role == ChatRole.ASSISTANT and message.name:
+        if message.is_from(ChatRole.ASSISTANT) and message.name:
             p = Part()
             p.function_call.name = message.name
             p.function_call.args = {}
-            for k, v in message.content.items():
+            for k, v in json.loads(message.text).items():
                 p.function_call.args[k] = v
             return p
-        elif message.role in {ChatRole.SYSTEM, ChatRole.ASSISTANT}:
+        elif message.is_from(ChatRole.SYSTEM) or message.is_from(ChatRole.ASSISTANT):
             p = Part()
-            p.text = message.content
+            p.text = message.text
             return p
-        elif message.role == ChatRole.FUNCTION:
+        elif message.is_from(ChatRole.FUNCTION):
             p = Part()
             p.function_response.name = message.name
-            p.function_response.response = message.content
+            p.function_response.response = message.text
             return p
-        elif message.role == ChatRole.USER:
-            return self._convert_part(message.content)
+        elif message.is_from(ChatRole.USER):
+            return self._convert_part(message.text)
 
     def _message_to_content(self, message: ChatMessage) -> Content:
-        if message.role == ChatRole.ASSISTANT and message.name:
+        if message.is_from(ChatRole.ASSISTANT) and message.name:
             part = Part()
             part.function_call.name = message.name
             part.function_call.args = {}
-            for k, v in message.content.items():
+            for k, v in json.loads(message.text).items():
                 part.function_call.args[k] = v
-        elif message.role in {ChatRole.SYSTEM, ChatRole.ASSISTANT}:
+        elif message.is_from(ChatRole.SYSTEM) or message.is_from(ChatRole.ASSISTANT):
             part = Part()
-            part.text = message.content
-        elif message.role == ChatRole.FUNCTION:
+            part.text = message.text
+        elif message.is_from(ChatRole.FUNCTION):
             part = Part()
             part.function_response.name = message.name
-            part.function_response.response = message.content
-        elif message.role == ChatRole.USER:
-            part = self._convert_part(message.content)
+            part.function_response.response = message.text
+        elif message.is_from(ChatRole.USER):
+            part = self._convert_part(message.text)
         else:
             msg = f"Unsupported message role {message.role}"
             raise ValueError(msg)
-        role = "user" if message.role in [ChatRole.USER, ChatRole.FUNCTION] else "model"
+        role = "user" if message.is_from(ChatRole.USER) or message.is_from(ChatRole.FUNCTION) else "model"
         return Content(parts=[part], role=role)
 
     @component.output_types(replies=List[ChatMessage])
@@ -311,19 +312,37 @@ class GoogleAIGeminiChatGenerator:
         :param response_body: The response from Google AI request.
         :returns: The extracted responses.
         """
-        replies = []
-        for candidate in response_body.candidates:
+        replies: List[ChatMessage] = []
+        metadata = response_body.to_dict()
+
+        # currently Google only supports one candidate and usage metadata reflects this
+        # this should be refactored when multiple candidates are supported
+        usage_metadata_openai_format = {}
+
+        usage_metadata = metadata.get("usage_metadata")
+        if usage_metadata:
+            usage_metadata_openai_format = {
+                "prompt_tokens": usage_metadata["prompt_token_count"],
+                "completion_tokens": usage_metadata["candidates_token_count"],
+                "total_tokens": usage_metadata["total_token_count"],
+            }
+
+        for idx, candidate in enumerate(response_body.candidates):
+            candidate_metadata = metadata["candidates"][idx]
+            candidate_metadata.pop("content", None)  # we remove content from the metadata
+            if usage_metadata_openai_format:
+                candidate_metadata["usage"] = usage_metadata_openai_format
+
             for part in candidate.content.parts:
                 if part.text != "":
-                    replies.append(ChatMessage.from_assistant(part.text))
-                elif part.function_call is not None:
-                    replies.append(
-                        ChatMessage(
-                            content=dict(part.function_call.args.items()),
-                            role=ChatRole.ASSISTANT,
-                            name=part.function_call.name,
-                        )
+                    replies.append(ChatMessage.from_assistant(content=part.text, meta=candidate_metadata))
+                elif part.function_call:
+                    candidate_metadata["function_call"] = part.function_call
+                    new_message = ChatMessage.from_assistant(
+                        content=json.dumps(dict(part.function_call.args)), meta=candidate_metadata
                     )
+                    new_message.name = part.function_call.name
+                    replies.append(new_message)
         return replies
 
     def _get_stream_response(
@@ -336,11 +355,22 @@ class GoogleAIGeminiChatGenerator:
         :param streaming_callback: The handler for the streaming response.
         :returns: The extracted response with the content of all streaming chunks.
         """
-        responses = []
+        replies: List[ChatMessage] = []
         for chunk in stream:
-            content = chunk.text if len(chunk.parts) > 0 and "text" in chunk.parts[0] else ""
-            streaming_callback(StreamingChunk(content=content, meta=chunk.to_dict()))
-            responses.append(content)
+            content: Union[str, Dict[str, Any]] = ""
+            dict_chunk = chunk.to_dict()
+            metadata = dict(dict_chunk)  # we copy and store the whole chunk as metadata in streaming calls
+            for candidate in dict_chunk["candidates"]:
+                for part in candidate["content"]["parts"]:
+                    if "text" in part and part["text"] != "":
+                        content = part["text"]
+                        replies.append(ChatMessage.from_assistant(content=content, meta=metadata))
+                    elif "function_call" in part and len(part["function_call"]) > 0:
+                        metadata["function_call"] = part["function_call"]
+                        content = json.dumps(dict(part["function_call"]["args"]))
+                        new_message = ChatMessage.from_assistant(content=content, meta=metadata)
+                        new_message.name = part["function_call"]["name"]
+                        replies.append(new_message)
 
-        combined_response = "".join(responses).lstrip()
-        return [ChatMessage.from_assistant(content=combined_response)]
+                    streaming_callback(StreamingChunk(content=content, meta=metadata))
+        return replies

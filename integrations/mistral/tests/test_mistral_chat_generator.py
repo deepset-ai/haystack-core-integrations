@@ -7,10 +7,11 @@ import pytz
 from haystack.components.generators.utils import print_streaming_chunk
 from haystack.dataclasses import ChatMessage, StreamingChunk
 from haystack.utils.auth import Secret
-from haystack_integrations.components.generators.mistral.chat.chat_generator import MistralChatGenerator
 from openai import OpenAIError
 from openai.types.chat import ChatCompletion, ChatCompletionMessage
 from openai.types.chat.chat_completion import Choice
+
+from haystack_integrations.components.generators.mistral.chat.chat_generator import MistralChatGenerator
 
 
 @pytest.fixture
@@ -213,7 +214,7 @@ class TestMistralChatGenerator:
         results = component.run(chat_messages)
         assert len(results["replies"]) == 1
         message: ChatMessage = results["replies"][0]
-        assert "Paris" in message.content
+        assert "Paris" in message.text
         assert "mistral-tiny" in message.meta["model"]
         assert message.meta["finish_reason"] == "stop"
 
@@ -248,7 +249,7 @@ class TestMistralChatGenerator:
 
         assert len(results["replies"]) == 1
         message: ChatMessage = results["replies"][0]
-        assert "Paris" in message.content
+        assert "Paris" in message.text
 
         assert "mistral-tiny" in message.meta["model"]
         assert message.meta["finish_reason"] == "stop"

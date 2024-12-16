@@ -31,7 +31,7 @@ class TestJinaDocumentEmbedder:
         embedder = JinaDocumentEmbedder()
 
         assert embedder.api_key == Secret.from_env_var("JINA_API_KEY")
-        assert embedder.model_name == "jina-embeddings-v2-base-en"
+        assert embedder.model_name == "jina-embeddings-v3"
         assert embedder.prefix == ""
         assert embedder.suffix == ""
         assert embedder.batch_size == 32
@@ -49,6 +49,9 @@ class TestJinaDocumentEmbedder:
             progress_bar=False,
             meta_fields_to_embed=["test_field"],
             embedding_separator=" | ",
+            task="retrieval.query",
+            dimensions=1024,
+            late_chunking=True,
         )
 
         assert embedder.api_key == Secret.from_token("fake-api-key")
@@ -59,6 +62,9 @@ class TestJinaDocumentEmbedder:
         assert embedder.progress_bar is False
         assert embedder.meta_fields_to_embed == ["test_field"]
         assert embedder.embedding_separator == " | "
+        assert embedder.task == "retrieval.query"
+        assert embedder.dimensions == 1024
+        assert embedder.late_chunking is True
 
     def test_init_fail_wo_api_key(self, monkeypatch):
         monkeypatch.delenv("JINA_API_KEY", raising=False)
@@ -73,7 +79,7 @@ class TestJinaDocumentEmbedder:
             "type": "haystack_integrations.components.embedders.jina.document_embedder.JinaDocumentEmbedder",
             "init_parameters": {
                 "api_key": {"env_vars": ["JINA_API_KEY"], "strict": True, "type": "env_var"},
-                "model": "jina-embeddings-v2-base-en",
+                "model": "jina-embeddings-v3",
                 "prefix": "",
                 "suffix": "",
                 "batch_size": 32,
@@ -93,6 +99,8 @@ class TestJinaDocumentEmbedder:
             progress_bar=False,
             meta_fields_to_embed=["test_field"],
             embedding_separator=" | ",
+            task="retrieval.query",
+            dimensions=1024,
         )
         data = component.to_dict()
         assert data == {
@@ -106,6 +114,8 @@ class TestJinaDocumentEmbedder:
                 "progress_bar": False,
                 "meta_fields_to_embed": ["test_field"],
                 "embedding_separator": " | ",
+                "task": "retrieval.query",
+                "dimensions": 1024,
             },
         }
 
@@ -246,3 +256,35 @@ class TestJinaDocumentEmbedder:
 
         assert result["documents"] is not None
         assert not result["documents"]  # empty list
+
+    def test_run_with_v3(self):
+        docs = [
+            Document(content="I love cheese", meta={"topic": "Cuisine"}),
+            Document(content="A transformer is a deep learning architecture", meta={"topic": "ML"}),
+        ]
+
+        model = "jina-embeddings-v3"
+        with patch("requests.sessions.Session.post", side_effect=mock_session_post_response):
+            embedder = JinaDocumentEmbedder(
+                api_key=Secret.from_token("fake-api-key"),
+                model=model,
+                prefix="prefix ",
+                suffix=" suffix",
+                meta_fields_to_embed=["topic"],
+                embedding_separator=" | ",
+                batch_size=1,
+                task="retrieval.query",
+            )
+            result = embedder.run(documents=docs)
+
+        documents_with_embeddings = result["documents"]
+        metadata = result["meta"]
+
+        assert isinstance(documents_with_embeddings, list)
+        assert len(documents_with_embeddings) == len(docs)
+        for doc in documents_with_embeddings:
+            assert isinstance(doc, Document)
+            assert isinstance(doc.embedding, list)
+            assert len(doc.embedding) == 3
+            assert all(isinstance(x, float) for x in doc.embedding)
+        assert metadata == {"model": model, "usage": {"prompt_tokens": 2 * 4, "total_tokens": 2 * 4}}

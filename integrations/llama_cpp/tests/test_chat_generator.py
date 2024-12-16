@@ -163,7 +163,7 @@ class TestLlamaCppChatGenerator:
         assert isinstance(result["replies"], list)
         assert len(result["replies"]) == 1
         assert isinstance(result["replies"][0], ChatMessage)
-        assert result["replies"][0].content == "Generated text"
+        assert result["replies"][0].text == "Generated text"
         assert result["replies"][0].role == ChatRole.ASSISTANT
 
     def test_run_with_generation_kwargs(self, generator_mock):
@@ -183,7 +183,7 @@ class TestLlamaCppChatGenerator:
         mock_model.create_chat_completion.return_value = mock_output
         generation_kwargs = {"max_tokens": 128}
         result = generator.run([ChatMessage.from_system("Write a 200 word paragraph.")], generation_kwargs)
-        assert result["replies"][0].content == "Generated text"
+        assert result["replies"][0].text == "Generated text"
         assert result["replies"][0].meta["finish_reason"] == "length"
 
     @pytest.mark.integration
@@ -206,7 +206,7 @@ class TestLlamaCppChatGenerator:
             assert "replies" in result
             assert isinstance(result["replies"], list)
             assert len(result["replies"]) > 0
-            assert any(answer.lower() in reply.content.lower() for reply in result["replies"])
+            assert any(answer.lower() in reply.text.lower() for reply in result["replies"])
 
     @pytest.mark.integration
     def test_run_rag_pipeline(self, generator):
@@ -270,7 +270,7 @@ class TestLlamaCppChatGenerator:
 
         replies = result["llm"]["replies"]
         assert len(replies) > 0
-        assert any("bioluminescent waves" in reply.content for reply in replies)
+        assert any("bioluminescent waves" in reply.text.lower() for reply in replies)
         assert all(reply.role == ChatRole.ASSISTANT for reply in replies)
 
     @pytest.mark.integration
@@ -308,15 +308,15 @@ class TestLlamaCppChatGenerator:
         assert len(result["replies"]) > 0
         assert all(reply.role == ChatRole.ASSISTANT for reply in result["replies"])
         for reply in result["replies"]:
-            assert json.loads(reply.content)
-            assert isinstance(json.loads(reply.content), dict)
-            assert "people" in json.loads(reply.content)
-            assert isinstance(json.loads(reply.content)["people"], list)
-            assert all(isinstance(person, dict) for person in json.loads(reply.content)["people"])
-            assert all("name" in person for person in json.loads(reply.content)["people"])
-            assert all("age" in person for person in json.loads(reply.content)["people"])
-            assert all(isinstance(person["name"], str) for person in json.loads(reply.content)["people"])
-            assert all(isinstance(person["age"], int) for person in json.loads(reply.content)["people"])
+            assert json.loads(reply.text)
+            assert isinstance(json.loads(reply.text), dict)
+            assert "people" in json.loads(reply.text)
+            assert isinstance(json.loads(reply.text)["people"], list)
+            assert all(isinstance(person, dict) for person in json.loads(reply.text)["people"])
+            assert all("name" in person for person in json.loads(reply.text)["people"])
+            assert all("age" in person for person in json.loads(reply.text)["people"])
+            assert all(isinstance(person["name"], str) for person in json.loads(reply.text)["people"])
+            assert all(isinstance(person["age"], int) for person in json.loads(reply.text)["people"])
 
 
 class TestLlamaCppChatGeneratorFunctionary:
@@ -342,7 +342,7 @@ class TestLlamaCppChatGeneratorFunctionary:
         hf_tokenizer_path = "meetkai/functionary-small-v2.4-GGUF"
         generator = LlamaCppChatGenerator(
             model=model_path,
-            n_ctx=8192,
+            n_ctx=512,
             n_batch=512,
             model_kwargs={
                 "chat_format": "functionary-v2",
@@ -399,7 +399,6 @@ class TestLlamaCppChatGeneratorFunctionary:
                                 "type": "string",
                                 "description": "The city and state, e.g. San Francisco, CA",
                             },
-                            "unit": {"type": "string", "enum": ["celsius", "fahrenheit"]},
                         },
                         "required": ["location"],
                     },
@@ -407,7 +406,8 @@ class TestLlamaCppChatGeneratorFunctionary:
             }
         ]
 
-        response = generator.run(messages=messages, generation_kwargs={"tools": tools})
+        tool_choice = {"type": "function", "function": {"name": "get_current_temperature"}}
+        response = generator.run(messages=messages, generation_kwargs={"tools": tools, "tool_choice": tool_choice})
 
         available_functions = {
             "get_current_temperature": self.get_current_temperature,
@@ -431,8 +431,8 @@ class TestLlamaCppChatGeneratorFunctionary:
         second_response = generator.run(messages=messages)
         assert "replies" in second_response
         assert len(second_response["replies"]) > 0
-        assert any("San Francisco" in reply.content for reply in second_response["replies"])
-        assert any("72" in reply.content for reply in second_response["replies"])
+        assert any("San Francisco" in reply.text for reply in second_response["replies"])
+        assert any("72" in reply.text for reply in second_response["replies"])
 
 
 class TestLlamaCppChatGeneratorChatML:

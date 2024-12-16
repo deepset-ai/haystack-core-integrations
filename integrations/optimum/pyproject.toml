@@ -54,6 +54,7 @@ root = "../.."
 git_describe_command = 'git describe --tags --match="integrations/optimum-v[0-9]*"'
 
 [tool.hatch.envs.default]
+installer = "uv"
 dependencies = [
   "coverage[toml]>=6.5",
   "pytest",
@@ -76,20 +77,21 @@ python = ["3.8", "3.9", "3.10", "3.11", "3.12"]
 
 
 [tool.hatch.envs.lint]
+installer = "uv"
 detached = true
-dependencies = ["black>=23.1.0", "mypy>=1.0.0", "ruff>=0.0.243"]
+dependencies = ["pip", "black>=23.1.0", "mypy>=1.0.0", "ruff>=0.0.243"]
 
 [tool.hatch.envs.lint.scripts]
 typing = "mypy --install-types --non-interactive --explicit-package-bases {args:src/ tests}"
 style = ["ruff check {args:.}", "black --check --diff {args:.}"]
-fmt = ["black {args:.}", "ruff --fix {args:.}", "style"]
+fmt = ["black {args:.}", "ruff check --fix {args:.}", "style"]
 all = ["style", "typing"]
 
 [tool.hatch.metadata]
 allow-direct-references = true
 
 [tool.ruff.lint.isort]
-known-first-party = ["src"]
+known-first-party = ["haystack_integrations"]
 
 [tool.black]
 target-version = ["py38"]
@@ -99,6 +101,9 @@ skip-string-normalization = true
 [tool.ruff]
 target-version = "py38"
 line-length = 120
+exclude = ["example", "tests"]
+
+[tool.ruff.lint]
 select = [
   "A",
   "ARG",
@@ -145,7 +150,6 @@ unfixable = [
   # Don't touch unused imports
   "F401",
 ]
-extend-exclude = ["tests", "example"]
 
 [tool.ruff.lint.flake8-tidy-imports]
 ban-relative-imports = "parents"

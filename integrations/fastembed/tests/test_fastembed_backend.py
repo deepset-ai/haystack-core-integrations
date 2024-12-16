@@ -2,6 +2,7 @@ from unittest.mock import patch
 
 from haystack_integrations.components.embedders.fastembed.embedding_backend.fastembed_backend import (
     _FastembedEmbeddingBackendFactory,
+    _FastembedSparseEmbeddingBackendFactory,
 )
 
 
@@ -44,3 +45,28 @@ def test_embedding_function_with_kwargs(mock_instructor):  # noqa: ARG001
     embedding_backend.model.embed.assert_called_once_with(data)
     # restore the factory stateTrue
     _FastembedEmbeddingBackendFactory._instances = {}
+
+
+@patch("haystack_integrations.components.embedders.fastembed.embedding_backend.fastembed_backend.SparseTextEmbedding")
+def test_model_kwargs_initialization(mock_instructor):
+    bm25_config = {
+        "k": 1.2,
+        "b": 0.75,
+        "avg_len": 300.0,
+        "language": "english",
+        "token_max_length": 40,
+    }
+
+    # Invoke the backend factory with the BM25 configuration
+    _FastembedSparseEmbeddingBackendFactory.get_embedding_backend(
+        model_name="Qdrant/bm25",
+        model_kwargs=bm25_config,
+    )
+
+    # Check if SparseTextEmbedding was called with the correct arguments
+    mock_instructor.assert_called_once_with(
+        model_name="Qdrant/bm25", cache_dir=None, threads=None, local_files_only=False, **bm25_config
+    )
+
+    # Restore factory state after the test
+    _FastembedSparseEmbeddingBackendFactory._instances = {}

@@ -72,6 +72,7 @@ class AnthropicChatGenerator:
         "temperature",
         "top_p",
         "top_k",
+        "extra_headers",
     ]
 
     def __init__(
@@ -101,6 +102,7 @@ class AnthropicChatGenerator:
             - `temperature`: The temperature to use for sampling.
             - `top_p`: The top_p value to use for nucleus sampling.
             - `top_k`: The top_k value to use for top-k sampling.
+            - `extra_headers`: A dictionary of extra headers to be passed to the model (i.e. for beta features).
         :param ignore_tools_thinking_messages: Anthropic's approach to tools (function calling) resolution involves a
             "chain of thought" messages before returning the actual function names and parameters in a message. If
             `ignore_tools_thinking_messages` is `True`, the generator will drop so-called thinking messages when tool
@@ -177,20 +179,35 @@ class AnthropicChatGenerator:
                 f"Model parameters {disallowed_params} are not allowed and will be ignored. "
                 f"Allowed parameters are {self.ALLOWED_PARAMS}."
             )
+        system_messages: List[ChatMessage] = [msg for msg in messages if msg.is_from(ChatRole.SYSTEM)]
+        non_system_messages: List[ChatMessage] = [msg for msg in messages if not msg.is_from(ChatRole.SYSTEM)]
+        system_messages_formatted: List[Dict[str, Any]] = (
+            self._convert_to_anthropic_format(system_messages) if system_messages else []
+        )
+        messages_formatted: List[Dict[str, Any]] = (
+            self._convert_to_anthropic_format(non_system_messages) if non_system_messages else []
+        )
 
-        # adapt ChatMessage(s) to the format expected by the Anthropic API
-        anthropic_formatted_messages = self._convert_to_anthropic_format(messages)
-
-        # system message provided by the user overrides the system message from the self.generation_kwargs
-        system = messages[0].content if messages and messages[0].is_from(ChatRole.SYSTEM) else None
-        if system:
-            anthropic_formatted_messages = anthropic_formatted_messages[1:]
+        extra_headers = filtered_generation_kwargs.get("extra_headers", {})
+        prompt_caching_on = "anthropic-beta" in extra_headers and "prompt-caching" in extra_headers["anthropic-beta"]
+        has_cached_messages = any("cache_control" in m for m in system_messages_formatted) or any(
+            "cache_control" in m for m in messages_formatted
+        )
+        if has_cached_messages and not prompt_caching_on:
+            # this avoids Anthropic errors when prompt caching is not enabled
+            # but user requested individual messages to be cached
+            logger.warn(
+                "Prompt caching is not enabled but you requested individual messages to be cached. "
+                "Messages will be sent to the API without prompt caching."
+            )
+            system_messages_formatted = list(map(self._remove_cache_control, system_messages_formatted))
+            messages_formatted = list(map(self._remove_cache_control, messages_formatted))
 
         response: Union[Message, Stream[MessageStreamEvent]] = self.client.messages.create(
             max_tokens=filtered_generation_kwargs.pop("max_tokens", 512),
-            system=system if system else filtered_generation_kwargs.pop("system", ""),
+            system=system_messages_formatted or filtered_generation_kwargs.pop("system", ""),
             model=self.model,
-            messages=anthropic_formatted_messages,
+            messages=messages_formatted,
             stream=self.streaming_callback is not None,
             **filtered_generation_kwargs,
         )
@@ -259,8 +276,15 @@ class AnthropicChatGenerator:
         anthropic_formatted_messages = []
         for m in messages:
             message_dict = dataclasses.asdict(m)
-            filtered_message = {k: v for k, v in message_dict.items() if k in {"role", "content"} and v}
-            anthropic_formatted_messages.append(filtered_message)
+            formatted_message = {k: v for k, v in message_dict.items() if k in {"role", "content"} and v}
+            if m.is_from(ChatRole.SYSTEM):
+                # system messages are treated differently and MUST be in the format expected by the Anthropic API
+                # remove role and content from the message dict, add type and text
+                formatted_message.pop("role")
+                formatted_message["type"] = "text"
+                formatted_message["text"] = formatted_message.pop("content")
+            formatted_message.update(m.meta or {})
+            anthropic_formatted_messages.append(formatted_message)
         return anthropic_formatted_messages
 
     def _connect_chunks(
@@ -291,3 +315,11 @@ class AnthropicChatGenerator:
         :returns: The StreamingChunk.
         """
         return StreamingChunk(content=delta.text)
+
+    def _remove_cache_control(self, message: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Removes the cache_control key from the message.
+        :param message: The message to remove the cache_control key from.
+        :returns: The message with the cache_control key removed.
+        """
+        return {k: v for k, v in message.items() if k != "cache_control"}

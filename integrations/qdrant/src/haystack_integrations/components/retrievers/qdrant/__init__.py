@@ -4,4 +4,4 @@
 
 from .retriever import QdrantEmbeddingRetriever, QdrantHybridRetriever, QdrantSparseEmbeddingRetriever
 
-__all__ = ("QdrantEmbeddingRetriever", "QdrantSparseEmbeddingRetriever", "QdrantHybridRetriever")
+__all__ = ("QdrantEmbeddingRetriever", "QdrantHybridRetriever", "QdrantSparseEmbeddingRetriever")
