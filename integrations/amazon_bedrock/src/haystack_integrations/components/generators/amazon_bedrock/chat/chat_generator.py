@@ -278,12 +278,10 @@ class AmazonBedrockChatGenerator:
                 # Process each content block separately
                 for content_block in content_blocks:
                     if "text" in content_block:
-                        replies.append(ChatMessage.from_assistant(content=content_block["text"], meta=base_meta.copy()))
+                        replies.append(ChatMessage.from_assistant(content_block["text"], meta=base_meta.copy()))
                     elif "toolUse" in content_block:
                         replies.append(
-                            ChatMessage.from_assistant(
-                                content=json.dumps(content_block["toolUse"]), meta=base_meta.copy()
-                            )
+                            ChatMessage.from_assistant(json.dumps(content_block["toolUse"]), meta=base_meta.copy())
                         )
         return replies
 
@@ -334,9 +332,9 @@ class AmazonBedrockChatGenerator:
                         pass
 
                     tool_content = json.dumps(current_tool_use)
-                    replies.append(ChatMessage.from_assistant(content=tool_content, meta=base_meta.copy()))
+                    replies.append(ChatMessage.from_assistant(tool_content, meta=base_meta.copy()))
                 elif current_content:
-                    replies.append(ChatMessage.from_assistant(content=current_content, meta=base_meta.copy()))
+                    replies.append(ChatMessage.from_assistant(current_content, meta=base_meta.copy()))
 
             elif "messageStop" in event:
                 # not 100% correct for multiple messages but no way around it
