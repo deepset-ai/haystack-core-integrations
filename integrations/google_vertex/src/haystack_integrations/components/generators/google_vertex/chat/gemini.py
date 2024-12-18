@@ -283,9 +283,7 @@ class VertexAIGeminiChatGenerator:
                     replies.append(ChatMessage.from_assistant(part._raw_part.text, meta=metadata))
                 elif part.function_call:
                     metadata["function_call"] = part.function_call
-                    new_message = ChatMessage.from_assistant(
-                        json.dumps(dict(part.function_call.args)), meta=metadata
-                    )
+                    new_message = ChatMessage.from_assistant(json.dumps(dict(part.function_call.args)), meta=metadata)
                     new_message.name = part.function_call.name
                     replies.append(new_message)
         return replies
