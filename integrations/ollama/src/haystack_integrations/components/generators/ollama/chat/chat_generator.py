@@ -116,7 +116,7 @@ class OllamaChatGenerator:
         Converts the non-streaming response from the Ollama API to a ChatMessage.
         """
         response_dict = ollama_response.model_dump()
-        message = ChatMessage.from_assistant(content=response_dict["message"]["content"])
+        message = ChatMessage.from_assistant(response_dict["message"]["content"])
         message.meta.update({key: value for key, value in response_dict.items() if key != "message"})
         return message
 
