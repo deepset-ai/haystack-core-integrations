@@ -231,9 +231,13 @@ class GoogleAIGeminiChatGenerator:
             raise ValueError(msg)
 
     def _message_to_part(self, message: ChatMessage) -> Part:
-        if message.is_from(ChatRole.ASSISTANT) and message.name:
+        name = getattr(message, "name", None)
+        if name is None:
+            name = getattr(message, "_name", None)
+
+        if message.is_from(ChatRole.ASSISTANT) and name:
             p = Part()
-            p.function_call.name = message.name
+            p.function_call.name = name
             p.function_call.args = {}
             for k, v in json.loads(message.text).items():
                 p.function_call.args[k] = v
@@ -244,16 +248,27 @@ class GoogleAIGeminiChatGenerator:
             return p
         elif message.is_from(ChatRole.FUNCTION):
             p = Part()
-            p.function_response.name = message.name
+            p.function_response.name = name
             p.function_response.response = message.text
             return p
+        elif "TOOL" in ChatRole._member_names_ and message.is_from(ChatRole.TOOL):
+            print("********* HERE *********")
+            part = Part()
+            part.function_response.name = message.tool_call_result.origin.tool_name
+            part.function_response.response = message.tool_call_result.result
+            print(part)         
         elif message.is_from(ChatRole.USER):
             return self._convert_part(message.text)
 
     def _message_to_content(self, message: ChatMessage) -> Content:
-        if message.is_from(ChatRole.ASSISTANT) and message.name:
+        # support both new and legacy ChatMessage
+        name = getattr(message, "name", None)
+        if name is None:
+            name = getattr(message, "_name", None)
+
+        if message.is_from(ChatRole.ASSISTANT) and name:
             part = Part()
-            part.function_call.name = message.name
+            part.function_call.name = name
             part.function_call.args = {}
             for k, v in json.loads(message.text).items():
                 part.function_call.args[k] = v
@@ -262,8 +277,14 @@ class GoogleAIGeminiChatGenerator:
             part.text = message.text
         elif message.is_from(ChatRole.FUNCTION):
             part = Part()
-            part.function_response.name = message.name
+            part.function_response.name = name
             part.function_response.response = message.text
+        elif "TOOL" in ChatRole._member_names_ and message.is_from(ChatRole.TOOL):
+            print("********* HERE *********")
+            part = Part()
+            part.function_response.name = message.tool_call_result.origin.tool_name
+            part.function_response.response = message.tool_call_result.result         
+            print(part)
         elif message.is_from(ChatRole.USER):
             part = self._convert_part(message.text)
         else:
@@ -291,9 +312,11 @@ class GoogleAIGeminiChatGenerator:
         """
         streaming_callback = streaming_callback or self._streaming_callback
         history = [self._message_to_content(m) for m in messages[:-1]]
+        print(history)
         session = self._model.start_chat(history=history)
 
         new_message = self._message_to_part(messages[-1])
+        print(new_message)
         res = session.send_message(
             content=new_message,
             generation_config=self._generation_config,
@@ -335,13 +358,16 @@ class GoogleAIGeminiChatGenerator:
 
             for part in candidate.content.parts:
                 if part.text != "":
-                    replies.append(ChatMessage.from_assistant(content=part.text, meta=candidate_metadata))
+                    replies.append(ChatMessage.from_assistant(part.text, meta=candidate_metadata))
                 elif part.function_call:
                     candidate_metadata["function_call"] = part.function_call
                     new_message = ChatMessage.from_assistant(
-                        content=json.dumps(dict(part.function_call.args)), meta=candidate_metadata
+                        json.dumps(dict(part.function_call.args)), meta=candidate_metadata
                     )
-                    new_message.name = part.function_call.name
+                    try:
+                        new_message.name = part.function_call.name
+                    except AttributeError:
+                        new_message._name = part.function_call.name
                     replies.append(new_message)
         return replies
 
@@ -364,12 +390,15 @@ class GoogleAIGeminiChatGenerator:
                 for part in candidate["content"]["parts"]:
                     if "text" in part and part["text"] != "":
                         content = part["text"]
-                        replies.append(ChatMessage.from_assistant(content=content, meta=metadata))
+                        replies.append(ChatMessage.from_assistant(content, meta=metadata))
                     elif "function_call" in part and len(part["function_call"]) > 0:
                         metadata["function_call"] = part["function_call"]
                         content = json.dumps(dict(part["function_call"]["args"]))
-                        new_message = ChatMessage.from_assistant(content=content, meta=metadata)
-                        new_message.name = part["function_call"]["name"]
+                        new_message = ChatMessage.from_assistant(content, meta=metadata)
+                        try:    
+                            new_message.name = part["function_call"]["name"]
+                        except AttributeError:
+                            new_message._name = part["function_call"]["name"]
                         replies.append(new_message)
 
                     streaming_callback(StreamingChunk(content=content, meta=metadata))

@@ -27,7 +27,7 @@ def streaming_chunk(text: str):
 
 @pytest.fixture
 def chat_messages():
-    return [ChatMessage.from_assistant(content="What's the capital of France")]
+    return [ChatMessage.from_assistant("What's the capital of France")]
 
 
 class TestCohereChatGenerator:
