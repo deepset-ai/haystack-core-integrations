@@ -272,9 +272,8 @@ def test_run_with_streaming_callback():
     assert "function_call" in chat_message.meta
     assert json.loads(chat_message.text) == {"location": "Berlin", "unit": "celsius"}
 
-    weather = str(get_current_weather(**json.loads(response["replies"][0].text)))
+    weather = get_current_weather(**json.loads(chat_message.text))
     messages += response["replies"] + [ChatMessage.from_function(weather, name="get_current_weather")]
-    print(messages)
     response = gemini_chat.run(messages=messages)
     assert "replies" in response
     assert len(response["replies"]) > 0

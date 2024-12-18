@@ -231,13 +231,9 @@ class GoogleAIGeminiChatGenerator:
             raise ValueError(msg)
 
     def _message_to_part(self, message: ChatMessage) -> Part:
-        name = getattr(message, "name", None)
-        if name is None:
-            name = getattr(message, "_name", None)
-
-        if message.is_from(ChatRole.ASSISTANT) and name:
+        if message.is_from(ChatRole.ASSISTANT) and message.name:
             p = Part()
-            p.function_call.name = name
+            p.function_call.name = message.name
             p.function_call.args = {}
             for k, v in json.loads(message.text).items():
                 p.function_call.args[k] = v
@@ -248,27 +244,21 @@ class GoogleAIGeminiChatGenerator:
             return p
         elif message.is_from(ChatRole.FUNCTION):
             p = Part()
-            p.function_response.name = name
+            p.function_response.name = message.name
             p.function_response.response = message.text
             return p
         elif "TOOL" in ChatRole._member_names_ and message.is_from(ChatRole.TOOL):
-            print("********* HERE *********")
-            part = Part()
-            part.function_response.name = message.tool_call_result.origin.tool_name
-            part.function_response.response = message.tool_call_result.result
-            print(part)         
+            p = Part()
+            p.function_response.name = message.tool_call_result.origin.tool_name
+            p.function_response.response = message.tool_call_result.result
+            return p
         elif message.is_from(ChatRole.USER):
             return self._convert_part(message.text)
 
     def _message_to_content(self, message: ChatMessage) -> Content:
-        # support both new and legacy ChatMessage
-        name = getattr(message, "name", None)
-        if name is None:
-            name = getattr(message, "_name", None)
-
-        if message.is_from(ChatRole.ASSISTANT) and name:
+        if message.is_from(ChatRole.ASSISTANT) and message.name:
             part = Part()
-            part.function_call.name = name
+            part.function_call.name = message.name
             part.function_call.args = {}
             for k, v in json.loads(message.text).items():
                 part.function_call.args[k] = v
@@ -277,20 +267,26 @@ class GoogleAIGeminiChatGenerator:
             part.text = message.text
         elif message.is_from(ChatRole.FUNCTION):
             part = Part()
-            part.function_response.name = name
+            part.function_response.name = message.name
             part.function_response.response = message.text
+        elif message.is_from(ChatRole.USER):
+            part = self._convert_part(message.text)
         elif "TOOL" in ChatRole._member_names_ and message.is_from(ChatRole.TOOL):
-            print("********* HERE *********")
             part = Part()
             part.function_response.name = message.tool_call_result.origin.tool_name
-            part.function_response.response = message.tool_call_result.result         
-            print(part)
+            part.function_response.response = message.tool_call_result.result
         elif message.is_from(ChatRole.USER):
             part = self._convert_part(message.text)
         else:
             msg = f"Unsupported message role {message.role}"
             raise ValueError(msg)
-        role = "user" if message.is_from(ChatRole.USER) or message.is_from(ChatRole.FUNCTION) else "model"
+        role = (
+            "user"
+            if message.is_from(ChatRole.USER)
+            or message.is_from(ChatRole.FUNCTION)
+            or ("TOOL" in ChatRole._member_names_ and message.is_from(ChatRole.TOOL))
+            else "model"
+        )
         return Content(parts=[part], role=role)
 
     @component.output_types(replies=List[ChatMessage])
@@ -312,11 +308,9 @@ class GoogleAIGeminiChatGenerator:
         """
         streaming_callback = streaming_callback or self._streaming_callback
         history = [self._message_to_content(m) for m in messages[:-1]]
-        print(history)
         session = self._model.start_chat(history=history)
 
         new_message = self._message_to_part(messages[-1])
-        print(new_message)
         res = session.send_message(
             content=new_message,
             generation_config=self._generation_config,
@@ -395,7 +389,7 @@ class GoogleAIGeminiChatGenerator:
                         metadata["function_call"] = part["function_call"]
                         content = json.dumps(dict(part["function_call"]["args"]))
                         new_message = ChatMessage.from_assistant(content, meta=metadata)
-                        try:    
+                        try:
                             new_message.name = part["function_call"]["name"]
                         except AttributeError:
                             new_message._name = part["function_call"]["name"]
