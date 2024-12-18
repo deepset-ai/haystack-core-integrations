@@ -428,5 +428,5 @@ class TestAnthropicChatGenerator:
                 or token_usage.get("cache_read_input_tokens") > 1024
             )
         else:
-            assert "cache_creation_input_tokens" not in token_usage
-            assert "cache_read_input_tokens" not in token_usage
+            assert token_usage["cache_creation_input_tokens"] == 0
+            assert token_usage["cache_read_input_tokens"] == 0

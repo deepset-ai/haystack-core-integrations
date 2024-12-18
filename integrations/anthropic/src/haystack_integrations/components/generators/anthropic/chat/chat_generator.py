@@ -1,4 +1,3 @@
-import dataclasses
 import json
 from typing import Any, Callable, ClassVar, Dict, List, Optional, Union
 
@@ -275,8 +274,16 @@ class AnthropicChatGenerator:
         """
         anthropic_formatted_messages = []
         for m in messages:
-            message_dict = dataclasses.asdict(m)
-            formatted_message = {k: v for k, v in message_dict.items() if k in {"role", "content"} and v}
+            message_dict = m.to_dict()
+            formatted_message = {}
+
+            # legacy format
+            if "role" in message_dict and "content" in message_dict:
+                formatted_message = {k: v for k, v in message_dict.items() if k in {"role", "content"} and v}
+            # new format
+            elif "_role" in message_dict and "_content" in message_dict:
+                formatted_message = {"role": m.role.value, "content": m.text}
+
             if m.is_from(ChatRole.SYSTEM):
                 # system messages are treated differently and MUST be in the format expected by the Anthropic API
                 # remove role and content from the message dict, add type and text
