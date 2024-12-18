@@ -275,8 +275,6 @@ class GoogleAIGeminiChatGenerator:
             part = Part()
             part.function_response.name = message.tool_call_result.origin.tool_name
             part.function_response.response = message.tool_call_result.result
-        elif message.is_from(ChatRole.USER):
-            part = self._convert_part(message.text)
         else:
             msg = f"Unsupported message role {message.role}"
             raise ValueError(msg)
