@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/ollama-v2.1.2] - 2024-12-18
+
+### 🐛 Bug Fixes
+
+- Make Ollama Chat Generator compatible with new ChatMessage (#1256)
+
+
 ## [integrations/ollama-v2.1.1] - 2024-12-10
 
 ### 🌀 Miscellaneous
