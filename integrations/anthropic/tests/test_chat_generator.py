@@ -421,8 +421,6 @@ class TestAnthropicChatGenerator:
         assert len(result["replies"]) == 1
         token_usage = result["replies"][0].meta.get("usage")
 
-        print(token_usage)
-
         if cache_enabled:
             # either we created cache or we read it (depends on how you execute this integration test)
             assert (
