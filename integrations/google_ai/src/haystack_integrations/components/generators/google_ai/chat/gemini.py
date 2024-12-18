@@ -280,13 +280,14 @@ class GoogleAIGeminiChatGenerator:
         else:
             msg = f"Unsupported message role {message.role}"
             raise ValueError(msg)
-        role = (
-            "user"
-            if message.is_from(ChatRole.USER)
+
+        role = "model"
+        if (
+            message.is_from(ChatRole.USER)
             or message.is_from(ChatRole.FUNCTION)
             or ("TOOL" in ChatRole._member_names_ and message.is_from(ChatRole.TOOL))
-            else "model"
-        )
+        ):
+            role = "user"
         return Content(parts=[part], role=role)
 
     @component.output_types(replies=List[ChatMessage])
