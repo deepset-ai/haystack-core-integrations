@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/google_ai-v4.0.1] - 2024-12-19
+
+### 🐛 Bug Fixes
+
+- Make GoogleAI Chat Generator compatible with new `ChatMessage`; small fixes to Cohere tests (#1253)
+
+
 ## [integrations/google_ai-v4.0.0] - 2024-12-10
 
 ### 🐛 Bug Fixes
