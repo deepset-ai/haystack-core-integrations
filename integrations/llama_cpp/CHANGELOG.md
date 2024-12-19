@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/llama_cpp-v0.4.3] - 2024-12-19
+
+### 🐛 Bug Fixes
+
+- Make llama.cpp Chat Generator compatible with new `ChatMessage` (#1254)
+
+
 ## [integrations/llama_cpp-v0.4.2] - 2024-12-10
 
 ### 🧪 Testing
