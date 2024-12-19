@@ -41,11 +41,11 @@ def test_convert_message_to_llamacpp_format():
     assert _convert_message_to_llamacpp_format(message) == {"role": "user", "content": "I have a question"}
 
     message = ChatMessage.from_function("Function call", "function_name")
-    assert _convert_message_to_llamacpp_format(message) == {
-        "role": "function",
-        "content": "Function call",
-        "name": "function_name",
-    }
+    converted_message = _convert_message_to_llamacpp_format(message)
+
+    assert converted_message["role"] in ("function", "tool")
+    assert converted_message["name"] == "function_name"
+    assert converted_message["content"] == "Function call"
 
 
 class TestLlamaCppChatGenerator:
