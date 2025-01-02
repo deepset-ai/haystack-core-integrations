@@ -5,13 +5,16 @@ from datetime import datetime
 from typing import Any, Dict, Iterator, List, Optional, Union
 
 from haystack import logging
-from haystack.components.generators.openai_utils import _convert_message_to_openai_format
 from haystack.dataclasses import ChatMessage
+from haystack.lazy_imports import LazyImport
 from haystack.tracing import Span, Tracer
 from haystack.tracing import tracer as proxy_tracer
 from haystack.tracing import utils as tracing_utils
 
 import langfuse
+
+with LazyImport("") as openai_utils_import:
+    from haystack.components.generators.openai_utils import _convert_message_to_openai_format
 
 logger = logging.getLogger(__name__)
 
@@ -83,14 +86,24 @@ class LangfuseSpan(Span):
             return
         if key.endswith(".input"):
             if "messages" in value:
-                messages = [_convert_message_to_openai_format(m) for m in value["messages"]]
+                if openai_utils_import.is_successful():
+                    # Haystack < 2.9.0
+                    messages = [_convert_message_to_openai_format(m) for m in value["messages"]]
+                else:
+                    # Haystack >= 2.9.0
+                    messages = [m.to_openai_dict_format() for m in value["messages"]]
                 self._span.update(input=messages)
             else:
                 self._span.update(input=value)
         elif key.endswith(".output"):
             if "replies" in value:
                 if all(isinstance(r, ChatMessage) for r in value["replies"]):
-                    replies = [_convert_message_to_openai_format(m) for m in value["replies"]]
+                    if openai_utils_import.is_successful():
+                        # Haystack < 2.9.0
+                        replies = [_convert_message_to_openai_format(m) for m in value["replies"]]
+                    else:
+                        # Haystack >= 2.9.0
+                        replies = [m.to_openai_dict_format() for m in value["replies"]]
                 else:
                     replies = value["replies"]
                 self._span.update(output=replies)
