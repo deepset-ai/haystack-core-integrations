@@ -1,6 +1,6 @@
 # Changelog
 
-## [unreleased]
+## [integrations/langfuse-v0.6.2] - 2025-01-02
 
 ### 🚀 Features
 
@@ -13,6 +13,7 @@
 ### 🌀 Miscellaneous
 
 - Chore: Fix tracing_context_var lint errors (#1220)
+- Fix messages conversion to OpenAI format (#1272)
 
 ## [integrations/langfuse-v0.6.0] - 2024-11-18
 
