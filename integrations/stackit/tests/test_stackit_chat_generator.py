@@ -61,7 +61,7 @@ class TestSTACKITChatGenerator:
     def test_init_fail_wo_api_key(self, monkeypatch):
         monkeypatch.delenv("STACKIT_API_KEY", raising=False)
         with pytest.raises(ValueError, match="None of the .* environment variables are set"):
-            STACKITChatGenerator()
+            STACKITChatGenerator(model="neuralmagic/Meta-Llama-3.1-70B-Instruct-FP8")
 
     def test_init_with_parameters(self):
         component = STACKITChatGenerator(
@@ -78,7 +78,7 @@ class TestSTACKITChatGenerator:
 
     def test_to_dict_default(self, monkeypatch):
         monkeypatch.setenv("STACKIT_API_KEY", "test-api-key")
-        component = STACKITChatGenerator()
+        component = STACKITChatGenerator(model="neuralmagic/Meta-Llama-3.1-70B-Instruct-FP8")
         data = component.to_dict()
 
         assert (
@@ -147,7 +147,7 @@ class TestSTACKITChatGenerator:
     def test_from_dict_fail_wo_env_var(self, monkeypatch):
         monkeypatch.delenv("STACKIT_API_KEY", raising=False)
         data = {
-            "type": "haystack_integrations.components.generators.mistral.chat.chat_generator.STACKITChatGenerator",
+            "type": "haystack_integrations.components.generators.stackit.chat.chat_generator.STACKITChatGenerator",
             "init_parameters": {
                 "api_key": {"env_vars": ["STACKIT_API_KEY"], "strict": True, "type": "env_var"},
                 "model": "neuralmagic/Meta-Llama-3.1-70B-Instruct-FP8",
@@ -161,7 +161,7 @@ class TestSTACKITChatGenerator:
 
     def test_run(self, chat_messages, mock_chat_completion, monkeypatch):  # noqa: ARG002
         monkeypatch.setenv("STACKIT_API_KEY", "fake-api-key")
-        component = STACKITChatGenerator()
+        component = STACKITChatGenerator(model="neuralmagic/Meta-Llama-3.1-70B-Instruct-FP8")
         response = component.run(chat_messages)
 
         # check that the component returns the correct ChatMessage response
@@ -173,7 +173,7 @@ class TestSTACKITChatGenerator:
 
     def test_run_with_params(self, chat_messages, mock_chat_completion, monkeypatch):
         monkeypatch.setenv("STACKIT_API_KEY", "fake-api-key")
-        component = STACKITChatGenerator(generation_kwargs={"max_tokens": 10, "temperature": 0.5})
+        component = STACKITChatGenerator(model="neuralmagic/Meta-Llama-3.1-70B-Instruct-FP8", generation_kwargs={"max_tokens": 10, "temperature": 0.5})
         response = component.run(chat_messages)
 
         # check that the component calls the OpenAI API with the correct parameters
@@ -189,7 +189,7 @@ class TestSTACKITChatGenerator:
         assert [isinstance(reply, ChatMessage) for reply in response["replies"]]
 
     def test_check_abnormal_completions(self, caplog):
-        component = STACKITChatGenerator(api_key=Secret.from_token("test-api-key"))
+        component = STACKITChatGenerator(model="neuralmagic/Meta-Llama-3.1-70B-Instruct-FP8", api_key=Secret.from_token("test-api-key"))
         messages = [
             ChatMessage.from_assistant(
                 "", meta={"finish_reason": "content_filter" if i % 2 == 0 else "length", "index": i}
@@ -226,12 +226,12 @@ class TestSTACKITChatGenerator:
     @pytest.mark.integration
     def test_live_run(self):
         chat_messages = [ChatMessage.from_user("What's the capital of France")]
-        component = STACKITChatGenerator()
+        component = STACKITChatGenerator(model="neuralmagic/Meta-Llama-3.1-70B-Instruct-FP8")
         results = component.run(chat_messages)
         assert len(results["replies"]) == 1
         message: ChatMessage = results["replies"][0]
         assert "Paris" in message.text
-        assert "mistral-tiny" in message.meta["model"]
+        assert "neuralmagic/Meta-Llama-3.1-70B-Instruct-FP8" in message.meta["model"]
         assert message.meta["finish_reason"] == "stop"
 
     @pytest.mark.skipif(
@@ -260,14 +260,14 @@ class TestSTACKITChatGenerator:
                 self.responses += chunk.content if chunk.content else ""
 
         callback = Callback()
-        component = STACKITChatGenerator(streaming_callback=callback)
+        component = STACKITChatGenerator(model="neuralmagic/Meta-Llama-3.1-70B-Instruct-FP8", streaming_callback=callback)
         results = component.run([ChatMessage.from_user("What's the capital of France?")])
 
         assert len(results["replies"]) == 1
         message: ChatMessage = results["replies"][0]
         assert "Paris" in message.text
 
-        assert "mistral-tiny" in message.meta["model"]
+        assert "neuralmagic/Meta-Llama-3.1-70B-Instruct-FP8" in message.meta["model"]
         assert message.meta["finish_reason"] == "stop"
 
         assert callback.counter > 1
