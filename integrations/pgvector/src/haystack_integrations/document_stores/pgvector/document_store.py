@@ -389,8 +389,22 @@ class PgvectorDocumentStore:
             )
             return
 
-        sql_drop_index = SQL("DROP INDEX IF EXISTS {index_name}").format(index_name=Identifier(self.hnsw_index_name))
+        sql_drop_index = SQL("DROP INDEX IF EXISTS {schema_name}.{index_name}").format(
+            schema_name=Identifier(self.schema_name), index_name=Identifier(self.hnsw_index_name)
+        )
         self._execute_sql(sql_drop_index, error_msg="Could not drop HNSW index")
+
+        index_exists_after_deletion = bool(
+            self._execute_sql(
+                "SELECT 1 FROM pg_indexes WHERE schemaname = %s AND tablename = %s AND indexname = %s",
+                (self.schema_name, self.table_name, self.hnsw_index_name),
+                "Could not check if HNSW index exists",
+            ).fetchone()
+        )
+
+        if index_exists and index_exists_after_deletion:
+            error_message = "The HNSW was not dropped"
+            raise DocumentStoreError(error_message)
 
         self._create_hnsw_index()
 
