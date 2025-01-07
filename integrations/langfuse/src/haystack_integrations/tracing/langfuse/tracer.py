@@ -1,14 +1,12 @@
 import contextlib
 import os
 from contextvars import ContextVar
-from datetime import datetime
-from typing import Any, Dict, Iterator, List, Optional, Union
+from typing import Any, Dict, Iterator, Optional, Union
 
 from haystack import logging
 from haystack.components.generators.openai_utils import _convert_message_to_openai_format
 from haystack.dataclasses import ChatMessage
-from haystack.tracing import Span, Tracer
-from haystack.tracing import tracer as proxy_tracer
+from haystack.tracing import Span, Tracer, tracer
 from haystack.tracing import utils as tracing_utils
 
 import langfuse
@@ -128,8 +126,8 @@ class LangfuseTracer(Tracer):
         tracer: "langfuse.Langfuse",
         name: str = "Haystack",
         public: bool = False,
-        input_operation_name: str = None,
-        output_operation_name: str = None,
+        input_operation_name: Optional[str] = None,
+        output_operation_name: Optional[str] = None,
     ) -> None:
         """
         Initialize a LangfuseTracer instance.

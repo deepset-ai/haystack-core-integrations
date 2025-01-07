@@ -98,8 +98,8 @@ class LangfuseConnector:
         self,
         name: str,
         public: bool = False,
-        input_operation_name: str = None,
-        output_operation_name: str = None,
+        input_operation_name: Optional[str] = None,
+        output_operation_name: Optional[str] = None,
     ):
         """
         Initialize the LangfuseConnector component.
