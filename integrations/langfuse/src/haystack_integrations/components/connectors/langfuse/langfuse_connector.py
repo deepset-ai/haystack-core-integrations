@@ -94,7 +94,13 @@ class LangfuseConnector:
 
     """
 
-    def __init__(self, name: str, public: bool = False):
+    def __init__(
+        self,
+        name: str,
+        public: bool = False,
+        input_operation_name: str = None,
+        output_operation_name: str = None,
+    ):
         """
         Initialize the LangfuseConnector component.
 
@@ -105,7 +111,13 @@ class LangfuseConnector:
             only accessible to the Langfuse account owner. The default is `False`.
         """
         self.name = name
-        self.tracer = LangfuseTracer(tracer=Langfuse(), name=name, public=public)
+        self.tracer = LangfuseTracer(
+            tracer=Langfuse(),
+            name=name,
+            public=public,
+            input_operation_name=input_operation_name,
+            output_operation_name=output_operation_name,
+        )
         tracing.enable_tracing(self.tracer)
 
     @component.output_types(name=str, trace_url=str)
