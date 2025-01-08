@@ -1,5 +1,11 @@
 # Changelog
 
+## [integrations/nvidia-v0.1.4] - 2025-01-08
+
+### 🌀 Miscellaneous
+
+- Feat: add nv-rerank-qa-mistral-4b:1 reranker (#1278)
+
 ## [integrations/nvidia-v0.1.3] - 2025-01-02
 
 ### 🚀 Features
