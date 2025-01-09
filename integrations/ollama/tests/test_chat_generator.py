@@ -85,10 +85,10 @@ class TestOllamaChatGenerator:
                 "keep_alive": "5m",
                 "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
                 "generation_kwargs": {"max_tokens": 10, "some_test_param": "test-params"},
-            },
-            "response_format": {
-                "type": "object",
-                "properties": {"name": {"type": "string"}, "age": {"type": "number"}},
+                "response_format": {
+                    "type": "object",
+                    "properties": {"name": {"type": "string"}, "age": {"type": "number"}},
+                },
             },
         }
         component = OllamaChatGenerator.from_dict(data)
