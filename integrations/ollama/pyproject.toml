@@ -26,7 +26,7 @@ classifiers = [
     "Programming Language :: Python :: Implementation :: CPython",
     "Programming Language :: Python :: Implementation :: PyPy",
 ]
-dependencies = ["haystack-ai", "ollama>=0.4.0"]
+dependencies = ["haystack-ai", "ollama>=0.4.0", "pydantic>=2.0.0"]
 
 [project.urls]
 Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/ollama#readme"
@@ -68,7 +68,7 @@ python = ["3.9", "3.10", "3.11", "3.12"]
 [tool.hatch.envs.lint]
 installer = "uv"
 detached = true
-dependencies = ["pip", "black>=23.1.0", "mypy>=1.0.0", "ruff>=0.0.243"]
+dependencies = ["pip", "black>=23.1.0", "mypy>=1.0.0", "ruff>=0.0.243", "pydantic>=2.0.0"]
 
 [tool.hatch.envs.lint.scripts]
 typing = "mypy --install-types --non-interactive --explicit-package-bases {args:src/ tests}"
