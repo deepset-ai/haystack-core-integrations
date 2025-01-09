@@ -13,18 +13,18 @@ from haystack.utils.auth import Secret
 @component
 class STACKITChatGenerator(OpenAIChatGenerator):
     """
-    Enables text generation using STACKIT generative models via their model serving service.
+    Enables text generation using STACKIT generative models through their model serving service.
 
     Users can pass any text generation parameters valid for the STACKIT Chat Completion API
-    directly to this component via the `generation_kwargs` parameter in `__init__` or the `generation_kwargs`
+    directly to this component using the `generation_kwargs` parameter in `__init__` or the `generation_kwargs`
     parameter in `run` method.
 
     This component uses the ChatMessage format for structuring both input and output,
     ensuring coherent and contextually relevant responses in chat-based text generation scenarios.
     Details on the ChatMessage format can be found in the
-    [Haystack docs](https://docs.haystack.deepset.ai/v2.0/docs/data-classes#chatmessage)
+    [Haystack docs](https://docs.haystack.deepset.ai/docs/chatmessage)
 
-    Usage example:
+    ### Usage example
     ```python
     from haystack_integrations.components.generators.stackit import STACKITChatGenerator
     from haystack.dataclasses import ChatMessage
@@ -45,7 +45,7 @@ class STACKITChatGenerator(OpenAIChatGenerator):
         generation_kwargs: Optional[Dict[str, Any]] = None,
     ):
         """
-        Creates an instance of class STACKITChatGenerator.
+        Creates an instance of STACKITChatGenerator class.
 
         :param model:
             The name of the chat completion model to use.
