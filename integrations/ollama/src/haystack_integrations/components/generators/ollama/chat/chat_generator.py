@@ -1,8 +1,9 @@
-from typing import Any, Callable, Dict, List, Optional, Union
+from typing import Any, Callable, Dict, List, Literal, Optional, Union
 
 from haystack import component, default_from_dict, default_to_dict
 from haystack.dataclasses import ChatMessage, StreamingChunk
 from haystack.utils.callable_serialization import deserialize_callable, serialize_callable
+from pydantic.json_schema import JsonSchemaValue
 
 from ollama import ChatResponse, Client
 
@@ -40,6 +41,7 @@ class OllamaChatGenerator:
         timeout: int = 120,
         keep_alive: Optional[Union[float, str]] = None,
         streaming_callback: Optional[Callable[[StreamingChunk], None]] = None,
+        response_format: Optional[Union[Literal["", "json"], JsonSchemaValue]] = None,
     ):
         """
         :param model:
@@ -63,6 +65,8 @@ class OllamaChatGenerator:
             - a number in seconds (such as 3600)
             - any negative number which will keep the model loaded in memory (e.g. -1 or "-1m")
             - '0' which will unload the model immediately after generating a response.
+        :param response_format:
+            The response_format of the stuctured output defined by a JSON schema.
         """
 
         self.timeout = timeout
@@ -71,6 +75,7 @@ class OllamaChatGenerator:
         self.model = model
         self.keep_alive = keep_alive
         self.streaming_callback = streaming_callback
+        self.response_format = response_format
 
         self._client = Client(host=self.url, timeout=self.timeout)
 
@@ -90,6 +95,7 @@ class OllamaChatGenerator:
             generation_kwargs=self.generation_kwargs,
             timeout=self.timeout,
             streaming_callback=callback_name,
+            response_format=self.response_format,
         )
 
     @classmethod
@@ -180,7 +186,12 @@ class OllamaChatGenerator:
         stream = self.streaming_callback is not None
         messages = [self._message_to_dict(message) for message in messages]
         response = self._client.chat(
-            model=self.model, messages=messages, stream=stream, keep_alive=self.keep_alive, options=generation_kwargs
+            model=self.model,
+            messages=messages,
+            stream=stream,
+            keep_alive=self.keep_alive,
+            options=generation_kwargs,
+            response_format=self.response_format,
         )
 
         if stream:

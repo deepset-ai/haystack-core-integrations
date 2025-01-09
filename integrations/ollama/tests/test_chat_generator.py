@@ -27,6 +27,7 @@ class TestOllamaChatGenerator:
         assert component.generation_kwargs == {}
         assert component.timeout == 120
         assert component.keep_alive is None
+        assert component.response_format is None
 
     def test_init(self):
         component = OllamaChatGenerator(
@@ -35,6 +36,7 @@ class TestOllamaChatGenerator:
             generation_kwargs={"temperature": 0.5},
             keep_alive="10m",
             timeout=5,
+            response_format={"type": "object", "properties": {"name": {"type": "string"}, "age": {"type": "number"}}},
         )
 
         assert component.model == "llama2"
@@ -42,6 +44,10 @@ class TestOllamaChatGenerator:
         assert component.generation_kwargs == {"temperature": 0.5}
         assert component.timeout == 5
         assert component.keep_alive == "10m"
+        assert component.response_format == {
+            "type": "object",
+            "properties": {"name": {"type": "string"}, "age": {"type": "number"}},
+        }
 
     def test_to_dict(self):
         component = OllamaChatGenerator(
@@ -50,6 +56,7 @@ class TestOllamaChatGenerator:
             url="custom_url",
             generation_kwargs={"max_tokens": 10, "some_test_param": "test-params"},
             keep_alive="5m",
+            response_format={"type": "object", "properties": {"name": {"type": "string"}, "age": {"type": "number"}}},
         )
         data = component.to_dict()
         assert data == {
@@ -61,6 +68,10 @@ class TestOllamaChatGenerator:
                 "url": "custom_url",
                 "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
                 "generation_kwargs": {"max_tokens": 10, "some_test_param": "test-params"},
+                "response_format": {
+                    "type": "object",
+                    "properties": {"name": {"type": "string"}, "age": {"type": "number"}},
+                },
             },
         }
 
@@ -75,6 +86,10 @@ class TestOllamaChatGenerator:
                 "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
                 "generation_kwargs": {"max_tokens": 10, "some_test_param": "test-params"},
             },
+            "response_format": {
+                "type": "object",
+                "properties": {"name": {"type": "string"}, "age": {"type": "number"}},
+            },
         }
         component = OllamaChatGenerator.from_dict(data)
         assert component.model == "llama2"
@@ -82,6 +97,10 @@ class TestOllamaChatGenerator:
         assert component.url == "custom_url"
         assert component.generation_kwargs == {"max_tokens": 10, "some_test_param": "test-params"}
         assert component.keep_alive == "5m"
+        assert component.response_format == {
+            "type": "object",
+            "properties": {"name": {"type": "string"}, "age": {"type": "number"}},
+        }
 
     def test_build_message_from_ollama_response(self):
         model = "some_model"
