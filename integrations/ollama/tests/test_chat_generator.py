@@ -188,6 +188,7 @@ class TestOllamaChatGenerator:
         assert isinstance(response["replies"], list)
         assert "Manchester" in response["replies"][-1].text or "Glasgow" in response["replies"][-1].text
 
+    @pytest.mark.integration
     def test_run_with_response_format(self):
         response_format = {
             "type": "object",
