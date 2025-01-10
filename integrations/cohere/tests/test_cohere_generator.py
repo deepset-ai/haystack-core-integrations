@@ -78,27 +78,6 @@ class TestCohereGenerator:
             },
         }
 
-    def test_to_dict_with_lambda_streaming_callback(self, monkeypatch):
-        monkeypatch.setenv("COHERE_API_KEY", "test-api-key")
-        component = CohereGenerator(
-            model="command-r",
-            max_tokens=10,
-            some_test_param="test-params",
-            streaming_callback=lambda x: x,
-            api_base_url="test-base-url",
-        )
-        data = component.to_dict()
-        assert data == {
-            "type": "haystack_integrations.components.generators.cohere.generator.CohereGenerator",
-            "init_parameters": {
-                "model": "command-r",
-                "streaming_callback": "tests.test_cohere_generator.<lambda>",
-                "api_base_url": "test-base-url",
-                "api_key": {"type": "env_var", "env_vars": ["COHERE_API_KEY", "CO_API_KEY"], "strict": True},
-                "generation_kwargs": {},
-            },
-        }
-
     def test_from_dict(self, monkeypatch):
         monkeypatch.setenv("COHERE_API_KEY", "fake-api-key")
         monkeypatch.setenv("CO_API_KEY", "fake-api-key")

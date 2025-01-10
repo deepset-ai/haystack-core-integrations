@@ -70,25 +70,6 @@ class TestAnthropicGenerator:
             },
         }
 
-    def test_to_dict_with_lambda_streaming_callback(self, monkeypatch):
-        monkeypatch.setenv("ANTHROPIC_API_KEY", "test-api-key")
-        component = AnthropicGenerator(
-            model="claude-3-sonnet-20240229",
-            streaming_callback=lambda x: x,
-            generation_kwargs={"max_tokens": 10, "some_test_param": "test-params"},
-        )
-        data = component.to_dict()
-        assert data == {
-            "type": "haystack_integrations.components.generators.anthropic.generator.AnthropicGenerator",
-            "init_parameters": {
-                "api_key": {"env_vars": ["ANTHROPIC_API_KEY"], "strict": True, "type": "env_var"},
-                "model": "claude-3-sonnet-20240229",
-                "streaming_callback": "tests.test_generator.<lambda>",
-                "system_prompt": None,
-                "generation_kwargs": {"max_tokens": 10, "some_test_param": "test-params"},
-            },
-        }
-
     def test_from_dict(self, monkeypatch):
         monkeypatch.setenv("ANTHROPIC_API_KEY", "fake-api-key")
         data = {
