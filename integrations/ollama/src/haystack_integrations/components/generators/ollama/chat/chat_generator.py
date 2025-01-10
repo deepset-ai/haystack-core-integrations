@@ -191,7 +191,7 @@ class OllamaChatGenerator:
             stream=stream,
             keep_alive=self.keep_alive,
             options=generation_kwargs,
-            response_format=self.response_format,
+            format=self.response_format,
         )
 
         if stream:
