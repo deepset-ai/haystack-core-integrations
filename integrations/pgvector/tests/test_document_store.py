@@ -2,9 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-import os
-import random
-import string
 from unittest.mock import patch
 
 import numpy as np
@@ -266,38 +263,44 @@ def test_from_pg_to_haystack_documents():
 
 
 @pytest.mark.integration
-def test_hnsw_index_recreation_in_new_schema():
-    # Set your Postgres connection string (or set PG_CONN_STR in your environment directly).
-    os.environ["PG_CONN_STR"] = "postgresql://postgres:postgres@localhost:5432/postgres"
+def test_hnsw_index_recreation():
+    def get_index_oid(document_store, schema_name, index_name):
+        sql_get_index_oid = """
+            SELECT c.oid
+            FROM pg_class c
+            JOIN pg_namespace n ON n.oid = c.relnamespace
+            WHERE c.relkind = 'i'
+            AND n.nspname = %s
+            AND c.relname = %s;
+        """
+        return document_store.cursor.execute(sql_get_index_oid, (schema_name, index_name)).fetchone()[0]
 
-    table_name = "test_table"
-    index_name = f"{table_name}_index"
-    schema_name = "".join(random.choices(string.ascii_letters, k=8)).lower()  # noqa: S311
-    embedding_dimension = 1024
+    # create a new schema
+    connection_string = "postgresql://postgres:postgres@localhost:5432/postgres"
+    schema_name = "test_schema"
+    with psycopg.connect(connection_string, autocommit=True) as conn:
+        conn.execute(f"CREATE SCHEMA IF NOT EXISTS {schema_name}")
 
-    # Create the new schema if it doesn't exist.
-    with psycopg.connect(os.environ["PG_CONN_STR"]) as connection:
-        with connection.cursor() as cursor:
-            cursor.execute(f"CREATE SCHEMA IF NOT EXISTS {schema_name};")
-            connection.commit()
+    # create a first document store and trigger the creation of the hnsw index
+    params = {
+        "connection_string": Secret.from_token(connection_string),
+        "schema_name": schema_name,
+        "table_name": "haystack_test_hnsw_index_recreation",
+        "search_strategy": "hnsw",
+    }
+    ds1 = PgvectorDocumentStore(**params)
+    ds1._initialize_table()
 
-    # Instantiate the document store in the new schema with HNSW indexing.
-    document_store = PgvectorDocumentStore(
-        embedding_dimension=embedding_dimension,
-        schema_name=schema_name,
-        vector_function="cosine_similarity",
-        recreate_table=False,
-        search_strategy="hnsw",
-        table_name=table_name,
-        hnsw_index_name=index_name,
-        hnsw_recreate_index_if_exists=True,  # This ensures we drop/re-create the index if it exists
-        keyword_index_name=f"{table_name}_keyword_index",
-    )
+    # get the hnsw index oid
+    hnws_index_name = "haystack_hnsw_index"
+    first_oid = get_index_oid(ds1, ds1.schema_name, hnws_index_name)
 
-    # First write documents
-    docs1 = [Document(content="Test Content 1", embedding=[0.8] * embedding_dimension)]
-    document_store.write_documents(docs1)
+    # create second document store with recreation enabled
+    ds2 = PgvectorDocumentStore(**params, hnsw_recreate_index_if_exists=True)
+    ds2._initialize_table()
 
-    # Second write documents
-    docs2 = [Document(content="Test Content 2", embedding=[0.7] * embedding_dimension)]
-    document_store.write_documents(docs2)
+    # get the index oid
+    second_oid = get_index_oid(ds2, ds2.schema_name, hnws_index_name)
+
+    # verify that oids differ
+    assert second_oid != first_oid, "Index was not recreated (OID remained the same)"
