@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/pgvector-v1.2.1] - 2025-01-10
+
+### 🐛 Bug Fixes
+
+- PgvectorDocumentStore - use appropriate schema name if dropping index (#1277)
+
+
 ## [integrations/pgvector-v1.2.0] - 2024-11-22
 
 ### 🚀 Features
