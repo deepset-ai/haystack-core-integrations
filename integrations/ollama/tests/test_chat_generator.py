@@ -1,3 +1,4 @@
+import json
 from typing import List
 from unittest.mock import Mock
 
@@ -186,3 +187,24 @@ class TestOllamaChatGenerator:
         assert isinstance(response, dict)
         assert isinstance(response["replies"], list)
         assert "Manchester" in response["replies"][-1].text or "Glasgow" in response["replies"][-1].text
+
+    def test_run_with_response_format(self):
+        response_format = {
+            "type": "object",
+            "properties": {"capital": {"type": "string"}, "population": {"type": "number"}},
+        }
+        chat_generator = OllamaChatGenerator(response_format=response_format)
+
+        message = ChatMessage.from_user("What's the capital of France and its population?")
+        response = chat_generator.run([message])
+        assert isinstance(response, dict)
+        assert isinstance(response["replies"], list)
+
+        # Parse the response text as JSON and verify its structure
+        response_data = json.loads(response["replies"][0].text)
+        assert isinstance(response_data, dict)
+        assert "capital" in response_data
+        assert isinstance(response_data["capital"], str)
+        assert "population" in response_data
+        assert isinstance(response_data["population"], (int, float))
+        assert response_data["capital"] == "Paris"
