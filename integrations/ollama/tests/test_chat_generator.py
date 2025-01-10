@@ -1,5 +1,10 @@
 import json
+<<<<<<< HEAD
 from unittest.mock import Mock, patch
+=======
+from typing import List
+from unittest.mock import Mock
+>>>>>>> 4a0c440 (Add test for response_format)
 
 import pytest
 from haystack.components.generators.utils import print_streaming_chunk
@@ -472,6 +477,7 @@ class TestOllamaChatGenerator:
 
         assert isinstance(response, dict)
         assert isinstance(response["replies"], list)
+<<<<<<< HEAD
         assert any(city in response["replies"][-1].text for city in ["Manchester", "Birmingham", "Glasgow"])
 
     @pytest.mark.integration
