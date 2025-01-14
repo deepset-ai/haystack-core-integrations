@@ -3,7 +3,6 @@ from typing import Any, Dict, Optional
 from haystack import component, default_from_dict, default_to_dict, logging, tracing
 from haystack.utils import Secret, deserialize_secrets_inplace
 
-
 from haystack_integrations.tracing.langfuse import LangfuseTracer
 from langfuse import Langfuse
 

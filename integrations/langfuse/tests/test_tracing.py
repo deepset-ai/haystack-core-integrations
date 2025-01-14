@@ -29,6 +29,7 @@ def pipeline_with_env_vars(llm_class, expected_trace):
     pipe.connect("prompt_builder.prompt", "llm.messages")
     return pipe
 
+
 @pytest.fixture
 def pipeline_with_secrets(llm_class, expected_trace):
     """Pipeline factory using Secret objects for Langfuse authentication"""
@@ -39,13 +40,14 @@ def pipeline_with_secrets(llm_class, expected_trace):
             name=f"Chat example - {expected_trace}",
             public=True,
             secret_key=Secret.from_env_var("LANGFUSE_SECRET_KEY"),
-            public_key=Secret.from_env_var("LANGFUSE_PUBLIC_KEY")
-        )
+            public_key=Secret.from_env_var("LANGFUSE_PUBLIC_KEY"),
+        ),
     )
     pipe.add_component("prompt_builder", ChatPromptBuilder())
     pipe.add_component("llm", llm_class())
     pipe.connect("prompt_builder.prompt", "llm.messages")
     return pipe
+
 
 @pytest.mark.integration
 @pytest.mark.parametrize(
