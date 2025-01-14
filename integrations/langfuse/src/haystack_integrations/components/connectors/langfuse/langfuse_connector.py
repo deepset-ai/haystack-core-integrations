@@ -1,6 +1,8 @@
 from typing import Any, Dict, Optional
 
-from haystack import component, logging, tracing
+from haystack import component, default_from_dict, default_to_dict, logging, tracing
+from haystack.utils import Secret, deserialize_secrets_inplace
+
 
 from haystack_integrations.tracing.langfuse import LangfuseTracer
 from langfuse import Langfuse
@@ -94,7 +96,13 @@ class LangfuseConnector:
 
     """
 
-    def __init__(self, name: str, public: bool = False):
+    def __init__(
+        self,
+        name: str,
+        public: bool = False,
+        public_key: Optional[Secret] = Secret.from_env_var("LANGFUSE_PUBLIC_KEY"),  # noqa: B008
+        secret_key: Optional[Secret] = Secret.from_env_var("LANGFUSE_SECRET_KEY"),  # noqa: B008
+    ):
         """
         Initialize the LangfuseConnector component.
 
@@ -103,9 +111,21 @@ class LangfuseConnector:
         :param public: Whether the tracing data should be public or private. If set to `True`, the tracing data will be
             publicly accessible to anyone with the tracing URL. If set to `False`, the tracing data will be private and
             only accessible to the Langfuse account owner. The default is `False`.
+        :param public_key: The Langfuse public key. Defaults to reading from LANGFUSE_PUBLIC_KEY environment variable.
+        :param secret_key: The Langfuse secret key. Defaults to reading from LANGFUSE_SECRET_KEY environment variable.
         """
         self.name = name
-        self.tracer = LangfuseTracer(tracer=Langfuse(), name=name, public=public)
+        self.public = public
+        self.secret_key = secret_key
+        self.public_key = public_key
+        self.tracer = LangfuseTracer(
+            tracer=Langfuse(
+                secret_key=secret_key.resolve_value() if secret_key else None,
+                public_key=public_key.resolve_value() if public_key else None,
+            ),
+            name=name,
+            public=public,
+        )
         tracing.enable_tracing(self.tracer)
 
     @component.output_types(name=str, trace_url=str)
@@ -126,3 +146,28 @@ class LangfuseConnector:
             invocation_context=invocation_context,
         )
         return {"name": self.name, "trace_url": self.tracer.get_trace_url()}
+
+    def to_dict(self) -> Dict[str, Any]:
+        """
+        Serialize this component to a dictionary.
+
+        :returns: The serialized component as a dictionary.
+        """
+        return default_to_dict(
+            self,
+            name=self.name,
+            public=self.public,
+            secret_key=self.secret_key.to_dict() if self.secret_key else None,
+            public_key=self.public_key.to_dict() if self.public_key else None,
+        )
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "LangfuseConnector":
+        """
+        Deserialize this component from a dictionary.
+
+        :param data: The dictionary representation of this component.
+        :returns: The deserialized component instance.
+        """
+        deserialize_secrets_inplace(data["init_parameters"], keys=["secret_key", "public_key"])
+        return default_from_dict(cls, data)
