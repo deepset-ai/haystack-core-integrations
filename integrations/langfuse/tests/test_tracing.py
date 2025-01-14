@@ -1,5 +1,4 @@
 import os
-import random
 import time
 from urllib.parse import urlparse
 
@@ -9,6 +8,7 @@ from haystack import Pipeline
 from haystack.components.builders import ChatPromptBuilder
 from haystack.components.generators.chat import OpenAIChatGenerator
 from haystack.dataclasses import ChatMessage
+from haystack.utils import Secret
 from requests.auth import HTTPBasicAuth
 
 from haystack_integrations.components.connectors.langfuse import LangfuseConnector
@@ -19,6 +19,34 @@ from haystack_integrations.components.generators.cohere import CohereChatGenerat
 os.environ["HAYSTACK_CONTENT_TRACING_ENABLED"] = "true"
 
 
+@pytest.fixture
+def pipeline_with_env_vars(llm_class, expected_trace):
+    """Pipeline factory using environment variables for Langfuse authentication"""
+    pipe = Pipeline()
+    pipe.add_component("tracer", LangfuseConnector(name=f"Chat example - {expected_trace}", public=True))
+    pipe.add_component("prompt_builder", ChatPromptBuilder())
+    pipe.add_component("llm", llm_class())
+    pipe.connect("prompt_builder.prompt", "llm.messages")
+    return pipe
+
+@pytest.fixture
+def pipeline_with_secrets(llm_class, expected_trace):
+    """Pipeline factory using Secret objects for Langfuse authentication"""
+    pipe = Pipeline()
+    pipe.add_component(
+        "tracer",
+        LangfuseConnector(
+            name=f"Chat example - {expected_trace}",
+            public=True,
+            secret_key=Secret.from_env_var("LANGFUSE_SECRET_KEY"),
+            public_key=Secret.from_env_var("LANGFUSE_PUBLIC_KEY")
+        )
+    )
+    pipe.add_component("prompt_builder", ChatPromptBuilder())
+    pipe.add_component("llm", llm_class())
+    pipe.connect("prompt_builder.prompt", "llm.messages")
+    return pipe
+
 @pytest.mark.integration
 @pytest.mark.parametrize(
     "llm_class, env_var, expected_trace",
@@ -28,16 +56,12 @@ os.environ["HAYSTACK_CONTENT_TRACING_ENABLED"] = "true"
         (CohereChatGenerator, "COHERE_API_KEY", "Cohere"),
     ],
 )
-def test_tracing_integration(llm_class, env_var, expected_trace):
+@pytest.mark.parametrize("pipeline_fixture", ["pipeline_with_env_vars", "pipeline_with_secrets"])
+def test_tracing_integration(llm_class, env_var, expected_trace, pipeline_fixture, request):
     if not all([os.environ.get("LANGFUSE_SECRET_KEY"), os.environ.get("LANGFUSE_PUBLIC_KEY"), os.environ.get(env_var)]):
         pytest.skip(f"Missing required environment variables: LANGFUSE_SECRET_KEY, LANGFUSE_PUBLIC_KEY, or {env_var}")
 
-    pipe = Pipeline()
-    pipe.add_component("tracer", LangfuseConnector(name=f"Chat example - {expected_trace}", public=True))
-    pipe.add_component("prompt_builder", ChatPromptBuilder())
-    pipe.add_component("llm", llm_class())
-    pipe.connect("prompt_builder.prompt", "llm.messages")
-
+    pipe = request.getfixturevalue(pipeline_fixture)
     messages = [
         ChatMessage.from_system("Always respond in German even if some input data is in other languages."),
         ChatMessage.from_user("Tell me about {{location}}"),
