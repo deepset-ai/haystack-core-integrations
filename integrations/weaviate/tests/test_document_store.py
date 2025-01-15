@@ -26,7 +26,6 @@ from haystack.utils.auth import Secret
 from numpy import array as np_array
 from numpy import array_equal as np_array_equal
 from numpy import float32 as np_float32
-from pandas import DataFrame
 from weaviate.collections.classes.data import DataObject
 from weaviate.config import AdditionalConfig, ConnectionConfig, Proxies, Timeout
 from weaviate.embedded import (
@@ -128,7 +127,6 @@ class TestWeaviateDocumentStore(
                     meta={"name": f"name_{i}", "no_embedding": True, "chapter": "conclusion"},
                 )
             )
-            documents.append(Document(dataframe=DataFrame([i]), meta={"name": f"table_doc_{i}"}))
             documents.append(
                 Document(content=f"Doc {i} with zeros emb", meta={"name": "zeros_doc"}, embedding=TEST_EMBEDDING_1)
             )
