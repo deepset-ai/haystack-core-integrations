@@ -1,12 +1,5 @@
 # Changelog
 
-## [integrations/amazon_bedrock-v2.2.0] - 2025-01-15
-
-### 🚀 Features
-
-- Add BedrockRanker component for document reranking using Amazon Bedrock's Cohere Rerank model
-
-
 ## [integrations/amazon_bedrock-v2.1.1] - 2024-12-18
 
 ### 🐛 Bug Fixes
@@ -172,7 +165,7 @@
 
 ### 🚀 Features
 
-- Add Mistral Amazon Bedrock support (#632)
+- Add Mistral Amazon Bedrock support  (#632)
 
 ### 📚 Documentation
 
