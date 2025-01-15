@@ -54,11 +54,13 @@ class BedrockRanker:
         self,
         model: str = "cohere.rerank-v3-5:0",
         top_k: int = 10,
-        aws_access_key_id: Optional[Secret] = Secret.from_env_var(["AWS_ACCESS_KEY_ID"], strict=False),
-        aws_secret_access_key: Optional[Secret] = Secret.from_env_var(["AWS_SECRET_ACCESS_KEY"], strict=False),
-        aws_session_token: Optional[Secret] = Secret.from_env_var(["AWS_SESSION_TOKEN"], strict=False),
-        aws_region_name: Optional[Secret] = Secret.from_env_var(["AWS_DEFAULT_REGION"], strict=False),
-        aws_profile_name: Optional[Secret] = Secret.from_env_var(["AWS_PROFILE"], strict=False),
+        aws_access_key_id: Optional[Secret] = Secret.from_env_var(["AWS_ACCESS_KEY_ID"], strict=False),  # noqa: B008
+        aws_secret_access_key: Optional[Secret] = Secret.from_env_var(  # noqa: B008
+            ["AWS_SECRET_ACCESS_KEY"], strict=False
+        ),
+        aws_session_token: Optional[Secret] = Secret.from_env_var(["AWS_SESSION_TOKEN"], strict=False),  # noqa: B008
+        aws_region_name: Optional[Secret] = Secret.from_env_var(["AWS_DEFAULT_REGION"], strict=False),  # noqa: B008
+        aws_profile_name: Optional[Secret] = Secret.from_env_var(["AWS_PROFILE"], strict=False),  # noqa: B008
         max_chunks_per_doc: Optional[int] = None,
         meta_fields_to_embed: Optional[List[str]] = None,
         meta_data_separator: str = "\n",

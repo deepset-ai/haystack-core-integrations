@@ -43,7 +43,7 @@ def test_bedrock_ranker_run(mock_aws_session):
         "body": MagicMock(
             read=MagicMock(
                 return_value=b'{"results": [{"index": 0, "relevance_score": 0.9},'
-                             b' {"index": 1, "relevance_score": 0.7}]}'
+                b' {"index": 1, "relevance_score": 0.7}]}'
             )
         )
     }
