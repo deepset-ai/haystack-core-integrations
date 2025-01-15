@@ -2,9 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-import base64
 import os
-import random
 from typing import List
 from unittest.mock import MagicMock, patch
 
@@ -14,13 +12,12 @@ from haystack.dataclasses.byte_stream import ByteStream
 from haystack.dataclasses.document import Document
 from haystack.document_stores.errors import DocumentStoreError
 from haystack.testing.document_store import (
-    TEST_EMBEDDING_1,
-    TEST_EMBEDDING_2,
     CountDocumentsTest,
     DeleteDocumentsTest,
     FilterDocumentsTest,
     FilterDocumentsTestWithDataframe,
     WriteDocumentsTest,
+    create_filterable_docs
 )
 from haystack.utils.auth import Secret
 from numpy import array as np_array
@@ -80,60 +77,26 @@ class TestWeaviateDocumentStore(
         Weaviate forces RFC 3339 date strings.
         The original fixture uses ISO 8601 date strings.
         """
-        documents = []
-        for i in range(3):
-            documents.append(
-                Document(
-                    content=f"A Foo Document {i}",
-                    meta={
-                        "name": f"name_{i}",
-                        "page": "100",
-                        "chapter": "intro",
-                        "number": 2,
-                        "date": "1969-07-21T20:17:40Z",
-                    },
-                    embedding=[random.random() for _ in range(768)],  # noqa: S311
-                )
-            )
-            documents.append(
-                Document(
-                    content=f"A Bar Document {i}",
-                    meta={
-                        "name": f"name_{i}",
-                        "page": "123",
-                        "chapter": "abstract",
-                        "number": -2,
-                        "date": "1972-12-11T19:54:58Z",
-                    },
-                    embedding=[random.random() for _ in range(768)],  # noqa: S311
-                )
-            )
-            documents.append(
-                Document(
-                    content=f"A Foobar Document {i}",
-                    meta={
-                        "name": f"name_{i}",
-                        "page": "90",
-                        "chapter": "conclusion",
-                        "number": -10,
-                        "date": "1989-11-09T17:53:00Z",
-                    },
-                    embedding=[random.random() for _ in range(768)],  # noqa: S311
-                )
-            )
-            documents.append(
-                Document(
-                    content=f"Document {i} without embedding",
-                    meta={"name": f"name_{i}", "no_embedding": True, "chapter": "conclusion"},
-                )
-            )
-            documents.append(
-                Document(content=f"Doc {i} with zeros emb", meta={"name": "zeros_doc"}, embedding=TEST_EMBEDDING_1)
-            )
-            documents.append(
-                Document(content=f"Doc {i} with ones emb", meta={"name": "ones_doc"}, embedding=TEST_EMBEDDING_2)
-            )
+        documents = create_filterable_docs(include_dataframe_docs=False)
+        for i in range(len(documents)):
+            if date := documents[i].meta.get("date"):
+                documents[i].meta["date"] = f"{date}Z"
         return documents
+
+    @pytest.fixture
+    def filterable_docs_with_dataframe(self) -> List[Document]:
+        """
+        This fixture has been copied from haystack/testing/document_store.py and modified to
+        use a different date format.
+        Weaviate forces RFC 3339 date strings.
+        The original fixture uses ISO 8601 date strings.
+        """
+        documents = create_filterable_docs(include_dataframe_docs=True)
+        for i in range(len(documents)):
+            if date := documents[i].meta.get("date"):
+                documents[i].meta["date"] = f"{date}Z"
+        return documents
+
 
     def assert_documents_are_equal(self, received: List[Document], expected: List[Document]):
         assert len(received) == len(expected)
