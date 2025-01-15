@@ -202,7 +202,12 @@ class OpenSearchDocumentStore:
 
         # Handle http_auth serialization
         if self._auth_secrets:
-            http_auth = tuple(secret.to_dict() for secret in self._auth_secrets)
+            # If all secrets are resolved, serialize them
+            if all(secret.resolve_value() for secret in self._auth_secrets):
+                http_auth = tuple(secret.to_dict() for secret in self._auth_secrets)
+            else:
+                # If any secrets are not resolved, don't serialize them (backwards compatibility)
+                http_auth = None
         elif isinstance(self._http_auth, tuple):
             # For non-Secret tuples, keep the values as-is
             http_auth = self._http_auth
