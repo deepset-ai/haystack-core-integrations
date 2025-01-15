@@ -46,10 +46,10 @@ class OpenSearchDocumentStore:
         mappings: Optional[Dict[str, Any]] = None,
         settings: Optional[Dict[str, Any]] = DEFAULT_SETTINGS,
         create_index: bool = True,
-        http_auth: Any = [
+        http_auth: Any = (
             Secret.from_env_var("OPENSEARCH_USERNAME", strict=False),  # noqa: B008
             Secret.from_env_var("OPENSEARCH_PASSWORD", strict=False),  # noqa: B008
-        ],
+        ),
         use_ssl: Optional[bool] = None,
         verify_certs: Optional[bool] = None,
         timeout: Optional[int] = None,
@@ -104,17 +104,16 @@ class OpenSearchDocumentStore:
         self._create_index = create_index
 
         # Handle authentication
-        self._auth_secrets = None
-        if isinstance(http_auth, tuple) and len(http_auth) == 2:  # noqa: PLR2004
+        if isinstance(http_auth, (tuple, list)) and len(http_auth) == 2:  # noqa: PLR2004
             username, password = http_auth
             if isinstance(username, Secret) and isinstance(password, Secret):
-                self._auth_secrets = (username, password)
                 username_val = username.resolve_value()
                 password_val = password.resolve_value()
-                if username_val and password_val:
-                    http_auth = (username_val, password_val)
-                else:
-                    http_auth = None
+                http_auth = [username_val, password_val] if username_val and password_val else None
+            else:
+                http_auth = list(http_auth)
+        elif isinstance(http_auth, str):
+            http_auth = http_auth.split(":", 1)
 
         self._http_auth = http_auth
         self._use_ssl = use_ssl
@@ -201,16 +200,12 @@ class OpenSearchDocumentStore:
         """
 
         # Handle http_auth serialization
-        if self._auth_secrets:
-            # If all secrets are resolved, serialize them
-            if all(secret.resolve_value() for secret in self._auth_secrets):
-                http_auth = tuple(secret.to_dict() for secret in self._auth_secrets)
-            else:
-                # If any secrets are not resolved, don't serialize them (backwards compatibility)
-                http_auth = None
-        elif isinstance(self._http_auth, tuple):
-            # For non-Secret tuples, keep the values as-is
-            http_auth = self._http_auth
+        if isinstance(self._http_auth, list) and all(isinstance(item, Secret) for item in self._http_auth):
+            http_auth = [secret.to_dict() for secret in self._http_auth if secret.resolve_value()]
+        elif isinstance(self._http_auth, (tuple, list)):
+            http_auth = list(self._http_auth)
+        elif isinstance(self._http_auth, str):
+            http_auth = self._http_auth.split(":", 1)
         elif isinstance(self._http_auth, AWSAuth):
             http_auth = self._http_auth.to_dict()
         else:
@@ -248,7 +243,7 @@ class OpenSearchDocumentStore:
         if http_auth := init_params.get("http_auth"):
             if isinstance(http_auth, dict):
                 init_params["http_auth"] = AWSAuth.from_dict(http_auth)
-            elif isinstance(http_auth, tuple):
+            elif isinstance(http_auth, (tuple, list)):
                 secrets: List[Optional[Any]] = []
                 for auth_item in http_auth:
                     if isinstance(auth_item, dict) and "type" in auth_item:
@@ -259,8 +254,11 @@ class OpenSearchDocumentStore:
                         # Handle plain value
                         secrets.append(auth_item)
 
-                # Convert to tuple and only set if both values exist
-                init_params["http_auth"] = tuple(secrets) if all(secrets) else None
+                # Convert to list and only set if both values exist
+                init_params["http_auth"] = list(secrets) if all(secrets) else None
+            elif isinstance(http_auth, str):
+                # Split string into username and password
+                init_params["http_auth"] = http_auth.split(":", 1)
 
         return default_from_dict(cls, data)
 
