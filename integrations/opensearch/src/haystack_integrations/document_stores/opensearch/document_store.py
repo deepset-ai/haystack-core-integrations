@@ -46,10 +46,10 @@ class OpenSearchDocumentStore:
         mappings: Optional[Dict[str, Any]] = None,
         settings: Optional[Dict[str, Any]] = DEFAULT_SETTINGS,
         create_index: bool = True,
-        http_auth: Any = (
+        http_auth: Any = [
             Secret.from_env_var("OPENSEARCH_USERNAME", strict=False),  # noqa: B008
             Secret.from_env_var("OPENSEARCH_PASSWORD", strict=False),  # noqa: B008
-        ),
+        ],
         use_ssl: Optional[bool] = None,
         verify_certs: Optional[bool] = None,
         timeout: Optional[int] = None,
