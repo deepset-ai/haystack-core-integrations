@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import base64
 import os
 from typing import List
 from unittest.mock import MagicMock, patch
@@ -17,7 +18,7 @@ from haystack.testing.document_store import (
     FilterDocumentsTest,
     FilterDocumentsTestWithDataframe,
     WriteDocumentsTest,
-    create_filterable_docs
+    create_filterable_docs,
 )
 from haystack.utils.auth import Secret
 from numpy import array as np_array
@@ -96,7 +97,6 @@ class TestWeaviateDocumentStore(
             if date := documents[i].meta.get("date"):
                 documents[i].meta["date"] = f"{date}Z"
         return documents
-
 
     def assert_documents_are_equal(self, received: List[Document], expected: List[Document]):
         assert len(received) == len(expected)
