@@ -198,12 +198,7 @@ class TestMistralChatGenerator:
         ]
 
         for m in messages:
-            try:
-                # Haystack >= 2.9.0
-                component._check_finish_reason(m.meta)
-            except AttributeError:
-                # Haystack < 2.9.0
-                component._check_finish_reason(m)
+            component._check_finish_reason(m.meta)
 
         # check truncation warning
         message_template = (
