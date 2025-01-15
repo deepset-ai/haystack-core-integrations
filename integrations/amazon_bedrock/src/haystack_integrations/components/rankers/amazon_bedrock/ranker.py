@@ -1,7 +1,8 @@
-from typing import Any, Dict, List, Optional
 import json
 import logging
+from typing import Any, Dict, List, Optional
 
+from botocore.exceptions import ClientError
 from haystack import Document, component, default_from_dict, default_to_dict
 from haystack.utils import Secret, deserialize_secrets_inplace
 
@@ -10,8 +11,6 @@ from haystack_integrations.common.amazon_bedrock.errors import (
     AmazonBedrockInferenceError,
 )
 from haystack_integrations.common.amazon_bedrock.utils import get_aws_session
-
-from botocore.exceptions import ClientError
 
 logger = logging.getLogger(__name__)
 
@@ -113,7 +112,6 @@ class BedrockRanker:
                 "Could not connect to Amazon Bedrock. Make sure the AWS environment is configured correctly. "
                 "See https://boto3.amazonaws.com/v1/documentation/api/latest/guide/quickstart.html#configuration"
             )
-            print(exception)
             raise AmazonBedrockConfigurationError(msg) from exception
 
     def to_dict(self) -> Dict[str, Any]:
@@ -209,14 +207,14 @@ class BedrockRanker:
             response = self._bedrock_client.invoke_model(modelId=self.model_name, body=json.dumps(request_body))
 
             # Parse the response
-            response_body = json.loads(response['body'].read())
-            results = response_body['results']
+            response_body = json.loads(response["body"].read())
+            results = response_body["results"]
 
             # Sort documents based on the reranking results
             sorted_docs = []
             for result in results:
-                idx = result['index']
-                score = result['relevance_score']
+                idx = result["index"]
+                score = result["relevance_score"]
                 doc = documents[idx]
                 doc.score = score
                 sorted_docs.append(doc)
@@ -226,8 +224,8 @@ class BedrockRanker:
             msg = f"Could not inference Amazon Bedrock model {self.model_name} due: {exception}"
             raise AmazonBedrockInferenceError(msg) from exception
         except KeyError as e:
-            msg = f"Unexpected response format from Amazon Bedrock: {str(e)}"
+            msg = f"Unexpected response format from Amazon Bedrock: {e!s}"
             raise AmazonBedrockInferenceError(msg) from e
         except Exception as e:
-            msg = f"Error during Amazon Bedrock API call: {str(e)}"
+            msg = f"Error during Amazon Bedrock API call: {e!s}"
             raise AmazonBedrockInferenceError(msg) from e

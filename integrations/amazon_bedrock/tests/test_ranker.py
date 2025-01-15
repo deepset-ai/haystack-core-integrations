@@ -1,12 +1,13 @@
+from unittest.mock import MagicMock, patch
+
 import pytest
-from unittest.mock import patch, MagicMock
 from haystack import Document
 from haystack.utils import Secret
-from haystack_integrations.components.rankers.amazon_bedrock import BedrockRanker
+
 from haystack_integrations.common.amazon_bedrock.errors import (
-    AmazonBedrockConfigurationError,
     AmazonBedrockInferenceError,
 )
+from haystack_integrations.components.rankers.amazon_bedrock import BedrockRanker
 
 
 @pytest.fixture
@@ -41,7 +42,8 @@ def test_bedrock_ranker_run(mock_aws_session):
     mock_response = {
         "body": MagicMock(
             read=MagicMock(
-                return_value=b'{"results": [{"index": 0, "relevance_score": 0.9}, {"index": 1, "relevance_score": 0.7}]}'
+                return_value=b'{"results": [{"index": 0, "relevance_score": 0.9},'
+                             b' {"index": 1, "relevance_score": 0.7}]}'
             )
         )
     }
@@ -53,6 +55,7 @@ def test_bedrock_ranker_run(mock_aws_session):
     assert len(result["documents"]) == 2
     assert result["documents"][0].score == 0.9
     assert result["documents"][1].score == 0.7
+
 
 @pytest.mark.integration
 def test_bedrock_ranker_live_run():
@@ -66,6 +69,7 @@ def test_bedrock_ranker_live_run():
     result = ranker.run(query="test query", documents=docs)
     assert len(result["documents"]) == 2
     assert isinstance(result["documents"][0].score, float)
+
 
 def test_bedrock_ranker_run_inference_error(mock_aws_session):
     ranker = BedrockRanker(
@@ -83,7 +87,7 @@ def test_bedrock_ranker_run_inference_error(mock_aws_session):
         ranker.run(query="test query", documents=docs)
 
 
-def test_bedrock_ranker_serialization():
+def test_bedrock_ranker_serialization(mock_aws_session):
     ranker = BedrockRanker(
         model="cohere.rerank-v3-5:0",
         top_k=2,
