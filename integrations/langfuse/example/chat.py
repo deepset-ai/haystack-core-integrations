@@ -13,7 +13,6 @@ from haystack.components.generators.chat import HuggingFaceAPIChatGenerator, Ope
 from haystack.dataclasses import ChatMessage
 from haystack.utils.auth import Secret
 from haystack.utils.hf import HFGenerationAPIType
-from haystack.components.generators.utils import print_streaming_chunk
 
 from haystack_integrations.components.connectors.langfuse import LangfuseConnector
 from haystack_integrations.components.generators.anthropic import AnthropicChatGenerator
@@ -34,7 +33,7 @@ generators = {
     "cohere": CohereChatGenerator,
 }
 
-selected_chat_generator = generators[selected_chat_generator](model="gpt-3.5-turbo", streaming_callback=print_streaming_chunk)
+selected_chat_generator = generators[selected_chat_generator]()
 
 if __name__ == "__main__":
 
