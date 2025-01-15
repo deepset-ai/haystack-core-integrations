@@ -14,8 +14,8 @@ from haystack.testing.document_store import (
     CountDocumentsTest,
     DeleteDocumentsTest,
     FilterDocumentsTest,
+    FilterDocumentsTestWithDataframe,
     WriteDocumentsTest,
-    FilterDocumentsTestWithDataframe
 )
 from haystack.utils.auth import EnvVarSecret, Secret
 
