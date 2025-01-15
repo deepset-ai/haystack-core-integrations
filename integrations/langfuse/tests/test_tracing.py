@@ -103,3 +103,39 @@ def test_tracing_integration(llm_class, env_var, expected_trace, pipeline_fixtur
         # check if the trace contains the expected user_id
         assert "user_42" in str(res.content)
         break
+
+
+def test_pipeline_serialization():
+    """Test that a pipeline with secrets can be properly serialized and deserialized"""
+    # Create pipeline with OpenAI LLM
+    pipe = Pipeline()
+    pipe.add_component(
+        "tracer",
+        LangfuseConnector(
+            name="Chat example - OpenAI",
+            public=True,
+            secret_key=Secret.from_env_var("LANGFUSE_SECRET_KEY"),
+            public_key=Secret.from_env_var("LANGFUSE_PUBLIC_KEY"),
+        ),
+    )
+    pipe.add_component("prompt_builder", ChatPromptBuilder())
+    pipe.add_component("llm", OpenAIChatGenerator())
+    pipe.connect("prompt_builder.prompt", "llm.messages")
+
+    # Serialize
+    serialized = pipe.to_dict()
+
+    # Check serialized secrets
+    tracer_params = serialized["components"]["tracer"]["init_parameters"]
+    assert isinstance(tracer_params["secret_key"], dict)
+    assert tracer_params["secret_key"]["type"] == "env_var"
+    assert tracer_params["secret_key"]["env_vars"] == ["LANGFUSE_SECRET_KEY"]
+    assert isinstance(tracer_params["public_key"], dict)
+    assert tracer_params["public_key"]["type"] == "env_var"
+    assert tracer_params["public_key"]["env_vars"] == ["LANGFUSE_PUBLIC_KEY"]
+
+    # Deserialize
+    new_pipe = Pipeline.from_dict(serialized)
+
+    # Verify pipeline is the same
+    assert new_pipe== pipe
