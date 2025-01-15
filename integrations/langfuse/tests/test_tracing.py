@@ -138,4 +138,4 @@ def test_pipeline_serialization():
     new_pipe = Pipeline.from_dict(serialized)
 
     # Verify pipeline is the same
-    assert new_pipe== pipe
+    assert new_pipe == pipe
