@@ -144,7 +144,7 @@ class TestCohereChatGenerator:
     )
     @pytest.mark.integration
     def test_live_run(self):
-        chat_messages = [ChatMessage.from_user(content="What's the capital of France")]
+        chat_messages = [ChatMessage.from_user("What's the capital of France")]
         component = CohereChatGenerator(generation_kwargs={"temperature": 0.8})
         results = component.run(chat_messages)
         assert len(results["replies"]) == 1
@@ -181,7 +181,7 @@ class TestCohereChatGenerator:
 
         callback = Callback()
         component = CohereChatGenerator(streaming_callback=callback)
-        results = component.run([ChatMessage.from_user(content="What's the capital of France? answer in a word")])
+        results = component.run([ChatMessage.from_user("What's the capital of France? answer in a word")])
 
         assert len(results["replies"]) == 1
         message: ChatMessage = results["replies"][0]
@@ -202,7 +202,7 @@ class TestCohereChatGenerator:
     )
     @pytest.mark.integration
     def test_live_run_with_connector(self):
-        chat_messages = [ChatMessage.from_user(content="What's the capital of France")]
+        chat_messages = [ChatMessage.from_user("What's the capital of France")]
         component = CohereChatGenerator(generation_kwargs={"temperature": 0.8})
         results = component.run(chat_messages, generation_kwargs={"connectors": [{"id": "web-search"}]})
         assert len(results["replies"]) == 1
@@ -227,7 +227,7 @@ class TestCohereChatGenerator:
                 self.responses += chunk.content if chunk.content else ""
 
         callback = Callback()
-        chat_messages = [ChatMessage.from_user(content="What's the capital of France? answer in a word")]
+        chat_messages = [ChatMessage.from_user("What's the capital of France? answer in a word")]
         component = CohereChatGenerator(streaming_callback=callback)
         results = component.run(chat_messages, generation_kwargs={"connectors": [{"id": "web-search"}]})
 

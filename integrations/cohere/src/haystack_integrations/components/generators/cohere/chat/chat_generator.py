@@ -172,7 +172,7 @@ class CohereChatGenerator:
                     response_text += event.text
                 elif event.event_type == "stream-end":
                     finish_response = event.response
-            chat_message = ChatMessage.from_assistant(content=response_text)
+            chat_message = ChatMessage.from_assistant(response_text)
 
             if finish_response and finish_response.meta:
                 if finish_response.meta.billed_units:
@@ -219,7 +219,7 @@ class CohereChatGenerator:
             # TODO revisit to see if we need to handle multiple tool calls
             message = ChatMessage.from_assistant(cohere_response.tool_calls[0].json())
         elif cohere_response.text:
-            message = ChatMessage.from_assistant(content=cohere_response.text)
+            message = ChatMessage.from_assistant(cohere_response.text)
         message.meta.update(
             {
                 "model": self.model,
