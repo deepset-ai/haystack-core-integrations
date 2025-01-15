@@ -91,7 +91,6 @@ def test_bedrock_ranker_serialization(mock_aws_session):
     ranker = BedrockRanker(
         model="cohere.rerank-v3-5:0",
         top_k=2,
-        aws_region_name=Secret.from_env_var("AWS_REGION_NAME"),
     )
 
     serialized = ranker.to_dict()
