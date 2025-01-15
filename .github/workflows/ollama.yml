@@ -21,7 +21,7 @@ concurrency:
 env:
   PYTHONUNBUFFERED: "1"
   FORCE_COLOR: "1"
-  LLM_FOR_TESTS: "orca-mini"
+  LLM_FOR_TESTS: "llama3.2:3b"
   EMBEDDER_FOR_TESTS: "nomic-embed-text"
 
 jobs:

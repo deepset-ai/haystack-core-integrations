@@ -2,8 +2,8 @@ from typing import Any, Callable, Dict, List, Optional, Union
 
 from haystack import component, default_from_dict, default_to_dict
 from haystack.dataclasses import ChatMessage, StreamingChunk, ToolCall
+from haystack.tools import Tool, _check_duplicate_tool_names, deserialize_tools_inplace
 from haystack.utils.callable_serialization import deserialize_callable, serialize_callable
-from haystack.tools import Tool, deserialize_tools_inplace, _check_duplicate_tool_names
 
 from ollama import ChatResponse, Client
 
@@ -17,9 +17,11 @@ def _convert_message_to_ollama_format(message: ChatMessage) -> Dict[str, Any]:
     tool_call_results = message.tool_call_results
 
     if not text_contents and not tool_calls and not tool_call_results:
-        raise ValueError("A `ChatMessage` must contain at least one `TextContent`, `ToolCall`, or `ToolCallResult`.")
+        msg = "A `ChatMessage` must contain at least one `TextContent`, `ToolCall`, or `ToolCallResult`."
+        raise ValueError(msg)
     elif len(text_contents) + len(tool_call_results) > 1:
-        raise ValueError("A `ChatMessage` can only contain one `TextContent` or one `ToolCallResult`.")
+        msg = "A `ChatMessage` can only contain one `TextContent` or one `ToolCallResult`."
+        raise ValueError(msg)
 
     ollama_msg: Dict[str, Any] = {"role": message._role.value}
 
@@ -36,6 +38,7 @@ def _convert_message_to_ollama_format(message: ChatMessage) -> Dict[str, Any]:
             {"type": "function", "function": {"name": tc.tool_name, "arguments": tc.arguments}} for tc in tool_calls
         ]
     return ollama_msg
+
 
 @component
 class OllamaChatGenerator:
@@ -109,7 +112,7 @@ class OllamaChatGenerator:
         self.keep_alive = keep_alive
         self.streaming_callback = streaming_callback
         self.tools = tools
-        
+
         self._client = Client(host=self.url, timeout=self.timeout)
 
     def to_dict(self) -> Dict[str, Any]:
@@ -143,9 +146,9 @@ class OllamaChatGenerator:
             Deserialized component.
         """
         deserialize_tools_inplace(data["init_parameters"], key="tools")
-        
+
         init_params = data.get("init_parameters", {})
-        
+
         if serialized_callback_handler := init_params.get("streaming_callback"):
             data["init_parameters"]["streaming_callback"] = deserialize_callable(serialized_callback_handler)
         return default_from_dict(cls, data)
@@ -236,7 +239,8 @@ class OllamaChatGenerator:
         _check_duplicate_tool_names(tools)
 
         if stream and tools:
-            raise ValueError("Ollama does not support tools and streaming at the same time. Please choose one.")
+            msg = "Ollama does not support tools and streaming at the same time. Please choose one."
+            raise ValueError(msg)
 
         ollama_tools = [{"type": "function", "function": {**t.tool_spec}} for t in tools] if tools else None
 
