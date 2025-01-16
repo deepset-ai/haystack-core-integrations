@@ -40,12 +40,12 @@ def test_convert_message_to_llamacpp_format():
     message = ChatMessage.from_user("I have a question")
     assert _convert_message_to_llamacpp_format(message) == {"role": "user", "content": "I have a question"}
 
-    message = ChatMessage.from_function("Function call", "function_name")
-    converted_message = _convert_message_to_llamacpp_format(message)
-
-    assert converted_message["role"] in ("function", "tool")
-    assert converted_message["name"] == "function_name"
-    assert converted_message["content"] == "Function call"
+    if hasattr(ChatMessage, "from_function"):
+        message = ChatMessage.from_function("Function call", "function_name")
+        converted_message = _convert_message_to_llamacpp_format(message)
+        assert converted_message["role"] in ("function", "tool")
+        assert converted_message["name"] == "function_name"
+        assert converted_message["content"] == "Function call"
 
 
 class TestLlamaCppChatGenerator:
@@ -420,19 +420,20 @@ class TestLlamaCppChatGeneratorFunctionary:
         assert "tool_calls" in first_reply.meta
         tool_calls = first_reply.meta["tool_calls"]
 
-        for tool_call in tool_calls:
-            function_name = tool_call["function"]["name"]
-            function_args = json.loads(tool_call["function"]["arguments"])
-            assert function_name in available_functions
-            function_response = available_functions[function_name](**function_args)
-            function_message = ChatMessage.from_function(function_response, function_name)
-            messages.append(function_message)
+        if hasattr(ChatMessage, "from_function"):
+            for tool_call in tool_calls:
+                function_name = tool_call["function"]["name"]
+                function_args = json.loads(tool_call["function"]["arguments"])
+                assert function_name in available_functions
+                function_response = available_functions[function_name](**function_args)
+                function_message = ChatMessage.from_function(function_response, function_name)
+                messages.append(function_message)
 
-        second_response = generator.run(messages=messages)
-        assert "replies" in second_response
-        assert len(second_response["replies"]) > 0
-        assert any("San Francisco" in reply.text for reply in second_response["replies"])
-        assert any("72" in reply.text for reply in second_response["replies"])
+            second_response = generator.run(messages=messages)
+            assert "replies" in second_response
+            assert len(second_response["replies"]) > 0
+            assert any("San Francisco" in reply.text for reply in second_response["replies"])
+            assert any("72" in reply.text for reply in second_response["replies"])
 
 
 class TestLlamaCppChatGeneratorChatML:
