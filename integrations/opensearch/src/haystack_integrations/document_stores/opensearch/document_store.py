@@ -241,16 +241,8 @@ class OpenSearchDocumentStore:
             if isinstance(http_auth, dict):
                 init_params["http_auth"] = AWSAuth.from_dict(http_auth)
             elif isinstance(http_auth, (tuple, list)):
-                # to maintain backwards compatibility this could be many different types, just use Any
-                secrets: Any = None
-
                 are_secrets = all(isinstance(item, dict) and "type" in item for item in http_auth)
-                if are_secrets:
-                    # Simplified list comprehension since all items are confirmed to be secrets
-                    secrets = [Secret.from_dict(item) for item in http_auth]
-                else:
-                    secrets = http_auth
-                init_params["http_auth"] = secrets
+                init_params["http_auth"] = [Secret.from_dict(item) for item in http_auth] if are_secrets else http_auth
         return default_from_dict(cls, data)
 
     def count_documents(self) -> int:
