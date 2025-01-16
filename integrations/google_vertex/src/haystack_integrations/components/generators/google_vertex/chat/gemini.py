@@ -215,7 +215,7 @@ class VertexAIGeminiChatGenerator:
             return p
         elif message.is_from(ChatRole.SYSTEM) or message.is_from(ChatRole.ASSISTANT):
             return Part.from_text(message.text)
-        elif message.is_from(ChatRole.FUNCTION):
+        elif "FUNCTION" in ChatRole._member_names_ and message.is_from(ChatRole.FUNCTION):
             return Part.from_function_response(name=message.name, response=message.text)
         elif message.is_from(ChatRole.USER):
             return self._convert_part(message.text)
@@ -227,14 +227,15 @@ class VertexAIGeminiChatGenerator:
                 part.function_call.args[k] = v
         elif message.is_from(ChatRole.SYSTEM) or message.is_from(ChatRole.ASSISTANT):
             part = Part.from_text(message.text)
-        elif message.is_from(ChatRole.FUNCTION):
+        elif "FUNCTION" in ChatRole._member_names_ and message.is_from(ChatRole.FUNCTION):
             part = Part.from_function_response(name=message.name, response=message.text)
         elif message.is_from(ChatRole.USER):
             part = self._convert_part(message.text)
         else:
             msg = f"Unsupported message role {message.role}"
             raise ValueError(msg)
-        role = "user" if message.is_from(ChatRole.USER) or message.is_from(ChatRole.FUNCTION) else "model"
+
+        role = "model" if message.is_from(ChatRole.ASSISTANT) or message.is_from(ChatRole.SYSTEM) else "user"
         return Content(parts=[part], role=role)
 
     @component.output_types(replies=List[ChatMessage])
