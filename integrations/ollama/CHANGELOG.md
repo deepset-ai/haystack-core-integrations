@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/ollama-v2.2.0] - 2025-01-16
+
+### 🚀 Features
+
+- Ollama - add support for tools (#1294)
+
+
 ## [integrations/ollama-v2.1.2] - 2024-12-18
 
 ### 🐛 Bug Fixes
