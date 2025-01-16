@@ -1,11 +1,10 @@
 # Changelog
 
-## [unreleased]
+## [integrations/opensearch-v1.3.0] - 2025-01-16
 
 ### 🚀 Features
 
 - Add Secret handling in OpenSearchDocumentStore (#1288)
-
 
 ## [integrations/opensearch-v1.2.0] - 2024-12-12
 
@@ -92,8 +91,6 @@
 
 - Fix order of API docs (#447)
 
-This PR will also push the docs to Readme
-
 ### 📚 Documentation
 
 - Update category slug (#442)
@@ -109,32 +106,8 @@ This PR will also push the docs to Readme
 
 - Generate API docs (#324)
 - Make tests show coverage (#566)
-
-* make tests show coverage
-
-* rm duplicate coverage definition
 - Refactor tests (#574)
-
-* first refactorings
-
-* separate unit tests in pgvector
-
-* small change to weaviate
-
-* fix format
-
-* usefixtures when possible
 - Fix opensearch errors bulk write (#594)
-
-* fix(opensearch): bulk error without create key
-
-* Add test
-
-* Comment why
-
----------
-
-Co-authored-by: Corentin Meyer <corentin.meyer@al-enterprise.com>
 - Remove references to Python 3.7 (#601)
 - [Elasticsearch] fix: Filters not working with metadata that contain a space or capitalization (#639)
 - Chore: add license classifiers (#680)
@@ -153,18 +126,14 @@ Co-authored-by: Corentin Meyer <corentin.meyer@al-enterprise.com>
 
 ### 🌀 Miscellaneous
 
-- Update README.md (#97)
+- Fix opensearch test badge (#97)
 - Move package under haystack_integrations/* (#212)
-
-* move package under haystack_integrations/*
-
-* ignore types
 
 ## [integrations/opensearch-v0.1.1] - 2023-12-05
 
 ### 🐛 Bug Fixes
 
-- Fix import and increase version (#77)
+- Document Stores: fix protocol import (#77)
 
 ## [integrations/opensearch-v0.1.0] - 2023-12-04
 
@@ -175,20 +144,6 @@ Co-authored-by: Corentin Meyer <corentin.meyer@al-enterprise.com>
 ### 🌀 Miscellaneous
 
 - Remove Document Store decorator (#76)
-
-* remove decorator
-
-* Update integrations/elasticsearch/src/elasticsearch_haystack/__about__.py
-
-Co-authored-by: Massimiliano Pippi <mpippi@gmail.com>
-
-* Update integrations/opensearch/src/opensearch_haystack/__about__.py
-
-Co-authored-by: Massimiliano Pippi <mpippi@gmail.com>
-
----------
-
-Co-authored-by: Massimiliano Pippi <mpippi@gmail.com>
 
 ## [integrations/opensearch-v0.0.2] - 2023-11-30
 
