@@ -246,11 +246,8 @@ class OpenSearchDocumentStore:
 
                 are_secrets = all(isinstance(item, dict) and "type" in item for item in http_auth)
                 if are_secrets:
-                    # it would be nice to use deserialize_secrets_inplace here but that function
-                    # is not able to handle lists of secrets
-                    secrets = [
-                        Secret.from_dict(item) for item in http_auth if isinstance(item, dict) and "type" in item
-                    ]
+                    # Simplified list comprehension since all items are confirmed to be secrets
+                    secrets = [Secret.from_dict(item) for item in http_auth]
                 else:
                     secrets = http_auth
                 init_params["http_auth"] = secrets
