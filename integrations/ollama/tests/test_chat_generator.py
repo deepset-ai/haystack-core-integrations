@@ -15,7 +15,8 @@ from ollama._types import ChatResponse, ResponseError
 
 from haystack_integrations.components.generators.ollama.chat.chat_generator import (
     OllamaChatGenerator,
-    _convert_message_to_ollama_format,
+    _convert_chatmessage_to_ollama_format,
+    _convert_ollama_response_to_chatmessage,
 )
 
 
@@ -36,21 +37,21 @@ def tools():
     return [tool]
 
 
-def test_convert_message_to_ollama_format():
+def test_convert_chatmessage_to_ollama_format():
     message = ChatMessage.from_system("You are good assistant")
-    assert _convert_message_to_ollama_format(message) == {
+    assert _convert_chatmessage_to_ollama_format(message) == {
         "role": "system",
         "content": "You are good assistant",
     }
 
     message = ChatMessage.from_user("I have a question")
-    assert _convert_message_to_ollama_format(message) == {
+    assert _convert_chatmessage_to_ollama_format(message) == {
         "role": "user",
         "content": "I have a question",
     }
 
     message = ChatMessage.from_assistant(text="I have an answer", meta={"finish_reason": "stop"})
-    assert _convert_message_to_ollama_format(message) == {
+    assert _convert_chatmessage_to_ollama_format(message) == {
         "role": "assistant",
         "content": "I have an answer",
     }
@@ -58,7 +59,7 @@ def test_convert_message_to_ollama_format():
     message = ChatMessage.from_assistant(
         tool_calls=[ToolCall(id="123", tool_name="weather", arguments={"city": "Paris"})]
     )
-    assert _convert_message_to_ollama_format(message) == {
+    assert _convert_chatmessage_to_ollama_format(message) == {
         "role": "assistant",
         "tool_calls": [
             {
@@ -73,16 +74,16 @@ def test_convert_message_to_ollama_format():
         tool_result=tool_result,
         origin=ToolCall(tool_name="weather", arguments={"city": "Paris"}),
     )
-    assert _convert_message_to_ollama_format(message) == {
+    assert _convert_chatmessage_to_ollama_format(message) == {
         "role": "tool",
         "content": tool_result,
     }
 
 
-def test_convert_message_to_ollama_invalid():
+def test_convert_chatmessage_to_ollama_invalid():
     message = ChatMessage(_role=ChatRole.ASSISTANT, _content=[])
     with pytest.raises(ValueError):
-        _convert_message_to_ollama_format(message)
+        _convert_chatmessage_to_ollama_format(message)
 
     message = ChatMessage(
         _role=ChatRole.ASSISTANT,
@@ -92,7 +93,66 @@ def test_convert_message_to_ollama_invalid():
         ],
     )
     with pytest.raises(ValueError):
-        _convert_message_to_ollama_format(message)
+        _convert_chatmessage_to_ollama_format(message)
+
+
+def test_convert_ollama_response_to_chatmessage():
+    model = "some_model"
+
+    ollama_response = ChatResponse(
+        model=model,
+        created_at="2023-12-12T14:13:43.416799Z",
+        message={"role": "assistant", "content": "Hello! How are you today?"},
+        done=True,
+        total_duration=5191566416,
+        load_duration=2154458,
+        prompt_eval_count=26,
+        prompt_eval_duration=383809000,
+        eval_count=298,
+        eval_duration=4799921000,
+    )
+
+    observed = _convert_ollama_response_to_chatmessage(ollama_response)
+
+    assert observed.role == "assistant"
+    assert observed.text == "Hello! How are you today?"
+
+
+def test_convert_ollama_response_to_chatmessage_with_tools():
+    model = "some_model"
+
+    ollama_response = ChatResponse(
+        model=model,
+        created_at="2023-12-12T14:13:43.416799Z",
+        message={
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [
+                {
+                    "function": {
+                        "name": "get_current_weather",
+                        "arguments": {"format": "celsius", "location": "Paris, FR"},
+                    }
+                }
+            ],
+        },
+        done=True,
+        total_duration=5191566416,
+        load_duration=2154458,
+        prompt_eval_count=26,
+        prompt_eval_duration=383809000,
+        eval_count=298,
+        eval_duration=4799921000,
+    )
+
+    observed = _convert_ollama_response_to_chatmessage(ollama_response)
+
+    assert observed.role == "assistant"
+    assert observed.text == ""
+    assert observed.tool_call == ToolCall(
+        tool_name="get_current_weather",
+        arguments={"format": "celsius", "location": "Paris, FR"},
+    )
 
 
 class TestOllamaChatGenerator:
@@ -226,63 +286,6 @@ class TestOllamaChatGenerator:
         }
         assert component.timeout == 120
         assert component.tools == [tool]
-
-    def test_build_message_from_ollama_response(self):
-        model = "some_model"
-
-        ollama_response = ChatResponse(
-            model=model,
-            created_at="2023-12-12T14:13:43.416799Z",
-            message={"role": "assistant", "content": "Hello! How are you today?"},
-            done=True,
-            total_duration=5191566416,
-            load_duration=2154458,
-            prompt_eval_count=26,
-            prompt_eval_duration=383809000,
-            eval_count=298,
-            eval_duration=4799921000,
-        )
-
-        observed = OllamaChatGenerator(model=model)._build_message_from_ollama_response(ollama_response)
-
-        assert observed.role == "assistant"
-        assert observed.text == "Hello! How are you today?"
-
-    def test_build_message_from_ollama_response_with_tools(self):
-        model = "some_model"
-
-        ollama_response = ChatResponse(
-            model=model,
-            created_at="2023-12-12T14:13:43.416799Z",
-            message={
-                "role": "assistant",
-                "content": "",
-                "tool_calls": [
-                    {
-                        "function": {
-                            "name": "get_current_weather",
-                            "arguments": {"format": "celsius", "location": "Paris, FR"},
-                        }
-                    }
-                ],
-            },
-            done=True,
-            total_duration=5191566416,
-            load_duration=2154458,
-            prompt_eval_count=26,
-            prompt_eval_duration=383809000,
-            eval_count=298,
-            eval_duration=4799921000,
-        )
-
-        observed = OllamaChatGenerator(model=model)._build_message_from_ollama_response(ollama_response)
-
-        assert observed.role == "assistant"
-        assert observed.text == ""
-        assert observed.tool_call == ToolCall(
-            tool_name="get_current_weather",
-            arguments={"format": "celsius", "location": "Paris, FR"},
-        )
 
     @patch("haystack_integrations.components.generators.ollama.chat.chat_generator.Client")
     def test_run(self, mock_client):

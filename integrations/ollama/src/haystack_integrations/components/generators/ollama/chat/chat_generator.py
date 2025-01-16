@@ -8,9 +8,9 @@ from haystack.utils.callable_serialization import deserialize_callable, serializ
 from ollama import ChatResponse, Client
 
 
-def _convert_message_to_ollama_format(message: ChatMessage) -> Dict[str, Any]:
+def _convert_chatmessage_to_ollama_format(message: ChatMessage) -> Dict[str, Any]:
     """
-    Convert a message to the format expected by Ollama Chat API.
+    Convert a ChatMessage to the format expected by Ollama Chat API.
     """
     text_contents = message.texts
     tool_calls = message.tool_calls
@@ -38,6 +38,29 @@ def _convert_message_to_ollama_format(message: ChatMessage) -> Dict[str, Any]:
             {"type": "function", "function": {"name": tc.tool_name, "arguments": tc.arguments}} for tc in tool_calls
         ]
     return ollama_msg
+
+
+def _convert_ollama_response_to_chatmessage(ollama_response: "ChatResponse") -> ChatMessage:
+    """
+    Converts the non-streaming response from the Ollama API to a ChatMessage with assistant role.
+    """
+    response_dict = ollama_response.model_dump()
+
+    ollama_message = response_dict["message"]
+
+    text = ollama_message["content"]
+
+    tool_calls = []
+    if ollama_tool_calls := ollama_message.get("tool_calls"):
+        for ollama_tc in ollama_tool_calls:
+            tool_calls.append(
+                ToolCall(tool_name=ollama_tc["function"]["name"], arguments=ollama_tc["function"]["arguments"])
+            )
+
+    message = ChatMessage.from_assistant(text=text, tool_calls=tool_calls)
+
+    message.meta.update({key: value for key, value in response_dict.items() if key != "message"})
+    return message
 
 
 @component
@@ -153,38 +176,6 @@ class OllamaChatGenerator:
             data["init_parameters"]["streaming_callback"] = deserialize_callable(serialized_callback_handler)
         return default_from_dict(cls, data)
 
-    def _build_message_from_ollama_response(self, ollama_response: "ChatResponse") -> ChatMessage:
-        """
-        Converts the non-streaming response from the Ollama API to a ChatMessage.
-        """
-        response_dict = ollama_response.model_dump()
-
-        ollama_message = response_dict["message"]
-
-        text = ollama_message["content"]
-
-        tool_calls = []
-        if ollama_tool_calls := ollama_message.get("tool_calls"):
-            for ollama_tc in ollama_tool_calls:
-                tool_calls.append(
-                    ToolCall(tool_name=ollama_tc["function"]["name"], arguments=ollama_tc["function"]["arguments"])
-                )
-
-        message = ChatMessage.from_assistant(text=text, tool_calls=tool_calls)
-
-        message.meta.update({key: value for key, value in response_dict.items() if key != "message"})
-        return message
-
-    def _convert_to_streaming_response(self, chunks: List[StreamingChunk]) -> Dict[str, List[Any]]:
-        """
-        Converts a list of chunks response required Haystack format.
-        """
-
-        replies = [ChatMessage.from_assistant("".join([c.content for c in chunks]))]
-        meta = {key: value for key, value in chunks[0].meta.items() if key != "message"}
-
-        return {"replies": replies, "meta": [meta]}
-
     def _build_chunk(self, chunk_response: Any) -> StreamingChunk:
         """
         Converts the response from the Ollama API to a StreamingChunk.
@@ -198,17 +189,21 @@ class OllamaChatGenerator:
         chunk_message = StreamingChunk(content, meta)
         return chunk_message
 
-    def _handle_streaming_response(self, response) -> List[StreamingChunk]:
+    def _handle_streaming_response(self, response) -> Dict[str, List[Any]]:
         """
-        Handles Streaming response cases
+        Handles streaming response and converts it to Haystack format
         """
         chunks: List[StreamingChunk] = []
         for chunk in response:
-            chunk_delta: StreamingChunk = self._build_chunk(chunk)
+            chunk_delta = self._build_chunk(chunk)
             chunks.append(chunk_delta)
             if self.streaming_callback is not None:
                 self.streaming_callback(chunk_delta)
-        return chunks
+
+        replies = [ChatMessage.from_assistant("".join([c.content for c in chunks]))]
+        meta = {key: value for key, value in chunks[0].meta.items() if key != "message"}
+
+        return {"replies": replies, "meta": [meta]}
 
     @component.output_types(replies=List[ChatMessage])
     def run(
@@ -244,7 +239,7 @@ class OllamaChatGenerator:
 
         ollama_tools = [{"type": "function", "function": {**t.tool_spec}} for t in tools] if tools else None
 
-        ollama_messages = [_convert_message_to_ollama_format(msg) for msg in messages]
+        ollama_messages = [_convert_chatmessage_to_ollama_format(msg) for msg in messages]
         response = self._client.chat(
             model=self.model,
             messages=ollama_messages,
@@ -255,7 +250,6 @@ class OllamaChatGenerator:
         )
 
         if stream:
-            chunks: List[StreamingChunk] = self._handle_streaming_response(response)
-            return self._convert_to_streaming_response(chunks)
+            return self._handle_streaming_response(response)
 
-        return {"replies": [self._build_message_from_ollama_response(response)]}
+        return {"replies": [_convert_ollama_response_to_chatmessage(response)]}
