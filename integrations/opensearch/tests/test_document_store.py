@@ -272,7 +272,7 @@ class TestAuth:
         document_store = OpenSearchDocumentStore(hosts="testhost")
         assert document_store.client
         _mock_opensearch_client.assert_called_once()
-        assert _mock_opensearch_client.call_args[1]["http_auth"] == ("user", "pass")
+        assert _mock_opensearch_client.call_args[1]["http_auth"] == ["user", "pass"]
 
     @patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
     def test_init_with_missing_env_vars(self, _mock_opensearch_client):
@@ -293,7 +293,8 @@ class TestAuth:
 
         assert "http_auth" in serialized["init_parameters"]
         auth = serialized["init_parameters"]["http_auth"]
-        assert isinstance(auth, tuple)
+        assert isinstance(auth, list)
+        assert len(auth) == 2
         # Check that we have two Secret dictionaries with correct env vars
         assert auth[0]["type"] == "env_var"
         assert auth[0]["env_vars"] == ["OPENSEARCH_USERNAME"]
@@ -311,16 +312,16 @@ class TestAuth:
             "type": "haystack_integrations.document_stores.opensearch.document_store.OpenSearchDocumentStore",
             "init_parameters": {
                 "hosts": "testhost",
-                "http_auth": (
+                "http_auth": [
                     {"type": "env_var", "env_vars": ["OPENSEARCH_USERNAME"], "strict": False},
                     {"type": "env_var", "env_vars": ["OPENSEARCH_PASSWORD"], "strict": False},
-                ),
+                ],
             },
         }
         document_store = OpenSearchDocumentStore.from_dict(data)
         assert document_store.client
         _mock_opensearch_client.assert_called_once()
-        assert _mock_opensearch_client.call_args[1]["http_auth"] == ("user", "pass")
+        assert _mock_opensearch_client.call_args[1]["http_auth"] == ["user", "pass"]
 
 
 @pytest.mark.integration

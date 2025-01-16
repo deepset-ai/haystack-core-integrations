@@ -102,18 +102,16 @@ class OpenSearchDocumentStore:
         self._mappings = mappings or self._get_default_mappings()
         self._settings = settings
         self._create_index = create_index
+        self._http_auth_are_secrets = False
 
         # Handle authentication
         if isinstance(http_auth, (tuple, list)) and len(http_auth) == 2:  # noqa: PLR2004
             username, password = http_auth
             if isinstance(username, Secret) and isinstance(password, Secret):
+                self._http_auth_are_secrets = True
                 username_val = username.resolve_value()
                 password_val = password.resolve_value()
                 http_auth = [username_val, password_val] if username_val and password_val else None
-            else:
-                http_auth = list(http_auth)
-        elif isinstance(http_auth, str):
-            http_auth = http_auth.split(":", 1)
 
         self._http_auth = http_auth
         self._use_ssl = use_ssl
@@ -198,14 +196,13 @@ class OpenSearchDocumentStore:
         :returns:
             Dictionary with serialized data.
         """
-
         # Handle http_auth serialization
-        if isinstance(self._http_auth, list) and all(isinstance(item, Secret) for item in self._http_auth):
-            http_auth = [secret.to_dict() for secret in self._http_auth if secret.resolve_value()]
-        elif isinstance(self._http_auth, (tuple, list)):
-            http_auth = list(self._http_auth)
-        elif isinstance(self._http_auth, str):
-            http_auth = self._http_auth.split(":", 1)
+        if isinstance(self._http_auth, list) and self._http_auth_are_secrets:
+            # Recreate the Secret objects for serialization
+            http_auth = [
+                Secret.from_env_var("OPENSEARCH_USERNAME", strict=False).to_dict(),
+                Secret.from_env_var("OPENSEARCH_PASSWORD", strict=False).to_dict(),
+            ]
         elif isinstance(self._http_auth, AWSAuth):
             http_auth = self._http_auth.to_dict()
         else:
@@ -244,22 +241,19 @@ class OpenSearchDocumentStore:
             if isinstance(http_auth, dict):
                 init_params["http_auth"] = AWSAuth.from_dict(http_auth)
             elif isinstance(http_auth, (tuple, list)):
-                secrets: List[Optional[Any]] = []
-                for auth_item in http_auth:
-                    if isinstance(auth_item, dict) and "type" in auth_item:
-                        # Handle Secret dict
-                        secret = Secret.from_dict(auth_item)
-                        secrets.append(secret if secret else None)
-                    else:
-                        # Handle plain value
-                        secrets.append(auth_item)
+                # to maintain backwards compatibility this could be many different types, just use Any
+                secrets: Any = None
 
-                # Convert to list and only set if both values exist
-                init_params["http_auth"] = list(secrets) if all(secrets) else None
-            elif isinstance(http_auth, str):
-                # Split string into username and password
-                init_params["http_auth"] = http_auth.split(":", 1)
-
+                are_secrets = all(isinstance(item, dict) and "type" in item for item in http_auth)
+                if are_secrets:
+                    # it would be nice to use deserialize_secrets_inplace here but that function
+                    # is not able to handle lists of secrets
+                    secrets = [
+                        Secret.from_dict(item) for item in http_auth if isinstance(item, dict) and "type" in item
+                    ]
+                else:
+                    secrets = http_auth
+                init_params["http_auth"] = secrets
         return default_from_dict(cls, data)
 
     def count_documents(self) -> int:
