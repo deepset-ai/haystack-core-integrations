@@ -59,7 +59,7 @@ system_message = ChatMessage.from_system(
 )
 
 if ENABLE_PROMPT_CACHING:
-    system_message.meta["cache_control"] = {"type": "ephemeral"}
+    system_message._meta["cache_control"] = {"type": "ephemeral"}
 
 questions = [
     "What's this paper about?",
