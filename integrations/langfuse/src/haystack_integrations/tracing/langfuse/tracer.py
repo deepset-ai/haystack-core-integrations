@@ -202,7 +202,7 @@ class LangfuseTracer(Tracer):
 
         raw_span = span.raw_span()
 
-        # In this section, we finalize both regular spans and generation spans that were created using the LangfuseSpan class.
+        # In this section, we finalize both regular spans and generation spans created using the LangfuseSpan class.
         # It's important to end() these spans to ensure they are properly closed and all relevant data is recorded.
         # Note that we do not call end() on the main trace span itself, as its lifecycle is managed differently.
         if isinstance(raw_span, (langfuse.client.StatefulSpanClient, langfuse.client.StatefulGenerationClient)):
