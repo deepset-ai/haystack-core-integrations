@@ -57,6 +57,7 @@ class TestAnthropicVertexChatGenerator:
                 "streaming_callback": None,
                 "generation_kwargs": {},
                 "ignore_tools_thinking_messages": True,
+                "tools": None,
             },
         }
 
@@ -80,6 +81,7 @@ class TestAnthropicVertexChatGenerator:
                 "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
                 "generation_kwargs": {"max_tokens": 10, "some_test_param": "test-params"},
                 "ignore_tools_thinking_messages": True,
+                "tools": None,
             },
         }
 

@@ -1,8 +1,9 @@
 import os
-from typing import Any, Callable, Dict, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 from haystack import component, default_from_dict, default_to_dict, logging
 from haystack.dataclasses import StreamingChunk
+from haystack.tools import Tool, _check_duplicate_tool_names, deserialize_tools_inplace
 from haystack.utils import deserialize_callable, serialize_callable
 
 from anthropic import AnthropicVertex
@@ -65,6 +66,7 @@ class AnthropicVertexChatGenerator(AnthropicChatGenerator):
         streaming_callback: Optional[Callable[[StreamingChunk], None]] = None,
         generation_kwargs: Optional[Dict[str, Any]] = None,
         ignore_tools_thinking_messages: bool = True,
+        tools: Optional[List[Tool]] = None,
     ):
         """
         Creates an instance of AnthropicVertexChatGenerator.
@@ -92,7 +94,9 @@ class AnthropicVertexChatGenerator(AnthropicChatGenerator):
             `ignore_tools_thinking_messages` is `True`, the generator will drop so-called thinking messages when tool
             use is detected. See the Anthropic [tools](https://docs.anthropic.com/en/docs/tool-use#chain-of-thought-tool-use)
             for more details.
+        :param tools: A list of Tool objects that the model can use. Each tool should have a unique name.
         """
+        _check_duplicate_tool_names(tools)
         self.region = region or os.environ.get("REGION")
         self.project_id = project_id or os.environ.get("PROJECT_ID")
         self.model = model
@@ -100,6 +104,7 @@ class AnthropicVertexChatGenerator(AnthropicChatGenerator):
         self.streaming_callback = streaming_callback
         self.client = AnthropicVertex(region=self.region, project_id=self.project_id)
         self.ignore_tools_thinking_messages = ignore_tools_thinking_messages
+        self.tools = tools
 
     def to_dict(self) -> Dict[str, Any]:
         """
@@ -109,6 +114,8 @@ class AnthropicVertexChatGenerator(AnthropicChatGenerator):
             The serialized component as a dictionary.
         """
         callback_name = serialize_callable(self.streaming_callback) if self.streaming_callback else None
+        serialized_tools = [tool.to_dict() for tool in self.tools] if self.tools else None
+
         return default_to_dict(
             self,
             region=self.region,
@@ -117,6 +124,7 @@ class AnthropicVertexChatGenerator(AnthropicChatGenerator):
             streaming_callback=callback_name,
             generation_kwargs=self.generation_kwargs,
             ignore_tools_thinking_messages=self.ignore_tools_thinking_messages,
+            tools=serialized_tools,
         )
 
     @classmethod
@@ -128,8 +136,10 @@ class AnthropicVertexChatGenerator(AnthropicChatGenerator):
         :returns:
             The deserialized component instance.
         """
+        deserialize_tools_inplace(data["init_parameters"], key="tools")
         init_params = data.get("init_parameters", {})
         serialized_callback_handler = init_params.get("streaming_callback")
         if serialized_callback_handler:
             data["init_parameters"]["streaming_callback"] = deserialize_callable(serialized_callback_handler)
+
         return default_from_dict(cls, data)
