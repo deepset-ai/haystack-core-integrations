@@ -105,8 +105,17 @@ def test_tracing_integration(llm_class, env_var, expected_trace, pipeline_fixtur
         break
 
 
-def test_pipeline_serialization():
+def test_pipeline_serialization(monkeypatch):
     """Test that a pipeline with secrets can be properly serialized and deserialized"""
+    # Clear any existing env vars first
+    monkeypatch.delenv("LANGFUSE_SECRET_KEY", raising=False)
+    monkeypatch.delenv("LANGFUSE_PUBLIC_KEY", raising=False)
+
+    # Set test env vars
+    monkeypatch.setenv("LANGFUSE_SECRET_KEY", "secret")
+    monkeypatch.setenv("LANGFUSE_PUBLIC_KEY", "public")
+    monkeypatch.setenv("OPENAI_API_KEY", "openai_api_key")
+
     # Create pipeline with OpenAI LLM
     pipe = Pipeline()
     pipe.add_component(
