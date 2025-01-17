@@ -14,6 +14,7 @@ from haystack.testing.document_store import (
     CountDocumentsTest,
     DeleteDocumentsTest,
     FilterDocumentsTest,
+    FilterDocumentsTestWithDataframe,
     WriteDocumentsTest,
 )
 from haystack.utils.auth import EnvVarSecret, Secret
@@ -155,7 +156,7 @@ TEST_EMBEDDING_2 = _random_embeddings(768)
     ],
     indirect=True,
 )
-class TestFilters(FilterDocumentsTest):
+class TestFilters(FilterDocumentsTest, FilterDocumentsTestWithDataframe):
 
     # Overriding to change "date" to compatible ISO 8601 format
     # and remove incompatible fields (dataframes) for Azure search index
