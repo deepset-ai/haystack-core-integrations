@@ -1,5 +1,11 @@
 # Changelog
 
+## [integrations/opensearch-v1.3.0] - 2025-01-16
+
+### 🚀 Features
+
+- Add Secret handling in OpenSearchDocumentStore (#1288)
+
 ## [integrations/opensearch-v1.2.0] - 2024-12-12
 
 ### 🧹 Chores

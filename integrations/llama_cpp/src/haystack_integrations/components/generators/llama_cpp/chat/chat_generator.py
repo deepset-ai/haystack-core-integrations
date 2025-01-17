@@ -138,11 +138,7 @@ class LlamaCppChatGenerator:
                 name = tool_calls[0]["function"]["name"]
 
             reply = ChatMessage.from_assistant(choice["message"]["content"], meta=meta)
-            if name:
-                if hasattr(reply, "_name"):
-                    reply._name = name  # new ChatMessage
-                elif hasattr(reply, "name"):
-                    reply.name = name  # legacy ChatMessage
+            reply._name = name or None
             replies.append(reply)
 
         return {"replies": replies}

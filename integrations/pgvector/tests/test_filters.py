@@ -2,7 +2,7 @@ from typing import List
 
 import pytest
 from haystack.dataclasses.document import Document
-from haystack.testing.document_store import FilterDocumentsTest
+from haystack.testing.document_store import FilterDocumentsTest, FilterDocumentsTestWithDataframe
 from pandas import DataFrame
 from psycopg.sql import SQL
 from psycopg.types.json import Jsonb
@@ -17,7 +17,7 @@ from haystack_integrations.document_stores.pgvector.filters import (
 
 
 @pytest.mark.integration
-class TestFilters(FilterDocumentsTest):
+class TestFilters(FilterDocumentsTest, FilterDocumentsTestWithDataframe):
     def assert_documents_are_equal(self, received: List[Document], expected: List[Document]):
         """
         This overrides the default assert_documents_are_equal from FilterDocumentsTest.

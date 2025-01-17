@@ -10,7 +10,6 @@ from haystack.document_stores.types import DuplicatePolicy
 
 from haystack_integrations.document_stores.azure_ai_search import AzureAISearchDocumentStore
 
-
 # This is the approximate time in seconds it takes for the documents to be available in Azure Search index
 SLEEP_TIME_IN_SECONDS = 10
 MAX_WAIT_TIME_FOR_INDEX_DELETION = 10

@@ -242,12 +242,12 @@ class GoogleAIGeminiChatGenerator:
             p = Part()
             p.text = message.text
             return p
-        elif message.is_from(ChatRole.FUNCTION):
+        elif "FUNCTION" in ChatRole._member_names_ and message.is_from(ChatRole.FUNCTION):
             p = Part()
             p.function_response.name = message.name
             p.function_response.response = message.text
             return p
-        elif "TOOL" in ChatRole._member_names_ and message.is_from(ChatRole.TOOL):
+        elif message.is_from(ChatRole.TOOL):
             p = Part()
             p.function_response.name = message.tool_call_result.origin.tool_name
             p.function_response.response = message.tool_call_result.result
@@ -265,13 +265,13 @@ class GoogleAIGeminiChatGenerator:
         elif message.is_from(ChatRole.SYSTEM) or message.is_from(ChatRole.ASSISTANT):
             part = Part()
             part.text = message.text
-        elif message.is_from(ChatRole.FUNCTION):
+        elif "FUNCTION" in ChatRole._member_names_ and message.is_from(ChatRole.FUNCTION):
             part = Part()
             part.function_response.name = message.name
             part.function_response.response = message.text
         elif message.is_from(ChatRole.USER):
             part = self._convert_part(message.text)
-        elif "TOOL" in ChatRole._member_names_ and message.is_from(ChatRole.TOOL):
+        elif message.is_from(ChatRole.TOOL):
             part = Part()
             part.function_response.name = message.tool_call_result.origin.tool_name
             part.function_response.response = message.tool_call_result.result
