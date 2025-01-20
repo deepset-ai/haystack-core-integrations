@@ -27,7 +27,7 @@ classifiers = [
 ]
 dependencies = [
   "haystack-ai",
-  "transformers[sentencepiece]",
+  "transformers[sentencepiece]!=4.48.0",
   # The main export function of Optimum into ONNX has hidden dependencies.
   # It depends on either "sentence-transformers", "diffusers" or "timm", based
   # on which model is loaded from HF Hub.
