@@ -1,7 +1,9 @@
 from typing import Any, Dict, Optional
 
 import pytest
+from haystack import Pipeline
 from haystack.components.generators.utils import print_streaming_chunk
+from haystack.components.tools import ToolInvoker
 from haystack.dataclasses import ChatMessage, ChatRole, StreamingChunk
 from haystack.tools import Tool
 
@@ -34,12 +36,16 @@ def chat_messages():
 
 @pytest.fixture
 def tools():
+    def weather(city: str):
+        """Get weather for a given city."""
+        return f"The weather in {city} is sunny and 32°C"
+
     tool_parameters = {"type": "object", "properties": {"city": {"type": "string"}}, "required": ["city"]}
     tool = Tool(
         name="weather",
         description="useful to determine the weather in a given location",
         parameters=tool_parameters,
-        function=lambda x: x,
+        function=weather,
     )
     return [tool]
 
@@ -541,3 +547,25 @@ class TestAmazonBedrockChatGeneratorInference:
         assert not final_message.tool_call
         assert len(final_message.text) > 0
         assert "paris" in final_message.text.lower()
+
+    @pytest.mark.parametrize("model_name", MODELS_TO_TEST_WITH_TOOLS)
+    @pytest.mark.integration
+    def test_pipeline_with_amazon_bedrock_chat_generator(self, model_name, tools):
+        """
+        Test that the AmazonBedrockChatGenerator component can be used in a pipeline
+        """
+
+        pipeline = Pipeline()
+        pipeline.add_component("generator", AmazonBedrockChatGenerator(model=model_name, tools=tools))
+        pipeline.add_component("tool_invoker", ToolInvoker(tools=tools))
+
+        pipeline.connect("generator", "tool_invoker")
+
+        results = pipeline.run(
+            data={"generator": {"messages": [ChatMessage.from_user("What's the weather like in Paris?")]}}
+        )
+
+        assert (
+            "The weather in Paris is sunny and 32°C"
+            == results["tool_invoker"]["tool_messages"][0].tool_call_result.result
+        )
