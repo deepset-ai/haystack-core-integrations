@@ -101,7 +101,7 @@ class TestOptimumDocumentEmbedder:
 
     def test_to_and_from_dict(self, mock_check_valid_model, mock_get_pooling_mode, monkeypatch):  # noqa: ARG002
         monkeypatch.delenv("HF_API_TOKEN", raising=False)
-        monkeypatch.delenv("HF_TOKEN", raising=False)        
+        monkeypatch.delenv("HF_TOKEN", raising=False)
         component = OptimumDocumentEmbedder()
         data = component.to_dict()
 
