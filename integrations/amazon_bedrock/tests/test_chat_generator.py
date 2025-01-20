@@ -1,9 +1,9 @@
-import json
 from typing import Any, Dict, Optional
 
 import pytest
 from haystack.components.generators.utils import print_streaming_chunk
 from haystack.dataclasses import ChatMessage, ChatRole, StreamingChunk
+from haystack.tools import Tool
 
 from haystack_integrations.components.generators.amazon_bedrock import AmazonBedrockChatGenerator
 
@@ -30,6 +30,18 @@ def chat_messages():
         ChatMessage.from_user("What's the capital of France?"),
     ]
     return messages
+
+
+@pytest.fixture
+def tools():
+    tool_parameters = {"type": "object", "properties": {"city": {"type": "string"}}, "required": ["city"]}
+    tool = Tool(
+        name="weather",
+        description="useful to determine the weather in a given location",
+        parameters=tool_parameters,
+        function=lambda x: x,
+    )
+    return [tool]
 
 
 @pytest.mark.parametrize(
@@ -64,6 +76,7 @@ def test_to_dict(mock_boto3_session, boto3_config):
             "stop_words": [],
             "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
             "boto3_config": boto3_config,
+            "tools": None,
         },
     }
 
@@ -96,6 +109,7 @@ def test_from_dict(mock_boto3_session: Any, boto3_config: Optional[Dict[str, Any
                 "generation_kwargs": {"temperature": 0.7},
                 "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
                 "boto3_config": boto3_config,
+                "tools": None,
             },
         }
     )
@@ -206,7 +220,9 @@ class TestAmazonBedrockChatGeneratorInference:
     @pytest.mark.integration
     def test_tools_use(self, model_name):
         """
-        Test function calling with AWS Bedrock Anthropic adapter
+        Test tools use with passing the generation_kwargs={"toolConfig": tool_config}
+        and not the tools parameter. We support this because some users might want to use the toolConfig
+        parameter to pass the tool configuration to the model.
         """
         # See https://docs.aws.amazon.com/bedrock/latest/APIReference/API_runtime_ToolConfiguration.html
         tool_config = {
@@ -244,43 +260,33 @@ class TestAmazonBedrockChatGeneratorInference:
         assert isinstance(replies, list), "Replies is not a list"
         assert len(replies) > 0, "No replies received"
 
-        first_reply = replies[0]
-        assert isinstance(first_reply, ChatMessage), "First reply is not a ChatMessage instance"
-        assert first_reply.text, "First reply has no content"
-        assert ChatMessage.is_from(first_reply, ChatRole.ASSISTANT), "First reply is not from the assistant"
-        assert first_reply.meta, "First reply has no metadata"
+        # Find the message with tool calls as in some models it is the first message, in some second
+        tool_message = None
+        for message in replies:
+            if message.tool_call:  # Using tool_call instead of tool_calls to match existing code
+                tool_message = message
+                break
 
-        # Some models return thinking message as first and the second one as the tool call
-        if len(replies) > 1:
-            second_reply = replies[1]
-            assert isinstance(second_reply, ChatMessage), "Second reply is not a ChatMessage instance"
-            assert second_reply.text, "Second reply has no content"
-            assert ChatMessage.is_from(second_reply, ChatRole.ASSISTANT), "Second reply is not from the assistant"
-            tool_call = json.loads(second_reply.text)
-            assert "toolUseId" in tool_call, "Tool call does not contain 'toolUseId' key"
-            assert tool_call["name"] == "top_song", f"Tool call {tool_call} does not contain the correct 'name' value"
-            assert "input" in tool_call, f"Tool call {tool_call} does not contain 'input' key"
-            assert (
-                tool_call["input"]["sign"] == "WZPZ"
-            ), f"Tool call {tool_call} does not contain the correct 'input' value"
-        else:
-            # case where the model returns the tool call as the first message
-            # double check that the tool call is correct
-            tool_call = json.loads(first_reply.text)
-            assert "toolUseId" in tool_call, "Tool call does not contain 'toolUseId' key"
-            assert tool_call["name"] == "top_song", f"Tool call {tool_call} does not contain the correct 'name' value"
-            assert "input" in tool_call, f"Tool call {tool_call} does not contain 'input' key"
-            assert (
-                tool_call["input"]["sign"] == "WZPZ"
-            ), f"Tool call {tool_call} does not contain the correct 'input' value"
+        assert tool_message is not None, "No message with tool call found"
+        assert isinstance(tool_message, ChatMessage), "Tool message is not a ChatMessage instance"
+        assert ChatMessage.is_from(tool_message, ChatRole.ASSISTANT), "Tool message is not from the assistant"
+
+        tool_call = tool_message.tool_call
+        assert tool_call.id, "Tool call does not contain value for 'id' key"
+        assert tool_call.tool_name == "top_song", f"{tool_call} does not contain the correct 'tool_name' value"
+        assert tool_call.arguments, f"Tool call {tool_call} does not contain 'arguments' value"
+        assert (
+            tool_call.arguments["sign"] == "WZPZ"
+        ), f"Tool call {tool_call} does not contain the correct 'arguments' value"
 
     @pytest.mark.parametrize("model_name", STREAMING_TOOL_MODELS)
     @pytest.mark.integration
     def test_tools_use_with_streaming(self, model_name):
         """
-        Test function calling with AWS Bedrock Anthropic adapter
+        Test tools use with streaming but with passing the generation_kwargs={"toolConfig": tool_config}
+        and not the tools parameter. We support this because some users might want to use the toolConfig
+        parameter to pass the tool configuration to the model.
         """
-        # See https://docs.aws.amazon.com/bedrock/latest/APIReference/API_runtime_ToolConfiguration.html
         tool_config = {
             "tools": [
                 {
@@ -304,12 +310,10 @@ class TestAmazonBedrockChatGeneratorInference:
                     }
                 }
             ],
-            # See https://docs.aws.amazon.com/bedrock/latest/APIReference/API_runtime_ToolChoice.html
             "toolChoice": {"auto": {}},
         }
 
-        messages = []
-        messages.append(ChatMessage.from_user("What is the most popular song on WZPZ?"))
+        messages = [ChatMessage.from_user("What is the most popular song on WZPZ?")]
         client = AmazonBedrockChatGenerator(model=model_name, streaming_callback=print_streaming_chunk)
         response = client.run(messages=messages, generation_kwargs={"toolConfig": tool_config})
         replies = response["replies"]
@@ -322,29 +326,22 @@ class TestAmazonBedrockChatGeneratorInference:
         assert ChatMessage.is_from(first_reply, ChatRole.ASSISTANT), "First reply is not from the assistant"
         assert first_reply.meta, "First reply has no metadata"
 
-        # Some models return thinking message as first and the second one as the tool call
-        if len(replies) > 1:
-            second_reply = replies[1]
-            assert isinstance(second_reply, ChatMessage), "Second reply is not a ChatMessage instance"
-            assert second_reply.text, "Second reply has no content"
-            assert ChatMessage.is_from(second_reply, ChatRole.ASSISTANT), "Second reply is not from the assistant"
-            tool_call = json.loads(second_reply.text)
-            assert "toolUseId" in tool_call, "Tool call does not contain 'toolUseId' key"
-            assert tool_call["name"] == "top_song", f"Tool call {tool_call} does not contain the correct 'name' value"
-            assert "input" in tool_call, f"Tool call {tool_call} does not contain 'input' key"
-            assert (
-                tool_call["input"]["sign"] == "WZPZ"
-            ), f"Tool call {tool_call} does not contain the correct 'input' value"
-        else:
-            # case where the model returns the tool call as the first message
-            # double check that the tool call is correct
-            tool_call = json.loads(first_reply.text)
-            assert "toolUseId" in tool_call, "Tool call does not contain 'toolUseId' key"
-            assert tool_call["name"] == "top_song", f"Tool call {tool_call} does not contain the correct 'name' value"
-            assert "input" in tool_call, f"Tool call {tool_call} does not contain 'input' key"
-            assert (
-                tool_call["input"]["sign"] == "WZPZ"
-            ), f"Tool call {tool_call} does not contain the correct 'input' value"
+        # Find the message containing the tool call
+        tool_message = None
+        for message in replies:
+            if message.tool_call:
+                tool_message = message
+                break
+
+        assert tool_message is not None, "No message with tool call found"
+        assert isinstance(tool_message, ChatMessage), "Tool message is not a ChatMessage instance"
+        assert ChatMessage.is_from(tool_message, ChatRole.ASSISTANT), "Tool message is not from the assistant"
+
+        tool_call = tool_message.tool_call
+        assert tool_call.id, "Tool call does not contain value for 'id' key"
+        assert tool_call.tool_name == "top_song", f"{tool_call} does not contain the correct 'tool_name' value"
+        assert tool_call.arguments, f"{tool_call} does not contain 'arguments' value"
+        assert tool_call.arguments["sign"] == "WZPZ", f"{tool_call} does not contain the correct 'input' value"
 
     def test_extract_replies_from_response(self, mock_boto3_session):
         """
@@ -381,10 +378,10 @@ class TestAmazonBedrockChatGeneratorInference:
 
         replies = generator.extract_replies_from_response(tool_response)
         assert len(replies) == 1
-        tool_content = json.loads(replies[0].text)
-        assert tool_content["toolUseId"] == "123"
-        assert tool_content["name"] == "test_tool"
-        assert tool_content["input"] == {"key": "value"}
+        tool_content = replies[0].tool_call
+        assert tool_content.id == "123"
+        assert tool_content.tool_name == "test_tool"
+        assert tool_content.arguments == {"key": "value"}
         assert replies[0].meta["finish_reason"] == "tool_call"
         assert replies[0].meta["usage"] == {"prompt_tokens": 15, "completion_tokens": 25, "total_tokens": 40}
 
@@ -406,10 +403,10 @@ class TestAmazonBedrockChatGeneratorInference:
         replies = generator.extract_replies_from_response(mixed_response)
         assert len(replies) == 2
         assert replies[0].text == "Let me help you with that. I'll use the search tool to find the answer."
-        tool_content = json.loads(replies[1].text)
-        assert tool_content["toolUseId"] == "456"
-        assert tool_content["name"] == "search_tool"
-        assert tool_content["input"] == {"query": "test"}
+        tool_content = replies[1].tool_call
+        assert tool_content.id == "456"
+        assert tool_content.tool_name == "search_tool"
+        assert tool_content.arguments == {"query": "test"}
 
     def test_process_streaming_response(self, mock_boto3_session):
         """
@@ -452,7 +449,142 @@ class TestAmazonBedrockChatGeneratorInference:
         assert replies[0].meta["usage"] == {"prompt_tokens": 10, "completion_tokens": 20, "total_tokens": 30}
 
         # Check tool use reply
-        tool_content = json.loads(replies[1].text)
-        assert tool_content["toolUseId"] == "123"
-        assert tool_content["name"] == "search_tool"
-        assert tool_content["input"] == {"query": "test"}
+        tool_content = replies[1].tool_call
+        assert tool_content.id == "123"
+        assert tool_content.tool_name == "search_tool"
+        assert tool_content.arguments == {"query": "test"}
+
+    @pytest.mark.parametrize("model_name", MODELS_TO_TEST_WITH_TOOLS)
+    @pytest.mark.integration
+    def test_live_run_with_tools(self, model_name, tools):
+        """
+        Integration test that the AmazonBedrockChatGenerator component can run with tools. Here we are using the
+        Haystack tools parameter to pass the tool configuration to the model.
+        """
+        initial_messages = [ChatMessage.from_user("What's the weather like in Paris?")]
+        component = AmazonBedrockChatGenerator(model=model_name, tools=tools)
+        results = component.run(messages=initial_messages)
+
+        assert len(results["replies"]) > 0, "No replies received"
+
+        # Find the message with tool calls
+        tool_message = None
+        for message in results["replies"]:
+            if message.tool_call:
+                tool_message = message
+                break
+
+        assert tool_message is not None, "No message with tool call found"
+        assert isinstance(tool_message, ChatMessage), "Tool message is not a ChatMessage instance"
+        assert ChatMessage.is_from(tool_message, ChatRole.ASSISTANT), "Tool message is not from the assistant"
+
+        tool_call = tool_message.tool_call
+        assert tool_call.id, "Tool call does not contain value for 'id' key"
+        assert tool_call.tool_name == "weather"
+        assert tool_call.arguments == {"city": "Paris"}
+        assert tool_message.meta["finish_reason"] == "tool_use"
+
+        new_messages = [
+            initial_messages[0],
+            tool_message,
+            ChatMessage.from_tool(tool_result="22° C", origin=tool_call),
+        ]
+        # Pass the tool result to the model to get the final response
+        results = component.run(new_messages)
+
+        assert len(results["replies"]) == 1
+        final_message = results["replies"][0]
+        assert not final_message.tool_call
+        assert len(final_message.text) > 0
+        assert "paris" in final_message.text.lower()
+
+    @pytest.mark.parametrize("model_name", STREAMING_TOOL_MODELS)
+    @pytest.mark.integration
+    def test_live_run_with_tools_streaming(self, model_name, tools):
+        """
+        Integration test that the AmazonBedrockChatGenerator component can run with the Haystack tools parameter.
+        and the streaming_callback parameter to get the streaming response.
+        """
+        initial_messages = [ChatMessage.from_user("What's the weather like in Paris?")]
+        component = AmazonBedrockChatGenerator(model=model_name, tools=tools, streaming_callback=print_streaming_chunk)
+        results = component.run(messages=initial_messages)
+
+        assert len(results["replies"]) > 0, "No replies received"
+
+        # Find the message with tool calls
+        tool_message = None
+        for message in results["replies"]:
+            if message.tool_call:
+                tool_message = message
+                break
+
+        assert tool_message is not None, "No message with tool call found"
+        assert isinstance(tool_message, ChatMessage), "Tool message is not a ChatMessage instance"
+        assert ChatMessage.is_from(tool_message, ChatRole.ASSISTANT), "Tool message is not from the assistant"
+
+        tool_call = tool_message.tool_call
+        assert tool_call.id, "Tool call does not contain value for 'id' key"
+        assert tool_call.tool_name == "weather"
+        assert tool_call.arguments == {"city": "Paris"}
+        assert tool_message.meta["finish_reason"] == "tool_use"
+
+        new_messages = [
+            initial_messages[0],
+            tool_message,
+            ChatMessage.from_tool(tool_result="22° C", origin=tool_call),
+        ]
+        # Pass the tool result to the model to get the final response
+        results = component.run(new_messages)
+
+        assert len(results["replies"]) == 1
+        final_message = results["replies"][0]
+        assert not final_message.tool_call
+        assert len(final_message.text) > 0
+        assert "paris" in final_message.text.lower()
+
+    # @pytest.mark.parametrize("model_name", MODELS_TO_TEST_WITH_TOOLS)
+    # @pytest.mark.integration
+    # def test_live_run_with_parallel_tools(self, model_name, tools):
+    #     """
+    #     Integration test that the AmazonBedrockChatGenerator component can run with parallel tools.
+    #     """
+    #     initial_messages = [ChatMessage.from_user("What's the weather like in Paris and Berlin?")]
+    #     component = AmazonBedrockChatGenerator(model=model_name, tools=tools)
+    #     results = component.run(messages=initial_messages)
+
+    #     assert len(results["replies"]) == 1
+    #     message = results["replies"][0]
+
+    #     # Check tool calls
+    #     assert len(message.tool_calls) == 2
+    #     tool_call_paris = message.tool_calls[0]
+    #     assert isinstance(tool_call_paris, ToolCall)
+    #     assert tool_call_paris.id is not None
+    #     assert tool_call_paris.tool_name == "weather"
+    #     assert tool_call_paris.arguments["city"] in {"Paris", "Berlin"}
+    #     assert message.meta["finish_reason"] == "tool_use"
+
+    #     tool_call_berlin = message.tool_calls[1]
+    #     assert isinstance(tool_call_berlin, ToolCall)
+    #     assert tool_call_berlin.id is not None
+    #     assert tool_call_berlin.tool_name == "weather"
+    #     assert tool_call_berlin.arguments["city"] in {"Berlin", "Paris"}
+
+    #     # Send results from both tools
+    #     new_messages = [
+    #         *initial_messages,
+    #         message,
+    #         ChatMessage.from_tool(tool_result="22° C", origin=tool_call_paris, error=False),
+    #         ChatMessage.from_tool(tool_result="12° C", origin=tool_call_berlin, error=False),
+    #     ]
+
+    #     # Get final response
+    #     results = component.run(new_messages)
+    #     message = results["replies"][0]
+    #     assert not message.tool_calls
+    #     assert len(message.text) > 0
+    #     assert "paris" in message.text.lower()
+    #     assert "berlin" in message.text.lower()
+    #     assert "22°" in message.text
+    #     assert "12°" in message.text
+    #     assert message.meta["finish_reason"] == "end_turn"
