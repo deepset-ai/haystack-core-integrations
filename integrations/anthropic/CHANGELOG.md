@@ -1,5 +1,13 @@
 # Changelog
 
+## [unreleased]
+
+### 🌀 Miscellaneous
+
+- Test: remove tests involving serialization of lambdas (#1281)
+- Test: remove more tests involving serialization of lambdas (#1285)
+- Feat: Anthropic - support for Tools + refactoring (#1300)
+
 ## [integrations/anthropic-v1.2.1] - 2024-12-18
 
 ### 🐛 Bug Fixes
