@@ -1,5 +1,6 @@
 import contextlib
 import os
+from abc import ABC, abstractmethod
 from contextvars import ContextVar
 from datetime import datetime
 from typing import Any, Dict, Iterator, List, Optional, Union
@@ -110,12 +111,64 @@ class LangfuseSpan(Span):
         return {}
 
 
+class SpanHandler(ABC):
+    """
+    Abstract base class for handling spans in LangfuseTracer.
+    Implement this class to customize how spans are processed after they are yielded.
+    """
+
+    @abstractmethod
+    def handle(self, span: LangfuseSpan, component_type: Optional[str]) -> None:
+        """
+        Handle a span after it has been yielded.
+
+        :param span: The LangfuseSpan that was yielded
+        :param component_type: The type of the component that created this span
+        """
+        pass
+
+
+class DefaultSpanHandler(SpanHandler):
+    """Default implementation of SpanHandler that provides the original Langfuse tracing behavior."""
+
+    def handle(self, span: LangfuseSpan, component_type: Optional[str]) -> None:
+        if component_type in _SUPPORTED_GENERATORS:
+            # Haystack returns one meta dict for each message, but the 'usage' value
+            # is always the same, let's just pick the first item
+            meta = span._data.get(_COMPONENT_OUTPUT_KEY, {}).get("meta")
+            if meta:
+                m = meta[0]
+                span._span.update(usage=m.get("usage") or None, model=m.get("model"))
+        elif component_type in _SUPPORTED_CHAT_GENERATORS:
+            replies = span._data.get(_COMPONENT_OUTPUT_KEY, {}).get("replies")
+            if replies:
+                meta = replies[0].meta
+                completion_start_time = meta.get("completion_start_time")
+                if completion_start_time:
+                    try:
+                        completion_start_time = datetime.fromisoformat(completion_start_time)
+                    except ValueError:
+                        logger.error(f"Failed to parse completion_start_time: {completion_start_time}")
+                        completion_start_time = None
+                span._span.update(
+                    usage=meta.get("usage") or None,
+                    model=meta.get("model"),
+                    completion_start_time=completion_start_time,
+                )
+
+
 class LangfuseTracer(Tracer):
     """
     Internal class representing a bridge between the Haystack tracer and Langfuse.
     """
 
-    def __init__(self, tracer: "langfuse.Langfuse", name: str = "Haystack", public: bool = False) -> None:
+    def __init__(
+        self,
+        tracer: "langfuse.Langfuse",
+        name: str = "Haystack",
+        public: bool = False,
+        span_handler: Optional[SpanHandler] = None,
+    ) -> None:
         """
         Initialize a LangfuseTracer instance.
 
@@ -123,8 +176,9 @@ class LangfuseTracer(Tracer):
         :param name: The name of the pipeline or component. This name will be used to identify the tracing run on the
             Langfuse dashboard.
         :param public: Whether the tracing data should be public or private. If set to `True`, the tracing data will
-        be publicly accessible to anyone with the tracing URL. If set to `False`, the tracing data will be private
-        and only accessible to the Langfuse account owner.
+            be publicly accessible to anyone with the tracing URL. If set to `False`, the tracing data will be private
+            and only accessible to the Langfuse account owner.
+        :param span_handler: Custom handler for processing spans. If None, uses DefaultSpanHandler.
         """
         if not proxy_tracer.is_content_tracing_enabled:
             logger.warning(
@@ -137,6 +191,7 @@ class LangfuseTracer(Tracer):
         self._name = name
         self._public = public
         self.enforce_flush = os.getenv(HAYSTACK_LANGFUSE_ENFORCE_FLUSH_ENV_VAR, "true").lower() == "true"
+        self._span_handler = span_handler or DefaultSpanHandler()
 
     @contextlib.contextmanager
     def trace(
@@ -144,6 +199,7 @@ class LangfuseTracer(Tracer):
     ) -> Iterator[Span]:
         tags = tags or {}
         span_name = tags.get(_COMPONENT_NAME_KEY, operation_name)
+        component_type = tags.get(_COMPONENT_TYPE_KEY)
 
         # Create new span depending whether there's a parent span or not
         if not parent_span:
@@ -165,7 +221,7 @@ class LangfuseTracer(Tracer):
                     version=context.get("version"),
                 )
             )
-        elif tags.get(_COMPONENT_TYPE_KEY) in _ALL_SUPPORTED_GENERATORS:
+        elif component_type in _ALL_SUPPORTED_GENERATORS:
             span = LangfuseSpan(parent_span.raw_span().generation(name=span_name))
         else:
             span = LangfuseSpan(parent_span.raw_span().span(name=span_name))
@@ -175,30 +231,8 @@ class LangfuseTracer(Tracer):
 
         yield span
 
-        # Update span metadata based on component type
-        if tags.get(_COMPONENT_TYPE_KEY) in _SUPPORTED_GENERATORS:
-            # Haystack returns one meta dict for each message, but the 'usage' value
-            # is always the same, let's just pick the first item
-            meta = span._data.get(_COMPONENT_OUTPUT_KEY, {}).get("meta")
-            if meta:
-                m = meta[0]
-                span._span.update(usage=m.get("usage") or None, model=m.get("model"))
-        elif tags.get(_COMPONENT_TYPE_KEY) in _SUPPORTED_CHAT_GENERATORS:
-            replies = span._data.get(_COMPONENT_OUTPUT_KEY, {}).get("replies")
-            if replies:
-                meta = replies[0].meta
-                completion_start_time = meta.get("completion_start_time")
-                if completion_start_time:
-                    try:
-                        completion_start_time = datetime.fromisoformat(completion_start_time)
-                    except ValueError:
-                        logger.error(f"Failed to parse completion_start_time: {completion_start_time}")
-                        completion_start_time = None
-                span._span.update(
-                    usage=meta.get("usage") or None,
-                    model=meta.get("model"),
-                    completion_start_time=completion_start_time,
-                )
+        # Let the span handler process the span
+        self._span_handler.handle(span, component_type)
 
         raw_span = span.raw_span()
 
