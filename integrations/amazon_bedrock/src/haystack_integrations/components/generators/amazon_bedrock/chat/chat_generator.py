@@ -20,11 +20,11 @@ from haystack_integrations.common.amazon_bedrock.utils import get_aws_session
 logger = logging.getLogger(__name__)
 
 
-def _convert_tools_to_bedrock_format(tools: Optional[List[Tool]] = None) -> Optional[Dict[str, Any]]:
+def _format_tools_for_bedrock(tools: Optional[List[Tool]] = None) -> Optional[Dict[str, Any]]:
     """
-    Convert Haystack Tool(s) to Amazon Bedrock toolConfig format.
+    Format Haystack Tool(s) to Amazon Bedrock toolConfig format.
 
-    :param tools: List of Tool objects to convert
+    :param tools: List of Tool objects to format
     :return: Dictionary in Bedrock toolConfig format or None if no tools
     """
     if not tools:
@@ -39,12 +39,12 @@ def _convert_tools_to_bedrock_format(tools: Optional[List[Tool]] = None) -> Opti
     return {"tools": tool_specs} if tool_specs else None
 
 
-def _convert_to_bedrock_format(messages: List[ChatMessage]) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+def _format_messages_for_bedrock(messages: List[ChatMessage]) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
     """
-    Convert a list of ChatMessages to the format expected by Bedrock API.
+    Format a list of ChatMessages to the format expected by Bedrock API.
     Separates system messages and handles tool results and tool calls.
 
-    :param messages: List of ChatMessages to convert
+    :param messages: List of ChatMessages to format
     :return: Tuple of (system_prompts, non_system_messages) in Bedrock format
     """
     system_prompts = []
@@ -93,6 +93,135 @@ def _convert_to_bedrock_format(messages: List[ChatMessage]) -> Tuple[List[Dict[s
             non_system_messages.append({"role": msg.role.value, "content": content})
 
     return system_prompts, non_system_messages
+
+
+def _parse_bedrock_completion_response(response_body: Dict[str, Any], model: str) -> List[ChatMessage]:
+    """
+    Parse a Bedrock response to a list of ChatMessage objects.
+
+    :param response_body: Raw response from Bedrock API
+    :param model: The model ID used for generation
+    :return: List of ChatMessage objects
+    """
+    replies = []
+    if "output" in response_body and "message" in response_body["output"]:
+        message = response_body["output"]["message"]
+        if message["role"] == "assistant":
+            content_blocks = message["content"]
+
+            # Common meta information
+            base_meta = {
+                "model": model,
+                "index": 0,
+                "finish_reason": response_body.get("stopReason"),
+                "usage": {
+                    # OpenAI's format for usage for cross ChatGenerator compatibility
+                    "prompt_tokens": response_body.get("usage", {}).get("inputTokens", 0),
+                    "completion_tokens": response_body.get("usage", {}).get("outputTokens", 0),
+                    "total_tokens": response_body.get("usage", {}).get("totalTokens", 0),
+                },
+            }
+
+            # Process each content block separately
+            for content_block in content_blocks:
+                if "text" in content_block:
+                    replies.append(ChatMessage.from_assistant(content_block["text"], meta=base_meta.copy()))
+                elif "toolUse" in content_block:
+                    # Convert tool use to ToolCall
+                    tool_use = content_block["toolUse"]
+                    tool_call = ToolCall(
+                        id=tool_use.get("toolUseId"),
+                        tool_name=tool_use.get("name"),
+                        arguments=tool_use.get("input", {}),
+                    )
+                    replies.append(ChatMessage.from_assistant("", tool_calls=[tool_call], meta=base_meta.copy()))
+
+    return replies
+
+
+def _parse_bedrock_streaming_chunks(
+    response_stream: EventStream,
+    streaming_callback: Callable[[StreamingChunk], None],
+    model: str,
+) -> List[ChatMessage]:
+    """
+    Parse a streaming response from Bedrock.
+
+    :param response_stream: EventStream from Bedrock API
+    :param streaming_callback: Callback for streaming chunks
+    :param model: The model ID used for generation
+    :return: List of ChatMessage objects
+    """
+    replies = []
+    current_content = ""
+    current_tool_call: Optional[Dict[str, Any]] = None
+    base_meta = {
+        "model": model,
+        "index": 0,
+    }
+
+    for event in response_stream:
+        if "contentBlockStart" in event:
+            # Reset accumulators for new message
+            current_content = ""
+            current_tool_call = None
+            block_start = event["contentBlockStart"]
+            if "start" in block_start and "toolUse" in block_start["start"]:
+                tool_start = block_start["start"]["toolUse"]
+                current_tool_call = {
+                    "id": tool_start["toolUseId"],
+                    "name": tool_start["name"],
+                    "arguments": "",  # Will accumulate deltas as string
+                }
+
+        elif "contentBlockDelta" in event:
+            delta = event["contentBlockDelta"]["delta"]
+            if "text" in delta:
+                delta_text = delta["text"]
+                current_content += delta_text
+                streaming_chunk = StreamingChunk(content=delta_text, meta=None)
+                streaming_callback(streaming_chunk)
+            elif "toolUse" in delta and current_tool_call:
+                # Accumulate tool use input deltas
+                current_tool_call["arguments"] += delta["toolUse"].get("input", "")
+
+        elif "contentBlockStop" in event:
+            if current_tool_call:
+                # Parse accumulated input if it's a JSON string
+                try:
+                    input_json = json.loads(current_tool_call["arguments"])
+                    current_tool_call["arguments"] = input_json
+                except json.JSONDecodeError:
+                    # Keep as string if not valid JSON
+                    pass
+
+                tool_call = ToolCall(
+                    id=current_tool_call["id"],
+                    tool_name=current_tool_call["name"],
+                    arguments=current_tool_call["arguments"],
+                )
+                replies.append(ChatMessage.from_assistant("", tool_calls=[tool_call], meta=base_meta.copy()))
+            elif current_content:
+                replies.append(ChatMessage.from_assistant(current_content, meta=base_meta.copy()))
+
+        elif "messageStop" in event:
+            # Update finish reason for all replies
+            for reply in replies:
+                reply.meta["finish_reason"] = event["messageStop"].get("stopReason")
+
+        elif "metadata" in event:
+            metadata = event["metadata"]
+            # Update usage stats for all replies
+            for reply in replies:
+                if "usage" in metadata:
+                    usage = metadata["usage"]
+                    reply.meta["usage"] = {
+                        "prompt_tokens": usage.get("inputTokens", 0),
+                        "completion_tokens": usage.get("outputTokens", 0),
+                        "total_tokens": usage.get("totalTokens", 0),
+                    }
+
+    return replies
 
 
 @component
@@ -298,14 +427,14 @@ class AmazonBedrockChatGenerator:
         _check_duplicate_tool_names(tools)
         tool_config = merged_kwargs.pop("toolConfig", None)
         if tools:
-            # Convert Haystack tools to Bedrock format
-            tool_config = _convert_tools_to_bedrock_format(tools)
+            # Format Haystack tools to Bedrock format
+            tool_config = _format_tools_for_bedrock(tools)
 
         # Any remaining kwargs go to additionalModelRequestFields
         additional_fields = merged_kwargs if merged_kwargs else None
 
-        # Convert messages to Bedrock format
-        system_prompts, messages_list = _convert_to_bedrock_format(messages)
+        # Format messages to Bedrock format
+        system_prompts, messages_list = _format_messages_for_bedrock(messages)
 
         # Build API parameters
         params = {
@@ -328,135 +457,12 @@ class AmazonBedrockChatGenerator:
                 if not response_stream:
                     msg = "No stream found in the response."
                     raise AmazonBedrockInferenceError(msg)
-                replies = self.process_streaming_response(response_stream, callback)
+                replies = _parse_bedrock_streaming_chunks(response_stream, callback, self.model)
             else:
                 response = self.client.converse(**params)
-                replies = self.extract_replies_from_response(response)
+                replies = _parse_bedrock_completion_response(response, self.model)
         except ClientError as exception:
             msg = f"Could not generate inference for Amazon Bedrock model {self.model} due: {exception}"
             raise AmazonBedrockInferenceError(msg) from exception
 
         return {"replies": replies}
-
-    def extract_replies_from_response(self, response_body: Dict[str, Any]) -> List[ChatMessage]:
-        """
-        Extract ChatMessage replies from a Bedrock response.
-
-        :param response_body: Raw response from Bedrock API
-        :return: List of ChatMessage objects
-        """
-        replies = []
-        if "output" in response_body and "message" in response_body["output"]:
-            message = response_body["output"]["message"]
-            if message["role"] == "assistant":
-                content_blocks = message["content"]
-
-                # Common meta information
-                base_meta = {
-                    "model": self.model,
-                    "index": 0,
-                    "finish_reason": response_body.get("stopReason"),
-                    "usage": {
-                        # OpenAI's format for usage for cross ChatGenerator compatibility
-                        "prompt_tokens": response_body.get("usage", {}).get("inputTokens", 0),
-                        "completion_tokens": response_body.get("usage", {}).get("outputTokens", 0),
-                        "total_tokens": response_body.get("usage", {}).get("totalTokens", 0),
-                    },
-                }
-
-                # Process each content block separately
-                for content_block in content_blocks:
-                    if "text" in content_block:
-                        replies.append(ChatMessage.from_assistant(content_block["text"], meta=base_meta.copy()))
-                    elif "toolUse" in content_block:
-                        # Convert tool use to ToolCall
-                        tool_use = content_block["toolUse"]
-                        tool_call = ToolCall(
-                            id=tool_use.get("toolUseId"),
-                            tool_name=tool_use.get("name"),
-                            arguments=tool_use.get("input", {}),
-                        )
-                        replies.append(ChatMessage.from_assistant("", tool_calls=[tool_call], meta=base_meta.copy()))
-
-        return replies
-
-    def process_streaming_response(
-        self, response_stream: EventStream, streaming_callback: Callable[[StreamingChunk], None]
-    ) -> List[ChatMessage]:
-        """
-        Process a streaming response from Bedrock.
-
-        :param response_stream: EventStream from Bedrock API
-        :param streaming_callback: Callback for streaming chunks
-        :return: List of ChatMessage objects
-        """
-        replies = []
-        current_content = ""
-        current_tool_call: Optional[Dict[str, Any]] = None
-        base_meta = {
-            "model": self.model,
-            "index": 0,
-        }
-
-        for event in response_stream:
-            if "contentBlockStart" in event:
-                # Reset accumulators for new message
-                current_content = ""
-                current_tool_call = None
-                block_start = event["contentBlockStart"]
-                if "start" in block_start and "toolUse" in block_start["start"]:
-                    tool_start = block_start["start"]["toolUse"]
-                    current_tool_call = {
-                        "id": tool_start["toolUseId"],
-                        "name": tool_start["name"],
-                        "arguments": "",  # Will accumulate deltas as string
-                    }
-
-            elif "contentBlockDelta" in event:
-                delta = event["contentBlockDelta"]["delta"]
-                if "text" in delta:
-                    delta_text = delta["text"]
-                    current_content += delta_text
-                    streaming_chunk = StreamingChunk(content=delta_text, meta=None)
-                    streaming_callback(streaming_chunk)
-                elif "toolUse" in delta and current_tool_call:
-                    # Accumulate tool use input deltas
-                    current_tool_call["arguments"] += delta["toolUse"].get("input", "")
-
-            elif "contentBlockStop" in event:
-                if current_tool_call:
-                    # Parse accumulated input if it's a JSON string
-                    try:
-                        input_json = json.loads(current_tool_call["arguments"])
-                        current_tool_call["arguments"] = input_json
-                    except json.JSONDecodeError:
-                        # Keep as string if not valid JSON
-                        pass
-
-                    tool_call = ToolCall(
-                        id=current_tool_call["id"],
-                        tool_name=current_tool_call["name"],
-                        arguments=current_tool_call["arguments"],
-                    )
-                    replies.append(ChatMessage.from_assistant("", tool_calls=[tool_call], meta=base_meta.copy()))
-                elif current_content:
-                    replies.append(ChatMessage.from_assistant(current_content, meta=base_meta.copy()))
-
-            elif "messageStop" in event:
-                # Update finish reason for all replies
-                for reply in replies:
-                    reply.meta["finish_reason"] = event["messageStop"].get("stopReason")
-
-            elif "metadata" in event:
-                metadata = event["metadata"]
-                # Update usage stats for all replies
-                for reply in replies:
-                    if "usage" in metadata:
-                        usage = metadata["usage"]
-                        reply.meta["usage"] = {
-                            "prompt_tokens": usage.get("inputTokens", 0),
-                            "completion_tokens": usage.get("outputTokens", 0),
-                            "total_tokens": usage.get("totalTokens", 0),
-                        }
-
-        return replies
