@@ -114,7 +114,9 @@ class LangfuseConnector:
             only accessible to the Langfuse account owner. The default is `False`.
         :param public_key: The Langfuse public key. Defaults to reading from LANGFUSE_PUBLIC_KEY environment variable.
         :param secret_key: The Langfuse secret key. Defaults to reading from LANGFUSE_SECRET_KEY environment variable.
-        :param httpx_client: Optional custom httpx.Client instance to use for Langfuse API calls.
+        :param httpx_client: Optional custom httpx.Client instance to use for Langfuse API calls. Note that this client
+            is not serializable, so when recreating a pipeline from YAML, any custom client passed here will not be
+            preserved - a new default client will be used instead.
         """
         self.name = name
         self.public = public
