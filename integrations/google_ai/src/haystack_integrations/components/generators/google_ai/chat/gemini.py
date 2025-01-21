@@ -3,15 +3,19 @@ import logging
 from typing import Any, Callable, Dict, List, Optional, Union
 
 import google.generativeai as genai
-from google.ai.generativelanguage import Content, Part
+from google.ai.generativelanguage import Content, Part, FunctionDeclaration
+from google.ai.generativelanguage import Tool as GoogleTool
+
+
 from google.ai.generativelanguage import Tool as ToolProto
 from google.generativeai import GenerationConfig, GenerativeModel
-from google.generativeai.types import GenerateContentResponse, HarmBlockThreshold, HarmCategory, Tool
+from google.generativeai.types import GenerateContentResponse, HarmBlockThreshold, HarmCategory
 from haystack.core.component import component
 from haystack.core.serialization import default_from_dict, default_to_dict
 from haystack.dataclasses import ByteStream, StreamingChunk
 from haystack.dataclasses.chat_message import ChatMessage, ChatRole
 from haystack.utils import Secret, deserialize_callable, deserialize_secrets_inplace, serialize_callable
+from haystack.tools import Tool, deserialize_tools_inplace, _check_duplicate_tool_names
 
 logger = logging.getLogger(__name__)
 
@@ -128,14 +132,19 @@ class GoogleAIGeminiChatGenerator:
         """
 
         genai.configure(api_key=api_key.resolve_value())
+        _check_duplicate_tool_names(tools)
 
         self._api_key = api_key
         self._model_name = model
         self._generation_config = generation_config
         self._safety_settings = safety_settings
         self._tools = tools
-        self._model = GenerativeModel(self._model_name, tools=self._tools)
+        self._model = GenerativeModel(self._model_name)
         self._streaming_callback = streaming_callback
+
+    def _convert_haystack_tools_to_google_tool(self, tools: List[Tool]) -> GoogleTool:
+        function_declarations = [FunctionDeclaration(name=tool.name, description=tool.description, parameters=tool.parameters) for tool in tools]
+        return GoogleTool(function_declarations=function_declarations)
 
     def _generation_config_to_dict(self, config: Union[GenerationConfig, Dict[str, Any]]) -> Dict[str, Any]:
         if isinstance(config, dict):
@@ -164,18 +173,9 @@ class GoogleAIGeminiChatGenerator:
             model=self._model_name,
             generation_config=self._generation_config,
             safety_settings=self._safety_settings,
-            tools=self._tools,
+            tools=[tool.to_dict() for tool in self._tools] if self._tools else None,
             streaming_callback=callback_name,
         )
-        if (tools := data["init_parameters"].get("tools")) is not None:
-            data["init_parameters"]["tools"] = []
-            for tool in tools:
-                if isinstance(tool, Tool):
-                    # There are multiple Tool types in the Google lib, one that is a protobuf class and
-                    # another is a simple Python class. They have a similar structure but the Python class
-                    # can't be easily serializated to a dict. We need to convert it to a protobuf class first.
-                    tool = tool.to_proto()  # noqa: PLW2901
-                data["init_parameters"]["tools"].append(ToolProto.serialize(tool))
         if (generation_config := data["init_parameters"].get("generation_config")) is not None:
             data["init_parameters"]["generation_config"] = self._generation_config_to_dict(generation_config)
         if (safety_settings := data["init_parameters"].get("safety_settings")) is not None:
@@ -193,17 +193,7 @@ class GoogleAIGeminiChatGenerator:
             Deserialized component.
         """
         deserialize_secrets_inplace(data["init_parameters"], keys=["api_key"])
-
-        if (tools := data["init_parameters"].get("tools")) is not None:
-            deserialized_tools = []
-            for tool in tools:
-                # Tools are always serialized as a protobuf class, so we need to deserialize them first
-                # to be able to convert them to the Python class.
-                proto = ToolProto.deserialize(tool)
-                deserialized_tools.append(
-                    Tool(function_declarations=proto.function_declarations, code_execution=proto.code_execution)
-                )
-            data["init_parameters"]["tools"] = deserialized_tools
+        deserialize_tools_inplace(data["init_parameters"], key="tools")
         if (generation_config := data["init_parameters"].get("generation_config")) is not None:
             data["init_parameters"]["generation_config"] = GenerationConfig(**generation_config)
         if (safety_settings := data["init_parameters"].get("safety_settings")) is not None:
@@ -230,58 +220,29 @@ class GoogleAIGeminiChatGenerator:
             msg = f"Unsupported type {type(part)} for part {part}"
             raise ValueError(msg)
 
-    def _message_to_part(self, message: ChatMessage) -> Part:
-        if message.is_from(ChatRole.ASSISTANT) and message.name:
-            p = Part()
-            p.function_call.name = message.name
-            p.function_call.args = {}
-            for k, v in json.loads(message.text).items():
-                p.function_call.args[k] = v
-            return p
-        elif message.is_from(ChatRole.SYSTEM) or message.is_from(ChatRole.ASSISTANT):
-            p = Part()
-            p.text = message.text
-            return p
-        elif "FUNCTION" in ChatRole._member_names_ and message.is_from(ChatRole.FUNCTION):
-            p = Part()
-            p.function_response.name = message.name
-            p.function_response.response = message.text
-            return p
-        elif message.is_from(ChatRole.TOOL):
-            p = Part()
-            p.function_response.name = message.tool_call_result.origin.tool_name
-            p.function_response.response = message.tool_call_result.result
-            return p
-        elif message.is_from(ChatRole.USER):
-            return self._convert_part(message.text)
-
+      
     def _message_to_content(self, message: ChatMessage) -> Content:
+        part = Part()
         if message.is_from(ChatRole.ASSISTANT) and message.name:
-            part = Part()
             part.function_call.name = message.name
             part.function_call.args = {}
             for k, v in json.loads(message.text).items():
                 part.function_call.args[k] = v
         elif message.is_from(ChatRole.SYSTEM) or message.is_from(ChatRole.ASSISTANT):
-            part = Part()
             part.text = message.text
         elif "FUNCTION" in ChatRole._member_names_ and message.is_from(ChatRole.FUNCTION):
-            part = Part()
             part.function_response.name = message.name
             part.function_response.response = message.text
-        elif message.is_from(ChatRole.USER):
-            part = self._convert_part(message.text)
         elif message.is_from(ChatRole.TOOL):
-            part = Part()
             part.function_response.name = message.tool_call_result.origin.tool_name
             part.function_response.response = message.tool_call_result.result
+        elif message.is_from(ChatRole.USER):
+            part = self._convert_part(message.text)
         else:
             msg = f"Unsupported message role {message.role}"
             raise ValueError(msg)
 
-        role = "user"
-        if message.is_from(ChatRole.ASSISTANT) or message.is_from(ChatRole.SYSTEM):
-            role = "model"
+        role = "model" if message.is_from(ChatRole.ASSISTANT) or message.is_from(ChatRole.SYSTEM) else "user"
         return Content(parts=[part], role=role)
 
     @component.output_types(replies=List[ChatMessage])
@@ -289,6 +250,8 @@ class GoogleAIGeminiChatGenerator:
         self,
         messages: List[ChatMessage],
         streaming_callback: Optional[Callable[[StreamingChunk], None]] = None,
+        *,
+        tools: Optional[List[Tool]] = None,
     ):
         """
         Generates text based on the provided messages.
@@ -305,12 +268,17 @@ class GoogleAIGeminiChatGenerator:
         history = [self._message_to_content(m) for m in messages[:-1]]
         session = self._model.start_chat(history=history)
 
-        new_message = self._message_to_part(messages[-1])
+        tools = tools or self._tools
+        _check_duplicate_tool_names(tools)
+        google_tool = self._convert_haystack_tools_to_google_tool(tools) if tools else None
+
+        new_message = self._message_to_content(messages[-1])
         res = session.send_message(
             content=new_message,
             generation_config=self._generation_config,
             safety_settings=self._safety_settings,
             stream=streaming_callback is not None,
+            tools=google_tool,
         )
 
         replies = self._get_stream_response(res, streaming_callback) if streaming_callback else self._get_response(res)

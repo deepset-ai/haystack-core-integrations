@@ -1,36 +1,29 @@
 import json
 import os
 from unittest.mock import patch
+from typing import Callable, Annotated
 
 import pytest
 from google.generativeai import GenerationConfig, GenerativeModel
-from google.generativeai.types import FunctionDeclaration, HarmBlockThreshold, HarmCategory, Tool
+from google.generativeai.types import FunctionDeclaration, HarmBlockThreshold, HarmCategory
 from haystack.dataclasses import StreamingChunk
 from haystack.dataclasses.chat_message import ChatMessage, ChatRole
-
+from haystack.tools import Tool, create_tool_from_function
 from haystack_integrations.components.generators.google_ai import GoogleAIGeminiChatGenerator
 
-GET_CURRENT_WEATHER_FUNC = FunctionDeclaration(
-    name="get_current_weather",
-    description="Get the current weather in a given location",
-    parameters={
-        "type_": "OBJECT",
-        "properties": {
-            "location": {"type_": "STRING", "description": "The city and state, e.g. San Francisco, CA"},
-            "unit": {
-                "type_": "STRING",
-                "enum": [
-                    "celsius",
-                    "fahrenheit",
-                ],
-            },
-        },
-        "required": ["location"],
-    },
-)
+
+def get_current_weather(location: Annotated[str, "The city, e.g. San Francisco"], unit: Annotated[str, "The temperature unit of measurement, e.g. celsius or fahrenheit"] = "celsius"):  # noqa: ARG001
+    return {"weather": "sunny", "temperature": 21.8, "unit": unit}
+
+@pytest.fixture
+def tools():
+    tool = create_tool_from_function(get_current_weather)
+    print(tool)
+    return [tool]
 
 
-def test_init(monkeypatch):
+
+def test_init(monkeypatch, tools):
     monkeypatch.setenv("GOOGLE_API_KEY", "test")
 
     generation_config = GenerationConfig(
@@ -42,20 +35,19 @@ def test_init(monkeypatch):
         top_k=0.5,
     )
     safety_settings = {HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_ONLY_HIGH}
-    tool = Tool(function_declarations=[GET_CURRENT_WEATHER_FUNC])
     with patch(
         "haystack_integrations.components.generators.google_ai.chat.gemini.genai.configure"
     ) as mock_genai_configure:
         gemini = GoogleAIGeminiChatGenerator(
             generation_config=generation_config,
             safety_settings=safety_settings,
-            tools=[tool],
+            tools=tools,
         )
     mock_genai_configure.assert_called_once_with(api_key="test")
     assert gemini._model_name == "gemini-1.5-flash"
     assert gemini._generation_config == generation_config
     assert gemini._safety_settings == safety_settings
-    assert gemini._tools == [tool]
+    assert gemini._tools == tools
     assert isinstance(gemini._model, GenerativeModel)
 
 
@@ -79,6 +71,8 @@ def test_to_dict(monkeypatch):
 
 def test_to_dict_with_param(monkeypatch):
     monkeypatch.setenv("GOOGLE_API_KEY", "test")
+    tools = [Tool(name="name", description="description", parameters={"x": {"type": "string"}}, function=print)]
+
 
     generation_config = GenerationConfig(
         candidate_count=1,
@@ -89,13 +83,12 @@ def test_to_dict_with_param(monkeypatch):
         top_k=2,
     )
     safety_settings = {HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_ONLY_HIGH}
-    tool = Tool(function_declarations=[GET_CURRENT_WEATHER_FUNC])
 
     with patch("haystack_integrations.components.generators.google_ai.chat.gemini.genai.configure"):
         gemini = GoogleAIGeminiChatGenerator(
             generation_config=generation_config,
             safety_settings=safety_settings,
-            tools=[tool],
+            tools=tools,
         )
     assert gemini.to_dict() == {
         "type": "haystack_integrations.components.generators.google_ai.chat.gemini.GoogleAIGeminiChatGenerator",
@@ -112,11 +105,17 @@ def test_to_dict_with_param(monkeypatch):
             },
             "safety_settings": {10: 3},
             "streaming_callback": None,
-            "tools": [
-                b"\n\xad\x01\n\x13get_current_weather\x12+Get the current weather in a given location\x1ai"
-                b"\x08\x06:\x1f\n\x04unit\x12\x17\x08\x01*\x07celsius*\nfahrenheit::\n\x08location\x12.\x08"
-                b"\x01\x1a*The city and state, e.g. San Francisco, CAB\x08location"
-            ],
+                "tools": [
+                    {
+                        "type": "haystack.tools.tool.Tool",
+                        "data": {
+                            "description": "description",
+                            "function": "builtins.print",
+                            "name": "name",
+                            "parameters": {"x": {"type": "string"}},
+                        },
+                    }
+                ],
         },
     }
 
@@ -166,11 +165,17 @@ def test_from_dict_with_param(monkeypatch):
                     },
                     "safety_settings": {10: 3},
                     "streaming_callback": None,
-                    "tools": [
-                        b"\n\xad\x01\n\x13get_current_weather\x12+Get the current weather in a given location\x1ai"
-                        b"\x08\x06:\x1f\n\x04unit\x12\x17\x08\x01*\x07celsius*\nfahrenheit::\n\x08location\x12.\x08"
-                        b"\x01\x1a*The city and state, e.g. San Francisco, CAB\x08location"
-                    ],
+                "tools": [
+                    {
+                        "type": "haystack.tools.tool.Tool",
+                        "data": {
+                            "description": "description",
+                            "function": "builtins.print",
+                            "name": "name",
+                            "parameters": {"x": {"type": "string"}},
+                        },
+                    }
+                ],
                 },
             }
         )
@@ -186,35 +191,17 @@ def test_from_dict_with_param(monkeypatch):
     )
     assert gemini._safety_settings == {HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_ONLY_HIGH}
     assert len(gemini._tools) == 1
-    assert len(gemini._tools[0].function_declarations) == 1
-    assert gemini._tools[0].function_declarations[0].name == "get_current_weather"
-    assert gemini._tools[0].function_declarations[0].description == "Get the current weather in a given location"
-    assert (
-        gemini._tools[0].function_declarations[0].parameters.properties["location"].description
-        == "The city and state, e.g. San Francisco, CA"
-    )
-    assert gemini._tools[0].function_declarations[0].parameters.properties["unit"].enum == ["celsius", "fahrenheit"]
-    assert gemini._tools[0].function_declarations[0].parameters.required == ["location"]
+    assert gemini._tools[0].name == "name"
+    assert gemini._tools[0].description == "description"
+    assert gemini._tools[0].parameters == {"x": {"type": "string"}}
+    assert gemini._tools[0].function == print
     assert isinstance(gemini._model, GenerativeModel)
 
 
 @pytest.mark.skipif(not os.environ.get("GOOGLE_API_KEY", None), reason="GOOGLE_API_KEY env var not set")
-def test_run():
-    # We're ignoring the unused function argument check since we must have that argument for the test
-    # to run successfully, but we don't actually use it.
-    def get_current_weather(location: str, unit: str = "celsius"):  # noqa: ARG001
-        return {"weather": "sunny", "temperature": 21.8, "unit": unit}
+def test_run(tools):
 
-    get_current_weather_func = FunctionDeclaration.from_function(
-        get_current_weather,
-        descriptions={
-            "location": "The city, e.g. San Francisco",
-            "unit": "The temperature unit of measurement, e.g. celsius or fahrenheit",
-        },
-    )
-
-    tool = Tool(function_declarations=[get_current_weather_func])
-    gemini_chat = GoogleAIGeminiChatGenerator(model="gemini-pro", tools=[tool])
+    gemini_chat = GoogleAIGeminiChatGenerator(model="gemini-pro", tools=tools)
     messages = [ChatMessage.from_user("What is the temperature in celsius in Berlin?")]
     response = gemini_chat.run(messages=messages)
     assert "replies" in response
@@ -241,26 +228,14 @@ def test_run():
 
 
 @pytest.mark.skipif(not os.environ.get("GOOGLE_API_KEY", None), reason="GOOGLE_API_KEY env var not set")
-def test_run_with_streaming_callback():
+def test_run_with_streaming_callback(tools):
     streaming_callback_called = False
 
     def streaming_callback(_chunk: StreamingChunk) -> None:
         nonlocal streaming_callback_called
         streaming_callback_called = True
 
-    def get_current_weather(location: str, unit: str = "celsius"):  # noqa: ARG001
-        return {"weather": "sunny", "temperature": 21.8, "unit": unit}
-
-    get_current_weather_func = FunctionDeclaration.from_function(
-        get_current_weather,
-        descriptions={
-            "location": "The city, e.g. San Francisco",
-            "unit": "The temperature unit of measurement, e.g. celsius or fahrenheit",
-        },
-    )
-
-    tool = Tool(function_declarations=[get_current_weather_func])
-    gemini_chat = GoogleAIGeminiChatGenerator(model="gemini-pro", tools=[tool], streaming_callback=streaming_callback)
+    gemini_chat = GoogleAIGeminiChatGenerator(model="gemini-pro", tools=tools, streaming_callback=streaming_callback)
     messages = [ChatMessage.from_user("What is the temperature in celsius in Berlin?")]
     response = gemini_chat.run(messages=messages)
     assert "replies" in response
