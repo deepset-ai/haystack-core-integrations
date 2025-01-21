@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/amazon_bedrock-v2.1.3] - 2025-01-21
+
+### 🧹 Chores
+
+- Bedrock - pin `transformers!=4.48.*` (#1306)
+
+
 ## [integrations/amazon_bedrock-v2.1.2] - 2025-01-20
 
 ### 🌀 Miscellaneous
