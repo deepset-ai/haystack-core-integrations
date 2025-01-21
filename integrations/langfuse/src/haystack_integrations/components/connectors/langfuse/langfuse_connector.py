@@ -2,9 +2,9 @@ from typing import Any, Dict, Optional
 
 import httpx
 from haystack import component, default_from_dict, default_to_dict, logging, tracing
-from haystack.utils import Secret, deserialize_secrets_inplace
+from haystack.utils import Secret, deserialize_callable, deserialize_secrets_inplace, serialize_callable
 
-from haystack_integrations.tracing.langfuse import LangfuseTracer
+from haystack_integrations.tracing.langfuse import LangfuseTracer, SpanHandler
 from langfuse import Langfuse
 
 logger = logging.getLogger(__name__)
@@ -103,6 +103,7 @@ class LangfuseConnector:
         public_key: Optional[Secret] = Secret.from_env_var("LANGFUSE_PUBLIC_KEY"),  # noqa: B008
         secret_key: Optional[Secret] = Secret.from_env_var("LANGFUSE_SECRET_KEY"),  # noqa: B008
         httpx_client: Optional[httpx.Client] = None,
+        span_handler: Optional[SpanHandler] = None,
     ):
         """
         Initialize the LangfuseConnector component.
@@ -117,11 +118,13 @@ class LangfuseConnector:
         :param httpx_client: Optional custom httpx.Client instance to use for Langfuse API calls. Note that when
             deserializing a pipeline from YAML, any custom client is discarded and Langfuse will create its own default
             client, since HTTPX clients cannot be serialized.
+        :param span_handler: Optional custom span handler to use for Langfuse API calls.
         """
         self.name = name
         self.public = public
         self.secret_key = secret_key
         self.public_key = public_key
+        self.span_handler = span_handler
         self.tracer = LangfuseTracer(
             tracer=Langfuse(
                 secret_key=secret_key.resolve_value() if secret_key else None,
@@ -130,6 +133,7 @@ class LangfuseConnector:
             ),
             name=name,
             public=public,
+            span_handler=span_handler,
         )
         tracing.enable_tracing(self.tracer)
 
@@ -158,6 +162,7 @@ class LangfuseConnector:
 
         :returns: The serialized component as a dictionary.
         """
+        span_handler = serialize_callable(self.span_handler) if self.span_handler else None
         return default_to_dict(
             self,
             name=self.name,
@@ -165,6 +170,7 @@ class LangfuseConnector:
             secret_key=self.secret_key.to_dict() if self.secret_key else None,
             public_key=self.public_key.to_dict() if self.public_key else None,
             # Note: httpx_client is not serialized as it's not serializable
+            span_handler=span_handler,
         )
 
     @classmethod
@@ -175,5 +181,8 @@ class LangfuseConnector:
         :param data: The dictionary representation of this component.
         :returns: The deserialized component instance.
         """
-        deserialize_secrets_inplace(data["init_parameters"], keys=["secret_key", "public_key"])
+        init_params = data["init_parameters"]
+        deserialize_secrets_inplace(init_params, keys=["secret_key", "public_key"])
+        if init_params["span_handler"]:
+            init_params["span_handler"] = deserialize_callable(init_params["span_handler"])
         return default_from_dict(cls, data)
