@@ -1,10 +1,11 @@
 import contextlib
 import os
+from abc import ABC, abstractmethod
 from contextvars import ContextVar
 from datetime import datetime
-from typing import Any, Dict, Iterator, List, Optional, Union
+from typing import Any, Dict, Iterator, List, Optional
 
-from haystack import logging
+from haystack import default_from_dict, default_to_dict, logging
 from haystack.dataclasses import ChatMessage
 from haystack.tracing import Span, Tracer
 from haystack.tracing import tracer as proxy_tracer
@@ -50,7 +51,7 @@ class LangfuseSpan(Span):
     Internal class representing a bridge between the Haystack span tracing API and Langfuse.
     """
 
-    def __init__(self, span: "Union[langfuse.client.StatefulSpanClient, langfuse.client.StatefulTraceClient]") -> None:
+    def __init__(self, span: "langfuse.client.StatefulClient") -> None:
         """
         Initialize a LangfuseSpan instance.
 
@@ -98,7 +99,7 @@ class LangfuseSpan(Span):
 
         self._data[key] = value
 
-    def raw_span(self) -> "Union[langfuse.client.StatefulSpanClient, langfuse.client.StatefulTraceClient]":
+    def raw_span(self) -> "langfuse.client.StatefulClient":
         """
         Return the underlying span instance.
 
@@ -110,54 +111,71 @@ class LangfuseSpan(Span):
         return {}
 
 
-class LangfuseTracer(Tracer):
+class SpanHandler(ABC):
     """
-    Internal class representing a bridge between the Haystack tracer and Langfuse.
+    Handler for creating and processing Langfuse spans.
+    Implement this class to customize how spans are created and processed.
     """
 
-    def __init__(self, tracer: "langfuse.Langfuse", name: str = "Haystack", public: bool = False) -> None:
+    def __init__(self):
+        self.tracer: Optional[langfuse.Langfuse] = None
+
+    def init_tracer(self, tracer: "langfuse.Langfuse") -> None:
+        """Initialize with Langfuse tracer. Called by LangfuseTracer."""
+        self.tracer = tracer
+
+    @abstractmethod
+    def create_span(
+        self, name: str, parent_span: Optional[Span], component_type: Optional[str], tags: Optional[Dict[str, Any]]
+    ) -> LangfuseSpan:
         """
-        Initialize a LangfuseTracer instance.
+        Create a span of appropriate type based on component.
 
-        :param tracer: The Langfuse tracer instance.
-        :param name: The name of the pipeline or component. This name will be used to identify the tracing run on the
-            Langfuse dashboard.
-        :param public: Whether the tracing data should be public or private. If set to `True`, the tracing data will
-        be publicly accessible to anyone with the tracing URL. If set to `False`, the tracing data will be private
-        and only accessible to the Langfuse account owner.
+        :param name: The name of the span
+        :param parent_span: The parent span if any
+        :param component_type: The type of the component creating the span
+        :param tags: Additional tags for the span
+        :returns: A new LangfuseSpan instance
         """
-        if not proxy_tracer.is_content_tracing_enabled:
-            logger.warning(
-                "Traces will not be logged to Langfuse because Haystack tracing is disabled. "
-                "To enable, set the HAYSTACK_CONTENT_TRACING_ENABLED environment variable to true "
-                "before importing Haystack."
-            )
-        self._tracer = tracer
-        self._context: List[LangfuseSpan] = []
-        self._name = name
-        self._public = public
-        self.enforce_flush = os.getenv(HAYSTACK_LANGFUSE_ENFORCE_FLUSH_ENV_VAR, "true").lower() == "true"
+        pass
 
-    @contextlib.contextmanager
-    def trace(
-        self, operation_name: str, tags: Optional[Dict[str, Any]] = None, parent_span: Optional[Span] = None
-    ) -> Iterator[Span]:
-        tags = tags or {}
-        span_name = tags.get(_COMPONENT_NAME_KEY, operation_name)
+    @abstractmethod
+    def handle(self, span: LangfuseSpan, component_type: Optional[str]) -> None:
+        """
+        Process a span after it has been yielded.
 
-        # Create new span depending whether there's a parent span or not
+        :param span: The LangfuseSpan that was yielded
+        :param component_type: The type of the component that created this span
+        """
+        pass
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "SpanHandler":
+        return default_from_dict(cls, data)
+
+    def to_dict(self) -> Dict[str, Any]:
+        return default_to_dict(self)
+
+
+class DefaultSpanHandler(SpanHandler):
+    """Default implementation that provides the original Langfuse tracing behavior."""
+
+    def create_span(
+        self,
+        name: str,
+        parent_span: Optional[Span],
+        component_type: Optional[str],
+        tags: Optional[Dict[str, Any]],  # noqa: ARG002
+    ) -> LangfuseSpan:
+        message = "Tracer is not initialized"
+        if self.tracer is None:
+            raise RuntimeError(message)
+        context = tracing_context_var.get({})
         if not parent_span:
-            if operation_name != _PIPELINE_RUN_KEY:
-                logger.warning(
-                    "Creating a new trace without a parent span is not recommended for operation '{operation_name}'.",
-                    operation_name=operation_name,
-                )
-            # Create a new trace if no parent span is provided
-            context = tracing_context_var.get({})
-            span = LangfuseSpan(
-                self._tracer.trace(
-                    name=self._name,
-                    public=self._public,
+            # Create a new trace when there's no parent span
+            return LangfuseSpan(
+                self.tracer.trace(
+                    name=name,
                     id=context.get("trace_id"),
                     user_id=context.get("user_id"),
                     session_id=context.get("session_id"),
@@ -165,25 +183,18 @@ class LangfuseTracer(Tracer):
                     version=context.get("version"),
                 )
             )
-        elif tags.get(_COMPONENT_TYPE_KEY) in _ALL_SUPPORTED_GENERATORS:
-            span = LangfuseSpan(parent_span.raw_span().generation(name=span_name))
+        elif component_type in _ALL_SUPPORTED_GENERATORS:
+            return LangfuseSpan(parent_span.raw_span().generation(name=name))
         else:
-            span = LangfuseSpan(parent_span.raw_span().span(name=span_name))
+            return LangfuseSpan(parent_span.raw_span().span(name=name))
 
-        self._context.append(span)
-        span.set_tags(tags)
-
-        yield span
-
-        # Update span metadata based on component type
-        if tags.get(_COMPONENT_TYPE_KEY) in _SUPPORTED_GENERATORS:
-            # Haystack returns one meta dict for each message, but the 'usage' value
-            # is always the same, let's just pick the first item
+    def handle(self, span: LangfuseSpan, component_type: Optional[str]) -> None:
+        if component_type in _SUPPORTED_GENERATORS:
             meta = span._data.get(_COMPONENT_OUTPUT_KEY, {}).get("meta")
             if meta:
                 m = meta[0]
                 span._span.update(usage=m.get("usage") or None, model=m.get("model"))
-        elif tags.get(_COMPONENT_TYPE_KEY) in _SUPPORTED_CHAT_GENERATORS:
+        elif component_type in _SUPPORTED_CHAT_GENERATORS:
             replies = span._data.get(_COMPONENT_OUTPUT_KEY, {}).get("replies")
             if replies:
                 meta = replies[0].meta
@@ -199,6 +210,65 @@ class LangfuseTracer(Tracer):
                     model=meta.get("model"),
                     completion_start_time=completion_start_time,
                 )
+
+
+class LangfuseTracer(Tracer):
+    """
+    Internal class representing a bridge between the Haystack tracer and Langfuse.
+    """
+
+    def __init__(
+        self,
+        tracer: "langfuse.Langfuse",
+        name: str = "Haystack",
+        public: bool = False,
+        span_handler: Optional[SpanHandler] = None,
+    ) -> None:
+        """
+        Initialize a LangfuseTracer instance.
+
+        :param tracer: The Langfuse tracer instance.
+        :param name: The name of the pipeline or component. This name will be used to identify the tracing run on the
+            Langfuse dashboard.
+        :param public: Whether the tracing data should be public or private. If set to `True`, the tracing data will
+            be publicly accessible to anyone with the tracing URL. If set to `False`, the tracing data will be private
+            and only accessible to the Langfuse account owner.
+        :param span_handler: Custom handler for processing spans. If None, uses DefaultSpanHandler.
+        """
+        if not proxy_tracer.is_content_tracing_enabled:
+            logger.warning(
+                "Traces will not be logged to Langfuse because Haystack tracing is disabled. "
+                "To enable, set the HAYSTACK_CONTENT_TRACING_ENABLED environment variable to true "
+                "before importing Haystack."
+            )
+        self._tracer = tracer
+        self._context: List[LangfuseSpan] = []
+        self._name = name
+        self._public = public
+        self.enforce_flush = os.getenv(HAYSTACK_LANGFUSE_ENFORCE_FLUSH_ENV_VAR, "true").lower() == "true"
+        self._span_handler = span_handler or DefaultSpanHandler()
+        self._span_handler.init_tracer(tracer)
+
+    @contextlib.contextmanager
+    def trace(
+        self, operation_name: str, tags: Optional[Dict[str, Any]] = None, parent_span: Optional[Span] = None
+    ) -> Iterator[Span]:
+        tags = tags or {}
+        span_name = tags.get(_COMPONENT_NAME_KEY, operation_name)
+        component_type = tags.get(_COMPONENT_TYPE_KEY)
+
+        # Create span using the handler
+        span = self._span_handler.create_span(
+            name=span_name, parent_span=parent_span, component_type=component_type, tags=tags
+        )
+
+        self._context.append(span)
+        span.set_tags(tags)
+
+        yield span
+
+        # Let the span handler process the span
+        self._span_handler.handle(span, component_type)
 
         raw_span = span.raw_span()
 
