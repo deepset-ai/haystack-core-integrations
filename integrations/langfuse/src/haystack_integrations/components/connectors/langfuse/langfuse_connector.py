@@ -1,5 +1,6 @@
 from typing import Any, Dict, Optional
 
+import httpx
 from haystack import component, default_from_dict, default_to_dict, logging, tracing
 from haystack.utils import Secret, deserialize_secrets_inplace
 
@@ -101,6 +102,7 @@ class LangfuseConnector:
         public: bool = False,
         public_key: Optional[Secret] = Secret.from_env_var("LANGFUSE_PUBLIC_KEY"),  # noqa: B008
         secret_key: Optional[Secret] = Secret.from_env_var("LANGFUSE_SECRET_KEY"),  # noqa: B008
+        httpx_client: Optional[httpx.Client] = None,
     ):
         """
         Initialize the LangfuseConnector component.
@@ -112,6 +114,7 @@ class LangfuseConnector:
             only accessible to the Langfuse account owner. The default is `False`.
         :param public_key: The Langfuse public key. Defaults to reading from LANGFUSE_PUBLIC_KEY environment variable.
         :param secret_key: The Langfuse secret key. Defaults to reading from LANGFUSE_SECRET_KEY environment variable.
+        :param httpx_client: Optional custom httpx.Client instance to use for Langfuse API calls.
         """
         self.name = name
         self.public = public
@@ -121,6 +124,7 @@ class LangfuseConnector:
             tracer=Langfuse(
                 secret_key=secret_key.resolve_value() if secret_key else None,
                 public_key=public_key.resolve_value() if public_key else None,
+                httpx_client=httpx_client,
             ),
             name=name,
             public=public,
@@ -158,6 +162,7 @@ class LangfuseConnector:
             public=self.public,
             secret_key=self.secret_key.to_dict() if self.secret_key else None,
             public_key=self.public_key.to_dict() if self.public_key else None,
+            # Note: httpx_client is not serialized as it's not serializable
         )
 
     @classmethod
