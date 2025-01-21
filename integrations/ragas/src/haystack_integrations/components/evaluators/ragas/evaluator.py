@@ -105,7 +105,7 @@ class RagasEvaluator:
     def run(
         self,
         query: Optional[str] = None,
-        response: Optional[Union[str, List[ChatMessage]]] = None,
+        response: Optional[Union[List[ChatMessage], str]] = None,
         documents: Optional[List[Union[Document, str]]] = None,
         reference_contexts: Optional[List[str]] = None,
         multi_responses: Optional[List[str]] = None,
@@ -203,14 +203,12 @@ class RagasEvaluator:
             for err in error.errors():
                 field = err["loc"][0]
                 haystack_field = field_mapping.get(field, field)
-                # This is causing the the problem
-                expected_type = SingleTurnSample.__annotations__.get(field)
-
+                expected_type = self.run.__annotations__.get(haystack_field)
                 type_desc = self._get_expected_type_description(expected_type)
                 actual_type = type(err["input"]).__name__
                 example = self._get_example_input(haystack_field)
                 error_message = (
-                    f"Validation error in RagasEvaluator Component:\n"
+                    f"Validation error occured while running RagasEvaluator Component:\n"
                     f"The '{haystack_field}' field expected '{type_desc}', "
                     f"but got '{actual_type}'.\n"
                     f"Hint: Provide {example}"
@@ -249,8 +247,7 @@ class RagasEvaluator:
         elif get_origin(expected_type) is dict:
             key_type, value_type = get_args(expected_type)
             return f"a dictionary with keys of type {key_type.__name__} and values of type {value_type.__name__}"
-        print(expected_type)
-        return "siddharth"#expected_type.__name__
+        return expected_type.__name__
 
     def _get_example_input(self, field: str) -> str:
         """
@@ -266,7 +263,7 @@ class RagasEvaluator:
             "response": "ChatMessage(_content='Hi', _role='assistant')",
             "multi_responses": "['Response 1', 'Response 2']",
             "reference": "'A reference string'",
-            "rubrics": "{'clarity': 'high'}",
+            "rubrics": "{'score1': 'high_similarity'}",
         }
         return examples.get(field, "An appropriate value based on the field's type")
 
