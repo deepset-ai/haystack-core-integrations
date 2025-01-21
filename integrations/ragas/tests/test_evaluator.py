@@ -105,10 +105,12 @@ def test_run_invalid_rubrics_type():
     """Test RagasEvaluator raises ValueError for invalid rubrics type."""
     evaluator = RagasEvaluator(ragas_metrics=[Faithfulness()])
     query = "Which is the most popular global sport?"
-    rubrics = ChatMessage(_content="Invalid rubrics type", _role="human")  # Should be dict
+    response = "Football is the most popular sport in the world"
+    documents = ["Football is the most popular sport."]
+    rubrics = ["score_1"]  # Should be dict
 
-    with pytest.raises(ValueError, match="The 'rubrics' field expected .* but got 'ChatMessage'"):
-        evaluator.run(query=query, rubrics=rubrics)
+    with pytest.raises(ValueError, match="The 'rubrics' field expected 'one of Dict, NoneType', but got 'list'."):
+        evaluator.run(query=query, rubrics=rubrics, response=response, documents=documents)
 
 
 def test_run_invalid_documents_type():
