@@ -1,6 +1,6 @@
 # SPDX-FileCopyrightText: 2024-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
-from .tracer import LangfuseTracer, SpanHandler
+from .tracer import DefaultSpanHandler, LangfuseSpan, LangfuseTracer, SpanHandler
 
-__all__ = ["LangfuseTracer", "SpanHandler"]
+__all__ = ["DefaultSpanHandler", "LangfuseSpan", "LangfuseTracer", "SpanHandler"]
