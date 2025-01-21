@@ -250,7 +250,9 @@ class RagasEvaluator:
         elif get_origin(expected_type) is dict:
             key_type, value_type = get_args(expected_type)
             return f"a dictionary with keys of type {key_type.__name__} and values of type {value_type.__name__}"
-        return expected_type.__name__
+        else:
+            # Handle non-generic types or unknown types gracefully
+            return getattr(expected_type, "__name__", str(expected_type))
 
     def _get_example_input(self, field: str) -> str:
         """
