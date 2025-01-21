@@ -270,6 +270,7 @@ class GoogleAIGeminiChatGenerator:
 
         tools = tools or self._tools
         _check_duplicate_tool_names(tools)
+        print(tools)
         google_tool = self._convert_haystack_tools_to_google_tool(tools) if tools else None
 
         new_message = self._message_to_content(messages[-1])
@@ -278,7 +279,7 @@ class GoogleAIGeminiChatGenerator:
             generation_config=self._generation_config,
             safety_settings=self._safety_settings,
             stream=streaming_callback is not None,
-            tools=google_tool,
+            tools=[google_tool] if google_tool else None,
         )
 
         replies = self._get_stream_response(res, streaming_callback) if streaming_callback else self._get_response(res)
