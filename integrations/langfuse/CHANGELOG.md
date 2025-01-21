@@ -1,5 +1,18 @@
 # Changelog
 
+## [integrations/langfuse-v0.6.4] - 2025-01-17
+
+### 🚀 Features
+
+- Add LangfuseConnector secure key management and serialization  (#1287)
+
+
+## [integrations/langfuse-v0.6.3] - 2025-01-15
+
+### 🌀 Miscellaneous
+
+- Chore: Langfuse - pin `haystack-ai>=2.9.0` and simplify message conversion (#1292)
+
 ## [integrations/langfuse-v0.6.2] - 2025-01-02
 
 ### 🚀 Features

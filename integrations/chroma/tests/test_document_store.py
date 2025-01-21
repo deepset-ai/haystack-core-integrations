@@ -406,18 +406,6 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, FilterDocuments
             ],
         )
 
-    @pytest.mark.skip(reason="Filter on dataframe contents is not supported.")
-    def test_comparison_equal_with_dataframe(
-        self, document_store: ChromaDocumentStore, filterable_docs: List[Document]
-    ):
-        pass
-
-    @pytest.mark.skip(reason="Filter on dataframe contents is not supported.")
-    def test_comparison_not_equal_with_dataframe(
-        self, document_store: ChromaDocumentStore, filterable_docs: List[Document]
-    ):
-        pass
-
     @pytest.mark.skip(reason="Chroma does not support comparison with null values")
     def test_comparison_equal_with_none(self, document_store, filterable_docs):
         pass

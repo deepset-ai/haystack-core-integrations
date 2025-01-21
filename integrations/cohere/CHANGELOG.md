@@ -1,5 +1,17 @@
 # Changelog
 
+## [integrations/cohere-v2.0.2] - 2025-01-15
+
+### 🐛 Bug Fixes
+
+- Make GoogleAI Chat Generator compatible with new `ChatMessage`; small fixes to Cohere tests (#1253)
+- Cohere - fix chat message creation (#1289)
+
+### 🌀 Miscellaneous
+
+- Test: remove tests involving serialization of lambdas (#1281)
+- Test: remove more tests involving serialization of lambdas (#1285)
+
 ## [integrations/cohere-v2.0.1] - 2024-12-09
 
 ### ⚙️ CI

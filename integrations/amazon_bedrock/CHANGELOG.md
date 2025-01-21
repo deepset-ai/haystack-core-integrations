@@ -1,5 +1,11 @@
 # Changelog
 
+## [integrations/amazon_bedrock-v2.1.2] - 2025-01-20
+
+### 🌀 Miscellaneous
+
+- Fix: Bedrock - pin `transformers!=4.48.0` (#1302)
+
 ## [integrations/amazon_bedrock-v2.1.1] - 2024-12-18
 
 ### 🐛 Bug Fixes
