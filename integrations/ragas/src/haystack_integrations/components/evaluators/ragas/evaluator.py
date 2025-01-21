@@ -240,16 +240,18 @@ class RagasEvaluator:
 
     def _get_expected_type_description(self, expected_type) -> str:
         """Helper method to get a description of the expected type."""
-
         if get_origin(expected_type) is Union:
-            expected_types = [t.__name__ for t in get_args(expected_type)]
+            expected_types = [getattr(t, "__name__", str(t)) for t in get_args(expected_type)]
             return f"one of {', '.join(expected_types)}"
         elif get_origin(expected_type) is list:
             expected_item_type = get_args(expected_type)[0]
-            return f"a list of {expected_item_type.__name__}"
+            item_type_name = getattr(expected_item_type, "__name__", str(expected_item_type))
+            return f"a list of {item_type_name}"
         elif get_origin(expected_type) is dict:
             key_type, value_type = get_args(expected_type)
-            return f"a dictionary with keys of type {key_type.__name__} and values of type {value_type.__name__}"
+            key_type_name = getattr(key_type, "__name__", str(key_type))
+            value_type_name = getattr(value_type, "__name__", str(value_type))
+            return f"a dictionary with keys of type {key_type_name} and values of type {value_type_name}"
         else:
             # Handle non-generic types or unknown types gracefully
             return getattr(expected_type, "__name__", str(expected_type))
