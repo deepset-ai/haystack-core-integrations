@@ -1,6 +1,7 @@
 import os
 import time
 from urllib.parse import urlparse
+from typing import Optional
 
 import pytest
 import requests
@@ -15,6 +16,7 @@ import httpx
 from haystack_integrations.components.connectors.langfuse import LangfuseConnector
 from haystack_integrations.components.generators.anthropic import AnthropicChatGenerator
 from haystack_integrations.components.generators.cohere import CohereChatGenerator
+from haystack_integrations.tracing.langfuse.tracer import LangfuseSpan, _COMPONENT_OUTPUT_KEY
 
 # don't remove (or move) this env var setting from here, it's needed to turn tracing on
 os.environ["HAYSTACK_CONTENT_TRACING_ENABLED"] = "true"
@@ -71,6 +73,38 @@ def pipeline_with_custom_client(llm_class, expected_trace):
     return pipe
 
 
+@pytest.fixture
+def pipeline_with_custom_handler():
+    """Pipeline factory using custom span handler for Langfuse tracing"""
+
+    def custom_span_handler(span: "LangfuseSpan", component_type: Optional[str]) -> None:
+        if component_type == "OpenAIChatGenerator":
+            output = span._data.get(_COMPONENT_OUTPUT_KEY, {})
+            replies = output.get("replies", [])
+            if replies and "error" in replies[0].meta:
+                span._span.update(level="ERROR", status_message=f"LLM error: {replies[0].meta['error']}")
+            elif replies and len(replies[0].text) > 10:
+                span._span.update(level="WARNING", status_message="Response is too long!")
+            else:
+                span._span.update(level="DEFAULT", status_message="Success")
+
+    pipe = Pipeline()
+    pipe.add_component(
+        "tracer",
+        LangfuseConnector(
+            name="Chat example - OpenAI with levels",
+            public=True,
+            secret_key=Secret.from_env_var("LANGFUSE_SECRET_KEY"),
+            public_key=Secret.from_env_var("LANGFUSE_PUBLIC_KEY"),
+            span_handler=custom_span_handler,
+        ),
+    )
+    pipe.add_component("prompt_builder", ChatPromptBuilder())
+    pipe.add_component("llm", OpenAIChatGenerator())
+    pipe.connect("prompt_builder.prompt", "llm.messages")
+    return pipe
+
+
 @pytest.mark.integration
 @pytest.mark.parametrize(
     "llm_class, env_var, expected_trace",
@@ -81,7 +115,12 @@ def pipeline_with_custom_client(llm_class, expected_trace):
     ],
 )
 @pytest.mark.parametrize(
-    "pipeline_fixture", ["pipeline_with_env_vars", "pipeline_with_secrets", "pipeline_with_custom_client"]
+    "pipeline_fixture",
+    [
+        "pipeline_with_env_vars",
+        "pipeline_with_secrets",
+        "pipeline_with_custom_client",
+    ],
 )
 def test_tracing_integration(llm_class, env_var, expected_trace, pipeline_fixture, request):
     if not all([os.environ.get("LANGFUSE_SECRET_KEY"), os.environ.get("LANGFUSE_PUBLIC_KEY"), os.environ.get(env_var)]):
@@ -169,3 +208,50 @@ def test_pipeline_serialization(monkeypatch):
 
     # Verify pipeline is the same
     assert new_pipe == pipe
+
+
+@pytest.mark.integration
+def test_custom_handler_levels(pipeline_with_custom_handler):
+    """Test that custom span handler properly sets Langfuse log levels"""
+    if not all(
+        [os.environ.get("LANGFUSE_SECRET_KEY"), os.environ.get("LANGFUSE_PUBLIC_KEY"), os.environ.get("OPENAI_API_KEY")]
+    ):
+        pytest.skip(
+            "Missing required environment variables: LANGFUSE_SECRET_KEY, LANGFUSE_PUBLIC_KEY, or OPENAI_API_KEY"
+        )
+
+    pipe = pipeline_with_custom_handler
+    messages = [
+        ChatMessage.from_system("Always respond in German with exactly 5 words."),
+        ChatMessage.from_user("Tell me about {{location}}"),
+    ]
+
+    response = pipe.run(
+        data={
+            "prompt_builder": {"template_variables": {"location": "Berlin"}, "template": messages},
+            "tracer": {"invocation_context": {"user_id": "user_42"}},
+        }
+    )
+
+    trace_url = response["tracer"]["trace_url"]
+    uuid = os.path.basename(urlparse(trace_url).path)
+    url = f"https://cloud.langfuse.com/api/public/traces/{uuid}"
+
+    # Poll the Langfuse API a bit as the trace might not be ready right away
+    attempts = 5
+    delay = 1
+    while attempts >= 0:
+        res = requests.get(
+            url, auth=HTTPBasicAuth(os.environ["LANGFUSE_PUBLIC_KEY"], os.environ["LANGFUSE_SECRET_KEY"])
+        )
+        if attempts > 0 and res.status_code != 200:
+            attempts -= 1
+            time.sleep(delay)
+            delay *= 2
+            continue
+        assert res.status_code == 200, f"Failed to retrieve data from Langfuse API: {res.status_code}"
+
+        content = str(res.content)
+        # Should be WARNING since we asked for exactly 5 words
+        assert "WARNING" in content or "DEFAULT" in content
+        break
