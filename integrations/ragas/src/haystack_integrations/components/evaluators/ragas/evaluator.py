@@ -5,7 +5,7 @@ from haystack import Document, component, default_from_dict, default_to_dict
 from haystack.dataclasses import ChatMessage
 from langchain_core.embeddings import Embeddings as LangchainEmbeddings  # type: ignore
 from langchain_core.language_models import BaseLanguageModel as LangchainLLM  # type: ignore
-from pydantic import ValidationError
+from pydantic import ValidationError  # type: ignore
 
 from ragas import evaluate  # type: ignore
 from ragas.dataset_schema import (
@@ -188,9 +188,12 @@ class RagasEvaluator:
         if isinstance(response, list):  # Check if response is a list
             if all(isinstance(item, ChatMessage) for item in response):
                 return response[0]._content[0].text
+            return None
+        elif isinstance(response, str):
+            return response
         return response
 
-    def _handle_conversion_error(self, error: Exception) -> None:
+    def _handle_conversion_error(self, error: Exception):
         """Handle evaluation errors with improved messages.
 
         :params error: Original error
@@ -215,7 +218,7 @@ class RagasEvaluator:
                 )
                 raise ValueError(error_message)
 
-    def _handle_evaluation_error(self, error: Exception) -> None:
+    def _handle_evaluation_error(self, error: Exception):
         error_message = str(error)
         columns_match = re.search(r"additional columns \[(.*?)\]", error_message)
         field_mapping = {
