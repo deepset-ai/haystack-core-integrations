@@ -113,8 +113,12 @@ class LangfuseSpan(Span):
 
 class SpanHandler(ABC):
     """
-    Handler for creating and processing Langfuse spans.
-    Implement this class to customize how spans are created and processed.
+    Abstract base class for handling Langfuse spans.
+    Extend this class to customize how spans are created and processed.
+
+    This class defines the interface for span creation and processing in Langfuse tracing.
+    Custom implementations can override the span creation logic and how metadata is extracted
+    and attached to spans and thus to Langfuse traces.
     """
 
     def __init__(self):
@@ -142,10 +146,17 @@ class SpanHandler(ABC):
     @abstractmethod
     def handle(self, span: LangfuseSpan, component_type: Optional[str]) -> None:
         """
-        Process a span after it has been yielded.
+        Process a span after it has been yielded by attaching metadata and statistics.
+
+        Can be used to attach various types of metadata to spans, such as:
+        - token usage statistics
+        - model information
+        - timing data (e.g., time-to-first-token in LLMs)
+        - custom metrics and observations
 
         :param span: The LangfuseSpan that was yielded
-        :param component_type: The type of the component that created this span
+        :param component_type: The type of the component that created this span. Used to determine
+            the metadata extraction logic
         """
         pass
 
@@ -158,7 +169,7 @@ class SpanHandler(ABC):
 
 
 class DefaultSpanHandler(SpanHandler):
-    """Default implementation that provides the original Langfuse tracing behavior."""
+    """DefaultSpanHandler provides the default Langfuse tracing behavior for Haystack."""
 
     def create_span(
         self,
