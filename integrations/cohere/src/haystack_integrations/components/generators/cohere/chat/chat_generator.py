@@ -4,9 +4,9 @@ from typing import Any, Callable, Dict, List, Optional
 from haystack import component, default_from_dict, default_to_dict
 from haystack.dataclasses import ChatMessage, ChatRole, StreamingChunk
 from haystack.lazy_imports import LazyImport
+from haystack.tools import Tool
 from haystack.utils import Secret, deserialize_secrets_inplace
 from haystack.utils.callable_serialization import deserialize_callable, serialize_callable
-from haystack.tools import Tool
 
 with LazyImport(message="Run 'pip install cohere'") as cohere_import:
     import cohere
@@ -160,11 +160,11 @@ class CohereChatGenerator:
         """
         # update generation kwargs by merging with the generation kwargs passed to the run method
         generation_kwargs = {**self.generation_kwargs, **(generation_kwargs or {})}
-        
+
         # Add tools to generation kwargs if we have any
         if self.tools:
             generation_kwargs["tools"] = self._convert_tools_to_cohere_format()
-            
+
         chat_history = [self._message_to_dict(m) for m in messages[:-1]]
         if self.streaming_callback:
             response = self.client.chat_stream(
@@ -254,11 +254,7 @@ class CohereChatGenerator:
         for tool in self.tools:
             cohere_tool = {
                 "type": "function",
-                "function": {
-                    "name": tool.name,
-                    "description": tool.description,
-                    "parameters": tool.parameters
-                }
+                "function": {"name": tool.name, "description": tool.description, "parameters": tool.parameters},
             }
             cohere_tools.append(cohere_tool)
         return cohere_tools
