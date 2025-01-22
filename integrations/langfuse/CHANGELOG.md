@@ -1,5 +1,16 @@
 # Changelog
 
+## [integrations/langfuse-v0.7.0] - 2025-01-21
+
+### 🚀 Features
+
+- LangfuseConnector - add httpx.Client init param (#1308)
+
+### 🐛 Bug Fixes
+
+- End langfuse generation spans properly (#1301)
+
+
 ## [integrations/langfuse-v0.6.4] - 2025-01-17
 
 ### 🚀 Features
