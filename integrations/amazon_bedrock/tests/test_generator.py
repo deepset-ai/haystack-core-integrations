@@ -139,17 +139,6 @@ def test_constructor_with_empty_model():
         AmazonBedrockGenerator(model="")
 
 
-def test_deprecation_warning():
-    """
-    Test that setting max_length or truncate parameters raises a deprecation warning
-    """
-    with pytest.warns(DeprecationWarning, match="The 'max_length' and 'truncate' parameters have been removed"):
-        AmazonBedrockGenerator(model="anthropic.claude-v2", max_length=100)
-
-    with pytest.warns(DeprecationWarning, match="The 'max_length' and 'truncate' parameters have been removed"):
-        AmazonBedrockGenerator(model="anthropic.claude-v2", truncate=True)
-
-
 @pytest.mark.parametrize(
     "model, expected_model_adapter",
     [
