@@ -143,6 +143,7 @@ class AmazonBedrockGenerator:
             warnings.warn(
                 "The 'max_length' and 'truncate' parameters have been removed and no longer have any effect. "
                 "No truncation will be performed.",
+                stacklevel=2,
             )
 
         self.aws_access_key_id = aws_access_key_id
