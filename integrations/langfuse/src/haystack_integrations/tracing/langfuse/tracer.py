@@ -130,12 +130,18 @@ class SpanHandler(ABC):
 
     @abstractmethod
     def create_span(
-        self, name: str, parent_span: Optional[Span], component_type: Optional[str], tags: Optional[Dict[str, Any]]
+        self,
+        name: str,
+        operation_name: str,
+        parent_span: Optional[Span],
+        component_type: Optional[str],
+        tags: Optional[Dict[str, Any]],
     ) -> LangfuseSpan:
         """
         Create a span of appropriate type based on component.
 
         :param name: The name of the span
+        :param operation_name: The name of the operation that created the span
         :param parent_span: The parent span if any
         :param component_type: The type of the component creating the span
         :param tags: Additional tags for the span
@@ -174,15 +180,22 @@ class DefaultSpanHandler(SpanHandler):
     def create_span(
         self,
         name: str,
+        operation_name: str,
         parent_span: Optional[Span],
         component_type: Optional[str],
-        tags: Optional[Dict[str, Any]],  # noqa: ARG002
+        tags: Optional[Dict[str, Any]] = None,
     ) -> LangfuseSpan:
         message = "Tracer is not initialized"
         if self.tracer is None:
             raise RuntimeError(message)
         context = tracing_context_var.get({})
+        tags = tags or {}
         if not parent_span:
+            if operation_name != _PIPELINE_RUN_KEY:
+                logger.warning(
+                    "Creating a new trace without a parent span is not recommended for operation '{operation_name}'.",
+                    operation_name=operation_name,
+                )
             # Create a new trace when there's no parent span
             return LangfuseSpan(
                 self.tracer.trace(
@@ -270,7 +283,11 @@ class LangfuseTracer(Tracer):
 
         # Create span using the handler
         span = self._span_handler.create_span(
-            name=span_name, parent_span=parent_span, component_type=component_type, tags=tags
+            name=span_name,
+            operation_name=operation_name,
+            parent_span=parent_span,
+            component_type=component_type,
+            tags=tags,
         )
 
         self._context.append(span)
