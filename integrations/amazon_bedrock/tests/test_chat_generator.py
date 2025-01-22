@@ -411,9 +411,9 @@ class TestAmazonBedrockChatGeneratorInference:
         }
 
         replies = _parse_bedrock_completion_response(mixed_response, model)
-        assert len(replies) == 2
+        assert len(replies) == 1
         assert replies[0].text == "Let me help you with that. I'll use the search tool to find the answer."
-        tool_content = replies[1].tool_call
+        tool_content = replies[0].tool_call
         assert tool_content.id == "456"
         assert tool_content.tool_name == "search_tool"
         assert tool_content.arguments == {"query": "test"}

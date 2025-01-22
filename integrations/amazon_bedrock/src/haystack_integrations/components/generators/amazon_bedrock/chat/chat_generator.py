@@ -122,10 +122,12 @@ def _parse_bedrock_completion_response(response_body: Dict[str, Any], model: str
                 },
             }
 
-            # Process each content block separately
+            # Process all content blocks and combine them into a single message
+            text_content = []
+            tool_calls = []
             for content_block in content_blocks:
                 if "text" in content_block:
-                    replies.append(ChatMessage.from_assistant(content_block["text"], meta=base_meta.copy()))
+                    text_content.append(content_block["text"])
                 elif "toolUse" in content_block:
                     # Convert tool use to ToolCall
                     tool_use = content_block["toolUse"]
@@ -134,7 +136,10 @@ def _parse_bedrock_completion_response(response_body: Dict[str, Any], model: str
                         tool_name=tool_use.get("name"),
                         arguments=tool_use.get("input", {}),
                     )
-                    replies.append(ChatMessage.from_assistant("", tool_calls=[tool_call], meta=base_meta.copy()))
+                    tool_calls.append(tool_call)
+
+            # Create a single ChatMessage with combined text and tool calls
+            replies.append(ChatMessage.from_assistant(" ".join(text_content), tool_calls=tool_calls, meta=base_meta))
 
     return replies
 
