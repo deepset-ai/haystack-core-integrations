@@ -1,7 +1,7 @@
 import json
 import os
 from unittest.mock import patch
-from typing import Callable, Annotated
+from typing import Callable, Annotated, Literal
 
 import pytest
 from google.generativeai import GenerationConfig, GenerativeModel
@@ -12,8 +12,10 @@ from haystack.tools import Tool, create_tool_from_function
 from haystack_integrations.components.generators.google_ai import GoogleAIGeminiChatGenerator
 
 
-def get_current_weather(location: Annotated[str, "The city, e.g. San Francisco"], unit: Annotated[str, "The temperature unit of measurement, e.g. celsius or fahrenheit"] = "celsius"):  # noqa: ARG001
-    return {"weather": "sunny", "temperature": 21.8, "unit": unit}
+def get_current_weather(city: Annotated[str, "the city for which to get the weather, e.g. 'San Francisco'"] = "Munich",
+  unit: Annotated[Literal["Celsius", "Fahrenheit"], "the unit for the temperature"] = "Celsius"):
+  '''A simple function to get the current weather for a location.'''
+  return f"Weather report for {city}: 20 {unit}, sunny"
 
 @pytest.fixture
 def tools():
@@ -208,23 +210,25 @@ def test_run(tools):
     assert len(response["replies"]) > 0
     assert all(reply.role == ChatRole.ASSISTANT for reply in response["replies"])
 
-    # check the first response is a function call
+    # check the first response contains a tool call
     chat_message = response["replies"][0]
-    assert "function_call" in chat_message.meta
-    assert json.loads(chat_message.text) == {"location": "Berlin", "unit": "celsius"}
+    assert chat_message.tool_calls is not None
+    assert chat_message.tool_calls[0].tool_name == "get_current_weather"
+    assert chat_message.tool_calls[0].arguments == {"city": "Berlin", "unit": "Celsius"}
 
-    weather = get_current_weather(**json.loads(chat_message.text))
-    if hasattr(ChatMessage, "from_function"):
-        messages += response["replies"] + [ChatMessage.from_function(weather, name="get_current_weather")]
-        response = gemini_chat.run(messages=messages)
-        assert "replies" in response
-        assert len(response["replies"]) > 0
-        assert all(reply.role == ChatRole.ASSISTANT for reply in response["replies"])
+    weather = tools[0].invoke(**chat_message.tool_calls[0].arguments)
 
-        # check the second response is not a function call
-        chat_message = response["replies"][0]
-        assert "function_call" not in chat_message.meta
-        assert isinstance(chat_message.text, str)
+    messages += response["replies"] + [ChatMessage.from_tool(tool_result=weather, origin=chat_message.tool_calls[0])]
+    response = gemini_chat.run(messages=messages)
+    assert "replies" in response
+    assert len(response["replies"]) > 0
+    assert all(reply.role == ChatRole.ASSISTANT for reply in response["replies"])
+    
+    # check the second response is not a tool call
+    chat_message = response["replies"][0]
+    assert not chat_message.tool_calls
+    assert chat_message.text
+    assert "berlin" in chat_message.text.lower()
 
 
 @pytest.mark.skipif(not os.environ.get("GOOGLE_API_KEY", None), reason="GOOGLE_API_KEY env var not set")
@@ -243,23 +247,24 @@ def test_run_with_streaming_callback(tools):
     assert all(reply.role == ChatRole.ASSISTANT for reply in response["replies"])
     assert streaming_callback_called
 
-    # check the first response is a function call
+    # check the first response contains a tool call
     chat_message = response["replies"][0]
-    assert "function_call" in chat_message.meta
-    assert json.loads(chat_message.text) == {"location": "Berlin", "unit": "celsius"}
+    assert chat_message.tool_calls is not None
+    assert chat_message.tool_calls[0].tool_name == "get_current_weather"
+    assert chat_message.tool_calls[0].arguments == {"city": "Berlin", "unit": "Celsius"}
 
-    weather = get_current_weather(**json.loads(chat_message.text))
-    if hasattr(ChatMessage, "from_function"):
-        messages += response["replies"] + [ChatMessage.from_function(weather, name="get_current_weather")]
-        response = gemini_chat.run(messages=messages)
-        assert "replies" in response
-        assert len(response["replies"]) > 0
-        assert all(reply.role == ChatRole.ASSISTANT for reply in response["replies"])
+    weather = tools[0].invoke(**chat_message.tool_calls[0].arguments)
+    messages += response["replies"] + [ChatMessage.from_tool(tool_result=weather, origin=chat_message.tool_calls[0])]
+    response = gemini_chat.run(messages=messages)
+    assert "replies" in response
+    assert len(response["replies"]) > 0
+    assert all(reply.role == ChatRole.ASSISTANT for reply in response["replies"])
 
-        # check the second response is not a function call
-        chat_message = response["replies"][0]
-        assert "function_call" not in chat_message.meta
-        assert isinstance(chat_message.text, str)
+    # check the second response is not a tool call
+    chat_message = response["replies"][0]
+    assert not chat_message.tool_calls
+    assert chat_message.text
+    assert "berlin" in chat_message.text.lower()
 
 
 @pytest.mark.skipif(not os.environ.get("GOOGLE_API_KEY", None), reason="GOOGLE_API_KEY env var not set")
