@@ -17,11 +17,3 @@ def set_env_variables(monkeypatch):
 def mock_boto3_session():
     with patch("boto3.Session") as mock_client:
         yield mock_client
-
-
-@pytest.fixture
-def mock_prompt_handler():
-    with patch(
-        "haystack_integrations.components.generators.amazon_bedrock.handlers.DefaultPromptHandler"
-    ) as mock_prompt_handler:
-        yield mock_prompt_handler
