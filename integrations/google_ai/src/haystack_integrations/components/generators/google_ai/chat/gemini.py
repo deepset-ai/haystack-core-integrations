@@ -73,7 +73,7 @@ def _convert_chatmessage_to_google_content(message: ChatMessage) -> Content:
 @component
 class GoogleAIGeminiChatGenerator:
     """
-    Completes chats using multimodal Gemini models through Google AI Studio.
+    Completes chats using Gemini models through Google AI Studio.
 
     It uses the [`ChatMessage`](https://docs.haystack.deepset.ai/docs/data-classes#chatmessage)
       dataclass to interact with the model.
@@ -86,7 +86,7 @@ class GoogleAIGeminiChatGenerator:
     from haystack_integrations.components.generators.google_ai import GoogleAIGeminiChatGenerator
 
 
-    gemini_chat = GoogleAIGeminiChatGenerator(model="gemini-pro", api_key=Secret.from_token("<MY_API_KEY>"))
+    gemini_chat = GoogleAIGeminiChatGenerator(model="gemini-1.5-flash", api_key=Secret.from_token("<MY_API_KEY>"))
 
     messages = [ChatMessage.from_user("What is the most interesting thing you know?")]
     res = gemini_chat.run(messages=messages)
@@ -103,51 +103,40 @@ class GoogleAIGeminiChatGenerator:
     #### With function calling:
 
     ```python
+    from typing import Annotated
     from haystack.utils import Secret
     from haystack.dataclasses.chat_message import ChatMessage
-    from google.ai.generativelanguage import FunctionDeclaration, Tool
+    from haystack.components.tools import ToolInvoker
+    from haystack.tools import create_tool_from_function
 
     from haystack_integrations.components.generators.google_ai import GoogleAIGeminiChatGenerator
 
-    # Example function to get the current weather
-    def get_current_weather(location: str, unit: str = "celsius") -> str:
-        # Call a weather API and return some text
-        ...
+    # example function to get the current weather
+    def get_current_weather(
+        location: Annotated[str, "The city for which to get the weather, e.g. 'San Francisco'"] = "Munich",
+        unit: Annotated[str, "The unit for the temperature, e.g. 'celsius'"] = "celsius",
+    ) -> str:
+        return f"The weather in {location} is sunny. The temperature is 20 {unit}."
 
-    # Define the function interface
-    get_current_weather_func = FunctionDeclaration(
-        name="get_current_weather",
-        description="Get the current weather in a given location",
-        parameters={
-            "type": "object",
-            "properties": {
-                "location": {"type": "string", "description": "The city and state, e.g. San Francisco, CA"},
-                "unit": {
-                    "type": "string",
-                    "enum": [
-                        "celsius",
-                        "fahrenheit",
-                    ],
-                },
-            },
-            "required": ["location"],
-        },
+    tool = create_tool_from_function(get_current_weather)
+    tool_invoker = ToolInvoker(tools=[tool])
+
+    gemini_chat = GoogleAIGeminiChatGenerator(
+        model="gemini-1.5-flash",
+        api_key=Secret.from_token("<MY_API_KEY>"),
+        tools=[tool],
     )
-    tool = Tool([get_current_weather_func])
-
-    messages = [ChatMessage.from_user("What is the most interesting thing you know?")]
-
-    gemini_chat = GoogleAIGeminiChatGenerator(model="gemini-pro", api_key=Secret.from_token("<MY_API_KEY>"),
-                                              tools=[tool])
-
     messages = [ChatMessage.from_user("What is the temperature in celsius in Berlin?")]
-    res = gemini_chat.run(messages=messages)
+    replies = gemini_chat.run(messages=messages)["replies"]
+    print(replies[0].tool_calls)
 
-    weather = get_current_weather(**json.loads(res["replies"][0].text))
-    messages += res["replies"] + [ChatMessage.from_function(content=weather, name="get_current_weather")]
-    res = gemini_chat.run(messages=messages)
-    for reply in res["replies"]:
-        print(reply.text)
+    # actually invoke the tool
+    tool_messages = tool_invoker.run(messages=replies)["tool_messages"]
+    messages = messages + replies + tool_messages
+
+    # transform the tool call result into a human readable message
+    replies = gemini_chat.run(messages=messages)
+    print(replies[0].text)
     ```
     """
 
@@ -176,7 +165,8 @@ class GoogleAIGeminiChatGenerator:
         :param safety_settings: The safety settings to use.
             A dictionary with `HarmCategory` as keys and `HarmBlockThreshold` as values.
             For more information, see [the API reference](https://ai.google.dev/api)
-        :param tools: A list of Tool objects that can be used for [Function calling](https://ai.google.dev/docs/function_calling).
+        :param tools:
+            A list of tools for which the model can prepare calls.
         :param streaming_callback: A callback function that is called when a new token is received from the stream.
             The callback function accepts StreamingChunk as an argument.
         """
@@ -282,6 +272,9 @@ class GoogleAIGeminiChatGenerator:
             A list of `ChatMessage` instances, representing the input messages.
         :param streaming_callback:
             A callback function that is called when a new token is received from the stream.
+        :param tools:
+            A list of tools for which the model can prepare calls. If set, it will override the `tools` parameter set
+            during component initialization.
         :returns:
             A dictionary containing the following key:
             - `replies`:  A list containing the generated responses as `ChatMessage` instances.
