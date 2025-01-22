@@ -192,7 +192,8 @@ class GoogleAIGeminiChatGenerator:
         self._model = GenerativeModel(self._model_name)
         self._streaming_callback = streaming_callback
 
-    def _generation_config_to_dict(self, config: Union[GenerationConfig, Dict[str, Any]]) -> Dict[str, Any]:
+    @staticmethod
+    def _generation_config_to_dict(config: Union[GenerationConfig, Dict[str, Any]]) -> Dict[str, Any]:
         if isinstance(config, dict):
             return config
         return {
@@ -250,20 +251,19 @@ class GoogleAIGeminiChatGenerator:
             data["init_parameters"]["streaming_callback"] = deserialize_callable(serialized_callback_handler)
         return default_from_dict(cls, data)
 
-    def _convert_tool_to_google_tool(self, tool: Tool) -> FunctionDeclaration:
+    @staticmethod
+    def _convert_tool_to_google_tool(tool: Tool) -> FunctionDeclaration:
         """
         Converts a Haystack `Tool` to a Google AI `FunctionDeclaration` object.
 
         :param tool: The Haystack `Tool` to convert.
         :returns: The Google AI `FunctionDeclaration` object.
         """
-        parameters = tool.parameters
+        parameters = tool.parameters.copy()
 
-        # Google API does not support default values for parameters
-        for property_schema in parameters["properties"].values():
-            for key in list(property_schema.keys()):
-                if key == "default":
-                    del property_schema[key]
+        # Remove default values as Google API doesn't support them
+        for prop in parameters["properties"].values():
+            prop.pop("default", None)
 
         return FunctionDeclaration(name=tool.name, description=tool.description, parameters=parameters)
 
@@ -312,7 +312,8 @@ class GoogleAIGeminiChatGenerator:
 
         return {"replies": replies}
 
-    def _get_response(self, response_body: GenerateContentResponse) -> List[ChatMessage]:
+    @staticmethod
+    def _get_response(response_body: GenerateContentResponse) -> List[ChatMessage]:
         """
         Extracts the replies from the Google AI response.
 
@@ -321,35 +322,33 @@ class GoogleAIGeminiChatGenerator:
         """
         metadata = response_body.to_dict()
 
-        usage_metadata_openai_format = {}
+        # Currently, only one candidate is supported
+        candidate = response_body.candidates[0]
+        candidate_metadata = metadata["candidates"][0]
+        candidate_metadata.pop("content", None)  # we remove content from the metadata
 
-        usage_metadata = metadata.get("usage_metadata")
-        if usage_metadata:
-            usage_metadata_openai_format = {
+        # adapt usage metadata to OpenAI format
+        if usage_metadata := metadata.get("usage_metadata"):
+            candidate_metadata["usage"] = {
                 "prompt_tokens": usage_metadata["prompt_token_count"],
                 "completion_tokens": usage_metadata["candidates_token_count"],
                 "total_tokens": usage_metadata["total_token_count"],
             }
 
-        # Currently, only one candidate is supported
-        candidate = response_body.candidates[0]
-        candidate_metadata = metadata["candidates"][0]
-        candidate_metadata.pop("content", None)  # we remove content from the metadata
-        if usage_metadata_openai_format:
-            candidate_metadata["usage"] = usage_metadata_openai_format
+        text = ""
+        tool_calls = []
 
         for part in candidate.content.parts:
-            text = ""
-            tool_calls = []
-            if part.text != "":
-                text = part.text
+            if part.text:
+                text += part.text
             elif part.function_call:
                 tool_calls.append(ToolCall(tool_name=part.function_call.name, arguments=part.function_call.args))
 
         return [ChatMessage.from_assistant(text, meta=candidate_metadata, tool_calls=tool_calls)]
 
+    @staticmethod
     def _get_stream_response(
-        self, stream: GenerateContentResponse, streaming_callback: Callable[[StreamingChunk], None]
+        stream: GenerateContentResponse, streaming_callback: Callable[[StreamingChunk], None]
     ) -> List[ChatMessage]:
         """
         Extracts the replies from the Google AI streaming response.
@@ -358,23 +357,23 @@ class GoogleAIGeminiChatGenerator:
         :param streaming_callback: The handler for the streaming response.
         :returns: List of `ChatMessage` instances.
         """
+        text = ""
+        tool_calls = []
+        last_metadata = None
+
         for chunk in stream:
-            content: Union[str, Dict[str, Any]] = ""
-            dict_chunk = chunk.to_dict()
-            metadata = dict(dict_chunk)  # we copy and store the whole chunk as metadata in streaming calls
+            chunk_dict = chunk.to_dict()
+            last_metadata = chunk_dict
+            candidate = chunk_dict["candidates"][0]
 
-            # Currently, only one candidate is supported
-            candidate = dict_chunk["candidates"][0]
-
-            text = ""
-            tool_calls = []
             for part in candidate["content"]["parts"]:
-                if "text" in part and part["text"] != "":
-                    text = part["text"]
-                elif "function_call" in part and len(part["function_call"]) > 0:
+                if part.get("text"):
+                    text += part["text"]
+                elif part.get("function_call"):
                     tool_calls.append(
                         ToolCall(tool_name=part["function_call"]["name"], arguments=part["function_call"]["args"])
                     )
 
-            streaming_callback(StreamingChunk(content=content, meta=metadata))
-        return [ChatMessage.from_assistant(text, meta=metadata, tool_calls=tool_calls)]
+            streaming_callback(StreamingChunk(content=text, meta=chunk_dict))
+
+        return [ChatMessage.from_assistant(text, meta=last_metadata, tool_calls=tool_calls)]

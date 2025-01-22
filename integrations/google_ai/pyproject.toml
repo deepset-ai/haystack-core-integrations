@@ -157,3 +157,10 @@ module = [
   "numpy.*",
 ]
 ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+addopts = "--strict-markers"
+markers = [
+  "integration: integration tests",
+]
+log_cli = true
