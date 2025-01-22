@@ -6,6 +6,7 @@ from haystack.dataclasses import ChatMessage, ChatRole, StreamingChunk
 from haystack.lazy_imports import LazyImport
 from haystack.utils import Secret, deserialize_secrets_inplace
 from haystack.utils.callable_serialization import deserialize_callable, serialize_callable
+from haystack.tools import Tool
 
 with LazyImport(message="Run 'pip install cohere'") as cohere_import:
     import cohere
@@ -42,6 +43,7 @@ class CohereChatGenerator:
         streaming_callback: Optional[Callable[[StreamingChunk], None]] = None,
         api_base_url: Optional[str] = None,
         generation_kwargs: Optional[Dict[str, Any]] = None,
+        tools: Optional[List[Tool]] = None,
         **kwargs,
     ):
         """
@@ -77,6 +79,8 @@ class CohereChatGenerator:
                 `accurate` results or `fast` results.
             - 'temperature': A non-negative float that tunes the degree of randomness in generation. Lower temperatures
                 mean less random generations.
+        :param tools: List of Tool instances that the model can use. Each tool should have a name,
+            description and parameters schema.
         """
         cohere_import.check()
 
@@ -89,6 +93,7 @@ class CohereChatGenerator:
         self.streaming_callback = streaming_callback
         self.api_base_url = api_base_url
         self.generation_kwargs = generation_kwargs
+        self.tools = tools or []
         self.model_parameters = kwargs
         self.client = cohere.Client(
             api_key=self.api_key.resolve_value(), base_url=self.api_base_url, client_name="haystack"
@@ -115,6 +120,7 @@ class CohereChatGenerator:
             api_base_url=self.api_base_url,
             api_key=self.api_key.to_dict(),
             generation_kwargs=self.generation_kwargs,
+            tools=self.tools,
         )
 
     @classmethod
@@ -154,6 +160,11 @@ class CohereChatGenerator:
         """
         # update generation kwargs by merging with the generation kwargs passed to the run method
         generation_kwargs = {**self.generation_kwargs, **(generation_kwargs or {})}
+        
+        # Add tools to generation kwargs if we have any
+        if self.tools:
+            generation_kwargs["tools"] = self._convert_tools_to_cohere_format()
+            
         chat_history = [self._message_to_dict(m) for m in messages[:-1]]
         if self.streaming_callback:
             response = self.client.chat_stream(
@@ -234,3 +245,20 @@ class CohereChatGenerator:
             }
         )
         return message
+
+    def _convert_tools_to_cohere_format(self) -> List[Dict[str, Any]]:
+        """
+        Converts Haystack Tool instances to Cohere's tool format
+        """
+        cohere_tools = []
+        for tool in self.tools:
+            cohere_tool = {
+                "type": "function",
+                "function": {
+                    "name": tool.name,
+                    "description": tool.description,
+                    "parameters": tool.parameters
+                }
+            }
+            cohere_tools.append(cohere_tool)
+        return cohere_tools

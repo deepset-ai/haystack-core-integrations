@@ -29,6 +29,11 @@ MODELS_TO_TEST_WITH_TOOLS = [
 STREAMING_TOOL_MODELS = ["anthropic.claude-3-5-sonnet-20240620-v1:0", "cohere.command-r-plus-v1:0"]
 
 
+def weather(city: str):
+    """Get weather for a given city."""
+    return f"The weather in {city} is sunny and 32°C"
+
+
 @pytest.fixture
 def chat_messages():
     messages = [
@@ -40,10 +45,6 @@ def chat_messages():
 
 @pytest.fixture
 def tools():
-    def weather(city: str):
-        """Get weather for a given city."""
-        return f"The weather in {city} is sunny and 32°C"
-
     tool_parameters = {"type": "object", "properties": {"city": {"type": "string"}}, "required": ["city"]}
     tool = Tool(
         name="weather",
