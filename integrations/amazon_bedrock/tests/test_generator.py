@@ -1,5 +1,5 @@
 from typing import Any, Dict, Optional, Type
-from unittest.mock import MagicMock, call, patch
+from unittest.mock import MagicMock, call
 
 import pytest
 from haystack.dataclasses import StreamingChunk
