@@ -2,6 +2,7 @@ import contextlib
 import os
 from abc import ABC, abstractmethod
 from contextvars import ContextVar
+from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Dict, Iterator, List, Optional
 
@@ -111,58 +112,93 @@ class LangfuseSpan(Span):
         return {}
 
 
+@dataclass
+class SpanContext:
+    """
+    Context for creating spans in Langfuse.
+
+    This class encapsulates all the information needed to create a span in Langfuse tracing.
+    It is used by SpanHandler to determine what type of span to create (trace, generation, or regular)
+    and how to configure it.
+
+    :param name: The name of the span to create. For components, this is typically the component name.
+    :param operation_name: The operation being traced (e.g. "haystack.pipeline.run"). Used to determine
+        if a new trace should be created without warning.
+    :param component_type: The type of component creating the span (e.g. "OpenAIChatGenerator").
+        Used to determine if a generation span should be created.
+    :param tags: Additional metadata to attach to the span. Contains component input/output data
+        and other trace information.
+    :param parent_span: The parent span if this is a child span. If None, a new trace will be created.
+    :param trace_name: The name to use for the trace when creating a parent span. This comes from
+        the LangfuseTracer configuration.
+    :param public: Whether traces should be publicly accessible. This comes from the LangfuseTracer
+        configuration and only applies when creating parent spans.
+    """
+
+    name: str
+    operation_name: str
+    component_type: Optional[str]
+    tags: Dict[str, Any]
+    parent_span: Optional[Span]
+    trace_name: str
+    public: bool
+
+
 class SpanHandler(ABC):
     """
-    Abstract base class for handling Langfuse spans.
-    Extend this class to customize how spans are created and processed.
+    Abstract base class for customizing how Langfuse spans are created and processed.
 
-    This class defines the interface for span creation and processing in Langfuse tracing.
-    Custom implementations can override the span creation logic and how metadata is extracted
-    and attached to spans and thus to Langfuse traces.
+    This class defines two key extension points:
+    1. create_span: Controls what type of span to create (default or generation)
+    2. handle: Processes the span after component execution (adding metadata, metrics, etc.)
+
+    To implement a custom handler:
+    - Extend this class of DefaultSpanHandler
+    - Override create_span and handle methods
+    - Pass your handler to LangfuseConnector init method
     """
 
     def __init__(self):
         self.tracer: Optional[langfuse.Langfuse] = None
 
     def init_tracer(self, tracer: "langfuse.Langfuse") -> None:
-        """Initialize with Langfuse tracer. Called by LangfuseTracer."""
+        """
+        Initialize with Langfuse tracer. Called internally by LangfuseTracer.
+
+        :param tracer: The Langfuse client instance to use for creating spans
+        """
         self.tracer = tracer
 
     @abstractmethod
-    def create_span(
-        self,
-        name: str,
-        operation_name: str,
-        parent_span: Optional[Span],
-        component_type: Optional[str],
-        tags: Optional[Dict[str, Any]],
-    ) -> LangfuseSpan:
+    def create_span(self, context: SpanContext) -> LangfuseSpan:
         """
-        Create a span of appropriate type based on component.
+        Create a span of appropriate type based on the context.
 
-        :param name: The name of the span
-        :param operation_name: The name of the operation that created the span
-        :param parent_span: The parent span if any
-        :param component_type: The type of the component creating the span
-        :param tags: Additional tags for the span
-        :returns: A new LangfuseSpan instance
+        This method determines what kind of span to create:
+        - A new trace if there's no parent span
+        - A generation span for LLM components
+        - A default span for other components
+
+        :param context: The context containing all information needed to create the span
+        :returns: A new LangfuseSpan instance configured according to the context
         """
         pass
 
     @abstractmethod
     def handle(self, span: LangfuseSpan, component_type: Optional[str]) -> None:
         """
-        Process a span after it has been yielded by attaching metadata and statistics.
+        Process a span after component execution by attaching metadata and metrics.
 
-        Can be used to attach various types of metadata to spans, such as:
-        - token usage statistics
-        - model information
-        - timing data (e.g., time-to-first-token in LLMs)
-        - custom metrics and observations
+        This method is called after the component yields its span, allowing you to:
+        - Extract and attach token usage statistics
+        - Add model information
+        - Record timing data (e.g., time-to-first-token)
+        - Set log levels for quality monitoring
+        - Add custom metrics and observations
 
-        :param span: The LangfuseSpan that was yielded
-        :param component_type: The type of the component that created this span. Used to determine
-            the metadata extraction logic
+        :param span: The span that was yielded by the component
+        :param component_type: The type of component that created the span, used to determine
+            what metadata to extract and how to process it
         """
         pass
 
@@ -177,40 +213,33 @@ class SpanHandler(ABC):
 class DefaultSpanHandler(SpanHandler):
     """DefaultSpanHandler provides the default Langfuse tracing behavior for Haystack."""
 
-    def create_span(
-        self,
-        name: str,
-        operation_name: str,
-        parent_span: Optional[Span],
-        component_type: Optional[str],
-        tags: Optional[Dict[str, Any]] = None,
-    ) -> LangfuseSpan:
+    def create_span(self, context: SpanContext) -> LangfuseSpan:
         message = "Tracer is not initialized"
         if self.tracer is None:
             raise RuntimeError(message)
-        context = tracing_context_var.get({})
-        tags = tags or {}
-        if not parent_span:
-            if operation_name != _PIPELINE_RUN_KEY:
+        tracing_ctx = tracing_context_var.get({})
+        if not context.parent_span:
+            if context.operation_name != _PIPELINE_RUN_KEY:
                 logger.warning(
                     "Creating a new trace without a parent span is not recommended for operation '{operation_name}'.",
-                    operation_name=operation_name,
+                    operation_name=context.operation_name,
                 )
             # Create a new trace when there's no parent span
             return LangfuseSpan(
                 self.tracer.trace(
-                    name=name,
-                    id=context.get("trace_id"),
-                    user_id=context.get("user_id"),
-                    session_id=context.get("session_id"),
-                    tags=context.get("tags"),
-                    version=context.get("version"),
+                    name=context.trace_name,
+                    public=context.public,
+                    id=tracing_ctx.get("trace_id"),
+                    user_id=tracing_ctx.get("user_id"),
+                    session_id=tracing_ctx.get("session_id"),
+                    tags=tracing_ctx.get("tags"),
+                    version=tracing_ctx.get("version"),
                 )
             )
-        elif component_type in _ALL_SUPPORTED_GENERATORS:
-            return LangfuseSpan(parent_span.raw_span().generation(name=name))
+        elif context.component_type in _ALL_SUPPORTED_GENERATORS:
+            return LangfuseSpan(context.parent_span.raw_span().generation(name=context.name))
         else:
-            return LangfuseSpan(parent_span.raw_span().span(name=name))
+            return LangfuseSpan(context.parent_span.raw_span().span(name=context.name))
 
     def handle(self, span: LangfuseSpan, component_type: Optional[str]) -> None:
         if component_type in _SUPPORTED_GENERATORS:
@@ -283,11 +312,15 @@ class LangfuseTracer(Tracer):
 
         # Create span using the handler
         span = self._span_handler.create_span(
-            name=span_name,
-            operation_name=operation_name,
-            parent_span=parent_span,
-            component_type=component_type,
-            tags=tags,
+            SpanContext(
+                name=span_name,
+                operation_name=operation_name,
+                component_type=component_type,
+                tags=tags,
+                parent_span=parent_span,
+                trace_name=self._name,
+                public=self._public,
+            )
         )
 
         self._context.append(span)
