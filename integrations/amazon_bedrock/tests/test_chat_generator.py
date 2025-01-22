@@ -572,3 +572,51 @@ class TestAmazonBedrockChatGeneratorInference:
             "The weather in Paris is sunny and 32°C"
             == results["tool_invoker"]["tool_messages"][0].tool_call_result.result
         )
+
+    @pytest.mark.parametrize("model_name", [MODELS_TO_TEST_WITH_TOOLS[0]])  # just one model is enough
+    @pytest.mark.integration
+    def test_pipeline_with_amazon_bedrock_chat_generator_serde(self, model_name, tools):
+        """
+        Test that the AmazonBedrockChatGenerator component can be serialized and deserialized in a pipeline
+        """
+        # Create original pipeline
+        pipeline = Pipeline()
+        pipeline.add_component("generator", AmazonBedrockChatGenerator(model=model_name, tools=tools))
+        pipeline.add_component("tool_invoker", ToolInvoker(tools=tools))
+        pipeline.connect("generator", "tool_invoker")
+
+        # Serialize and deserialize
+        pipeline_dict = pipeline.to_dict()
+
+        # Verify tools in serialized dict
+        generator_tools = pipeline_dict["components"]["generator"]["init_parameters"]["tools"]
+        tool_invoker_tools = pipeline_dict["components"]["tool_invoker"]["init_parameters"]["tools"]
+
+        # Both components should have the same tool configuration
+        assert generator_tools == tool_invoker_tools
+        assert len(generator_tools) == 1
+
+        # Verify tool details
+        tool_dict = generator_tools[0]
+        assert tool_dict["type"] == "haystack.tools.tool.Tool"
+        assert tool_dict["data"]["name"] == "weather"
+        assert tool_dict["data"]["description"] == "useful to determine the weather in a given location"
+        assert tool_dict["data"]["parameters"] == {
+            "type": "object",
+            "properties": {"city": {"type": "string"}},
+            "required": ["city"],
+        }
+        assert tool_dict["data"]["function"] == "tests.test_chat_generator.weather"
+
+        # Load pipeline and verify it works
+        loaded_pipeline = Pipeline.from_dict(pipeline_dict)
+
+        # Run the deserialized pipeline
+        results = loaded_pipeline.run(
+            data={"generator": {"messages": [ChatMessage.from_user("What's the weather like in Paris?")]}}
+        )
+
+        assert (
+            "The weather in Paris is sunny and 32°C"
+            == results["tool_invoker"]["tool_messages"][0].tool_call_result.result
+        )
