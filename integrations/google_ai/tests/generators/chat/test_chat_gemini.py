@@ -1,28 +1,29 @@
-import json
 import os
+from typing import Annotated, Literal
 from unittest.mock import patch
-from typing import Callable, Annotated, Literal
 
 import pytest
 from google.generativeai import GenerationConfig, GenerativeModel
-from google.generativeai.types import FunctionDeclaration, HarmBlockThreshold, HarmCategory
+from google.generativeai.types import HarmBlockThreshold, HarmCategory
 from haystack.dataclasses import StreamingChunk
 from haystack.dataclasses.chat_message import ChatMessage, ChatRole
 from haystack.tools import Tool, create_tool_from_function
+
 from haystack_integrations.components.generators.google_ai import GoogleAIGeminiChatGenerator
 
 
-def get_current_weather(city: Annotated[str, "the city for which to get the weather, e.g. 'San Francisco'"] = "Munich",
-  unit: Annotated[Literal["Celsius", "Fahrenheit"], "the unit for the temperature"] = "Celsius"):
-  '''A simple function to get the current weather for a location.'''
-  return f"Weather report for {city}: 20 {unit}, sunny"
+def get_current_weather(
+    city: Annotated[str, "the city for which to get the weather, e.g. 'San Francisco'"] = "Munich",
+    unit: Annotated[Literal["Celsius", "Fahrenheit"], "the unit for the temperature"] = "Celsius",
+):
+    """A simple function to get the current weather for a location."""
+    return f"Weather report for {city}: 20 {unit}, sunny"
+
 
 @pytest.fixture
 def tools():
     tool = create_tool_from_function(get_current_weather)
-    print(tool)
     return [tool]
-
 
 
 def test_init(monkeypatch, tools):
@@ -75,7 +76,6 @@ def test_to_dict_with_param(monkeypatch):
     monkeypatch.setenv("GOOGLE_API_KEY", "test")
     tools = [Tool(name="name", description="description", parameters={"x": {"type": "string"}}, function=print)]
 
-
     generation_config = GenerationConfig(
         candidate_count=1,
         stop_sequences=["stop"],
@@ -107,17 +107,17 @@ def test_to_dict_with_param(monkeypatch):
             },
             "safety_settings": {10: 3},
             "streaming_callback": None,
-                "tools": [
-                    {
-                        "type": "haystack.tools.tool.Tool",
-                        "data": {
-                            "description": "description",
-                            "function": "builtins.print",
-                            "name": "name",
-                            "parameters": {"x": {"type": "string"}},
-                        },
-                    }
-                ],
+            "tools": [
+                {
+                    "type": "haystack.tools.tool.Tool",
+                    "data": {
+                        "description": "description",
+                        "function": "builtins.print",
+                        "name": "name",
+                        "parameters": {"x": {"type": "string"}},
+                    },
+                }
+            ],
         },
     }
 
@@ -167,17 +167,17 @@ def test_from_dict_with_param(monkeypatch):
                     },
                     "safety_settings": {10: 3},
                     "streaming_callback": None,
-                "tools": [
-                    {
-                        "type": "haystack.tools.tool.Tool",
-                        "data": {
-                            "description": "description",
-                            "function": "builtins.print",
-                            "name": "name",
-                            "parameters": {"x": {"type": "string"}},
-                        },
-                    }
-                ],
+                    "tools": [
+                        {
+                            "type": "haystack.tools.tool.Tool",
+                            "data": {
+                                "description": "description",
+                                "function": "builtins.print",
+                                "name": "name",
+                                "parameters": {"x": {"type": "string"}},
+                            },
+                        }
+                    ],
                 },
             }
         )
@@ -223,7 +223,7 @@ def test_run(tools):
     assert "replies" in response
     assert len(response["replies"]) > 0
     assert all(reply.role == ChatRole.ASSISTANT for reply in response["replies"])
-    
+
     # check the second response is not a tool call
     chat_message = response["replies"][0]
     assert not chat_message.tool_calls
@@ -269,7 +269,7 @@ def test_run_with_streaming_callback(tools):
 
 @pytest.mark.skipif(not os.environ.get("GOOGLE_API_KEY", None), reason="GOOGLE_API_KEY env var not set")
 def test_past_conversation():
-    gemini_chat = GoogleAIGeminiChatGenerator(model="gemini-pro")
+    gemini_chat = GoogleAIGeminiChatGenerator()
     messages = [
         ChatMessage.from_system("You are a knowledageable mathematician."),
         ChatMessage.from_user("What is 2+2?"),

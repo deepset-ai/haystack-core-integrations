@@ -1,25 +1,39 @@
-import json
 import logging
 from typing import Any, Callable, Dict, List, Optional, Union
 
 import google.generativeai as genai
 from google.ai.generativelanguage import Content, Part
-
-
-from google.generativeai.types import FunctionDeclaration
 from google.generativeai import GenerationConfig, GenerativeModel
-from google.generativeai.types import GenerateContentResponse, HarmBlockThreshold, HarmCategory
+from google.generativeai.types import (
+    FunctionDeclaration,
+    GenerateContentResponse,
+    HarmBlockThreshold,
+    HarmCategory,
+    content_types,
+)
 from haystack.core.component import component
 from haystack.core.serialization import default_from_dict, default_to_dict
 from haystack.dataclasses import StreamingChunk
 from haystack.dataclasses.chat_message import ChatMessage, ChatRole, ToolCall
+from haystack.tools import Tool, _check_duplicate_tool_names, deserialize_tools_inplace
 from haystack.utils import Secret, deserialize_callable, deserialize_secrets_inplace, serialize_callable
-from haystack.tools import Tool, deserialize_tools_inplace, _check_duplicate_tool_names
 
 logger = logging.getLogger(__name__)
 
 
 def _convert_chatmessage_to_google_content(message: ChatMessage) -> Content:
+    """
+    Converts a Haystack `ChatMessage` to a Google AI `Content` object.
+    System messages are not supported.
+
+    :param message: The Haystack `ChatMessage` to convert.
+    :returns: The Google AI `Content` object.
+    """
+
+    if message.is_from("system"):
+        msg = "This function does not support system messages."
+        raise ValueError(msg)
+
     text_contents = message.texts
     tool_calls = message.tool_calls
     tool_call_results = message.tool_call_results
@@ -27,18 +41,19 @@ def _convert_chatmessage_to_google_content(message: ChatMessage) -> Content:
     if not text_contents and not tool_calls and not tool_call_results:
         msg = "A `ChatMessage` must contain at least one `TextContent`, `ToolCall`, or `ToolCallResult`."
         raise ValueError(msg)
-    
+
     if len(text_contents) + len(tool_call_results) > 1:
         msg = "A `ChatMessage` can only contain one `TextContent` or one `ToolCallResult`."
         raise ValueError(msg)
 
-    
-    role = "model" if message.is_from(ChatRole.ASSISTANT) or message.is_from(ChatRole.SYSTEM) else "user"
-    # parts = []
+    role = "model" if message.is_from(ChatRole.ASSISTANT) else "user"
 
     if tool_call_results:
-        part = Part(function_response=genai.protos.FunctionResponse(name=tool_call_results[0].origin.tool_name, 
-                                                                       response={"result": tool_call_results[0].result}))
+        part = Part(
+            function_response=genai.protos.FunctionResponse(
+                name=tool_call_results[0].origin.tool_name, response={"result": tool_call_results[0].result}
+            )
+        )
         return Content(parts=[part], role=role)
 
     parts = []
@@ -51,9 +66,9 @@ def _convert_chatmessage_to_google_content(message: ChatMessage) -> Content:
         for tc in tool_calls:
             part = Part(function_call=genai.protos.FunctionCall(name=tc.tool_name, args=tc.arguments))
             parts.append(part)
-    
+
     return Content(parts=parts, role=role)
-    
+
 
 @component
 class GoogleAIGeminiChatGenerator:
@@ -235,18 +250,22 @@ class GoogleAIGeminiChatGenerator:
             data["init_parameters"]["streaming_callback"] = deserialize_callable(serialized_callback_handler)
         return default_from_dict(cls, data)
 
-      
-   
     def _convert_tool_to_google_tool(self, tool: Tool) -> FunctionDeclaration:
+        """
+        Converts a Haystack `Tool` to a Google AI `FunctionDeclaration` object.
+
+        :param tool: The Haystack `Tool` to convert.
+        :returns: The Google AI `FunctionDeclaration` object.
+        """
         parameters = tool.parameters
 
         # Google API does not support default values for parameters
         for property_schema in parameters["properties"].values():
             for key in list(property_schema.keys()):
                 if key == "default":
-                    del property_schema[key]        
+                    del property_schema[key]
 
-        return FunctionDeclaration(name=tool.name, description=tool.description, parameters=parameters)    
+        return FunctionDeclaration(name=tool.name, description=tool.description, parameters=parameters)
 
     @component.output_types(replies=List[ChatMessage])
     def run(
@@ -268,17 +287,21 @@ class GoogleAIGeminiChatGenerator:
             - `replies`:  A list containing the generated responses as `ChatMessage` instances.
         """
         streaming_callback = streaming_callback or self._streaming_callback
-        history = [_convert_chatmessage_to_google_content(m) for m in messages[:-1]]
-        session = self._model.start_chat(history=history)
 
         tools = tools or self._tools
         _check_duplicate_tool_names(tools)
-        
         google_tools = [self._convert_tool_to_google_tool(tool) for tool in tools] if tools else None
 
-        new_message = _convert_chatmessage_to_google_content(messages[-1])
+        if messages[0].is_from("system"):
+            self._model._system_instruction = content_types.to_content(messages[0].text)
+            messages = messages[1:]
+
+        google_messages = [_convert_chatmessage_to_google_content(m) for m in messages]
+
+        session = self._model.start_chat(history=google_messages[:-1])
+
         res = session.send_message(
-            content=new_message,
+            content=google_messages[-1],
             generation_config=self._generation_config,
             safety_settings=self._safety_settings,
             stream=streaming_callback is not None,
@@ -291,16 +314,13 @@ class GoogleAIGeminiChatGenerator:
 
     def _get_response(self, response_body: GenerateContentResponse) -> List[ChatMessage]:
         """
-        Extracts the responses from the Google AI response.
+        Extracts the replies from the Google AI response.
 
         :param response_body: The response from Google AI request.
-        :returns: The extracted responses.
+        :returns: List of `ChatMessage` instances.
         """
-        replies: List[ChatMessage] = []
         metadata = response_body.to_dict()
 
-        # currently Google only supports one candidate and usage metadata reflects this
-        # this should be refactored when multiple candidates are supported
         usage_metadata_openai_format = {}
 
         usage_metadata = metadata.get("usage_metadata")
@@ -311,51 +331,50 @@ class GoogleAIGeminiChatGenerator:
                 "total_tokens": usage_metadata["total_token_count"],
             }
 
-        for idx, candidate in enumerate(response_body.candidates):
-            candidate_metadata = metadata["candidates"][idx]
-            candidate_metadata.pop("content", None)  # we remove content from the metadata
-            if usage_metadata_openai_format:
-                candidate_metadata["usage"] = usage_metadata_openai_format
+        # Currently, only one candidate is supported
+        candidate = response_body.candidates[0]
+        candidate_metadata = metadata["candidates"][0]
+        candidate_metadata.pop("content", None)  # we remove content from the metadata
+        if usage_metadata_openai_format:
+            candidate_metadata["usage"] = usage_metadata_openai_format
 
+        for part in candidate.content.parts:
+            text = ""
+            tool_calls = []
+            if part.text != "":
+                text = part.text
+            elif part.function_call:
+                tool_calls.append(ToolCall(tool_name=part.function_call.name, arguments=part.function_call.args))
 
-
-            for part in candidate.content.parts:
-                text = ""
-                tool_calls = []
-                if part.text != "":
-                    text = part.text
-                elif part.function_call:
-                    tool_calls.append(ToolCall(tool_name=part.function_call.name, arguments=part.function_call.args))
-
-            replies.append(ChatMessage.from_assistant(text, meta=candidate_metadata, tool_calls=tool_calls))
-        return replies
+        return [ChatMessage.from_assistant(text, meta=candidate_metadata, tool_calls=tool_calls)]
 
     def _get_stream_response(
         self, stream: GenerateContentResponse, streaming_callback: Callable[[StreamingChunk], None]
     ) -> List[ChatMessage]:
         """
-        Extracts the responses from the Google AI streaming response.
+        Extracts the replies from the Google AI streaming response.
 
         :param stream: The streaming response from the Google AI request.
         :param streaming_callback: The handler for the streaming response.
-        :returns: The extracted response with the content of all streaming chunks.
+        :returns: List of `ChatMessage` instances.
         """
-        replies: List[ChatMessage] = []
         for chunk in stream:
             content: Union[str, Dict[str, Any]] = ""
             dict_chunk = chunk.to_dict()
             metadata = dict(dict_chunk)  # we copy and store the whole chunk as metadata in streaming calls
-            
-            for candidate in dict_chunk["candidates"]:
-                text = ""
-                tool_calls = []
-                for part in candidate["content"]["parts"]:
-                    if "text" in part and part["text"] != "":
-                        text = part["text"]
-                    elif "function_call" in part and len(part["function_call"]) > 0:
-                        tool_calls.append(ToolCall(tool_name=part["function_call"]["name"], arguments=part["function_call"]["args"]))
 
-                replies.append(ChatMessage.from_assistant(text, meta=metadata, tool_calls=tool_calls))
+            # Currently, only one candidate is supported
+            candidate = dict_chunk["candidates"][0]
 
-                streaming_callback(StreamingChunk(content=content, meta=metadata))
-        return replies
+            text = ""
+            tool_calls = []
+            for part in candidate["content"]["parts"]:
+                if "text" in part and part["text"] != "":
+                    text = part["text"]
+                elif "function_call" in part and len(part["function_call"]) > 0:
+                    tool_calls.append(
+                        ToolCall(tool_name=part["function_call"]["name"], arguments=part["function_call"]["args"])
+                    )
+
+            streaming_callback(StreamingChunk(content=content, meta=metadata))
+        return [ChatMessage.from_assistant(text, meta=metadata, tool_calls=tool_calls)]
