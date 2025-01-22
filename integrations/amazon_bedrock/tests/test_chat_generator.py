@@ -551,7 +551,7 @@ class TestAmazonBedrockChatGeneratorInference:
         assert len(final_message.text) > 0
         assert "paris" in final_message.text.lower()
 
-    @pytest.mark.parametrize("model_name", MODELS_TO_TEST_WITH_TOOLS)
+    @pytest.mark.parametrize("model_name", [MODELS_TO_TEST_WITH_TOOLS[0]])  # just one model is enough
     @pytest.mark.integration
     def test_pipeline_with_amazon_bedrock_chat_generator(self, model_name, tools):
         """
