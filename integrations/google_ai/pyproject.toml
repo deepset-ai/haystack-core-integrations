@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "google-ai-haystack"
 dynamic = ["version"]
-description = 'Use models like Gemini via Makersuite'
+description = 'Use models like Gemini via Google AI Studio'
 readme = "README.md"
 requires-python = ">=3.9"
 license = "Apache-2.0"
@@ -46,6 +46,7 @@ dependencies = [
   "pytest",
   "pytest-rerunfailures",
   "haystack-pydoc-tools",
+  "jsonschema",  # needed for Tool
 ]
 [tool.hatch.envs.default.scripts]
 test = "pytest {args:tests}"
@@ -156,3 +157,10 @@ module = [
   "numpy.*",
 ]
 ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+addopts = "--strict-markers"
+markers = [
+  "integration: integration tests",
+]
+log_cli = true

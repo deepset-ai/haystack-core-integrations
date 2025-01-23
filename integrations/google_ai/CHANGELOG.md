@@ -1,5 +1,19 @@
 # Changelog
 
+## [integrations/google_ai-v5.0.1] - 2025-01-23
+
+### 🚜 Refactor
+
+- GoogleAIGeminiGenerator - make some attributes public (#1317)
+
+
+## [integrations/google_ai-v5.0.0] - 2025-01-23
+
+### 🚀 Features
+
+- [**breaking**] Google AI - support for Tool + general refactoring (#1316)
+
+
 ## [integrations/google_ai-v4.1.0] - 2025-01-16
 
 ### 🧹 Chores

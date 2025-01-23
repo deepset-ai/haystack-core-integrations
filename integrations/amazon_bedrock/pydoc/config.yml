@@ -2,12 +2,14 @@ loaders:
   - type: haystack_pydoc_tools.loaders.CustomPythonLoader
     search_path: [../src]
     modules: [
+      "haystack_integrations.common.amazon_bedrock.errors",
+      "haystack_integrations.components.embedders.amazon_bedrock.document_embedder",
+      "haystack_integrations.components.embedders.amazon_bedrock.text_embedder",
       "haystack_integrations.components.generators.amazon_bedrock.generator",
       "haystack_integrations.components.generators.amazon_bedrock.adapters",
       "haystack_integrations.common.amazon_bedrock.errors",
       "haystack_integrations.components.generators.amazon_bedrock.chat.chat_generator",
-      "haystack_integrations.components.embedders.amazon_bedrock.text_embedder",
-      "haystack_integrations.components.embedders.amazon_bedrock.document_embedder",
+      "haystack_integrations.components.rankers.amazon_bedrock.ranker",
     ]
     ignore_when_discovered: ["__init__"]
 processors:
