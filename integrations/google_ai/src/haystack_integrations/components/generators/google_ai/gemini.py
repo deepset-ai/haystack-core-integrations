@@ -100,12 +100,12 @@ class GoogleAIGeminiGenerator:
         """
         genai.configure(api_key=api_key.resolve_value())
 
-        self._api_key = api_key
-        self._model_name = model
-        self._generation_config = generation_config
-        self._safety_settings = safety_settings
-        self._model = GenerativeModel(self._model_name)
-        self._streaming_callback = streaming_callback
+        self.api_key = api_key
+        self.model_name = model
+        self.generation_config = generation_config
+        self.safety_settings = safety_settings
+        self.model = GenerativeModel(self.model_name)
+        self.streaming_callback = streaming_callback
 
     def _generation_config_to_dict(self, config: Union[GenerationConfig, Dict[str, Any]]) -> Dict[str, Any]:
         if isinstance(config, dict):
@@ -126,13 +126,13 @@ class GoogleAIGeminiGenerator:
         :returns:
             Dictionary with serialized data.
         """
-        callback_name = serialize_callable(self._streaming_callback) if self._streaming_callback else None
+        callback_name = serialize_callable(self.streaming_callback) if self.streaming_callback else None
         data = default_to_dict(
             self,
-            api_key=self._api_key.to_dict(),
-            model=self._model_name,
-            generation_config=self._generation_config,
-            safety_settings=self._safety_settings,
+            api_key=self.api_key.to_dict(),
+            model=self.model_name,
+            generation_config=self.generation_config,
+            safety_settings=self.safety_settings,
             streaming_callback=callback_name,
         )
         if (generation_config := data["init_parameters"].get("generation_config")) is not None:
@@ -198,16 +198,16 @@ class GoogleAIGeminiGenerator:
         """
 
         # check if streaming_callback is passed
-        streaming_callback = streaming_callback or self._streaming_callback
+        streaming_callback = streaming_callback or self.streaming_callback
         converted_parts = [self._convert_part(p) for p in parts]
         contents = [Content(parts=converted_parts, role="user")]
-        res = self._model.generate_content(
+        res = self.model.generate_content(
             contents=contents,
-            generation_config=self._generation_config,
-            safety_settings=self._safety_settings,
+            generation_config=self.generation_config,
+            safety_settings=self.safety_settings,
             stream=streaming_callback is not None,
         )
-        self._model.start_chat()
+        self.model.start_chat()
         replies = self._get_stream_response(res, streaming_callback) if streaming_callback else self._get_response(res)
 
         return {"replies": replies}
