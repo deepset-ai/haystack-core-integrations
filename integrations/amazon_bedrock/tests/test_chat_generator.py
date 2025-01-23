@@ -589,7 +589,7 @@ class TestAmazonBedrockChatGeneratorInference:
             name="weather",
             description="useful to determine the weather in a given location",
             parameters={"city": {"type": "string"}},
-            function=weather
+            function=weather,
         )
 
         # Create generator with specific configuration
@@ -598,7 +598,7 @@ class TestAmazonBedrockChatGeneratorInference:
             generation_kwargs={"temperature": 0.7},
             stop_words=["eviscerate"],
             streaming_callback=print_streaming_chunk,
-            tools=[tool]
+            tools=[tool],
         )
 
         # Create and configure pipeline
@@ -615,7 +615,11 @@ class TestAmazonBedrockChatGeneratorInference:
                     "type": KLASS,
                     "init_parameters": {
                         "aws_access_key_id": {"type": "env_var", "env_vars": ["AWS_ACCESS_KEY_ID"], "strict": False},
-                        "aws_secret_access_key": {"type": "env_var", "env_vars": ["AWS_SECRET_ACCESS_KEY"], "strict": False},
+                        "aws_secret_access_key": {
+                            "type": "env_var",
+                            "env_vars": ["AWS_SECRET_ACCESS_KEY"],
+                            "strict": False,
+                        },
                         "aws_session_token": {"type": "env_var", "env_vars": ["AWS_SESSION_TOKEN"], "strict": False},
                         "aws_region_name": {"type": "env_var", "env_vars": ["AWS_DEFAULT_REGION"], "strict": False},
                         "aws_profile_name": {"type": "env_var", "env_vars": ["AWS_PROFILE"], "strict": False},
@@ -630,17 +634,15 @@ class TestAmazonBedrockChatGeneratorInference:
                                 "data": {
                                     "name": "weather",
                                     "description": "useful to determine the weather in a given location",
-                                    "parameters": {
-                                        "city": {"type": "string"}
-                                    },
-                                    "function": "tests.test_chat_generator.weather"
-                                }
+                                    "parameters": {"city": {"type": "string"}},
+                                    "function": "tests.test_chat_generator.weather",
+                                },
                             }
-                        ]
-                    }
+                        ],
+                    },
                 }
             },
-            "connections": []
+            "connections": [],
         }
 
         # Test YAML serialization/deserialization
