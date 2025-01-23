@@ -349,24 +349,27 @@ class TestGoogleAIGeminiChatGenerator:
     @pytest.mark.skipif(not os.environ.get("GOOGLE_API_KEY", None), reason="GOOGLE_API_KEY env var not set")
     def test_run_with_tools(self, tools):
 
-        gemini_chat = GoogleAIGeminiChatGenerator(model="gemini-pro", tools=tools)
-        messages = [ChatMessage.from_user("What is the temperature in celsius in Berlin?")]
-        response = gemini_chat.run(messages=messages)
+        gemini_chat = GoogleAIGeminiChatGenerator(model="gemini-2.0-flash-exp", tools=tools)
+        user_message = [ChatMessage.from_user("What is the temperature in celsius in Berlin?")]
+        response = gemini_chat.run(messages=user_message)
         assert "replies" in response
         assert len(response["replies"]) > 0
         assert all(reply.role == ChatRole.ASSISTANT for reply in response["replies"])
 
         # check the first response contains a tool call
         chat_message = response["replies"][0]
-        assert chat_message.tool_calls is not None
+        assert chat_message.tool_calls
         assert chat_message.tool_calls[0].tool_name == "get_current_weather"
         assert chat_message.tool_calls[0].arguments == {"city": "Berlin", "unit": "Celsius"}
 
         weather = tools[0].invoke(**chat_message.tool_calls[0].arguments)
 
-        messages += response["replies"] + [
-            ChatMessage.from_tool(tool_result=weather, origin=chat_message.tool_calls[0])
-        ]
+        messages = (
+            user_message
+            + response["replies"]
+            + [ChatMessage.from_tool(tool_result=weather, origin=chat_message.tool_calls[0])]
+        )
+
         response = gemini_chat.run(messages=messages)
         assert "replies" in response
         assert len(response["replies"]) > 0
@@ -388,7 +391,7 @@ class TestGoogleAIGeminiChatGenerator:
             streaming_callback_called = True
 
         gemini_chat = GoogleAIGeminiChatGenerator(
-            model="gemini-pro", tools=tools, streaming_callback=streaming_callback
+            model="gemini-2.0-flash-exp", tools=tools, streaming_callback=streaming_callback
         )
         messages = [ChatMessage.from_user("What is the temperature in celsius in Berlin?")]
         response = gemini_chat.run(messages=messages)
@@ -399,7 +402,7 @@ class TestGoogleAIGeminiChatGenerator:
 
         # check the first response contains a tool call
         chat_message = response["replies"][0]
-        assert chat_message.tool_calls is not None
+        assert chat_message.tool_calls
         assert chat_message.tool_calls[0].tool_name == "get_current_weather"
         assert chat_message.tool_calls[0].arguments == {"city": "Berlin", "unit": "Celsius"}
 

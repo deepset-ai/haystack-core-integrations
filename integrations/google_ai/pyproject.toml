@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "google-ai-haystack"
 dynamic = ["version"]
-description = 'Use models like Gemini via Makersuite'
+description = 'Use models like Gemini via Google AI Studio'
 readme = "README.md"
 requires-python = ">=3.9"
 license = "Apache-2.0"

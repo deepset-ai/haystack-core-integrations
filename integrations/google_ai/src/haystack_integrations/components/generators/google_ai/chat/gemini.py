@@ -122,21 +122,21 @@ class GoogleAIGeminiChatGenerator:
     tool_invoker = ToolInvoker(tools=[tool])
 
     gemini_chat = GoogleAIGeminiChatGenerator(
-        model="gemini-1.5-flash",
+        model="gemini-2.0-flash-exp",
         api_key=Secret.from_token("<MY_API_KEY>"),
         tools=[tool],
     )
-    messages = [ChatMessage.from_user("What is the temperature in celsius in Berlin?")]
-    replies = gemini_chat.run(messages=messages)["replies"]
+    user_message = [ChatMessage.from_user("What is the temperature in celsius in Berlin?")]
+    replies = gemini_chat.run(messages=user_message)["replies"]
     print(replies[0].tool_calls)
 
     # actually invoke the tool
     tool_messages = tool_invoker.run(messages=replies)["tool_messages"]
-    messages = messages + replies + tool_messages
+    messages = user_message + replies + tool_messages
 
     # transform the tool call result into a human readable message
-    replies = gemini_chat.run(messages=messages)
-    print(replies[0].text)
+    final_replies = gemini_chat.run(messages=messages)["replies"]
+    print(final_replies[0].text)
     ```
     """
 
@@ -153,18 +153,18 @@ class GoogleAIGeminiChatGenerator:
         """
         Initializes a `GoogleAIGeminiChatGenerator` instance.
 
-        To get an API key, visit: https://makersuite.google.com
+        To get an API key, visit: https://aistudio.google.com/
 
         :param api_key: Google AI Studio API key. To get a key,
-        see [Google AI Studio](https://makersuite.google.com).
+        see [Google AI Studio](https://aistudio.google.com/).
         :param model: Name of the model to use. For available models, see https://ai.google.dev/gemini-api/docs/models/gemini.
         :param generation_config: The generation configuration to use.
             This can either be a `GenerationConfig` object or a dictionary of parameters.
             For available parameters, see
-            [the `GenerationConfig` API reference](https://ai.google.dev/api/python/google/generativeai/GenerationConfig).
+            [the API reference](https://ai.google.dev/api/generate-content).
         :param safety_settings: The safety settings to use.
             A dictionary with `HarmCategory` as keys and `HarmBlockThreshold` as values.
-            For more information, see [the API reference](https://ai.google.dev/api)
+            For more information, see [the API reference](https://ai.google.dev/api/generate-content)
         :param tools:
             A list of tools for which the model can prepare calls.
         :param streaming_callback: A callback function that is called when a new token is received from the stream.
@@ -301,14 +301,18 @@ class GoogleAIGeminiChatGenerator:
             tools=google_tools,
         )
 
-        replies = self._get_stream_response(res, streaming_callback) if streaming_callback else self._get_response(res)
+        replies = (
+            self._stream_response_and_convert_to_messages(res, streaming_callback)
+            if streaming_callback
+            else self._convert_response_to_messages(res)
+        )
 
         return {"replies": replies}
 
     @staticmethod
-    def _get_response(response_body: GenerateContentResponse) -> List[ChatMessage]:
+    def _convert_response_to_messages(response_body: GenerateContentResponse) -> List[ChatMessage]:
         """
-        Extracts the replies from the Google AI response.
+        Converts the Google AI response to a list of `ChatMessage` instances.
 
         :param response_body: The response from Google AI request.
         :returns: List of `ChatMessage` instances.
@@ -335,16 +339,21 @@ class GoogleAIGeminiChatGenerator:
             if part.text:
                 text += part.text
             elif part.function_call:
-                tool_calls.append(ToolCall(tool_name=part.function_call.name, arguments=part.function_call.args))
+                tool_calls.append(
+                    ToolCall(
+                        tool_name=part.function_call.name,
+                        arguments=dict(part.function_call.args),
+                    )
+                )
 
-        return [ChatMessage.from_assistant(text, meta=candidate_metadata, tool_calls=tool_calls)]
+        return [ChatMessage.from_assistant(text=text or None, meta=candidate_metadata, tool_calls=tool_calls)]
 
     @staticmethod
-    def _get_stream_response(
+    def _stream_response_and_convert_to_messages(
         stream: GenerateContentResponse, streaming_callback: Callable[[StreamingChunk], None]
     ) -> List[ChatMessage]:
         """
-        Extracts the replies from the Google AI streaming response.
+        Streams the Google AI response and converts it to a list of `ChatMessage` instances.
 
         :param stream: The streaming response from the Google AI request.
         :param streaming_callback: The handler for the streaming response.
@@ -364,9 +373,12 @@ class GoogleAIGeminiChatGenerator:
                     text += part["text"]
                 elif part.get("function_call"):
                     tool_calls.append(
-                        ToolCall(tool_name=part["function_call"]["name"], arguments=part["function_call"]["args"])
+                        ToolCall(
+                            tool_name=part["function_call"]["name"],
+                            arguments=dict(part["function_call"]["args"]),
+                        )
                     )
 
             streaming_callback(StreamingChunk(content=text, meta=chunk_dict))
 
-        return [ChatMessage.from_assistant(text, meta=last_metadata, tool_calls=tool_calls)]
+        return [ChatMessage.from_assistant(text=text or None, meta=last_metadata, tool_calls=tool_calls)]
