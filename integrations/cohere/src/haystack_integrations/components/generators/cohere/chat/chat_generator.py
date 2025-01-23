@@ -49,20 +49,22 @@ def _format_message(message: ChatMessage) -> Dict[str, Any]:
         msg = "A `ChatMessage` must contain at least one `TextContent`, `ToolCall`, or `ToolCallResult`."
         raise ValueError(msg)
 
-    # Handle tool results first
+    cohere_msg: Dict[str, Any] = {"role": message.role.value}
+
+    # Format the message based on its content type
     if message.tool_call_results:
         result = message.tool_call_results[0]  # We expect one result at a time
         if result.origin.id is None:
             msg = "`ToolCall` must have a non-null `id` attribute to be used with Cohere."
             raise ValueError(msg)
-        return {
-            "role": "tool",
-            "tool_call_id": result.origin.id,
-            "content": [{"type": "document", "document": {"data": json.dumps({"result": result.result})}}],
-        }
-
-    # Handle messages with tool calls
-    if message.tool_calls:
+        cohere_msg.update(
+            {
+                "role": "tool",
+                "tool_call_id": result.origin.id,
+                "content": [{"type": "document", "document": {"data": json.dumps({"result": result.result})}}],
+            }
+        )
+    elif message.tool_calls:
         tool_calls = []
         for tool_call in message.tool_calls:
             if tool_call.id is None:
@@ -75,21 +77,19 @@ def _format_message(message: ChatMessage) -> Dict[str, Any]:
                     "function": {"name": tool_call.tool_name, "arguments": json.dumps(tool_call.arguments)},
                 }
             )
-        return {
-            "role": message.role.value,
-            "tool_calls": tool_calls,
-            "tool_plan": message.text if message.text else "",
-        }
-
-    # Handle regular messages
-    cohere_msg: Dict[str, Any] = {
-        "role": message.role.value,
-        "content": [{"type": "text", "text": message.texts[0]}] if message.texts and message.texts[0] else [],
-    }
-
-    if not cohere_msg["content"]:
-        msg = "A `ChatMessage` must contain at least one `TextContent`, `ToolCall`, or `ToolCallResult`."
-        raise ValueError(msg)
+        cohere_msg.update(
+            {
+                "tool_calls": tool_calls,
+                "tool_plan": message.text if message.text else "",
+            }
+        )
+    else:
+        cohere_msg["content"] = (
+            [{"type": "text", "text": message.texts[0]}] if message.texts and message.texts[0] else []
+        )
+        if not cohere_msg["content"]:
+            msg = "A `ChatMessage` must contain at least one `TextContent`, `ToolCall`, or `ToolCallResult`."
+            raise ValueError(msg)
 
     return cohere_msg
 
@@ -120,6 +120,10 @@ def _parse_response(chat_response: ChatResponse, model: str) -> ChatMessage:
         message = ChatMessage.from_assistant(text=tool_plan, tool_calls=tool_calls)
     elif chat_response.message.content:
         message = ChatMessage.from_assistant(chat_response.message.content[0].text)
+    else:
+        # Handle the case where neither tool_calls nor content exists
+        logger.warning(f"Received empty response from Cohere API: {chat_response.message}")
+        message = ChatMessage.from_assistant("")
 
     # In V2, token usage is part of the response object, not the message
     message.meta.update(
@@ -222,11 +226,11 @@ class CohereChatGenerator:
     ### Usage example
 
     ```python
+    from haystack import Pipeline
     from haystack.dataclasses import ChatMessage
     from haystack.components.tools import ToolInvoker
     from haystack.tools import Tool
     from haystack_integrations.components.generators.cohere import CohereChatGenerator
-    from haystack import Pipeline
 
     # Create a weather tool
     def weather(city: str) -> str:
@@ -288,13 +292,13 @@ class CohereChatGenerator:
             see [Cohere Chat endpoint](https://docs.cohere.com/reference/chat).
             Some of the parameters are:
             - 'messages': A list of messages between the user and the model, meant to give the model
-               conversational context for responding to the user's message.
+              conversational context for responding to the user's message.
             - 'system_message': When specified, adds a system message at the beginning of the conversation.
             - 'citation_quality': Defaults to `accurate`. Dictates the approach taken to generating citations
-                as part of the RAG flow by allowing the user to specify whether they want
-                `accurate` results or `fast` results.
+              as part of the RAG flow by allowing the user to specify whether they want
+              `accurate` results or `fast` results.
             - 'temperature': A non-negative float that tunes the degree of randomness in generation. Lower temperatures
-                mean less random generations.
+              mean less random generations.
         :param tools: A list of Tool objects that the model can use. Each tool should have a unique name.
         """
         cohere_import.check()
