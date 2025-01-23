@@ -9,8 +9,8 @@ from haystack.tools import Tool
 
 from haystack_integrations.components.generators.amazon_bedrock import AmazonBedrockChatGenerator
 from haystack_integrations.components.generators.amazon_bedrock.chat.chat_generator import (
-    _parse_bedrock_completion_response,
-    _parse_bedrock_streaming_chunks,
+    _parse_completion_response,
+    _parse_streaming_response,
 )
 
 KLASS = "haystack_integrations.components.generators.amazon_bedrock.chat.chat_generator.AmazonBedrockChatGenerator"
@@ -366,7 +366,7 @@ class TestAmazonBedrockChatGeneratorInference:
             "usage": {"inputTokens": 10, "outputTokens": 20, "totalTokens": 30},
         }
 
-        replies = _parse_bedrock_completion_response(text_response, model)
+        replies = _parse_completion_response(text_response, model)
         assert len(replies) == 1
         assert replies[0].text == "This is a test response"
         assert replies[0].role == ChatRole.ASSISTANT
@@ -386,7 +386,7 @@ class TestAmazonBedrockChatGeneratorInference:
             "usage": {"inputTokens": 15, "outputTokens": 25, "totalTokens": 40},
         }
 
-        replies = _parse_bedrock_completion_response(tool_response, model)
+        replies = _parse_completion_response(tool_response, model)
         assert len(replies) == 1
         tool_content = replies[0].tool_call
         assert tool_content.id == "123"
@@ -410,7 +410,7 @@ class TestAmazonBedrockChatGeneratorInference:
             "usage": {"inputTokens": 25, "outputTokens": 35, "totalTokens": 60},
         }
 
-        replies = _parse_bedrock_completion_response(mixed_response, model)
+        replies = _parse_completion_response(mixed_response, model)
         assert len(replies) == 1
         assert replies[0].text == "Let me help you with that. I'll use the search tool to find the answer."
         tool_content = replies[0].tool_call
@@ -443,7 +443,7 @@ class TestAmazonBedrockChatGeneratorInference:
             {"metadata": {"usage": {"inputTokens": 10, "outputTokens": 20, "totalTokens": 30}}},
         ]
 
-        replies = _parse_bedrock_streaming_chunks(events, test_callback, model)
+        replies = _parse_streaming_response(events, test_callback, model)
 
         # Verify streaming chunks were received for text content
         assert len(streaming_chunks) == 2

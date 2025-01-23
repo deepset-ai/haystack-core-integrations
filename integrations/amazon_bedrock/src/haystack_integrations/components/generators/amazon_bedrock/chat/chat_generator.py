@@ -20,7 +20,7 @@ from haystack_integrations.common.amazon_bedrock.utils import get_aws_session
 logger = logging.getLogger(__name__)
 
 
-def _format_tools_for_bedrock(tools: Optional[List[Tool]] = None) -> Optional[Dict[str, Any]]:
+def _format_tools(tools: Optional[List[Tool]] = None) -> Optional[Dict[str, Any]]:
     """
     Format Haystack Tool(s) to Amazon Bedrock toolConfig format.
 
@@ -39,7 +39,7 @@ def _format_tools_for_bedrock(tools: Optional[List[Tool]] = None) -> Optional[Di
     return {"tools": tool_specs} if tool_specs else None
 
 
-def _format_messages_for_bedrock(messages: List[ChatMessage]) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+def _format_messages(messages: List[ChatMessage]) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
     """
     Format a list of ChatMessages to the format expected by Bedrock API.
     Separates system messages and handles tool results and tool calls.
@@ -95,7 +95,7 @@ def _format_messages_for_bedrock(messages: List[ChatMessage]) -> Tuple[List[Dict
     return system_prompts, non_system_messages
 
 
-def _parse_bedrock_completion_response(response_body: Dict[str, Any], model: str) -> List[ChatMessage]:
+def _parse_completion_response(response_body: Dict[str, Any], model: str) -> List[ChatMessage]:
     """
     Parse a Bedrock response to a list of ChatMessage objects.
 
@@ -144,7 +144,7 @@ def _parse_bedrock_completion_response(response_body: Dict[str, Any], model: str
     return replies
 
 
-def _parse_bedrock_streaming_chunks(
+def _parse_streaming_response(
     response_stream: EventStream,
     streaming_callback: Callable[[StreamingChunk], None],
     model: str,
@@ -433,13 +433,13 @@ class AmazonBedrockChatGenerator:
         tool_config = merged_kwargs.pop("toolConfig", None)
         if tools:
             # Format Haystack tools to Bedrock format
-            tool_config = _format_tools_for_bedrock(tools)
+            tool_config = _format_tools(tools)
 
         # Any remaining kwargs go to additionalModelRequestFields
         additional_fields = merged_kwargs if merged_kwargs else None
 
         # Format messages to Bedrock format
-        system_prompts, messages_list = _format_messages_for_bedrock(messages)
+        system_prompts, messages_list = _format_messages(messages)
 
         # Build API parameters
         params = {
@@ -462,10 +462,10 @@ class AmazonBedrockChatGenerator:
                 if not response_stream:
                     msg = "No stream found in the response."
                     raise AmazonBedrockInferenceError(msg)
-                replies = _parse_bedrock_streaming_chunks(response_stream, callback, self.model)
+                replies = _parse_streaming_response(response_stream, callback, self.model)
             else:
                 response = self.client.converse(**params)
-                replies = _parse_bedrock_completion_response(response, self.model)
+                replies = _parse_completion_response(response, self.model)
         except ClientError as exception:
             msg = f"Could not generate inference for Amazon Bedrock model {self.model} due: {exception}"
             raise AmazonBedrockInferenceError(msg) from exception
