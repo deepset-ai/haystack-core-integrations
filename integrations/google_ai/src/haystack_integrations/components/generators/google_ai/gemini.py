@@ -100,7 +100,7 @@ class GoogleAIGeminiGenerator:
         """
         genai.configure(api_key=api_key.resolve_value())
 
-        self.api_key = api_key
+        self._api_key = api_key
         self.model_name = model
         self.generation_config = generation_config
         self.safety_settings = safety_settings
@@ -129,7 +129,7 @@ class GoogleAIGeminiGenerator:
         callback_name = serialize_callable(self.streaming_callback) if self.streaming_callback else None
         data = default_to_dict(
             self,
-            api_key=self.api_key.to_dict(),
+            api_key=self._api_key.to_dict(),
             model=self.model_name,
             generation_config=self.generation_config,
             safety_settings=self.safety_settings,
