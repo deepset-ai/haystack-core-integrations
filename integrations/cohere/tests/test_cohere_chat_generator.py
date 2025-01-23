@@ -27,7 +27,7 @@ def streaming_chunk(text: str):
 
 @pytest.fixture
 def chat_messages():
-    return [ChatMessage.from_assistant(content="What's the capital of France")]
+    return [ChatMessage.from_assistant("What's the capital of France")]
 
 
 class TestCohereChatGenerator:
@@ -98,26 +98,6 @@ class TestCohereChatGenerator:
             },
         }
 
-    def test_to_dict_with_lambda_streaming_callback(self, monkeypatch):
-        monkeypatch.setenv("COHERE_API_KEY", "test-api-key")
-        component = CohereChatGenerator(
-            model="command-r",
-            streaming_callback=lambda x: x,
-            api_base_url="test-base-url",
-            generation_kwargs={"max_tokens": 10, "some_test_param": "test-params"},
-        )
-        data = component.to_dict()
-        assert data == {
-            "type": "haystack_integrations.components.generators.cohere.chat.chat_generator.CohereChatGenerator",
-            "init_parameters": {
-                "model": "command-r",
-                "api_base_url": "test-base-url",
-                "api_key": {"env_vars": ["COHERE_API_KEY", "CO_API_KEY"], "strict": True, "type": "env_var"},
-                "streaming_callback": "tests.test_cohere_chat_generator.<lambda>",
-                "generation_kwargs": {"max_tokens": 10, "some_test_param": "test-params"},
-            },
-        }
-
     def test_from_dict(self, monkeypatch):
         monkeypatch.setenv("COHERE_API_KEY", "fake-api-key")
         monkeypatch.setenv("CO_API_KEY", "fake-api-key")
@@ -164,7 +144,7 @@ class TestCohereChatGenerator:
     )
     @pytest.mark.integration
     def test_live_run(self):
-        chat_messages = [ChatMessage.from_user(content="What's the capital of France")]
+        chat_messages = [ChatMessage.from_user("What's the capital of France")]
         component = CohereChatGenerator(generation_kwargs={"temperature": 0.8})
         results = component.run(chat_messages)
         assert len(results["replies"]) == 1
@@ -201,7 +181,7 @@ class TestCohereChatGenerator:
 
         callback = Callback()
         component = CohereChatGenerator(streaming_callback=callback)
-        results = component.run([ChatMessage.from_user(content="What's the capital of France? answer in a word")])
+        results = component.run([ChatMessage.from_user("What's the capital of France? answer in a word")])
 
         assert len(results["replies"]) == 1
         message: ChatMessage = results["replies"][0]
@@ -222,7 +202,7 @@ class TestCohereChatGenerator:
     )
     @pytest.mark.integration
     def test_live_run_with_connector(self):
-        chat_messages = [ChatMessage.from_user(content="What's the capital of France")]
+        chat_messages = [ChatMessage.from_user("What's the capital of France")]
         component = CohereChatGenerator(generation_kwargs={"temperature": 0.8})
         results = component.run(chat_messages, generation_kwargs={"connectors": [{"id": "web-search"}]})
         assert len(results["replies"]) == 1
@@ -247,7 +227,7 @@ class TestCohereChatGenerator:
                 self.responses += chunk.content if chunk.content else ""
 
         callback = Callback()
-        chat_messages = [ChatMessage.from_user(content="What's the capital of France? answer in a word")]
+        chat_messages = [ChatMessage.from_user("What's the capital of France? answer in a word")]
         component = CohereChatGenerator(streaming_callback=callback)
         results = component.run(chat_messages, generation_kwargs={"connectors": [{"id": "web-search"}]})
 

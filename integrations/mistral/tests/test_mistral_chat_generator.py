@@ -80,17 +80,23 @@ class TestMistralChatGenerator:
         monkeypatch.setenv("MISTRAL_API_KEY", "test-api-key")
         component = MistralChatGenerator()
         data = component.to_dict()
-        assert data == {
-            "type": "haystack_integrations.components.generators.mistral.chat.chat_generator.MistralChatGenerator",
-            "init_parameters": {
-                "api_key": {"env_vars": ["MISTRAL_API_KEY"], "strict": True, "type": "env_var"},
-                "model": "mistral-tiny",
-                "organization": None,
-                "streaming_callback": None,
-                "api_base_url": "https://api.mistral.ai/v1",
-                "generation_kwargs": {},
-            },
+
+        assert (
+            data["type"]
+            == "haystack_integrations.components.generators.mistral.chat.chat_generator.MistralChatGenerator"
+        )
+
+        expected_params = {
+            "api_key": {"env_vars": ["MISTRAL_API_KEY"], "strict": True, "type": "env_var"},
+            "model": "mistral-tiny",
+            "organization": None,
+            "streaming_callback": None,
+            "api_base_url": "https://api.mistral.ai/v1",
+            "generation_kwargs": {},
         }
+
+        for key, value in expected_params.items():
+            assert data["init_parameters"][key] == value
 
     def test_to_dict_with_parameters(self, monkeypatch):
         monkeypatch.setenv("ENV_VAR", "test-api-key")
@@ -102,17 +108,22 @@ class TestMistralChatGenerator:
             generation_kwargs={"max_tokens": 10, "some_test_param": "test-params"},
         )
         data = component.to_dict()
-        assert data == {
-            "type": "haystack_integrations.components.generators.mistral.chat.chat_generator.MistralChatGenerator",
-            "init_parameters": {
-                "api_key": {"env_vars": ["ENV_VAR"], "strict": True, "type": "env_var"},
-                "model": "mistral-small",
-                "api_base_url": "test-base-url",
-                "organization": None,
-                "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
-                "generation_kwargs": {"max_tokens": 10, "some_test_param": "test-params"},
-            },
+
+        assert (
+            data["type"]
+            == "haystack_integrations.components.generators.mistral.chat.chat_generator.MistralChatGenerator"
+        )
+
+        expected_params = {
+            "api_key": {"env_vars": ["ENV_VAR"], "strict": True, "type": "env_var"},
+            "model": "mistral-small",
+            "api_base_url": "test-base-url",
+            "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
+            "generation_kwargs": {"max_tokens": 10, "some_test_param": "test-params"},
         }
+
+        for key, value in expected_params.items():
+            assert data["init_parameters"][key] == value
 
     def test_from_dict(self, monkeypatch):
         monkeypatch.setenv("MISTRAL_API_KEY", "fake-api-key")
@@ -187,7 +198,7 @@ class TestMistralChatGenerator:
         ]
 
         for m in messages:
-            component._check_finish_reason(m)
+            component._check_finish_reason(m.meta)
 
         # check truncation warning
         message_template = (

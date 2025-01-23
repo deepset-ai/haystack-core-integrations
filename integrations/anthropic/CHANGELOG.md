@@ -2,6 +2,18 @@
 
 ## [unreleased]
 
+### 🌀 Miscellaneous
+
+- Test: remove tests involving serialization of lambdas (#1281)
+- Test: remove more tests involving serialization of lambdas (#1285)
+- Feat: Anthropic - support for Tools + refactoring (#1300)
+
+## [integrations/anthropic-v1.2.1] - 2024-12-18
+
+### 🐛 Bug Fixes
+
+- Make Anthropic compatible with new `ChatMessage`; fix prompt caching tests (#1252)
+
 ### ⚙️ CI
 
 - Adopt uv as installer (#1142)
@@ -9,10 +21,13 @@
 ### 🧹 Chores
 
 - Update ruff linting scripts and settings (#1105)
+- Fix linting/isort (#1215)
 
 ### 🌀 Miscellaneous
 
 - Add AnthropicVertexChatGenerator component (#1192)
+- Docs: add AnthropicVertexChatGenerator to pydoc (#1221)
+- Chore: use `text` instead of `content` for `ChatMessage` in Cohere and Anthropic (#1237)
 
 ## [integrations/anthropic-v1.1.0] - 2024-09-20
 

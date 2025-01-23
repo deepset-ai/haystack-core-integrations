@@ -11,7 +11,7 @@ from elasticsearch.exceptions import BadRequestError  # type: ignore[import-not-
 from haystack.dataclasses.document import Document
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
-from haystack.testing.document_store import DocumentStoreBaseTests
+from haystack.testing.document_store import DocumentStoreBaseTests, FilterDocumentsTestWithDataframe
 
 from haystack_integrations.document_stores.elasticsearch import ElasticsearchDocumentStore
 
@@ -70,7 +70,7 @@ def test_from_dict(_mock_elasticsearch_client):
 
 
 @pytest.mark.integration
-class TestDocumentStore(DocumentStoreBaseTests):
+class TestDocumentStore(DocumentStoreBaseTests, FilterDocumentsTestWithDataframe):
     """
     Common test cases will be provided by `DocumentStoreBaseTests` but
     you can add more to this class.

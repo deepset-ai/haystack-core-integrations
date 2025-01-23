@@ -1,5 +1,18 @@
 # Changelog
 
+## [unreleased]
+
+### 🌀 Miscellaneous
+
+- Handle function role removal (#1296)
+
+## [integrations/google_vertex-v4.0.1] - 2024-12-19
+
+### 🐛 Bug Fixes
+
+- Make Google Vertex Chat Generator compatible with new ChatMessage (#1255)
+
+
 ## [integrations/google_vertex-v4.0.0] - 2024-12-11
 
 ### 🐛 Bug Fixes

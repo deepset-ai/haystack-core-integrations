@@ -5,7 +5,6 @@ from datetime import datetime
 from typing import Any, Dict, Iterator, List, Optional, Union
 
 from haystack import logging
-from haystack.components.generators.openai_utils import _convert_message_to_openai_format
 from haystack.dataclasses import ChatMessage
 from haystack.tracing import Span, Tracer
 from haystack.tracing import tracer as proxy_tracer
@@ -83,14 +82,14 @@ class LangfuseSpan(Span):
             return
         if key.endswith(".input"):
             if "messages" in value:
-                messages = [_convert_message_to_openai_format(m) for m in value["messages"]]
+                messages = [m.to_openai_dict_format() for m in value["messages"]]
                 self._span.update(input=messages)
             else:
                 self._span.update(input=value)
         elif key.endswith(".output"):
             if "replies" in value:
                 if all(isinstance(r, ChatMessage) for r in value["replies"]):
-                    replies = [_convert_message_to_openai_format(m) for m in value["replies"]]
+                    replies = [m.to_openai_dict_format() for m in value["replies"]]
                 else:
                     replies = value["replies"]
                 self._span.update(output=replies)
@@ -202,7 +201,11 @@ class LangfuseTracer(Tracer):
                 )
 
         raw_span = span.raw_span()
-        if isinstance(raw_span, langfuse.client.StatefulSpanClient):
+
+        # In this section, we finalize both regular spans and generation spans created using the LangfuseSpan class.
+        # It's important to end() these spans to ensure they are properly closed and all relevant data is recorded.
+        # Note that we do not call end() on the main trace span itself, as its lifecycle is managed differently.
+        if isinstance(raw_span, (langfuse.client.StatefulSpanClient, langfuse.client.StatefulGenerationClient)):
             raw_span.end()
         self._context.pop()
 

@@ -9,7 +9,7 @@ import pytest
 from haystack import Document
 from haystack.document_stores.errors import MissingDocumentError
 from haystack.document_stores.types import DuplicatePolicy
-from haystack.testing.document_store import DocumentStoreBaseTests
+from haystack.testing.document_store import DocumentStoreBaseTests, FilterDocumentsTestWithDataframe
 
 from haystack_integrations.document_stores.astra import AstraDocumentStore
 
@@ -47,7 +47,7 @@ def test_to_dict(mock_auth):  # noqa
     os.environ.get("ASTRA_DB_APPLICATION_TOKEN", "") == "", reason="ASTRA_DB_APPLICATION_TOKEN env var not set"
 )
 @pytest.mark.skipif(os.environ.get("ASTRA_DB_API_ENDPOINT", "") == "", reason="ASTRA_DB_API_ENDPOINT env var not set")
-class TestDocumentStore(DocumentStoreBaseTests):
+class TestDocumentStore(DocumentStoreBaseTests, FilterDocumentsTestWithDataframe):
     """
     Common test cases will be provided by `DocumentStoreBaseTests` but
     you can add more to this class.

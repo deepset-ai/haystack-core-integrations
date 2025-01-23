@@ -22,7 +22,7 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
-dependencies = ["haystack-ai>=2.1.0", "langfuse"]
+dependencies = ["haystack-ai>=2.9.0", "langfuse"]
 
 [project.urls]
 Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/langfuse#readme"
@@ -67,7 +67,12 @@ python = ["3.8", "3.9", "3.10", "3.11", "3.12"]
 [tool.hatch.envs.lint]
 installer = "uv"
 detached = true
-dependencies = ["pip", "black>=23.1.0", "mypy>=1.0.0", "ruff>=0.0.243"]
+dependencies = [
+    "pip",
+    "black>=23.1.0",
+    "mypy>=1.0.0",
+    "ruff>=0.0.243",
+]
 
 [tool.hatch.envs.lint.scripts]
 typing = "mypy --install-types --non-interactive --explicit-package-bases {args:src/ tests}"
@@ -167,6 +172,7 @@ module = [
   "haystack_integrations.*",
   "pytest.*",
   "numpy.*",
+  "httpx.*",
 ]
 ignore_missing_imports = true
 

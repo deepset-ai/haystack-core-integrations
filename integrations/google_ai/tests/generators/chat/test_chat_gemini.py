@@ -215,7 +215,7 @@ def test_run():
 
     tool = Tool(function_declarations=[get_current_weather_func])
     gemini_chat = GoogleAIGeminiChatGenerator(model="gemini-pro", tools=[tool])
-    messages = [ChatMessage.from_user(content="What is the temperature in celsius in Berlin?")]
+    messages = [ChatMessage.from_user("What is the temperature in celsius in Berlin?")]
     response = gemini_chat.run(messages=messages)
     assert "replies" in response
     assert len(response["replies"]) > 0
@@ -227,16 +227,17 @@ def test_run():
     assert json.loads(chat_message.text) == {"location": "Berlin", "unit": "celsius"}
 
     weather = get_current_weather(**json.loads(chat_message.text))
-    messages += response["replies"] + [ChatMessage.from_function(content=weather, name="get_current_weather")]
-    response = gemini_chat.run(messages=messages)
-    assert "replies" in response
-    assert len(response["replies"]) > 0
-    assert all(reply.role == ChatRole.ASSISTANT for reply in response["replies"])
+    if hasattr(ChatMessage, "from_function"):
+        messages += response["replies"] + [ChatMessage.from_function(weather, name="get_current_weather")]
+        response = gemini_chat.run(messages=messages)
+        assert "replies" in response
+        assert len(response["replies"]) > 0
+        assert all(reply.role == ChatRole.ASSISTANT for reply in response["replies"])
 
-    # check the second response is not a function call
-    chat_message = response["replies"][0]
-    assert "function_call" not in chat_message.meta
-    assert isinstance(chat_message.text, str)
+        # check the second response is not a function call
+        chat_message = response["replies"][0]
+        assert "function_call" not in chat_message.meta
+        assert isinstance(chat_message.text, str)
 
 
 @pytest.mark.skipif(not os.environ.get("GOOGLE_API_KEY", None), reason="GOOGLE_API_KEY env var not set")
@@ -260,7 +261,7 @@ def test_run_with_streaming_callback():
 
     tool = Tool(function_declarations=[get_current_weather_func])
     gemini_chat = GoogleAIGeminiChatGenerator(model="gemini-pro", tools=[tool], streaming_callback=streaming_callback)
-    messages = [ChatMessage.from_user(content="What is the temperature in celsius in Berlin?")]
+    messages = [ChatMessage.from_user("What is the temperature in celsius in Berlin?")]
     response = gemini_chat.run(messages=messages)
     assert "replies" in response
     assert len(response["replies"]) > 0
@@ -272,27 +273,28 @@ def test_run_with_streaming_callback():
     assert "function_call" in chat_message.meta
     assert json.loads(chat_message.text) == {"location": "Berlin", "unit": "celsius"}
 
-    weather = get_current_weather(**json.loads(response["replies"][0].text))
-    messages += response["replies"] + [ChatMessage.from_function(content=weather, name="get_current_weather")]
-    response = gemini_chat.run(messages=messages)
-    assert "replies" in response
-    assert len(response["replies"]) > 0
-    assert all(reply.role == ChatRole.ASSISTANT for reply in response["replies"])
+    weather = get_current_weather(**json.loads(chat_message.text))
+    if hasattr(ChatMessage, "from_function"):
+        messages += response["replies"] + [ChatMessage.from_function(weather, name="get_current_weather")]
+        response = gemini_chat.run(messages=messages)
+        assert "replies" in response
+        assert len(response["replies"]) > 0
+        assert all(reply.role == ChatRole.ASSISTANT for reply in response["replies"])
 
-    # check the second response is not a function call
-    chat_message = response["replies"][0]
-    assert "function_call" not in chat_message.meta
-    assert isinstance(chat_message.text, str)
+        # check the second response is not a function call
+        chat_message = response["replies"][0]
+        assert "function_call" not in chat_message.meta
+        assert isinstance(chat_message.text, str)
 
 
 @pytest.mark.skipif(not os.environ.get("GOOGLE_API_KEY", None), reason="GOOGLE_API_KEY env var not set")
 def test_past_conversation():
     gemini_chat = GoogleAIGeminiChatGenerator(model="gemini-pro")
     messages = [
-        ChatMessage.from_system(content="You are a knowledageable mathematician."),
-        ChatMessage.from_user(content="What is 2+2?"),
-        ChatMessage.from_assistant(content="It's an arithmetic operation."),
-        ChatMessage.from_user(content="Yeah, but what's the result?"),
+        ChatMessage.from_system("You are a knowledageable mathematician."),
+        ChatMessage.from_user("What is 2+2?"),
+        ChatMessage.from_assistant("It's an arithmetic operation."),
+        ChatMessage.from_user("Yeah, but what's the result?"),
     ]
     response = gemini_chat.run(messages=messages)
     assert "replies" in response

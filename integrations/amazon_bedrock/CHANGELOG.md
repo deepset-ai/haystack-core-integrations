@@ -1,5 +1,25 @@
 # Changelog
 
+## [integrations/amazon_bedrock-v2.1.3] - 2025-01-21
+
+### 🧹 Chores
+
+- Bedrock - pin `transformers!=4.48.*` (#1306)
+
+
+## [integrations/amazon_bedrock-v2.1.2] - 2025-01-20
+
+### 🌀 Miscellaneous
+
+- Fix: Bedrock - pin `transformers!=4.48.0` (#1302)
+
+## [integrations/amazon_bedrock-v2.1.1] - 2024-12-18
+
+### 🐛 Bug Fixes
+
+- Fixes to Bedrock Chat Generator for compatibility with the new ChatMessage (#1250)
+
+
 ## [integrations/amazon_bedrock-v2.1.0] - 2024-12-11
 
 ### 🚀 Features

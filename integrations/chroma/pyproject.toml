@@ -7,7 +7,7 @@ name = "chroma-haystack"
 dynamic = ["version"]
 description = ''
 readme = "README.md"
-requires-python = ">=3.8"
+requires-python = ">=3.9"
 license = "Apache-2.0"
 keywords = []
 authors = [{ name = "John Doe", email = "jd@example.com" }]
@@ -15,7 +15,6 @@ classifiers = [
   "License :: OSI Approved :: Apache Software License",
   "Development Status :: 4 - Beta",
   "Programming Language :: Python",
-  "Programming Language :: Python :: 3.8",
   "Programming Language :: Python :: 3.9",
   "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
@@ -24,8 +23,7 @@ classifiers = [
 ]
 dependencies = [
   "haystack-ai",
-  "chromadb>=0.5.17",
-  "typing_extensions>=4.8.0"
+  "chromadb>=0.6.0",
   ]
 
 [project.urls]
