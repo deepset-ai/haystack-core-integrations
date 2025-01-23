@@ -30,19 +30,19 @@ def _convert_chatmessage_to_google_content(message: ChatMessage) -> Content:
     :returns: The Google AI `Content` object.
     """
 
-    if message.is_from("system"):
+    if message.is_from(ChatRole.SYSTEM):
         msg = "This function does not support system messages."
         raise ValueError(msg)
 
-    text_contents = message.texts
+    texts = message.texts
     tool_calls = message.tool_calls
     tool_call_results = message.tool_call_results
 
-    if not text_contents and not tool_calls and not tool_call_results:
+    if not texts and not tool_calls and not tool_call_results:
         msg = "A `ChatMessage` must contain at least one `TextContent`, `ToolCall`, or `ToolCallResult`."
         raise ValueError(msg)
 
-    if len(text_contents) + len(tool_call_results) > 1:
+    if len(texts) + len(tool_call_results) > 1:
         msg = "A `ChatMessage` can only contain one `TextContent` or one `ToolCallResult`."
         raise ValueError(msg)
 
@@ -56,17 +56,9 @@ def _convert_chatmessage_to_google_content(message: ChatMessage) -> Content:
         )
         return Content(parts=[part], role=role)
 
-    parts = []
-    if text_contents:
-        part = Part()
-        part.text = text_contents[0]
-        parts.append(part)
-
-    if tool_calls:
-        for tc in tool_calls:
-            part = Part(function_call=genai.protos.FunctionCall(name=tc.tool_name, args=tc.arguments))
-            parts.append(part)
-
+    parts = ([Part(text=texts[0])] if texts else []) + [
+        Part(function_call=genai.protos.FunctionCall(name=tc.tool_name, args=tc.arguments)) for tc in tool_calls
+    ]
     return Content(parts=parts, role=role)
 
 
@@ -242,7 +234,7 @@ class GoogleAIGeminiChatGenerator:
         return default_from_dict(cls, data)
 
     @staticmethod
-    def _convert_tool_to_google_tool(tool: Tool) -> FunctionDeclaration:
+    def _convert_to_google_tool(tool: Tool) -> FunctionDeclaration:
         """
         Converts a Haystack `Tool` to a Google AI `FunctionDeclaration` object.
 
@@ -283,9 +275,9 @@ class GoogleAIGeminiChatGenerator:
 
         tools = tools or self._tools
         _check_duplicate_tool_names(tools)
-        google_tools = [self._convert_tool_to_google_tool(tool) for tool in tools] if tools else None
+        google_tools = [self._convert_to_google_tool(tool) for tool in tools] if tools else None
 
-        if messages[0].is_from("system"):
+        if messages[0].is_from(ChatRole.SYSTEM):
             self._model._system_instruction = content_types.to_content(messages[0].text)
             messages = messages[1:]
 
@@ -319,7 +311,7 @@ class GoogleAIGeminiChatGenerator:
         """
         metadata = response_body.to_dict()
 
-        # Currently, only one candidate is supported
+        # Only one candidate is supported for chat functionality
         candidate = response_body.candidates[0]
         candidate_metadata = metadata["candidates"][0]
         candidate_metadata.pop("content", None)  # we remove content from the metadata
@@ -366,6 +358,7 @@ class GoogleAIGeminiChatGenerator:
         for chunk in stream:
             chunk_dict = chunk.to_dict()
             last_metadata = chunk_dict
+            # Only one candidate is supported for chat functionality
             candidate = chunk_dict["candidates"][0]
 
             for part in candidate["content"]["parts"]:

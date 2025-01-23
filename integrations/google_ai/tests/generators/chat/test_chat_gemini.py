@@ -313,9 +313,9 @@ class TestGoogleAIGeminiChatGenerator:
         new_pipeline = Pipeline.loads(pipeline_yaml)
         assert new_pipeline == pipeline
 
-    def test_convert_tool_to_google_tool(self, tools):
+    def test_convert_to_google_tool(self, tools):
         tool = tools[0]
-        google_tool = GoogleAIGeminiChatGenerator._convert_tool_to_google_tool(tool)
+        google_tool = GoogleAIGeminiChatGenerator._convert_to_google_tool(tool)
 
         assert google_tool.name == tool.name
         assert google_tool.description == tool.description
