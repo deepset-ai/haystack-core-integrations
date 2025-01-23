@@ -251,6 +251,64 @@ class AmazonBedrockChatGenerator:
     client = AmazonBedrockChatGenerator(model="anthropic.claude-3-5-sonnet-20240620-v1:0",
                                         streaming_callback=print_streaming_chunk)
     client.run(messages, generation_kwargs={"max_tokens": 512})
+    ```
+
+    ### Tool usage example
+    # AmazonBedrockChatGenerator supports Haystack's unified tool architecture, allowing tools to be used
+    # across different chat generators. The same tool definitions and usage patterns work consistently
+    # whether using Amazon Bedrock, OpenAI, Ollama, or any other supported LLM providers.
+
+    ```python
+    from haystack.dataclasses import ChatMessage
+    from haystack.tools import Tool
+    from haystack_integrations.components.generators.amazon_bedrock import AmazonBedrockChatGenerator
+
+    def weather(city: str):
+        return f'The weather in {city} is sunny and 32°C'
+
+    # Define tool parameters
+    tool_parameters = {
+        "type": "object",
+        "properties": {"city": {"type": "string"}},
+        "required": ["city"]
+    }
+
+    # Create weather tool
+    weather_tool = Tool(
+        name="weather",
+        description="useful to determine the weather in a given location",
+        parameters=tool_parameters,
+        function=weather
+    )
+
+    # Initialize generator with tool
+    client = AmazonBedrockChatGenerator(
+        model="anthropic.claude-3-5-sonnet-20240620-v1:0",
+        tools=[weather_tool]
+    )
+
+    # Run initial query
+    messages = [ChatMessage.from_user("What's the weather like in Paris?")]
+    results = client.run(messages=messages)
+
+    # Get tool call from response
+    tool_message = next(msg for msg in results["replies"] if msg.tool_call)
+    tool_call = tool_message.tool_call
+
+    # Execute tool and send result back
+    weather_result = weather(**tool_call.arguments)
+    new_messages = [
+        messages[0],
+        tool_message,
+        ChatMessage.from_tool(tool_result=weather_result, origin=tool_call)
+    ]
+
+    # Get final response
+    final_result = client.run(new_messages)
+    print(final_result["replies"][0].text)
+
+    > Based on the information I've received, I can tell you that the weather in Paris is
+    > currently sunny with a temperature of 32°C (which is about 90°F).
 
     ```
 
