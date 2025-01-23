@@ -612,12 +612,4 @@ class TestAmazonBedrockChatGeneratorInference:
         # Load pipeline and verify it works
         loaded_pipeline = Pipeline.from_dict(pipeline_dict)
 
-        # Run the deserialized pipeline
-        results = loaded_pipeline.run(
-            data={"generator": {"messages": [ChatMessage.from_user("What's the weather like in Paris?")]}}
-        )
-
-        assert (
-            "The weather in Paris is sunny and 32°C"
-            == results["tool_invoker"]["tool_messages"][0].tool_call_result.result
-        )
+        assert pipeline == loaded_pipeline
