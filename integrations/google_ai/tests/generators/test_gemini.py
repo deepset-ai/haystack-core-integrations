@@ -31,7 +31,7 @@ def test_init(monkeypatch):
     assert gemini.model_name == "gemini-1.5-flash"
     assert gemini.generation_config == generation_config
     assert gemini.safety_settings == safety_settings
-    assert isinstance(gemini.model, GenerativeModel)
+    assert isinstance(gemini._model, GenerativeModel)
 
 
 def test_init_fails_with_tools():
@@ -126,7 +126,7 @@ def test_from_dict_with_param(monkeypatch):
         top_k=1,
     )
     assert gemini.safety_settings == {HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_ONLY_HIGH}
-    assert isinstance(gemini.model, GenerativeModel)
+    assert isinstance(gemini._model, GenerativeModel)
 
 
 def test_from_dict(monkeypatch):
@@ -162,7 +162,7 @@ def test_from_dict(monkeypatch):
         top_k=1,
     )
     assert gemini.safety_settings == {HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_ONLY_HIGH}
-    assert isinstance(gemini.model, GenerativeModel)
+    assert isinstance(gemini._model, GenerativeModel)
 
 
 @pytest.mark.skipif(not os.environ.get("GOOGLE_API_KEY", None), reason="GOOGLE_API_KEY env var not set")

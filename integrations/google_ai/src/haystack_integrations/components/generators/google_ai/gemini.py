@@ -104,7 +104,7 @@ class GoogleAIGeminiGenerator:
         self.model_name = model
         self.generation_config = generation_config
         self.safety_settings = safety_settings
-        self.model = GenerativeModel(self.model_name)
+        self._model = GenerativeModel(self.model_name)
         self.streaming_callback = streaming_callback
 
     def _generation_config_to_dict(self, config: Union[GenerationConfig, Dict[str, Any]]) -> Dict[str, Any]:
@@ -201,13 +201,13 @@ class GoogleAIGeminiGenerator:
         streaming_callback = streaming_callback or self.streaming_callback
         converted_parts = [self._convert_part(p) for p in parts]
         contents = [Content(parts=converted_parts, role="user")]
-        res = self.model.generate_content(
+        res = self._model.generate_content(
             contents=contents,
             generation_config=self.generation_config,
             safety_settings=self.safety_settings,
             stream=streaming_callback is not None,
         )
-        self.model.start_chat()
+        self._model.start_chat()
         replies = self._get_stream_response(res, streaming_callback) if streaming_callback else self._get_response(res)
 
         return {"replies": replies}
