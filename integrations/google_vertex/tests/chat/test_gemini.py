@@ -1,9 +1,10 @@
+import json
 from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 from haystack import Pipeline
 from haystack.components.builders import ChatPromptBuilder
-from haystack.dataclasses import ChatMessage, ChatRole, StreamingChunk
+from haystack.dataclasses import ChatMessage, ChatRole, StreamingChunk, TextContent, ToolCall
 from vertexai.generative_models import (
     Content,
     FunctionDeclaration,
@@ -16,7 +17,58 @@ from vertexai.generative_models import (
     ToolConfig,
 )
 
-from haystack_integrations.components.generators.google_vertex import VertexAIGeminiChatGenerator
+from haystack_integrations.components.generators.google_vertex.chat.gemini import (
+    VertexAIGeminiChatGenerator,
+    _convert_chatmessage_to_google_content,
+)
+
+
+def test_convert_chatmessage_to_google_content():
+    chat_message = ChatMessage.from_assistant("Hello, how are you?")
+    google_content = _convert_chatmessage_to_google_content(chat_message)
+
+    assert google_content.parts[0].text == "Hello, how are you?"
+    assert google_content.role == "model"
+
+    message = ChatMessage.from_user("I have a question")
+    google_content = _convert_chatmessage_to_google_content(message)
+    assert google_content.parts[0].text == "I have a question"
+    assert google_content.role == "user"
+
+    message = ChatMessage.from_assistant(
+        tool_calls=[ToolCall(id="123", tool_name="weather", arguments={"city": "Paris"})]
+    )
+    google_content = _convert_chatmessage_to_google_content(message)
+    assert google_content.parts[0].function_call.name == "weather"
+    assert google_content.parts[0].function_call.args == {"city": "Paris"}
+    assert google_content.role == "model"
+
+    tool_result = json.dumps({"weather": "sunny", "temperature": "25"})
+    message = ChatMessage.from_tool(
+        tool_result=tool_result, origin=ToolCall(id="123", tool_name="weather", arguments={"city": "Paris"})
+    )
+    google_content = _convert_chatmessage_to_google_content(message)
+    assert google_content.parts[0].function_response.name == "weather"
+    assert google_content.parts[0].function_response.response == {"result": tool_result}
+    assert google_content.role == "user"
+
+
+def test_convert_chatmessage_to_google_content_invalid():
+    message = ChatMessage(_role=ChatRole.ASSISTANT, _content=[])
+    with pytest.raises(ValueError):
+        _convert_chatmessage_to_google_content(message)
+
+    message = ChatMessage(
+        _role=ChatRole.ASSISTANT,
+        _content=[TextContent(text="I have an answer"), TextContent(text="I have another answer")],
+    )
+    with pytest.raises(ValueError):
+        _convert_chatmessage_to_google_content(message)
+
+    message = ChatMessage.from_system("You are a helpful assistant.")
+    with pytest.raises(ValueError):
+        _convert_chatmessage_to_google_content(message)
+
 
 GET_CURRENT_WEATHER_FUNC = FunctionDeclaration(
     name="get_current_weather",
