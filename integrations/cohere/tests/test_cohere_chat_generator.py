@@ -398,66 +398,76 @@ class TestCohereChatGenerator:
             == results["tool_invoker"]["tool_messages"][0].tool_call_result.result
         )
 
-    @pytest.mark.skipif(
-        not os.environ.get("COHERE_API_KEY", None) and not os.environ.get("CO_API_KEY", None),
-        reason="Export an env var called COHERE_API_KEY/CO_API_KEY containing the Cohere API key to run this test.",
-    )
-    @pytest.mark.integration
-    def test_pipeline_with_cohere_chat_generator_serde(self):
+    def test_serde_in_pipeline(self, monkeypatch):
         """
-        Test that the CohereChatGenerator component can be serialized and deserialized in a pipeline
+        Test serialization/deserialization of CohereChatGenerator in a Pipeline,
+        including detailed dictionary validation
         """
-        weather_tool = Tool(
+        # Set mock Cohere API key
+        monkeypatch.setenv("COHERE_API_KEY", "test-api-key")
+
+        # Create a test tool
+        tool = Tool(
             name="weather",
             description="useful to determine the weather in a given location",
-            parameters={
-                "type": "object",
-                "properties": {
-                    "city": {
-                        "type": "string",
-                        "description": "The name of the city to get weather for, e.g. Paris, London",
-                    }
-                },
-                "required": ["city"],
-            },
+            parameters={"city": {"type": "string"}},
             function=weather,
         )
 
-        # Create original pipeline
+        # Create generator with specific configuration
+        generator = CohereChatGenerator(
+            model="command-r",
+            generation_kwargs={"temperature": 0.7},
+            streaming_callback=print_streaming_chunk,
+            tools=[tool],
+        )
+
+        # Create and configure pipeline
         pipeline = Pipeline()
-        pipeline.add_component("generator", CohereChatGenerator(model="command-r", tools=[weather_tool]))
-        pipeline.add_component("tool_invoker", ToolInvoker(tools=[weather_tool]))
-        pipeline.connect("generator", "tool_invoker")
+        pipeline.add_component("generator", generator)
 
-        # Serialize and deserialize
+        # Get pipeline dictionary and verify its structure
         pipeline_dict = pipeline.to_dict()
-
-        # Verify tools in serialized dict
-        generator_tools = pipeline_dict["components"]["generator"]["init_parameters"]["tools"]
-        tool_invoker_tools = pipeline_dict["components"]["tool_invoker"]["init_parameters"]["tools"]
-
-        # Both components should have the same tool configuration
-        assert generator_tools == tool_invoker_tools
-        assert len(generator_tools) == 1
-
-        # Verify tool details
-        tool_dict = generator_tools[0]
-        assert tool_dict["type"] == "haystack.tools.tool.Tool"
-        assert tool_dict["data"]["name"] == "weather"
-        assert tool_dict["data"]["description"] == "useful to determine the weather in a given location"
-        assert tool_dict["data"]["parameters"] == {
-            "type": "object",
-            "properties": {
-                "city": {
-                    "type": "string",
-                    "description": "The name of the city to get weather for, e.g. Paris, London",
+        assert pipeline_dict == {
+            "metadata": {},
+            "max_runs_per_component": 100,
+            "components": {
+                "generator": {
+                    "type": "haystack_integrations.components.generators.cohere.chat.chat_generator.CohereChatGenerator",  # noqa: E501
+                    "init_parameters": {
+                        "model": "command-r",
+                        "api_key": {"type": "env_var", "env_vars": ["COHERE_API_KEY", "CO_API_KEY"], "strict": True},
+                        "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
+                        "api_base_url": "https://api.cohere.com",
+                        "generation_kwargs": {"temperature": 0.7},
+                        "tools": [
+                            {
+                                "type": "haystack.tools.tool.Tool",
+                                "data": {
+                                    "name": "weather",
+                                    "description": "useful to determine the weather in a given location",
+                                    "parameters": {"city": {"type": "string"}},
+                                    "function": "tests.test_cohere_chat_generator.weather",
+                                },
+                            }
+                        ],
+                    },
                 }
             },
-            "required": ["city"],
+            "connections": [],
         }
-        assert tool_dict["data"]["function"] == "tests.test_cohere_chat_generator.weather"
 
-        # Load pipeline and verify it works
-        loaded_pipeline = Pipeline.from_dict(pipeline_dict)
+        # Test YAML serialization/deserialization
+        pipeline_yaml = pipeline.dumps()
+        new_pipeline = Pipeline.loads(pipeline_yaml)
+        assert new_pipeline == pipeline
 
-        assert pipeline == loaded_pipeline, "Pipeline is not equal to loaded pipeline"
+        # Verify the loaded pipeline's generator has the same configuration
+        loaded_generator = new_pipeline.get_component("generator")
+        assert loaded_generator.model == generator.model
+        assert loaded_generator.generation_kwargs == generator.generation_kwargs
+        assert loaded_generator.streaming_callback == generator.streaming_callback
+        assert len(loaded_generator.tools) == len(generator.tools)
+        assert loaded_generator.tools[0].name == generator.tools[0].name
+        assert loaded_generator.tools[0].description == generator.tools[0].description
+        assert loaded_generator.tools[0].parameters == generator.tools[0].parameters
