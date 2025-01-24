@@ -112,27 +112,24 @@ class LangfuseSpan(Span):
         return {}
 
 
-@dataclass
+@dataclass(frozen=True)
 class SpanContext:
     """
     Context for creating spans in Langfuse.
 
-    This class encapsulates all the information needed to create a span in Langfuse tracing.
-    It is used by SpanHandler to determine what type of span to create (trace, generation, or regular)
-    and how to configure it.
+    Encapsulates the information needed to create and configure a span in Langfuse tracing.
+    Used by SpanHandler to determine the span type (trace, generation, or default) and its configuration.
 
     :param name: The name of the span to create. For components, this is typically the component name.
     :param operation_name: The operation being traced (e.g. "haystack.pipeline.run"). Used to determine
         if a new trace should be created without warning.
     :param component_type: The type of component creating the span (e.g. "OpenAIChatGenerator").
-        Used to determine if a generation span should be created.
+        Can be used to determine the type of span to create.
     :param tags: Additional metadata to attach to the span. Contains component input/output data
         and other trace information.
     :param parent_span: The parent span if this is a child span. If None, a new trace will be created.
-    :param trace_name: The name to use for the trace when creating a parent span. This comes from
-        the LangfuseTracer configuration.
-    :param public: Whether traces should be publicly accessible. This comes from the LangfuseTracer
-        configuration and only applies when creating parent spans.
+    :param trace_name: The name to use for the trace when creating a parent span. Defaults to "Haystack".
+    :param public: Whether traces should be publicly accessible. Defaults to False.
     """
 
     name: str
@@ -140,8 +137,25 @@ class SpanContext:
     component_type: Optional[str]
     tags: Dict[str, Any]
     parent_span: Optional[Span]
-    trace_name: str
-    public: bool
+    trace_name: str = "Haystack"
+    public: bool = False
+
+    def __post_init__(self) -> None:
+        """
+        Validate the span context attributes.
+
+        :raises ValueError: If name, operation_name or trace_name are empty
+        :raises TypeError: If tags is not a dictionary
+        """
+        if not self.name:
+            msg = "Span name cannot be empty"
+            raise ValueError(msg)
+        if not self.operation_name:
+            msg = "Operation name cannot be empty"
+            raise ValueError(msg)
+        if not self.trace_name:
+            msg = "Trace name cannot be empty"
+            raise ValueError(msg)
 
 
 class SpanHandler(ABC):
@@ -153,8 +167,8 @@ class SpanHandler(ABC):
     2. handle: Processes the span after component execution (adding metadata, metrics, etc.)
 
     To implement a custom handler:
-    - Extend this class of DefaultSpanHandler
-    - Override create_span and handle methods
+    - Extend this class or DefaultSpanHandler
+    - Override create_span and handle methods. It is more common to override handle.
     - Pass your handler to LangfuseConnector init method
     """
 
