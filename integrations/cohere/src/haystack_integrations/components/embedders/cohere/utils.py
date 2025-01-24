@@ -1,14 +1,22 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from tqdm import tqdm
 
-from cohere import AsyncClient, Client
+from cohere import AsyncClientV2, ClientV2
+from haystack_integrations.components.embedders.cohere.embedding_types import EmbeddingTypes
 
 
-async def get_async_response(cohere_async_client: AsyncClient, texts: List[str], model_name, input_type, truncate):
+async def get_async_response(
+    cohere_async_client: AsyncClientV2,
+    texts: List[str],
+    model_name,
+    input_type,
+    truncate,
+    embedding_type: Optional[EmbeddingTypes] = None,
+):
     """Embeds a list of texts asynchronously using the Cohere API.
 
     :param cohere_async_client: the Cohere `AsyncClient`
@@ -17,6 +25,7 @@ async def get_async_response(cohere_async_client: AsyncClient, texts: List[str],
     :param input_type: one of "classification", "clustering", "search_document", "search_query".
         The type of input text provided to embed.
     :param truncate: one of "NONE", "START", "END". How the API handles text longer than the maximum token length.
+    :param embedding_type: the type of embeddings to return. Defaults to float embeddings.
 
     :returns: A tuple of the embeddings and metadata.
 
@@ -25,17 +34,34 @@ async def get_async_response(cohere_async_client: AsyncClient, texts: List[str],
     all_embeddings: List[List[float]] = []
     metadata: Dict[str, Any] = {}
 
-    response = await cohere_async_client.embed(texts=texts, model=model_name, input_type=input_type, truncate=truncate)
+    embedding_type = embedding_type or EmbeddingTypes.FLOAT
+    response = await cohere_async_client.embed(
+        texts=texts,
+        model=model_name,
+        input_type=input_type,
+        truncate=truncate,
+        embedding_types=[embedding_type.value],
+    )
     if response.meta is not None:
         metadata = response.meta
-    for emb in response.embeddings:
-        all_embeddings.append(emb)
+    for emb_tuple in response.embeddings:
+        # emb_tuple[0] is a str denoting the embedding type (e.g. "float", "int8", etc.)
+        if emb_tuple[1] is not None:
+            # ok we have embeddings for this type, let's take all the embeddings (a list of embeddings)
+            all_embeddings.extend(emb_tuple[1])
 
     return all_embeddings, metadata
 
 
 def get_response(
-    cohere_client: Client, texts: List[str], model_name, input_type, truncate, batch_size=32, progress_bar=False
+    cohere_client: ClientV2,
+    texts: List[str],
+    model_name,
+    input_type,
+    truncate,
+    batch_size=32,
+    progress_bar=False,
+    embedding_type: Optional[EmbeddingTypes] = None,
 ) -> Tuple[List[List[float]], Dict[str, Any]]:
     """Embeds a list of texts using the Cohere API.
 
@@ -47,6 +73,7 @@ def get_response(
     :param truncate: one of "NONE", "START", "END". How the API handles text longer than the maximum token length.
     :param batch_size: the batch size to use
     :param progress_bar: if `True`, show a progress bar
+    :param embedding_type: the type of embeddings to return. Defaults to float embeddings.
 
     :returns: A tuple of the embeddings and metadata.
 
@@ -55,6 +82,7 @@ def get_response(
 
     all_embeddings: List[List[float]] = []
     metadata: Dict[str, Any] = {}
+    embedding_type = embedding_type or EmbeddingTypes.FLOAT
 
     for i in tqdm(
         range(0, len(texts), batch_size),
@@ -62,9 +90,20 @@ def get_response(
         desc="Calculating embeddings",
     ):
         batch = texts[i : i + batch_size]
-        response = cohere_client.embed(texts=batch, model=model_name, input_type=input_type, truncate=truncate)
-        for emb in response.embeddings:
-            all_embeddings.append(emb)
+        response = cohere_client.embed(
+            texts=batch,
+            model=model_name,
+            input_type=input_type,
+            truncate=truncate,
+            embedding_types=[embedding_type.value],
+        )
+        ## response.embeddings always returns 5 tuples, one tuple per embedding type
+        ## let's take first non None tuple as that's the one we want
+        for emb_tuple in response.embeddings:
+            # emb_tuple[0] is a str denoting the embedding type (e.g. "float", "int8", etc.)
+            if emb_tuple[1] is not None:
+                # ok we have embeddings for this type, let's take all the embeddings (a list of embeddings)
+                all_embeddings.extend(emb_tuple[1])
         if response.meta is not None:
             metadata = response.meta
 

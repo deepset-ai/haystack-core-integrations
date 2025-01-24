@@ -40,6 +40,7 @@ class CohereRanker:
         max_chunks_per_doc: Optional[int] = None,
         meta_fields_to_embed: Optional[List[str]] = None,
         meta_data_separator: str = "\n",
+        max_tokens_per_doc: Optional[int] = None,
     ):
         """
         Creates an instance of the 'CohereRanker'.
@@ -57,6 +58,7 @@ class CohereRanker:
             with the document content for reranking.
         :param meta_data_separator: Separator used to concatenate the meta fields
             to the Document content.
+        :param max_tokens_per_doc: The maximum number of tokens to embed for each document.
         """
         self.model_name = model
         self.api_key = api_key
@@ -65,7 +67,18 @@ class CohereRanker:
         self.max_chunks_per_doc = max_chunks_per_doc
         self.meta_fields_to_embed = meta_fields_to_embed or []
         self.meta_data_separator = meta_data_separator
-        self._cohere_client = cohere.Client(
+        self.max_tokens_per_doc = max_tokens_per_doc
+        if max_chunks_per_doc is not None:
+            # Note: max_chunks_per_doc is currently not supported by the Cohere V2 API
+            # See: https://docs.cohere.com/reference/rerank
+            import warnings
+
+            warnings.warn(
+                "The max_chunks_per_doc parameter currently has no effect as it is not supported by the Cohere V2 API.",
+                UserWarning,
+                stacklevel=2,
+            )
+        self._cohere_client = cohere.ClientV2(
             api_key=self.api_key.resolve_value(), base_url=self.api_base_url, client_name="haystack"
         )
 
@@ -85,6 +98,7 @@ class CohereRanker:
             max_chunks_per_doc=self.max_chunks_per_doc,
             meta_fields_to_embed=self.meta_fields_to_embed,
             meta_data_separator=self.meta_data_separator,
+            max_tokens_per_doc=self.max_tokens_per_doc,
         )
 
     @classmethod
@@ -152,7 +166,7 @@ class CohereRanker:
             model=self.model_name,
             query=query,
             documents=cohere_input_docs,
-            max_chunks_per_doc=self.max_chunks_per_doc,
+            max_tokens_per_doc=self.max_tokens_per_doc,
             top_n=top_k,
         )
         indices = [output.index for output in response.results]
