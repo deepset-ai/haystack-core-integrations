@@ -311,9 +311,9 @@ class VertexAIGeminiChatGenerator:
 
         usage_metadata = dict(response_body.usage_metadata)
         openai_usage = {
-            "prompt_tokens": usage_metadata["prompt_token_count"],
-            "completion_tokens": usage_metadata["candidates_token_count"],
-            "total_tokens": usage_metadata["total_token_count"],
+            "prompt_tokens": usage_metadata.get("prompt_token_count", 0),
+            "completion_tokens": usage_metadata.get("candidates_token_count", 0),
+            "total_tokens": usage_metadata.get("total_token_count", 0),
         }
 
         for candidate in response_body.candidates:
@@ -344,7 +344,7 @@ class VertexAIGeminiChatGenerator:
         Streams the Google Vertex AI response and converts it to a list of `ChatMessage` instances.
 
         :param stream: The streaming response from the Google AI request.
-        :param streaming_callback: The handler for the streaming response.
+        :param streaming_callback: The handler for the streaming response.https://cloud.google.com/vertex-ai/generative-ai/docs/model-reference/extension
         :returns: List of `ChatMessage` instances.
         """
         replies: List[ChatMessage] = []

@@ -1,19 +1,19 @@
 import json
+from typing import Annotated, Literal
 from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 from haystack import Pipeline
 from haystack.components.builders import ChatPromptBuilder
 from haystack.dataclasses import ChatMessage, ChatRole, StreamingChunk, TextContent, ToolCall
+from haystack.tools import Tool, create_tool_from_function
 from vertexai.generative_models import (
     Content,
-    FunctionDeclaration,
     GenerationConfig,
     GenerationResponse,
     HarmBlockThreshold,
     HarmCategory,
     Part,
-    Tool,
     ToolConfig,
 )
 
@@ -21,6 +21,20 @@ from haystack_integrations.components.generators.google_vertex.chat.gemini impor
     VertexAIGeminiChatGenerator,
     _convert_chatmessage_to_google_content,
 )
+
+
+def get_current_weather(
+    city: Annotated[str, "the city for which to get the weather, e.g. 'San Francisco'"] = "Munich",
+    unit: Annotated[Literal["Celsius", "Fahrenheit"], "the unit for the temperature"] = "Celsius",
+):
+    """A simple function to get the current weather for a location."""
+    return f"Weather report for {city}: 20 {unit}, sunny"
+
+
+@pytest.fixture
+def tools():
+    tool = create_tool_from_function(get_current_weather)
+    return [tool]
 
 
 def test_convert_chatmessage_to_google_content():
@@ -70,26 +84,6 @@ def test_convert_chatmessage_to_google_content_invalid():
         _convert_chatmessage_to_google_content(message)
 
 
-GET_CURRENT_WEATHER_FUNC = FunctionDeclaration(
-    name="get_current_weather",
-    description="Get the current weather in a given location",
-    parameters={
-        "type": "object",
-        "properties": {
-            "location": {"type": "string", "description": "The city and state, e.g. San Francisco, CA"},
-            "unit": {
-                "type": "string",
-                "enum": [
-                    "celsius",
-                    "fahrenheit",
-                ],
-            },
-        },
-        "required": ["location"],
-    },
-)
-
-
 @pytest.fixture
 def chat_messages():
     return [
@@ -100,7 +94,7 @@ def chat_messages():
 
 @patch("haystack_integrations.components.generators.google_vertex.chat.gemini.vertexai_init")
 @patch("haystack_integrations.components.generators.google_vertex.chat.gemini.GenerativeModel")
-def test_init(mock_vertexai_init, _mock_generative_model):
+def test_init(mock_vertexai_init, _mock_generative_model, tools):
 
     generation_config = GenerationConfig(
         candidate_count=1,
@@ -112,7 +106,6 @@ def test_init(mock_vertexai_init, _mock_generative_model):
     )
     safety_settings = {HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_ONLY_HIGH}
 
-    tool = Tool(function_declarations=[GET_CURRENT_WEATHER_FUNC])
     tool_config = ToolConfig(
         function_calling_config=ToolConfig.FunctionCallingConfig(
             mode=ToolConfig.FunctionCallingConfig.Mode.ANY,
@@ -125,17 +118,15 @@ def test_init(mock_vertexai_init, _mock_generative_model):
         location="TestLocation",
         generation_config=generation_config,
         safety_settings=safety_settings,
-        tools=[tool],
+        tools=tools,
         tool_config=tool_config,
-        system_instruction="Please provide brief answers.",
     )
     mock_vertexai_init.assert_called()
     assert gemini._model_name == "gemini-1.5-flash"
     assert gemini._generation_config == generation_config
     assert gemini._safety_settings == safety_settings
-    assert gemini._tools == [tool]
+    assert gemini._tools == tools
     assert gemini._tool_config == tool_config
-    assert gemini._system_instruction == "Please provide brief answers."
 
 
 @patch("haystack_integrations.components.generators.google_vertex.chat.gemini.vertexai_init")
@@ -154,7 +145,6 @@ def test_to_dict(_mock_vertexai_init, _mock_generative_model):
             "streaming_callback": None,
             "tools": None,
             "tool_config": None,
-            "system_instruction": None,
         },
     }
 
@@ -162,6 +152,8 @@ def test_to_dict(_mock_vertexai_init, _mock_generative_model):
 @patch("haystack_integrations.components.generators.google_vertex.chat.gemini.vertexai_init")
 @patch("haystack_integrations.components.generators.google_vertex.chat.gemini.GenerativeModel")
 def test_to_dict_with_params(_mock_vertexai_init, _mock_generative_model):
+    tools = [Tool(name="name", description="description", parameters={"x": {"type": "string"}}, function=print)]
+
     generation_config = GenerationConfig(
         candidate_count=1,
         stop_sequences=["stop"],
@@ -172,7 +164,6 @@ def test_to_dict_with_params(_mock_vertexai_init, _mock_generative_model):
     )
     safety_settings = {HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_ONLY_HIGH}
 
-    tool = Tool(function_declarations=[GET_CURRENT_WEATHER_FUNC])
     tool_config = ToolConfig(
         function_calling_config=ToolConfig.FunctionCallingConfig(
             mode=ToolConfig.FunctionCallingConfig.Mode.ANY,
@@ -185,9 +176,8 @@ def test_to_dict_with_params(_mock_vertexai_init, _mock_generative_model):
         location="TestLocation",
         generation_config=generation_config,
         safety_settings=safety_settings,
-        tools=[tool],
+        tools=tools,
         tool_config=tool_config,
-        system_instruction="Please provide brief answers.",
     )
 
     assert gemini.to_dict() == {
@@ -208,24 +198,13 @@ def test_to_dict_with_params(_mock_vertexai_init, _mock_generative_model):
             "streaming_callback": None,
             "tools": [
                 {
-                    "function_declarations": [
-                        {
-                            "name": "get_current_weather",
-                            "description": "Get the current weather in a given location",
-                            "parameters": {
-                                "type": "OBJECT",
-                                "properties": {
-                                    "location": {
-                                        "type": "STRING",
-                                        "description": "The city and state, e.g. San Francisco, CA",
-                                    },
-                                    "unit": {"type": "STRING", "enum": ["celsius", "fahrenheit"]},
-                                },
-                                "required": ["location"],
-                                "property_ordering": ["location", "unit"],
-                            },
-                        }
-                    ]
+                    "type": "haystack.tools.tool.Tool",
+                    "data": {
+                        "description": "description",
+                        "function": "builtins.print",
+                        "name": "name",
+                        "parameters": {"x": {"type": "string"}},
+                    },
                 }
             ],
             "tool_config": {
@@ -234,7 +213,6 @@ def test_to_dict_with_params(_mock_vertexai_init, _mock_generative_model):
                     "allowed_function_names": ["get_current_weather_func"],
                 }
             },
-            "system_instruction": "Please provide brief answers.",
         },
     }
 
@@ -261,13 +239,14 @@ def test_from_dict(_mock_vertexai_init, _mock_generative_model):
     assert gemini._safety_settings is None
     assert gemini._tools is None
     assert gemini._tool_config is None
-    assert gemini._system_instruction is None
     assert gemini._generation_config is None
 
 
 @patch("haystack_integrations.components.generators.google_vertex.chat.gemini.vertexai_init")
 @patch("haystack_integrations.components.generators.google_vertex.chat.gemini.GenerativeModel")
 def test_from_dict_with_param(_mock_vertexai_init, _mock_generative_model):
+    tools = [Tool(name="name", description="description", parameters={"x": {"type": "string"}}, function=print)]
+
     gemini = VertexAIGeminiChatGenerator.from_dict(
         {
             "type": "haystack_integrations.components.generators.google_vertex.chat.gemini.VertexAIGeminiChatGenerator",
@@ -286,29 +265,13 @@ def test_from_dict_with_param(_mock_vertexai_init, _mock_generative_model):
                 "safety_settings": {HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_ONLY_HIGH},
                 "tools": [
                     {
-                        "function_declarations": [
-                            {
-                                "name": "get_current_weather",
-                                "description": "Get the current weather in a given location",
-                                "parameters": {
-                                    "type": "object",
-                                    "properties": {
-                                        "location": {
-                                            "type": "string",
-                                            "description": "The city and state, e.g. San Francisco, CA",
-                                        },
-                                        "unit": {
-                                            "type": "string",
-                                            "enum": [
-                                                "celsius",
-                                                "fahrenheit",
-                                            ],
-                                        },
-                                    },
-                                    "required": ["location"],
-                                },
-                            }
-                        ]
+                        "type": "haystack.tools.tool.Tool",
+                        "data": {
+                            "description": "description",
+                            "function": "builtins.print",
+                            "name": "name",
+                            "parameters": {"x": {"type": "string"}},
+                        },
                     }
                 ],
                 "tool_config": {
@@ -317,7 +280,6 @@ def test_from_dict_with_param(_mock_vertexai_init, _mock_generative_model):
                         "allowed_function_names": ["get_current_weather_func"],
                     }
                 },
-                "system_instruction": "Please provide brief answers.",
                 "streaming_callback": None,
             },
         }
@@ -327,10 +289,9 @@ def test_from_dict_with_param(_mock_vertexai_init, _mock_generative_model):
     assert gemini._project_id == "TestID123"
     assert gemini._location == "TestLocation"
     assert gemini._safety_settings == {HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_ONLY_HIGH}
-    assert repr(gemini._tools) == repr([Tool(function_declarations=[GET_CURRENT_WEATHER_FUNC])])
+    assert gemini._tools == tools
     assert isinstance(gemini._tool_config, ToolConfig)
     assert isinstance(gemini._generation_config, GenerationConfig)
-    assert gemini._system_instruction == "Please provide brief answers."
     assert (
         gemini._tool_config._gapic_tool_config.function_calling_config.mode == ToolConfig.FunctionCallingConfig.Mode.ANY
     )
@@ -339,7 +300,7 @@ def test_from_dict_with_param(_mock_vertexai_init, _mock_generative_model):
 @patch("haystack_integrations.components.generators.google_vertex.chat.gemini.GenerativeModel")
 def test_run(mock_generative_model):
     mock_model = Mock()
-    mock_candidate = Mock(content=Content(parts=[Part.from_text("This is a generated response.")], role="model"))
+    mock_candidate = MagicMock(content=Content(parts=[Part.from_text("This is a generated response.")], role="model"))
     mock_response = MagicMock(spec=GenerationResponse, candidates=[mock_candidate])
 
     mock_model.send_message.return_value = mock_response
