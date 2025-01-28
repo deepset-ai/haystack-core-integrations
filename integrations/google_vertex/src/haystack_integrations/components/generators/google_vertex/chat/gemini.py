@@ -24,18 +24,14 @@ from vertexai.generative_models import Tool as VertexTool
 
 logger = logging.getLogger(__name__)
 
-# TODO:
-# - test in real world
-# - add tests for running with tools
-
 
 def _convert_chatmessage_to_google_content(message: ChatMessage) -> Content:
     """
-    Converts a Haystack `ChatMessage` to a Google AI `Content` object.
+    Converts a Haystack `ChatMessage` to a Google `Content` object.
     System messages are not supported.
 
     :param message: The Haystack `ChatMessage` to convert.
-    :returns: The Google AI `Content` object.
+    :returns: The Google `Content` object.
     """
 
     if message.is_from(ChatRole.SYSTEM):
@@ -85,7 +81,7 @@ class VertexAIGeminiChatGenerator:
     Authenticates using Google Cloud Application Default Credentials (ADCs).
     For more information see the official [Google documentation](https://cloud.google.com/docs/authentication/provide-credentials-adc).
 
-    Usage example:
+    ### Usage example
     ```python
     from haystack.dataclasses import ChatMessage
     from haystack_integrations.components.generators.google_vertex import VertexAIGeminiChatGenerator
@@ -97,6 +93,43 @@ class VertexAIGeminiChatGenerator:
 
     print(res["replies"][0].text)
     >>> The Shawshank Redemption
+
+    #### With Tool calling:
+
+    ```python
+    from typing import Annotated
+    from haystack.utils import Secret
+    from haystack.dataclasses.chat_message import ChatMessage
+    from haystack.components.tools import ToolInvoker
+    from haystack.tools import create_tool_from_function
+
+    from haystack_integrations.components.generators.google_vertex import VertexAIGeminiChatGenerator
+
+    # example function to get the current weather
+    def get_current_weather(
+        location: Annotated[str, "The city for which to get the weather, e.g. 'San Francisco'"] = "Munich",
+        unit: Annotated[str, "The unit for the temperature, e.g. 'celsius'"] = "celsius",
+    ) -> str:
+        return f"The weather in {location} is sunny. The temperature is 20 {unit}."
+
+    tool = create_tool_from_function(get_current_weather)
+    tool_invoker = ToolInvoker(tools=[tool])
+
+    gemini_chat = VertexAIGeminiChatGenerator(
+        model="gemini-2.0-flash-exp",
+        tools=[tool],
+    )
+    user_message = [ChatMessage.from_user("What is the temperature in celsius in Berlin?")]
+    replies = gemini_chat.run(messages=user_message)["replies"]
+    print(replies[0].tool_calls)
+
+    # actually invoke the tool
+    tool_messages = tool_invoker.run(messages=replies)["tool_messages"]
+    messages = user_message + replies + tool_messages
+
+    # transform the tool call result into a human readable message
+    final_replies = gemini_chat.run(messages=messages)["replies"]
+    print(final_replies[0].text)
     ```
     """
 
@@ -160,6 +193,7 @@ class VertexAIGeminiChatGenerator:
         )
 
     def _generation_config_to_dict(self, config: Union[GenerationConfig, Dict[str, Any]]) -> Dict[str, Any]:
+        """Converts the GenerationConfig object to a dictionary."""
         if isinstance(config, dict):
             return config
         return config.to_dict()
@@ -285,7 +319,7 @@ class VertexAIGeminiChatGenerator:
         candidate_count = 1
         if self._generation_config:
             config_dict = self._generation_config_to_dict(self._generation_config)
-            candidate_count = config_dict.get("candidate_count", candidate_count)
+            candidate_count = config_dict.get("candidate_count", 1)
 
         if streaming_callback and candidate_count > 1:
             msg = "Streaming is not supported with multiple candidates. Set candidate_count to 1."
@@ -332,8 +366,9 @@ class VertexAIGeminiChatGenerator:
             text = ""
             tool_calls = []
             for part in candidate.content.parts:
+                # we need this strange check: calling part.text directly raises an error if the part has no text
                 if "text" in part._raw_part:
-                    text += part._raw_part.text
+                    text += part.text
                 elif "function_call" in part._raw_part:
                     tool_calls.append(
                         ToolCall(
@@ -352,38 +387,41 @@ class VertexAIGeminiChatGenerator:
         Streams the Google Vertex AI response and converts it to a list of `ChatMessage` instances.
 
         :param stream: The streaming response from the Google AI request.
-        :param streaming_callback: The handler for the streaming response.https://cloud.google.com/vertex-ai/generative-ai/docs/model-reference/extension
+        :param streaming_callback: The handler for the streaming response.
         :returns: List of `ChatMessage` instances.
         """
 
         text = ""
         tool_calls = []
-        last_metadata = {}
+        chunk_dict = {}
 
         for chunk in stream:
             content_to_stream = ""
             chunk_dict = chunk.to_dict()
-            last_metadata = chunk_dict
+
             # Only one candidate is supported with streaming
             candidate = chunk_dict["candidates"][0]
 
             for part in candidate["content"]["parts"]:
-                if part.get("text"):
-                    text += part["text"]
-                    content_to_stream += part["text"]
-                elif part.get("function_call"):
-                    content_to_stream += json.dumps(dict(part["function_call"]))
+                if new_text := part.get("text"):
+                    content_to_stream += new_text
+                    text += new_text
+                elif new_function_call := part.get("function_call"):
+                    content_to_stream += json.dumps(dict(new_function_call))
                     tool_calls.append(
                         ToolCall(
-                            tool_name=part["function_call"]["name"],
-                            arguments=dict(part["function_call"]["args"]),
+                            tool_name=new_function_call["name"],
+                            arguments=dict(new_function_call["args"]),
                         )
                     )
 
             streaming_callback(StreamingChunk(content=content_to_stream, meta=chunk_dict))
 
+        # store the last chunk metadata
+        meta = chunk_dict
+
         # format the usage metadata to be compatible with OpenAI
-        usage_metadata = last_metadata.pop("usage_metadata", {})
+        usage_metadata = meta.pop("usage_metadata", {})
 
         openai_usage = {
             "prompt_tokens": usage_metadata.get("prompt_token_count", 0),
@@ -391,6 +429,6 @@ class VertexAIGeminiChatGenerator:
             "total_tokens": usage_metadata.get("total_token_count", 0),
         }
 
-        last_metadata["usage"] = openai_usage
+        meta["usage"] = openai_usage
 
-        return [ChatMessage.from_assistant(text=text or None, meta=last_metadata, tool_calls=tool_calls)]
+        return [ChatMessage.from_assistant(text=text or None, meta=meta, tool_calls=tool_calls)]
