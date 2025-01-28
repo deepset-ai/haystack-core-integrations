@@ -483,7 +483,7 @@ class TestOllamaChatGenerator:
             "type": "object",
             "properties": {"capital": {"type": "string"}, "population": {"type": "number"}},
         }
-        chat_generator = OllamaChatGenerator(response_format=response_format)
+        chat_generator = OllamaChatGenerator(model="llama3.2:3b", response_format=response_format)
 
         message = ChatMessage.from_user("What's the capital of France and its population?")
         response = chat_generator.run([message])
