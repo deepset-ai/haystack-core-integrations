@@ -99,6 +99,7 @@ class OllamaChatGenerator:
         streaming_callback: Optional[Callable[[StreamingChunk], None]] = None,
         response_format: Optional[Union[Literal["", "json"], JsonSchemaValue]] = None,
         tools: Optional[List[Tool]] = None,
+        response_format: Optional[Union[Literal["", "json"], JsonSchemaValue]] = None,
     ):
         """
         :param model:
@@ -128,6 +129,8 @@ class OllamaChatGenerator:
             A list of tools for which the model can prepare calls.
             Not all models support tools. For a list of models compatible with tools, see the
             [models page](https://ollama.com/search?c=tools).
+        :param response_format:
+            The response_format of the stuctured output defined by a JSON schema.
         """
 
         _check_duplicate_tool_names(tools)
@@ -162,6 +165,7 @@ class OllamaChatGenerator:
             streaming_callback=callback_name,
             response_format=self.response_format,
             tools=serialized_tools,
+            response_format=self.response_format,
         )
 
     @classmethod

@@ -248,6 +248,10 @@ class TestOllamaChatGenerator:
                         },
                     },
                 ],
+                "response_format": {
+                    "type": "object",
+                    "properties": {"name": {"type": "string"}, "age": {"type": "number"}},
+                },
             },
         }
 
@@ -291,6 +295,10 @@ class TestOllamaChatGenerator:
                     },
                 ],
             },
+            "response_format": {
+                "type": "object",
+                "properties": {"name": {"type": "string"}, "age": {"type": "number"}},
+            },
         }
         component = OllamaChatGenerator.from_dict(data)
         assert component.model == "llama2"
@@ -307,6 +315,10 @@ class TestOllamaChatGenerator:
         }
         assert component.timeout == 120
         assert component.tools == [tool]
+        assert component.response_format == {
+            "type": "object",
+            "properties": {"name": {"type": "string"}, "age": {"type": "number"}},
+        }
 
     @patch("haystack_integrations.components.generators.ollama.chat.chat_generator.Client")
     def test_run(self, mock_client):
