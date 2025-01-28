@@ -48,7 +48,7 @@ class TestCohereRanker:
         assert component.max_chunks_per_doc is None
         assert component.meta_fields_to_embed == []
         assert component.meta_data_separator == "\n"
-        assert component.max_tokens_per_doc is None
+        assert component.max_tokens_per_doc = 4096
 
     def test_init_fail_wo_api_key(self, monkeypatch):
         monkeypatch.delenv("CO_API_KEY", raising=False)
