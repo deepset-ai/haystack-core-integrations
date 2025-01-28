@@ -476,38 +476,36 @@ class TestOllamaChatGenerator:
         tool_call = message.tool_call
         assert isinstance(tool_call, ToolCall)
         assert tool_call.tool_name == "weather"
-        assert tool_call.arguments == {"city": "Pari"}
+        assert tool_call.arguments == {"city": "Paris"}
 
     @pytest.mark.integration
     def test_run_with_response_format(self):
-         response_format = {
-             "type": "object",
-             "properties": {"capital": {"type": "string"}, "population": {"type": "number"}},
-         }
-         chat_generator = OllamaChatGenerator(response_format=response_format)
+        response_format = {
+            "type": "object",
+            "properties": {"capital": {"type": "string"}, "population": {"type": "number"}},
+        }
+        chat_generator = OllamaChatGenerator(response_format=response_format)
 
-         message = ChatMessage.from_user("What's the capital of France and its population?")
-         response = chat_generator.run([message])
-         assert isinstance(response, dict)
-         assert isinstance(response["replies"], list)
+        message = ChatMessage.from_user("What's the capital of France and its population?")
+        response = chat_generator.run([message])
+        assert isinstance(response, dict)
+        assert isinstance(response["replies"], list)
 
-         # Parse the response text as JSON and verify its structure
-         response_data = json.loads(response["replies"][0].text)
-         assert isinstance(response_data, dict)
-         assert "capital" in response_data
-         assert isinstance(response_data["capital"], str)
-         assert "population" in response_data
-         assert isinstance(response_data["population"], (int, float))
-         assert response_data["capital"] == "Paris"
-
+        # Parse the response text as JSON and verify its structure
+        response_data = json.loads(response["replies"][0].text)
+        assert isinstance(response_data, dict)
+        assert "capital" in response_data
+        assert isinstance(response_data["capital"], str)
+        assert "population" in response_data
+        assert isinstance(response_data["population"], (int, float))
+        assert response_data["capital"] == "Paris"
 
     def test_run_with_tools_and_format(self, tools):
         response_format = {
-             "type": "object",
-             "properties": {"capital": {"type": "string"}, "population": {"type": "number"}},
-         }
+            "type": "object",
+            "properties": {"capital": {"type": "string"}, "population": {"type": "number"}},
+        }
         chat_generator = OllamaChatGenerator(model="llama3.2:3b", tools=tools, response_format=response_format)
         message = ChatMessage.from_user("What's the weather in Paris?")
         with pytest.raises(ValueError):
             chat_generator.run([message])
-        

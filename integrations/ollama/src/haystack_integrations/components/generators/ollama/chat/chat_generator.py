@@ -244,7 +244,7 @@ class OllamaChatGenerator:
         if stream and tools:
             msg = "Ollama does not support tools and streaming at the same time. Please choose one."
             raise ValueError(msg)
-        
+
         if self.response_format and tools:
             msg = "Ollama does not support tools and response_format at the same time. Please choose one."
             raise ValueError(msg)
