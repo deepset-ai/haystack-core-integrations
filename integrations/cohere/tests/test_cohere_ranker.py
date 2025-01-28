@@ -91,7 +91,7 @@ class TestCohereRanker:
                 "max_chunks_per_doc": None,
                 "meta_fields_to_embed": [],
                 "meta_data_separator": "\n",
-                "max_tokens_per_doc": None,
+                "max_tokens_per_doc": 4096,
             },
         }
 
