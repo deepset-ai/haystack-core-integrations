@@ -1,9 +1,10 @@
-from typing import Any, Callable, Dict, List, Optional, Union
+from typing import Any, Callable, Dict, List, Literal, Optional, Union
 
 from haystack import component, default_from_dict, default_to_dict
 from haystack.dataclasses import ChatMessage, StreamingChunk, ToolCall
 from haystack.tools import Tool, _check_duplicate_tool_names, deserialize_tools_inplace
 from haystack.utils.callable_serialization import deserialize_callable, serialize_callable
+from pydantic.json_schema import JsonSchemaValue
 
 from ollama import ChatResponse, Client
 
@@ -97,6 +98,7 @@ class OllamaChatGenerator:
         keep_alive: Optional[Union[float, str]] = None,
         streaming_callback: Optional[Callable[[StreamingChunk], None]] = None,
         tools: Optional[List[Tool]] = None,
+        response_format: Optional[Union[None, Literal["json"], JsonSchemaValue]] = None,
     ):
         """
         :param model:
@@ -124,6 +126,11 @@ class OllamaChatGenerator:
             A list of tools for which the model can prepare calls.
             Not all models support tools. For a list of models compatible with tools, see the
             [models page](https://ollama.com/search?c=tools).
+        :param response_format:
+            The format for structured model outputs. Can be either:
+            - "json": Forces the model to output valid JSON.
+            - JsonSchemaValue: A dictionary specifying the required structure that the model must follow in its output.
+            - None: The default behavior, where the model can return any format.
         """
 
         _check_duplicate_tool_names(tools)
@@ -135,7 +142,7 @@ class OllamaChatGenerator:
         self.keep_alive = keep_alive
         self.streaming_callback = streaming_callback
         self.tools = tools
-
+        self.response_format = response_format
         self._client = Client(host=self.url, timeout=self.timeout)
 
     def to_dict(self) -> Dict[str, Any]:
@@ -156,6 +163,7 @@ class OllamaChatGenerator:
             timeout=self.timeout,
             streaming_callback=callback_name,
             tools=serialized_tools,
+            response_format=self.response_format,
         )
 
     @classmethod
@@ -236,6 +244,10 @@ class OllamaChatGenerator:
         if stream and tools:
             msg = "Ollama does not support tools and streaming at the same time. Please choose one."
             raise ValueError(msg)
+        
+        if self.response_format and tools:
+            msg = "Ollama does not support tools and response_format at the same time. Please choose one."
+            raise ValueError(msg)
 
         ollama_tools = [{"type": "function", "function": {**t.tool_spec}} for t in tools] if tools else None
 
@@ -247,6 +259,7 @@ class OllamaChatGenerator:
             stream=stream,
             keep_alive=self.keep_alive,
             options=generation_kwargs,
+            format=self.response_format,
         )
 
         if stream:

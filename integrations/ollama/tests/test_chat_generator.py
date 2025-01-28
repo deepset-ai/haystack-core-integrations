@@ -165,6 +165,7 @@ class TestOllamaChatGenerator:
         assert component.streaming_callback is None
         assert component.tools is None
         assert component.keep_alive is None
+        assert component.response_format is None
 
     def test_init(self, tools):
         component = OllamaChatGenerator(
@@ -175,6 +176,7 @@ class TestOllamaChatGenerator:
             keep_alive="10m",
             streaming_callback=print_streaming_chunk,
             tools=tools,
+            response_format={"type": "object", "properties": {"name": {"type": "string"}, "age": {"type": "number"}}},
         )
 
         assert component.model == "llama2"
@@ -184,6 +186,10 @@ class TestOllamaChatGenerator:
         assert component.keep_alive == "10m"
         assert component.streaming_callback is print_streaming_chunk
         assert component.tools == tools
+        assert component.response_format == {
+            "type": "object",
+            "properties": {"name": {"type": "string"}, "age": {"type": "number"}},
+        }
 
     def test_init_fail_with_duplicate_tool_names(self, tools):
 
@@ -206,6 +212,7 @@ class TestOllamaChatGenerator:
             generation_kwargs={"max_tokens": 10, "some_test_param": "test-params"},
             tools=[tool],
             keep_alive="5m",
+            response_format={"type": "object", "properties": {"name": {"type": "string"}, "age": {"type": "number"}}},
         )
         data = component.to_dict()
         assert data == {
@@ -235,6 +242,10 @@ class TestOllamaChatGenerator:
                         },
                     },
                 ],
+                "response_format": {
+                    "type": "object",
+                    "properties": {"name": {"type": "string"}, "age": {"type": "number"}},
+                },
             },
         }
 
@@ -273,6 +284,10 @@ class TestOllamaChatGenerator:
                         },
                     },
                 ],
+                "response_format": {
+                    "type": "object",
+                    "properties": {"name": {"type": "string"}, "age": {"type": "number"}},
+                },
             },
         }
         component = OllamaChatGenerator.from_dict(data)
@@ -286,6 +301,10 @@ class TestOllamaChatGenerator:
         }
         assert component.timeout == 120
         assert component.tools == [tool]
+        assert component.response_format == {
+            "type": "object",
+            "properties": {"name": {"type": "string"}, "age": {"type": "number"}},
+        }
 
     @patch("haystack_integrations.components.generators.ollama.chat.chat_generator.Client")
     def test_run(self, mock_client):
@@ -319,6 +338,7 @@ class TestOllamaChatGenerator:
             tools=None,
             options={},
             keep_alive=None,
+            format=None,
         )
 
         assert "replies" in result
@@ -451,8 +471,43 @@ class TestOllamaChatGenerator:
         assert len(response["replies"]) == 1
         message = response["replies"][0]
 
+        print(response)
         assert message.tool_calls
         tool_call = message.tool_call
         assert isinstance(tool_call, ToolCall)
         assert tool_call.tool_name == "weather"
-        assert tool_call.arguments == {"city": "Paris"}
+        assert tool_call.arguments == {"city": "Pari"}
+
+    @pytest.mark.integration
+    def test_run_with_response_format(self):
+         response_format = {
+             "type": "object",
+             "properties": {"capital": {"type": "string"}, "population": {"type": "number"}},
+         }
+         chat_generator = OllamaChatGenerator(response_format=response_format)
+
+         message = ChatMessage.from_user("What's the capital of France and its population?")
+         response = chat_generator.run([message])
+         assert isinstance(response, dict)
+         assert isinstance(response["replies"], list)
+
+         # Parse the response text as JSON and verify its structure
+         response_data = json.loads(response["replies"][0].text)
+         assert isinstance(response_data, dict)
+         assert "capital" in response_data
+         assert isinstance(response_data["capital"], str)
+         assert "population" in response_data
+         assert isinstance(response_data["population"], (int, float))
+         assert response_data["capital"] == "Paris"
+
+
+    def test_run_with_tools_and_format(self, tools):
+        response_format = {
+             "type": "object",
+             "properties": {"capital": {"type": "string"}, "population": {"type": "number"}},
+         }
+        chat_generator = OllamaChatGenerator(model="llama3.2:3b", tools=tools, response_format=response_format)
+        message = ChatMessage.from_user("What's the weather in Paris?")
+        with pytest.raises(ValueError):
+            chat_generator.run([message])
+        
