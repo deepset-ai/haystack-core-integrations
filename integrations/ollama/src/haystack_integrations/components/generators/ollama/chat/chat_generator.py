@@ -127,10 +127,10 @@ class OllamaChatGenerator:
             Not all models support tools. For a list of models compatible with tools, see the
             [models page](https://ollama.com/search?c=tools).
         :param response_format:
-            The format for structured model outputs. Can be either:
-            - "json": Forces the model to output valid JSON.
-            - JsonSchemaValue: A dictionary specifying the required structure that the model must follow in its output.
-            - None: The default behavior, where the model can return any format.
+            The format for structured model outputs. The value can be:
+            - None: The default response format is used.
+            - "json": The response is formatted as a JSON object.
+            - JsonSchemaValue: A dictionary containing a JSON Schema definition that specifies the structure of the response.
         """
 
         _check_duplicate_tool_names(tools)
