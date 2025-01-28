@@ -47,8 +47,10 @@ async def get_async_response(
     for emb_tuple in response.embeddings:
         # emb_tuple[0] is a str denoting the embedding type (e.g. "float", "int8", etc.)
         if emb_tuple[1] is not None:
-            # ok we have embeddings for this type, let's take all the embeddings (a list of embeddings)
+            # ok we have embeddings for this type, let's take all
+            # the embeddings (a list of embeddings) and break the loop
             all_embeddings.extend(emb_tuple[1])
+            break
 
     return all_embeddings, metadata
 

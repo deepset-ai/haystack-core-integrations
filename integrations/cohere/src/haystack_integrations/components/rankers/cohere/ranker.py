@@ -40,7 +40,7 @@ class CohereRanker:
         max_chunks_per_doc: Optional[int] = None,
         meta_fields_to_embed: Optional[List[str]] = None,
         meta_data_separator: str = "\n",
-        max_tokens_per_doc: int = 4096
+        max_tokens_per_doc: int = 4096,
     ):
         """
         Creates an instance of the 'CohereRanker'.

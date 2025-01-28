@@ -108,8 +108,7 @@ class CohereTextEmbedder:
         deserialize_secrets_inplace(init_params, ["api_key"])
 
         # Convert embedding_type string to EmbeddingTypes enum value
-        if "embedding_type" in init_params:
-            init_params["embedding_type"] = EmbeddingTypes.from_str(init_params["embedding_type"])
+        init_params["embedding_type"] = EmbeddingTypes.from_str(init_params["embedding_type"])
 
         return default_from_dict(cls, data)
 
