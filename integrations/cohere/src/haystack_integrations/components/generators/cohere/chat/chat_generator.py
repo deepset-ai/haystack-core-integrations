@@ -223,7 +223,26 @@ class CohereChatGenerator:
      `cohere.ClientV2.chat` will work here too.
     For details, see [Cohere API](https://docs.cohere.com/reference/chat).
 
-    ### Usage example
+    Below is an example of how to use the component:
+
+    ### Simple example
+    ```python
+    from haystack.dataclasses import ChatMessage
+    from haystack.utils import Secret
+    from haystack_integrations.components.generators.cohere import CohereChatGenerator
+
+    client = CohereChatGenerator(model="command-r", api_key=Secret.from_env_var("COHERE_API_KEY"))
+    messages = [ChatMessage.from_user("What's Natural Language Processing?")]
+    client.run(messages)
+
+    # Output: {'replies': [ChatMessage(_role=<ChatRole.ASSISTANT: 'assistant'>,
+    # _content=[TextContent(text='Natural Language Processing (NLP) is an interdisciplinary...
+    ```
+
+    ### Advanced example
+
+    CohereChatGenerator can be integrated into pipelines and supports Haystack's tooling
+    architecture, enabling tools to be invoked seamlessly across various generators.
 
     ```python
     from haystack import Pipeline
