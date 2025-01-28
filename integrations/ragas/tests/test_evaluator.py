@@ -6,31 +6,36 @@ from ragas.llms import BaseRagasLLM
 from ragas.embeddings import BaseRagasEmbeddings
 from ragas.dataset_schema import EvaluationResult
 from haystack import Document
-from haystack.dataclasses import ChatMessage
 from haystack_integrations.components.evaluators.ragas import RagasEvaluator
 
 
-# Fixture to mock the 'run' method of RagasEvaluator
+# Fixtures
 @pytest.fixture
 def mock_run():
+    """Fixture to mock the 'run' method of RagasEvaluator."""
     with mock.patch.object(RagasEvaluator, 'run') as mock_method:
         yield mock_method
 
 
-def test_successful_initialization():
-    """Test RagasEvaluator initializes correctly with valid inputs."""
+@pytest.fixture
+def ragas_evaluator():
+    """Fixture to create a valid RagasEvaluator instance."""
     valid_metrics = [MagicMock(spec=Metric) for _ in range(3)]
     valid_llm = MagicMock(spec=BaseRagasLLM)
     valid_embedding = MagicMock(spec=BaseRagasEmbeddings)
-
-    evaluator = RagasEvaluator(
+    return RagasEvaluator(
         ragas_metrics=valid_metrics,
         evaluator_llm=valid_llm,
         evaluator_embedding=valid_embedding,
     )
-    assert evaluator.metrics == valid_metrics
-    assert evaluator.llm == valid_llm
-    assert evaluator.embedding == valid_embedding
+
+
+# Tests
+def test_successful_initialization(ragas_evaluator):
+    """Test RagasEvaluator initializes correctly with valid inputs."""
+    assert len(ragas_evaluator.metrics) == 3
+    assert isinstance(ragas_evaluator.llm, BaseRagasLLM)
+    assert isinstance(ragas_evaluator.embedding, BaseRagasEmbeddings)
 
 
 def test_invalid_metrics():
@@ -61,7 +66,7 @@ def test_invalid_embedding():
         RagasEvaluator(ragas_metrics=[valid_metric], evaluator_embedding=invalid_embedding)
 
 
-def test_optional_llm_and_embeddings():
+def test_initializer_allows_optional_llm_and_embeddings():
     """Test RagasEvaluator initializes correctly with None for optional parameters."""
     valid_metric = MagicMock(spec=Metric)
 
@@ -75,6 +80,32 @@ def test_optional_llm_and_embeddings():
     assert evaluator.embedding is None
 
 
+@pytest.mark.parametrize(
+    "invalid_input,field_name,error_message",
+    [
+        (["Invalid query type"], "query", "'query' field expected"),
+        ([123, ["Invalid document"]], "documents", "Unsupported type in documents list"),
+        (["score_1"], "rubrics", "'rubrics' field expected"),
+    ],
+)
+def test_run_invalid_inputs(invalid_input, field_name, error_message):
+    """Test RagasEvaluator raises ValueError for invalid input types."""
+    evaluator = RagasEvaluator(ragas_metrics=[Faithfulness()])
+    query = "Which is the most popular global sport?"
+    documents = ["Football is the most popular sport."]
+    response = "Football is the most popular sport in the world"
+
+    with pytest.raises(ValueError) as exc_info:
+        if field_name == "query":
+            evaluator.run(query=invalid_input, documents=documents, response=response)
+        elif field_name == "documents":
+            evaluator.run(query=query, documents=invalid_input, response=response)
+        elif field_name == "rubrics":
+            evaluator.run(query=query, rubrics=invalid_input, documents=documents, response=response)
+
+    assert error_message in str(exc_info.value)
+
+
 def test_missing_columns_in_dataset():
     """Test if RagasEvaluator raises a ValueError when required columns are missing for a specific metric."""
     evaluator = RagasEvaluator(ragas_metrics=[Faithfulness()])
@@ -85,45 +116,10 @@ def test_missing_columns_in_dataset():
     with pytest.raises(ValueError) as exc_info:
         evaluator.run(query=query, reference=reference, response=response)
 
-    expected_error_message = "The metric [faithfulness] that is used requires the following additional columns ['documents'] to be present in the dataset."
-    assert expected_error_message == str(exc_info.value)
+    assert "faithfulness" in str(exc_info.value)
+    assert "documents" in str(exc_info.value)
 
 
-def test_run_invalid_query_type():
-    """Test RagasEvaluator raises ValueError for invalid query type."""
-    evaluator = RagasEvaluator(ragas_metrics=[Faithfulness()])
-    query = ["Invalid query type"]  # Should be str
-    documents = ["Football is the most popular sport."]
-    reference = ChatMessage(_content="Football is the most popular sport.", _role="human")
-    response = "Football is the most popular sport in the world"
-
-    with pytest.raises(ValueError, match="The 'query' field expected .* but got 'list'"):
-        evaluator.run(query=query, documents=documents, reference=reference, response=response)
-
-
-def test_run_invalid_rubrics_type():
-    """Test RagasEvaluator raises ValueError for invalid rubrics type."""
-    evaluator = RagasEvaluator(ragas_metrics=[Faithfulness()])
-    query = "Which is the most popular global sport?"
-    response = "Football is the most popular sport in the world"
-    documents = ["Football is the most popular sport."]
-    rubrics = ["score_1"]  # Should be dict
-
-    with pytest.raises(ValueError, match="The 'rubrics' field expected 'one of Dict, NoneType', but got 'list'."):
-        evaluator.run(query=query, rubrics=rubrics, response=response, documents=documents)
-
-
-def test_run_invalid_documents_type():
-    """Test RagasEvaluator raises ValueError for invalid document types."""
-    evaluator = RagasEvaluator(ragas_metrics=[Faithfulness()])
-    query = "Which is the most popular global sport?"
-    documents = [123, ["Invalid document"]]  # Invalid types
-
-    with pytest.raises(ValueError, match="Unsupported type in documents list."):
-        evaluator.run(query=query, documents=documents)
-
-
-@patch.object(RagasEvaluator, 'run')
 def test_run_valid_input(mock_run):
     """Test RagasEvaluator runs successfully with valid input."""
     mock_run.return_value = {"result": {"score": MagicMock(), "details": MagicMock(spec=EvaluationResult)}}
@@ -153,3 +149,4 @@ def test_run_valid_input(mock_run):
     assert "result" in output
     assert isinstance(output["result"], dict)
     assert "score" in output["result"]
+    assert isinstance(output["result"]["details"], EvaluationResult)

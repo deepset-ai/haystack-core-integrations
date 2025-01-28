@@ -1,7 +1,7 @@
 import re
 from typing import Any, Dict, List, Optional, Union, get_args, get_origin
 
-from haystack import Document, component, default_from_dict, default_to_dict
+from haystack import Document, component
 from haystack.dataclasses import ChatMessage
 from langchain_core.embeddings import Embeddings as LangchainEmbeddings  # type: ignore
 from langchain_core.language_models import BaseLanguageModel as LangchainLLM  # type: ignore
@@ -273,27 +273,3 @@ class RagasEvaluator:
             "rubrics": "{'score1': 'high_similarity'}",
         }
         return examples.get(field, "An appropriate value based on the field's type")
-
-    def to_dict(self) -> Dict[str, Any]:
-        """
-        Serializes the component to a dictionary.
-
-        :returns: Dictionary with serialized data.
-        :raises DeserializationError: If the component cannot be serialized.
-        """
-        return default_to_dict(
-            self,
-            ragas_metrics=self.metrics,
-            evaluator_llm=self.llm,
-            evaluator_embedding=self.embedding,
-        )
-
-    @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "RagasEvaluator":
-        """
-        Deserializes the component from a dictionary.
-
-        :param data: Dictionary to deserialize from.
-        :returns: Deserialized component.
-        """
-        return default_from_dict(cls, data)

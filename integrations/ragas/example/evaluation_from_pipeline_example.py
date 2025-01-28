@@ -1,10 +1,12 @@
 # A valid OpenAI API key must be provided as an environment variable "OPENAI_API_KEY" to run this example.
 
 import os
-from dotenv import load_dotenv
+from getpass import getpass
 
-load_dotenv()
-from haystack import Document
+if "OPENAI_API_KEY" not in os.environ:
+    os.environ["OPENAI_API_KEY"] = getpass("Enter OpenAI API key:")
+
+from haystack import Document, Pipeline
 from haystack.document_stores.in_memory import InMemoryDocumentStore
 from haystack.components.embedders import OpenAITextEmbedder, OpenAIDocumentEmbedder
 from haystack.components.retrievers.in_memory import InMemoryEmbeddingRetriever
@@ -12,8 +14,6 @@ from haystack.components.builders import ChatPromptBuilder
 from haystack.dataclasses import ChatMessage
 from haystack.components.generators.chat import OpenAIChatGenerator
 from haystack.components.builders import AnswerBuilder
-from haystack import Pipeline
-from haystack_integrations.components.evaluators.ragas import RagasEvaluator
 
 from langchain_openai import ChatOpenAI
 from ragas.llms import LangchainLLMWrapper
