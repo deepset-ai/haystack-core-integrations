@@ -1,171 +1,275 @@
-import json
-from typing import Any, Callable, Dict, List, Optional, Union
+import re
+from typing import Any, Dict, List, Optional, Union, get_args, get_origin
 
-from datasets import Dataset
-from haystack import DeserializationError, component, default_from_dict, default_to_dict
+from haystack import Document, component
+from haystack.dataclasses import ChatMessage
+from langchain_core.embeddings import Embeddings as LangchainEmbeddings  # type: ignore
+from langchain_core.language_models import BaseLanguageModel as LangchainLLM  # type: ignore
+from pydantic import ValidationError  # type: ignore
 
 from ragas import evaluate  # type: ignore
-from ragas.evaluation import Result
-from ragas.metrics.base import Metric
-
-from .metrics import (
-    METRIC_DESCRIPTORS,
-    InputConverters,
-    OutputConverters,
-    RagasMetric,
+from ragas.dataset_schema import (
+    EvaluationDataset,
+    EvaluationResult,
+    SingleTurnSample,
 )
+from ragas.embeddings import BaseRagasEmbeddings
+from ragas.llms import BaseRagasLLM
+from ragas.metrics import Metric
 
 
 @component
 class RagasEvaluator:
     """
     A component that uses the [Ragas framework](https://docs.ragas.io/) to evaluate
-    inputs against a specific metric. Supported metrics are defined by `RagasMetric`.
+    inputs against specified Ragas metrics.
 
     Usage example:
     ```python
-    from haystack_integrations.components.evaluators.ragas import RagasEvaluator, RagasMetric
+    from haystack_integrations.components.evaluators.ragas import RagasEvaluator
+    from ragas.metrics import ContextPrecision
+    from ragas.llms import LangchainLLMWrapper
+    from langchain_openai import ChatOpenAI
+
+    llm = ChatOpenAI(model="gpt-4o-mini")
+    evaluator_llm = LangchainLLMWrapper(llm)
 
     evaluator = RagasEvaluator(
-        metric=RagasMetric.CONTEXT_PRECISION,
+        ragas_metrics=[ContextPrecision()],
+        evaluator_llm=evaluator_llm
     )
     output = evaluator.run(
-        questions=["Which is the most popular global sport?"],
-        contexts=[
-            [
-                "Football is undoubtedly the world's most popular sport with"
-                "major events like the FIFA World Cup and sports personalities"
-                "like Ronaldo and Messi, drawing a followership of more than 4"
-                "billion people."
-            ]
+        query="Which is the most popular global sport?",
+        documents=[
+            "Football is undoubtedly the world's most popular sport with"
+            " major events like the FIFA World Cup and sports personalities"
+            " like Ronaldo and Messi, drawing a followership of more than 4"
+            " billion people."
         ],
-        ground_truths=["Football is the most popular sport with around 4 billion" "followers worldwide"],
+        reference="Football is the most popular sport with around 4 billion"
+                  " followers worldwide",
     )
-    print(output["results"])
+
+    output['result']
     ```
     """
 
-    # Wrapped for easy mocking.
-    _backend_callable: Callable
-    _backend_metric: Metric
-
     def __init__(
         self,
-        metric: Union[str, RagasMetric],
-        metric_params: Optional[Dict[str, Any]] = None,
+        ragas_metrics: List[Metric],
+        evaluator_llm: Optional[Union[BaseRagasLLM, LangchainLLM]] = None,
+        evaluator_embedding: Optional[Union[BaseRagasEmbeddings, LangchainEmbeddings]] = None,
     ):
         """
-        Construct a new Ragas evaluator.
+        Constructs a new Ragas evaluator.
 
-        :param metric:
-            The metric to use for evaluation.
-        :param metric_params:
-            Parameters to pass to the metric's constructor.
-            Refer to the `RagasMetric` class for more details
-            on required parameters.
+        :param ragas_metrics: A list of evaluation metrics from the [Ragas](https://docs.ragas.io/) library.
+        :param evaluator_llm: A language model used by metrics that require LLMs for evaluation.
+        :param evaluator_embedding: An embedding model used by metrics that require embeddings for evaluation.
         """
-        self.metric = metric if isinstance(metric, RagasMetric) else RagasMetric.from_str(metric)
-        self.metric_params = metric_params
-        self.descriptor = METRIC_DESCRIPTORS[self.metric]
+        self._validate_inputs(ragas_metrics, evaluator_llm, evaluator_embedding)
+        self.metrics = ragas_metrics
+        self.llm = evaluator_llm
+        self.embedding = evaluator_embedding
 
-        self._init_backend()
-        self._init_metric()
+    def _validate_inputs(
+        self,
+        metrics: List[Metric],
+        llm: Optional[Union[BaseRagasLLM, LangchainLLM]],
+        embedding: Optional[Union[BaseRagasEmbeddings, LangchainEmbeddings]],
+    ) -> None:
+        """Validate input parameters.
 
-        expected_inputs = self.descriptor.input_parameters
-        component.set_input_types(self, **expected_inputs)
+        :param metrics: List of Ragas metrics to validate
+        :param llm: Language model to validate
+        :param embedding: Embedding model to validate
 
-    def _init_backend(self):
-        self._backend_callable = RagasEvaluator._invoke_evaluate
+        :return: None.
+        """
+        if not all(isinstance(metric, Metric) for metric in metrics):
+            error_message = "All items in ragas_metrics must be instances of Metric class."
+            raise TypeError(error_message)
 
-    def _init_metric(self):
-        if self.descriptor.init_parameters is not None:
-            if self.metric_params is None:
-                msg = f"Ragas metric '{self.metric}' expected init parameters but got none"
-                raise ValueError(msg)
-            elif not all(k in self.descriptor.init_parameters for k in self.metric_params.keys()):
-                msg = (
-                    f"Invalid init parameters for Ragas metric '{self.metric}'. "
-                    f"Expected: {self.descriptor.init_parameters}"
-                )
-                raise ValueError(msg)
-        elif self.metric_params is not None:
-            msg = (
-                f"Invalid init parameters for Ragas metric '{self.metric}'. "
-                f"None expected but {self.metric_params} given"
+        if llm is not None and not isinstance(llm, (BaseRagasLLM, LangchainLLM)):
+            error_message = f"Expected evaluator_llm to be BaseRagasLLM or LangchainLLM, got {type(llm).__name__}"
+            raise TypeError(error_message)
+
+        if embedding is not None and not isinstance(embedding, (BaseRagasEmbeddings, LangchainEmbeddings)):
+            error_message = (
+                f"Expected evaluator_embedding to be BaseRagasEmbeddings or "
+                f"LangchainEmbeddings, got {type(embedding).__name__}"
             )
-            raise ValueError(msg)
-        metric_params = self.metric_params or {}
-        self._backend_metric = self.descriptor.backend(**metric_params)
+            raise TypeError(error_message)
 
-    @staticmethod
-    def _invoke_evaluate(dataset: Dataset, metric: Metric) -> Result:
-        return evaluate(dataset, [metric])
-
-    @component.output_types(results=List[List[Dict[str, Any]]])
-    def run(self, **inputs) -> Dict[str, Any]:
+    @component.output_types(result=EvaluationResult)
+    def run(
+        self,
+        query: Optional[str] = None,
+        response: Optional[Union[List[ChatMessage], str]] = None,
+        documents: Optional[List[Union[Document, str]]] = None,
+        reference_contexts: Optional[List[str]] = None,
+        multi_responses: Optional[List[str]] = None,
+        reference: Optional[str] = None,
+        rubrics: Optional[Dict[str, str]] = None,
+    ) -> Dict[str, Any]:
         """
-        Run the Ragas evaluator on the provided inputs.
+        Evaluates the provided query against the documents and returns the evaluation result.
 
-        :param inputs:
-            The inputs to evaluate. These are determined by the
-            metric being calculated. See `RagasMetric` for more
-            information.
-        :returns:
-            A dictionary with a single `results` entry that contains
-            a nested list of metric results. Each input can have one or more
-            results, depending on the metric. Each result is a dictionary
-            containing the following keys and values:
-            - `name` - The name of the metric.
-            - `score` - The score of the metric.
+        :param query: The input query from the user.
+        :param response: A list of ChatMessage responses (typically from a language model or agent).
+        :param documents: A list of Haystack Document or strings that were retrieved for the query.
+        :param reference_contexts: A list of reference contexts that should have been retrieved for the query.
+        :param multi_responses: List of multiple responses generated for the query.
+        :param reference: A string reference answer for the query.
+        :param rubrics: A dictionary of evaluation rubric, where keys represent the score
+                        and the values represent the corresponding evaluation criteria.
+        :return: A dictionary containing the evaluation result.
         """
-        InputConverters.validate_input_parameters(self.metric, self.descriptor.input_parameters, inputs)
-        converted_inputs: List[Dict[str, str]] = list(self.descriptor.input_converter(**inputs))  # type: ignore
+        processed_docs = self._process_documents(documents)
+        processed_response = self._process_response(response)
 
-        dataset = Dataset.from_list(converted_inputs)
-        results = self._backend_callable(dataset=dataset, metric=self._backend_metric)
+        try:
+            sample = SingleTurnSample(
+                user_input=query,
+                retrieved_contexts=processed_docs,
+                reference_contexts=reference_contexts,
+                response=processed_response,
+                multi_responses=multi_responses,
+                reference=reference,
+                rubrics=rubrics,
+            )
 
-        OutputConverters.validate_outputs(results)
-        converted_results = [
-            [result.to_dict()] for result in self.descriptor.output_converter(results, self.metric, self.metric_params)
-        ]
+        except (ValueError, ValidationError) as e:
+            raise self._handle_conversion_error(e) from None
 
-        return {"results": converted_results}
+        dataset = EvaluationDataset([sample])
 
-    def to_dict(self) -> Dict[str, Any]:
+        try:
+            result = evaluate(
+                dataset=dataset,
+                metrics=self.metrics,
+                llm=self.llm,
+                embeddings=self.embedding,
+            )
+        except (ValueError, ValidationError) as e:
+            raise self._handle_evaluation_error(e) from None
+
+        return {"result": result}
+
+    def _process_documents(self, documents: Union[List[Union[Document, str]], None]) -> Union[List[str], None]:
+        """Process and validate input documents.
+
+        :param documents: List of Documents or strings to process
+        :return: List of document contents as strings or None
         """
-        Serializes the component to a dictionary.
+        if documents:
+            first_type = type(documents[0])
+            if first_type is Document:
+                if not all(isinstance(doc, Document) for doc in documents):
+                    error_message = "All elements in documents list must be of type Document."
+                    raise ValueError(error_message)
+                return [doc.content for doc in documents]  # type: ignore[union-attr]
 
-        :returns:
-            Dictionary with serialized data.
-        :raises DeserializationError:
-            If the component cannot be serialized.
+            if first_type is str:
+                if not all(isinstance(doc, str) for doc in documents):
+                    error_message = "All elements in documents list must be strings."
+                    raise ValueError(error_message)
+                return documents
+            error_message = "Unsupported type in documents list."
+            raise ValueError(error_message)
+        return documents
+
+    def _process_response(self, response: Optional[Union[List[ChatMessage], str]]) -> Union[str, None]:
+        """Process response into expected format.
+
+        :param response: Response to process
+        :return: None or Processed response string
         """
+        if isinstance(response, list):  # Check if response is a list
+            if all(isinstance(item, ChatMessage) for item in response):
+                return response[0]._content[0].text
+            return None
+        elif isinstance(response, str):
+            return response
+        return response
 
-        def check_serializable(obj: Any):
-            try:
-                json.dumps(obj)
-                return True
-            except (TypeError, OverflowError):
-                return False
+    def _handle_conversion_error(self, error: Exception):
+        """Handle evaluation errors with improved messages.
 
-        if not check_serializable(self.metric_params):
-            msg = "Ragas evaluator cannot serialize the metric parameters"
-            raise DeserializationError(msg)
-
-        return default_to_dict(
-            self,
-            metric=self.metric,
-            metric_params=self.metric_params,
-        )
-
-    @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "RagasEvaluator":
+        :params error: Original error
         """
-        Deserializes the component from a dictionary.
+        if isinstance(error, ValidationError):
+            field_mapping = {
+                "user_input": "query",
+                "retrieved_contexts": "documents",
+            }
+            for err in error.errors():
+                field = err["loc"][0]
+                haystack_field = field_mapping.get(field, field)
+                expected_type = self.run.__annotations__.get(haystack_field)
+                type_desc = self._get_expected_type_description(expected_type)
+                actual_type = type(err["input"]).__name__
+                example = self._get_example_input(haystack_field)
+                error_message = (
+                    f"Validation error occured while running RagasEvaluator Component:\n"
+                    f"The '{haystack_field}' field expected '{type_desc}', "
+                    f"but got '{actual_type}'.\n"
+                    f"Hint: Provide {example}"
+                )
+                raise ValueError(error_message)
 
-        :param data:
-            Dictionary to deserialize from.
-        :returns:
-            Deserialized component.
+    def _handle_evaluation_error(self, error: Exception):
+        error_message = str(error)
+        columns_match = re.search(r"additional columns \[(.*?)\]", error_message)
+        field_mapping = {
+            "user_input": "query",
+            "retrieved_contexts": "documents",
+        }
+        if columns_match:
+            columns_str = columns_match.group(1)
+            columns = [col.strip().strip("'") for col in columns_str.split(",")]
+
+            mapped_columns = [field_mapping.get(col, col) for col in columns]
+            updated_columns_str = "[" + ", ".join(f"'{col}'" for col in mapped_columns) + "]"
+
+            # Update the list of columns in the error message
+            updated_error_message = error_message.replace(
+                columns_match.group(0), f"additional columns {updated_columns_str}"
+            )
+            raise ValueError(updated_error_message)
+
+    def _get_expected_type_description(self, expected_type) -> str:
+        """Helper method to get a description of the expected type."""
+        if get_origin(expected_type) is Union:
+            expected_types = [getattr(t, "__name__", str(t)) for t in get_args(expected_type)]
+            return f"one of {', '.join(expected_types)}"
+        elif get_origin(expected_type) is list:
+            expected_item_type = get_args(expected_type)[0]
+            item_type_name = getattr(expected_item_type, "__name__", str(expected_item_type))
+            return f"a list of {item_type_name}"
+        elif get_origin(expected_type) is dict:
+            key_type, value_type = get_args(expected_type)
+            key_type_name = getattr(key_type, "__name__", str(key_type))
+            value_type_name = getattr(value_type, "__name__", str(value_type))
+            return f"a dictionary with keys of type {key_type_name} and values of type {value_type_name}"
+        else:
+            # Handle non-generic types or unknown types gracefully
+            return getattr(expected_type, "__name__", str(expected_type))
+
+    def _get_example_input(self, field: str) -> str:
         """
-        return default_from_dict(cls, data)
+        Helper method to get an example input based on the field.
+
+        :param field: Arguement used to make SingleTurnSample.
+        :returns: Example usage for the field.
+        """
+        examples = {
+            "query": "A string query like 'Question?'",
+            "documents": "[Document(content='Example content')]",
+            "reference_contexts": "['Example string 1', 'Example string 2']",
+            "response": "ChatMessage(_content='Hi', _role='assistant')",
+            "multi_responses": "['Response 1', 'Response 2']",
+            "reference": "'A reference string'",
+            "rubrics": "{'score1': 'high_similarity'}",
+        }
+        return examples.get(field, "An appropriate value based on the field's type")
