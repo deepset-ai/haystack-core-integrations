@@ -4,15 +4,21 @@ from abc import ABC, abstractmethod
 from contextvars import ContextVar
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, Dict, Iterator, List, Optional
+from typing import Any, Dict, Iterator, List, Optional, Union
 
 from haystack import default_from_dict, default_to_dict, logging
 from haystack.dataclasses import ChatMessage
 from haystack.tracing import Span, Tracer
 from haystack.tracing import tracer as proxy_tracer
 from haystack.tracing import utils as tracing_utils
+from typing_extensions import TypeAlias
 
 import langfuse
+from langfuse.client import StatefulGenerationClient, StatefulSpanClient, StatefulTraceClient
+
+# Type alias for Langfuse stateful clients
+LangfuseStatefulClient: TypeAlias = Union[StatefulTraceClient, StatefulSpanClient, StatefulGenerationClient]
+
 
 logger = logging.getLogger(__name__)
 
@@ -52,7 +58,7 @@ class LangfuseSpan(Span):
     Internal class representing a bridge between the Haystack span tracing API and Langfuse.
     """
 
-    def __init__(self, span: "langfuse.client.StatefulClient") -> None:
+    def __init__(self, span: LangfuseStatefulClient) -> None:
         """
         Initialize a LangfuseSpan instance.
 
@@ -100,7 +106,7 @@ class LangfuseSpan(Span):
 
         self._data[key] = value
 
-    def raw_span(self) -> "langfuse.client.StatefulClient":
+    def raw_span(self) -> LangfuseStatefulClient:
         """
         Return the underlying span instance.
 
@@ -175,7 +181,7 @@ class SpanHandler(ABC):
     def __init__(self):
         self.tracer: Optional[langfuse.Langfuse] = None
 
-    def init_tracer(self, tracer: "langfuse.Langfuse") -> None:
+    def init_tracer(self, tracer: langfuse.Langfuse) -> None:
         """
         Initialize with Langfuse tracer. Called internally by LangfuseTracer.
 
@@ -286,7 +292,7 @@ class LangfuseTracer(Tracer):
 
     def __init__(
         self,
-        tracer: "langfuse.Langfuse",
+        tracer: langfuse.Langfuse,
         name: str = "Haystack",
         public: bool = False,
         span_handler: Optional[SpanHandler] = None,
@@ -350,7 +356,7 @@ class LangfuseTracer(Tracer):
         # In this section, we finalize both regular spans and generation spans created using the LangfuseSpan class.
         # It's important to end() these spans to ensure they are properly closed and all relevant data is recorded.
         # Note that we do not call end() on the main trace span itself, as its lifecycle is managed differently.
-        if isinstance(raw_span, (langfuse.client.StatefulSpanClient, langfuse.client.StatefulGenerationClient)):
+        if isinstance(raw_span, (StatefulSpanClient, StatefulGenerationClient)):
             raw_span.end()
         self._context.pop()
 
