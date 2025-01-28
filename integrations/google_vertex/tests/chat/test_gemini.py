@@ -420,11 +420,11 @@ class TestVertexAIGeminiChatGenerator:
         assert reply.tool_calls[0].tool_name == "get_current_weather"
         assert reply.tool_calls[0].arguments == {"city": "Paris", "unit": "Celsius"}
 
-    def test_serde_in_pipeline(self, monkeypatch):
-        monkeypatch.setenv("GOOGLE_API_KEY", "test")
+    def test_serde_in_pipeline(self):
         tool = Tool(name="name", description="description", parameters={"x": {"type": "string"}}, function=print)
 
         generator = VertexAIGeminiChatGenerator(
+            project_id="TestID123",
             model="gemini-1.5-flash",
             generation_config=GenerationConfig(
                 temperature=0.6,
@@ -447,13 +447,13 @@ class TestVertexAIGeminiChatGenerator:
                         "VertexAIGeminiChatGenerator"
                     ),
                     "init_parameters": {
+                        "project_id": "TestID123",
                         "model": "gemini-1.5-flash",
                         "generation_config": {
                             "temperature": 0.6,
                             "stop_sequences": ["stop", "words"],
                         },
                         "location": None,
-                        "project_id": None,
                         "safety_settings": None,
                         "streaming_callback": None,
                         "tool_config": None,
