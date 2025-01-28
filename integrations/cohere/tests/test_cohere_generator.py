@@ -52,6 +52,7 @@ class TestCohereGenerator:
                 "streaming_callback": None,
                 "api_base_url": COHERE_API_URL,
                 "generation_kwargs": {},
+                "tools": None,
             },
         }
 
@@ -75,6 +76,7 @@ class TestCohereGenerator:
                 "api_key": {"env_vars": ["ENV_VAR"], "strict": False, "type": "env_var"},
                 "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
                 "generation_kwargs": {},
+                "tools": None,
             },
         }
 
@@ -90,6 +92,7 @@ class TestCohereGenerator:
                 "some_test_param": "test-params",
                 "api_base_url": "test-base-url",
                 "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
+                "tools": None,
             },
         }
         component: CohereGenerator = CohereGenerator.from_dict(data)
