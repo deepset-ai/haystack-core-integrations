@@ -471,7 +471,6 @@ class TestOllamaChatGenerator:
         assert len(response["replies"]) == 1
         message = response["replies"][0]
 
-        print(response)
         assert message.tool_calls
         tool_call = message.tool_call
         assert isinstance(tool_call, ToolCall)

@@ -130,7 +130,7 @@ class OllamaChatGenerator:
             The format for structured model outputs. The value can be:
             - None: The default response format is used.
             - "json": The response is formatted as a JSON object.
-            - JsonSchemaValue: A dictionary containing a JSON Schema definition that specifies the structure of the response.
+            - JsonSchemaValue: The response is formatted as a JSON object that adheres to the specified JSON Schema.
         """
 
         _check_duplicate_tool_names(tools)
