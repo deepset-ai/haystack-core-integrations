@@ -192,13 +192,15 @@ class VertexAIGeminiChatGenerator:
             tool_config=self._tool_config,
         )
 
-    def _generation_config_to_dict(self, config: Union[GenerationConfig, Dict[str, Any]]) -> Dict[str, Any]:
+    @staticmethod
+    def _generation_config_to_dict(config: Union[GenerationConfig, Dict[str, Any]]) -> Dict[str, Any]:
         """Converts the GenerationConfig object to a dictionary."""
         if isinstance(config, dict):
             return config
         return config.to_dict()
 
-    def _tool_config_to_dict(self, tool_config: ToolConfig) -> Dict[str, Any]:
+    @staticmethod
+    def _tool_config_to_dict(tool_config: ToolConfig) -> Dict[str, Any]:
         """Serializes the ToolConfig object into a dictionary."""
         mode = tool_config._gapic_tool_config.function_calling_config.mode
         allowed_function_names = tool_config._gapic_tool_config.function_calling_config.allowed_function_names
