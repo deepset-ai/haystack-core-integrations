@@ -487,6 +487,7 @@ class TestOllamaChatGenerator:
 
         message = ChatMessage.from_user("What's the capital of France and its population?")
         response = chat_generator.run([message])
+
         assert isinstance(response, dict)
         assert isinstance(response["replies"], list)
 
@@ -498,6 +499,48 @@ class TestOllamaChatGenerator:
         assert "population" in response_data
         assert isinstance(response_data["population"], (int, float))
         assert response_data["capital"] == "Paris"
+
+    @pytest.mark.integration
+    def test_run_with_streaming_and_format(self):
+        response_format = {
+            "type": "object",
+            "properties": {"answer": {"type": "string"}},
+        }
+        streaming_callback = Mock()
+        chat_generator = OllamaChatGenerator(model="llama3.2:3b", streaming_callback=streaming_callback, response_format=response_format)
+
+        chat_messages = [
+            ChatMessage.from_user("What is the population of largest city in the United Kingdom?"),
+            ChatMessage.from_assistant({"text": {"asnwer": "London is the largest city in the United Kingdom and its pop"}}),
+            #ChatMessage.from_assistant("London is the largest city in the United Kingdom and its pop"),
+            ChatMessage.from_user("And what is the second largest?"),
+        ]
+
+        response = chat_generator.run(chat_messages)
+        print (response)
+
+        streaming_callback.assert_called()
+
+        assert isinstance(response, dict)
+        assert isinstance(response["replies"], list)
+        assert any(city in response["replies"][-1].text for city in ["Manchester", "Birmingham", "Glasgow"])
+
+
+        message = ChatMessage.from_user("What's the capital of France and its population?")
+        response = chat_generator.run([message])
+        print(response)
+        assert isinstance(response, dict)
+        assert isinstance(response["replies"], list)
+
+        
+        # Parse the response text as JSON and verify its structure
+        response_data = json.loads(response["replies"][0].text)
+        assert isinstance(response_data, dict)
+        assert "capital" in response_data
+        assert isinstance(response_data["capital"], str)
+        assert "population" in response_data
+        assert isinstance(response_data["population"], (int, float))
+        assert response_data["capital"] == "Pari"
 
     def test_run_with_tools_and_format(self, tools):
         response_format = {

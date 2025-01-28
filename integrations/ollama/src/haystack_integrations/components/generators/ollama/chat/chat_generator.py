@@ -4,7 +4,7 @@ from haystack import component, default_from_dict, default_to_dict
 from haystack.dataclasses import ChatMessage, StreamingChunk, ToolCall
 from haystack.tools import Tool, _check_duplicate_tool_names, deserialize_tools_inplace
 from haystack.utils.callable_serialization import deserialize_callable, serialize_callable
-from pydantic.json_schema import JsonSchemaValue  # type: ignore
+from pydantic.json_schema import JsonSchemaValue
 
 from ollama import ChatResponse, Client
 
@@ -128,9 +128,9 @@ class OllamaChatGenerator:
             [models page](https://ollama.com/search?c=tools).
         :param response_format:
             The format for structured model outputs. The value can be:
-            - None: The default response format is used.
+            - None: No specific structure or format is applied to the response. The response is returned as-is.
             - "json": The response is formatted as a JSON object.
-            - JsonSchemaValue: The response is formatted as a JSON object that adheres to the specified JSON Schema.
+            - JSON Schema: The response is formatted as a JSON object that adheres to the specified JSON Schema.
         """
 
         _check_duplicate_tool_names(tools)
@@ -248,7 +248,7 @@ class OllamaChatGenerator:
         if self.response_format and tools:
             msg = "Ollama does not support tools and response_format at the same time. Please choose one."
             raise ValueError(msg)
-
+        
         ollama_tools = [{"type": "function", "function": {**t.tool_spec}} for t in tools] if tools else None
 
         ollama_messages = [_convert_chatmessage_to_ollama_format(msg) for msg in messages]
