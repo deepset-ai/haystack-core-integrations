@@ -58,7 +58,7 @@ class CohereRanker:
             with the document content for reranking.
         :param meta_data_separator: Separator used to concatenate the meta fields
             to the Document content.
-        :param max_tokens_per_doc: The maximum number of tokens to embed for each document.
+        :param max_tokens_per_doc: The maximum number of tokens to embed for each document defaults to 4096.
         """
         self.model_name = model
         self.api_key = api_key
