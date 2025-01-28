@@ -1,6 +1,7 @@
 import json
 import logging
 import re
+import warnings
 from typing import Any, Callable, ClassVar, Dict, List, Literal, Optional, Type, get_args
 
 from botocore.config import Config
@@ -24,9 +25,6 @@ from .adapters import (
     CohereCommandRAdapter,
     MetaLlamaAdapter,
     MistralAdapter,
-)
-from .handlers import (
-    DefaultPromptHandler,
 )
 
 logger = logging.getLogger(__name__)
@@ -105,8 +103,8 @@ class AmazonBedrockGenerator:
         aws_session_token: Optional[Secret] = Secret.from_env_var("AWS_SESSION_TOKEN", strict=False),  # noqa: B008
         aws_region_name: Optional[Secret] = Secret.from_env_var("AWS_DEFAULT_REGION", strict=False),  # noqa: B008
         aws_profile_name: Optional[Secret] = Secret.from_env_var("AWS_PROFILE", strict=False),  # noqa: B008
-        max_length: Optional[int] = 100,
-        truncate: Optional[bool] = True,
+        max_length: Optional[int] = None,
+        truncate: Optional[bool] = None,
         streaming_callback: Optional[Callable[[StreamingChunk], None]] = None,
         boto3_config: Optional[Dict[str, Any]] = None,
         model_family: Optional[MODEL_FAMILIES] = None,
@@ -121,8 +119,8 @@ class AmazonBedrockGenerator:
         :param aws_session_token: The AWS session token.
         :param aws_region_name: The AWS region name. Make sure the region you set supports Amazon Bedrock.
         :param aws_profile_name: The AWS profile name.
-        :param max_length: The maximum length of the generated text.
-        :param truncate: Whether to truncate the prompt or not.
+        :param max_length: Deprecated. This parameter no longer has any effect.
+        :param truncate: Deprecated. This parameter no longer has any effect.
         :param streaming_callback: A callback function that is called when a new token is received from the stream.
             The callback function accepts StreamingChunk as an argument.
         :param boto3_config: The configuration for the boto3 client.
@@ -140,6 +138,14 @@ class AmazonBedrockGenerator:
         self.model = model
         self.max_length = max_length
         self.truncate = truncate
+
+        if max_length is not None or truncate is not None:
+            warnings.warn(
+                "The 'max_length' and 'truncate' parameters have been removed and no longer have any effect. "
+                "No truncation will be performed.",
+                stacklevel=2,
+            )
+
         self.aws_access_key_id = aws_access_key_id
         self.aws_secret_access_key = aws_secret_access_key
         self.aws_session_token = aws_session_token
@@ -173,43 +179,9 @@ class AmazonBedrockGenerator:
             raise AmazonBedrockConfigurationError(msg) from exception
 
         model_input_kwargs = kwargs
-        # We pop the model_max_length as it is not sent to the model but used to truncate the prompt if needed
-        model_max_length = kwargs.get("model_max_length", 4096)
-
-        # we initialize the prompt handler only if truncate is True: we avoid unnecessarily downloading the tokenizer
-        if self.truncate:
-            # Truncate prompt if prompt tokens > model_max_length-max_length
-            # (max_length is the length of the generated text)
-            # we use GPT2 tokenizer which will likely provide good token count approximation
-            self.prompt_handler = DefaultPromptHandler(
-                tokenizer="gpt2",
-                model_max_length=model_max_length,
-                max_length=self.max_length or 100,
-            )
 
         model_adapter_cls = self.get_model_adapter(model=model, model_family=model_family)
         self.model_adapter = model_adapter_cls(model_kwargs=model_input_kwargs, max_length=self.max_length)
-
-    def _ensure_token_limit(self, prompt: str) -> str:
-        """
-        Ensures that the prompt and answer token lengths together are within the model_max_length specified during
-        the initialization of the component.
-
-        :param prompt: The prompt to be sent to the model.
-        :returns: The resized prompt.
-        """
-        resize_info = self.prompt_handler(prompt)
-        if resize_info["prompt_length"] != resize_info["new_prompt_length"]:
-            logger.warning(
-                "The prompt was truncated from %s tokens to %s tokens so that the prompt length and "
-                "the answer length (%s tokens) fit within the model's max token limit (%s tokens). "
-                "Shorten the prompt or it will be cut off.",
-                resize_info["prompt_length"],
-                max(0, resize_info["model_max_length"] - resize_info["max_length"]),  # type: ignore
-                resize_info["max_length"],
-                resize_info["model_max_length"],
-            )
-        return str(resize_info["resized_prompt"])
 
     @component.output_types(replies=List[str])
     def run(
@@ -234,9 +206,6 @@ class AmazonBedrockGenerator:
         generation_kwargs = generation_kwargs.copy()
         streaming_callback = streaming_callback or self.streaming_callback
         generation_kwargs["stream"] = streaming_callback is not None
-
-        if self.truncate:
-            prompt = self._ensure_token_limit(prompt)
 
         body = self.model_adapter.prepare_body(prompt=prompt, **generation_kwargs)
         try:

@@ -1,5 +1,17 @@
 # Changelog
 
+## [integrations/amazon_bedrock-v3.0.0] - 2025-01-23
+
+### 🚀 Features
+
+- *(AWS Bedrock)* Add Cohere Reranker (#1291)
+- AmazonBedrockChatGenerator - add tools support (#1304)
+
+### 🚜 Refactor
+
+- [**breaking**] AmazonBedrockGenerator - remove truncation  (#1314)
+
+
 ## [integrations/amazon_bedrock-v2.1.3] - 2025-01-21
 
 ### 🧹 Chores
