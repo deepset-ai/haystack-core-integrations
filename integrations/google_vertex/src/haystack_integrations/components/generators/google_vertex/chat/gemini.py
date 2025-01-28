@@ -20,8 +20,13 @@ from vertexai.generative_models import (
     Part,
     ToolConfig,
 )
+from vertexai.generative_models import Tool as VertexTool
 
 logger = logging.getLogger(__name__)
+
+# TODO:
+# - test in real world
+# - add tests for running with tools
 
 
 def _convert_chatmessage_to_google_content(message: ChatMessage) -> Content:
@@ -157,14 +162,7 @@ class VertexAIGeminiChatGenerator:
     def _generation_config_to_dict(self, config: Union[GenerationConfig, Dict[str, Any]]) -> Dict[str, Any]:
         if isinstance(config, dict):
             return config
-        return {
-            "temperature": config._raw_generation_config.temperature,
-            "top_p": config._raw_generation_config.top_p,
-            "top_k": config._raw_generation_config.top_k,
-            "candidate_count": config._raw_generation_config.candidate_count,
-            "max_output_tokens": config._raw_generation_config.max_output_tokens,
-            "stop_sequences": config._raw_generation_config.stop_sequences,
-        }
+        return config.to_dict()
 
     def _tool_config_to_dict(self, tool_config: ToolConfig) -> Dict[str, Any]:
         """Serializes the ToolConfig object into a dictionary."""
@@ -234,12 +232,12 @@ class VertexAIGeminiChatGenerator:
         return default_from_dict(cls, data)
 
     @staticmethod
-    def _convert_to_google_tool(tool: Tool) -> FunctionDeclaration:
+    def _convert_to_vertex_tool(tool: Tool) -> VertexTool:
         """
-        Converts a Haystack `Tool` to a Google AI `FunctionDeclaration` object.
+        Converts a Haystack `Tool` to a Vertex `Tool` object.
 
         :param tool: The Haystack `Tool` to convert.
-        :returns: The Google AI `FunctionDeclaration` object.
+        :returns: The Vertex `Tool` object.
         """
         parameters = tool.parameters.copy()
 
@@ -247,7 +245,8 @@ class VertexAIGeminiChatGenerator:
         for prop in parameters["properties"].values():
             prop.pop("default", None)
 
-        return FunctionDeclaration(name=tool.name, description=tool.description, parameters=parameters)
+        function_declaration = FunctionDeclaration(name=tool.name, description=tool.description, parameters=parameters)
+        return VertexTool(function_declarations=[function_declaration])
 
     @component.output_types(replies=List[ChatMessage])
     def run(
@@ -273,7 +272,7 @@ class VertexAIGeminiChatGenerator:
 
         tools = tools or self._tools
         _check_duplicate_tool_names(tools)
-        google_tools = [self._convert_to_google_tool(tool) for tool in tools] if tools else None
+        google_tools = [self._convert_to_vertex_tool(tool) for tool in tools] if tools else None
 
         if messages[0].is_from(ChatRole.SYSTEM):
             self._model._system_instruction = Part.from_text(messages[0].text)
@@ -282,6 +281,15 @@ class VertexAIGeminiChatGenerator:
         google_messages = [_convert_chatmessage_to_google_content(m) for m in messages]
 
         session = self._model.start_chat(history=google_messages[:-1])
+
+        candidate_count = 1
+        if self._generation_config:
+            config_dict = self._generation_config_to_dict(self._generation_config)
+            candidate_count = config_dict.get("candidate_count", candidate_count)
+
+        if streaming_callback and candidate_count > 1:
+            msg = "Streaming is not supported with multiple candidates. Set candidate_count to 1."
+            raise ValueError(msg)
 
         res = session.send_message(
             content=google_messages[-1],
@@ -309,11 +317,11 @@ class VertexAIGeminiChatGenerator:
         """
         replies: List[ChatMessage] = []
 
-        usage_metadata = dict(response_body.usage_metadata)
+        usage_metadata = response_body.usage_metadata
         openai_usage = {
-            "prompt_tokens": usage_metadata.get("prompt_token_count", 0),
-            "completion_tokens": usage_metadata.get("candidates_token_count", 0),
-            "total_tokens": usage_metadata.get("total_token_count", 0),
+            "prompt_tokens": usage_metadata.prompt_token_count or 0,
+            "completion_tokens": usage_metadata.candidates_token_count or 0,
+            "total_tokens": usage_metadata.total_token_count or 0,
         }
 
         for candidate in response_body.candidates:
@@ -324,9 +332,9 @@ class VertexAIGeminiChatGenerator:
             text = ""
             tool_calls = []
             for part in candidate.content.parts:
-                if part.text:
-                    text += part.text
-                elif part.function_call:
+                if "text" in part._raw_part:
+                    text += part._raw_part.text
+                elif "function_call" in part._raw_part:
                     tool_calls.append(
                         ToolCall(
                             tool_name=part.function_call.name,
@@ -347,30 +355,42 @@ class VertexAIGeminiChatGenerator:
         :param streaming_callback: The handler for the streaming response.https://cloud.google.com/vertex-ai/generative-ai/docs/model-reference/extension
         :returns: List of `ChatMessage` instances.
         """
-        replies: List[ChatMessage] = []
+
+        text = ""
+        tool_calls = []
+        last_metadata = {}
 
         for chunk in stream:
-            metadata = chunk.to_dict()  # we store whole chunk as metadata for streaming
-            for candidate in chunk.candidates:
-                content_to_stream = ""
-                for part in candidate.content.parts:
-                    text = ""
-                    tool_calls = []
-                    if part.text:
-                        text += part.text
-                        content_to_stream += part.text
-                    elif part.function_call:
-                        content_to_stream += json.dumps(dict(part.function_call))
-                        tool_calls.append(
-                            ToolCall(
-                                tool_name=part.function_call.name,
-                                arguments=dict(part.function_call.args),
-                            )
+            content_to_stream = ""
+            chunk_dict = chunk.to_dict()
+            last_metadata = chunk_dict
+            # Only one candidate is supported with streaming
+            candidate = chunk_dict["candidates"][0]
+
+            for part in candidate["content"]["parts"]:
+                if part.get("text"):
+                    text += part["text"]
+                    content_to_stream += part["text"]
+                elif part.get("function_call"):
+                    content_to_stream += json.dumps(dict(part["function_call"]))
+                    tool_calls.append(
+                        ToolCall(
+                            tool_name=part["function_call"]["name"],
+                            arguments=dict(part["function_call"]["args"]),
                         )
+                    )
 
-                reply = ChatMessage.from_assistant(text=text, meta=metadata, tool_calls=tool_calls)
-                replies.append(reply)
+            streaming_callback(StreamingChunk(content=content_to_stream, meta=chunk_dict))
 
-                streaming_callback(StreamingChunk(content=content_to_stream, meta=metadata))
+        # format the usage metadata to be compatible with OpenAI
+        usage_metadata = last_metadata.pop("usage_metadata", {})
 
-        return replies
+        openai_usage = {
+            "prompt_tokens": usage_metadata.get("prompt_token_count", 0),
+            "completion_tokens": usage_metadata.get("candidates_token_count", 0),
+            "total_tokens": usage_metadata.get("total_token_count", 0),
+        }
+
+        last_metadata["usage"] = openai_usage
+
+        return [ChatMessage.from_assistant(text=text or None, meta=last_metadata, tool_calls=tool_calls)]
