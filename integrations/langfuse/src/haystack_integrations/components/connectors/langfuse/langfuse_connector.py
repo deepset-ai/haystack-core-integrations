@@ -95,6 +95,24 @@ class LangfuseConnector:
         print(response["tracer"]["trace_url"])
     ```
 
+    For advanced use cases, you can also customize how spans are created and processed by
+    providing a custom SpanHandler. This allows you to add custom metrics, set warning levels,
+    or attach additional metadata to your Langfuse traces:
+
+    ```python
+    from haystack_integrations.tracing.langfuse import DefaultSpanHandler, LangfuseSpan
+    from typing import Optional
+
+    class CustomSpanHandler(DefaultSpanHandler):
+
+        def handle(self, span: LangfuseSpan, component_type: Optional[str]) -> None:
+            # Custom span handling logic, customize Langfuse spans however it fits you
+            # see DefaultSpanHandler for how we create and process spans by default
+            pass
+
+    connector = LangfuseConnector(span_handler=CustomSpanHandler())
+    ```
+
     """
 
     def __init__(
