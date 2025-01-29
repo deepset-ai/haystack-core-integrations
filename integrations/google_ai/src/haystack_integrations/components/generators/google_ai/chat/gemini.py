@@ -1,5 +1,6 @@
 import logging
 from typing import Any, Callable, Dict, List, Optional, Union
+import json
 
 import google.generativeai as genai
 from google.ai.generativelanguage import Content, Part
@@ -353,25 +354,42 @@ class GoogleAIGeminiChatGenerator:
         """
         text = ""
         tool_calls = []
-        last_metadata = None
+        chunk_dict = {}
 
         for chunk in stream:
+            content_to_stream = ""
             chunk_dict = chunk.to_dict()
             last_metadata = chunk_dict
             # Only one candidate is supported for chat functionality
             candidate = chunk_dict["candidates"][0]
 
             for part in candidate["content"]["parts"]:
-                if part.get("text"):
-                    text += part["text"]
-                elif part.get("function_call"):
+                if new_text := part.get("text"):
+                    content_to_stream += new_text
+                    text += new_text
+                elif new_function_call := part.get("function_call"):
+                    content_to_stream+=json.dumps(dict(new_function_call))
                     tool_calls.append(
                         ToolCall(
-                            tool_name=part["function_call"]["name"],
-                            arguments=dict(part["function_call"]["args"]),
+                            tool_name=new_function_call["name"],
+                            arguments=dict(new_function_call["args"]),
                         )
                     )
 
-            streaming_callback(StreamingChunk(content=text, meta=chunk_dict))
+            streaming_callback(StreamingChunk(content=content_to_stream, meta=chunk_dict))
 
-        return [ChatMessage.from_assistant(text=text or None, meta=last_metadata, tool_calls=tool_calls)]
+        # store the last chunk metadata
+        meta = chunk_dict
+
+        # format the usage metadata to be compatible with OpenAI
+        usage_metadata = meta.pop("usage_metadata", {})
+
+        openai_usage = {
+            "prompt_tokens": usage_metadata.get("prompt_token_count", 0),
+            "completion_tokens": usage_metadata.get("candidates_token_count", 0),
+            "total_tokens": usage_metadata.get("total_token_count", 0),
+        }
+
+        meta["usage"] = openai_usage    
+
+        return [ChatMessage.from_assistant(text=text or None, meta=meta, tool_calls=tool_calls)]

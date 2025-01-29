@@ -405,6 +405,10 @@ class TestGoogleAIGeminiChatGenerator:
         assert chat_message.tool_calls
         assert chat_message.tool_calls[0].tool_name == "get_current_weather"
         assert chat_message.tool_calls[0].arguments == {"city": "Berlin", "unit": "Celsius"}
+        assert "usage" in chat_message.meta
+        assert "prompt_tokens" in chat_message.meta["usage"]
+        assert "completion_tokens" in chat_message.meta["usage"]
+        assert "total_tokens" in chat_message.meta["usage"]        
 
         weather = tools[0].invoke(**chat_message.tool_calls[0].arguments)
         messages += response["replies"] + [
@@ -420,6 +424,10 @@ class TestGoogleAIGeminiChatGenerator:
         assert not chat_message.tool_calls
         assert chat_message.text
         assert "berlin" in chat_message.text.lower()
+        assert "usage" in chat_message.meta
+        assert "prompt_tokens" in chat_message.meta["usage"]
+        assert "completion_tokens" in chat_message.meta["usage"]
+        assert "total_tokens" in chat_message.meta["usage"]
 
     @pytest.mark.integration
     @pytest.mark.skipif(not os.environ.get("GOOGLE_API_KEY", None), reason="GOOGLE_API_KEY env var not set")
