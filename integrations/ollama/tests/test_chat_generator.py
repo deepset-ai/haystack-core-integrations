@@ -506,7 +506,9 @@ class TestOllamaChatGenerator:
             "properties": {"answer": {"type": "string"}},
         }
         streaming_callback = Mock()
-        chat_generator = OllamaChatGenerator(model="llama3.2:3b", streaming_callback=streaming_callback, response_format=response_format)
+        chat_generator = OllamaChatGenerator(
+            model="llama3.2:3b", streaming_callback=streaming_callback, response_format=response_format
+        )
 
         chat_messages = [
             ChatMessage.from_user("What is the largest city in the United Kingdom by population?"),
@@ -515,7 +517,6 @@ class TestOllamaChatGenerator:
         ]
         with pytest.raises(ValueError):
             chat_generator.run([chat_messages])
-
 
     def test_run_with_tools_and_format(self, tools):
         response_format = {
