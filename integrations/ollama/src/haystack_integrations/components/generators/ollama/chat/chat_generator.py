@@ -249,6 +249,10 @@ class OllamaChatGenerator:
             msg = "Ollama does not support tools and response_format at the same time. Please choose one."
             raise ValueError(msg)
         
+        if self.response_format and stream:
+            msg = "Ollama does not support streaming and response_format at the same time. Please choose one."
+            raise ValueError(msg)
+        
         ollama_tools = [{"type": "function", "function": {**t.tool_spec}} for t in tools] if tools else None
 
         ollama_messages = [_convert_chatmessage_to_ollama_format(msg) for msg in messages]
