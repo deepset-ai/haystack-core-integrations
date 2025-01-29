@@ -268,21 +268,26 @@ class VertexAIGeminiChatGenerator:
         return default_from_dict(cls, data)
 
     @staticmethod
-    def _convert_to_vertex_tool(tool: Tool) -> VertexTool:
+    def _convert_to_vertex_tools(tools: List[Tool]) -> List[VertexTool]:
         """
-        Converts a Haystack `Tool` to a Vertex `Tool` object.
+        Converts a list of Haystack `Tool` to a list of Vertex `Tool` objects.
 
-        :param tool: The Haystack `Tool` to convert.
-        :returns: The Vertex `Tool` object.
+        :param tools: The list of Haystack `Tool` to convert.
+        :returns: The list of Vertex `Tool` objects.
         """
-        parameters = tool.parameters.copy()
+        function_declarations = []
 
-        # Remove default values as Google API doesn't support them
-        for prop in parameters["properties"].values():
-            prop.pop("default", None)
+        for tool in tools:
+            parameters = tool.parameters.copy()
 
-        function_declaration = FunctionDeclaration(name=tool.name, description=tool.description, parameters=parameters)
-        return VertexTool(function_declarations=[function_declaration])
+            # Remove default values as Google API doesn't support them
+            for prop in parameters["properties"].values():
+                prop.pop("default", None)
+
+            function_declarations.append(
+                FunctionDeclaration(name=tool.name, description=tool.description, parameters=parameters)
+            )
+        return [VertexTool(function_declarations=function_declarations)]
 
     @component.output_types(replies=List[ChatMessage])
     def run(
@@ -308,7 +313,7 @@ class VertexAIGeminiChatGenerator:
 
         tools = tools or self._tools
         _check_duplicate_tool_names(tools)
-        google_tools = [self._convert_to_vertex_tool(tool) for tool in tools] if tools else None
+        google_tools = self._convert_to_vertex_tools(tools) if tools else None
 
         if messages[0].is_from(ChatRole.SYSTEM):
             self._model._system_instruction = Part.from_text(messages[0].text)

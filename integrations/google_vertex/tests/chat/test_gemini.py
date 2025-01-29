@@ -296,13 +296,12 @@ class TestVertexAIGeminiChatGenerator:
             == ToolConfig.FunctionCallingConfig.Mode.ANY
         )
 
-    def test_convert_to_vertex_tool(self, tools):
-        tool = tools[0]
-        vertex_tool = VertexAIGeminiChatGenerator._convert_to_vertex_tool(tool)
+    def test_convert_to_vertex_tools(self, tools):
+        vertex_tools = VertexAIGeminiChatGenerator._convert_to_vertex_tools(tools)
 
-        function_declaration = vertex_tool._raw_tool.function_declarations[0]
-        assert function_declaration.name == tool.name
-        assert function_declaration.description == tool.description
+        function_declaration = vertex_tools[0]._raw_tool.function_declarations[0]
+        assert function_declaration.name == tools[0].name
+        assert function_declaration.description == tools[0].description
 
         assert function_declaration.parameters
 
@@ -419,6 +418,87 @@ class TestVertexAIGeminiChatGenerator:
         assert len(reply.tool_calls) == 1
         assert reply.tool_calls[0].tool_name == "get_current_weather"
         assert reply.tool_calls[0].arguments == {"city": "Paris", "unit": "Celsius"}
+
+    @patch("haystack_integrations.components.generators.google_vertex.chat.gemini.GenerativeModel")
+    def test_run_with_muliple_tools_and_streaming(self, mock_generative_model, tools):
+        """
+        Test that the generator can handle multiple tools and streaming.
+        Note: this test case is made up because in practice I have always seen multiple function calls in a single
+        streaming chunk.
+        """
+
+        def population(city: Annotated[str, "the city for which to get the population, e.g. 'Munich'"] = "Munich"):
+            """A simple function to get the population for a location."""
+            return f"Population of {city}: 1,000,000"
+
+        multiple_tools = [tools[0], create_tool_from_function(population)]
+
+        mock_model = Mock()
+
+        mock_responses = [
+            MagicMock(
+                spec=GenerationResponse,
+                to_dict=lambda: {
+                    "candidates": [
+                        {
+                            "content": {
+                                "parts": [
+                                    {
+                                        "function_call": {
+                                            "name": "get_current_weather",
+                                            "args": {"city": "Munich", "unit": "Farenheit"},
+                                        }
+                                    }
+                                ]
+                            }
+                        }
+                    ]
+                },
+            ),
+            MagicMock(
+                spec=GenerationResponse,
+                to_dict=lambda: {
+                    "candidates": [
+                        {"content": {"parts": [{"function_call": {"name": "population", "args": {"city": "Munich"}}}]}}
+                    ],
+                    "usage_metadata": {"prompt_token_count": 10, "candidates_token_count": 5, "total_token_count": 15},
+                },
+            ),
+        ]
+
+        mock_model.send_message.return_value = iter(mock_responses)
+        mock_model.start_chat.return_value = mock_model
+        mock_generative_model.return_value = mock_model
+
+        received_chunks = []
+
+        def streaming_callback(chunk: StreamingChunk) -> None:
+            received_chunks.append(chunk)
+
+        messages = [
+            ChatMessage.from_user("What's the weather in Munich (in Farenheit) and how many people live there?"),
+        ]
+
+        gemini = VertexAIGeminiChatGenerator(tools=multiple_tools, streaming_callback=streaming_callback)
+        response = gemini.run(messages=messages)
+
+        assert len(received_chunks) == 2
+        assert json.loads(received_chunks[0].content) == {
+            "name": "get_current_weather",
+            "args": {"city": "Munich", "unit": "Farenheit"},
+        }
+        assert json.loads(received_chunks[1].content) == {"name": "population", "args": {"city": "Munich"}}
+
+        assert "replies" in response
+        reply = response["replies"][0]
+        assert reply.role == ChatRole.ASSISTANT
+        assert not reply.text
+        assert len(reply.tool_calls) == 2
+        assert reply.tool_calls[0].tool_name == "get_current_weather"
+        assert reply.tool_calls[0].arguments == {"city": "Munich", "unit": "Farenheit"}
+        assert reply.tool_calls[1].tool_name == "population"
+        assert reply.tool_calls[1].arguments == {"city": "Munich"}
+        assert reply.meta["usage"] == {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15}
 
     def test_serde_in_pipeline(self):
         tool = Tool(name="name", description="description", parameters={"x": {"type": "string"}}, function=print)
