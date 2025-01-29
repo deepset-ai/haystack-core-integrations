@@ -7,7 +7,8 @@ from typing import Any, Dict, List, Optional
 from haystack import Document, component, default_from_dict, default_to_dict
 from haystack.utils import Secret, deserialize_secrets_inplace
 
-from cohere import AsyncClient, Client
+from cohere import AsyncClientV2, ClientV2
+from haystack_integrations.components.embedders.cohere.embedding_types import EmbeddingTypes
 from haystack_integrations.components.embedders.cohere.utils import get_async_response, get_response
 
 
@@ -47,6 +48,7 @@ class CohereDocumentEmbedder:
         progress_bar: bool = True,
         meta_fields_to_embed: Optional[List[str]] = None,
         embedding_separator: str = "\n",
+        embedding_type: Optional[EmbeddingTypes] = None,
     ):
         """
         :param api_key: the Cohere API key.
@@ -72,6 +74,8 @@ class CohereDocumentEmbedder:
                              to keep the logs clean.
         :param meta_fields_to_embed: list of meta fields that should be embedded along with the Document text.
         :param embedding_separator: separator used to concatenate the meta fields to the Document text.
+        :param embedding_type: the type of embeddings to return. Defaults to float embeddings.
+            Note that int8, uint8, binary, and ubinary are only valid for v3 models.
         """
 
         self.api_key = api_key
@@ -85,6 +89,7 @@ class CohereDocumentEmbedder:
         self.progress_bar = progress_bar
         self.meta_fields_to_embed = meta_fields_to_embed or []
         self.embedding_separator = embedding_separator
+        self.embedding_type = embedding_type or EmbeddingTypes.FLOAT
 
     def to_dict(self) -> Dict[str, Any]:
         """
@@ -106,6 +111,7 @@ class CohereDocumentEmbedder:
             progress_bar=self.progress_bar,
             meta_fields_to_embed=self.meta_fields_to_embed,
             embedding_separator=self.embedding_separator,
+            embedding_type=self.embedding_type.value,
         )
 
     @classmethod
@@ -120,6 +126,10 @@ class CohereDocumentEmbedder:
         """
         init_params = data.get("init_parameters", {})
         deserialize_secrets_inplace(init_params, ["api_key"])
+
+        # Convert embedding_type string to EmbeddingTypes enum value
+        init_params["embedding_type"] = EmbeddingTypes.from_str(init_params["embedding_type"])
+
         return default_from_dict(cls, data)
 
     def _prepare_texts_to_embed(self, documents: List[Document]) -> List[str]:
@@ -163,17 +173,19 @@ class CohereDocumentEmbedder:
         assert api_key is not None
 
         if self.use_async_client:
-            cohere_client = AsyncClient(
+            cohere_client = AsyncClientV2(
                 api_key,
                 base_url=self.api_base_url,
                 timeout=self.timeout,
                 client_name="haystack",
             )
             all_embeddings, metadata = asyncio.run(
-                get_async_response(cohere_client, texts_to_embed, self.model, self.input_type, self.truncate)
+                get_async_response(
+                    cohere_client, texts_to_embed, self.model, self.input_type, self.truncate, self.embedding_type
+                )
             )
         else:
-            cohere_client = Client(
+            cohere_client = ClientV2(
                 api_key,
                 base_url=self.api_base_url,
                 timeout=self.timeout,
@@ -187,6 +199,7 @@ class CohereDocumentEmbedder:
                 self.truncate,
                 self.batch_size,
                 self.progress_bar,
+                self.embedding_type,
             )
 
         for doc, embeddings in zip(documents, all_embeddings):
