@@ -13,6 +13,7 @@ from haystack.testing.document_store import DocumentStoreBaseTests, FilterDocume
 
 from haystack_integrations.document_stores.astra import AstraDocumentStore
 
+
 @pytest.fixture
 def mock_auth(monkeypatch):
     monkeypatch.setenv("ASTRA_DB_API_ENDPOINT", "http://example.com")
@@ -327,30 +328,34 @@ class TestDocumentStore(DocumentStoreBaseTests, FilterDocumentsTestWithDataframe
 
     @pytest.mark.skip(reason="Unsupported filter operator $lt.")
     def test_comparison_less_than(self, document_store, filterable_docs):
-        pass 
+        pass
 
     def test_docx_metadata(self, document_store):
         from haystack.components.converters.docx import DOCXMetadata
 
-        docx_metadata = DOCXMetadata(author="an author",
-                category="a category",
-                comments="some comments",
-                content_status="a status",
-                created="2025-01-29T12:00:00Z",
-                identifier="an identifier",
-                keywords="some keywords",
-                language="en",
-                last_modified_by="a last modified by",
-                last_printed="2025-01-29T12:00:00Z",
-                modified="2025-01-29T12:00:00Z",
-                revision="a revision",
-                subject="a subject",
-                title="a title",
-                version="a version")
+        docx_metadata = DOCXMetadata(
+            author="an author",
+            category="a category",
+            comments="some comments",
+            content_status="a status",
+            created="2025-01-29T12:00:00Z",
+            identifier="an identifier",
+            keywords="some keywords",
+            language="en",
+            last_modified_by="a last modified by",
+            last_printed="2025-01-29T12:00:00Z",
+            modified="2025-01-29T12:00:00Z",
+            revision="a revision",
+            subject="a subject",
+            title="a title",
+            version="a version",
+        )
 
-        doc = Document(id="mydocwithdocxmetadata", 
-                       content="A Foo Document", meta={"page": "100", "chapter": "intro", 
-                                                "docx": docx_metadata})
+        doc = Document(
+            id="mydocwithdocxmetadata",
+            content="A Foo Document",
+            meta={"page": "100", "chapter": "intro", "docx": docx_metadata},
+        )
         document_store.write_documents([doc])
 
         retrieved_docs = document_store.filter_documents(filters={"id": "mydocwithdocxmetadata"})
