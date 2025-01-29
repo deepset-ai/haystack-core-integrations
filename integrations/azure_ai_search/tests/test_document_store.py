@@ -438,6 +438,6 @@ class TestFilters(FilterDocumentsTest, FilterDocumentsTestWithDataframe):
         )
         document_store.write_documents([doc])
 
-        retrieved_docs = document_store.filter_documents(filters={"id": "mydocwithdocxmetadata"})
+        retrieved_docs = document_store.filter_documents(filters={"field": "id", "operator": "==", "value": "mydocwithdocxmetadata"})
         assert len(retrieved_docs) == 1
         assert retrieved_docs[0] == doc
