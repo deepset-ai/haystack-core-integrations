@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/ollama-v2.3.0] - 2025-01-29
+
+### 🚀 Features
+
+- Add `response_format` param to `OllamaChatGenerator` (#1326)
+
+
 ## [integrations/ollama-v2.2.0] - 2025-01-16
 
 ### 🚀 Features
