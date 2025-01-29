@@ -26,7 +26,7 @@ classifiers = [
     "Programming Language :: Python :: Implementation :: CPython",
     "Programming Language :: Python :: Implementation :: PyPy",
 ]
-dependencies = ["haystack-ai", "ollama>=0.4.0"]
+dependencies = ["haystack-ai", "ollama>=0.4.0", "pydantic"]
 
 [project.urls]
 Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/ollama#readme"
@@ -165,5 +165,5 @@ markers = [
 addopts = ["--import-mode=importlib"]
 
 [[tool.mypy.overrides]]
-module = ["haystack.*", "haystack_integrations.*", "pytest.*", "ollama.*"]
+module = ["haystack.*", "haystack_integrations.*", "pytest.*", "ollama.*", "pydantic.*"]
 ignore_missing_imports = true
