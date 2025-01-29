@@ -366,7 +366,7 @@ class GoogleAIGeminiChatGenerator:
                     tool_calls.append(
                         ToolCall(
                             tool_name=new_function_call["name"],
-                            arguments=dict(new_function_call["args"]),
+                            arguments=new_function_call["args"],
                         )
                     )
 
