@@ -1,6 +1,10 @@
 # Changelog
 
-## [unreleased]
+## [integrations/google_vertex-v5.0.0] - 2025-01-29
+
+### 🚀 Features
+
+- [**breaking**] Google Vertex - support for Tool + general refactoring (#1327)
 
 ### 🌀 Miscellaneous
 
