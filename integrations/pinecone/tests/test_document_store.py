@@ -315,3 +315,31 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, WriteDocumentsT
         result = sentence_window_retriever.run(retrieved_documents=[retrieved_doc["documents"][0]])
 
         assert len(result["context_windows"]) == 1
+
+    def test_docx_metadata(self, document_store):
+        from haystack.components.converters.docx import DOCXMetadata
+
+        docx_metadata = DOCXMetadata(author="an author",
+                category="a category",
+                comments="some comments",
+                content_status="a status",
+                created="2025-01-29T12:00:00Z",
+                identifier="an identifier",
+                keywords="some keywords",
+                language="en",
+                last_modified_by="a last modified by",
+                last_printed="2025-01-29T12:00:00Z",
+                modified="2025-01-29T12:00:00Z",
+                revision="a revision",
+                subject="a subject",
+                title="a title",
+                version="a version")
+
+        doc = Document(id="mydocwithdocxmetadata", 
+                       content="A Foo Document", meta={"page": "100", "chapter": "intro", 
+                                                "docx": docx_metadata})
+        document_store.write_documents([doc])
+
+        retrieved_docs = document_store.filter_documents(filters={"id": "mydocwithdocxmetadata"})
+        assert len(retrieved_docs) == 1
+        assert retrieved_docs[0] == doc        
