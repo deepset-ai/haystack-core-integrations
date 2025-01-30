@@ -446,10 +446,11 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, FilterDocuments
     def test_comparison_less_than_equal_with_none(self, document_store, filterable_docs):
         pass
 
-    def test_docx_metadata(self, document_store):
+        def test_docx_metadata(self, document_store):
         from haystack.components.converters.docx import DOCXMetadata
+        from dataclasses import asdict
 
-        docx_metadata = DOCXMetadata(
+        docx_metadata = asdict(DOCXMetadata(
             author="an author",
             category="a category",
             comments="some comments",
@@ -465,6 +466,7 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, FilterDocuments
             subject="a subject",
             title="a title",
             version="a version",
+            )
         )
 
         doc = Document(

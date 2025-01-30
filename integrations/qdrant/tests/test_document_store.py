@@ -153,24 +153,28 @@ class TestQdrantDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocu
                 document_store._query_hybrid(query_sparse_embedding=sparse_embedding, query_embedding=embedding)
 
     def test_docx_metadata(self, document_store):
+        from dataclasses import asdict
+
         from haystack.components.converters.docx import DOCXMetadata
 
-        docx_metadata = DOCXMetadata(
-            author="an author",
-            category="a category",
-            comments="some comments",
-            content_status="a status",
-            created="2025-01-29T12:00:00Z",
-            identifier="an identifier",
-            keywords="some keywords",
-            language="en",
-            last_modified_by="a last modified by",
-            last_printed="2025-01-29T12:00:00Z",
-            modified="2025-01-29T12:00:00Z",
-            revision="a revision",
-            subject="a subject",
-            title="a title",
-            version="a version",
+        docx_metadata = asdict(
+            DOCXMetadata(
+                author="an author",
+                category="a category",
+                comments="some comments",
+                content_status="a status",
+                created="2025-01-29T12:00:00Z",
+                identifier="an identifier",
+                keywords="some keywords",
+                language="en",
+                last_modified_by="a last modified by",
+                last_printed="2025-01-29T12:00:00Z",
+                modified="2025-01-29T12:00:00Z",
+                revision="a revision",
+                subject="a subject",
+                title="a title",
+                version="a version",
+            )
         )
 
         doc = Document(
