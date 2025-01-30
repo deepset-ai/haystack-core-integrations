@@ -414,6 +414,7 @@ class TestVertexAIGeminiChatGenerator:
         assert "replies" in response
         reply = response["replies"][0]
         assert reply.role == ChatRole.ASSISTANT
+        assert not reply.texts
         assert not reply.text
         assert len(reply.tool_calls) == 1
         assert reply.tool_calls[0].tool_name == "get_current_weather"
@@ -492,6 +493,7 @@ class TestVertexAIGeminiChatGenerator:
         assert "replies" in response
         reply = response["replies"][0]
         assert reply.role == ChatRole.ASSISTANT
+        assert not reply.texts
         assert not reply.text
         assert len(reply.tool_calls) == 2
         assert reply.tool_calls[0].tool_name == "get_current_weather"
