@@ -165,14 +165,7 @@ class NvidiaTextEmbedder:
     @property
     def available_models(self) -> List[Model]:
         """
-        Get a list of available models that work with ChatNVIDIA.
-        """
-        return self.backend.models() if self.backend else []
-
-    @property
-    def available_models(self) -> List[Model]:
-        """
-        Get a list of available models that work with ChatNVIDIA.
+        Get a list of available models that work with NvidiaTextEmbedder.
         """
         return self.backend.models() if self.backend else []
 

@@ -81,7 +81,7 @@ class NvidiaGenerator:
         self._api_key = api_key
         self._model_arguments = model_arguments or {}
 
-        self._backend: Optional[Any] = None
+        self._backend: Optional[NimBackend] = None
 
         self.is_hosted = is_hosted(api_url)
         if timeout is None:
@@ -102,7 +102,7 @@ class NvidiaGenerator:
                 UserWarning,
                 stacklevel=2,
             )
-            self._model = self._backend.model_name = name
+            self._model = self._backend.model = name
         else:
             error_message = "No locally hosted model was found."
             raise ValueError(error_message)
@@ -127,7 +127,7 @@ class NvidiaGenerator:
             model_type="chat",
         )
 
-        if not self.is_hosted and not self._model:
+        if not self._model:
             self.default_model()
         validate_hosted_model(self.__class__.__name__, self._model, self)
 

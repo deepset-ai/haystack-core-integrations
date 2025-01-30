@@ -4,6 +4,6 @@
 
 from .nim_backend import NimBackend
 from .statics import Model
-from .utils import is_hosted, url_validation
+from .utils import is_hosted, url_validation, validate_hosted_model
 
-__all__ = ["Model", "NimBackend", "is_hosted", "url_validation"]
+__all__ = ["Model", "NimBackend", "is_hosted", "url_validation", "validate_hosted_model"]
