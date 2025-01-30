@@ -1,5 +1,5 @@
 from typing import Any, Dict, Optional, Type
-from unittest.mock import MagicMock, call, patch
+from unittest.mock import MagicMock, call
 
 import pytest
 from haystack.dataclasses import StreamingChunk
@@ -107,9 +107,6 @@ def test_default_constructor(mock_boto3_session, set_env_variables):
     assert layer.max_length == 99
     assert layer.model == "anthropic.claude-v2"
 
-    assert layer.prompt_handler is not None
-    assert layer.prompt_handler.model_max_length == 4096
-
     # assert mocked boto3 client called exactly once
     mock_boto3_session.assert_called_once()
 
@@ -121,23 +118,6 @@ def test_default_constructor(mock_boto3_session, set_env_variables):
         profile_name="some_fake_profile",
         region_name="fake_region",
     )
-
-
-def test_constructor_prompt_handler_initialized(mock_boto3_session, mock_prompt_handler):
-    """
-    Test that the constructor sets the prompt_handler correctly, with the correct model_max_length for llama-2
-    """
-    layer = AmazonBedrockGenerator(model="anthropic.claude-v2", prompt_handler=mock_prompt_handler)
-    assert layer.prompt_handler is not None
-    assert layer.prompt_handler.model_max_length == 4096
-
-
-def test_prompt_handler_absent_when_truncate_false(mock_boto3_session):
-    """
-    Test that the prompt_handler is not initialized when truncate is set to False.
-    """
-    generator = AmazonBedrockGenerator(model="anthropic.claude-v2", truncate=False)
-    assert not hasattr(generator, "prompt_handler")
 
 
 def test_constructor_with_model_kwargs(mock_boto3_session):
@@ -157,110 +137,6 @@ def test_constructor_with_empty_model():
     """
     with pytest.raises(ValueError, match="cannot be None or empty string"):
         AmazonBedrockGenerator(model="")
-
-
-def test_short_prompt_is_not_truncated(mock_boto3_session):
-    """
-    Test that a short prompt is not truncated
-    """
-    # Define a short mock prompt and its tokenized version
-    mock_prompt_text = "I am a tokenized prompt"
-    mock_prompt_tokens = mock_prompt_text.split()
-
-    # Mock the tokenizer so it returns our predefined tokens
-    mock_tokenizer = MagicMock()
-    mock_tokenizer.tokenize.return_value = mock_prompt_tokens
-
-    # We set a small max_length for generated text (3 tokens) and a total model_max_length of 10 tokens
-    # Since our mock prompt is 5 tokens long, it doesn't exceed the
-    # total limit (5 prompt tokens + 3 generated tokens < 10 tokens)
-    max_length_generated_text = 3
-    total_model_max_length = 10
-
-    with patch("transformers.AutoTokenizer.from_pretrained", return_value=mock_tokenizer):
-        layer = AmazonBedrockGenerator(
-            "anthropic.claude-v2",
-            max_length=max_length_generated_text,
-            model_max_length=total_model_max_length,
-        )
-        prompt_after_resize = layer._ensure_token_limit(mock_prompt_text)
-
-    # The prompt doesn't exceed the limit, _ensure_token_limit doesn't truncate it
-    assert prompt_after_resize == mock_prompt_text
-
-
-def test_long_prompt_is_truncated(mock_boto3_session):
-    """
-    Test that a long prompt is truncated
-    """
-    # Define a long mock prompt and its tokenized version
-    long_prompt_text = "I am a tokenized prompt of length eight"
-    long_prompt_tokens = long_prompt_text.split()
-
-    # _ensure_token_limit will truncate the prompt to make it fit into the model's max token limit
-    truncated_prompt_text = "I am a tokenized prompt of length"
-
-    # Mock the tokenizer to return our predefined tokens
-    # convert tokens to our predefined truncated text
-    mock_tokenizer = MagicMock()
-    mock_tokenizer.tokenize.return_value = long_prompt_tokens
-    mock_tokenizer.convert_tokens_to_string.return_value = truncated_prompt_text
-
-    # We set a small max_length for generated text (3 tokens) and a total model_max_length of 10 tokens
-    # Our mock prompt is 8 tokens long, so it exceeds the total limit (8 prompt tokens + 3 generated tokens > 10 tokens)
-    max_length_generated_text = 3
-    total_model_max_length = 10
-
-    with patch("transformers.AutoTokenizer.from_pretrained", return_value=mock_tokenizer):
-        layer = AmazonBedrockGenerator(
-            "anthropic.claude-v2",
-            max_length=max_length_generated_text,
-            model_max_length=total_model_max_length,
-        )
-        prompt_after_resize = layer._ensure_token_limit(long_prompt_text)
-
-    # The prompt exceeds the limit, _ensure_token_limit truncates it
-    assert prompt_after_resize == truncated_prompt_text
-
-
-def test_long_prompt_is_not_truncated_when_truncate_false(mock_boto3_session):
-    """
-    Test that a long prompt is not truncated and _ensure_token_limit is not called when truncate is set to False
-    """
-    long_prompt_text = "I am a tokenized prompt of length eight"
-
-    # Our mock prompt is 8 tokens long, so it exceeds the total limit (8 prompt tokens + 3 generated tokens > 10 tokens)
-    max_length_generated_text = 3
-    total_model_max_length = 10
-
-    with patch("transformers.AutoTokenizer.from_pretrained", return_value=MagicMock()):
-        generator = AmazonBedrockGenerator(
-            model="anthropic.claude-v2",
-            max_length=max_length_generated_text,
-            model_max_length=total_model_max_length,
-            truncate=False,
-        )
-
-        # Mock the _ensure_token_limit method to track if it is called
-        with patch.object(
-            generator, "_ensure_token_limit", wraps=generator._ensure_token_limit
-        ) as mock_ensure_token_limit:
-            # Mock the model adapter to avoid actual invocation
-            generator.model_adapter.prepare_body = MagicMock(return_value={})
-            generator.client = MagicMock()
-            generator.client.invoke_model = MagicMock(
-                return_value={"body": MagicMock(read=MagicMock(return_value=b'{"generated_text": "response"}'))}
-            )
-            generator.model_adapter.get_responses = MagicMock(return_value=["response"])
-
-            # Invoke the generator
-            generator.run(prompt=long_prompt_text)
-
-        # Ensure _ensure_token_limit was not called
-        mock_ensure_token_limit.assert_not_called()
-
-        # Check the prompt passed to prepare_body
-        generator.model_adapter.prepare_body.assert_called_with(prompt=long_prompt_text, stream=False)
 
 
 @pytest.mark.parametrize(

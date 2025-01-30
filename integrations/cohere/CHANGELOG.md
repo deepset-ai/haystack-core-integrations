@@ -1,5 +1,16 @@
 # Changelog
 
+## [integrations/cohere-v3.0.0] - 2025-01-28
+
+### 🚀 Features
+
+- CohereChatGenerator - add tools support  (#1318)
+
+### 🚜 Refactor
+
+- Migrate Cohere to V2 (#1321)
+
+
 ## [integrations/cohere-v2.0.2] - 2025-01-15
 
 ### 🐛 Bug Fixes
