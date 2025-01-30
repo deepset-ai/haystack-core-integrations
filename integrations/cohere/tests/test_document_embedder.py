@@ -6,7 +6,9 @@ import os
 import pytest
 from haystack import Document
 from haystack.utils import Secret
+
 from haystack_integrations.components.embedders.cohere import CohereDocumentEmbedder
+from haystack_integrations.components.embedders.cohere.embedding_types import EmbeddingTypes
 
 pytestmark = pytest.mark.embedders
 COHERE_API_URL = "https://api.cohere.com"
@@ -26,6 +28,7 @@ class TestCohereDocumentEmbedder:
         assert embedder.progress_bar is True
         assert embedder.meta_fields_to_embed == []
         assert embedder.embedding_separator == "\n"
+        assert embedder.embedding_type == EmbeddingTypes.FLOAT
 
     def test_init_with_parameters(self):
         embedder = CohereDocumentEmbedder(
@@ -52,6 +55,7 @@ class TestCohereDocumentEmbedder:
         assert embedder.progress_bar is False
         assert embedder.meta_fields_to_embed == ["test_field"]
         assert embedder.embedding_separator == "-"
+        assert embedder.embedding_type == EmbeddingTypes.FLOAT
 
     def test_to_dict(self):
         embedder_component = CohereDocumentEmbedder()
@@ -70,6 +74,7 @@ class TestCohereDocumentEmbedder:
                 "progress_bar": True,
                 "meta_fields_to_embed": [],
                 "embedding_separator": "\n",
+                "embedding_type": "float",
             },
         }
 
@@ -86,6 +91,7 @@ class TestCohereDocumentEmbedder:
             progress_bar=False,
             meta_fields_to_embed=["text_field"],
             embedding_separator="-",
+            embedding_type=EmbeddingTypes.INT8,
         )
         component_dict = embedder_component.to_dict()
         assert component_dict == {
@@ -102,6 +108,7 @@ class TestCohereDocumentEmbedder:
                 "progress_bar": False,
                 "meta_fields_to_embed": ["text_field"],
                 "embedding_separator": "-",
+                "embedding_type": "int8",
             },
         }
 
@@ -111,7 +118,7 @@ class TestCohereDocumentEmbedder:
     )
     @pytest.mark.integration
     def test_run(self):
-        embedder = CohereDocumentEmbedder()
+        embedder = CohereDocumentEmbedder(model="embed-english-v2.0", embedding_type=EmbeddingTypes.FLOAT)
 
         docs = [
             Document(content="I love cheese", meta={"topic": "Cuisine"}),

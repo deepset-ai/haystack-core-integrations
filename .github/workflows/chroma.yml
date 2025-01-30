@@ -30,7 +30,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
-        python-version: ["3.8", "3.9", "3.10"]
+        python-version: ["3.9", "3.10", "3.11"]
 
     steps:
       - name: Support longpaths
@@ -56,13 +56,17 @@ jobs:
         if: matrix.python-version == '3.9' && runner.os == 'Linux'
         run: hatch run docs
 
+      - name: Run Chroma server on Linux/macOS
+        if: matrix.os != 'windows-latest'
+        run: hatch run chroma run &
+
       - name: Run tests
         run: hatch run cov-retry
 
       - name: Nightly - run unit tests with Haystack main branch
         if: github.event_name == 'schedule'
         run: |
-          hatch run pip install git+https://github.com/deepset-ai/haystack.git
+          hatch run uv pip install git+https://github.com/deepset-ai/haystack.git@main
           hatch run cov-retry -m "not integration"
 
       - name: Send event to Datadog for nightly failures

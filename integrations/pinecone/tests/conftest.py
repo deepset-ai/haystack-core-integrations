@@ -13,7 +13,7 @@ except ModuleNotFoundError:
 from haystack_integrations.document_stores.pinecone import PineconeDocumentStore
 
 # This is the approximate time in seconds it takes for the documents to be available
-SLEEP_TIME_IN_SECONDS = 15
+SLEEP_TIME_IN_SECONDS = 18
 
 
 @pytest.fixture()

@@ -27,7 +27,7 @@ class OpenSearchBM25Retriever:
         *,
         document_store: OpenSearchDocumentStore,
         filters: Optional[Dict[str, Any]] = None,
-        fuzziness: str = "AUTO",
+        fuzziness: Union[int, str] = "AUTO",
         top_k: int = 10,
         scale_score: bool = False,
         all_terms_must_match: bool = False,
@@ -40,8 +40,14 @@ class OpenSearchBM25Retriever:
 
         :param document_store: An instance of OpenSearchDocumentStore to use with the Retriever.
         :param filters: Filters to narrow down the search for documents in the Document Store.
-        :param fuzziness: Fuzziness parameter for full-text queries to apply approximate string matching.
-        For more information, see [OpenSearch fuzzy query](https://opensearch.org/docs/latest/query-dsl/term/fuzzy/).
+        :param fuzziness: Determines how approximate string matching is applied in full-text queries.
+            This parameter sets the number of character edits (insertions, deletions, or substitutions)
+            required to transform one word into another. For example, the "fuzziness" between the words
+            "wined" and "wind" is 1 because only one edit is needed to match them.
+
+            Use "AUTO" (the default) for automatic adjustment based on term length, which is optimal for
+            most scenarios. For detailed guidance, refer to the
+            [OpenSearch fuzzy query documentation](https://opensearch.org/docs/latest/query-dsl/term/fuzzy/).
         :param top_k: Maximum number of documents to return.
         :param scale_score: If `True`, scales the score of retrieved documents to a range between 0 and 1.
             This is useful when comparing documents across different indexes.
@@ -153,7 +159,7 @@ class OpenSearchBM25Retriever:
         filters: Optional[Dict[str, Any]] = None,
         all_terms_must_match: Optional[bool] = None,
         top_k: Optional[int] = None,
-        fuzziness: Optional[str] = None,
+        fuzziness: Optional[Union[int, str]] = None,
         scale_score: Optional[bool] = None,
         custom_query: Optional[Dict[str, Any]] = None,
     ):

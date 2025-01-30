@@ -19,7 +19,7 @@ class FastembedSparseTextEmbedder:
             "The disk comes and it does not, only Windows. Do Not order this if you have a Mac!!")
 
     sparse_text_embedder = FastembedSparseTextEmbedder(
-        model="prithvida/Splade_PP_en_v1"
+        model="prithivida/Splade_PP_en_v1"
     )
     sparse_text_embedder.warm_up()
 
@@ -29,17 +29,18 @@ class FastembedSparseTextEmbedder:
 
     def __init__(
         self,
-        model: str = "prithvida/Splade_PP_en_v1",
+        model: str = "prithivida/Splade_PP_en_v1",
         cache_dir: Optional[str] = None,
         threads: Optional[int] = None,
         progress_bar: bool = True,
         parallel: Optional[int] = None,
         local_files_only: bool = False,
+        model_kwargs: Optional[Dict[str, Any]] = None,
     ):
         """
         Create a FastembedSparseTextEmbedder component.
 
-        :param model: Local path or name of the model in Fastembed's model hub, such as `prithvida/Splade_PP_en_v1`
+        :param model: Local path or name of the model in Fastembed's model hub, such as `prithivida/Splade_PP_en_v1`
         :param cache_dir: The path to the cache directory.
                 Can be set using the `FASTEMBED_CACHE_PATH` env variable.
                 Defaults to `fastembed_cache` in the system's temp directory.
@@ -50,6 +51,7 @@ class FastembedSparseTextEmbedder:
                 If 0, use all available cores.
                 If None, don't use data-parallel processing, use default onnxruntime threading instead.
         :param local_files_only: If `True`, only use the model files in the `cache_dir`.
+        :param model_kwargs: Dictionary containing model parameters such as `k`, `b`, `avg_len`, `language`.
         """
 
         self.model_name = model
@@ -58,6 +60,7 @@ class FastembedSparseTextEmbedder:
         self.progress_bar = progress_bar
         self.parallel = parallel
         self.local_files_only = local_files_only
+        self.model_kwargs = model_kwargs
 
     def to_dict(self) -> Dict[str, Any]:
         """
@@ -74,6 +77,7 @@ class FastembedSparseTextEmbedder:
             progress_bar=self.progress_bar,
             parallel=self.parallel,
             local_files_only=self.local_files_only,
+            model_kwargs=self.model_kwargs,
         )
 
     def warm_up(self):
@@ -86,6 +90,7 @@ class FastembedSparseTextEmbedder:
                 cache_dir=self.cache_dir,
                 threads=self.threads,
                 local_files_only=self.local_files_only,
+                model_kwargs=self.model_kwargs,
             )
 
     @component.output_types(sparse_embedding=SparseEmbedding)

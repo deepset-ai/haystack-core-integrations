@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2024-present deepset GmbH <info@deepset.ai>
+#
+# SPDX-License-Identifier: Apache-2.0
+
 import warnings
 from typing import List, Optional
 from urllib.parse import urlparse, urlunparse
@@ -5,7 +9,7 @@ from urllib.parse import urlparse, urlunparse
 from .statics import MODEL_TABLE, Model
 
 
-def url_validation(api_url: str, default_api_url: str, allowed_paths: List[str]) -> str:
+def url_validation(api_url: str, default_api_url: Optional[str], allowed_paths: List[str]) -> str:
     """
     Validate and normalize an API URL.
 

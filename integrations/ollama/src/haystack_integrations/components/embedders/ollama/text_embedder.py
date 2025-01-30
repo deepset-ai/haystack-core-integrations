@@ -62,7 +62,7 @@ class OllamaTextEmbedder:
             - `embedding`: The computed embeddings
             - `meta`: The metadata collected during the embedding process
         """
-        result = self._client.embeddings(model=self.model, prompt=text, options=generation_kwargs)
+        result = self._client.embeddings(model=self.model, prompt=text, options=generation_kwargs).model_dump()
         result["meta"] = {"model": self.model}
 
         return result

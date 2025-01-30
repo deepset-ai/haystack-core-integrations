@@ -121,6 +121,35 @@ def test_from_dict(_mock_opensearch_client):
     assert retriever._filter_policy == FilterPolicy.REPLACE
 
 
+@patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
+def test_from_dict_not_defaults(_mock_opensearch_client):
+    data = {
+        "type": "haystack_integrations.components.retrievers.opensearch.bm25_retriever.OpenSearchBM25Retriever",
+        "init_parameters": {
+            "document_store": {
+                "init_parameters": {"hosts": "some fake host", "index": "default"},
+                "type": "haystack_integrations.document_stores.opensearch.document_store.OpenSearchDocumentStore",
+            },
+            "filters": {},
+            "fuzziness": 0,
+            "top_k": 15,
+            "scale_score": True,
+            "filter_policy": "replace",
+            "custom_query": {"some": "custom query"},
+            "raise_on_failure": True,
+        },
+    }
+    retriever = OpenSearchBM25Retriever.from_dict(data)
+    assert retriever._document_store
+    assert retriever._filters == {}
+    assert retriever._fuzziness == 0
+    assert retriever._top_k == 15
+    assert retriever._scale_score
+    assert retriever._filter_policy == FilterPolicy.REPLACE
+    assert retriever._custom_query == {"some": "custom query"}
+    assert retriever._raise_on_failure is True
+
+
 def test_run():
     mock_store = Mock(spec=OpenSearchDocumentStore)
     mock_store._bm25_retrieval.return_value = [Document(content="Test doc")]

@@ -1,6 +1,7 @@
 # A valid OpenAI API key is required to run this example.
 
 from haystack import Pipeline
+
 from haystack_integrations.components.evaluators.deepeval import DeepEvalEvaluator, DeepEvalMetric
 
 QUESTIONS = [

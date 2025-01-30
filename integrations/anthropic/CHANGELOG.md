@@ -1,10 +1,43 @@
 # Changelog
 
+## [unreleased]
+
+### 🌀 Miscellaneous
+
+- Test: remove tests involving serialization of lambdas (#1281)
+- Test: remove more tests involving serialization of lambdas (#1285)
+- Feat: Anthropic - support for Tools + refactoring (#1300)
+
+## [integrations/anthropic-v1.2.1] - 2024-12-18
+
+### 🐛 Bug Fixes
+
+- Make Anthropic compatible with new `ChatMessage`; fix prompt caching tests (#1252)
+
+### ⚙️ CI
+
+- Adopt uv as installer (#1142)
+
+### 🧹 Chores
+
+- Update ruff linting scripts and settings (#1105)
+- Fix linting/isort (#1215)
+
+### 🌀 Miscellaneous
+
+- Add AnthropicVertexChatGenerator component (#1192)
+- Docs: add AnthropicVertexChatGenerator to pydoc (#1221)
+- Chore: use `text` instead of `content` for `ChatMessage` in Cohere and Anthropic (#1237)
+
 ## [integrations/anthropic-v1.1.0] - 2024-09-20
 
 ### 🚀 Features
 
 - Add Anthropic prompt caching support, add example (#1006)
+
+### 🌀 Miscellaneous
+
+- Chore: Update Anthropic example, use ChatPromptBuilder properly (#978)
 
 ## [integrations/anthropic-v1.0.0] - 2024-08-12
 
@@ -20,11 +53,17 @@
 
 - Do not retry tests in `hatch run test` command (#954)
 
+
 ## [integrations/anthropic-v0.4.1] - 2024-07-17
 
-### ⚙️ Miscellaneous Tasks
+### 🧹 Chores
 
 - Update ruff invocation to include check parameter (#853)
+
+### 🌀 Miscellaneous
+
+- Ci: install `pytest-rerunfailures` where needed; add retry config to `test-cov` script (#845)
+- Add meta deprecration warning (#910)
 
 ## [integrations/anthropic-v0.4.0] - 2024-06-21
 
@@ -33,11 +72,23 @@
 - Update Anthropic/Cohere for tools use (#790)
 - Update Anthropic default models, pydocs (#839)
 
-### ⚙️ Miscellaneous Tasks
+### ⚙️ CI
 
 - Retry tests to reduce flakyness (#836)
 
+### 🌀 Miscellaneous
+
+- Remove references to Python 3.7 (#601)
+- Chore: add license classifiers (#680)
+- Chore: change the pydoc renderer class (#718)
+- Docs: add missing api references (#728)
+
 ## [integrations/anthropic-v0.2.0] - 2024-03-15
+
+### 🌀 Miscellaneous
+
+- Docs: Replace amazon-bedrock with anthropic in readme (#584)
+- Chore: Use the correct sonnet model name (#587)
 
 ## [integrations/anthropic-v0.1.0] - 2024-03-15
 

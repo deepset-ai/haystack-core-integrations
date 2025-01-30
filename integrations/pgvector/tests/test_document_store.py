@@ -5,6 +5,7 @@
 from unittest.mock import patch
 
 import numpy as np
+import psycopg
 import pytest
 from haystack.dataclasses.document import ByteStream, Document
 from haystack.document_stores.errors import DuplicateDocumentError
@@ -41,12 +42,33 @@ class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsT
         retrieved_docs = document_store.filter_documents()
         assert retrieved_docs == docs
 
+    def test_connection_check_and_recreation(self, document_store: PgvectorDocumentStore):
+        original_connection = document_store.connection
+
+        with patch.object(PgvectorDocumentStore, "_connection_is_valid", return_value=False):
+            new_connection = document_store.connection
+
+        # verify that a new connection is created
+        assert new_connection is not original_connection
+        assert document_store._connection == new_connection
+        assert original_connection.closed
+
+        assert document_store._cursor is not None
+        assert document_store._dict_cursor is not None
+
+        # test with new connection
+        with patch.object(PgvectorDocumentStore, "_connection_is_valid", return_value=True):
+            same_connection = document_store.connection
+            assert same_connection is document_store._connection
+
 
 @pytest.mark.usefixtures("patches_for_unit_tests")
 def test_init(monkeypatch):
     monkeypatch.setenv("PG_CONN_STR", "some_connection_string")
 
     document_store = PgvectorDocumentStore(
+        create_extension=True,
+        schema_name="my_schema",
         table_name="my_table",
         embedding_dimension=512,
         vector_function="l2_distance",
@@ -59,6 +81,8 @@ def test_init(monkeypatch):
         keyword_index_name="my_keyword_index",
     )
 
+    assert document_store.create_extension
+    assert document_store.schema_name == "my_schema"
     assert document_store.table_name == "my_table"
     assert document_store.embedding_dimension == 512
     assert document_store.vector_function == "l2_distance"
@@ -76,6 +100,7 @@ def test_to_dict(monkeypatch):
     monkeypatch.setenv("PG_CONN_STR", "some_connection_string")
 
     document_store = PgvectorDocumentStore(
+        create_extension=False,
         table_name="my_table",
         embedding_dimension=512,
         vector_function="l2_distance",
@@ -92,7 +117,9 @@ def test_to_dict(monkeypatch):
         "type": "haystack_integrations.document_stores.pgvector.document_store.PgvectorDocumentStore",
         "init_parameters": {
             "connection_string": {"env_vars": ["PG_CONN_STR"], "strict": True, "type": "env_var"},
+            "create_extension": False,
             "table_name": "my_table",
+            "schema_name": "public",
             "embedding_dimension": 512,
             "vector_function": "l2_distance",
             "recreate_table": True,
@@ -233,3 +260,47 @@ def test_from_pg_to_haystack_documents():
     assert haystack_docs[2].meta == {"meta_key": "meta_value"}
     assert haystack_docs[2].embedding == [0.7, 0.8, 0.9]
     assert haystack_docs[2].score is None
+
+
+@pytest.mark.integration
+def test_hnsw_index_recreation():
+    def get_index_oid(document_store, schema_name, index_name):
+        sql_get_index_oid = """
+            SELECT c.oid
+            FROM pg_class c
+            JOIN pg_namespace n ON n.oid = c.relnamespace
+            WHERE c.relkind = 'i'
+            AND n.nspname = %s
+            AND c.relname = %s;
+        """
+        return document_store.cursor.execute(sql_get_index_oid, (schema_name, index_name)).fetchone()[0]
+
+    # create a new schema
+    connection_string = "postgresql://postgres:postgres@localhost:5432/postgres"
+    schema_name = "test_schema"
+    with psycopg.connect(connection_string, autocommit=True) as conn:
+        conn.execute(f"CREATE SCHEMA IF NOT EXISTS {schema_name}")
+
+    # create a first document store and trigger the creation of the hnsw index
+    params = {
+        "connection_string": Secret.from_token(connection_string),
+        "schema_name": schema_name,
+        "table_name": "haystack_test_hnsw_index_recreation",
+        "search_strategy": "hnsw",
+    }
+    ds1 = PgvectorDocumentStore(**params)
+    ds1._initialize_table()
+
+    # get the hnsw index oid
+    hnws_index_name = "haystack_hnsw_index"
+    first_oid = get_index_oid(ds1, ds1.schema_name, hnws_index_name)
+
+    # create second document store with recreation enabled
+    ds2 = PgvectorDocumentStore(**params, hnsw_recreate_index_if_exists=True)
+    ds2._initialize_table()
+
+    # get the index oid
+    second_oid = get_index_oid(ds2, ds2.schema_name, hnws_index_name)
+
+    # verify that oids differ
+    assert second_oid != first_oid, "Index was not recreated (OID remained the same)"

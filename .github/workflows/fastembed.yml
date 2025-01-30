@@ -47,7 +47,7 @@ jobs:
       - name: Nightly - run unit tests with Haystack main branch
         if: github.event_name == 'schedule'
         run: |
-          hatch run pip install git+https://github.com/deepset-ai/haystack.git
+          hatch run uv pip install git+https://github.com/deepset-ai/haystack.git@main
           hatch run cov-retry -m "not integration"
 
       - name: Send event to Datadog for nightly failures

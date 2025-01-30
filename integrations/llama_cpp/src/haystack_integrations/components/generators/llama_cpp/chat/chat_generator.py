@@ -2,7 +2,7 @@ import logging
 from typing import Any, Dict, List, Optional
 
 from haystack import component
-from haystack.dataclasses import ChatMessage, ChatRole
+from haystack.dataclasses import ChatMessage
 from llama_cpp import Llama
 from llama_cpp.llama_tokenizer import LlamaHFTokenizer
 
@@ -17,9 +17,13 @@ def _convert_message_to_llamacpp_format(message: ChatMessage) -> Dict[str, str]:
         - `content`
         - `name` (optional)
     """
-    formatted_msg = {"role": message.role.value, "content": message.content}
+    formatted_msg = {"role": message.role.value, "content": message.text}
     if message.name:
         formatted_msg["name"] = message.name
+
+    if formatted_msg["role"] == "tool":
+        formatted_msg["name"] = message.tool_call_result.origin.tool_name
+        formatted_msg["content"] = message.tool_call_result.result
 
     return formatted_msg
 
@@ -114,26 +118,27 @@ class LlamaCppChatGenerator:
         formatted_messages = [_convert_message_to_llamacpp_format(msg) for msg in messages]
 
         response = self.model.create_chat_completion(messages=formatted_messages, **updated_generation_kwargs)
-        replies = [
-            ChatMessage(
-                content=choice["message"]["content"],
-                role=ChatRole[choice["message"]["role"].upper()],
-                name=None,
-                meta={
-                    "response_id": response["id"],
-                    "model": response["model"],
-                    "created": response["created"],
-                    "index": choice["index"],
-                    "finish_reason": choice["finish_reason"],
-                    "usage": response["usage"],
-                },
-            )
-            for choice in response["choices"]
-        ]
 
-        for reply, choice in zip(replies, response["choices"]):
+        replies = []
+
+        for choice in response["choices"]:
+            meta = {
+                "response_id": response["id"],
+                "model": response["model"],
+                "created": response["created"],
+                "index": choice["index"],
+                "finish_reason": choice["finish_reason"],
+                "usage": response["usage"],
+            }
+
+            name = None
             tool_calls = choice.get("message", {}).get("tool_calls", [])
             if tool_calls:
-                reply.meta["tool_calls"] = tool_calls
-        reply.name = tool_calls[0]["function"]["name"] if tool_calls else None
+                meta["tool_calls"] = tool_calls
+                name = tool_calls[0]["function"]["name"]
+
+            reply = ChatMessage.from_assistant(choice["message"]["content"], meta=meta)
+            reply._name = name or None
+            replies.append(reply)
+
         return {"replies": replies}

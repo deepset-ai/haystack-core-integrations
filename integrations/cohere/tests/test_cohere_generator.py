@@ -7,6 +7,7 @@ import pytest
 from cohere.core import ApiError
 from haystack.components.generators.utils import print_streaming_chunk
 from haystack.utils import Secret
+
 from haystack_integrations.components.generators.cohere import CohereGenerator
 
 pytestmark = pytest.mark.generators
@@ -51,6 +52,7 @@ class TestCohereGenerator:
                 "streaming_callback": None,
                 "api_base_url": COHERE_API_URL,
                 "generation_kwargs": {},
+                "tools": None,
             },
         }
 
@@ -74,27 +76,7 @@ class TestCohereGenerator:
                 "api_key": {"env_vars": ["ENV_VAR"], "strict": False, "type": "env_var"},
                 "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
                 "generation_kwargs": {},
-            },
-        }
-
-    def test_to_dict_with_lambda_streaming_callback(self, monkeypatch):
-        monkeypatch.setenv("COHERE_API_KEY", "test-api-key")
-        component = CohereGenerator(
-            model="command-r",
-            max_tokens=10,
-            some_test_param="test-params",
-            streaming_callback=lambda x: x,
-            api_base_url="test-base-url",
-        )
-        data = component.to_dict()
-        assert data == {
-            "type": "haystack_integrations.components.generators.cohere.generator.CohereGenerator",
-            "init_parameters": {
-                "model": "command-r",
-                "streaming_callback": "tests.test_cohere_generator.<lambda>",
-                "api_base_url": "test-base-url",
-                "api_key": {"type": "env_var", "env_vars": ["COHERE_API_KEY", "CO_API_KEY"], "strict": True},
-                "generation_kwargs": {},
+                "tools": None,
             },
         }
 
@@ -110,6 +92,7 @@ class TestCohereGenerator:
                 "some_test_param": "test-params",
                 "api_base_url": "test-base-url",
                 "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
+                "tools": None,
             },
         }
         component: CohereGenerator = CohereGenerator.from_dict(data)

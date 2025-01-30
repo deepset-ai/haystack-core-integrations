@@ -19,11 +19,43 @@ body = """
     ## [unreleased]
 {% endif %}\
 {% for group, commits in commits | group_by(attribute="group") %}
+    {#
+        Skip the whole section if it contains only a single commit
+        and it's the commit that updated the changelog.
+        If we don't do this we get an empty section since we don't show
+        commits that update the changelog
+    #}\
+    {% if commits | length == 1 and commits[0].message == 'Update the changelog' %}\
+        {% continue %}\
+    {% endif %}\
     ### {{ group | striptags | trim | upper_first }}
-    {% for commit in commits %}
+    {% for commit in commits %}\
+        {#
+            Skip commits that update the changelog, they're not useful to the user
+        #}\
+        {% if commit.message == 'Update the changelog' %}\
+            {% continue %}\
+        {% endif %}
         - {% if commit.scope %}*({{ commit.scope }})* {% endif %}\
             {% if commit.breaking %}[**breaking**] {% endif %}\
-            {{ commit.message | upper_first }}\
+            {#
+                We first try to render the conventional commit message if present.
+                If it's not a conventional commit we get the PR title if present.
+                If the commit is neither conventional, nor has a PR title set
+                we fallback to whatever the commit message is.
+
+                We do this cause when merging PRs with multiple commits that don't
+                have a title following conventional commit guidelines we might get
+                a commit message that is multiple lines. That makes the changelog
+                look a bit funky so we handle it like so.
+            #}\
+            {% if commit.conventional %}\
+                {{ commit.message | upper_first }}\
+            {% elif commit.remote.pr_title %}\
+                {{ commit.remote.pr_title | upper_first }} (#{{ commit.remote.pr_number }})\
+            {% else %}\
+                {{ commit.message | upper_first }}\
+            {% endif %}\
     {% endfor %}
 {% endfor %}\n
 """
@@ -35,7 +67,7 @@ footer = """
 trim = true
 # postprocessors
 postprocessors = [
-  # { pattern = '<REPO>', replace = "https://github.com/orhun/git-cliff" }, # replace repository URL
+    # { pattern = '<REPO>', replace = "https://github.com/orhun/git-cliff" }, # replace repository URL
 ]
 
 [git]
@@ -47,24 +79,26 @@ filter_unconventional = false
 split_commits = false
 # regex for preprocessing the commit messages
 commit_preprocessors = [
-  # Replace issue numbers
-  #{ pattern = '\((\w+\s)?#([0-9]+)\)', replace = "([#${2}](<REPO>/issues/${2}))"},
-  # Check spelling of the commit with https://github.com/crate-ci/typos
-  # If the spelling is incorrect, it will be automatically fixed.
-  #{ pattern = '.*', replace_command = 'typos --write-changes -' },
+    # Replace issue numbers
+    #{ pattern = '\((\w+\s)?#([0-9]+)\)', replace = "([#${2}](<REPO>/issues/${2}))"},
+    # Check spelling of the commit with https://github.com/crate-ci/typos
+    # If the spelling is incorrect, it will be automatically fixed.
+    #{ pattern = '.*', replace_command = 'typos --write-changes -' },
 ]
 # regex for parsing and grouping commits
 commit_parsers = [
-  { message = "^feat", group = "<!-- 0 -->🚀 Features" },
-  { message = "^fix", group = "<!-- 1 -->🐛 Bug Fixes" },
-  { message = "^doc", group = "<!-- 3 -->📚 Documentation" },
-  { message = "^perf", group = "<!-- 4 -->⚡ Performance" },
-  { message = "^refactor", group = "<!-- 2 -->🚜 Refactor" },
-  { message = "^style", group = "<!-- 5 -->🎨 Styling" },
-  { message = "^test", group = "<!-- 6 -->🧪 Testing" },
-  { message = "^chore|^ci", group = "<!-- 7 -->⚙️ Miscellaneous Tasks" },
-  { body = ".*security", group = "<!-- 8 -->🛡️ Security" },
-  { message = "^revert", group = "<!-- 9 -->◀️ Revert" },
+    { message = "^feat", group = "<!-- 00 -->🚀 Features" },
+    { message = "^fix", group = "<!-- 01 -->🐛 Bug Fixes" },
+    { message = "^refactor", group = "<!-- 02 -->🚜 Refactor" },
+    { message = "^doc", group = "<!-- 03 -->📚 Documentation" },
+    { message = "^perf", group = "<!-- 04 -->⚡ Performance" },
+    { message = "^style", group = "<!-- 05 -->🎨 Styling" },
+    { message = "^test", group = "<!-- 06 -->🧪 Testing" },
+    { body = ".*security", group = "<!-- 07 -->🛡️ Security" },
+    { message = "^revert", group = "<!-- 08 -->◀️ Revert" },
+    { message = "^ci", group = "<!-- 09 -->⚙️ CI" },
+    { message = "^chore", group = "<!-- 10 -->🧹 Chores" },
+    { message = ".*", group = "<!-- 11 -->🌀 Miscellaneous" },
 ]
 # protect breaking changes from being skipped due to matching a skipping commit_parser
 protect_breaking_commits = false
@@ -82,3 +116,7 @@ topo_order = false
 sort_commits = "oldest"
 # limit the number of commits included in the changelog.
 # limit_commits = 42
+
+[remote.github]
+owner = "deepset-ai"
+repo = "haystack-core-integrations"

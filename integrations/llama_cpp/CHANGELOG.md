@@ -1,27 +1,68 @@
 # Changelog
 
+## [integrations/llama_cpp-v0.4.4] - 2025-01-16
+
+### 🧹 Chores
+
+- Llama.cpp - gently handle the removal of ChatMessage.from_function (#1298)
+
+
+## [integrations/llama_cpp-v0.4.3] - 2024-12-19
+
+### 🐛 Bug Fixes
+
+- Make llama.cpp Chat Generator compatible with new `ChatMessage` (#1254)
+
+
+## [integrations/llama_cpp-v0.4.2] - 2024-12-10
+
+### 🧪 Testing
+
+- Do not retry tests in `hatch run test` command (#954)
+
+### ⚙️ CI
+
+- Adopt uv as installer (#1142)
+
+### 🧹 Chores
+
+- Update ruff linting scripts and settings (#1105)
+- Unpin `llama-cpp-python` (#1115)
+- Fix linting/isort (#1215)
+- Use text instead of content for ChatMessage in Llama.cpp, Langfuse and Mistral (#1238)
+
+### 🌀 Miscellaneous
+
+- Chore: lamma_cpp - ruff update, don't ruff tests (#998)
+- Fix: pin `llama-cpp-python<0.3.0` (#1111)
+
 ## [integrations/llama_cpp-v0.4.1] - 2024-08-08
 
 ### 🐛 Bug Fixes
 
 - Replace DynamicChatPromptBuilder with ChatPromptBuilder (#940)
 
-### ⚙️ Miscellaneous Tasks
+### ⚙️ CI
 
 - Retry tests to reduce flakyness (#836)
+
+### 🧹 Chores
+
 - Update ruff invocation to include check parameter (#853)
 - Pin `llama-cpp-python>=0.2.87` (#955)
+
+### 🌀 Miscellaneous
+
+- Ci: install `pytest-rerunfailures` where needed; add retry config to `test-cov` script (#845)
+- Fix: pin llama-cpp-python to an older version (#943)
+- Refactor: introduce `_convert_message_to_llamacpp_format` utility function (#939)
 
 ## [integrations/llama_cpp-v0.4.0] - 2024-05-13
 
 ### 🐛 Bug Fixes
 
-- Fix commit (#436)
-
-
+- Llama.cpp: change wrong links and imports (#436)
 - Fix order of API docs (#447)
-
-This PR will also push the docs to Readme
 
 ### 📚 Documentation
 
@@ -29,17 +70,33 @@ This PR will also push the docs to Readme
 - Small consistency improvements (#536)
 - Disable-class-def (#556)
 
-### ⚙️ Miscellaneous Tasks
+### 🧹 Chores
 
 - [**breaking**] Rename model_path to model in the Llama.cpp integration (#243)
 
-### Llama.cpp
+### 🌀 Miscellaneous
 
 - Generate api docs (#353)
+- Model_name_or_path > model (#418)
+- Llama.cpp - review docstrings (#510)
+- Llama.cpp - update examples (#511)
+- Make tests show coverage (#566)
+- Remove references to Python 3.7 (#601)
+- Chore: add license classifiers (#680)
+- Chore: change the pydoc renderer class (#718)
+- Basic implementation of llama.cpp chat generation (#723)
 
 ## [integrations/llama_cpp-v0.2.1] - 2024-01-18
 
+### 🌀 Miscellaneous
+
+- Update import paths for beta5 (#233)
+
 ## [integrations/llama_cpp-v0.2.0] - 2024-01-17
+
+### 🌀 Miscellaneous
+
+- Mount llama_cpp in haystack_integrations (#217)
 
 ## [integrations/llama_cpp-v0.1.0] - 2024-01-09
 
