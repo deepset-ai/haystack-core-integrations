@@ -192,6 +192,9 @@ class BedrockRanker:
             msg = f"top_k must be > 0, but got {top_k}"
             raise ValueError(msg)
 
+        if not documents:
+            return {"documents": []}
+
         bedrock_input_docs = self._prepare_bedrock_input_docs(documents)
         if len(bedrock_input_docs) > MAX_NUM_DOCS_FOR_BEDROCK_RANKER:
             logger.warning(
