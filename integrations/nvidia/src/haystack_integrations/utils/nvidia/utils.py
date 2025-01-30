@@ -63,13 +63,13 @@ def lookup_model(name: str) -> Optional[Model]:
     Callers can check to see if the name was an alias by
     comparing the result's id field to the name they provided.
     """
-    model = None
     if not (model := MODEL_TABLE.get(name)):
         for mdl in MODEL_TABLE.values():
             if mdl.aliases and name in mdl.aliases:
-                model = mdl
-                break
-    return model
+                return mdl
+    else:
+        return model
+    return None
 
 
 def determine_model(name: str) -> Optional[Model]:
@@ -90,11 +90,12 @@ def determine_model(name: str) -> Optional[Model]:
     return model
 
 
-def validate_hosted_model(class_name: str, model_name: str, client) -> None:
+def validate_hosted_model(class_name: str, model_name: str, client: str) -> None:
     """
     Validates compatibility of the hosted model with the client.
 
     Args:
+        class_name (str): The class name to validate client.
         model_name (str): The name of the model.
 
     Raises:
@@ -104,22 +105,21 @@ def validate_hosted_model(class_name: str, model_name: str, client) -> None:
         if not model.client:
             warn_msg = f"Unable to determine validity of {model.id}"
             warnings.warn(warn_msg, stacklevel=1)
-        elif model.model_type == "embedding" and class_name in ["NvidiaTextEmbedder", "NvidiaDocumentEmbedder"]:
-            pass
-        elif model.client != class_name:
-            err_msg = f"Model {model.id} is incompatible with client {class_name}. \
-                        Please check `{class_name}.available_models`."
+        if (model.model_type == "embedding" and class_name not in ["NvidiaTextEmbedder", "NvidiaDocumentEmbedder"]):
+            # Handle the case where the model is an "embedding" and the class name is not compatible.
+            err_msg = f"Model {model.id} is an embedding, but {class_name} is not a compatible client."
             raise ValueError(err_msg)
+        if (model.model_type != "embedding" and model.client != class_name):
+            # Handle the case where the model type is not "embedding" and the client doesn't match.
+            err_msg = f"Model {model.id} is incompatible with client {class_name}. Please check `{class_name}.available_models`."
+            raise ValueError(err_msg)
+
     else:
         candidates = [model for model in client.available_models if model.id == model_name]
         assert len(candidates) <= 1, f"Multiple candidates for {model_name} in `available_models`: {candidates}"
         if candidates:
-            model = candidates[0]
             warn_msg = f"Found {model_name} in available_models, but type is unknown and inference may fail."
             warnings.warn(warn_msg, stacklevel=1)
         else:
             err_msg = f"Model {model_name} is unknown, check `available_models`"
             raise ValueError(err_msg)
-    # else:
-    #     if model_name not in [model.id for model in client.available_models]:
-    #         raise ValueError(f"No locally hosted {model_name} was found.")
