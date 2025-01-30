@@ -81,6 +81,6 @@ jobs:
           ls tmp
 
       - name: Sync API docs with Haystack docs version ${{ matrix.hs-docs-version }}
-        uses: readmeio/rdme@v8
+        uses: readmeio/rdme@v9
         with:
           rdme: docs ${{ steps.pathfinder.outputs.project_path }}/tmp --key=${{ secrets.README_API_KEY }} --version=${{ matrix.hs-docs-version }}

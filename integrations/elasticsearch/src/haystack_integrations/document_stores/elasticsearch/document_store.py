@@ -105,9 +105,12 @@ class ElasticsearchDocumentStore:
     @property
     def client(self) -> Elasticsearch:
         if self._client is None:
+            headers = self._kwargs.pop("headers", {})
+            headers["user-agent"] = f"haystack-py-ds/{haystack_version}"
+
             client = Elasticsearch(
                 self._hosts,
-                headers={"user-agent": f"haystack-py-ds/{haystack_version}"},
+                headers=headers,
                 **self._kwargs,
             )
             # Check client connection, this will raise if not connected

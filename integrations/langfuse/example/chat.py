@@ -49,6 +49,16 @@ if __name__ == "__main__":
         ChatMessage.from_user("Tell me about {{location}}"),
     ]
 
-    response = pipe.run(data={"prompt_builder": {"template_variables": {"location": "Berlin"}, "template": messages}})
+    response = pipe.run(
+        data={
+            "prompt_builder": {
+                "template_variables": {"location": "Berlin"},
+                "template": messages,
+            },
+            "tracer": {
+                "invocation_context": {"some_key": "some_value"},
+            },
+        }
+    )
     print(response["llm"]["replies"][0])
     print(response["tracer"]["trace_url"])

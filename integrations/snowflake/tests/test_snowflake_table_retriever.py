@@ -10,9 +10,9 @@ import pandas as pd
 import pytest
 from dateutil.tz import tzlocal
 from haystack import Pipeline
+from haystack.components.builders import PromptBuilder
 from haystack.components.converters import OutputAdapter
 from haystack.components.generators import OpenAIGenerator
-from haystack.components.builders import PromptBuilder
 from haystack.utils import Secret
 from openai.types.chat import ChatCompletion, ChatCompletionMessage
 from openai.types.chat.chat_completion import Choice
@@ -352,6 +352,64 @@ class TestSnowflakeTableRetriever:
 
         assert result["dataframe"].equals(expected["dataframe"])
         assert result["table"] == expected["table"]
+        mock_connect.assert_called_once_with(
+            user="test_user",
+            account="test_account",
+            password="test-api-key",
+            database="test_database",
+            schema="test_schema",
+            warehouse="test_warehouse",
+            login_timeout=30,
+        )
+
+    @patch(
+        "haystack_integrations.components.retrievers.snowflake.snowflake_table_retriever.snowflake.connector.connect"
+    )
+    def test_run_with_application_name(
+        self, mock_connect: MagicMock, snowflake_table_retriever: SnowflakeTableRetriever
+    ) -> None:
+        snowflake_table_retriever.application_name = "test_application"
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
+        mock_col1 = MagicMock()
+        mock_col2 = MagicMock()
+        mock_cursor.fetchall.side_effect = [
+            [("DATETIME", "ROLE_NAME", "USER", "USER_NAME", "GRANTED_BY")],  # User roles
+            [
+                (
+                    "DATETIME",
+                    "SELECT",
+                    "TABLE",
+                    "locations",
+                    "ROLE",
+                    "ROLE_NAME",
+                    "GRANT_OPTION",
+                    "GRANTED_BY",
+                )
+            ],
+        ]
+        mock_col1.name = "City"
+        mock_col2.name = "State"
+        mock_cursor.description = [mock_col1, mock_col2]
+
+        mock_cursor.fetchmany.return_value = [("Chicago", "Illinois")]
+        mock_conn.cursor.return_value = mock_cursor
+        mock_connect.return_value = mock_conn
+
+        query = "SELECT * FROM locations"
+
+        snowflake_table_retriever.run(query=query)
+
+        mock_connect.assert_called_once_with(
+            user="test_user",
+            account="test_account",
+            password="test-api-key",
+            database="test_database",
+            schema="test_schema",
+            warehouse="test_warehouse",
+            login_timeout=30,
+            application="test_application",
+        )
 
     @pytest.fixture
     def mock_chat_completion(self) -> Generator:
@@ -478,7 +536,10 @@ class TestSnowflakeTableRetriever:
         data = component.to_dict()
 
         assert data == {
-            "type": "haystack_integrations.components.retrievers.snowflake.snowflake_table_retriever.SnowflakeTableRetriever",
+            "type": (
+                "haystack_integrations.components.retrievers.snowflake."
+                "snowflake_table_retriever.SnowflakeTableRetriever"
+            ),
             "init_parameters": {
                 "api_key": {
                     "env_vars": ["SNOWFLAKE_API_KEY"],
@@ -491,6 +552,7 @@ class TestSnowflakeTableRetriever:
                 "db_schema": "test_schema",
                 "warehouse": "test_warehouse",
                 "login_timeout": 30,
+                "application_name": None,
             },
         }
 
@@ -505,12 +567,16 @@ class TestSnowflakeTableRetriever:
             db_schema="SMALL_TOWNS",
             warehouse="COMPUTE_WH",
             login_timeout=30,
+            application_name="test_application",
         )
 
         data = component.to_dict()
 
         assert data == {
-            "type": "haystack_integrations.components.retrievers.snowflake.snowflake_table_retriever.SnowflakeTableRetriever",
+            "type": (
+                "haystack_integrations.components.retrievers.snowflake."
+                "snowflake_table_retriever.SnowflakeTableRetriever"
+            ),
             "init_parameters": {
                 "api_key": {
                     "env_vars": ["SNOWFLAKE_API_KEY"],
@@ -523,6 +589,7 @@ class TestSnowflakeTableRetriever:
                 "db_schema": "SMALL_TOWNS",
                 "warehouse": "COMPUTE_WH",
                 "login_timeout": 30,
+                "application_name": "test_application",
             },
         }
 
@@ -599,7 +666,6 @@ class TestSnowflakeTableRetriever:
         assert result.empty
 
     def test_serialization_deserialization_pipeline(self) -> None:
-
         pipeline = Pipeline()
         pipeline.add_component("snow", SnowflakeTableRetriever(user="test_user", account="test_account"))
         pipeline.add_component("prompt_builder", PromptBuilder(template="Display results {{ table }}"))

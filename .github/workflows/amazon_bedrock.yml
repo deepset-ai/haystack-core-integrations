@@ -68,7 +68,7 @@ jobs:
       # Do not authenticate on pull requests from forks
       - name: AWS authentication
         if: github.event.pull_request.head.repo.full_name == github.repository
-        uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502
+        uses: aws-actions/configure-aws-credentials@4fc4975a852c8cd99761e2de1f4ba73402e44dd9
         with:
           aws-region: ${{ env.AWS_REGION }}
           role-to-assume: ${{ secrets.AWS_CI_ROLE_ARN }}
@@ -81,7 +81,7 @@ jobs:
       - name: Nightly - run unit tests with Haystack main branch
         if: github.event_name == 'schedule'
         run: |
-          hatch run pip install git+https://github.com/deepset-ai/haystack.git
+          hatch run uv pip install git+https://github.com/deepset-ai/haystack.git@main
           hatch run cov-retry -m "not integration"
 
       - name: Send event to Datadog for nightly failures

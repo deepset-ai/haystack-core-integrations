@@ -4,7 +4,6 @@
 
 import base64
 import os
-import random
 from typing import List
 from unittest.mock import MagicMock, patch
 
@@ -14,18 +13,17 @@ from haystack.dataclasses.byte_stream import ByteStream
 from haystack.dataclasses.document import Document
 from haystack.document_stores.errors import DocumentStoreError
 from haystack.testing.document_store import (
-    TEST_EMBEDDING_1,
-    TEST_EMBEDDING_2,
     CountDocumentsTest,
     DeleteDocumentsTest,
     FilterDocumentsTest,
+    FilterDocumentsTestWithDataframe,
     WriteDocumentsTest,
+    create_filterable_docs,
 )
 from haystack.utils.auth import Secret
 from numpy import array as np_array
 from numpy import array_equal as np_array_equal
 from numpy import float32 as np_float32
-from pandas import DataFrame
 from weaviate.collections.classes.data import DataObject
 from weaviate.config import AdditionalConfig, ConnectionConfig, Proxies, Timeout
 from weaviate.embedded import (
@@ -50,7 +48,9 @@ def test_init_is_lazy(_mock_client):
 
 
 @pytest.mark.integration
-class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsTest, FilterDocumentsTest):
+class TestWeaviateDocumentStore(
+    CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsTest, FilterDocumentsTest, FilterDocumentsTestWithDataframe
+):
     @pytest.fixture
     def document_store(self, request) -> WeaviateDocumentStore:
         # Use a different index for each test so we can run them in parallel
@@ -78,60 +78,24 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
         Weaviate forces RFC 3339 date strings.
         The original fixture uses ISO 8601 date strings.
         """
-        documents = []
-        for i in range(3):
-            documents.append(
-                Document(
-                    content=f"A Foo Document {i}",
-                    meta={
-                        "name": f"name_{i}",
-                        "page": "100",
-                        "chapter": "intro",
-                        "number": 2,
-                        "date": "1969-07-21T20:17:40Z",
-                    },
-                    embedding=[random.random() for _ in range(768)],  # noqa: S311
-                )
-            )
-            documents.append(
-                Document(
-                    content=f"A Bar Document {i}",
-                    meta={
-                        "name": f"name_{i}",
-                        "page": "123",
-                        "chapter": "abstract",
-                        "number": -2,
-                        "date": "1972-12-11T19:54:58Z",
-                    },
-                    embedding=[random.random() for _ in range(768)],  # noqa: S311
-                )
-            )
-            documents.append(
-                Document(
-                    content=f"A Foobar Document {i}",
-                    meta={
-                        "name": f"name_{i}",
-                        "page": "90",
-                        "chapter": "conclusion",
-                        "number": -10,
-                        "date": "1989-11-09T17:53:00Z",
-                    },
-                    embedding=[random.random() for _ in range(768)],  # noqa: S311
-                )
-            )
-            documents.append(
-                Document(
-                    content=f"Document {i} without embedding",
-                    meta={"name": f"name_{i}", "no_embedding": True, "chapter": "conclusion"},
-                )
-            )
-            documents.append(Document(dataframe=DataFrame([i]), meta={"name": f"table_doc_{i}"}))
-            documents.append(
-                Document(content=f"Doc {i} with zeros emb", meta={"name": "zeros_doc"}, embedding=TEST_EMBEDDING_1)
-            )
-            documents.append(
-                Document(content=f"Doc {i} with ones emb", meta={"name": "ones_doc"}, embedding=TEST_EMBEDDING_2)
-            )
+        documents = create_filterable_docs(include_dataframe_docs=False)
+        for i in range(len(documents)):
+            if date := documents[i].meta.get("date"):
+                documents[i].meta["date"] = f"{date}Z"
+        return documents
+
+    @pytest.fixture
+    def filterable_docs_with_dataframe(self) -> List[Document]:
+        """
+        This fixture has been copied from haystack/testing/document_store.py and modified to
+        use a different date format.
+        Weaviate forces RFC 3339 date strings.
+        The original fixture uses ISO 8601 date strings.
+        """
+        documents = create_filterable_docs(include_dataframe_docs=True)
+        for i in range(len(documents)):
+            if date := documents[i].meta.get("date"):
+                documents[i].meta["date"] = f"{date}Z"
         return documents
 
     def assert_documents_are_equal(self, received: List[Document], expected: List[Document]):
@@ -265,6 +229,7 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
                         "session_pool_connections": 20,
                         "session_pool_maxsize": 100,
                         "session_pool_max_retries": 3,
+                        "session_pool_timeout": 5,
                     },
                     "proxies": {"http": "http://proxy:1234", "https": None, "grpc": None},
                     "timeout": [30, 90],
@@ -302,6 +267,7 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
                         "connection": {
                             "session_pool_connections": 20,
                             "session_pool_maxsize": 20,
+                            "session_pool_timeout": 5,
                         },
                         "proxies": {"http": "http://proxy:1234"},
                         "timeout": [10, 60],
@@ -338,6 +304,7 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
         assert document_store._embedded_options.grpc_port == DEFAULT_GRPC_PORT
         assert document_store._additional_config.connection.session_pool_connections == 20
         assert document_store._additional_config.connection.session_pool_maxsize == 20
+        assert document_store._additional_config.connection.session_pool_timeout == 5
 
     def test_to_data_object(self, document_store, test_files_path):
         doc = Document(content="test doc")
@@ -504,6 +471,30 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
     @pytest.mark.skip(reason="Weaviate for some reason is not returning what we expect")
     def test_comparison_not_equal_with_dataframe(self, document_store, filterable_docs):
         return super().test_comparison_not_equal_with_dataframe(document_store, filterable_docs)
+
+    def test_meta_split_overlap_is_skipped(self, document_store):
+        doc = Document(
+            content="The moonlight shimmered ",
+            meta={
+                "source_id": "62049ba1d1e1d5ebb1f6230b0b00c5356b8706c56e0b9c36b1dfc86084cd75f0",
+                "page_number": 1,
+                "split_id": 0,
+                "split_idx_start": 0,
+                "_split_overlap": [
+                    {"doc_id": "68ed48ba830048c5d7815874ed2de794722e6d10866b6c55349a914fd9a0df65", "range": (0, 20)}
+                ],
+            },
+        )
+        document_store.write_documents([doc])
+
+        written_doc = document_store.filter_documents()[0]
+
+        assert written_doc.content == "The moonlight shimmered "
+        assert written_doc.meta["source_id"] == "62049ba1d1e1d5ebb1f6230b0b00c5356b8706c56e0b9c36b1dfc86084cd75f0"
+        assert written_doc.meta["page_number"] == 1.0
+        assert written_doc.meta["split_id"] == 0.0
+        assert written_doc.meta["split_idx_start"] == 0.0
+        assert "_split_overlap" not in written_doc.meta
 
     def test_bm25_retrieval(self, document_store):
         document_store.write_documents(

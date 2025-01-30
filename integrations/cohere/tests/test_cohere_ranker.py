@@ -4,6 +4,7 @@ from unittest.mock import Mock, patch
 import pytest
 from haystack import Document
 from haystack.utils.auth import Secret
+
 from haystack_integrations.components.rankers.cohere import CohereRanker
 
 pytestmark = pytest.mark.ranker
@@ -19,7 +20,7 @@ def mock_ranker_response():
                                       RerankResult<document['text']: "", index: 0, relevance_score: 0.98>,
                                       RerankResult<document['text']: "", index: 1, relevance_score: 0.04>]
     """
-    with patch("cohere.Client.rerank", autospec=True) as mock_ranker_response:
+    with patch("cohere.ClientV2.rerank", autospec=True) as mock_ranker_response:
 
         mock_response = Mock()
 
@@ -47,6 +48,7 @@ class TestCohereRanker:
         assert component.max_chunks_per_doc is None
         assert component.meta_fields_to_embed == []
         assert component.meta_data_separator == "\n"
+        assert component.max_tokens_per_doc == 4096
 
     def test_init_fail_wo_api_key(self, monkeypatch):
         monkeypatch.delenv("CO_API_KEY", raising=False)
@@ -64,6 +66,7 @@ class TestCohereRanker:
             max_chunks_per_doc=40,
             meta_fields_to_embed=["meta_field_1", "meta_field_2"],
             meta_data_separator=",",
+            max_tokens_per_doc=100,
         )
         assert component.model_name == "rerank-multilingual-v2.0"
         assert component.top_k == 5
@@ -72,6 +75,7 @@ class TestCohereRanker:
         assert component.max_chunks_per_doc == 40
         assert component.meta_fields_to_embed == ["meta_field_1", "meta_field_2"]
         assert component.meta_data_separator == ","
+        assert component.max_tokens_per_doc == 100
 
     def test_to_dict_default(self, monkeypatch):
         monkeypatch.setenv("CO_API_KEY", "test-api-key")
@@ -87,6 +91,7 @@ class TestCohereRanker:
                 "max_chunks_per_doc": None,
                 "meta_fields_to_embed": [],
                 "meta_data_separator": "\n",
+                "max_tokens_per_doc": 4096,
             },
         }
 
@@ -100,6 +105,7 @@ class TestCohereRanker:
             max_chunks_per_doc=50,
             meta_fields_to_embed=["meta_field_1", "meta_field_2"],
             meta_data_separator=",",
+            max_tokens_per_doc=100,
         )
         data = component.to_dict()
         assert data == {
@@ -112,6 +118,7 @@ class TestCohereRanker:
                 "max_chunks_per_doc": 50,
                 "meta_fields_to_embed": ["meta_field_1", "meta_field_2"],
                 "meta_data_separator": ",",
+                "max_tokens_per_doc": 100,
             },
         }
 
@@ -127,6 +134,7 @@ class TestCohereRanker:
                 "max_chunks_per_doc": 50,
                 "meta_fields_to_embed": ["meta_field_1", "meta_field_2"],
                 "meta_data_separator": ",",
+                "max_tokens_per_doc": 100,
             },
         }
         component = CohereRanker.from_dict(data)
@@ -137,6 +145,7 @@ class TestCohereRanker:
         assert component.max_chunks_per_doc == 50
         assert component.meta_fields_to_embed == ["meta_field_1", "meta_field_2"]
         assert component.meta_data_separator == ","
+        assert component.max_tokens_per_doc == 100
 
     def test_from_dict_fail_wo_env_var(self, monkeypatch):
         monkeypatch.delenv("CO_API_KEY", raising=False)
@@ -148,6 +157,7 @@ class TestCohereRanker:
                 "api_key": {"env_vars": ["COHERE_API_KEY", "CO_API_KEY"], "strict": True, "type": "env_var"},
                 "top_k": 2,
                 "max_chunks_per_doc": 50,
+                "max_tokens_per_doc": 100,
             },
         }
         with pytest.raises(ValueError, match="None of the following authentication environment variables are set: *"):

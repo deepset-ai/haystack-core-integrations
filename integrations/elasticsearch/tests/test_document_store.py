@@ -11,7 +11,7 @@ from elasticsearch.exceptions import BadRequestError  # type: ignore[import-not-
 from haystack.dataclasses.document import Document
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
-from haystack.testing.document_store import DocumentStoreBaseTests
+from haystack.testing.document_store import DocumentStoreBaseTests, FilterDocumentsTestWithDataframe
 
 from haystack_integrations.document_stores.elasticsearch import ElasticsearchDocumentStore
 
@@ -20,6 +20,20 @@ from haystack_integrations.document_stores.elasticsearch import ElasticsearchDoc
 def test_init_is_lazy(_mock_es_client):
     ElasticsearchDocumentStore(hosts="testhost")
     _mock_es_client.assert_not_called()
+
+
+@patch("haystack_integrations.document_stores.elasticsearch.document_store.Elasticsearch")
+def test_headers_are_supported(_mock_es_client):
+    _ = ElasticsearchDocumentStore(hosts="testhost", headers={"header1": "value1", "header2": "value2"}).client
+
+    assert _mock_es_client.call_count == 1
+    _, kwargs = _mock_es_client.call_args
+
+    headers_found = kwargs["headers"]
+    assert headers_found["header1"] == "value1"
+    assert headers_found["header2"] == "value2"
+
+    assert headers_found["user-agent"].startswith("haystack-py-ds/")
 
 
 @patch("haystack_integrations.document_stores.elasticsearch.document_store.Elasticsearch")
@@ -56,7 +70,7 @@ def test_from_dict(_mock_elasticsearch_client):
 
 
 @pytest.mark.integration
-class TestDocumentStore(DocumentStoreBaseTests):
+class TestDocumentStore(DocumentStoreBaseTests, FilterDocumentsTestWithDataframe):
     """
     Common test cases will be provided by `DocumentStoreBaseTests` but
     you can add more to this class.

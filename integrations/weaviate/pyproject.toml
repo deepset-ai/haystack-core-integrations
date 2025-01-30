@@ -7,7 +7,7 @@ name = "weaviate-haystack"
 dynamic = ["version"]
 description = "An integration of Weaviate vector database with Haystack"
 readme = "README.md"
-requires-python = ">=3.8"
+requires-python = ">=3.9"
 license = "Apache-2.0"
 keywords = []
 authors = [{ name = "deepset GmbH", email = "info@deepset.ai" }]
@@ -25,8 +25,7 @@ classifiers = [
 ]
 dependencies = [
   "haystack-ai",
-  "weaviate-client>=4.0",
-  "haystack-pydoc-tools",
+  "weaviate-client>=4.9",
   "python-dateutil",
 ]
 
@@ -47,7 +46,8 @@ root = "../.."
 git_describe_command = 'git describe --tags --match="integrations/weaviate-v[0-9]*"'
 
 [tool.hatch.envs.default]
-dependencies = ["coverage[toml]>=6.5", "pytest", "pytest-rerunfailures", "ipython"]
+installer = "uv"
+dependencies = ["coverage[toml]>=6.5", "pytest", "pytest-rerunfailures", "ipython", "haystack-pydoc-tools"]
 [tool.hatch.envs.default.scripts]
 test = "pytest {args:tests}"
 test-cov = "coverage run -m pytest {args:tests}"
@@ -61,12 +61,13 @@ docs = ["pydoc-markdown pydoc/config.yml"]
 python = ["3.8", "3.9", "3.10", "3.11", "3.12"]
 
 [tool.hatch.envs.lint]
+installer = "uv"
 detached = true
-dependencies = ["black>=23.1.0", "mypy>=1.0.0", "ruff>=0.0.243"]
+dependencies = ["pip", "black>=23.1.0", "mypy>=1.0.0", "ruff>=0.0.243"]
 [tool.hatch.envs.lint.scripts]
 typing = "mypy --install-types --non-interactive --explicit-package-bases {args:src/ tests}"
-style = ["ruff check {args:. --exclude tests/}", "black --check --diff {args:.}"]
-fmt = ["black {args:.}", "ruff --fix {args:. --exclude tests/}", "style"]
+style = ["ruff check {args:}", "black --check --diff {args:.}"]
+fmt = ["black {args:.}", "ruff check --fix {args:}", "style"]
 all = ["style", "typing"]
 
 [tool.black]
@@ -77,7 +78,9 @@ skip-string-normalization = true
 [tool.ruff]
 target-version = "py38"
 line-length = 120
-lint.select = [
+
+[tool.ruff.lint]
+select = [
   "A",
   "ARG",
   "B",
@@ -104,7 +107,7 @@ lint.select = [
   "W",
   "YTT",
 ]
-lint.ignore = [
+ignore = [
   # Allow non-abstract empty methods in abstract base classes
   "B027",
   # Allow boolean positional values in function calls, like `dict.get(... True)`
@@ -120,13 +123,13 @@ lint.ignore = [
   "PLR0913",
   "PLR0915",
 ]
-lint.unfixable = [
+unfixable = [
   # Don't touch unused imports
   "F401",
 ]
 
 [tool.ruff.lint.isort]
-known-first-party = ["src"]
+known-first-party = ["haystack_integrations"]
 
 [tool.ruff.lint.flake8-tidy-imports]
 ban-relative-imports = "parents"

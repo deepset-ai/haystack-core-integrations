@@ -5,7 +5,9 @@ import os
 
 import pytest
 from haystack.utils import Secret
+
 from haystack_integrations.components.embedders.cohere import CohereTextEmbedder
+from haystack_integrations.components.embedders.cohere.embedding_types import EmbeddingTypes
 
 pytestmark = pytest.mark.embedders
 COHERE_API_URL = "https://api.cohere.com"
@@ -46,6 +48,7 @@ class TestCohereTextEmbedder:
         assert embedder.truncate == "START"
         assert embedder.use_async_client is True
         assert embedder.timeout == 60
+        assert embedder.embedding_type == EmbeddingTypes.FLOAT
 
     def test_to_dict(self):
         """
@@ -63,6 +66,7 @@ class TestCohereTextEmbedder:
                 "truncate": "END",
                 "use_async_client": False,
                 "timeout": 120,
+                "embedding_type": "float",
             },
         }
 
@@ -78,6 +82,7 @@ class TestCohereTextEmbedder:
             truncate="START",
             use_async_client=True,
             timeout=60,
+            embedding_type=EmbeddingTypes.INT8,
         )
         component_dict = embedder_component.to_dict()
         assert component_dict == {
@@ -90,6 +95,7 @@ class TestCohereTextEmbedder:
                 "truncate": "START",
                 "use_async_client": True,
                 "timeout": 60,
+                "embedding_type": "int8",
             },
         }
 

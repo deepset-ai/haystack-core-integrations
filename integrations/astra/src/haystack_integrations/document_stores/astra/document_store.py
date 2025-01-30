@@ -411,8 +411,8 @@ class AstraDocumentStore:
         :param delete_all: if `True`, delete all documents.
         :raises MissingDocumentError: if no document was deleted but document IDs were provided.
         """
-        deletion_counter = 0
-        if self.index.count_documents() > 0:
+        if self.index.find_one_document({"filter": {}}) is not None:
+            deletion_counter = 0
             if document_ids is not None:
                 for batch in _batches(document_ids, MAX_BATCH_SIZE):
                     deletion_counter += self.index.delete(ids=batch)

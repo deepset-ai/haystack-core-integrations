@@ -3,8 +3,7 @@ loaders:
     search_path: [../src]
     modules:
       [
-        "haystack_integrations.components.evaluators.ragas.evaluator",
-        "haystack_integrations.components.evaluators.ragas.metrics",
+        "haystack_integrations.components.evaluators.ragas.evaluator"
       ]
     ignore_when_discovered: ["__init__"]
 processors:
@@ -13,8 +12,6 @@ processors:
     documented_only: true
     do_not_filter_modules: false
     skip_empty_modules: true
-  - type: filter
-    expression: "name not in ['InputConverters', 'MetricDescriptor', 'MetricParamsValidators', 'OutputConverters', 'METRIC_DESCRIPTORS']"
   - type: smart
   - type: crossref
 renderer:

@@ -9,7 +9,7 @@ import pytest
 from haystack.dataclasses.document import Document
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
-from haystack.testing.document_store import DocumentStoreBaseTests
+from haystack.testing.document_store import DocumentStoreBaseTests, FilterDocumentsTestWithDataframe
 from haystack.utils.auth import Secret
 from opensearchpy.exceptions import RequestError
 
@@ -263,9 +263,69 @@ class TestAuth:
             },
         }
 
+    @patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
+    def test_init_with_env_var_secrets(self, _mock_opensearch_client, monkeypatch):
+        """Test the default initialization using environment variables"""
+        monkeypatch.setenv("OPENSEARCH_USERNAME", "user")
+        monkeypatch.setenv("OPENSEARCH_PASSWORD", "pass")
+
+        document_store = OpenSearchDocumentStore(hosts="testhost")
+        assert document_store.client
+        _mock_opensearch_client.assert_called_once()
+        assert _mock_opensearch_client.call_args[1]["http_auth"] == ["user", "pass"]
+
+    @patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
+    def test_init_with_missing_env_vars(self, _mock_opensearch_client):
+        """Test that auth is None when environment variables are missing"""
+        document_store = OpenSearchDocumentStore(hosts="testhost")
+        assert document_store.client
+        _mock_opensearch_client.assert_called_once()
+        assert _mock_opensearch_client.call_args[1]["http_auth"] is None
+
+    @patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
+    def test_to_dict_with_env_var_secrets(self, _mock_opensearch_client, monkeypatch):
+        """Test serialization with environment variables"""
+        monkeypatch.setenv("OPENSEARCH_USERNAME", "user")
+        monkeypatch.setenv("OPENSEARCH_PASSWORD", "pass")
+
+        document_store = OpenSearchDocumentStore(hosts="testhost")
+        serialized = document_store.to_dict()
+
+        assert "http_auth" in serialized["init_parameters"]
+        auth = serialized["init_parameters"]["http_auth"]
+        assert isinstance(auth, list)
+        assert len(auth) == 2
+        # Check that we have two Secret dictionaries with correct env vars
+        assert auth[0]["type"] == "env_var"
+        assert auth[0]["env_vars"] == ["OPENSEARCH_USERNAME"]
+        assert auth[1]["type"] == "env_var"
+        assert auth[1]["env_vars"] == ["OPENSEARCH_PASSWORD"]
+
+    @patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
+    def test_from_dict_with_env_var_secrets(self, _mock_opensearch_client, monkeypatch):
+        """Test deserialization with environment variables"""
+        # Set environment variables so the secrets resolve properly
+        monkeypatch.setenv("OPENSEARCH_USERNAME", "user")
+        monkeypatch.setenv("OPENSEARCH_PASSWORD", "pass")
+
+        data = {
+            "type": "haystack_integrations.document_stores.opensearch.document_store.OpenSearchDocumentStore",
+            "init_parameters": {
+                "hosts": "testhost",
+                "http_auth": [
+                    {"type": "env_var", "env_vars": ["OPENSEARCH_USERNAME"], "strict": False},
+                    {"type": "env_var", "env_vars": ["OPENSEARCH_PASSWORD"], "strict": False},
+                ],
+            },
+        }
+        document_store = OpenSearchDocumentStore.from_dict(data)
+        assert document_store.client
+        _mock_opensearch_client.assert_called_once()
+        assert _mock_opensearch_client.call_args[1]["http_auth"] == ["user", "pass"]
+
 
 @pytest.mark.integration
-class TestDocumentStore(DocumentStoreBaseTests):
+class TestDocumentStore(DocumentStoreBaseTests, FilterDocumentsTestWithDataframe):
     """
     Common test cases will be provided by `DocumentStoreBaseTests` but
     you can add more to this class.
@@ -333,6 +393,27 @@ class TestDocumentStore(DocumentStoreBaseTests):
             verify_certs=False,
             embedding_dim=4,
             method={"space_type": "cosinesimil", "engine": "nmslib", "name": "hnsw"},
+        )
+        yield store
+        store.client.indices.delete(index=index, params={"ignore": [400, 404]})
+
+    @pytest.fixture
+    def document_store_embedding_dim_4_faiss(self, request):
+        """
+        This is the most basic requirement for the child class: provide
+        an instance of this document store so the base class can use it.
+        """
+        hosts = ["https://localhost:9200"]
+        # Use a different index for each test so we can run them in parallel
+        index = f"{request.node.name}"
+
+        store = OpenSearchDocumentStore(
+            hosts=hosts,
+            index=index,
+            http_auth=("admin", "admin"),
+            verify_certs=False,
+            embedding_dim=4,
+            method={"space_type": "innerproduct", "engine": "faiss", "name": "hnsw"},
         )
         yield store
         store.client.indices.delete(index=index, params={"ignore": [400, 404]})
@@ -686,6 +767,29 @@ class TestDocumentStore(DocumentStoreBaseTests):
         # TODO: remove top_k=3, when efficient filtering is supported for nmslib
         results = document_store_embedding_dim_4._embedding_retrieval(
             query_embedding=[0.1, 0.1, 0.1, 0.1], top_k=3, filters=filters
+        )
+        assert len(results) == 1
+        assert results[0].content == "Not very similar document with meta field"
+
+    def test_embedding_retrieval_with_filters_efficient_filtering(
+        self, document_store_embedding_dim_4_faiss: OpenSearchDocumentStore
+    ):
+        docs = [
+            Document(content="Most similar document", embedding=[1.0, 1.0, 1.0, 1.0]),
+            Document(content="2nd best document", embedding=[0.8, 0.8, 0.8, 1.0]),
+            Document(
+                content="Not very similar document with meta field",
+                embedding=[0.0, 0.8, 0.3, 0.9],
+                meta={"meta_field": "custom_value"},
+            ),
+        ]
+        document_store_embedding_dim_4_faiss.write_documents(docs)
+
+        filters = {"field": "meta_field", "operator": "==", "value": "custom_value"}
+        results = document_store_embedding_dim_4_faiss._embedding_retrieval(
+            query_embedding=[0.1, 0.1, 0.1, 0.1],
+            filters=filters,
+            efficient_filtering=True,
         )
         assert len(results) == 1
         assert results[0].content == "Not very similar document with meta field"

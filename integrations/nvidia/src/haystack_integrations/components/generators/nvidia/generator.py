@@ -1,6 +1,8 @@
 # SPDX-FileCopyrightText: 2024-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
+
+import os
 import warnings
 from typing import Any, Dict, List, Optional
 
@@ -48,6 +50,7 @@ class NvidiaGenerator:
         api_url: str = _DEFAULT_API_URL,
         api_key: Optional[Secret] = Secret.from_env_var("NVIDIA_API_KEY"),
         model_arguments: Optional[Dict[str, Any]] = None,
+        timeout: Optional[float] = None,
     ):
         """
         Create a NvidiaGenerator component.
@@ -69,6 +72,9 @@ class NvidiaGenerator:
             specific to a model.
             Search your model in the [NVIDIA NIM](https://ai.nvidia.com)
             to find the arguments it accepts.
+        :param timeout:
+            Timeout for request calls, if not set it is inferred from the `NVIDIA_TIMEOUT` environment variable
+            or set to 60 by default.
         """
         self._model = model
         self._api_url = url_validation(api_url, _DEFAULT_API_URL, ["v1/chat/completions"])
@@ -78,6 +84,9 @@ class NvidiaGenerator:
         self._backend: Optional[Any] = None
 
         self.is_hosted = is_hosted(api_url)
+        if timeout is None:
+            timeout = float(os.environ.get("NVIDIA_TIMEOUT", 60.0))
+        self.timeout = timeout
 
     def default_model(self):
         """Set default model in local NIM mode."""
@@ -109,10 +118,11 @@ class NvidiaGenerator:
             msg = "API key is required for hosted NVIDIA NIMs."
             raise ValueError(msg)
         self._backend = NimBackend(
-            self._model,
+            model=self._model,
             api_url=self._api_url,
             api_key=self._api_key,
             model_kwargs=self._model_arguments,
+            timeout=self.timeout,
             client=self.__class__.__name__,
             model_type="chat",
         )

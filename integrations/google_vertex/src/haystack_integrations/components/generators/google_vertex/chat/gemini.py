@@ -1,25 +1,76 @@
+import json
 import logging
 from typing import Any, Callable, Dict, Iterable, List, Optional, Union
 
 from haystack.core.component import component
 from haystack.core.serialization import default_from_dict, default_to_dict
 from haystack.dataclasses import StreamingChunk
-from haystack.dataclasses.byte_stream import ByteStream
-from haystack.dataclasses.chat_message import ChatMessage, ChatRole
+from haystack.dataclasses.chat_message import ChatMessage, ChatRole, ToolCall
+from haystack.tools import Tool, _check_duplicate_tool_names, deserialize_tools_inplace
 from haystack.utils import deserialize_callable, serialize_callable
 from vertexai import init as vertexai_init
 from vertexai.generative_models import (
     Content,
+    FunctionDeclaration,
     GenerationConfig,
     GenerationResponse,
     GenerativeModel,
     HarmBlockThreshold,
     HarmCategory,
     Part,
-    Tool,
+    ToolConfig,
 )
+from vertexai.generative_models import Tool as VertexTool
 
 logger = logging.getLogger(__name__)
+
+
+def _convert_chatmessage_to_google_content(message: ChatMessage) -> Content:
+    """
+    Converts a Haystack `ChatMessage` to a Google `Content` object.
+    System messages are not supported.
+
+    :param message: The Haystack `ChatMessage` to convert.
+    :returns: The Google `Content` object.
+    """
+
+    if message.is_from(ChatRole.SYSTEM):
+        msg = "This function does not support system messages."
+        raise ValueError(msg)
+
+    texts = message.texts
+    tool_calls = message.tool_calls
+    tool_call_results = message.tool_call_results
+
+    if not texts and not tool_calls and not tool_call_results:
+        msg = "A `ChatMessage` must contain at least one `TextContent`, `ToolCall`, or `ToolCallResult`."
+        raise ValueError(msg)
+
+    if len(texts) + len(tool_call_results) > 1:
+        msg = "A `ChatMessage` can only contain one `TextContent` or one `ToolCallResult`."
+        raise ValueError(msg)
+
+    role = "model" if message.is_from(ChatRole.ASSISTANT) else "user"
+
+    if tool_call_results:
+        part = Part.from_function_response(
+            name=tool_call_results[0].origin.tool_name, response={"result": tool_call_results[0].result}
+        )
+        return Content(parts=[part], role=role)
+
+    parts = [Part.from_text(texts[0])] if texts else []
+    for tc in tool_calls:
+        part = Part.from_dict(
+            {
+                "function_call": {
+                    "name": tc.tool_name,
+                    "args": tc.arguments,
+                }
+            }
+        )
+        parts.append(part)
+
+    return Content(parts=parts, role=role)
 
 
 @component
@@ -30,18 +81,55 @@ class VertexAIGeminiChatGenerator:
     Authenticates using Google Cloud Application Default Credentials (ADCs).
     For more information see the official [Google documentation](https://cloud.google.com/docs/authentication/provide-credentials-adc).
 
-    Usage example:
+    ### Usage example
     ```python
     from haystack.dataclasses import ChatMessage
     from haystack_integrations.components.generators.google_vertex import VertexAIGeminiChatGenerator
 
-    gemini_chat = VertexAIGeminiChatGenerator(project_id=project_id)
+    gemini_chat = VertexAIGeminiChatGenerator()
 
     messages = [ChatMessage.from_user("Tell me the name of a movie")]
     res = gemini_chat.run(messages)
 
-    print(res["replies"][0].content)
+    print(res["replies"][0].text)
     >>> The Shawshank Redemption
+
+    #### With Tool calling:
+
+    ```python
+    from typing import Annotated
+    from haystack.utils import Secret
+    from haystack.dataclasses.chat_message import ChatMessage
+    from haystack.components.tools import ToolInvoker
+    from haystack.tools import create_tool_from_function
+
+    from haystack_integrations.components.generators.google_vertex import VertexAIGeminiChatGenerator
+
+    # example function to get the current weather
+    def get_current_weather(
+        location: Annotated[str, "The city for which to get the weather, e.g. 'San Francisco'"] = "Munich",
+        unit: Annotated[str, "The unit for the temperature, e.g. 'celsius'"] = "celsius",
+    ) -> str:
+        return f"The weather in {location} is sunny. The temperature is 20 {unit}."
+
+    tool = create_tool_from_function(get_current_weather)
+    tool_invoker = ToolInvoker(tools=[tool])
+
+    gemini_chat = VertexAIGeminiChatGenerator(
+        model="gemini-2.0-flash-exp",
+        tools=[tool],
+    )
+    user_message = [ChatMessage.from_user("What is the temperature in celsius in Berlin?")]
+    replies = gemini_chat.run(messages=user_message)["replies"]
+    print(replies[0].tool_calls)
+
+    # actually invoke the tool
+    tool_messages = tool_invoker.run(messages=replies)["tool_messages"]
+    messages = user_message + replies + tool_messages
+
+    # transform the tool call result into a human readable message
+    final_replies = gemini_chat.run(messages=messages)["replies"]
+    print(final_replies[0].text)
     ```
     """
 
@@ -49,11 +137,12 @@ class VertexAIGeminiChatGenerator:
         self,
         *,
         model: str = "gemini-1.5-flash",
-        project_id: str,
+        project_id: Optional[str] = None,
         location: Optional[str] = None,
         generation_config: Optional[Union[GenerationConfig, Dict[str, Any]]] = None,
         safety_settings: Optional[Dict[HarmCategory, HarmBlockThreshold]] = None,
         tools: Optional[List[Tool]] = None,
+        tool_config: Optional[ToolConfig] = None,
         streaming_callback: Optional[Callable[[StreamingChunk], None]] = None,
     ):
         """
@@ -62,8 +151,8 @@ class VertexAIGeminiChatGenerator:
         Authenticates using Google Cloud Application Default Credentials (ADCs).
         For more information see the official [Google documentation](https://cloud.google.com/docs/authentication/provide-credentials-adc).
 
-        :param project_id: ID of the GCP project to use.
         :param model: Name of the model to use. For available models, see https://cloud.google.com/vertex-ai/generative-ai/docs/learn/models.
+        :param project_id: ID of the GCP project to use. By default, it is set during Google Cloud authentication.
         :param location: The default location to use when making API calls, if not set uses us-central-1.
             Defaults to None.
         :param generation_config: Configuration for the generation process.
@@ -73,38 +162,54 @@ class VertexAIGeminiChatGenerator:
             for [HarmBlockThreshold](https://cloud.google.com/python/docs/reference/aiplatform/latest/vertexai.generative_models.HarmBlockThreshold)
             and [HarmCategory](https://cloud.google.com/python/docs/reference/aiplatform/latest/vertexai.generative_models.HarmCategory)
             for more details.
-        :param tools: List of tools to use when generating content. See the documentation for
-            [Tool](https://cloud.google.com/python/docs/reference/aiplatform/latest/vertexai.generative_models.Tool)
-            the list of supported arguments.
+        :param tools:
+            A list of tools for which the model can prepare calls.
+        :param tool_config: The tool config to use. See the documentation for [ToolConfig]
+            (https://cloud.google.com/vertex-ai/generative-ai/docs/reference/python/latest/vertexai.generative_models.ToolConfig)
         :param streaming_callback: A callback function that is called when a new token is received from
-            the  stream. The callback function accepts StreamingChunk as an argument.
+            the stream. The callback function accepts StreamingChunk as an argument.
 
         """
 
         # Login to GCP. This will fail if user has not set up their gcloud SDK
         vertexai_init(project=project_id, location=location)
 
+        _check_duplicate_tool_names(tools)
+
         self._model_name = model
         self._project_id = project_id
         self._location = location
-        self._model = GenerativeModel(self._model_name)
 
+        # model parameters
         self._generation_config = generation_config
         self._safety_settings = safety_settings
         self._tools = tools
+        self._tool_config = tool_config
         self._streaming_callback = streaming_callback
 
-    def _generation_config_to_dict(self, config: Union[GenerationConfig, Dict[str, Any]]) -> Dict[str, Any]:
+        self._model = GenerativeModel(
+            self._model_name,
+            tool_config=self._tool_config,
+        )
+
+    @staticmethod
+    def _generation_config_to_dict(config: Union[GenerationConfig, Dict[str, Any]]) -> Dict[str, Any]:
+        """Converts the GenerationConfig object to a dictionary."""
         if isinstance(config, dict):
             return config
-        return {
-            "temperature": config._raw_generation_config.temperature,
-            "top_p": config._raw_generation_config.top_p,
-            "top_k": config._raw_generation_config.top_k,
-            "candidate_count": config._raw_generation_config.candidate_count,
-            "max_output_tokens": config._raw_generation_config.max_output_tokens,
-            "stop_sequences": config._raw_generation_config.stop_sequences,
-        }
+        return config.to_dict()
+
+    @staticmethod
+    def _tool_config_to_dict(tool_config: ToolConfig) -> Dict[str, Any]:
+        """Serializes the ToolConfig object into a dictionary."""
+        mode = tool_config._gapic_tool_config.function_calling_config.mode
+        allowed_function_names = tool_config._gapic_tool_config.function_calling_config.allowed_function_names
+        config_dict = {"function_calling_config": {"mode": mode}}
+
+        if allowed_function_names:
+            config_dict["function_calling_config"]["allowed_function_names"] = allowed_function_names
+
+        return config_dict
 
     def to_dict(self) -> Dict[str, Any]:
         """
@@ -122,11 +227,12 @@ class VertexAIGeminiChatGenerator:
             location=self._location,
             generation_config=self._generation_config,
             safety_settings=self._safety_settings,
-            tools=self._tools,
+            tools=[tool.to_dict() for tool in self._tools] if self._tools else None,
+            tool_config=self._tool_config,
             streaming_callback=callback_name,
         )
-        if (tools := data["init_parameters"].get("tools")) is not None:
-            data["init_parameters"]["tools"] = [Tool.to_dict(t) for t in tools]
+        if (tool_config := data["init_parameters"].get("tool_config")) is not None:
+            data["init_parameters"]["tool_config"] = self._tool_config_to_dict(tool_config)
         if (generation_config := data["init_parameters"].get("generation_config")) is not None:
             data["init_parameters"]["generation_config"] = self._generation_config_to_dict(generation_config)
         return data
@@ -141,124 +247,195 @@ class VertexAIGeminiChatGenerator:
         :returns:
             Deserialized component.
         """
-        if (tools := data["init_parameters"].get("tools")) is not None:
-            data["init_parameters"]["tools"] = [Tool.from_dict(t) for t in tools]
+
+        def _tool_config_from_dict(config_dict: Dict[str, Any]) -> ToolConfig:
+            """Deserializes the ToolConfig object from a dictionary."""
+            function_calling_config = config_dict["function_calling_config"]
+            return ToolConfig(
+                function_calling_config=ToolConfig.FunctionCallingConfig(
+                    mode=function_calling_config["mode"],
+                    allowed_function_names=function_calling_config.get("allowed_function_names"),
+                )
+            )
+
+        deserialize_tools_inplace(data["init_parameters"], key="tools")
         if (generation_config := data["init_parameters"].get("generation_config")) is not None:
             data["init_parameters"]["generation_config"] = GenerationConfig.from_dict(generation_config)
+        if (tool_config := data["init_parameters"].get("tool_config")) is not None:
+            data["init_parameters"]["tool_config"] = _tool_config_from_dict(tool_config)
         if (serialized_callback_handler := data["init_parameters"].get("streaming_callback")) is not None:
             data["init_parameters"]["streaming_callback"] = deserialize_callable(serialized_callback_handler)
         return default_from_dict(cls, data)
 
-    def _convert_part(self, part: Union[str, ByteStream, Part]) -> Part:
-        if isinstance(part, str):
-            return Part.from_text(part)
-        elif isinstance(part, ByteStream):
-            return Part.from_data(part.data, part.mime_type)
-        elif isinstance(part, Part):
-            return part
-        else:
-            msg = f"Unsupported type {type(part)} for part {part}"
-            raise ValueError(msg)
+    @staticmethod
+    def _convert_to_vertex_tools(tools: List[Tool]) -> List[VertexTool]:
+        """
+        Converts a list of Haystack `Tool` to a list of Vertex `Tool` objects.
 
-    def _message_to_part(self, message: ChatMessage) -> Part:
-        if message.role == ChatRole.ASSISTANT and message.name:
-            p = Part.from_dict({"function_call": {"name": message.name, "args": {}}})
-            for k, v in message.content.items():
-                p.function_call.args[k] = v
-            return p
-        elif message.role in {ChatRole.SYSTEM, ChatRole.ASSISTANT}:
-            return Part.from_text(message.content)
-        elif message.role == ChatRole.FUNCTION:
-            return Part.from_function_response(name=message.name, response=message.content)
-        elif message.role == ChatRole.USER:
-            return self._convert_part(message.content)
+        :param tools: The list of Haystack `Tool` to convert.
+        :returns: The list of Vertex `Tool` objects.
+        """
+        function_declarations = []
 
-    def _message_to_content(self, message: ChatMessage) -> Content:
-        if message.role == ChatRole.ASSISTANT and message.name:
-            part = Part.from_dict({"function_call": {"name": message.name, "args": {}}})
-            for k, v in message.content.items():
-                part.function_call.args[k] = v
-        elif message.role in {ChatRole.SYSTEM, ChatRole.ASSISTANT}:
-            part = Part.from_text(message.content)
-        elif message.role == ChatRole.FUNCTION:
-            part = Part.from_function_response(name=message.name, response=message.content)
-        elif message.role == ChatRole.USER:
-            part = self._convert_part(message.content)
-        else:
-            msg = f"Unsupported message role {message.role}"
-            raise ValueError(msg)
-        role = "user" if message.role in [ChatRole.USER, ChatRole.FUNCTION] else "model"
-        return Content(parts=[part], role=role)
+        for tool in tools:
+            parameters = tool.parameters.copy()
+
+            # Remove default values as Google API doesn't support them
+            for prop in parameters["properties"].values():
+                prop.pop("default", None)
+
+            function_declarations.append(
+                FunctionDeclaration(name=tool.name, description=tool.description, parameters=parameters)
+            )
+        return [VertexTool(function_declarations=function_declarations)]
 
     @component.output_types(replies=List[ChatMessage])
     def run(
         self,
         messages: List[ChatMessage],
         streaming_callback: Optional[Callable[[StreamingChunk], None]] = None,
+        *,
+        tools: Optional[List[Tool]] = None,
     ):
-        """Prompts Google Vertex AI Gemini model to generate a response to a list of messages.
-
-        :param messages: The last message is the prompt, the rest are the history.
-        :param streaming_callback: A callback function that is called when a new token is received from the stream.
-        :returns: A dictionary with the following keys:
-            - `replies`: A list of ChatMessage objects representing the model's replies.
         """
-        # check if streaming_callback is passed
+        :param messages:
+            A list of `ChatMessage` instances, representing the input messages.
+        :param streaming_callback:
+            A callback function that is called when a new token is received from the stream.
+        :param tools:
+            A list of tools for which the model can prepare calls. If set, it will override the `tools` parameter set
+            during component initialization.
+        :returns:
+            A dictionary containing the following key:
+            - `replies`:  A list containing the generated responses as `ChatMessage` instances.
+        """
         streaming_callback = streaming_callback or self._streaming_callback
 
-        history = [self._message_to_content(m) for m in messages[:-1]]
-        session = self._model.start_chat(history=history)
+        tools = tools or self._tools
+        _check_duplicate_tool_names(tools)
+        google_tools = self._convert_to_vertex_tools(tools) if tools else None
 
-        new_message = self._message_to_part(messages[-1])
+        if messages[0].is_from(ChatRole.SYSTEM):
+            self._model._system_instruction = Part.from_text(messages[0].text)
+            messages = messages[1:]
+
+        google_messages = [_convert_chatmessage_to_google_content(m) for m in messages]
+
+        session = self._model.start_chat(history=google_messages[:-1])
+
+        candidate_count = 1
+        if self._generation_config:
+            config_dict = self._generation_config_to_dict(self._generation_config)
+            candidate_count = config_dict.get("candidate_count", 1)
+
+        if streaming_callback and candidate_count > 1:
+            msg = "Streaming is not supported with multiple candidates. Set candidate_count to 1."
+            raise ValueError(msg)
+
         res = session.send_message(
-            content=new_message,
+            content=google_messages[-1],
             generation_config=self._generation_config,
             safety_settings=self._safety_settings,
-            tools=self._tools,
             stream=streaming_callback is not None,
+            tools=google_tools,
         )
 
-        replies = self._get_stream_response(res, streaming_callback) if streaming_callback else self._get_response(res)
+        replies = (
+            self._stream_response_and_convert_to_messages(res, streaming_callback)
+            if streaming_callback
+            else self._convert_response_to_messages(res)
+        )
 
         return {"replies": replies}
 
-    def _get_response(self, response_body: GenerationResponse) -> List[ChatMessage]:
+    @staticmethod
+    def _convert_response_to_messages(response_body: GenerationResponse) -> List[ChatMessage]:
         """
-        Extracts the responses from the Vertex AI response.
+        Converts the Google Vertex AI response to a list of `ChatMessage` instances.
 
-        :param response_body: The response from Vertex AI request.
-        :returns: The extracted responses.
+        :param response_body: The response from Google AI request.
+        :returns: List of `ChatMessage` instances.
         """
-        replies = []
+        replies: List[ChatMessage] = []
+
+        usage_metadata = response_body.usage_metadata
+        openai_usage = {
+            "prompt_tokens": usage_metadata.prompt_token_count or 0,
+            "completion_tokens": usage_metadata.candidates_token_count or 0,
+            "total_tokens": usage_metadata.total_token_count or 0,
+        }
+
         for candidate in response_body.candidates:
+            candidate_metadata = candidate.to_dict()
+            candidate_metadata.pop("content", None)
+            candidate_metadata["usage"] = openai_usage
+
+            text = ""
+            tool_calls = []
             for part in candidate.content.parts:
-                if part._raw_part.text != "":
-                    replies.append(ChatMessage.from_assistant(part.text))
-                elif part.function_call is not None:
-                    replies.append(
-                        ChatMessage(
-                            content=dict(part.function_call.args.items()),
-                            role=ChatRole.ASSISTANT,
-                            name=part.function_call.name,
+                # we need this strange check: calling part.text directly raises an error if the part has no text
+                if "text" in part._raw_part:
+                    text += part.text
+                elif "function_call" in part._raw_part:
+                    tool_calls.append(
+                        ToolCall(
+                            tool_name=part.function_call.name,
+                            arguments=dict(part.function_call.args),
                         )
                     )
+            reply = ChatMessage.from_assistant(text=text, tool_calls=tool_calls, meta=candidate_metadata)
+            replies.append(reply)
         return replies
 
-    def _get_stream_response(
+    def _stream_response_and_convert_to_messages(
         self, stream: Iterable[GenerationResponse], streaming_callback: Callable[[StreamingChunk], None]
     ) -> List[ChatMessage]:
         """
-        Extracts the responses from the Vertex AI streaming response.
+        Streams the Google Vertex AI response and converts it to a list of `ChatMessage` instances.
 
-        :param stream: The streaming response from the Vertex AI request.
+        :param stream: The streaming response from the Google AI request.
         :param streaming_callback: The handler for the streaming response.
-        :returns: The extracted response with the content of all streaming chunks.
+        :returns: List of `ChatMessage` instances.
         """
-        responses = []
-        for chunk in stream:
-            streaming_chunk = StreamingChunk(content=chunk.text, meta=chunk.to_dict())
-            streaming_callback(streaming_chunk)
-            responses.append(streaming_chunk.content)
 
-        combined_response = "".join(responses).lstrip()
-        return [ChatMessage.from_assistant(content=combined_response)]
+        text = ""
+        tool_calls = []
+        chunk_dict = {}
+
+        for chunk in stream:
+            content_to_stream = ""
+            chunk_dict = chunk.to_dict()
+
+            # Only one candidate is supported with streaming
+            candidate = chunk_dict["candidates"][0]
+
+            for part in candidate["content"]["parts"]:
+                if new_text := part.get("text"):
+                    content_to_stream += new_text
+                    text += new_text
+                elif new_function_call := part.get("function_call"):
+                    content_to_stream += json.dumps(dict(new_function_call))
+                    tool_calls.append(
+                        ToolCall(
+                            tool_name=new_function_call["name"],
+                            arguments=dict(new_function_call["args"]),
+                        )
+                    )
+
+            streaming_callback(StreamingChunk(content=content_to_stream, meta=chunk_dict))
+
+        # store the last chunk metadata
+        meta = chunk_dict
+
+        # format the usage metadata to be compatible with OpenAI
+        usage_metadata = meta.pop("usage_metadata", {})
+
+        openai_usage = {
+            "prompt_tokens": usage_metadata.get("prompt_token_count", 0),
+            "completion_tokens": usage_metadata.get("candidates_token_count", 0),
+            "total_tokens": usage_metadata.get("total_token_count", 0),
+        }
+
+        meta["usage"] = openai_usage
+
+        return [ChatMessage.from_assistant(text=text or None, meta=meta, tool_calls=tool_calls)]

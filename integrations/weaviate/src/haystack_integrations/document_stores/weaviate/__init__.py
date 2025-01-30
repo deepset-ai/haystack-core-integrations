@@ -5,10 +5,10 @@ from .auth import AuthApiKey, AuthBearerToken, AuthClientCredentials, AuthClient
 from .document_store import WeaviateDocumentStore
 
 __all__ = [
-    "WeaviateDocumentStore",
     "AuthApiKey",
     "AuthBearerToken",
     "AuthClientCredentials",
     "AuthClientPassword",
     "AuthCredentials",
+    "WeaviateDocumentStore",
 ]

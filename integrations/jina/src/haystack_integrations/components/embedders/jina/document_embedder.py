@@ -200,7 +200,7 @@ class JinaDocumentEmbedder:
             - `meta`: A dictionary with metadata including the model name and usage statistics.
         :raises TypeError: If the input is not a list of Documents.
         """
-        if not isinstance(documents, list) or documents and not isinstance(documents[0], Document):
+        if not isinstance(documents, list) or (documents and not isinstance(documents[0], Document)):
             msg = (
                 "JinaDocumentEmbedder expects a list of Documents as input."
                 "In case you want to embed a string, please use the JinaTextEmbedder."

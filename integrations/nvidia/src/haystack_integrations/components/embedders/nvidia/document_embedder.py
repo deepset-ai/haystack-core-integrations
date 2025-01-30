@@ -1,13 +1,19 @@
+# SPDX-FileCopyrightText: 2024-present deepset GmbH <info@deepset.ai>
+#
+# SPDX-License-Identifier: Apache-2.0
+
+import os
 import warnings
 from typing import Any, Dict, List, Optional, Tuple, Union
 
-from haystack import Document, component, default_from_dict, default_to_dict
+from haystack import Document, component, default_from_dict, default_to_dict, logging
 from haystack.utils import Secret, deserialize_secrets_inplace
 from tqdm import tqdm
 
+from haystack_integrations.components.embedders.nvidia.truncate import EmbeddingTruncateMode
 from haystack_integrations.utils.nvidia import Model, NimBackend, is_hosted, url_validation, validate_hosted_model
 
-from .truncate import EmbeddingTruncateMode
+logger = logging.getLogger(__name__)
 
 _DEFAULT_API_URL = "https://ai.api.nvidia.com/v1/retrieval/nvidia"
 
@@ -44,6 +50,7 @@ class NvidiaDocumentEmbedder:
         meta_fields_to_embed: Optional[List[str]] = None,
         embedding_separator: str = "\n",
         truncate: Optional[Union[EmbeddingTruncateMode, str]] = None,
+        timeout: Optional[float] = None,
     ):
         """
         Create a NvidiaTextEmbedder component.
@@ -71,8 +78,11 @@ class NvidiaDocumentEmbedder:
         :param embedding_separator:
             Separator used to concatenate the meta fields to the Document text.
         :param truncate:
-            Specifies how inputs longer that the maximum token length should be truncated.
+            Specifies how inputs longer than the maximum token length should be truncated.
             If None the behavior is model-dependent, see the official documentation for more information.
+        :param timeout:
+            Timeout for request calls, if not set it is inferred from the `NVIDIA_TIMEOUT` environment variable
+            or set to 60 by default.
         """
 
         self.api_key = api_key
@@ -94,6 +104,10 @@ class NvidiaDocumentEmbedder:
 
         if is_hosted(api_url) and not self.model:  # manually set default model
             self.model = "nvidia/nv-embedqa-e5-v5"
+
+        if timeout is None:
+            timeout = float(os.environ.get("NVIDIA_TIMEOUT", 60.0))
+        self.timeout = timeout
 
     def default_model(self):
         """Set default model in local NIM mode."""
@@ -125,12 +139,13 @@ class NvidiaDocumentEmbedder:
         if self.truncate is not None:
             model_kwargs["truncate"] = str(self.truncate)
         self.backend = NimBackend(
-            self.model,
+            model=self.model,
             api_url=self.api_url,
             api_key=self.api_key,
             model_kwargs=model_kwargs,
             client=self.__class__.__name__,
             model_type="embedding",
+            timeout=self.timeout,
         )
 
         self._initialized = True
@@ -158,7 +173,15 @@ class NvidiaDocumentEmbedder:
             meta_fields_to_embed=self.meta_fields_to_embed,
             embedding_separator=self.embedding_separator,
             truncate=str(self.truncate) if self.truncate is not None else None,
+            timeout=self.timeout,
         )
+
+    @property
+    def available_models(self) -> List[Model]:
+        """
+        Get a list of available models that work with ChatNVIDIA.
+        """
+        return self.backend.models() if self.backend else []
 
     @property
     def available_models(self) -> List[Model]:
@@ -177,7 +200,9 @@ class NvidiaDocumentEmbedder:
         :returns:
             The deserialized component.
         """
-        deserialize_secrets_inplace(data["init_parameters"], keys=["api_key"])
+        init_parameters = data.get("init_parameters", {})
+        if init_parameters:
+            deserialize_secrets_inplace(data["init_parameters"], keys=["api_key"])
         return default_from_dict(cls, data)
 
     def _prepare_texts_to_embed(self, documents: List[Document]) -> List[str]:
@@ -234,12 +259,16 @@ class NvidiaDocumentEmbedder:
         if not self._initialized:
             msg = "The embedding model has not been loaded. Please call warm_up() before running."
             raise RuntimeError(msg)
-        elif not isinstance(documents, list) or documents and not isinstance(documents[0], Document):
+        elif not isinstance(documents, list) or (documents and not isinstance(documents[0], Document)):
             msg = (
                 "NvidiaDocumentEmbedder expects a list of Documents as input."
                 "In case you want to embed a string, please use the NvidiaTextEmbedder."
             )
             raise TypeError(msg)
+
+        for doc in documents:
+            if not doc.content:
+                logger.warning(f"Document '{doc.id}' has no content to embed.")
 
         texts_to_embed = self._prepare_texts_to_embed(documents)
         embeddings, metadata = self._embed_batch(texts_to_embed, self.batch_size)
