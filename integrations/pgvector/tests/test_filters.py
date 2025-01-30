@@ -3,6 +3,10 @@ from typing import List
 import pytest
 from haystack.dataclasses.document import Document
 from haystack.testing.document_store import FilterDocumentsTest
+from pandas import DataFrame
+from psycopg.sql import SQL
+from psycopg.types.json import Jsonb
+
 from haystack_integrations.document_stores.pgvector.filters import (
     FilterError,
     _convert_filters_to_where_clause_and_params,
@@ -10,9 +14,6 @@ from haystack_integrations.document_stores.pgvector.filters import (
     _parse_logical_condition,
     _treat_meta_field,
 )
-from pandas import DataFrame
-from psycopg.sql import SQL
-from psycopg.types.json import Jsonb
 
 
 @pytest.mark.integration

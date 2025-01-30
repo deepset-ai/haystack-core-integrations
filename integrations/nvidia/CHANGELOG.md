@@ -2,14 +2,35 @@
 
 ## [unreleased]
 
+### 🚀 Features
+
+- Update default embedding model to nvidia/nv-embedqa-e5-v5 (#1015)
+- Add NVIDIA NIM ranker support (#1023)
+
+### 🐛 Bug Fixes
+
+- Lints in `nvidia-haystack` (#993)
+
 ### 🚜 Refactor
 
 - Remove deprecated Nvidia Cloud Functions backend and related code. (#803)
+
+### 📚 Documentation
+
+- Update Nvidia API docs (#1031)
+
+### 🧪 Testing
+
+- Do not retry tests in `hatch run test` command (#954)
 
 ### ⚙️ Miscellaneous Tasks
 
 - Retry tests to reduce flakyness (#836)
 - Update ruff invocation to include check parameter (#853)
+
+### Docs
+
+- Update NvidiaGenerator docstrings (#966)
 
 ## [integrations/nvidia-v0.0.3] - 2024-05-22
 

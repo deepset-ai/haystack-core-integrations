@@ -5,10 +5,13 @@ from unittest.mock import patch
 import numpy as np
 import pytest
 from haystack import Document
+from haystack.components.preprocessors import DocumentSplitter
+from haystack.components.retrievers import SentenceWindowRetriever
 from haystack.testing.document_store import CountDocumentsTest, DeleteDocumentsTest, WriteDocumentsTest
 from haystack.utils import Secret
 from pinecone import Pinecone, PodSpec, ServerlessSpec
 
+from haystack_integrations.components.retrievers.pinecone import PineconeEmbeddingRetriever
 from haystack_integrations.document_stores.pinecone import PineconeDocumentStore
 
 
@@ -142,6 +145,72 @@ def test_convert_dict_spec_to_pinecone_object_fail():
         PineconeDocumentStore._convert_dict_spec_to_pinecone_object(dict_spec)
 
 
+def test_discard_invalid_meta_invalid():
+    invalid_metadata_doc = Document(
+        content="The moonlight shimmered ",
+        meta={
+            "source_id": "62049ba1d1e1d5ebb1f6230b0b00c5356b8706c56e0b9c36b1dfc86084cd75f0",
+            "page_number": 1,
+            "split_id": 0,
+            "split_idx_start": 0,
+            "_split_overlap": [
+                {"doc_id": "68ed48ba830048c5d7815874ed2de794722e6d10866b6c55349a914fd9a0df65", "range": (0, 20)}
+            ],
+        },
+    )
+    pinecone_doc = PineconeDocumentStore._discard_invalid_meta(invalid_metadata_doc)
+
+    assert pinecone_doc.meta["source_id"] == "62049ba1d1e1d5ebb1f6230b0b00c5356b8706c56e0b9c36b1dfc86084cd75f0"
+    assert pinecone_doc.meta["page_number"] == 1
+    assert pinecone_doc.meta["split_id"] == 0
+    assert pinecone_doc.meta["split_idx_start"] == 0
+    assert "_split_overlap" not in pinecone_doc.meta
+
+
+def test_discard_invalid_meta_valid():
+    valid_metadata_doc = Document(
+        content="The moonlight shimmered ",
+        meta={
+            "source_id": "62049ba1d1e1d5ebb1f6230b0b00c5356b8706c56e0b9c36b1dfc86084cd75f0",
+            "page_number": 1,
+        },
+    )
+    pinecone_doc = PineconeDocumentStore._discard_invalid_meta(valid_metadata_doc)
+
+    assert pinecone_doc.meta["source_id"] == "62049ba1d1e1d5ebb1f6230b0b00c5356b8706c56e0b9c36b1dfc86084cd75f0"
+    assert pinecone_doc.meta["page_number"] == 1
+
+
+def test_convert_meta_to_int():
+    # Test with floats
+    meta_data = {"split_id": 1.0, "split_idx_start": 2.0, "page_number": 3.0}
+    assert PineconeDocumentStore._convert_meta_to_int(meta_data) == {
+        "split_id": 1,
+        "split_idx_start": 2,
+        "page_number": 3,
+    }
+
+    # Test with floats and ints
+    meta_data = {"split_id": 1.0, "split_idx_start": 2, "page_number": 3.0}
+    assert PineconeDocumentStore._convert_meta_to_int(meta_data) == {
+        "split_id": 1,
+        "split_idx_start": 2,
+        "page_number": 3,
+    }
+
+    # Test with floats and strings
+    meta_data = {"split_id": 1.0, "other": "other_data", "page_number": 3.0}
+    assert PineconeDocumentStore._convert_meta_to_int(meta_data) == {
+        "split_id": 1,
+        "other": "other_data",
+        "page_number": 3,
+    }
+
+    # Test with empty dict
+    meta_data = {}
+    assert PineconeDocumentStore._convert_meta_to_int(meta_data) == {}
+
+
 @pytest.mark.integration
 @pytest.mark.skipif("PINECONE_API_KEY" not in os.environ, reason="PINECONE_API_KEY not set")
 def test_serverless_index_creation_from_scratch(sleep_time):
@@ -221,3 +290,28 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, WriteDocumentsT
         assert len(results) == 2
         assert results[0].content == "Most similar document"
         assert results[1].content == "2nd best document"
+
+    def test_sentence_window_retriever(self, document_store: PineconeDocumentStore):
+        # indexing
+        splitter = DocumentSplitter(split_length=10, split_overlap=5, split_by="word")
+        text = (
+            "Whose woods these are I think I know. His house is in the village though; He will not see me stopping "
+            "here To watch his woods fill up with snow."
+        )
+        docs = splitter.run(documents=[Document(content=text)])
+
+        for idx, doc in enumerate(docs["documents"]):
+            if idx == 2:
+                doc.embedding = [0.1] * 768
+                continue
+            doc.embedding = np.random.rand(768).tolist()
+        document_store.write_documents(docs["documents"])
+
+        # query
+        embedding_retriever = PineconeEmbeddingRetriever(document_store=document_store)
+        query_embedding = [0.1] * 768
+        retrieved_doc = embedding_retriever.run(query_embedding=query_embedding, top_k=1, filters={})
+        sentence_window_retriever = SentenceWindowRetriever(document_store=document_store, window_size=2)
+        result = sentence_window_retriever.run(retrieved_documents=[retrieved_doc["documents"][0]])
+
+        assert len(result["context_windows"]) == 1

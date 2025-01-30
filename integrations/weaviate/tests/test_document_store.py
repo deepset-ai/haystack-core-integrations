@@ -22,11 +22,6 @@ from haystack.testing.document_store import (
     WriteDocumentsTest,
 )
 from haystack.utils.auth import Secret
-from haystack_integrations.document_stores.weaviate.auth import AuthApiKey
-from haystack_integrations.document_stores.weaviate.document_store import (
-    DOCUMENT_COLLECTION_PROPERTIES,
-    WeaviateDocumentStore,
-)
 from numpy import array as np_array
 from numpy import array_equal as np_array_equal
 from numpy import float32 as np_float32
@@ -39,6 +34,12 @@ from weaviate.embedded import (
     DEFAULT_PERSISTENCE_DATA_PATH,
     DEFAULT_PORT,
     EmbeddedOptions,
+)
+
+from haystack_integrations.document_stores.weaviate.auth import AuthApiKey
+from haystack_integrations.document_stores.weaviate.document_store import (
+    DOCUMENT_COLLECTION_PROPERTIES,
+    WeaviateDocumentStore,
 )
 
 
@@ -658,15 +659,6 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
     def test_embedding_retrieval_with_distance_and_certainty(self, document_store):
         with pytest.raises(ValueError):
             document_store._embedding_retrieval(query_embedding=[], distance=0.1, certainty=0.1)
-
-    def test_filter_documents_with_legacy_filters(self, document_store):
-        docs = []
-        for index in range(10):
-            docs.append(Document(content="This is some content", meta={"index": index}))
-        document_store.write_documents(docs)
-        result = document_store.filter_documents({"content": {"$eq": "This is some content"}})
-
-        assert len(result) == 10
 
     def test_filter_documents_below_default_limit(self, document_store):
         docs = []

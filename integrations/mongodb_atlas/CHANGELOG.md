@@ -12,10 +12,16 @@
 - Pass empty dict to filter instead of None (#775)
 - `Mongo` - Fallback to default filter policy when deserializing retrievers without the init parameter (#899)
 
+### 🧪 Testing
+
+- Do not retry tests in `hatch run test` command (#954)
+
 ### ⚙️ Miscellaneous Tasks
 
 - Retry tests to reduce flakyness (#836)
 - Update ruff invocation to include check parameter (#853)
+- Update mongodb test for the new `apply_filter_policy` usage (#971)
+- MongoDB - remove legacy filter support (#1066)
 
 ## [integrations/mongodb_atlas-v0.2.1] - 2024-04-09
 

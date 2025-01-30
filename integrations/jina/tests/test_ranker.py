@@ -8,6 +8,7 @@ import pytest
 import requests
 from haystack import Document
 from haystack.utils import Secret
+
 from haystack_integrations.components.rankers.jina import JinaRanker
 
 

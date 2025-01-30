@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 import pytest
 from haystack.document_stores.types import FilterPolicy
+
 from haystack_integrations.components.retrievers.chroma import ChromaQueryTextRetriever
 from haystack_integrations.document_stores.chroma import ChromaDocumentStore
 

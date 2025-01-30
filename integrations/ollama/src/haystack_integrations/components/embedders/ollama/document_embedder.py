@@ -1,8 +1,9 @@
 from typing import Any, Dict, List, Optional
 
-import requests
 from haystack import Document, component
 from tqdm import tqdm
+
+from ollama import Client
 
 
 @component
@@ -27,7 +28,7 @@ class OllamaDocumentEmbedder:
     def __init__(
         self,
         model: str = "nomic-embed-text",
-        url: str = "http://localhost:11434/api/embeddings",
+        url: str = "http://localhost:11434",
         generation_kwargs: Optional[Dict[str, Any]] = None,
         timeout: int = 120,
         prefix: str = "",
@@ -40,7 +41,7 @@ class OllamaDocumentEmbedder:
         :param model:
             The name of the model to use. The model should be available in the running Ollama instance.
         :param url:
-            The URL of the chat endpoint of a running Ollama instance.
+            The URL of a running Ollama instance.
         :param generation_kwargs:
             Optional arguments to pass to the Ollama generation endpoint, such as temperature, top_p, and others.
             See the available arguments in
@@ -59,11 +60,7 @@ class OllamaDocumentEmbedder:
         self.suffix = suffix
         self.prefix = prefix
 
-    def _create_json_payload(self, text: str, generation_kwargs: Optional[Dict[str, Any]]) -> Dict[str, Any]:
-        """
-        Returns A dictionary of JSON arguments for a POST request to an Ollama service
-        """
-        return {"model": self.model, "prompt": text, "options": {**self.generation_kwargs, **(generation_kwargs or {})}}
+        self._client = Client(host=self.url, timeout=self.timeout)
 
     def _prepare_texts_to_embed(self, documents: List[Document]) -> List[str]:
         """
@@ -103,10 +100,7 @@ class OllamaDocumentEmbedder:
             range(0, len(texts_to_embed), batch_size), disable=not self.progress_bar, desc="Calculating embeddings"
         ):
             batch = texts_to_embed[i]  # Single batch only
-            payload = self._create_json_payload(batch, generation_kwargs)
-            response = requests.post(url=self.url, json=payload, timeout=self.timeout)
-            response.raise_for_status()
-            result = response.json()
+            result = self._client.embeddings(model=self.model, prompt=batch, options=generation_kwargs)
             all_embeddings.append(result["embedding"])
 
         meta["model"] = self.model

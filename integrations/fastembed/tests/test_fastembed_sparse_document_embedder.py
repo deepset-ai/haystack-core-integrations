@@ -4,6 +4,7 @@ import numpy as np
 import pytest
 from haystack import Document, default_from_dict
 from haystack.dataclasses.sparse_embedding import SparseEmbedding
+
 from haystack_integrations.components.embedders.fastembed.fastembed_sparse_document_embedder import (
     FastembedSparseDocumentEmbedder,
 )

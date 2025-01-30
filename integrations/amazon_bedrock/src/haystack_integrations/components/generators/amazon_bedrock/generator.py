@@ -1,11 +1,12 @@
 import json
 import logging
 import re
-from typing import Any, ClassVar, Dict, List, Optional, Type, Union
+from typing import Any, Callable, ClassVar, Dict, List, Optional, Type
 
 from botocore.exceptions import ClientError
 from haystack import component, default_from_dict, default_to_dict
-from haystack.utils.auth import Secret, deserialize_secrets_inplace
+from haystack.dataclasses import StreamingChunk
+from haystack.utils import Secret, deserialize_callable, deserialize_secrets_inplace, serialize_callable
 
 from haystack_integrations.common.amazon_bedrock.errors import (
     AmazonBedrockConfigurationError,
@@ -25,8 +26,6 @@ from .adapters import (
 )
 from .handlers import (
     DefaultPromptHandler,
-    DefaultTokenStreamingHandler,
-    TokenStreamingHandler,
 )
 
 logger = logging.getLogger(__name__)
@@ -87,6 +86,7 @@ class AmazonBedrockGenerator:
         aws_profile_name: Optional[Secret] = Secret.from_env_var("AWS_PROFILE", strict=False),  # noqa: B008
         max_length: Optional[int] = 100,
         truncate: Optional[bool] = True,
+        streaming_callback: Optional[Callable[[StreamingChunk], None]] = None,
         **kwargs,
     ):
         """
@@ -100,6 +100,8 @@ class AmazonBedrockGenerator:
         :param aws_profile_name: The AWS profile name.
         :param max_length: The maximum length of the generated text.
         :param truncate: Whether to truncate the prompt or not.
+        :param streaming_callback: A callback function that is called when a new token is received from the stream.
+            The callback function accepts StreamingChunk as an argument.
         :param kwargs: Additional keyword arguments to be passed to the model.
         These arguments are specific to the model. You can find them in the model's documentation.
         :raises ValueError: If the model name is empty or None.
@@ -117,6 +119,7 @@ class AmazonBedrockGenerator:
         self.aws_session_token = aws_session_token
         self.aws_region_name = aws_region_name
         self.aws_profile_name = aws_profile_name
+        self.streaming_callback = streaming_callback
         self.kwargs = kwargs
 
         def resolve_secret(secret: Optional[Secret]) -> Optional[str]:
@@ -158,7 +161,7 @@ class AmazonBedrockGenerator:
             raise AmazonBedrockConfigurationError(msg)
         self.model_adapter = model_adapter_cls(model_kwargs=model_input_kwargs, max_length=self.max_length)
 
-    def _ensure_token_limit(self, prompt: Union[str, List[Dict[str, str]]]) -> Union[str, List[Dict[str, str]]]:
+    def _ensure_token_limit(self, prompt: str) -> str:
         """
         Ensures that the prompt and answer token lengths together are within the model_max_length specified during
         the initialization of the component.
@@ -166,14 +169,6 @@ class AmazonBedrockGenerator:
         :param prompt: The prompt to be sent to the model.
         :returns: The resized prompt.
         """
-        # the prompt for this model will be of the type str
-        if isinstance(prompt, List):
-            msg = (
-                "AmazonBedrockGenerator only supports a string as a prompt, "
-                "while currently, the prompt is of type List."
-            )
-            raise ValueError(msg)
-
         resize_info = self.prompt_handler(prompt)
         if resize_info["prompt_length"] != resize_info["new_prompt_length"]:
             logger.warning(
@@ -187,31 +182,36 @@ class AmazonBedrockGenerator:
             )
         return str(resize_info["resized_prompt"])
 
-    def invoke(self, *args, **kwargs):
+    @component.output_types(replies=List[str])
+    def run(
+        self,
+        prompt: str,
+        streaming_callback: Optional[Callable[[StreamingChunk], None]] = None,
+        generation_kwargs: Optional[Dict[str, Any]] = None,
+    ):
         """
-        Invokes the model with the given prompt.
+        Generates a list of string response to the given prompt.
 
-        :param args: Additional positional arguments passed to the generator.
-        :param kwargs: Additional keyword arguments passed to the generator.
-        :returns: A list of generated responses (strings).
+        :param prompt: The prompt to generate a response for.
+        :param streaming_callback:
+            A callback function that is called when a new token is received from the stream.
+        :param generation_kwargs: Additional keyword arguments passed to the generator.
+        :returns: A dictionary with the following keys:
+            - `replies`: A list of generated responses.
+        :raises ValueError: If the prompt is empty or None.
+        :raises AmazonBedrockInferenceError: If the model cannot be invoked.
         """
-        kwargs = kwargs.copy()
-        prompt: str = kwargs.pop("prompt", None)
-        stream: bool = kwargs.get("stream", self.model_adapter.model_kwargs.get("stream", False))
-
-        if not prompt or not isinstance(prompt, (str, list)):
-            msg = (
-                f"The model {self.model} requires a valid prompt, but currently, it has no prompt. "
-                f"Make sure to provide a prompt in the format that the model expects."
-            )
-            raise ValueError(msg)
+        generation_kwargs = generation_kwargs or {}
+        generation_kwargs = generation_kwargs.copy()
+        streaming_callback = streaming_callback or self.streaming_callback
+        generation_kwargs["stream"] = streaming_callback is not None
 
         if self.truncate:
             prompt = self._ensure_token_limit(prompt)
 
-        body = self.model_adapter.prepare_body(prompt=prompt, **kwargs)
+        body = self.model_adapter.prepare_body(prompt=prompt, **generation_kwargs)
         try:
-            if stream:
+            if streaming_callback:
                 response = self.client.invoke_model_with_response_stream(
                     body=json.dumps(body),
                     modelId=self.model,
@@ -219,11 +219,9 @@ class AmazonBedrockGenerator:
                     contentType="application/json",
                 )
                 response_stream = response["body"]
-                handler: TokenStreamingHandler = kwargs.get(
-                    "stream_handler",
-                    self.model_adapter.model_kwargs.get("stream_handler", DefaultTokenStreamingHandler()),
+                replies = self.model_adapter.get_stream_responses(
+                    stream=response_stream, streaming_callback=streaming_callback
                 )
-                responses = self.model_adapter.get_stream_responses(stream=response_stream, stream_handler=handler)
             else:
                 response = self.client.invoke_model(
                     body=json.dumps(body),
@@ -232,7 +230,7 @@ class AmazonBedrockGenerator:
                     contentType="application/json",
                 )
                 response_body = json.loads(response.get("body").read().decode("utf-8"))
-                responses = self.model_adapter.get_responses(response_body=response_body)
+                replies = self.model_adapter.get_responses(response_body=response_body)
         except ClientError as exception:
             msg = (
                 f"Could not connect to Amazon Bedrock model {self.model}. "
@@ -241,22 +239,7 @@ class AmazonBedrockGenerator:
             )
             raise AmazonBedrockInferenceError(msg) from exception
 
-        return responses
-
-    @component.output_types(replies=List[str])
-    def run(self, prompt: str, generation_kwargs: Optional[Dict[str, Any]] = None):
-        """
-        Generates a list of string response to the given prompt.
-
-        :param prompt: Instructions for the model.
-        :param generation_kwargs: Additional keyword arguments to customize text generation.
-        These arguments are specific to the model. You can find them in the model's documentation.
-        :returns: A dictionary with the following keys:
-            - `replies`: A list of generated responses.
-        :raises ValueError: If the prompt is empty or None.
-        :raises AmazonBedrockInferenceError: If the model cannot be invoked.
-        """
-        return {"replies": self.invoke(prompt=prompt, **(generation_kwargs or {}))}
+        return {"replies": replies}
 
     @classmethod
     def get_model_adapter(cls, model: str) -> Optional[Type[BedrockModelAdapter]]:
@@ -278,6 +261,7 @@ class AmazonBedrockGenerator:
         :returns:
             Dictionary with serialized data.
         """
+        callback_name = serialize_callable(self.streaming_callback) if self.streaming_callback else None
         return default_to_dict(
             self,
             aws_access_key_id=self.aws_access_key_id.to_dict() if self.aws_access_key_id else None,
@@ -288,6 +272,7 @@ class AmazonBedrockGenerator:
             model=self.model,
             max_length=self.max_length,
             truncate=self.truncate,
+            streaming_callback=callback_name,
             **self.kwargs,
         )
 
@@ -305,4 +290,8 @@ class AmazonBedrockGenerator:
             data["init_parameters"],
             ["aws_access_key_id", "aws_secret_access_key", "aws_session_token", "aws_region_name", "aws_profile_name"],
         )
+        init_params = data.get("init_parameters", {})
+        serialized_callback_handler = init_params.get("streaming_callback")
+        if serialized_callback_handler:
+            data["init_parameters"]["streaming_callback"] = deserialize_callable(serialized_callback_handler)
         return default_from_dict(cls, data)

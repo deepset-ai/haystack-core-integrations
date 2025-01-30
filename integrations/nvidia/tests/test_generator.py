@@ -5,8 +5,9 @@ import os
 
 import pytest
 from haystack.utils import Secret
-from haystack_integrations.components.generators.nvidia import NvidiaGenerator
 from requests_mock import Mocker
+
+from haystack_integrations.components.generators.nvidia import NvidiaGenerator
 
 
 @pytest.fixture

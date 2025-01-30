@@ -1,11 +1,10 @@
-import json
 from typing import Any, Callable, Dict, List, Optional
 
-import requests
 from haystack import component, default_from_dict, default_to_dict
 from haystack.dataclasses import StreamingChunk
 from haystack.utils.callable_serialization import deserialize_callable, serialize_callable
-from requests import Response
+
+from ollama import Client
 
 
 @component
@@ -18,7 +17,7 @@ class OllamaGenerator:
     from haystack_integrations.components.generators.ollama import OllamaGenerator
 
     generator = OllamaGenerator(model="zephyr",
-                                url = "http://localhost:11434/api/generate",
+                                url = "http://localhost:11434",
                                 generation_kwargs={
                                 "num_predict": 100,
                                 "temperature": 0.9,
@@ -31,7 +30,7 @@ class OllamaGenerator:
     def __init__(
         self,
         model: str = "orca-mini",
-        url: str = "http://localhost:11434/api/generate",
+        url: str = "http://localhost:11434",
         generation_kwargs: Optional[Dict[str, Any]] = None,
         system_prompt: Optional[str] = None,
         template: Optional[str] = None,
@@ -43,7 +42,7 @@ class OllamaGenerator:
         :param model:
             The name of the model to use. The model should be available in the running Ollama instance.
         :param url:
-            The URL of the generation endpoint of a running Ollama instance.
+            The URL of a running Ollama instance.
         :param generation_kwargs:
             Optional arguments to pass to the Ollama generation endpoint, such as temperature,
             top_p, and others. See the available arguments in
@@ -69,6 +68,8 @@ class OllamaGenerator:
         self.url = url
         self.generation_kwargs = generation_kwargs or {}
         self.streaming_callback = streaming_callback
+
+        self._client = Client(host=self.url, timeout=self.timeout)
 
     def to_dict(self) -> Dict[str, Any]:
         """
@@ -106,30 +107,13 @@ class OllamaGenerator:
             data["init_parameters"]["streaming_callback"] = deserialize_callable(serialized_callback_handler)
         return default_from_dict(cls, data)
 
-    def _create_json_payload(self, prompt: str, stream: bool, generation_kwargs=None) -> Dict[str, Any]:
-        """
-        Returns a dictionary of JSON arguments for a POST request to an Ollama service.
-        """
-        generation_kwargs = generation_kwargs or {}
-        return {
-            "prompt": prompt,
-            "model": self.model,
-            "stream": stream,
-            "raw": self.raw,
-            "template": self.template,
-            "system": self.system_prompt,
-            "options": generation_kwargs,
-        }
-
-    def _convert_to_response(self, ollama_response: Response) -> Dict[str, List[Any]]:
+    def _convert_to_response(self, ollama_response: Dict[str, Any]) -> Dict[str, List[Any]]:
         """
         Converts a response from the Ollama API to the required Haystack format.
         """
 
-        resp_dict = ollama_response.json()
-
-        replies = [resp_dict["response"]]
-        meta = {key: value for key, value in resp_dict.items() if key != "response"}
+        replies = [ollama_response["response"]]
+        meta = {key: value for key, value in ollama_response.items() if key != "response"}
 
         return {"replies": replies, "meta": [meta]}
 
@@ -148,7 +132,7 @@ class OllamaGenerator:
         Handles Streaming response cases
         """
         chunks: List[StreamingChunk] = []
-        for chunk in response.iter_lines():
+        for chunk in response:
             chunk_delta: StreamingChunk = self._build_chunk(chunk)
             chunks.append(chunk_delta)
             if self.streaming_callback is not None:
@@ -159,10 +143,8 @@ class OllamaGenerator:
         """
         Converts the response from the Ollama API to a StreamingChunk.
         """
-        decoded_chunk = json.loads(chunk_response.decode("utf-8"))
-
-        content = decoded_chunk["response"]
-        meta = {key: value for key, value in decoded_chunk.items() if key != "response"}
+        content = chunk_response["response"]
+        meta = {key: value for key, value in chunk_response.items() if key != "response"}
 
         chunk_message = StreamingChunk(content, meta)
         return chunk_message
@@ -190,12 +172,7 @@ class OllamaGenerator:
 
         stream = self.streaming_callback is not None
 
-        json_payload = self._create_json_payload(prompt, stream, generation_kwargs)
-
-        response = requests.post(url=self.url, json=json_payload, timeout=self.timeout, stream=stream)
-
-        # throw error on unsuccessful response
-        response.raise_for_status()
+        response = self._client.generate(model=self.model, prompt=prompt, stream=stream, options=generation_kwargs)
 
         if stream:
             chunks: List[StreamingChunk] = self._handle_streaming_response(response)

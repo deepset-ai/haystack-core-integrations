@@ -6,6 +6,7 @@ from typing import List
 
 import pytest
 from haystack.document_stores.errors import DocumentStoreError
+
 from haystack_integrations.document_stores.mongodb_atlas import MongoDBAtlasDocumentStore
 
 

@@ -9,7 +9,6 @@ from haystack.dataclasses.document import ByteStream, Document
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
 from haystack.utils.auth import Secret, deserialize_secrets_inplace
-from haystack.utils.filters import convert
 from psycopg import Error, IntegrityError, connect
 from psycopg.abc import Query
 from psycopg.cursor import Cursor
@@ -389,7 +388,8 @@ class PgvectorDocumentStore:
                 msg = "Filters must be a dictionary"
                 raise TypeError(msg)
             if "operator" not in filters and "conditions" not in filters:
-                filters = convert(filters)
+                msg = "Invalid filter syntax. See https://docs.haystack.deepset.ai/docs/metadata-filtering for details."
+                raise ValueError(msg)
 
         sql_filter = SQL("SELECT * FROM {table_name}").format(table_name=Identifier(self.table_name))
 

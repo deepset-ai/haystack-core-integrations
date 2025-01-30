@@ -5,7 +5,6 @@ from datetime import datetime
 from typing import Any, Dict
 
 from haystack.errors import FilterError
-from haystack.utils.filters import convert
 from pandas import DataFrame
 
 UNSUPPORTED_TYPES_FOR_COMPARISON = (list, DataFrame)
@@ -20,7 +19,8 @@ def _normalize_filters(filters: Dict[str, Any]) -> Dict[str, Any]:
         raise FilterError(msg)
 
     if "operator" not in filters and "conditions" not in filters:
-        filters = convert(filters)
+        msg = "Invalid filter syntax. See https://docs.haystack.deepset.ai/docs/metadata-filtering for details."
+        raise ValueError(msg)
 
     if "field" in filters:
         return _parse_comparison_condition(filters)

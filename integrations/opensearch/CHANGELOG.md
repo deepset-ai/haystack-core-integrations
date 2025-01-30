@@ -1,5 +1,23 @@
 # Changelog
 
+## [integrations/opensearch-v1.0.0] - 2024-09-12
+
+### 📚 Documentation
+
+- Update opensearch retriever docstrings (#1035)
+
+### 🧪 Testing
+
+- Do not retry tests in `hatch run test` command (#954)
+
+### ⚙️ Miscellaneous Tasks
+
+- OpenSearch - remove legacy filter support (#1067)
+
+### Docs
+
+- Update BM25 docstrings (#945)
+
 ## [integrations/opensearch-v0.9.0] - 2024-08-01
 
 ### 🚀 Features

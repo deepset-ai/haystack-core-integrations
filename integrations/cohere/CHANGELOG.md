@@ -1,15 +1,30 @@
 # Changelog
 
-## [unreleased]
+## [integrations/cohere-v2.0.0] - 2024-09-16
 
 ### 🚀 Features
 
 - Update Anthropic/Cohere for tools use (#790)
 - Update Cohere default LLMs, add examples and update unit tests (#838)
+- Cohere LLM - adjust token counting meta to match OpenAI format (#1086)
+
+### 🐛 Bug Fixes
+
+- Lints in `cohere-haystack` (#995)
+
+### 🧪 Testing
+
+- Do not retry tests in `hatch run test` command (#954)
 
 ### ⚙️ Miscellaneous Tasks
 
 - Retry tests to reduce flakyness (#836)
+- Update ruff invocation to include check parameter (#853)
+
+### Docs
+
+- Update CohereChatGenerator docstrings (#958)
+- Update CohereGenerator docstrings (#960)
 
 ## [integrations/cohere-v1.1.1] - 2024-06-12
 

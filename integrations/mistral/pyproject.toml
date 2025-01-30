@@ -41,12 +41,19 @@ root = "../.."
 git_describe_command = 'git describe --tags --match="integrations/mistral-v[0-9]*"'
 
 [tool.hatch.envs.default]
-dependencies = ["coverage[toml]>=6.5", "pytest", "pytest-rerunfailures", "haystack-pydoc-tools"]
+dependencies = [
+  "coverage[toml]>=6.5",
+  "pytest",
+  "pytest-rerunfailures",
+  "haystack-pydoc-tools",
+]
 [tool.hatch.envs.default.scripts]
-test = "pytest --reruns 3 --reruns-delay 30 -x {args:tests}"
-test-cov = "coverage run -m pytest --reruns 3 --reruns-delay 30 -x {args:tests}"
+test = "pytest {args:tests}"
+test-cov = "coverage run -m pytest {args:tests}"
+test-cov-retry = "test-cov --reruns 3 --reruns-delay 30 -x"
 cov-report = ["- coverage combine", "coverage report"]
 cov = ["test-cov", "cov-report"]
+cov-retry = ["test-cov-retry", "cov-report"]
 docs = ["pydoc-markdown pydoc/config.yml"]
 
 [[tool.hatch.envs.all.matrix]]
@@ -57,8 +64,11 @@ detached = true
 dependencies = ["black>=23.1.0", "mypy>=1.0.0", "ruff>=0.0.243"]
 [tool.hatch.envs.lint.scripts]
 typing = "mypy --install-types --non-interactive --explicit-package-bases {args:src/ tests}"
-style = ["ruff check {args:.}", "black --check --diff {args:.}"]
-fmt = ["black {args:.}", "ruff --fix {args:.}", "style"]
+style = [
+  "ruff check {args:. --exclude tests/}",
+  "black --check --diff {args:.}",
+]
+fmt = ["black {args:.}", "ruff --fix {args:. --exclude tests/}", "style"]
 all = ["style", "typing"]
 
 [tool.black]

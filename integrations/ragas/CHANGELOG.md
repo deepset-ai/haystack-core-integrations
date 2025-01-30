@@ -1,5 +1,15 @@
 # Changelog
 
+## [integrations/ragas-v1.0.1] - 2024-09-11
+
+### 🐛 Bug Fixes
+
+- Add upper-bound pin to `ragas` dependency in `ragas-haystack` (#1076)
+
+### 🧪 Testing
+
+- Do not retry tests in `hatch run test` command (#954)
+
 ## [integrations/ragas-v1.0.0] - 2024-07-24
 
 ### ⚙️ Miscellaneous Tasks

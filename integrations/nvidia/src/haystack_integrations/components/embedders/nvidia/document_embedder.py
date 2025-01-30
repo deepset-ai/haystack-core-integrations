@@ -3,8 +3,9 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 
 from haystack import Document, component, default_from_dict, default_to_dict
 from haystack.utils import Secret, deserialize_secrets_inplace
-from haystack_integrations.utils.nvidia import NimBackend, is_hosted, url_validation
 from tqdm import tqdm
+
+from haystack_integrations.utils.nvidia import NimBackend, is_hosted, url_validation
 
 from .truncate import EmbeddingTruncateMode
 
@@ -92,7 +93,7 @@ class NvidiaDocumentEmbedder:
         self._initialized = False
 
         if is_hosted(api_url) and not self.model:  # manually set default model
-            self.model = "NV-Embed-QA"
+            self.model = "nvidia/nv-embedqa-e5-v5"
 
     def default_model(self):
         """Set default model in local NIM mode."""

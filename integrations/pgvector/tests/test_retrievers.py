@@ -7,6 +7,7 @@ import pytest
 from haystack.dataclasses import Document
 from haystack.document_stores.types import FilterPolicy
 from haystack.utils.auth import EnvVarSecret
+
 from haystack_integrations.components.retrievers.pgvector import PgvectorEmbeddingRetriever, PgvectorKeywordRetriever
 from haystack_integrations.document_stores.pgvector import PgvectorDocumentStore
 
@@ -311,7 +312,7 @@ class TestKeywordRetriever:
         )
         res = retriever.run(query="test query", filters={"field2": "value2"})
 
-        mock_store._keyword_retrieval.assert_called_once_with(
+        mock_store.mock_calls[0].assert_called_once_with(
             query="test query", filters={"field": "value", "field2": "value2"}, top_k=10
         )
 

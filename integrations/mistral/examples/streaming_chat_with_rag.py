@@ -11,6 +11,7 @@ from haystack.components.retrievers.in_memory import InMemoryEmbeddingRetriever
 from haystack.components.writers import DocumentWriter
 from haystack.dataclasses import ChatMessage
 from haystack.document_stores.in_memory import InMemoryDocumentStore
+
 from haystack_integrations.components.embedders.mistral.document_embedder import MistralDocumentEmbedder
 from haystack_integrations.components.embedders.mistral.text_embedder import MistralTextEmbedder
 from haystack_integrations.components.generators.mistral import MistralChatGenerator

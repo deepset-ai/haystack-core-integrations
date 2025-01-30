@@ -1,5 +1,24 @@
 # Changelog
 
+## [integrations/ollama-v1.0.0] - 2024-09-07
+
+### 🐛 Bug Fixes
+
+- Chat roles for model responses in chat generators (#1030)
+
+### 🚜 Refactor
+
+- [**breaking**] Use ollama python library instead of calling the API with `requests` (#1059)
+
+### 🧪 Testing
+
+- Do not retry tests in `hatch run test` command (#954)
+
+### ⚙️ Miscellaneous Tasks
+
+- Retry tests to reduce flakyness (#836)
+- Update ruff invocation to include check parameter (#853)
+
 ## [integrations/ollama-v0.0.7] - 2024-05-31
 
 ### 🚀 Features

@@ -262,3 +262,171 @@ class TestAnthropicChatGenerator:
         fc_response = json.loads(first_reply.content)
         assert "name" in fc_response, "First reply does not contain name of the tool"
         assert "input" in fc_response, "First reply does not contain input of the tool"
+
+    def test_prompt_caching_enabled(self, monkeypatch):
+        """
+        Test that the generation_kwargs extra_headers are correctly passed to the Anthropic API when prompt
+        caching is enabled
+        """
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "test-api-key")
+        component = AnthropicChatGenerator(
+            generation_kwargs={"extra_headers": {"anthropic-beta": "prompt-caching-2024-07-31"}}
+        )
+        assert component.generation_kwargs.get("extra_headers", {}).get("anthropic-beta") == "prompt-caching-2024-07-31"
+
+    def test_prompt_caching_cache_control_without_extra_headers(self, monkeypatch, mock_chat_completion, caplog):
+        """
+        Test that the cache_control is removed from the messages when prompt caching is not enabled via extra_headers
+        This is to avoid Anthropic errors when prompt caching is not enabled
+        """
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "test-api-key")
+        component = AnthropicChatGenerator()
+
+        messages = [ChatMessage.from_system("System message"), ChatMessage.from_user("User message")]
+
+        # Add cache_control to messages
+        for msg in messages:
+            msg.meta["cache_control"] = {"type": "ephemeral"}
+
+        # Invoke run with messages
+        component.run(messages)
+
+        # Check caplog for the warning message that should have been logged
+        assert any("Prompt caching" in record.message for record in caplog.records)
+
+        # Check that the Anthropic API was called without cache_control in messages so that it does not raise an error
+        _, kwargs = mock_chat_completion.call_args
+        for msg in kwargs["messages"]:
+            assert "cache_control" not in msg
+
+    @pytest.mark.parametrize("enable_caching", [True, False])
+    def test_run_with_prompt_caching(self, monkeypatch, mock_chat_completion, enable_caching):
+        """
+        Test that the generation_kwargs extra_headers are correctly passed to the Anthropic API in both cases of
+        prompt caching being enabled or not
+        """
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "test-api-key")
+
+        generation_kwargs = {"extra_headers": {"anthropic-beta": "prompt-caching-2024-07-31"}} if enable_caching else {}
+        component = AnthropicChatGenerator(generation_kwargs=generation_kwargs)
+
+        messages = [ChatMessage.from_system("System message"), ChatMessage.from_user("User message")]
+
+        component.run(messages)
+
+        # Check that the Anthropic API was called with the correct headers
+        _, kwargs = mock_chat_completion.call_args
+        headers = kwargs.get("extra_headers", {})
+        if enable_caching:
+            assert "anthropic-beta" in headers
+        else:
+            assert "anthropic-beta" not in headers
+
+    def test_to_dict_with_prompt_caching(self, monkeypatch):
+        """
+        Test that the generation_kwargs extra_headers are correctly serialized to a dictionary
+        """
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "test-api-key")
+        component = AnthropicChatGenerator(
+            generation_kwargs={"extra_headers": {"anthropic-beta": "prompt-caching-2024-07-31"}}
+        )
+        data = component.to_dict()
+        assert (
+            data["init_parameters"]["generation_kwargs"]["extra_headers"]["anthropic-beta"]
+            == "prompt-caching-2024-07-31"
+        )
+
+    def test_from_dict_with_prompt_caching(self, monkeypatch):
+        """
+        Test that the generation_kwargs extra_headers are correctly deserialized from a dictionary
+        """
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "test-api-key")
+        data = {
+            "type": "haystack_integrations.components.generators.anthropic.chat.chat_generator.AnthropicChatGenerator",
+            "init_parameters": {
+                "api_key": {"env_vars": ["ANTHROPIC_API_KEY"], "strict": True, "type": "env_var"},
+                "model": "claude-3-5-sonnet-20240620",
+                "generation_kwargs": {"extra_headers": {"anthropic-beta": "prompt-caching-2024-07-31"}},
+            },
+        }
+        component = AnthropicChatGenerator.from_dict(data)
+        assert component.generation_kwargs["extra_headers"]["anthropic-beta"] == "prompt-caching-2024-07-31"
+
+    def test_convert_messages_to_anthropic_format(self, monkeypatch):
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "test-api-key")
+        generator = AnthropicChatGenerator()
+
+        # Test scenario 1: Regular user and assistant messages
+        messages = [
+            ChatMessage.from_user("Hello"),
+            ChatMessage.from_assistant("Hi there!"),
+        ]
+        result = generator._convert_to_anthropic_format(messages)
+        assert result == [
+            {"role": "user", "content": "Hello"},
+            {"role": "assistant", "content": "Hi there!"},
+        ]
+
+        # Test scenario 2: System message
+        messages = [ChatMessage.from_system("You are a helpful assistant.")]
+        result = generator._convert_to_anthropic_format(messages)
+        assert result == [{"type": "text", "text": "You are a helpful assistant."}]
+
+        # Test scenario 3: Mixed message types
+        messages = [
+            ChatMessage.from_system("Be concise."),
+            ChatMessage.from_user("What's AI?"),
+            ChatMessage.from_assistant("Artificial Intelligence."),
+        ]
+        result = generator._convert_to_anthropic_format(messages)
+        assert result == [
+            {"type": "text", "text": "Be concise."},
+            {"role": "user", "content": "What's AI?"},
+            {"role": "assistant", "content": "Artificial Intelligence."},
+        ]
+
+        # Test scenario 4: metadata
+        messages = [
+            ChatMessage.from_user("What's AI?"),
+            ChatMessage.from_assistant("Artificial Intelligence.", meta={"confidence": 0.9}),
+        ]
+        result = generator._convert_to_anthropic_format(messages)
+        assert result == [
+            {"role": "user", "content": "What's AI?"},
+            {"role": "assistant", "content": "Artificial Intelligence.", "confidence": 0.9},
+        ]
+
+        # Test scenario 5: Empty message list
+        assert generator._convert_to_anthropic_format([]) == []
+
+    @pytest.mark.integration
+    @pytest.mark.skipif(not os.environ.get("ANTHROPIC_API_KEY", None), reason="ANTHROPIC_API_KEY not set")
+    @pytest.mark.parametrize("cache_enabled", [True, False])
+    def test_prompt_caching(self, cache_enabled):
+        generation_kwargs = {"extra_headers": {"anthropic-beta": "prompt-caching-2024-07-31"}} if cache_enabled else {}
+
+        claude_llm = AnthropicChatGenerator(
+            api_key=Secret.from_env_var("ANTHROPIC_API_KEY"), generation_kwargs=generation_kwargs
+        )
+
+        # see https://docs.anthropic.com/en/docs/build-with-claude/prompt-caching#cache-limitations
+        system_message = ChatMessage.from_system("This is the cached, here we make it at least 1024 tokens long." * 70)
+        if cache_enabled:
+            system_message.meta["cache_control"] = {"type": "ephemeral"}
+
+        messages = [system_message, ChatMessage.from_user("What's in cached content?")]
+        result = claude_llm.run(messages)
+
+        assert "replies" in result
+        assert len(result["replies"]) == 1
+        token_usage = result["replies"][0].meta.get("usage")
+
+        if cache_enabled:
+            # either we created cache or we read it (depends on how you execute this integration test)
+            assert (
+                token_usage.get("cache_creation_input_tokens") > 1024
+                or token_usage.get("cache_read_input_tokens") > 1024
+            )
+        else:
+            assert "cache_creation_input_tokens" not in token_usage
+            assert "cache_read_input_tokens" not in token_usage

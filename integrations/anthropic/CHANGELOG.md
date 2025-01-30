@@ -1,5 +1,25 @@
 # Changelog
 
+## [integrations/anthropic-v1.1.0] - 2024-09-20
+
+### 🚀 Features
+
+- Add Anthropic prompt caching support, add example (#1006)
+
+## [integrations/anthropic-v1.0.0] - 2024-08-12
+
+### 🐛 Bug Fixes
+
+- Replace DynamicChatPromptBuilder with ChatPromptBuilder (#940)
+
+### 🚜 Refactor
+
+- Change meta data fields (#911)
+
+### 🧪 Testing
+
+- Do not retry tests in `hatch run test` command (#954)
+
 ## [integrations/anthropic-v0.4.1] - 2024-07-17
 
 ### ⚙️ Miscellaneous Tasks

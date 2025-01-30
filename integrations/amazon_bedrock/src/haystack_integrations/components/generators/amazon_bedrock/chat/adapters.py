@@ -2,9 +2,10 @@ import json
 import logging
 import os
 from abc import ABC, abstractmethod
-from typing import Any, Callable, ClassVar, Dict, List
+from typing import Any, Callable, ClassVar, Dict, List, Optional
 
 from botocore.eventstream import EventStream
+from haystack.components.generators.openai_utils import _convert_message_to_openai_format
 from haystack.dataclasses import ChatMessage, ChatRole, StreamingChunk
 from transformers import AutoTokenizer, PreTrainedTokenizer
 
@@ -21,11 +22,12 @@ class BedrockModelChatAdapter(ABC):
     focusing on preparing the requests and extracting the responses from the Amazon Bedrock hosted chat LLMs.
     """
 
-    def __init__(self, generation_kwargs: Dict[str, Any]) -> None:
+    def __init__(self, truncate: Optional[bool], generation_kwargs: Dict[str, Any]) -> None:
         """
-        Initializes the chat adapter with the generation kwargs.
+        Initializes the chat adapter with the truncate parameter and generation kwargs.
         """
         self.generation_kwargs = generation_kwargs
+        self.truncate = truncate
 
     @abstractmethod
     def prepare_body(self, messages: List[ChatMessage], **inference_kwargs) -> Dict[str, Any]:
@@ -48,19 +50,18 @@ class BedrockModelChatAdapter(ABC):
         return self._extract_messages_from_response(response_body)
 
     def get_stream_responses(
-        self, stream: EventStream, stream_handler: Callable[[StreamingChunk], None]
+        self, stream: EventStream, streaming_callback: Callable[[StreamingChunk], None]
     ) -> List[ChatMessage]:
-        tokens: List[str] = []
+        streaming_chunks: List[StreamingChunk] = []
         last_decoded_chunk: Dict[str, Any] = {}
         for event in stream:
             chunk = event.get("chunk")
             if chunk:
                 last_decoded_chunk = json.loads(chunk["bytes"].decode("utf-8"))
-                token = self._extract_token_from_stream(last_decoded_chunk)
-                stream_chunk = StreamingChunk(content=token)  # don't extract meta, we care about tokens only
-                stream_handler(stream_chunk)  # callback the stream handler with StreamingChunk
-                tokens.append(token)
-        responses = ["".join(tokens).lstrip()]
+                streaming_chunk = self._build_streaming_chunk(last_decoded_chunk)
+                streaming_callback(streaming_chunk)  # callback the stream handler with StreamingChunk
+                streaming_chunks.append(streaming_chunk)
+        responses = ["".join(chunk.content for chunk in streaming_chunks).lstrip()]
         return [ChatMessage.from_assistant(response, meta=last_decoded_chunk) for response in responses]
 
     @staticmethod
@@ -142,12 +143,12 @@ class BedrockModelChatAdapter(ABC):
         """
 
     @abstractmethod
-    def _extract_token_from_stream(self, chunk: Dict[str, Any]) -> str:
+    def _build_streaming_chunk(self, chunk: Dict[str, Any]) -> StreamingChunk:
         """
-        Extracts the token from a streaming chunk.
+        Extracts the content and meta from a streaming chunk.
 
-        :param chunk: The streaming chunk.
-        :returns: The extracted token.
+        :param chunk: The streaming chunk as dict.
+        :returns: A StreamingChunk object.
         """
 
 
@@ -165,15 +166,18 @@ class AnthropicClaudeChatAdapter(BedrockModelChatAdapter):
         "top_p",
         "top_k",
         "system",
+        "tools",
+        "tool_choice",
     ]
 
-    def __init__(self, generation_kwargs: Dict[str, Any]):
+    def __init__(self, truncate: Optional[bool], generation_kwargs: Dict[str, Any]):
         """
         Initializes the Anthropic Claude chat adapter.
 
+        :param truncate: Whether to truncate the prompt if it exceeds the model's max token limit.
         :param generation_kwargs: The generation kwargs.
         """
-        super().__init__(generation_kwargs)
+        super().__init__(truncate, generation_kwargs)
 
         # We pop the model_max_length as it is not sent to the model
         # but used to truncate the prompt if needed
@@ -217,7 +221,7 @@ class AnthropicClaudeChatAdapter(BedrockModelChatAdapter):
         Prepares the chat messages for the Anthropic Claude request.
 
         :param messages: The chat messages to prepare.
-        :returns: The prepared chat messages as a string.
+        :returns: The prepared chat messages as a dictionary.
         """
         body: Dict[str, Any] = {}
         system = messages[0].content if messages and messages[0].is_from(ChatRole.SYSTEM) else None
@@ -226,6 +230,11 @@ class AnthropicClaudeChatAdapter(BedrockModelChatAdapter):
         ]
         if system:
             body["system"] = system
+        # Ensure token limit for each message in the body
+        if self.truncate:
+            for message in body["messages"]:
+                for content in message["content"]:
+                    content["text"] = self._ensure_token_limit(content["text"])
         return body
 
     def check_prompt(self, prompt: str) -> Dict[str, Any]:
@@ -246,22 +255,30 @@ class AnthropicClaudeChatAdapter(BedrockModelChatAdapter):
         """
         messages: List[ChatMessage] = []
         if response_body.get("type") == "message":
-            for content in response_body["content"]:
-                if content.get("type") == "text":
-                    meta = {k: v for k, v in response_body.items() if k not in ["type", "content", "role"]}
-                    messages.append(ChatMessage.from_assistant(content["text"], meta=meta))
+            if response_body.get("stop_reason") == "tool_use":  # If `tool_use` we only keep the tool_use content
+                for content in response_body["content"]:
+                    if content.get("type") == "tool_use":
+                        meta = {k: v for k, v in response_body.items() if k not in ["type", "content", "role"]}
+                        json_answer = json.dumps(content)
+                        messages.append(ChatMessage.from_assistant(json_answer, meta=meta))
+            else:  # For other stop_reason, return all text content
+                for content in response_body["content"]:
+                    if content.get("type") == "text":
+                        meta = {k: v for k, v in response_body.items() if k not in ["type", "content", "role"]}
+                        messages.append(ChatMessage.from_assistant(content["text"], meta=meta))
+
         return messages
 
-    def _extract_token_from_stream(self, chunk: Dict[str, Any]) -> str:
+    def _build_streaming_chunk(self, chunk: Dict[str, Any]) -> StreamingChunk:
         """
-        Extracts the token from a streaming chunk.
+        Extracts the content and meta from a streaming chunk.
 
-        :param chunk: The streaming chunk.
-        :returns: The extracted token.
+        :param chunk: The streaming chunk as dict.
+        :returns: A StreamingChunk object.
         """
         if chunk.get("type") == "content_block_delta" and chunk.get("delta", {}).get("type") == "text_delta":
-            return chunk.get("delta", {}).get("text", "")
-        return ""
+            return StreamingChunk(content=chunk.get("delta", {}).get("text", ""), meta=chunk)
+        return StreamingChunk(content="", meta=chunk)
 
     def _to_anthropic_message(self, m: ChatMessage) -> Dict[str, Any]:
         """
@@ -317,13 +334,13 @@ class MistralChatAdapter(BedrockModelChatAdapter):
         "top_p",
     ]
 
-    def __init__(self, generation_kwargs: Dict[str, Any]):
+    def __init__(self, truncate: Optional[bool], generation_kwargs: Dict[str, Any]):
         """
         Initializes the Mistral chat adapter.
-
+        :param truncate: Whether to truncate the prompt if it exceeds the model's max token limit.
         :param generation_kwargs: The generation kwargs.
         """
-        super().__init__(generation_kwargs)
+        super().__init__(truncate, generation_kwargs)
 
         # We pop the model_max_length as it is not sent to the model
         # but used to truncate the prompt if needed
@@ -335,7 +352,7 @@ class MistralChatAdapter(BedrockModelChatAdapter):
         # b) we can use apply_chat_template with the template above to delineate ChatMessages
         # Mistral models are gated on HF Hub. If no HF_TOKEN is found we use a non-gated alternative tokenizer model.
         tokenizer: PreTrainedTokenizer
-        if os.environ.get("HF_TOKEN"):
+        if os.environ.get("HF_TOKEN") or os.environ.get("HF_API_TOKEN"):
             tokenizer = AutoTokenizer.from_pretrained("mistralai/Mistral-7B-Instruct-v0.1")
         else:
             tokenizer = AutoTokenizer.from_pretrained("NousResearch/Llama-2-7b-chat-hf")
@@ -383,24 +400,13 @@ class MistralChatAdapter(BedrockModelChatAdapter):
         # default is https://huggingface.co/mistralai/Mixtral-8x7B-Instruct-v0.1/blob/main/tokenizer_config.json
         # but we'll use our custom chat template
         prepared_prompt: str = self.prompt_handler.tokenizer.apply_chat_template(
-            conversation=[self.to_openai_format(m) for m in messages], tokenize=False, chat_template=self.chat_template
+            conversation=[_convert_message_to_openai_format(m) for m in messages],
+            tokenize=False,
+            chat_template=self.chat_template,
         )
-        return self._ensure_token_limit(prepared_prompt)
-
-    def to_openai_format(self, m: ChatMessage) -> Dict[str, Any]:
-        """
-        Convert the message to the format expected by OpenAI's Chat API.
-        See the [API reference](https://platform.openai.com/docs/api-reference/chat/create) for details.
-
-        :returns: A dictionary with the following key:
-            - `role`
-            - `content`
-            - `name` (optional)
-        """
-        msg = {"role": m.role.value, "content": m.content}
-        if m.name:
-            msg["name"] = m.name
-        return msg
+        if self.truncate:
+            prepared_prompt = self._ensure_token_limit(prepared_prompt)
+        return prepared_prompt
 
     def check_prompt(self, prompt: str) -> Dict[str, Any]:
         """
@@ -425,17 +431,17 @@ class MistralChatAdapter(BedrockModelChatAdapter):
             messages.append(ChatMessage.from_assistant(response["text"], meta=meta))
         return messages
 
-    def _extract_token_from_stream(self, chunk: Dict[str, Any]) -> str:
+    def _build_streaming_chunk(self, chunk: Dict[str, Any]) -> StreamingChunk:
         """
-        Extracts the token from a streaming chunk.
+        Extracts the content and meta from a streaming chunk.
 
-        :param chunk: The streaming chunk.
-        :returns: The extracted token.
+        :param chunk: The streaming chunk as dict.
+        :returns: A StreamingChunk object.
         """
         response_chunk = chunk.get("outputs", [])
         if response_chunk:
-            return response_chunk[0].get("text", "")
-        return ""
+            return StreamingChunk(content=response_chunk[0].get("text", ""), meta=chunk)
+        return StreamingChunk(content="", meta=chunk)
 
 
 class MetaLlama2ChatAdapter(BedrockModelChatAdapter):
@@ -471,12 +477,13 @@ class MetaLlama2ChatAdapter(BedrockModelChatAdapter):
         "{% endfor %}"
     )
 
-    def __init__(self, generation_kwargs: Dict[str, Any]) -> None:
+    def __init__(self, truncate: Optional[bool], generation_kwargs: Dict[str, Any]) -> None:
         """
         Initializes the Meta Llama 2 chat adapter.
+        :param truncate: Whether to truncate the prompt if it exceeds the model's max token limit.
         :param generation_kwargs: The generation kwargs.
         """
-        super().__init__(generation_kwargs)
+        super().__init__(truncate, generation_kwargs)
         # We pop the model_max_length as it is not sent to the model
         # but used to truncate the prompt if needed
         # Llama 2 has context window size of 4096 tokens
@@ -520,7 +527,10 @@ class MetaLlama2ChatAdapter(BedrockModelChatAdapter):
         prepared_prompt: str = self.prompt_handler.tokenizer.apply_chat_template(
             conversation=messages, tokenize=False, chat_template=self.chat_template
         )
-        return self._ensure_token_limit(prepared_prompt)
+
+        if self.truncate:
+            prepared_prompt = self._ensure_token_limit(prepared_prompt)
+        return prepared_prompt
 
     def check_prompt(self, prompt: str) -> Dict[str, Any]:
         """
@@ -543,11 +553,11 @@ class MetaLlama2ChatAdapter(BedrockModelChatAdapter):
         metadata = {k: v for (k, v) in response_body.items() if k != message_tag}
         return [ChatMessage.from_assistant(response_body[message_tag], meta=metadata)]
 
-    def _extract_token_from_stream(self, chunk: Dict[str, Any]) -> str:
+    def _build_streaming_chunk(self, chunk: Dict[str, Any]) -> StreamingChunk:
         """
-        Extracts the token from a streaming chunk.
+        Extracts the content and meta from a streaming chunk.
 
-        :param chunk: The streaming chunk.
-        :returns: The extracted token.
+        :param chunk: The streaming chunk as dict.
+        :returns: A StreamingChunk object.
         """
-        return chunk.get("generation", "")
+        return StreamingChunk(content=chunk.get("generation", ""), meta=chunk)

@@ -1,6 +1,7 @@
 from unittest.mock import patch
 
 from haystack.utils.auth import Secret
+
 from haystack_integrations.components.embedders.instructor_embedders.embedding_backend.instructor_backend import (
     _InstructorEmbeddingBackendFactory,
 )

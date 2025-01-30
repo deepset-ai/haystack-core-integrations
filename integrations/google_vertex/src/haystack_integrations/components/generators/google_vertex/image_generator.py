@@ -5,7 +5,7 @@ import vertexai
 from haystack.core.component import component
 from haystack.core.serialization import default_from_dict, default_to_dict
 from haystack.dataclasses.byte_stream import ByteStream
-from vertexai.preview.vision_models import ImageGenerationModel
+from vertexai.vision_models import ImageGenerationModel
 
 logger = logging.getLogger(__name__)
 

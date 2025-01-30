@@ -200,6 +200,12 @@ class TestDocumentStore(DocumentStoreBaseTests):
             ],
         )
 
+    def test_filter_documents_by_id(self, document_store):
+        docs = [Document(id="1", content="test doc 1"), Document(id="2", content="test doc 2")]
+        document_store.write_documents(docs)
+        result = document_store.filter_documents(filters={"field": "id", "operator": "==", "value": "1"})
+        self.assert_documents_are_equal(result, [docs[0]])
+
     @pytest.mark.skip(reason="Unsupported filter operator not.")
     def test_not_operator(self, document_store, filterable_docs):
         pass

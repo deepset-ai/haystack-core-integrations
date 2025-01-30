@@ -2,10 +2,23 @@
 
 ## [unreleased]
 
+### 🐛 Bug Fixes
+
+- Remove the use of deprecated gemini models (#1032)
+
+### 🧪 Testing
+
+- Do not retry tests in `hatch run test` command (#954)
+
 ### ⚙️ Miscellaneous Tasks
 
 - Retry tests to reduce flakyness (#836)
 - Update ruff invocation to include check parameter (#853)
+
+### Docs
+
+- Update GeminiGenerator docstrings (#964)
+- Update GoogleChatGenerator docstrings (#962)
 
 ## [integrations/google_ai-v1.1.0] - 2024-06-05
 

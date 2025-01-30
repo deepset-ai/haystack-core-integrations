@@ -30,8 +30,6 @@ def _convert_filters(filters: Optional[Dict[str, Any]] = None) -> Optional[Dict[
         if key in {"$and", "$or"}:
             filter_statements[key] = value
         else:
-            if key == "id":
-                filter_statements[key] = {"_id": value}
             if key != "$in" and isinstance(value, list):
                 filter_statements[key] = {"$in": value}
             elif isinstance(value, pd.DataFrame):
@@ -45,6 +43,8 @@ def _convert_filters(filters: Optional[Dict[str, Any]] = None) -> Optional[Dict[
                 filter_statements[key] = converted
             else:
                 filter_statements[key] = value
+            if key == "id":
+                filter_statements["_id"] = filter_statements.pop("id")
 
     return filter_statements
 

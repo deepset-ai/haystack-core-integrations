@@ -9,6 +9,7 @@ from haystack import Document, Pipeline
 from haystack.components.builders.prompt_builder import PromptBuilder
 from haystack.components.retrievers import InMemoryBM25Retriever
 from haystack.document_stores.in_memory import InMemoryDocumentStore
+
 from haystack_integrations.components.generators.ollama import OllamaGenerator
 
 document_store = InMemoryDocumentStore()

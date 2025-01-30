@@ -2,6 +2,11 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+from weaviate.auth import AuthApiKey as WeaviateAuthApiKey
+from weaviate.auth import AuthBearerToken as WeaviateAuthBearerToken
+from weaviate.auth import AuthClientCredentials as WeaviateAuthClientCredentials
+from weaviate.auth import AuthClientPassword as WeaviateAuthClientPassword
+
 from haystack_integrations.document_stores.weaviate.auth import (
     AuthApiKey,
     AuthBearerToken,
@@ -9,10 +14,6 @@ from haystack_integrations.document_stores.weaviate.auth import (
     AuthClientPassword,
     AuthCredentials,
 )
-from weaviate.auth import AuthApiKey as WeaviateAuthApiKey
-from weaviate.auth import AuthBearerToken as WeaviateAuthBearerToken
-from weaviate.auth import AuthClientCredentials as WeaviateAuthClientCredentials
-from weaviate.auth import AuthClientPassword as WeaviateAuthClientPassword
 
 
 class TestAuthApiKey:

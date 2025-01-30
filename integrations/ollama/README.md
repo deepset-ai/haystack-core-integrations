@@ -36,4 +36,4 @@ Then run tests:
 hatch run test
 ```
 
-The default model used here is ``orca-mini``
+The default model used here is ``orca-mini`` for generation and ``nomic-embed-text`` for embeddings

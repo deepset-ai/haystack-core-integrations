@@ -8,6 +8,7 @@ from haystack import component, default_from_dict, default_to_dict
 from haystack.dataclasses import Document
 from haystack.document_stores.types import FilterPolicy
 from haystack.document_stores.types.filter_policy import apply_filter_policy
+
 from haystack_integrations.document_stores.opensearch import OpenSearchDocumentStore
 
 logger = logging.getLogger(__name__)
@@ -72,8 +73,16 @@ class OpenSearchBM25Retriever:
         An example `run()` method for this `custom_query`:
 
         ```python
-        retriever.run(query="Why did the revenue increase?",
-                        filters={"years": ["2019"], "quarters": ["Q1", "Q2"]})
+        retriever.run(
+            query="Why did the revenue increase?",
+            filters={
+                "operator": "AND",
+                "conditions": [
+                    {"field": "meta.years", "operator": "==", "value": "2019"},
+                    {"field": "meta.quarters", "operator": "in", "value": ["Q1", "Q2"]},
+                ],
+            },
+        )
         ```
         :param raise_on_failure:
             Whether to raise an exception if the API call fails. Otherwise log a warning and return an empty list.
@@ -183,8 +192,16 @@ class OpenSearchBM25Retriever:
         **For this custom_query, a sample `run()` could be:**
 
         ```python
-        retriever.run(query="Why did the revenue increase?",
-                        filters={"years": ["2019"], "quarters": ["Q1", "Q2"]})
+        retriever.run(
+            query="Why did the revenue increase?",
+            filters={
+                "operator": "AND",
+                "conditions": [
+                    {"field": "meta.years", "operator": "==", "value": "2019"},
+                    {"field": "meta.quarters", "operator": "in", "value": ["Q1", "Q2"]},
+                ],
+            },
+        )
         ```
 
         :returns:

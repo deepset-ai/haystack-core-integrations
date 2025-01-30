@@ -13,6 +13,7 @@ from haystack.components.converters import MarkdownToDocument
 from haystack.components.embedders import SentenceTransformersDocumentEmbedder, SentenceTransformersTextEmbedder
 from haystack.components.preprocessors import DocumentSplitter
 from haystack.components.writers import DocumentWriter
+
 from haystack_integrations.components.retrievers.mongodb_atlas import MongoDBAtlasEmbeddingRetriever
 from haystack_integrations.document_stores.mongodb_atlas import MongoDBAtlasDocumentStore
 

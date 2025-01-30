@@ -6,6 +6,7 @@ from haystack.components.embedders import SentenceTransformersDocumentEmbedder, 
 from haystack.components.retrievers import InMemoryEmbeddingRetriever
 from haystack.components.writers import DocumentWriter
 from haystack.document_stores import InMemoryDocumentStore
+
 from haystack_integrations.components.generators.llama_cpp import LlamaCppGenerator
 
 # Load first 100 rows of the Simple Wikipedia Dataset from HuggingFace

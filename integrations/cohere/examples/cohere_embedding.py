@@ -1,6 +1,7 @@
 from haystack import Document, Pipeline
 from haystack.components.retrievers.in_memory import InMemoryEmbeddingRetriever
 from haystack.document_stores.in_memory import InMemoryDocumentStore
+
 from haystack_integrations.components.embedders.cohere.document_embedder import CohereDocumentEmbedder
 from haystack_integrations.components.embedders.cohere.text_embedder import CohereTextEmbedder
 

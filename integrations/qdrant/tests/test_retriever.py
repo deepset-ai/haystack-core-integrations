@@ -8,6 +8,7 @@ from haystack.testing.document_store import (
     FilterableDocsFixtureMixin,
     _random_embeddings,
 )
+
 from haystack_integrations.components.retrievers.qdrant import (
     QdrantEmbeddingRetriever,
     QdrantHybridRetriever,
@@ -26,6 +27,8 @@ class TestQdrantRetriever(FilterableDocsFixtureMixin):
         assert retriever._filter_policy == FilterPolicy.REPLACE
         assert retriever._return_embedding is False
         assert retriever._score_threshold is None
+        assert retriever._group_by is None
+        assert retriever._group_size is None
 
         retriever = QdrantEmbeddingRetriever(document_store=document_store, filter_policy="replace")
         assert retriever._filter_policy == FilterPolicy.REPLACE
@@ -86,6 +89,8 @@ class TestQdrantRetriever(FilterableDocsFixtureMixin):
                 "scale_score": False,
                 "return_embedding": False,
                 "score_threshold": None,
+                "group_by": None,
+                "group_size": None,
             },
         }
 
@@ -103,6 +108,8 @@ class TestQdrantRetriever(FilterableDocsFixtureMixin):
                 "scale_score": False,
                 "return_embedding": True,
                 "score_threshold": None,
+                "group_by": None,
+                "group_size": None,
             },
         }
         retriever = QdrantEmbeddingRetriever.from_dict(data)
@@ -114,6 +121,8 @@ class TestQdrantRetriever(FilterableDocsFixtureMixin):
         assert retriever._scale_score is False
         assert retriever._return_embedding is True
         assert retriever._score_threshold is None
+        assert retriever._group_by is None
+        assert retriever._group_size is None
 
     def test_run(self, filterable_docs: List[Document]):
         document_store = QdrantDocumentStore(location=":memory:", index="Boi", use_sparse_embeddings=False)
@@ -151,7 +160,10 @@ class TestQdrantRetriever(FilterableDocsFixtureMixin):
             filters={"field": "meta.chapter", "operator": "==", "value": "abstract"},
             return_embedding=False,
         )["documents"]
-        assert len(results) == 3
+        # we need to combine init filter and run filter as the policy is MERGE
+        # when we combine these filters we use AND logical operator by default
+        # so the result should be 1 as we have only one document that matches both filters
+        assert len(results) == 1
 
         for document in results:
             assert document.embedding is None
@@ -196,6 +208,26 @@ class TestQdrantRetriever(FilterableDocsFixtureMixin):
         for document in results:
             assert document.embedding is None
 
+    def test_run_with_group_by(self, filterable_docs: List[Document]):
+        document_store = QdrantDocumentStore(location=":memory:", index="Boi", use_sparse_embeddings=True)
+        # Add group_field metadata to documents
+        for index, doc in enumerate(filterable_docs):
+            doc.meta = {"group_field": index // 2}  # So at least two docs have same group each time
+        document_store.write_documents(filterable_docs)
+
+        retriever = QdrantEmbeddingRetriever(document_store=document_store)
+        results = retriever.run(
+            query_embedding=_random_embeddings(768),
+            top_k=3,
+            return_embedding=False,
+            group_by="meta.group_field",
+            group_size=2,
+        )["documents"]
+        assert len(results) >= 3  # This test is Flaky
+        assert len(results) <= 6  # This test is Flaky
+        for document in results:
+            assert document.embedding is None
+
 
 class TestQdrantSparseEmbeddingRetriever(FilterableDocsFixtureMixin):
     def test_init_default(self):
@@ -207,6 +239,8 @@ class TestQdrantSparseEmbeddingRetriever(FilterableDocsFixtureMixin):
         assert retriever._filter_policy == FilterPolicy.REPLACE
         assert retriever._return_embedding is False
         assert retriever._score_threshold is None
+        assert retriever._group_by is None
+        assert retriever._group_size is None
 
         retriever = QdrantSparseEmbeddingRetriever(document_store=document_store, filter_policy="replace")
         assert retriever._filter_policy == FilterPolicy.REPLACE
@@ -267,6 +301,8 @@ class TestQdrantSparseEmbeddingRetriever(FilterableDocsFixtureMixin):
                 "return_embedding": False,
                 "filter_policy": "replace",
                 "score_threshold": None,
+                "group_by": None,
+                "group_size": None,
             },
         }
 
@@ -284,6 +320,8 @@ class TestQdrantSparseEmbeddingRetriever(FilterableDocsFixtureMixin):
                 "return_embedding": True,
                 "filter_policy": "replace",
                 "score_threshold": None,
+                "group_by": None,
+                "group_size": None,
             },
         }
         retriever = QdrantSparseEmbeddingRetriever.from_dict(data)
@@ -295,6 +333,8 @@ class TestQdrantSparseEmbeddingRetriever(FilterableDocsFixtureMixin):
         assert retriever._scale_score is False
         assert retriever._return_embedding is True
         assert retriever._score_threshold is None
+        assert retriever._group_by is None
+        assert retriever._group_size is None
 
     def test_from_dict_no_filter_policy(self):
         data = {
@@ -309,6 +349,8 @@ class TestQdrantSparseEmbeddingRetriever(FilterableDocsFixtureMixin):
                 "scale_score": False,
                 "return_embedding": True,
                 "score_threshold": None,
+                "group_by": None,
+                "group_size": None,
             },
         }
         retriever = QdrantSparseEmbeddingRetriever.from_dict(data)
@@ -320,6 +362,8 @@ class TestQdrantSparseEmbeddingRetriever(FilterableDocsFixtureMixin):
         assert retriever._scale_score is False
         assert retriever._return_embedding is True
         assert retriever._score_threshold is None
+        assert retriever._group_by is None
+        assert retriever._group_size is None
 
     def test_run(self, filterable_docs: List[Document], generate_sparse_embedding):
         document_store = QdrantDocumentStore(location=":memory:", index="Boi", use_sparse_embeddings=True)
@@ -341,6 +385,29 @@ class TestQdrantSparseEmbeddingRetriever(FilterableDocsFixtureMixin):
         for document in results:
             assert document.sparse_embedding
 
+    def test_run_with_group_by(self, filterable_docs: List[Document], generate_sparse_embedding):
+        document_store = QdrantDocumentStore(location=":memory:", index="Boi", use_sparse_embeddings=True)
+
+        # Add fake sparse embedding to documents
+        for index, doc in enumerate(filterable_docs):
+            doc.sparse_embedding = generate_sparse_embedding()
+            doc.meta = {"group_field": index // 2}  # So at least two docs have same group each time
+        document_store.write_documents(filterable_docs)
+        retriever = QdrantSparseEmbeddingRetriever(document_store=document_store)
+        sparse_embedding = SparseEmbedding(indices=[0, 1, 2, 3], values=[0.1, 0.8, 0.05, 0.33])
+        results = retriever.run(
+            query_sparse_embedding=sparse_embedding,
+            top_k=3,
+            return_embedding=True,
+            group_by="meta.group_field",
+            group_size=2,
+        )["documents"]
+        assert len(results) >= 3  # This test is Flaky
+        assert len(results) <= 6  # This test is Flaky
+
+        for document in results:
+            assert document.sparse_embedding
+
 
 class TestQdrantHybridRetriever:
     def test_init_default(self):
@@ -353,6 +420,8 @@ class TestQdrantHybridRetriever:
         assert retriever._filter_policy == FilterPolicy.REPLACE
         assert retriever._return_embedding is False
         assert retriever._score_threshold is None
+        assert retriever._group_by is None
+        assert retriever._group_size is None
 
         retriever = QdrantHybridRetriever(document_store=document_store, filter_policy="replace")
         assert retriever._filter_policy == FilterPolicy.REPLACE
@@ -412,6 +481,8 @@ class TestQdrantHybridRetriever:
                 "filter_policy": "replace",
                 "return_embedding": True,
                 "score_threshold": None,
+                "group_by": None,
+                "group_size": None,
             },
         }
 
@@ -428,6 +499,8 @@ class TestQdrantHybridRetriever:
                 "filter_policy": "replace",
                 "return_embedding": True,
                 "score_threshold": None,
+                "group_by": None,
+                "group_size": None,
             },
         }
         retriever = QdrantHybridRetriever.from_dict(data)
@@ -438,6 +511,8 @@ class TestQdrantHybridRetriever:
         assert retriever._filter_policy == FilterPolicy.REPLACE
         assert retriever._return_embedding
         assert retriever._score_threshold is None
+        assert retriever._group_by is None
+        assert retriever._group_size is None
 
     def test_from_dict_no_filter_policy(self):
         data = {
@@ -451,6 +526,8 @@ class TestQdrantHybridRetriever:
                 "top_k": 5,
                 "return_embedding": True,
                 "score_threshold": None,
+                "group_by": None,
+                "group_size": None,
             },
         }
         retriever = QdrantHybridRetriever.from_dict(data)
@@ -461,6 +538,8 @@ class TestQdrantHybridRetriever:
         assert retriever._filter_policy == FilterPolicy.REPLACE  # defaults to REPLACE
         assert retriever._return_embedding
         assert retriever._score_threshold is None
+        assert retriever._group_by is None
+        assert retriever._group_size is None
 
     def test_run(self):
         mock_store = Mock(spec=QdrantDocumentStore)
@@ -480,6 +559,34 @@ class TestQdrantHybridRetriever:
         assert call_args[1]["query_sparse_embedding"].values == [0.1, 0.7]
         assert call_args[1]["top_k"] == 10
         assert call_args[1]["return_embedding"] is False
+
+        assert res["documents"][0].content == "Test doc"
+        assert res["documents"][0].embedding == [0.1, 0.2]
+        assert res["documents"][0].sparse_embedding == sparse_embedding
+
+    def test_run_with_group_by(self):
+        mock_store = Mock(spec=QdrantDocumentStore)
+        sparse_embedding = SparseEmbedding(indices=[0, 1, 2, 3], values=[0.1, 0.8, 0.05, 0.33])
+        mock_store._query_hybrid.return_value = [
+            Document(content="Test doc", embedding=[0.1, 0.2], sparse_embedding=sparse_embedding)
+        ]
+
+        retriever = QdrantHybridRetriever(document_store=mock_store)
+        res = retriever.run(
+            query_embedding=[0.5, 0.7],
+            query_sparse_embedding=SparseEmbedding(indices=[0, 5], values=[0.1, 0.7]),
+            group_by="meta.group_field",
+            group_size=2,
+        )
+
+        call_args = mock_store._query_hybrid.call_args
+        assert call_args[1]["query_embedding"] == [0.5, 0.7]
+        assert call_args[1]["query_sparse_embedding"].indices == [0, 5]
+        assert call_args[1]["query_sparse_embedding"].values == [0.1, 0.7]
+        assert call_args[1]["top_k"] == 10
+        assert call_args[1]["return_embedding"] is False
+        assert call_args[1]["group_by"] == "meta.group_field"
+        assert call_args[1]["group_size"] == 2
 
         assert res["documents"][0].content == "Test doc"
         assert res["documents"][0].embedding == [0.1, 0.2]

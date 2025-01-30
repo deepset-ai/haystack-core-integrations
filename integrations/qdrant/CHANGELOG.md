@@ -1,5 +1,25 @@
 # Changelog
 
+## [integrations/qdrant-v6.0.0] - 2024-09-13
+
+## [integrations/qdrant-v5.1.0] - 2024-09-12
+
+### 🚀 Features
+
+- Qdrant - Add group_by and group_size optional parameters to Retrievers (#1054)
+
+## [integrations/qdrant-v5.0.0] - 2024-09-02
+
+## [integrations/qdrant-v4.2.0] - 2024-08-27
+
+### 🚜 Refactor
+
+- Qdrant Query API (#1025)
+
+### 🧪 Testing
+
+- Do not retry tests in `hatch run test` command (#954)
+
 ## [integrations/qdrant-v4.1.2] - 2024-07-15
 
 ### 🐛 Bug Fixes

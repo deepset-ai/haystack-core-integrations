@@ -3,6 +3,7 @@ from unittest.mock import MagicMock, patch
 import numpy as np
 import pytest
 from haystack import Document, default_from_dict
+
 from haystack_integrations.components.embedders.fastembed.fastembed_document_embedder import (
     FastembedDocumentEmbedder,
 )
