@@ -706,7 +706,7 @@ class TestWeaviateDocumentStore(
         document_store = WeaviateDocumentStore(embedded_options=EmbeddedOptions())
         assert document_store.client
 
-        def test_docx_metadata(self, document_store):
+    def test_docx_metadata(self, document_store):
         from haystack.components.converters.docx import DOCXMetadata
         from dataclasses import asdict
 

@@ -927,7 +927,7 @@ class TestDocumentStore(DocumentStoreBaseTests, FilterDocumentsTestWithDataframe
         assert len(results) == 2
         assert results[0].embedding is None
 
-        def test_docx_metadata(self, document_store):
+    def test_docx_metadata(self, document_store):
         from haystack.components.converters.docx import DOCXMetadata
         from dataclasses import asdict
 

@@ -61,7 +61,7 @@ class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsT
             same_connection = document_store.connection
             assert same_connection is document_store._connection
 
-        def test_docx_metadata(self, document_store):
+    def test_docx_metadata(self, document_store):
         from haystack.components.converters.docx import DOCXMetadata
         from dataclasses import asdict
 

@@ -316,7 +316,7 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, WriteDocumentsT
 
         assert len(result["context_windows"]) == 1
 
-        def test_docx_metadata(self, document_store):
+    def test_docx_metadata(self, document_store):
         from haystack.components.converters.docx import DOCXMetadata
         from dataclasses import asdict
 

@@ -410,7 +410,7 @@ class TestFilters(FilterDocumentsTest, FilterDocumentsTestWithDataframe):
             ],
         )
 
-        def test_docx_metadata(self, document_store):
+    def test_docx_metadata(self, document_store):
         from haystack.components.converters.docx import DOCXMetadata
         from dataclasses import asdict
 
