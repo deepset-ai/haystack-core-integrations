@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/google_ai-v5.1.0] - 2025-01-30
+
+### 🚀 Features
+
+- Google AI Chat Generator - add tool config + improvements (#1333)
+
+
 ## [integrations/google_ai-v5.0.1] - 2025-01-23
 
 ### 🚜 Refactor
