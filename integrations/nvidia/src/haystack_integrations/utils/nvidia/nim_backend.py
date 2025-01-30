@@ -9,7 +9,7 @@ import requests
 from haystack import logging
 from haystack.utils import Secret
 
-from .statics import Model
+from .model import Model
 
 logger = logging.getLogger(__name__)
 

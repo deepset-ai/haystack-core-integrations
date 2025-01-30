@@ -3,10 +3,10 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import warnings
-from typing import List, Optional
+from typing import Any, List, Optional
 from urllib.parse import urlparse, urlunparse
 
-from .statics import MODEL_TABLE, Model
+from .model import MODEL_TABLE, Model
 
 
 def url_validation(api_url: str, default_api_url: Optional[str], allowed_paths: List[str]) -> str:
@@ -90,7 +90,7 @@ def determine_model(name: str) -> Optional[Model]:
     return model
 
 
-def validate_hosted_model(class_name: str, model_name: str, client: str) -> None:
+def validate_hosted_model(class_name: str, model_name: str, client: Any) -> None:
     """
     Validates compatibility of the hosted model with the client.
 
@@ -105,13 +105,14 @@ def validate_hosted_model(class_name: str, model_name: str, client: str) -> None
         if not model.client:
             warn_msg = f"Unable to determine validity of {model.id}"
             warnings.warn(warn_msg, stacklevel=1)
-        if (model.model_type == "embedding" and class_name not in ["NvidiaTextEmbedder", "NvidiaDocumentEmbedder"]):
+        if model.model_type == "embedding" and class_name not in ["NvidiaTextEmbedder", "NvidiaDocumentEmbedder"]:
             # Handle the case where the model is an "embedding" and the class name is not compatible.
             err_msg = f"Model {model.id} is an embedding, but {class_name} is not a compatible client."
             raise ValueError(err_msg)
-        if (model.model_type != "embedding" and model.client != class_name):
+        if model.model_type != "embedding" and model.client != class_name:
             # Handle the case where the model type is not "embedding" and the client doesn't match.
-            err_msg = f"Model {model.id} is incompatible with client {class_name}. Please check `{class_name}.available_models`."
+            err_msg = f"Model {model.id} is incompatible with client {class_name}. \
+                        Please check `{class_name}.available_models`."
             raise ValueError(err_msg)
 
     else:

@@ -18,7 +18,7 @@ _DEFAULT_API_URL = "https://integrate.api.nvidia.com/v1"
 class NvidiaGenerator:
     """
     Generates text using generative models hosted with
-    [NVIDIA NIM](https://ai.nvidia.com) on on the [NVIDIA API Catalog](https://build.nvidia.com/explore/discover).
+    [NVIDIA NIM](https://ai.nvidia.com) on the [NVIDIA API Catalog](https://build.nvidia.com/explore/discover).
 
     ### Usage example
 
@@ -81,7 +81,7 @@ class NvidiaGenerator:
         self._api_key = api_key
         self._model_arguments = model_arguments or {}
 
-        self._backend: Optional[NimBackend] = None
+        self._backend: Optional[Any] = None
 
         self.is_hosted = is_hosted(api_url)
         if timeout is None:

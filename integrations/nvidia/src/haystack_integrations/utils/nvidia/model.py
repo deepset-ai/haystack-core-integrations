@@ -30,20 +30,6 @@ class Model:
     def __hash__(self) -> int:
         return hash(self.id)
 
-    # @field_validator("client")
-    # def validate_client(self, client: str, values: dict) -> str:
-    #     if client:
-    #         supported = {
-    #             "NvidiaGenerator": ("chat"),
-    #             "NvidiaTextEmbedder": ("embedding",),
-    #             "NvidiaDocumentEmbedder": ("embedding",),
-    #         }
-    #         model_type = values.get("model_type")
-    #         if model_type not in supported[client]:
-    #             err_msg = f"Model type '{model_type}' not supported by client '{client}'"
-    #             raise ValueError(err_msg)
-    #     return client
-
 
 CHAT_MODEL_TABLE = {
     "meta/codellama-70b": Model(
