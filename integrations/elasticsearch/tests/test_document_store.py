@@ -125,8 +125,10 @@ class TestDocumentStore(DocumentStoreBaseTests, FilterDocumentsTestWithDataframe
         assert document_store.client._headers["user-agent"].startswith("haystack-py-ds/")
 
     def test_write_documents(self, document_store: ElasticsearchDocumentStore):
-        docs = [Document(id="1")]
-        assert document_store.write_documents(docs) == 1
+        num_docs = 50000
+        batch_size = 5000
+        docs = [Document(id=f"{i}") for i in range(num_docs)]
+        assert document_store.write_documents(docs, batch_size) == num_docs
         with pytest.raises(DuplicateDocumentError):
             document_store.write_documents(docs, DuplicatePolicy.FAIL)
 
