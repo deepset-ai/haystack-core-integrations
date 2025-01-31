@@ -128,14 +128,14 @@ class TestNvidiaGenerator:
         monkeypatch.setenv("NVIDIA_API_KEY", "fake-api-key")
         generator = NvidiaGenerator(timeout=10.0)
         generator.warm_up()
-        assert generator._backend.timeout == 10.0
+        assert generator.backend.timeout == 10.0
 
     def test_setting_timeout_env(self, monkeypatch):
         monkeypatch.setenv("NVIDIA_API_KEY", "fake-api-key")
         monkeypatch.setenv("NVIDIA_TIMEOUT", "45")
         generator = NvidiaGenerator()
         generator.warm_up()
-        assert generator._backend.timeout == 45.0
+        assert generator.backend.timeout == 45.0
 
     @pytest.mark.skipif(
         not os.environ.get("NVIDIA_NIM_GENERATOR_MODEL", None) or not os.environ.get("NVIDIA_NIM_ENDPOINT_URL", None),
@@ -176,7 +176,7 @@ class TestNvidiaGenerator:
         )
         with pytest.warns(UserWarning) as record:
             generator.warm_up()
-        assert len(record) == 1
+        assert len(record) == 2
         assert "Default model is set as:" in str(record[0].message)
         assert generator._model == "model1"
         assert not generator.is_hosted
@@ -206,10 +206,11 @@ class TestNvidiaGenerator:
         assert result["replies"]
         assert result["meta"]
 
+    @pytest.mark.usefixtures("mock_local_models")
     def test_local_nim_without_key(self) -> None:
         generator = NvidiaGenerator(
-            model="BOGUS",
-            api_url="http://localhost:8000",
+            model="model1",
+            api_url="http://localhost:8080",
             api_key=None,
         )
         generator.warm_up()

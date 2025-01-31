@@ -3,32 +3,17 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import os
-from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Literal, Optional, Tuple
 
 import requests
 from haystack import logging
 from haystack.utils import Secret
 
+from .model import Model
+
 logger = logging.getLogger(__name__)
 
 REQUEST_TIMEOUT = 60.0
-
-
-@dataclass
-class Model:
-    """
-    Model information.
-
-    id: unique identifier for the model, passed as model parameter for requests
-    aliases: list of aliases for the model
-    base_model: root model for the model
-    All aliases are deprecated and will trigger a warning when used.
-    """
-
-    id: str
-    aliases: Optional[List[str]] = field(default_factory=list)
-    base_model: Optional[str] = None
 
 
 class NimBackend:
@@ -38,6 +23,8 @@ class NimBackend:
         api_url: str,
         api_key: Optional[Secret] = Secret.from_env_var("NVIDIA_API_KEY"),
         model_kwargs: Optional[Dict[str, Any]] = None,
+        client: Optional[Literal["NvidiaGenerator", "NvidiaTextEmbedder", "NvidiaDocumentEmbedder"]] = None,
+        model_type: Optional[Literal["chat", "embedding"]] = None,
         timeout: Optional[float] = None,
     ):
         headers = {
@@ -54,6 +41,8 @@ class NimBackend:
         self.model = model
         self.api_url = api_url
         self.model_kwargs = model_kwargs or {}
+        self.client = client
+        self.model_type = model_type
         if timeout is None:
             timeout = float(os.environ.get("NVIDIA_TIMEOUT", REQUEST_TIMEOUT))
         self.timeout = timeout
@@ -146,7 +135,11 @@ class NimBackend:
         res.raise_for_status()
 
         data = res.json()["data"]
-        models = [Model(element["id"]) for element in data if "id" in element]
+        models = [
+            Model(id=element["id"], client=self.client, model_type=self.model_type, base_model=element.get("root"))
+            for element in data
+            if "id" in element
+        ]
         if not models:
             logger.error("No hosted model were found at URL '{u}'.", u=url)
             msg = f"No hosted model were found at URL '{url}'."
