@@ -1,8 +1,6 @@
 from dataclasses import dataclass
 from typing import Literal, Optional
 
-# from pydantic import field_validator
-
 
 @dataclass
 class Model:
