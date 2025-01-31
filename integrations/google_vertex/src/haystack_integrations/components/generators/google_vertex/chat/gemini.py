@@ -383,7 +383,7 @@ class VertexAIGeminiChatGenerator:
                             arguments=dict(part.function_call.args),
                         )
                     )
-            reply = ChatMessage.from_assistant(text=text, tool_calls=tool_calls, meta=candidate_metadata)
+            reply = ChatMessage.from_assistant(text=text or None, tool_calls=tool_calls, meta=candidate_metadata)
             replies.append(reply)
         return replies
 
