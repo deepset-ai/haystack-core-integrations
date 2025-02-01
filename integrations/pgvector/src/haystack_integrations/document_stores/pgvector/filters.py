@@ -232,6 +232,19 @@ def _in(field: str, value: Any) -> Tuple[str, List]:
     return f"{field} = ANY(%s)", [value]
 
 
+def _like(field: str, value: Any) -> Tuple[str, Any]:
+    if not isinstance(value, str):
+        msg = f"{field}'s value must be a str when using 'LIKE' "
+        raise FilterError(msg)
+    return f"{field} LIKE %s", value
+
+
+def _not_like(field: str, value: Any) -> Tuple[str, Any]:
+    if not isinstance(value, str):
+        msg = f"{field}'s value must be a str when using 'LIKE' "
+        raise FilterError(msg)
+    return f"{field} NOT LIKE %s", value
+
 COMPARISON_OPERATORS = {
     "==": _equal,
     "!=": _not_equal,
@@ -241,4 +254,6 @@ COMPARISON_OPERATORS = {
     "<=": _less_than_equal,
     "in": _in,
     "not in": _not_in,
+    "like": _like,
+    "not like": _not_like,
 }
