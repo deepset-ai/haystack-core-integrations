@@ -238,11 +238,13 @@ def _like(field: str, value: Any) -> Tuple[str, Any]:
         raise FilterError(msg)
     return f"{field} LIKE %s", value
 
+
 def _not_like(field: str, value: Any) -> Tuple[str, Any]:
     if not isinstance(value, str):
         msg = f"{field}'s value must be a str when using 'LIKE' "
         raise FilterError(msg)
     return f"{field} NOT LIKE %s", value
+
 
 COMPARISON_OPERATORS = {
     "==": _equal,
