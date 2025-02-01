@@ -40,6 +40,62 @@ class TestFilters(FilterDocumentsTest, FilterDocumentsTestWithDataframe):
     @pytest.mark.skip(reason="NOT operator is not supported in PgvectorDocumentStore")
     def test_not_operator(self, document_store, filterable_docs): ...
 
+    def test_like_operator(self, document_store, filterable_docs):
+        document_store.write_documents(filterable_docs)
+        filters = {"field": "content", "operator": "like", "value": "%Foo%"}
+        result = document_store.filter_documents(filters=filters)
+
+        self.assert_documents_are_equal(result, [d for d in filterable_docs if "Foo" in d.content])
+
+    def test_like_operator_startswith(self, document_store, filterable_docs):
+        document_store.write_documents(filterable_docs)
+        filters = {"field": "content", "operator": "like", "value": "Foo%"}
+        result = document_store.filter_documents(filters=filters)
+
+        self.assert_documents_are_equal(result, [d for d in filterable_docs if d.content.startswith("Foo")])
+
+    def test_like_operator_nb_chars(self, document_store, filterable_docs):
+        document_store.write_documents(filterable_docs)
+        filters = {"field": "content", "operator": "like", "value": "A Foobar Document__"}
+        result = document_store.filter_documents(filters=filters)
+
+        self.assert_documents_are_equal(
+            result,
+            [
+                d
+                for d in filterable_docs
+                if (d.content.startswith("A Foobar Document") and len(d.content) == (len("A Foobar Document") + 2))
+            ],
+        )
+
+    def test_not_like_operator(self, document_store, filterable_docs):
+        document_store.write_documents(filterable_docs)
+        filters = {"field": "content", "operator": "not like", "value": "%Foo%"}
+        result = document_store.filter_documents(filters=filters)
+
+        self.assert_documents_are_equal(result, [d for d in filterable_docs if "Foo" not in d.content])
+
+    def test_not_like_operator_startswith(self, document_store, filterable_docs):
+        document_store.write_documents(filterable_docs)
+        filters = {"field": "content", "operator": "not like", "value": "Foo%"}
+        result = document_store.filter_documents(filters=filters)
+
+        self.assert_documents_are_equal(result, [d for d in filterable_docs if not d.content.startswith("Foo")])
+
+    def test_not_like_operator_nb_chars(self, document_store, filterable_docs):
+        document_store.write_documents(filterable_docs)
+        filters = {"field": "content", "operator": "not like", "value": "A Foobar Document__"}
+        result = document_store.filter_documents(filters=filters)
+
+        self.assert_documents_are_equal(
+            result,
+            [
+                d
+                for d in filterable_docs
+                if not (d.content.startswith("A Foobar Document") and len(d.content) == (len("A Foobar Document") + 2))
+            ],
+        )
+
     def test_complex_filter(self, document_store, filterable_docs):
         document_store.write_documents(filterable_docs)
         filters = {
