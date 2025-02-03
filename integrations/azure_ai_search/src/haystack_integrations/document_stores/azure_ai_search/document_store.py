@@ -477,7 +477,7 @@ class AzureAISearchDocumentStore:
             msg = "query must not be None"
             raise ValueError(msg)
 
-        result = self.client.search(search_text=query, filter=filters, top=top_k, query_type="simple", **kwargs)
+        result = self.client.search(search_text=query, filter=filters, top=top_k, **kwargs)
         azure_docs = list(result)
         return self._convert_search_result_to_documents(azure_docs)
 
@@ -520,7 +520,6 @@ class AzureAISearchDocumentStore:
             vector_queries=[vector_query],
             filter=filters,
             top=top_k,
-            query_type="simple",
             **kwargs,
         )
         azure_docs = list(result)
