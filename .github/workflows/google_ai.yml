@@ -10,7 +10,7 @@ on:
       - "integrations/google_ai/**"
       - "!integrations/google_ai/CHANGELOG.md"
       - ".github/workflows/google_ai.yml"
-      
+
 defaults:
   run:
     working-directory: integrations/google_ai

@@ -10,7 +10,7 @@ on:
       - "integrations/amazon_sagemaker/**"
       - "!integrations/amazon_sagemaker/CHANGELOG.md"
       - ".github/workflows/amazon_sagemaker.yml"
-      
+
 defaults:
   run:
     working-directory: integrations/amazon_sagemaker

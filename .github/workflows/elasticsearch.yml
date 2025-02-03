@@ -10,7 +10,7 @@ on:
       - "integrations/elasticsearch/**"
       - "!integrations/elasticsearch/CHANGELOG.md"
       - ".github/workflows/elasticsearch.yml"
-      
+
 defaults:
   run:
     working-directory: integrations/elasticsearch
