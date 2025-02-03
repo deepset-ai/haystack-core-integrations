@@ -8,6 +8,7 @@ on:
   pull_request:
     paths:
       - "integrations/optimum/**"
+      - "!integrations/optimum/CHANGELOG.md"
       - ".github/workflows/optimum.yml"
 
 defaults:

@@ -8,6 +8,7 @@ on:
   pull_request:
     paths:
       - "integrations/google_vertex/**"
+      - "!integrations/google_vertex/CHANGELOG.md"
       - ".github/workflows/google_vertex.yml"
 
 defaults:

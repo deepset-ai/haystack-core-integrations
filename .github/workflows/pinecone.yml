@@ -8,6 +8,7 @@ on:
   pull_request:
     paths:
       - "integrations/pinecone/**"
+      - "!integrations/pinecone/CHANGELOG.md"
       - ".github/workflows/pinecone.yml"
 
 defaults:

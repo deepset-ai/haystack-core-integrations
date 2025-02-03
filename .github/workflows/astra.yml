@@ -8,6 +8,7 @@ on:
   pull_request:
     paths:
       - "integrations/astra/**"
+      - "!integrations/astra/CHANGELOG.md"
       - ".github/workflows/astra.yml"
 
 defaults:
