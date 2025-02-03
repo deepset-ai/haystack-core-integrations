@@ -10,6 +10,7 @@ on:
       - "integrations/anthropic/**"
       - "!integrations/anthropic/CHANGELOG.md"
       - ".github/workflows/anthropic.yml"
+      
 defaults:
   run:
     working-directory: integrations/anthropic

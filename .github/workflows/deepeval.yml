@@ -10,6 +10,7 @@ on:
       - "integrations/deepeval/**"
       - "!integrations/deepeval/CHANGELOG.md"
       - ".github/workflows/deepeval.yml"
+      
 defaults:
   run:
     working-directory: integrations/deepeval

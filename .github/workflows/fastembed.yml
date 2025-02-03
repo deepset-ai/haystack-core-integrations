@@ -8,6 +8,7 @@ on:
       - "integrations/fastembed/**"
       - "!integrations/fastembed/CHANGELOG.md"
       - ".github/workflows/fastembed.yml"
+      
 defaults:
   run:
     working-directory: integrations/fastembed

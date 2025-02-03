@@ -10,6 +10,7 @@ on:
       - "integrations/amazon_bedrock/**"
       - "!integrations/amazon_bedrock/CHANGELOG.md"
       - ".github/workflows/amazon_bedrock.yml"
+      
 defaults:
   run:
     working-directory: integrations/amazon_bedrock
