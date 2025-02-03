@@ -32,6 +32,7 @@ jobs:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
         python-version: ["3.9", "3.10"]
+      max-parallel: 2  # to avoid "429 Resource has been exhausted"
 
     steps:
       - name: Support longpaths
