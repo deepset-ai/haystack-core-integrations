@@ -1,5 +1,11 @@
 # Changelog
 
+## [integrations/optimum-v0.1.3] - 2025-02-03
+
+### 🌀 Miscellaneous
+
+- Fix: Optimum - pin transformers and fix test (#1342)
+
 ## [integrations/optimum-v0.1.2] - 2025-01-20
 
 ### 🐛 Bug Fixes
