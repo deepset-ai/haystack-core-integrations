@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 from datetime import datetime
 from itertools import chain
-from typing import Any, Dict, List, Literal, Tuple
+from typing import Any, Dict, List, Literal, Optional, Tuple
 
 from haystack.errors import FilterError
 from pandas import DataFrame
@@ -99,13 +99,13 @@ def _parse_comparison_condition(condition: Dict[str, Any]) -> Tuple[str, List[An
         field = f"({field})::jsonb"
 
     if field.startswith("meta."):
-        field = _treat_meta_field(field, value)
+        field = _treat_meta_field(field, value, operator)
 
     field, value = COMPARISON_OPERATORS[operator](field, value)
     return field, [value]
 
 
-def _treat_meta_field(field: str, value: Any) -> str:
+def _treat_meta_field(field: str, value: Any, operator: Optional[str] = None) -> str:
     """
     Internal method that modifies the field str
     to make the meta JSONB field queryable.
@@ -116,10 +116,17 @@ def _treat_meta_field(field: str, value: Any) -> str:
 
     >>> _treat_meta_field(field="meta.name", value="my_name")
     "meta->>'name'"
-    """
 
-    # use the ->> operator to access keys in the meta JSONB field
+    >>> _treat_meta_field(field="meta.tags", value=["tag1", "tag2"], operator="array_contains")
+    "meta->'tags'"
+    """
     field_name = field.split(".", 1)[-1]
+
+    # For array operations, we need to use the -> operator
+    if operator and operator.startswith("array_"):
+        return f"meta->'{field_name}'"
+
+    # use the ->> operator to access keys in the meta JSONB field as text
     field = f"meta->>'{field_name}'"
 
     # meta fields are stored as strings in the JSONB field,
@@ -246,6 +253,24 @@ def _not_like(field: str, value: Any) -> Tuple[str, Any]:
     return f"{field} NOT LIKE %s", value
 
 
+def _array_contains(field: str, value: Any) -> Tuple[str, Any]:
+    if not isinstance(value, list):
+        msg = f"{field}'s value must be a list when using 'array_contains' operator"
+        raise FilterError(msg)
+
+    # @> expects value to be a JSONB type
+    return f"{field} @> %s", Jsonb(value)
+
+
+def _array_overlaps(field: str, value: Any) -> Tuple[str, Any]:
+    if not isinstance(value, list):
+        msg = f"{field}'s value must be a list when using 'array_overlaps' operator"
+        raise FilterError(msg)
+
+    # ?| expects value to be a text array
+    return f"{field} ?| %s", value
+
+
 COMPARISON_OPERATORS = {
     "==": _equal,
     "!=": _not_equal,
@@ -257,4 +282,6 @@ COMPARISON_OPERATORS = {
     "not in": _not_in,
     "like": _like,
     "not like": _not_like,
+    "array_contains": _array_contains,
+    "array_overlaps": _array_overlaps,
 }
