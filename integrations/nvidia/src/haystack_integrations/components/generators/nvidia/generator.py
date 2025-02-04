@@ -11,8 +11,6 @@ from haystack.utils.auth import Secret, deserialize_secrets_inplace
 
 from haystack_integrations.utils.nvidia import DEFAULT_API_URL, Model, NimBackend, is_hosted, url_validation
 
-_API_URL_VAR = "NVIDIA_API_URL"
-
 
 @component
 class NvidiaGenerator:
@@ -47,7 +45,7 @@ class NvidiaGenerator:
     def __init__(
         self,
         model: Optional[str] = None,
-        api_url: str = os.getenv(_API_URL_VAR, DEFAULT_API_URL),
+        api_url: str = os.getenv("NVIDIA_API_URL", DEFAULT_API_URL),
         api_key: Optional[Secret] = Secret.from_env_var("NVIDIA_API_KEY"),
         model_arguments: Optional[Dict[str, Any]] = None,
         timeout: Optional[float] = None,

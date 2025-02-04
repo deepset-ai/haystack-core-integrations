@@ -14,8 +14,6 @@ from haystack_integrations.utils.nvidia import DEFAULT_API_URL, Model, NimBacken
 
 logger = logging.getLogger(__name__)
 
-_API_URL_VAR = "NVIDIA_API_URL"
-
 
 @component
 class NvidiaTextEmbedder:
@@ -43,7 +41,7 @@ class NvidiaTextEmbedder:
         self,
         model: Optional[str] = None,
         api_key: Optional[Secret] = Secret.from_env_var("NVIDIA_API_KEY"),
-        api_url: str = os.getenv(_API_URL_VAR, DEFAULT_API_URL),
+        api_url: str = os.getenv("NVIDIA_API_URL", DEFAULT_API_URL),
         prefix: str = "",
         suffix: str = "",
         truncate: Optional[Union[EmbeddingTruncateMode, str]] = None,

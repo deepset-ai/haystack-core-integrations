@@ -14,8 +14,6 @@ from haystack_integrations.utils.nvidia import DEFAULT_API_URL, NimBackend, is_h
 
 logger = logging.getLogger(__name__)
 
-_API_URL_VAR = "NVIDIA_API_URL"
-
 
 @component
 class NvidiaRanker:
@@ -51,7 +49,7 @@ class NvidiaRanker:
         self,
         model: Optional[str] = None,
         truncate: Optional[Union[RankerTruncateMode, str]] = None,
-        api_url: str = os.getenv(_API_URL_VAR, DEFAULT_API_URL),
+        api_url: str = os.getenv("NVIDIA_API_URL", DEFAULT_API_URL),
         api_key: Optional[Secret] = Secret.from_env_var("NVIDIA_API_KEY"),
         top_k: int = 5,
         query_prefix: str = "",
