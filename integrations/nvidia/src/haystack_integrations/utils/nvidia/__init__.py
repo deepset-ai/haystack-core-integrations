@@ -2,8 +2,8 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from .model import Model
+from .models import DEFAULT_API_URL, Model
 from .nim_backend import NimBackend
-from .utils import is_hosted, url_validation, validate_hosted_model
+from .utils import is_hosted, url_validation
 
-__all__ = ["Model", "NimBackend", "is_hosted", "url_validation", "validate_hosted_model"]
+__all__ = ["DEFAULT_API_URL", "Model", "NimBackend", "is_hosted", "url_validation", "validate_hosted_model"]

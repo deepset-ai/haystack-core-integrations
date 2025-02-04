@@ -10,11 +10,9 @@ from haystack import component, default_from_dict, default_to_dict, logging
 from haystack.utils import Secret, deserialize_secrets_inplace
 
 from haystack_integrations.components.embedders.nvidia.truncate import EmbeddingTruncateMode
-from haystack_integrations.utils.nvidia import Model, NimBackend, is_hosted, url_validation, validate_hosted_model
+from haystack_integrations.utils.nvidia import DEFAULT_API_URL, Model, NimBackend, url_validation
 
 logger = logging.getLogger(__name__)
-
-_DEFAULT_API_URL = "https://ai.api.nvidia.com/v1/retrieval/nvidia"
 
 
 @component
@@ -43,7 +41,7 @@ class NvidiaTextEmbedder:
         self,
         model: Optional[str] = None,
         api_key: Optional[Secret] = Secret.from_env_var("NVIDIA_API_KEY"),
-        api_url: str = _DEFAULT_API_URL,
+        api_url: str = os.getenv("NVIDIA_API_URL", DEFAULT_API_URL),
         prefix: str = "",
         suffix: str = "",
         truncate: Optional[Union[EmbeddingTruncateMode, str]] = None,
@@ -75,7 +73,7 @@ class NvidiaTextEmbedder:
 
         self.api_key = api_key
         self.model = model
-        self.api_url = url_validation(api_url, _DEFAULT_API_URL, ["v1/embeddings"])
+        self.api_url = url_validation(api_url)
         self.prefix = prefix
         self.suffix = suffix
 
@@ -86,12 +84,13 @@ class NvidiaTextEmbedder:
         self.backend: Optional[Any] = None
         self._initialized = False
 
-        if is_hosted(api_url) and not self.model:  # manually set default model
-            self.model = "nvidia/nv-embedqa-e5-v5"
-
         if timeout is None:
             timeout = float(os.environ.get("NVIDIA_TIMEOUT", 60.0))
         self.timeout = timeout
+
+    @classmethod
+    def class_name(cls) -> str:
+        return "NvidiaTextEmbedder"
 
     def default_model(self):
         """Set default model in local NIM mode."""
@@ -130,19 +129,20 @@ class NvidiaTextEmbedder:
             model_kwargs["truncate"] = str(self.truncate)
         self.backend = NimBackend(
             model=self.model,
+            model_type="embedding",
             api_url=self.api_url,
             api_key=self.api_key,
             model_kwargs=model_kwargs,
-            client=self.__class__.__name__,
-            model_type="embedding",
             timeout=self.timeout,
+            client=self.__class__.__name__,
         )
-
         self._initialized = True
 
         if not self.model:
-            self.default_model()
-        validate_hosted_model(self.__class__.__name__, self.model, self)
+            if self.backend.model:
+                self.model = self.backend.model
+            else:
+                self.default_model()
 
     def to_dict(self) -> Dict[str, Any]:
         """

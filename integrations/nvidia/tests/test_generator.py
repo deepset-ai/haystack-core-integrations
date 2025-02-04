@@ -143,7 +143,7 @@ class TestNvidiaGenerator:
         "NVIDIA_NIM_ENDPOINT_URL containing the local URL to call.",
     )
     @pytest.mark.integration
-    def test_run_integration_with_nim_backend(self):
+    def test_run_integration_with_nimbackend(self):
         model = os.environ["NVIDIA_NIM_GENERATOR_MODEL"]
         url = os.environ["NVIDIA_NIM_ENDPOINT_URL"]
         generator = NvidiaGenerator(
@@ -163,7 +163,7 @@ class TestNvidiaGenerator:
     @pytest.mark.integration
     @pytest.mark.usefixtures("mock_local_models")
     @pytest.mark.usefixtures("mock_local_chat_completion")
-    def test_run_integration_with_default_model_nim_backend(self):
+    def test_run_integration_with_default_model_nimbackend(self):
         model = None
         url = "http://localhost:8080/v1"
         generator = NvidiaGenerator(
@@ -176,7 +176,7 @@ class TestNvidiaGenerator:
         )
         with pytest.warns(UserWarning) as record:
             generator.warm_up()
-        assert len(record) == 2
+        assert len(record) == 1
         assert "Default model is set as:" in str(record[0].message)
         assert generator._model == "model1"
         assert not generator.is_hosted
