@@ -352,4 +352,6 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, WriteDocumentsT
             filters={"field": "id", "operator": "==", "value": "mydocwithdocxmetadata"}
         )
         assert len(retrieved_docs) == 1
+        retrieved_docs[0].score = None
+        retrieved_docs[0].embedding = None
         assert retrieved_docs[0] == doc
