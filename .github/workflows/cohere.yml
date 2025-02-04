@@ -8,6 +8,7 @@ on:
   pull_request:
     paths:
       - "integrations/cohere/**"
+      - "!integrations/cohere/*.md"
       - ".github/workflows/cohere.yml"
 
 defaults:

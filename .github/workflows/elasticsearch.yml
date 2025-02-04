@@ -8,6 +8,7 @@ on:
   pull_request:
     paths:
       - "integrations/elasticsearch/**"
+      - "!integrations/elasticsearch/*.md"
       - ".github/workflows/elasticsearch.yml"
 
 defaults:

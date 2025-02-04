@@ -8,6 +8,7 @@ on:
   pull_request:
     paths:
       - "integrations/google_ai/**"
+      - "!integrations/google_ai/*.md"
       - ".github/workflows/google_ai.yml"
 
 defaults:
