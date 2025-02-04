@@ -5,7 +5,7 @@
 ### 🌀 Miscellaneous
 
 - Client Reject Incompatible models (#1056)
-- Base url validation fix and cleanup (#1349)
+- Base URL validation fix (#1349)
 
 ## [integrations/nvidia-v0.1.4] - 2025-01-08
 
