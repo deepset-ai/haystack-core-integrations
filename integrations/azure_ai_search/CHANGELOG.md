@@ -1,5 +1,21 @@
 # Changelog
 
+## [integrations/azure_ai_search-v0.1.2] - 2025-02-03
+
+### 🐛 Bug Fixes
+
+- Fix: remove setting `query_type="simple"` in retrieval request (#1346)
+
+
+### ⚙️ CI
+
+- Delete all azure_ai_search indexes after testing (#1247)
+
+### 🧹 Chores
+
+- Fix linting/isort (#1215)
+- Inherit from `FilterDocumentsTestWithDataframe` in Document Stores (#1290)
+
 ## [integrations/azure_ai_search-v0.1.1] - 2024-11-22
 
 ### 🐛 Bug Fixes

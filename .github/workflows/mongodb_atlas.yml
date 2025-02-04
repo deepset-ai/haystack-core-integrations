@@ -8,6 +8,7 @@ on:
   pull_request:
     paths:
       - 'integrations/mongodb_atlas/**'
+      - '!integrations/mongodb_atlas/*.md'
       - '.github/workflows/mongodb_atlas.yml'
 
 defaults:

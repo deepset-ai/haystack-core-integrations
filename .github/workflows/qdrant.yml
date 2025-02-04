@@ -8,6 +8,7 @@ on:
   pull_request:
     paths:
       - "integrations/qdrant/**"
+      - "!integrations/qdrant/*.md"
       - ".github/workflows/qdrant.yml"
 
 defaults:

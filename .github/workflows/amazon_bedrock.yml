@@ -8,6 +8,7 @@ on:
   pull_request:
     paths:
       - "integrations/amazon_bedrock/**"
+      - "!integrations/amazon_bedrock/*.md"
       - ".github/workflows/amazon_bedrock.yml"
 
 defaults:

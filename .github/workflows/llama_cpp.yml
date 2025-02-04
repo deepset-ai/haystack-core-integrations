@@ -8,6 +8,7 @@ on:
   pull_request:
     paths:
       - "integrations/llama_cpp/**"
+      - "!integrations/llama_cpp/*.md"
       - ".github/workflows/llama_cpp.yml"
 
 defaults:
