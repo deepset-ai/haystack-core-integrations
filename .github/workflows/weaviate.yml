@@ -9,7 +9,7 @@ on:
     paths:
       - "integrations/weaviate/**"
       - ".github/workflows/weaviate.yml"
-      - "!integrations/weaviate/CHANGELOG.md"
+      - "!integrations/weaviate/*.md"
 
 defaults:
   run:

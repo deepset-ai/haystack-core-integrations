@@ -6,7 +6,7 @@ on:
   pull_request:
     paths:
       - "integrations/instructor_embedders/**"
-      - "!integrations/instructor_embedders/CHANGELOG.md"
+      - "!integrations/instructor_embedders/*.md"
       - ".github/workflows/instructor_embedders.yml"
 
 defaults:

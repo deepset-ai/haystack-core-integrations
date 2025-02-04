@@ -8,7 +8,7 @@ on:
   pull_request:
     paths:
       - "integrations/nvidia/**"
-      - "!integrations/nvidia/CHANGELOG.md"
+      - "!integrations/nvidia/*.md"
       - ".github/workflows/nvidia.yml"
 
 defaults:

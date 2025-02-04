@@ -8,7 +8,7 @@ on:
   pull_request:
     paths:
       - "integrations/pgvector/**"
-      - "!integrations/pgvector/CHANGELOG.md"
+      - "!integrations/pgvector/*.md"
       - ".github/workflows/pgvector.yml"
 
 concurrency:

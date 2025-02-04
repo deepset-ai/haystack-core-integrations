@@ -8,7 +8,7 @@ on:
   pull_request:
     paths:
       - "integrations/opensearch/**"
-      - "!integrations/opensearch/CHANGELOG.md"
+      - "!integrations/opensearch/*.md"
       - ".github/workflows/opensearch.yml"
 
 concurrency:

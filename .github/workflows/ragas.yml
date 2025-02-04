@@ -8,7 +8,7 @@ on:
   pull_request:
     paths:
       - "integrations/ragas/**"
-      - "!integrations/ragas/CHANGELOG.md"
+      - "!integrations/ragas/*.md"
       - ".github/workflows/ragas.yml"
 
 defaults:

@@ -8,7 +8,7 @@ on:
   pull_request:
     paths:
       - "integrations/langfuse/**"
-      - "!integrations/langfuse/CHANGELOG.md"
+      - "!integrations/langfuse/*.md"
       - ".github/workflows/langfuse.yml"
 
 defaults:

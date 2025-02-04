@@ -8,7 +8,7 @@ on:
   pull_request:
     paths:
       - "integrations/anthropic/**"
-      - "!integrations/anthropic/CHANGELOG.md"
+      - "!integrations/anthropic/*.md"
       - ".github/workflows/anthropic.yml"
 
 defaults:

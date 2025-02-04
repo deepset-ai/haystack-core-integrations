@@ -8,7 +8,7 @@ on:
   pull_request:
     paths:
       - "integrations/ollama/**"
-      - "!integrations/ollama/CHANGELOG.md"
+      - "!integrations/ollama/*.md"
       - ".github/workflows/ollama.yml"
 
 defaults:

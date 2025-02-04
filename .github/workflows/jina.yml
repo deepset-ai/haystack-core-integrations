@@ -8,7 +8,7 @@ on:
   pull_request:
     paths:
       - "integrations/jina/**"
-      - "!integrations/jina/CHANGELOG.md"
+      - "!integrations/jina/*.md"
       - ".github/workflows/jina.yml"
 
 defaults:

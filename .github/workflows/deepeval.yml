@@ -8,7 +8,7 @@ on:
   pull_request:
     paths:
       - "integrations/deepeval/**"
-      - "!integrations/deepeval/CHANGELOG.md"
+      - "!integrations/deepeval/*.md"
       - ".github/workflows/deepeval.yml"
 
 defaults:
