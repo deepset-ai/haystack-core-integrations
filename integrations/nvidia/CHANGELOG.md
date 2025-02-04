@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/nvidia-v0.1.5] - 2025-02-04
+
+### 🌀 Miscellaneous
+
+- Client Reject Incompatible models (#1056)
+- Base URL validation fix (#1349)
+
 ## [integrations/nvidia-v0.1.4] - 2025-01-08
 
 ### 🌀 Miscellaneous
