@@ -73,3 +73,16 @@ def test_param_api_url_negative(component: type, api_url: str) -> None:
     with pytest.raises(ValueError) as e:
         component(api_url=api_url)
     assert "Invalid api_url" in str(e.value)
+
+@pytest.mark.parametrize(
+    "component",
+    [NvidiaDocumentEmbedder, NvidiaTextEmbedder, NvidiaRanker, NvidiaGenerator],
+)
+@pytest.mark.parametrize(
+    "api_url",
+    [
+        "http://nims.example.com/embedding/v1"
+    ],
+)
+def test_api_url_without_host(component: type, api_url: str) -> None:
+    component(api_url=api_url)

@@ -9,10 +9,9 @@ from haystack import Document
 from haystack.utils import Secret
 
 from haystack_integrations.components.embedders.nvidia import EmbeddingTruncateMode, NvidiaDocumentEmbedder
+from haystack_integrations.utils.nvidia import DEFAULT_API_URL
 
 from . import MockBackend
-
-default_url = "https://integrate.api.nvidia.com/v1"
 
 
 class TestNvidiaDocumentEmbedder:
@@ -44,7 +43,7 @@ class TestNvidiaDocumentEmbedder:
 
         assert embedder.api_key == Secret.from_token("fake-api-key")
         assert embedder.model == "nvolveqa_40k"
-        assert embedder.api_url == default_url
+        assert embedder.api_url == DEFAULT_API_URL
         assert embedder.prefix == "prefix"
         assert embedder.suffix == "suffix"
         assert embedder.batch_size == 30
@@ -66,7 +65,7 @@ class TestNvidiaDocumentEmbedder:
             "type": "haystack_integrations.components.embedders.nvidia.document_embedder.NvidiaDocumentEmbedder",
             "init_parameters": {
                 "api_key": {"env_vars": ["NVIDIA_API_KEY"], "strict": True, "type": "env_var"},
-                "api_url": default_url,
+                "api_url": DEFAULT_API_URL,
                 "model": "playground_nvolveqa_40k",
                 "prefix": "",
                 "suffix": "",
@@ -151,7 +150,7 @@ class TestNvidiaDocumentEmbedder:
         ## updating this as model set to None as the warm_up is not done
         ## default model will be set post warm_up()
         assert component.model is None
-        assert component.api_url == default_url
+        assert component.api_url == DEFAULT_API_URL
         assert component.prefix == ""
         assert component.suffix == ""
         assert component.batch_size == 32
