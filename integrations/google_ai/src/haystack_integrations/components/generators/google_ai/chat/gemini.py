@@ -1,3 +1,4 @@
+import json
 import logging
 from typing import Any, Callable, Dict, List, Optional, Union
 
@@ -11,6 +12,7 @@ from google.generativeai.types import (
     HarmCategory,
     content_types,
 )
+from google.generativeai.types.generation_types import to_generation_config_dict
 from haystack.core.component import component
 from haystack.core.serialization import default_from_dict, default_to_dict
 from haystack.dataclasses import StreamingChunk
@@ -140,6 +142,7 @@ class GoogleAIGeminiChatGenerator:
         generation_config: Optional[Union[GenerationConfig, Dict[str, Any]]] = None,
         safety_settings: Optional[Dict[HarmCategory, HarmBlockThreshold]] = None,
         tools: Optional[List[Tool]] = None,
+        tool_config: Optional[content_types.ToolConfigDict] = None,
         streaming_callback: Optional[Callable[[StreamingChunk], None]] = None,
     ):
         """
@@ -159,6 +162,8 @@ class GoogleAIGeminiChatGenerator:
             For more information, see [the API reference](https://ai.google.dev/api/generate-content)
         :param tools:
             A list of tools for which the model can prepare calls.
+        :param tool_config: The tool config to use. See the documentation for
+            [ToolConfig](https://ai.google.dev/api/caching#ToolConfig).
         :param streaming_callback: A callback function that is called when a new token is received from the stream.
             The callback function accepts StreamingChunk as an argument.
         """
@@ -171,21 +176,9 @@ class GoogleAIGeminiChatGenerator:
         self._generation_config = generation_config
         self._safety_settings = safety_settings
         self._tools = tools
+        self._tool_config = tool_config
         self._model = GenerativeModel(self._model_name)
         self._streaming_callback = streaming_callback
-
-    @staticmethod
-    def _generation_config_to_dict(config: Union[GenerationConfig, Dict[str, Any]]) -> Dict[str, Any]:
-        if isinstance(config, dict):
-            return config
-        return {
-            "temperature": config.temperature,
-            "top_p": config.top_p,
-            "top_k": config.top_k,
-            "candidate_count": config.candidate_count,
-            "max_output_tokens": config.max_output_tokens,
-            "stop_sequences": config.stop_sequences,
-        }
 
     def to_dict(self) -> Dict[str, Any]:
         """
@@ -204,9 +197,10 @@ class GoogleAIGeminiChatGenerator:
             safety_settings=self._safety_settings,
             tools=[tool.to_dict() for tool in self._tools] if self._tools else None,
             streaming_callback=callback_name,
+            tool_config=self._tool_config,
         )
         if (generation_config := data["init_parameters"].get("generation_config")) is not None:
-            data["init_parameters"]["generation_config"] = self._generation_config_to_dict(generation_config)
+            data["init_parameters"]["generation_config"] = to_generation_config_dict(generation_config)
         if (safety_settings := data["init_parameters"].get("safety_settings")) is not None:
             data["init_parameters"]["safety_settings"] = {k.value: v.value for k, v in safety_settings.items()}
         return data
@@ -291,6 +285,7 @@ class GoogleAIGeminiChatGenerator:
             safety_settings=self._safety_settings,
             stream=streaming_callback is not None,
             tools=google_tools,
+            tool_config=self._tool_config,
         )
 
         replies = (
@@ -353,25 +348,42 @@ class GoogleAIGeminiChatGenerator:
         """
         text = ""
         tool_calls = []
-        last_metadata = None
+        chunk_dict = {}
 
         for chunk in stream:
+            content_to_stream = ""
             chunk_dict = chunk.to_dict()
-            last_metadata = chunk_dict
+
             # Only one candidate is supported for chat functionality
             candidate = chunk_dict["candidates"][0]
 
             for part in candidate["content"]["parts"]:
-                if part.get("text"):
-                    text += part["text"]
-                elif part.get("function_call"):
+                if new_text := part.get("text"):
+                    content_to_stream += new_text
+                    text += new_text
+                elif new_function_call := part.get("function_call"):
+                    content_to_stream += json.dumps(dict(new_function_call))
                     tool_calls.append(
                         ToolCall(
-                            tool_name=part["function_call"]["name"],
-                            arguments=dict(part["function_call"]["args"]),
+                            tool_name=new_function_call["name"],
+                            arguments=new_function_call["args"],
                         )
                     )
 
-            streaming_callback(StreamingChunk(content=text, meta=chunk_dict))
+            streaming_callback(StreamingChunk(content=content_to_stream, meta=chunk_dict))
 
-        return [ChatMessage.from_assistant(text=text or None, meta=last_metadata, tool_calls=tool_calls)]
+        # store the last chunk metadata
+        meta = chunk_dict
+
+        # format the usage metadata to be compatible with OpenAI
+        usage_metadata = meta.pop("usage_metadata", {})
+
+        openai_usage = {
+            "prompt_tokens": usage_metadata.get("prompt_token_count", 0),
+            "completion_tokens": usage_metadata.get("candidates_token_count", 0),
+            "total_tokens": usage_metadata.get("total_token_count", 0),
+        }
+
+        meta["usage"] = openai_usage
+
+        return [ChatMessage.from_assistant(text=text or None, meta=meta, tool_calls=tool_calls)]

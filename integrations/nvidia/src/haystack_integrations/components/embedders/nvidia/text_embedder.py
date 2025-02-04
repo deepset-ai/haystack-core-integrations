@@ -10,7 +10,7 @@ from haystack import component, default_from_dict, default_to_dict, logging
 from haystack.utils import Secret, deserialize_secrets_inplace
 
 from haystack_integrations.components.embedders.nvidia.truncate import EmbeddingTruncateMode
-from haystack_integrations.utils.nvidia import NimBackend, url_validation
+from haystack_integrations.utils.nvidia import Model, NimBackend, url_validation
 
 logger = logging.getLogger(__name__)
 
@@ -97,7 +97,7 @@ class NvidiaTextEmbedder:
     def default_model(self):
         """Set default model in local NIM mode."""
         valid_models = [
-            model.id for model in self.backend.models() if not model.base_model or model.base_model == model.id
+            model.id for model in self.available_models if not model.base_model or model.base_model == model.id
         ]
         name = next(iter(valid_models), None)
         if name:
@@ -163,6 +163,13 @@ class NvidiaTextEmbedder:
             truncate=str(self.truncate) if self.truncate is not None else None,
             timeout=self.timeout,
         )
+
+    @property
+    def available_models(self) -> List[Model]:
+        """
+        Get a list of available models that work with NvidiaTextEmbedder.
+        """
+        return self.backend.models() if self.backend else []
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "NvidiaTextEmbedder":

@@ -101,3 +101,19 @@ def test_bedrock_ranker_serialization(mock_aws_session):
     assert isinstance(deserialized, BedrockRanker)
     assert deserialized.model_name == "cohere.rerank-v3-5:0"
     assert deserialized.top_k == 2
+
+
+def test_bedrock_ranker_empty_documents(mock_aws_session):
+    ranker = BedrockRanker(
+        model="cohere.rerank-v3-5:0",
+        top_k=2,
+        aws_access_key_id=Secret.from_token("test_access_key"),
+        aws_secret_access_key=Secret.from_token("test_secret_key"),
+        aws_region_name=Secret.from_token("us-east-1"),
+    )
+
+    docs = []
+    result = ranker.run(query="test query", documents=docs)
+
+    # Check that we get back an empty list of documents
+    assert len(result["documents"]) == 0
