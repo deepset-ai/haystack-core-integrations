@@ -1,8 +1,6 @@
 from dataclasses import dataclass
 from typing import Literal, Optional
 
-from pydantic import field_validator
-
 
 @dataclass
 class Model:
@@ -19,8 +17,8 @@ class Model:
     """
 
     id: str
-    model_type: Optional[Literal["chat", "embedding"]] = None
-    client: Optional[Literal["NvidiaGenerator", "NvidiaTextEmbedder", "NvidiaDocumentEmbedder"]] = None
+    model_type: Optional[Literal["chat", "embedding", "ranking"]] = None
+    client: Optional[Literal["NvidiaGenerator", "NvidiaTextEmbedder", "NvidiaDocumentEmbedder", "NvidiaRanker"]] = None
     endpoint: Optional[str] = None
     aliases: Optional[list] = None
     base_model: Optional[str] = None
@@ -30,19 +28,18 @@ class Model:
     def __hash__(self) -> int:
         return hash(self.id)
 
-    @field_validator("client")
-    def validate_client(self, client: str, values: dict) -> str:
-        if client:
+    # @field_validator("client")
+    def validate(self):
+        if self.client:
             supported = {
                 "NvidiaGenerator": ("chat"),
                 "NvidiaTextEmbedder": ("embedding",),
                 "NvidiaDocumentEmbedder": ("embedding",),
             }
-            model_type = values.get("model_type")
-            if model_type not in supported[client]:
-                err_msg = f"Model type '{model_type}' not supported by client '{client}'"
+            model_type = self.model_type
+            if model_type not in supported[self.client]:
+                err_msg = f"Model type '{model_type}' not supported by client '{self.client}'"
                 raise ValueError(err_msg)
-        return client
 
 
 CHAT_MODEL_TABLE = {
@@ -399,14 +396,12 @@ EMBEDDING_MODEL_TABLE = {
     "snowflake/arctic-embed-l": Model(
         id="snowflake/arctic-embed-l",
         model_type="embedding",
-        client="NVIDIAEmbeddings",
         aliases=["ai-arctic-embed-l"],
     ),
     "NV-Embed-QA": Model(
         id="NV-Embed-QA",
         model_type="embedding",
-        client="NVIDIAEmbeddings",
-        endpoint="https://ai.api.nvidia.com/v1/retrieval/nvidia/embeddings",
+        endpoint="https://ai.api.nvidia.com/v1/retrieval/nvidia",
         aliases=[
             "ai-embed-qa-4",
             "playground_nvolveqa_40k",
@@ -416,28 +411,54 @@ EMBEDDING_MODEL_TABLE = {
     "nvidia/nv-embed-v1": Model(
         id="nvidia/nv-embed-v1",
         model_type="embedding",
-        client="NVIDIAEmbeddings",
         aliases=["ai-nv-embed-v1"],
     ),
     "nvidia/nv-embedqa-mistral-7b-v2": Model(
         id="nvidia/nv-embedqa-mistral-7b-v2",
         model_type="embedding",
-        client="NVIDIAEmbeddings",
     ),
     "nvidia/nv-embedqa-e5-v5": Model(
         id="nvidia/nv-embedqa-e5-v5",
         model_type="embedding",
-        client="NVIDIAEmbeddings",
     ),
     "baai/bge-m3": Model(
         id="baai/bge-m3",
         model_type="embedding",
-        client="NVIDIAEmbeddings",
+    ),
+}
+RANKING_MODEL_TABLE = {
+    "nv-rerank-qa-mistral-4b:1": Model(
+        id="nv-rerank-qa-mistral-4b:1",
+        model_type="ranking",
+        client="NvidiaRanker",
+        endpoint="https://ai.api.nvidia.com/v1/retrieval/nvidia/reranking",
+        aliases=["ai-rerank-qa-mistral-4b"],
+    ),
+    "nvidia/nv-rerankqa-mistral-4b-v3": Model(
+        id="nvidia/nv-rerankqa-mistral-4b-v3",
+        model_type="ranking",
+        client="NvidiaRanker",
+        endpoint="https://ai.api.nvidia.com/v1/retrieval/nvidia/nv-rerankqa-mistral-4b-v3/reranking",
+    ),
+    "nvidia/llama-3.2-nv-rerankqa-1b-v1": Model(
+        id="nvidia/llama-3.2-nv-rerankqa-1b-v1",
+        model_type="ranking",
+        client="NvidiaRanker",
+        endpoint="https://ai.api.nvidia.com/v1/retrieval/nvidia/llama-3_2-nv-rerankqa-1b-v1/reranking",
+    ),
+    "nvidia/llama-3.2-nv-rerankqa-1b-v2": Model(
+        id="nvidia/llama-3.2-nv-rerankqa-1b-v2",
+        model_type="ranking",
+        client="NvidiaRanker",
+        endpoint="https://ai.api.nvidia.com/v1/retrieval/nvidia/llama-3_2-nv-rerankqa-1b-v2/reranking",
     ),
 }
 
-
-MODEL_TABLE = {
-    **CHAT_MODEL_TABLE,
-    **EMBEDDING_MODEL_TABLE,
+DEFAULT_MODELS = {
+    "embedding": "nvidia/nv-embedqa-e5-v5",
+    "ranking": "nvidia/nv-rerankqa-mistral-4b-v3",
+    "chat": "meta/llama3-8b-instruct",
 }
+
+
+MODEL_TABLE = {**CHAT_MODEL_TABLE, **EMBEDDING_MODEL_TABLE, **RANKING_MODEL_TABLE}

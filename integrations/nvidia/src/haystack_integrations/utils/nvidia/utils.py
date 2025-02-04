@@ -3,46 +3,41 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import warnings
-from typing import List, Optional
+from typing import Any, Literal, Optional
 from urllib.parse import urlparse, urlunparse
 
 from .statics import MODEL_TABLE, Model
 
 
-def url_validation(api_url: str, default_api_url: Optional[str], allowed_paths: List[str]) -> str:
+def url_validation(api_url: str) -> str:
     """
     Validate and normalize an API URL.
 
     :param api_url:
         The API URL to validate and normalize.
-    :param default_api_url:
-        The default API URL for comparison.
-    :param allowed_paths:
-        A list of allowed base paths that are valid if present in the URL.
     :returns:
         A normalized version of the API URL with '/v1' path appended, if needed.
     :raises ValueError:
         If the base URL path is not recognized or does not match expected format.
     """
-    ## Making sure /v1 in added to the url, followed by infer_path
-    result = urlparse(api_url)
     expected_format = "Expected format is 'http://host:port'."
 
-    if api_url == default_api_url:
-        return api_url
-    if result.path:
-        normalized_path = result.path.strip("/")
-        if normalized_path == "v1":
-            pass
-        elif normalized_path in allowed_paths:
-            warn_msg = f"{expected_format} Rest is ignored."
-            warnings.warn(warn_msg, stacklevel=2)
-        else:
-            err_msg = f"Base URL path is not recognized. {expected_format}"
-            raise ValueError(err_msg)
+    if api_url is not None:
+        parsed = urlparse(api_url)
 
-    base_url = urlunparse((result.scheme, result.netloc, "v1", "", "", ""))
-    return base_url
+        # Ensure scheme and netloc (domain name) are present
+        if not (parsed.scheme and parsed.netloc):
+            expected_format = "Expected format is: http://host:port"
+            msg = f"Invalid api_url format. {expected_format} Got: {api_url}"
+            raise ValueError(msg)
+
+        normalized_path = parsed.path.rstrip("/")
+        if not normalized_path.endswith("/v1"):
+            warnings.warn(f"{api_url} does not end in /v1, you may have inference and listing issues", stacklevel=2)
+            normalized_path += "/v1"
+
+            api_url = urlunparse((parsed.scheme, parsed.netloc, normalized_path, None, None, None))
+    return api_url
 
 
 def is_hosted(api_url: str):
@@ -90,7 +85,10 @@ def determine_model(name: str) -> Optional[Model]:
     return model
 
 
-def validate_hosted_model(class_name: str, model_name: str, client) -> None:
+def validate_hosted_model(
+    model_name: str,
+    client: Optional[Literal["NvidiaGenerator", "NvidiaTextEmbedder", "NvidiaDocumentEmbedder", "NvidiaRanker"]] = None,
+) -> Any:
     """
     Validates compatibility of the hosted model with the client.
 
@@ -104,22 +102,13 @@ def validate_hosted_model(class_name: str, model_name: str, client) -> None:
         if not model.client:
             warn_msg = f"Unable to determine validity of {model.id}"
             warnings.warn(warn_msg, stacklevel=1)
-        elif model.model_type == "embedding" and class_name in ["NvidiaTextEmbedder", "NvidiaDocumentEmbedder"]:
+        elif model.model_type == "embedding" and client in ["NvidiaTextEmbedder", "NvidiaDocumentEmbedder"]:
             pass
-        elif model.client != class_name:
-            err_msg = f"Model {model.id} is incompatible with client {class_name}. \
-                        Please check `{class_name}.available_models`."
+        elif model.client != client:
+            err_msg = f"Model {model.id} is incompatible with client {client}. \
+                        Please check `{client}.available_models`."
             raise ValueError(err_msg)
     else:
-        candidates = [model for model in client.available_models if model.id == model_name]
-        assert len(candidates) <= 1, f"Multiple candidates for {model_name} in `available_models`: {candidates}"
-        if candidates:
-            model = candidates[0]
-            warn_msg = f"Found {model_name} in available_models, but type is unknown and inference may fail."
-            warnings.warn(warn_msg, stacklevel=1)
-        else:
-            err_msg = f"Model {model_name} is unknown, check `available_models`"
-            raise ValueError(err_msg)
-    # else:
-    #     if model_name not in [model.id for model in client.available_models]:
-    #         raise ValueError(f"No locally hosted {model_name} was found.")
+        err_msg = f"Model {model_name} is unknown, check `available_models`"
+        raise ValueError(err_msg)
+    return model

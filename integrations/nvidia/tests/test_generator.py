@@ -128,14 +128,14 @@ class TestNvidiaGenerator:
         monkeypatch.setenv("NVIDIA_API_KEY", "fake-api-key")
         generator = NvidiaGenerator(timeout=10.0)
         generator.warm_up()
-        assert generator._backend.timeout == 10.0
+        assert generator.backend.timeout == 10.0
 
     def test_setting_timeout_env(self, monkeypatch):
         monkeypatch.setenv("NVIDIA_API_KEY", "fake-api-key")
         monkeypatch.setenv("NVIDIA_TIMEOUT", "45")
         generator = NvidiaGenerator()
         generator.warm_up()
-        assert generator._backend.timeout == 45.0
+        assert generator.backend.timeout == 45.0
 
     @pytest.mark.skipif(
         not os.environ.get("NVIDIA_NIM_GENERATOR_MODEL", None) or not os.environ.get("NVIDIA_NIM_ENDPOINT_URL", None),
@@ -143,7 +143,7 @@ class TestNvidiaGenerator:
         "NVIDIA_NIM_ENDPOINT_URL containing the local URL to call.",
     )
     @pytest.mark.integration
-    def test_run_integration_with_nim_backend(self):
+    def test_run_integration_with_nimbackend(self):
         model = os.environ["NVIDIA_NIM_GENERATOR_MODEL"]
         url = os.environ["NVIDIA_NIM_ENDPOINT_URL"]
         generator = NvidiaGenerator(
@@ -163,7 +163,7 @@ class TestNvidiaGenerator:
     @pytest.mark.integration
     @pytest.mark.usefixtures("mock_local_models")
     @pytest.mark.usefixtures("mock_local_chat_completion")
-    def test_run_integration_with_default_model_nim_backend(self):
+    def test_run_integration_with_default_model_nimbackend(self):
         model = None
         url = "http://localhost:8080/v1"
         generator = NvidiaGenerator(

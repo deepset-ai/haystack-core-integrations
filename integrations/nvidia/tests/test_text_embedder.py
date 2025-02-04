@@ -11,31 +11,33 @@ from haystack_integrations.components.embedders.nvidia import EmbeddingTruncateM
 
 from . import MockBackend
 
+default_url = "https://integrate.api.nvidia.com/v1"
+
 
 class TestNvidiaTextEmbedder:
     def test_init_default(self, monkeypatch):
         monkeypatch.setenv("NVIDIA_API_KEY", "fake-api-key")
         embedder = NvidiaTextEmbedder()
+        embedder.warm_up()
 
         assert embedder.api_key == Secret.from_env_var("NVIDIA_API_KEY")
-        assert embedder.api_url == "https://ai.api.nvidia.com/v1/retrieval/nvidia"
+        assert embedder.api_url == default_url
         assert embedder.prefix == ""
         assert embedder.suffix == ""
 
     def test_init_with_parameters(self):
-        with pytest.raises(ValueError):
-            embedder = NvidiaTextEmbedder(
-                api_key=Secret.from_token("fake-api-key"),
-                model="nvolveqa_40k",
-                api_url="https://ai.api.nvidia.com/v1/retrieval/nvidia/test",
-                prefix="prefix",
-                suffix="suffix",
-            )
-            assert embedder.api_key == Secret.from_token("fake-api-key")
-            assert embedder.model == "nvolveqa_40k"
-            assert embedder.api_url == "https://ai.api.nvidia.com/v1/retrieval/nvidia/test"
-            assert embedder.prefix == "prefix"
-            assert embedder.suffix == "suffix"
+        embedder = NvidiaTextEmbedder(
+            api_key=Secret.from_token("fake-api-key"),
+            model="nvolveqa_40k",
+            api_url="https://ai.api.nvidia.com/v1/retrieval/nvidia/test",
+            prefix="prefix",
+            suffix="suffix",
+        )
+        assert embedder.api_key == Secret.from_token("fake-api-key")
+        assert embedder.model == "nvolveqa_40k"
+        assert embedder.api_url == "https://ai.api.nvidia.com/v1/retrieval/nvidia/test/v1"
+        assert embedder.prefix == "prefix"
+        assert embedder.suffix == "suffix"
 
     def test_init_fail_wo_api_key(self, monkeypatch):
         monkeypatch.delenv("NVIDIA_API_KEY", raising=False)
@@ -51,7 +53,7 @@ class TestNvidiaTextEmbedder:
             "type": "haystack_integrations.components.embedders.nvidia.text_embedder.NvidiaTextEmbedder",
             "init_parameters": {
                 "api_key": {"env_vars": ["NVIDIA_API_KEY"], "strict": True, "type": "env_var"},
-                "api_url": "https://ai.api.nvidia.com/v1/retrieval/nvidia",
+                "api_url": default_url,
                 "model": "nvolveqa_40k",
                 "prefix": "",
                 "suffix": "",
@@ -113,8 +115,10 @@ class TestNvidiaTextEmbedder:
             "init_parameters": {},
         }
         component = NvidiaTextEmbedder.from_dict(data)
-        assert component.model == "nvidia/nv-embedqa-e5-v5"
-        assert component.api_url == "https://ai.api.nvidia.com/v1/retrieval/nvidia"
+        ## updating this as model set to None as the warm_up is not done
+        ## default model will be set post warm_up()
+        assert component.model is None
+        assert component.api_url == default_url
         assert component.prefix == ""
         assert component.suffix == ""
         assert component.truncate is None
