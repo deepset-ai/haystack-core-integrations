@@ -11,9 +11,10 @@ from haystack.utils import Secret, deserialize_secrets_inplace
 from tqdm import tqdm
 
 from haystack_integrations.components.embedders.nvidia.truncate import EmbeddingTruncateMode
-from haystack_integrations.utils.nvidia import Model, NimBackend, url_validation
+from haystack_integrations.utils.nvidia import DEFAULT_API_URL, Model, NimBackend, url_validation
 
 logger = logging.getLogger(__name__)
+_API_URL_VAR = "NVIDIA_API_URL"
 
 
 @component
@@ -40,7 +41,7 @@ class NvidiaDocumentEmbedder:
         self,
         model: Optional[str] = None,
         api_key: Optional[Secret] = Secret.from_env_var("NVIDIA_API_KEY"),
-        api_url: str = "https://integrate.api.nvidia.com/v1",
+        api_url: str = os.getenv(_API_URL_VAR, DEFAULT_API_URL),
         prefix: str = "",
         suffix: str = "",
         batch_size: int = 32,

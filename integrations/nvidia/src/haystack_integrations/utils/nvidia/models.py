@@ -9,7 +9,8 @@ class Model:
 
     id: unique identifier for the model, passed as model parameter for requests
     model_type: API type (chat, vlm, embedding, ranking, completions)
-    client: client name, e.g. NvidiaGenerator, NvidiaTextEmbedder, NVIDIARerank, NVIDIA
+    client: client name, e.g. NvidiaGenerator, NVIDIAEmbeddings,
+            NVIDIARerank, NvidiaTextEmbedder, NvidiaDocumentEmbedder
     endpoint: custom endpoint for the model
     aliases: list of aliases for the model
 
@@ -17,8 +18,8 @@ class Model:
     """
 
     id: str
-    model_type: Optional[Literal["chat", "embedding"]] = None
-    client: Optional[Literal["NvidiaGenerator", "NvidiaTextEmbedder", "NvidiaDocumentEmbedder"]] = None
+    model_type: Optional[Literal["chat", "embedding", "ranking"]] = None
+    client: Optional[Literal["NvidiaGenerator", "NvidiaTextEmbedder", "NvidiaDocumentEmbedder", "NvidiaRanker"]] = None
     endpoint: Optional[str] = None
     aliases: Optional[list] = None
     base_model: Optional[str] = None
@@ -28,6 +29,22 @@ class Model:
     def __hash__(self) -> int:
         return hash(self.id)
 
+    def validate(self):
+        if self.client:
+            supported = {
+                "NvidiaGenerator": ("chat"),
+                "NvidiaTextEmbedder": ("embedding",),
+                "NvidiaDocumentEmbedder": ("embedding",),
+            }
+            model_type = self.model_type
+            if model_type not in supported[self.client]:
+                err_msg = f"Model type '{model_type}' not supported by client '{self.client}'"
+                raise ValueError(err_msg)
+
+        return hash(self.id)
+
+
+DEFAULT_API_URL = "https://integrate.api.nvidia.com/v1"
 
 CHAT_MODEL_TABLE = {
     "meta/codellama-70b": Model(
@@ -383,14 +400,12 @@ EMBEDDING_MODEL_TABLE = {
     "snowflake/arctic-embed-l": Model(
         id="snowflake/arctic-embed-l",
         model_type="embedding",
-        client="NvidiaTextEmbedder",
         aliases=["ai-arctic-embed-l"],
     ),
     "NV-Embed-QA": Model(
         id="NV-Embed-QA",
         model_type="embedding",
-        client="NvidiaTextEmbedder",
-        endpoint="https://ai.api.nvidia.com/v1/retrieval/nvidia/embeddings",
+        endpoint="https://ai.api.nvidia.com/v1/retrieval/nvidia",
         aliases=[
             "ai-embed-qa-4",
             "playground_nvolveqa_40k",
@@ -400,28 +415,54 @@ EMBEDDING_MODEL_TABLE = {
     "nvidia/nv-embed-v1": Model(
         id="nvidia/nv-embed-v1",
         model_type="embedding",
-        client="NvidiaTextEmbedder",
         aliases=["ai-nv-embed-v1"],
     ),
     "nvidia/nv-embedqa-mistral-7b-v2": Model(
         id="nvidia/nv-embedqa-mistral-7b-v2",
         model_type="embedding",
-        client="NvidiaTextEmbedder",
     ),
     "nvidia/nv-embedqa-e5-v5": Model(
         id="nvidia/nv-embedqa-e5-v5",
         model_type="embedding",
-        client="NvidiaTextEmbedder",
     ),
     "baai/bge-m3": Model(
         id="baai/bge-m3",
         model_type="embedding",
-        client="NvidiaTextEmbedder",
+    ),
+}
+RANKING_MODEL_TABLE = {
+    "nv-rerank-qa-mistral-4b:1": Model(
+        id="nv-rerank-qa-mistral-4b:1",
+        model_type="ranking",
+        client="NvidiaRanker",
+        endpoint="https://ai.api.nvidia.com/v1/retrieval/nvidia/reranking",
+        aliases=["ai-rerank-qa-mistral-4b"],
+    ),
+    "nvidia/nv-rerankqa-mistral-4b-v3": Model(
+        id="nvidia/nv-rerankqa-mistral-4b-v3",
+        model_type="ranking",
+        client="NvidiaRanker",
+        endpoint="https://ai.api.nvidia.com/v1/retrieval/nvidia/nv-rerankqa-mistral-4b-v3/reranking",
+    ),
+    "nvidia/llama-3.2-nv-rerankqa-1b-v1": Model(
+        id="nvidia/llama-3.2-nv-rerankqa-1b-v1",
+        model_type="ranking",
+        client="NvidiaRanker",
+        endpoint="https://ai.api.nvidia.com/v1/retrieval/nvidia/llama-3_2-nv-rerankqa-1b-v1/reranking",
+    ),
+    "nvidia/llama-3.2-nv-rerankqa-1b-v2": Model(
+        id="nvidia/llama-3.2-nv-rerankqa-1b-v2",
+        model_type="ranking",
+        client="NvidiaRanker",
+        endpoint="https://ai.api.nvidia.com/v1/retrieval/nvidia/llama-3_2-nv-rerankqa-1b-v2/reranking",
     ),
 }
 
-
-MODEL_TABLE = {
-    **CHAT_MODEL_TABLE,
-    **EMBEDDING_MODEL_TABLE,
+DEFAULT_MODELS = {
+    "embedding": "nvidia/nv-embedqa-e5-v5",
+    "ranking": "nvidia/nv-rerankqa-mistral-4b-v3",
+    "chat": "meta/llama3-8b-instruct",
 }
+
+
+MODEL_TABLE = {**CHAT_MODEL_TABLE, **EMBEDDING_MODEL_TABLE, **RANKING_MODEL_TABLE}

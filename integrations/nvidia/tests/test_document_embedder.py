@@ -250,7 +250,7 @@ class TestNvidiaDocumentEmbedder:
 
         with pytest.warns(UserWarning) as record:
             embedder.warm_up()
-        assert len(record) == 2
+        assert len(record) == 1
         assert "Default model is set as:" in str(record[0].message)
         assert embedder.model == "model1"
 

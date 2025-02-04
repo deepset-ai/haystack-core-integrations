@@ -9,9 +9,10 @@ from typing import Any, Dict, List, Optional
 from haystack import component, default_from_dict, default_to_dict
 from haystack.utils.auth import Secret, deserialize_secrets_inplace
 
-from haystack_integrations.utils.nvidia import Model, NimBackend, is_hosted, url_validation
+from haystack_integrations.utils.nvidia import DEFAULT_API_URL, Model, NimBackend, is_hosted, url_validation
 
-_DEFAULT_API_URL = "https://integrate.api.nvidia.com/v1"
+_API_URL_VAR = "NVIDIA_API_URL"
+
 
 @component
 class NvidiaGenerator:
@@ -46,7 +47,7 @@ class NvidiaGenerator:
     def __init__(
         self,
         model: Optional[str] = None,
-        api_url: str = "https://integrate.api.nvidia.com/v1",
+        api_url: str = os.getenv(_API_URL_VAR, DEFAULT_API_URL),
         api_key: Optional[Secret] = Secret.from_env_var("NVIDIA_API_KEY"),
         model_arguments: Optional[Dict[str, Any]] = None,
         timeout: Optional[float] = None,

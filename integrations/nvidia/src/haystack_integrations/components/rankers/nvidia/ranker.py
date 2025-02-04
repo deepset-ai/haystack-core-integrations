@@ -10,7 +10,7 @@ from haystack import Document, component, default_from_dict, default_to_dict, lo
 from haystack.utils import Secret, deserialize_secrets_inplace
 
 from haystack_integrations.components.rankers.nvidia.truncate import RankerTruncateMode
-from haystack_integrations.utils.nvidia import NimBackend, is_hosted, url_validation
+from haystack_integrations.utils.nvidia import DEFAULT_API_URL, NimBackend, is_hosted, url_validation
 
 logger = logging.getLogger(__name__)
 
@@ -51,7 +51,7 @@ class NvidiaRanker:
         self,
         model: Optional[str] = None,
         truncate: Optional[Union[RankerTruncateMode, str]] = None,
-        api_url: str = os.getenv(_API_URL_VAR, "https://integrate.api.nvidia.com/v1"),
+        api_url: str = os.getenv(_API_URL_VAR, DEFAULT_API_URL),
         api_key: Optional[Secret] = Secret.from_env_var("NVIDIA_API_KEY"),
         top_k: int = 5,
         query_prefix: str = "",

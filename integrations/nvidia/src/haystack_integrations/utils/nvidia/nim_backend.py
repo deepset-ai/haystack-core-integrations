@@ -10,7 +10,7 @@ import requests
 from haystack import logging
 from haystack.utils import Secret
 
-from .statics import DEFAULT_MODELS, Model
+from .models import DEFAULT_MODELS, Model
 from .utils import determine_model, is_hosted, validate_hosted_model
 
 logger = logging.getLogger(__name__)

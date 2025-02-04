@@ -6,7 +6,7 @@ import warnings
 from typing import Any, Literal, Optional
 from urllib.parse import urlparse, urlunparse
 
-from .statics import MODEL_TABLE, Model
+from .models import MODEL_TABLE, Model
 
 
 def url_validation(api_url: str) -> str:
@@ -20,8 +20,6 @@ def url_validation(api_url: str) -> str:
     :raises ValueError:
         If the base URL path is not recognized or does not match expected format.
     """
-    expected_format = "Expected format is 'http://host:port'."
-
     if api_url is not None:
         parsed = urlparse(api_url)
 
@@ -58,7 +56,6 @@ def lookup_model(name: str) -> Optional[Model]:
     Callers can check to see if the name was an alias by
     comparing the result's id field to the name they provided.
     """
-    model = None
     if not (model := MODEL_TABLE.get(name)):
         for mdl in MODEL_TABLE.values():
             if mdl.aliases and name in mdl.aliases:
@@ -90,23 +87,26 @@ def validate_hosted_model(
     client: Optional[Literal["NvidiaGenerator", "NvidiaTextEmbedder", "NvidiaDocumentEmbedder", "NvidiaRanker"]] = None,
 ) -> Any:
     """
-    Validates compatibility of the hosted model with the client.
+    Checks if a given model is compatible with given client.
 
     Args:
         model_name (str): The name of the model.
+        client (str): client name, e.g. NvidiaGenerator, NVIDIAEmbeddings,
+                        NVIDIARerank, NvidiaTextEmbedder, NvidiaDocumentEmbedder
 
     Raises:
-        ValueError: If the model is incompatible with the client.
+        ValueError: If the model is incompatible with the client or if the model is unknown.
+        Warning: If the model's client is unknown.
     """
     if model := determine_model(model_name):
+        err_msg = f"Model {model.id} is incompatible with client {client}. \
+                        Please check `{client}.available_models`."
         if not model.client:
             warn_msg = f"Unable to determine validity of {model.id}"
             warnings.warn(warn_msg, stacklevel=1)
-        elif model.model_type == "embedding" and client in ["NvidiaTextEmbedder", "NvidiaDocumentEmbedder"]:
-            pass
+        elif model.model_type == "embedding" and client not in ["NvidiaTextEmbedder", "NvidiaDocumentEmbedder"]:
+            raise ValueError(err_msg)
         elif model.client != client:
-            err_msg = f"Model {model.id} is incompatible with client {client}. \
-                        Please check `{client}.available_models`."
             raise ValueError(err_msg)
     else:
         err_msg = f"Model {model_name} is unknown, check `available_models`"
