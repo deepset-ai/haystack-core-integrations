@@ -8,6 +8,7 @@ on:
   pull_request:
     paths:
       - "integrations/anthropic/**"
+      - "!integrations/anthropic/*.md"
       - ".github/workflows/anthropic.yml"
 
 defaults:

@@ -8,6 +8,7 @@ on:
   pull_request:
     paths:
       - "integrations/azure_ai_search/**"
+      - "!integrations/azure_ai_search/*.md"
       - ".github/workflows/azure_ai_search.yml"
 
 concurrency:
