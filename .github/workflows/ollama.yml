@@ -61,7 +61,10 @@ jobs:
             fi
 
             ollama pull ${{ env.LLM_FOR_TESTS }}
+            ollama list | grep -q "${{ env.LLM_FOR_TESTS }}" || { echo "Model ${{ env.LLM_FOR_TESTS }} not pulled."; exit 1; }
+
             ollama pull ${{ env.EMBEDDER_FOR_TESTS }}
+            ollama list | grep -q "${{ env.EMBEDDER_FOR_TESTS }}" || { echo "Model ${{ env.EMBEDDER_FOR_TESTS }} not pulled."; exit 1; }
 
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v5
