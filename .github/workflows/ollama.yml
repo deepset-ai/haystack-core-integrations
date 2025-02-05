@@ -38,7 +38,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Ollama and pull the required models
+      - name: Install and run Ollama
         uses: nick-fields/retry@v3
         with:
           timeout_minutes: 2
@@ -60,11 +60,21 @@ jobs:
               exit 1
             fi
 
+            echo "Ollama service started successfully."
+      
+      - name: Pull models
+        uses: nick-fields/retry@v3
+        with:
+          timeout_minutes: 2
+          max_attempts: 3
+          command: |
             ollama pull ${{ env.LLM_FOR_TESTS }}
             ollama list | grep -q "${{ env.LLM_FOR_TESTS }}" || { echo "Model ${{ env.LLM_FOR_TESTS }} not pulled."; exit 1; }
 
             ollama pull ${{ env.EMBEDDER_FOR_TESTS }}
             ollama list | grep -q "${{ env.EMBEDDER_FOR_TESTS }}" || { echo "Model ${{ env.EMBEDDER_FOR_TESTS }} not pulled."; exit 1; }
+
+            echo "Models pulled successfully."
 
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v5
