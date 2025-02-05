@@ -66,7 +66,7 @@ jobs:
         uses: nick-fields/retry@v3
         with:
           timeout_minutes: 2
-          max_attempts: 3
+          max_attempts: 5
           command: |
             ollama pull ${{ env.LLM_FOR_TESTS }}
             ollama list | grep -q "${{ env.LLM_FOR_TESTS }}" || { echo "Model ${{ env.LLM_FOR_TESTS }} not pulled."; exit 1; }
