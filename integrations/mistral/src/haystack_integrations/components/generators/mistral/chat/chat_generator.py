@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
-from typing import Any, Callable, Dict, Optional, List
+from typing import Any, Callable, Dict, List, Optional
 
 from haystack import component
 from haystack.components.generators.chat import OpenAIChatGenerator
@@ -59,7 +59,7 @@ class MistralChatGenerator(OpenAIChatGenerator):
         streaming_callback: Optional[Callable[[StreamingChunk], None]] = None,
         api_base_url: Optional[str] = "https://api.mistral.ai/v1",
         generation_kwargs: Optional[Dict[str, Any]] = None,
-        tools: Optional[List[Tool]] = None
+        tools: Optional[List[Tool]] = None,
     ):
         """
         Creates an instance of MistralChatGenerator. Unless specified otherwise in the `model`, this is for Mistral's
@@ -99,5 +99,5 @@ class MistralChatGenerator(OpenAIChatGenerator):
             api_base_url=api_base_url,
             organization=None,
             generation_kwargs=generation_kwargs,
-            tools=tools
+            tools=tools,
         )
