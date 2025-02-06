@@ -110,10 +110,6 @@ class LlamaCppChatGenerator:
         model_kwargs = model_kwargs or {}
         generation_kwargs = generation_kwargs or {}
 
-        if "hf_tokenizer_path" in model_kwargs:
-            tokenizer = LlamaHFTokenizer.from_pretrained(model_kwargs["hf_tokenizer_path"])
-            model_kwargs["tokenizer"] = tokenizer
-
         # check if the model_kwargs contain the essential parameters
         # otherwise, populate them with values from init parameters
         model_kwargs.setdefault("model_path", model)
@@ -131,6 +127,10 @@ class LlamaCppChatGenerator:
         self.tools = tools
 
     def warm_up(self):
+        if "hf_tokenizer_path" in self.model_kwargs and "tokenizer" not in self.model_kwargs:
+            tokenizer = LlamaHFTokenizer.from_pretrained(self.model_kwargs["hf_tokenizer_path"])
+            self.model_kwargs["tokenizer"] = tokenizer
+
         if self._model is None:
             self._model = Llama(**self.model_kwargs)
 

@@ -156,6 +156,39 @@ class TestLlamaCppChatGenerator:
         assert generator.model_kwargs == {"model_path": "test_model.gguf", "n_ctx": 8192, "n_batch": 512}
         assert generator.generation_kwargs == {}
 
+    def test_to_dict(self):
+        generator = LlamaCppChatGenerator(model="test_model.gguf", n_ctx=8192, n_batch=512)
+        assert generator.to_dict() == {
+            "type": "haystack_integrations.components.generators.llama_cpp.chat.chat_generator.LlamaCppChatGenerator",
+            "init_parameters": {
+                "model": "test_model.gguf",
+                "n_ctx": 8192,
+                "n_batch": 512,
+                "model_kwargs": {"model_path": "test_model.gguf", "n_ctx": 8192, "n_batch": 512},
+                "generation_kwargs": {},
+                "tools": None,
+            },
+        }
+
+    def test_from_dict(self):
+        serialized = {
+            "type": "haystack_integrations.components.generators.llama_cpp.chat.chat_generator.LlamaCppChatGenerator",
+            "init_parameters": {
+                "model": "test_model.gguf",
+                "n_ctx": 8192,
+                "n_batch": 512,
+                "model_kwargs": {"model_path": "test_model.gguf", "n_ctx": 8192, "n_batch": 512},
+                "generation_kwargs": {},
+                "tools": None,
+            },
+        }
+        deserialized = LlamaCppChatGenerator.from_dict(serialized)
+        assert deserialized.model_path == "test_model.gguf"
+        assert deserialized.n_ctx == 8192
+        assert deserialized.n_batch == 512
+        assert deserialized.model_kwargs == {"model_path": "test_model.gguf", "n_ctx": 8192, "n_batch": 512}
+        assert deserialized.generation_kwargs == {}
+
     def test_ignores_model_path_if_specified_in_model_kwargs(self):
         """
         Test that model_path is ignored if already specified in model_kwargs.
