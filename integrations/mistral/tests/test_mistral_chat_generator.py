@@ -5,7 +5,8 @@ from unittest.mock import patch
 import pytest
 import pytz
 from haystack.components.generators.utils import print_streaming_chunk
-from haystack.dataclasses import ChatMessage, StreamingChunk
+from haystack.dataclasses import ChatMessage, StreamingChunk, ToolCall
+from haystack.tools import Tool
 from haystack.utils.auth import Secret
 from openai import OpenAIError
 from openai.types.chat import ChatCompletion, ChatCompletionMessage
@@ -20,6 +21,19 @@ def chat_messages():
         ChatMessage.from_system("You are a helpful assistant"),
         ChatMessage.from_user("What's the capital of France"),
     ]
+
+
+@pytest.fixture
+def tools():
+    tool_parameters = {"type": "object", "properties": {"city": {"type": "string"}}, "required": ["city"]}
+    tool = Tool(
+        name="weather",
+        description="useful to determine the weather in a given location",
+        parameters=tool_parameters,
+        function=lambda x: x,
+    )
+
+    return [tool]
 
 
 @pytest.fixture
@@ -267,3 +281,19 @@ class TestMistralChatGenerator:
 
         assert callback.counter > 1
         assert "Paris" in callback.responses
+
+    def test_live_run_with_tools(self, tools):
+        chat_messages = [ChatMessage.from_user("What's the weather like in Paris?")]
+        component = MistralChatGenerator(tools=tools)
+        results = component.run(chat_messages)
+        assert len(results["replies"]) == 1
+        message = results["replies"][0]
+
+        assert not message.texts
+        assert not message.text
+        assert message.tool_calls
+        tool_call = message.tool_call
+        assert isinstance(tool_call, ToolCall)
+        assert tool_call.tool_name == "weather"
+        assert tool_call.arguments == {"city": "Paris"}
+        assert message.meta["finish_reason"] == "tool_calls"
