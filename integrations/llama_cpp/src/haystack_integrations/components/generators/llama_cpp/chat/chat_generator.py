@@ -182,7 +182,8 @@ class LlamaCppChatGenerator:
             For more information on the available kwargs, see
             [llama.cpp documentation](https://llama-cpp-python.readthedocs.io/en/latest/api-reference/#llama_cpp.Llama.create_chat_completion).
         :param tools:
-            A list of tools for which the model can prepare calls.
+            A list of tools for which the model can prepare calls. If set, it will override the `tools` parameter set
+            during component initialization.
         :returns: A dictionary with the following keys:
             - `replies`: The responses from the model
         """
@@ -196,6 +197,7 @@ class LlamaCppChatGenerator:
         updated_generation_kwargs = {**self.generation_kwargs, **(generation_kwargs or {})}
         formatted_messages = [_convert_message_to_llamacpp_format(msg) for msg in messages]
 
+        tools = tools or self.tools
         llamacpp_tools = {}
         if tools:
             tool_definitions = [{"type": "function", "function": {**t.tool_spec}} for t in tools]
