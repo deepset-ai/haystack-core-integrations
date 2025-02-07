@@ -1,14 +1,17 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
+
+import json
 from typing import Any, Callable, Dict, List, Optional
 
-from haystack import component
+from haystack import component, logging
 from haystack.components.generators.chat import OpenAIChatGenerator
-from haystack.dataclasses import StreamingChunk
+from haystack.dataclasses import StreamingChunk, ChatMessage, ToolCall
 from haystack.tools import Tool
 from haystack.utils.auth import Secret
 
+logger = logging.getLogger(__name__)
 
 @component
 class MistralChatGenerator(OpenAIChatGenerator):
@@ -55,7 +58,7 @@ class MistralChatGenerator(OpenAIChatGenerator):
     def __init__(
         self,
         api_key: Secret = Secret.from_env_var("MISTRAL_API_KEY"),
-        model: str = "mistral-tiny",
+        model: str = "mistral-small-latest",
         streaming_callback: Optional[Callable[[StreamingChunk], None]] = None,
         api_base_url: Optional[str] = "https://api.mistral.ai/v1",
         generation_kwargs: Optional[Dict[str, Any]] = None,
@@ -101,3 +104,55 @@ class MistralChatGenerator(OpenAIChatGenerator):
             generation_kwargs=generation_kwargs,
             tools=tools,
         )
+
+    def _convert_streaming_chunks_to_chat_message(self, chunk: Any, chunks: List[StreamingChunk]) -> ChatMessage:
+        """
+        Connects the streaming chunks into a single ChatMessage.
+
+        :param chunk: The last chunk returned by the OpenAI API.
+        :param chunks: The list of all `StreamingChunk` objects.
+        """        
+        text = "".join([chunk.content for chunk in chunks])
+        tool_calls = []
+
+        # are there any tool calls in the chunks?
+        if any(chunk.meta.get("tool_calls") for chunk in chunks):
+            ## get the index of the first chunk with tool calls
+            tool_call_index = next((i for i, chunk in enumerate(chunks) if chunk.meta.get("tool_calls")), None)
+            tools_len = len(chunks[tool_call_index].meta.get("tool_calls", []))
+
+            payloads = [{"arguments": "", "name": ""} for _ in range(tools_len)]
+            for chunk_payload in chunks:
+                deltas = chunk_payload.meta.get("tool_calls") or []
+
+                # deltas is a list of ChoiceDeltaToolCall or ChoiceDeltaFunctionCall
+                for i, delta in enumerate(deltas):
+                    payloads[i]["id"] = delta.id or payloads[i].get("id", "")
+                    if delta.function:
+                        payloads[i]["name"] += delta.function.name or ""
+                        payloads[i]["arguments"] += delta.function.arguments or ""
+
+            for payload in payloads:
+                arguments_str = payload["arguments"]
+                try:
+                    arguments = json.loads(arguments_str)
+                    tool_calls.append(ToolCall(id=payload["id"], tool_name=payload["name"], arguments=arguments))
+                except json.JSONDecodeError:
+                    logger.warning(
+                        "OpenAI returned a malformed JSON string for tool call arguments. This tool call "
+                        "will be skipped. To always generate a valid JSON, set `tools_strict` to `True`. "
+                        "Tool call ID: {_id}, Tool name: {_name}, Arguments: {_arguments}",
+                        _id=payload["id"],
+                        _name=payload["name"],
+                        _arguments=arguments_str,
+                    )
+
+        meta = {
+            "model": chunk.model,
+            "index": 0,
+            "finish_reason": chunk.choices[0].finish_reason,
+            "completion_start_time": chunks[0].meta.get("received_at"),  # first chunk received
+            "usage": {},  # we don't have usage data for streaming responses
+        }
+
+        return ChatMessage.from_assistant(text=text, tool_calls=tool_calls, meta=meta)
