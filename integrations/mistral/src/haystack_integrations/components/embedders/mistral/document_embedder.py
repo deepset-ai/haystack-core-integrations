@@ -17,16 +17,14 @@ class MistralDocumentEmbedder(OpenAIDocumentEmbedder):
     Usage example:
     ```python
     from haystack import Document
-    from haystack_integrations.components.embedders.mistral import (
-        MistralDocumentEmbedder,
-    )
+    from haystack_integrations.components.embedders.mistral import MistralDocumentEmbedder
 
     doc = Document(content="I love pizza!")
 
     document_embedder = MistralDocumentEmbedder()
 
     result = document_embedder.run([doc])
-    print(result["documents"][0].embedding)
+    print(result['documents'][0].embedding)
 
     # [0.017020374536514282, -0.023255806416273117, ...]
     ```
