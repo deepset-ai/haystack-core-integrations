@@ -4,12 +4,12 @@ from unittest.mock import patch
 
 import pytest
 import pytz
+from haystack import Pipeline
 from haystack.components.generators.utils import print_streaming_chunk
 from haystack.components.tools import ToolInvoker
-from haystack.dataclasses import ChatMessage, StreamingChunk, ToolCall, ChatRole
+from haystack.dataclasses import ChatMessage, ChatRole, StreamingChunk, ToolCall
 from haystack.tools import Tool
 from haystack.utils.auth import Secret
-from haystack import Pipeline
 from openai import OpenAIError
 from openai.types.chat import ChatCompletion, ChatCompletionMessage
 from openai.types.chat.chat_completion import Choice
@@ -358,6 +358,7 @@ class TestMistralChatGenerator:
         """
         Integration test that the MistralChatGenerator component can run with tools and streaming.
         """
+
         class Callback:
             def __init__(self):
                 self.responses = ""
@@ -455,17 +456,13 @@ class TestMistralChatGenerator:
             "max_runs_per_component": 100,
             "components": {
                 "generator": {
-                    "type": "haystack_integrations.components.generators.mistral.chat.chat_generator.MistralChatGenerator",
+                    "type": "haystack_integrations.components.generators.mistral.chat.chat_generator.MistralChatGenerator",  # noqa: E501
                     "init_parameters": {
-                        "api_key": {"type": "env_var", "env_vars": ["MISTRAL_API_KEY"], "strict": False},
+                        "api_key": {"type": "env_var", "env_vars": ["MISTRAL_API_KEY"], "strict": True},
                         "model": "mistral-small",
-                        "generation_kwargs": {"temperature": 0.7},
                         "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
                         "api_base_url": "https://api.mistral.ai/v1",
-                        "organization": None,
-                        "timeout": None,
-                        "max_retries": None,
-                        "tools_strict": False,
+                        "generation_kwargs": {"temperature": 0.7},
                         "tools": [
                             {
                                 "type": "haystack.tools.tool.Tool",
@@ -477,6 +474,10 @@ class TestMistralChatGenerator:
                                 },
                             }
                         ],
+                        "organization": None,
+                        "timeout": None,
+                        "max_retries": None,
+                        "tools_strict": False,
                     },
                 }
             },

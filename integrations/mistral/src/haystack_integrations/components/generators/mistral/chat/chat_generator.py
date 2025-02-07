@@ -7,11 +7,12 @@ from typing import Any, Callable, Dict, List, Optional
 
 from haystack import component, logging
 from haystack.components.generators.chat import OpenAIChatGenerator
-from haystack.dataclasses import StreamingChunk, ChatMessage, ToolCall
+from haystack.dataclasses import ChatMessage, StreamingChunk, ToolCall
 from haystack.tools import Tool
 from haystack.utils.auth import Secret
 
 logger = logging.getLogger(__name__)
+
 
 @component
 class MistralChatGenerator(OpenAIChatGenerator):
@@ -111,30 +112,35 @@ class MistralChatGenerator(OpenAIChatGenerator):
 
         :param chunk: The last chunk returned by the OpenAI API.
         :param chunks: The list of all `StreamingChunk` objects.
-        """        
+        """
         text = "".join([chunk.content for chunk in chunks])
         tool_calls = []
 
         # are there any tool calls in the chunks?
         if any(chunk.meta.get("tool_calls") for chunk in chunks):
-            ## get the index of the first chunk with tool calls
-            tool_call_index = next((i for i, chunk in enumerate(chunks) if chunk.meta.get("tool_calls")), None)
-            tools_len = len(chunks[tool_call_index].meta.get("tool_calls", []))
-
-            payloads = [{"arguments": "", "name": ""} for _ in range(tools_len)]
+            payloads = {}  # Use a dict to track tool calls by ID
             for chunk_payload in chunks:
                 deltas = chunk_payload.meta.get("tool_calls") or []
 
-                # deltas is a list of ChoiceDeltaToolCall or ChoiceDeltaFunctionCall
-                for i, delta in enumerate(deltas):
-                    payloads[i]["id"] = delta.id or payloads[i].get("id", "")
+                # deltas is a list of ChoiceDeltaToolCall
+                for delta in deltas:
+                    if delta.id not in payloads:
+                        payloads[delta.id] = {"id": delta.id, "arguments": "", "name": "", "type": None}
+                    # ChoiceDeltaToolCall has a 'function' field of type ChoiceDeltaToolCallFunction
                     if delta.function:
-                        payloads[i]["name"] += delta.function.name or ""
-                        payloads[i]["arguments"] += delta.function.arguments or ""
+                        # For tool calls with the same ID, use the latest values
+                        if delta.function.name is not None:
+                            payloads[delta.id]["name"] = delta.function.name
+                        if delta.function.arguments is not None:
+                            # Use the latest arguments value
+                            payloads[delta.id]["arguments"] = delta.function.arguments
+                    if delta.type is not None:
+                        payloads[delta.id]["type"] = delta.type
 
-            for payload in payloads:
+            for payload in payloads.values():
                 arguments_str = payload["arguments"]
                 try:
+                    # Try to parse the concatenated arguments string as JSON
                     arguments = json.loads(arguments_str)
                     tool_calls.append(ToolCall(id=payload["id"], tool_name=payload["name"], arguments=arguments))
                 except json.JSONDecodeError:
