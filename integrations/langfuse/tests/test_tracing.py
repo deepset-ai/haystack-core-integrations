@@ -237,6 +237,8 @@ def test_custom_span_handler():
     uuid = os.path.basename(urlparse(trace_url).path)
     url = f"https://cloud.langfuse.com/api/public/traces/{uuid}"
 
+    time.sleep(10)
+
     # Poll the Langfuse API
     attempts = 5
     delay = 1
