@@ -1,5 +1,13 @@
 # Changelog
 
+## [integrations/amazon_bedrock-v3.0.1] - 2025-01-30
+
+### 🐛 Bug Fixes
+
+- Chore: Bedrock - manually fix changelog (#1319)
+- Fix error when empty document list (#1325)
+
+
 ## [integrations/amazon_bedrock-v3.0.0] - 2025-01-23
 
 ### 🚀 Features

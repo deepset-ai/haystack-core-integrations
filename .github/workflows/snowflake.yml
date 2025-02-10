@@ -8,6 +8,7 @@ on:
   pull_request:
     paths:
       - "integrations/snowflake/**"
+      - "!integrations/snowflake/*.md"
       - ".github/workflows/snowflake.yml"
 
 defaults:

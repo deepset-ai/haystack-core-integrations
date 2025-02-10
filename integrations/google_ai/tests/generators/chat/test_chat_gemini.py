@@ -125,12 +125,20 @@ class TestGoogleAIGeminiChatGenerator:
                 "safety_settings": None,
                 "streaming_callback": None,
                 "tools": None,
+                "tool_config": None,
             },
         }
 
     def test_to_dict_with_param(self, monkeypatch):
         monkeypatch.setenv("GOOGLE_API_KEY", "test")
         tools = [Tool(name="name", description="description", parameters={"x": {"type": "string"}}, function=print)]
+
+        tool_config = {
+            "function_calling_config": {
+                "mode": "any",
+                "allowed_function_names": ["name"],
+            },
+        }
 
         generation_config = GenerationConfig(
             candidate_count=1,
@@ -147,6 +155,7 @@ class TestGoogleAIGeminiChatGenerator:
                 generation_config=generation_config,
                 safety_settings=safety_settings,
                 tools=tools,
+                tool_config=tool_config,
             )
         assert gemini.to_dict() == {
             "type": TYPE,
@@ -174,6 +183,12 @@ class TestGoogleAIGeminiChatGenerator:
                         },
                     }
                 ],
+                "tool_config": {
+                    "function_calling_config": {
+                        "mode": "any",
+                        "allowed_function_names": ["name"],
+                    },
+                },
             },
         }
 
@@ -282,12 +297,8 @@ class TestGoogleAIGeminiChatGenerator:
                         "api_key": {"env_vars": ["GOOGLE_API_KEY"], "strict": True, "type": "env_var"},
                         "model": "gemini-1.5-flash",
                         "generation_config": {
-                            "candidate_count": None,
-                            "max_output_tokens": None,
                             "temperature": 0.6,
                             "stop_sequences": ["stop", "words"],
-                            "top_k": None,
-                            "top_p": None,
                         },
                         "safety_settings": None,
                         "streaming_callback": None,
@@ -302,6 +313,7 @@ class TestGoogleAIGeminiChatGenerator:
                                 },
                             }
                         ],
+                        "tool_config": None,
                     },
                 }
             },
@@ -383,6 +395,41 @@ class TestGoogleAIGeminiChatGenerator:
 
     @pytest.mark.integration
     @pytest.mark.skipif(not os.environ.get("GOOGLE_API_KEY", None), reason="GOOGLE_API_KEY env var not set")
+    def test_run_with_tools_and_tool_config(self, tools):
+
+        def get_population(city: Annotated[str, "the city for which to get the population, e.g. 'Munich'"] = "Munich"):
+            """A simple function to get the population for a location."""
+            return f"Population of {city}: 1,000,000"
+
+        multiple_tools = [tools[0], create_tool_from_function(get_population)]
+
+        tool_config = {
+            "function_calling_config": {
+                "mode": "any",
+                "allowed_function_names": ["get_current_weather"],
+            },
+        }
+
+        gemini_chat = GoogleAIGeminiChatGenerator(
+            model="gemini-2.0-flash-exp", tools=multiple_tools, tool_config=tool_config
+        )
+        user_message = [
+            ChatMessage.from_user("What is the temperature in celsius in Berlin and how many people live there?")
+        ]
+        response = gemini_chat.run(messages=user_message)
+        assert "replies" in response
+        assert len(response["replies"]) > 0
+        assert all(reply.role == ChatRole.ASSISTANT for reply in response["replies"])
+
+        # check the only the allowed function is called
+        chat_message = response["replies"][0]
+        assert chat_message.tool_calls
+        assert len(chat_message.tool_calls) == 1
+        assert chat_message.tool_calls[0].tool_name == "get_current_weather"
+        assert chat_message.tool_calls[0].arguments == {"city": "Berlin", "unit": "Celsius"}
+
+    @pytest.mark.integration
+    @pytest.mark.skipif(not os.environ.get("GOOGLE_API_KEY", None), reason="GOOGLE_API_KEY env var not set")
     def test_run_with_streaming_callback_and_tools(self, tools):
         streaming_callback_called = False
 
@@ -405,6 +452,10 @@ class TestGoogleAIGeminiChatGenerator:
         assert chat_message.tool_calls
         assert chat_message.tool_calls[0].tool_name == "get_current_weather"
         assert chat_message.tool_calls[0].arguments == {"city": "Berlin", "unit": "Celsius"}
+        assert "usage" in chat_message.meta
+        assert "prompt_tokens" in chat_message.meta["usage"]
+        assert "completion_tokens" in chat_message.meta["usage"]
+        assert "total_tokens" in chat_message.meta["usage"]
 
         weather = tools[0].invoke(**chat_message.tool_calls[0].arguments)
         messages += response["replies"] + [
@@ -420,6 +471,10 @@ class TestGoogleAIGeminiChatGenerator:
         assert not chat_message.tool_calls
         assert chat_message.text
         assert "berlin" in chat_message.text.lower()
+        assert "usage" in chat_message.meta
+        assert "prompt_tokens" in chat_message.meta["usage"]
+        assert "completion_tokens" in chat_message.meta["usage"]
+        assert "total_tokens" in chat_message.meta["usage"]
 
     @pytest.mark.integration
     @pytest.mark.skipif(not os.environ.get("GOOGLE_API_KEY", None), reason="GOOGLE_API_KEY env var not set")

@@ -236,7 +236,7 @@ class TestOptimumTextEmbedder:
             token=Secret.from_token("fake-api-token"),
             pooling_mode="mean",
         )
-        embedder.warm_up()
+        embedder._initialized = True
 
         list_integers_input = [1, 2, 3]
 

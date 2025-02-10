@@ -9,6 +9,7 @@ on:
     paths:
       - "integrations/unstructured/**"
       - ".github/workflows/unstructured.yml"
+      - "!integrations/unstructured/*.md"
 
 defaults:
   run:
