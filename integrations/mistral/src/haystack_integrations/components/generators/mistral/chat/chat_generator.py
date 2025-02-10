@@ -9,8 +9,8 @@ from haystack import component, default_to_dict, logging
 from haystack.components.generators.chat import OpenAIChatGenerator
 from haystack.dataclasses import ChatMessage, StreamingChunk, ToolCall
 from haystack.tools import Tool
-from haystack.utils.auth import Secret
 from haystack.utils import serialize_callable
+from haystack.utils.auth import Secret
 
 logger = logging.getLogger(__name__)
 
