@@ -175,9 +175,8 @@ class MistralChatGenerator(OpenAIChatGenerator):
                     tool_calls.append(ToolCall(id=payload["id"], tool_name=payload["name"], arguments=arguments))
                 except json.JSONDecodeError:
                     logger.warning(
-                        "OpenAI returned a malformed JSON string for tool call arguments. This tool call "
-                        "will be skipped. To always generate a valid JSON, set `tools_strict` to `True`. "
-                        "Tool call ID: {_id}, Tool name: {_name}, Arguments: {_arguments}",
+                        "Mistral returned a malformed JSON string for tool call arguments. This tool call "
+                        "will be skipped. Tool call ID: {_id}, Tool name: {_name}, Arguments: {_arguments}",
                         _id=payload["id"],
                         _name=payload["name"],
                         _arguments=arguments_str,
