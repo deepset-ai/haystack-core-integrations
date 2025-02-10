@@ -429,6 +429,18 @@ EMBEDDING_MODEL_TABLE = {
         id="baai/bge-m3",
         model_type="embedding",
     ),
+    "nvidia/embed-qa-4": Model(
+        id="nvidia/embed-qa-4",
+        model_type="embedding",
+    ),
+    "nvidia/llama-3.2-nv-embedqa-1b-v1": Model(
+        id="nvidia/llama-3.2-nv-embedqa-1b-v1",
+        model_type="embedding",
+    ),
+    "nvidia/llama-3.2-nv-embedqa-1b-v2": Model(
+        id="nvidia/llama-3.2-nv-embedqa-1b-v2",
+        model_type="embedding",
+    ),
 }
 RANKING_MODEL_TABLE = {
     "nv-rerank-qa-mistral-4b:1": Model(
