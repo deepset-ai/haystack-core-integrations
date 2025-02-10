@@ -110,7 +110,6 @@ class TestMistralChatGenerator:
         expected_params = {
             "api_key": {"env_vars": ["MISTRAL_API_KEY"], "strict": True, "type": "env_var"},
             "model": "mistral-small-latest",
-            "organization": None,
             "streaming_callback": None,
             "api_base_url": "https://api.mistral.ai/v1",
             "generation_kwargs": {},
@@ -474,10 +473,6 @@ class TestMistralChatGenerator:
                                 },
                             }
                         ],
-                        "organization": None,
-                        "timeout": None,
-                        "max_retries": None,
-                        "tools_strict": False,
                     },
                 }
             },

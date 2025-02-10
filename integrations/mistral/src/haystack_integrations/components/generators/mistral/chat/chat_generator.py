@@ -5,11 +5,12 @@
 import json
 from typing import Any, Callable, Dict, List, Optional
 
-from haystack import component, logging
+from haystack import component, default_to_dict, logging
 from haystack.components.generators.chat import OpenAIChatGenerator
 from haystack.dataclasses import ChatMessage, StreamingChunk, ToolCall
 from haystack.tools import Tool
 from haystack.utils.auth import Secret
+from haystack.utils import serialize_callable
 
 logger = logging.getLogger(__name__)
 
@@ -104,6 +105,24 @@ class MistralChatGenerator(OpenAIChatGenerator):
             organization=None,
             generation_kwargs=generation_kwargs,
             tools=tools,
+        )
+
+    def to_dict(self) -> Dict[str, Any]:
+        """
+        Serialize this component to a dictionary.
+
+        :returns:
+            The serialized component as a dictionary.
+        """
+        callback_name = serialize_callable(self.streaming_callback) if self.streaming_callback else None
+        return default_to_dict(
+            self,
+            model=self.model,
+            streaming_callback=callback_name,
+            api_base_url=self.api_base_url,
+            generation_kwargs=self.generation_kwargs,
+            api_key=self.api_key.to_dict(),
+            tools=[tool.to_dict() for tool in self.tools] if self.tools else None,
         )
 
     def _convert_streaming_chunks_to_chat_message(self, chunk: Any, chunks: List[StreamingChunk]) -> ChatMessage:
