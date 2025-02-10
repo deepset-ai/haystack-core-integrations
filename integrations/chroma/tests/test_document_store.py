@@ -179,7 +179,13 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, FilterDocuments
         document_store.write_documents([doc])
         document_store.delete_documents(["non_existing"])
         filters = {"operator": "==", "field": "id", "value": doc.id}
-        assert document_store.filter_documents(filters=filters) == [doc]
+
+        assert document_store.filter_documents(filters=filters)[0].id == doc.id
+
+    def test_filter_documents_return_embeddings(self, document_store: ChromaDocumentStore):
+        document_store.write_documents([Document(content="test doc", embedding=TEST_EMBEDDING_1)])
+
+        assert document_store.filter_documents()[0].embedding == pytest.approx(TEST_EMBEDDING_1)
 
     def test_search(self):
         document_store = ChromaDocumentStore()

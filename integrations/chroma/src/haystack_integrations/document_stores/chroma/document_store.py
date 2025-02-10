@@ -9,6 +9,7 @@ from chromadb.api.types import GetResult, QueryResult
 from haystack import default_from_dict, default_to_dict
 from haystack.dataclasses import Document
 from haystack.document_stores.types import DuplicatePolicy
+from numpy import ndarray
 
 from .filters import _convert_filters
 from .utils import get_embedding_function
@@ -208,18 +209,18 @@ class ChromaDocumentStore:
         self._ensure_initialized()
         assert self._collection is not None
 
+        kwargs: Dict[str, Any] = {"include": ["embeddings", "documents", "metadatas"]}
+
         if filters:
             chroma_filter = _convert_filters(filters)
-            kwargs: Dict[str, Any] = {"where": chroma_filter.where}
+            kwargs["where"] = chroma_filter.where
 
             if chroma_filter.ids:
                 kwargs["ids"] = chroma_filter.ids
             if chroma_filter.where_document:
                 kwargs["where_document"] = chroma_filter.where_document
 
-            result = self._collection.get(**kwargs)
-        else:
-            result = self._collection.get()
+        result = self._collection.get(**kwargs)
 
         return self._get_result_to_documents(result)
 
@@ -416,8 +417,11 @@ class ChromaDocumentStore:
                 document_dict["meta"] = result_metadata[i]
 
             result_embeddings = result.get("embeddings")
-            if result_embeddings:
-                document_dict["embedding"] = list(result_embeddings[i])
+            if result_embeddings is not None:
+                if isinstance(result_embeddings[i], ndarray):
+                    document_dict["embedding"] = result_embeddings[i].tolist()
+                else:
+                    document_dict["embedding"] = result_embeddings[i]
 
             retval.append(Document.from_dict(document_dict))
 
