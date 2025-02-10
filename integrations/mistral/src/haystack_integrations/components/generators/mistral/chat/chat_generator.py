@@ -52,7 +52,7 @@ class MistralChatGenerator(OpenAIChatGenerator):
     >>{'replies': [ChatMessage(content='Natural Language Processing (NLP) is a branch of artificial intelligence
     >>that focuses on enabling computers to understand, interpret, and generate human language in a way that is
     >>meaningful and useful.', role=<ChatRole.ASSISTANT: 'assistant'>, name=None,
-    >>meta={'model': 'mistral-tiny', 'index': 0, 'finish_reason': 'stop',
+    >>meta={'model': 'mistral-small-latest', 'index': 0, 'finish_reason': 'stop',
     >>'usage': {'prompt_tokens': 15, 'completion_tokens': 36, 'total_tokens': 51}})]}
     ```
     """
@@ -68,7 +68,7 @@ class MistralChatGenerator(OpenAIChatGenerator):
     ):
         """
         Creates an instance of MistralChatGenerator. Unless specified otherwise in the `model`, this is for Mistral's
-        `mistral-tiny` model.
+        `mistral-small-latest` model.
 
         :param api_key:
             The Mistral API key.
@@ -115,6 +115,11 @@ class MistralChatGenerator(OpenAIChatGenerator):
             The serialized component as a dictionary.
         """
         callback_name = serialize_callable(self.streaming_callback) if self.streaming_callback else None
+
+        # if we didn't implement the to_dict method here then the to_dict method of the superclass would be used
+        # which would serialiaze some fields that we don't want to serialize (e.g. the ones we don't have in
+        # the __init__)
+        # it would be hard to maintain the compatibility as superclass changes
         return default_to_dict(
             self,
             model=self.model,
@@ -132,6 +137,12 @@ class MistralChatGenerator(OpenAIChatGenerator):
         :param chunk: The last chunk returned by the OpenAI API.
         :param chunks: The list of all `StreamingChunk` objects.
         """
+
+        # to have streaming support and tool calls we need to do some extra work here because the superclass
+        # looks for tool calls in the first chunk only, while Mistral does not return tool calls in the first chunk
+        # so we need to find the chunk that has tool calls and use it to create the ChatMessage
+        # after we implement https://github.com/deepset-ai/haystack/pull/8829 we'll be able to remove this code
+        # and use the superclass implementation
         text = "".join([chunk.content for chunk in chunks])
         tool_calls = []
 
