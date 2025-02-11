@@ -6,10 +6,6 @@
 
 - Add nvidia latest embedding models (#1364)
 
-### 📚 Documentation
-
-- Update changelog for integrations/nvidia (#1353)
-
 ## [integrations/nvidia-v0.1.5] - 2025-02-04
 
 ### 🌀 Miscellaneous
