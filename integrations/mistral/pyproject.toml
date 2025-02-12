@@ -44,7 +44,6 @@ git_describe_command = 'git describe --tags --match="integrations/mistral-v[0-9]
 installer = "uv"
 dependencies = [
   "coverage[toml]>=6.5",
-  "jsonschema",
   "pytest",
   "pytest-rerunfailures",
   "haystack-pydoc-tools",
