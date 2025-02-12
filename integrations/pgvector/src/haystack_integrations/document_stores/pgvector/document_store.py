@@ -28,7 +28,6 @@ CREATE TABLE IF NOT EXISTS {schema_name}.{table_name} (
 id VARCHAR(128) PRIMARY KEY,
 embedding VECTOR({embedding_dimension}),
 content TEXT,
-dataframe JSONB,
 blob_data BYTEA,
 blob_meta JSONB,
 blob_mime_type VARCHAR(255),
@@ -37,15 +36,14 @@ meta JSONB)
 
 INSERT_STATEMENT = """
 INSERT INTO {schema_name}.{table_name}
-(id, embedding, content, dataframe, blob_data, blob_meta, blob_mime_type, meta)
-VALUES (%(id)s, %(embedding)s, %(content)s, %(dataframe)s, %(blob_data)s, %(blob_meta)s, %(blob_mime_type)s, %(meta)s)
+(id, embedding, content, blob_data, blob_meta, blob_mime_type, meta)
+VALUES (%(id)s, %(embedding)s, %(content)s, %(blob_data)s, %(blob_meta)s, %(blob_mime_type)s, %(meta)s)
 """
 
 UPDATE_STATEMENT = """
 ON CONFLICT (id) DO UPDATE SET
 embedding = EXCLUDED.embedding,
 content = EXCLUDED.content,
-dataframe = EXCLUDED.dataframe,
 blob_data = EXCLUDED.blob_data,
 blob_meta = EXCLUDED.blob_meta,
 blob_mime_type = EXCLUDED.blob_mime_type,
@@ -555,9 +553,17 @@ class PgvectorDocumentStore:
             db_document["blob_data"] = blob.data if blob else None
             db_document["blob_meta"] = Jsonb(blob.meta) if blob and blob.meta else None
             db_document["blob_mime_type"] = blob.mime_type if blob and blob.mime_type else None
-
-            db_document["dataframe"] = Jsonb(db_document["dataframe"]) if db_document["dataframe"] else None
             db_document["meta"] = Jsonb(db_document["meta"])
+
+            if "dataframe" in db_document:
+                dataframe = db_document.pop("dataframe", None)
+                if dataframe:
+                    logger.warning(
+                        "Document %s has the `dataframe` field set. "
+                        "PgvectorDocumentStore no longer supports dataframes and this field will be ignored. "
+                        "The `dataframe` field will soon be removed from Haystack Document.",
+                        db_document["id"],
+                    )
 
             if "sparse_embedding" in db_document:
                 sparse_embedding = db_document.pop("sparse_embedding", None)
