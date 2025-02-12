@@ -2,12 +2,11 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-import json
 from typing import Any, Callable, Dict, List, Optional
 
 from haystack import component, default_to_dict, logging
 from haystack.components.generators.chat import OpenAIChatGenerator
-from haystack.dataclasses import ChatMessage, StreamingChunk, ToolCall
+from haystack.dataclasses import StreamingChunk
 from haystack.tools import Tool
 from haystack.utils import serialize_callable
 from haystack.utils.auth import Secret
