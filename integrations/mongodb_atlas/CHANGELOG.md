@@ -37,8 +37,6 @@
 - Minor retriever pydoc fix (#884)
 - Small improvement for resolving connection string (#937)
 - Ruff update, don't ruff tests (#991)
-
-Co-authored-by: Madeesh Kannan <shadeMe@users.noreply.github.com>
 - Mongodb keyword search (#1228)
 
 ## [integrations/mongodb_atlas-v0.2.1] - 2024-04-09
@@ -54,16 +52,6 @@ Co-authored-by: Madeesh Kannan <shadeMe@users.noreply.github.com>
 ### 🌀 Miscellaneous
 
 - Refactor tests (#574)
-
-* first refactorings
-
-* separate unit tests in pgvector
-
-* small change to weaviate
-
-* fix format
-
-* usefixtures when possible
 - Remove references to Python 3.7 (#601)
 - Make Document Stores initially skip SparseEmbedding (#606)
 
@@ -79,21 +67,6 @@ Co-authored-by: Madeesh Kannan <shadeMe@users.noreply.github.com>
 - Improve example (#546)
 - MongoDB Atlas: filters (#542)
 
-* wip
-
-* progress
-
-* more tests
-
-* improvements
-
-* ignore missing imports in pyproject
-
-* fix mypy
-
-* show coverage
-
-* rm code duplication
 
 ## [integrations/mongodb_atlas-v0.1.0] - 2024-02-23
 
@@ -106,8 +79,6 @@ Co-authored-by: Madeesh Kannan <shadeMe@users.noreply.github.com>
 
 - Remove filters from `MongoDBAtlasDocumentStore.count()` method (#430)
 - Fix order of API docs (#447)
-
-This PR will also push the docs to Readme
 - Fix pyproject for mongodbatlas (#478)
 
 ### 📚 Documentation
