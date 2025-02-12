@@ -1,5 +1,16 @@
 # Changelog
 
+## [integrations/mistral-v0.1.1] - 2025-02-12
+
+### 🧹 Chores
+
+- Remove robust tool chunk stream handling - added in Haystack 2.10 (#1367)
+
+### 🌀 Miscellaneous
+
+- Docs: update changelog for integrations/mistral (#1362)
+- Chore: remove `jsonschema` dependency from `default` environment (#1368)
+
 ## [integrations/mistral-v0.1.0] - 2025-02-10
 
 ### 🐛 Bug Fixes
