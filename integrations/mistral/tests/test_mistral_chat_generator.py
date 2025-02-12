@@ -276,7 +276,9 @@ class TestMistralChatGenerator:
 
         callback = Callback()
         component = MistralChatGenerator(streaming_callback=callback)
-        results = component.run([ChatMessage.from_user("What's the capital of France?")])
+        results = component.run(
+            [ChatMessage.from_user("What's the capital of France?")], generation_kwargs={"tool_choice": "any"}
+        )
 
         assert len(results["replies"]) == 1
         message: ChatMessage = results["replies"][0]
@@ -314,7 +316,7 @@ class TestMistralChatGenerator:
         """
         initial_messages = [ChatMessage.from_user("What's the weather like in Paris?")]
         component = MistralChatGenerator(tools=tools)
-        results = component.run(messages=initial_messages)
+        results = component.run(messages=initial_messages, generation_kwargs={"tool_choice": "any"})
 
         assert len(results["replies"]) > 0, "No replies received"
 
@@ -374,7 +376,9 @@ class TestMistralChatGenerator:
 
         callback = Callback()
         component = MistralChatGenerator(tools=tools, streaming_callback=callback)
-        results = component.run([ChatMessage.from_user("What's the weather like in Paris?")])
+        results = component.run(
+            [ChatMessage.from_user("What's the weather like in Paris?")], generation_kwargs={"tool_choice": "any"}
+        )
 
         assert len(results["replies"]) > 0, "No replies received"
         assert callback.counter > 1, "Streaming callback was not called multiple times"
@@ -413,7 +417,12 @@ class TestMistralChatGenerator:
         pipeline.connect("generator", "tool_invoker")
 
         results = pipeline.run(
-            data={"generator": {"messages": [ChatMessage.from_user("What's the weather like in Paris?")]}}
+            data={
+                "generator": {
+                    "messages": [ChatMessage.from_user("What's the weather like in Paris?")],
+                    "generation_kwargs": {"tool_choice": "any"},
+                }
+            }
         )
 
         assert (

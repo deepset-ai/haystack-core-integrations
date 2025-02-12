@@ -2,12 +2,11 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-import json
 from typing import Any, Callable, Dict, List, Optional
 
 from haystack import component, default_to_dict, logging
 from haystack.components.generators.chat import OpenAIChatGenerator
-from haystack.dataclasses import ChatMessage, StreamingChunk, ToolCall
+from haystack.dataclasses import StreamingChunk
 from haystack.tools import Tool
 from haystack.utils import serialize_callable
 from haystack.utils.auth import Secret
@@ -129,65 +128,3 @@ class MistralChatGenerator(OpenAIChatGenerator):
             api_key=self.api_key.to_dict(),
             tools=[tool.to_dict() for tool in self.tools] if self.tools else None,
         )
-
-    def _convert_streaming_chunks_to_chat_message(self, chunk: Any, chunks: List[StreamingChunk]) -> ChatMessage:
-        """
-        Connects the streaming chunks into a single ChatMessage.
-
-        :param chunk: The last chunk returned by the OpenAI API.
-        :param chunks: The list of all `StreamingChunk` objects.
-        """
-
-        # to have streaming support and tool calls we need to do some extra work here because the superclass
-        # looks for tool calls in the first chunk only, while Mistral does not return tool calls in the first chunk
-        # so we need to find the chunk that has tool calls and use it to create the ChatMessage
-        # after we implement https://github.com/deepset-ai/haystack/pull/8829 we'll be able to remove this code
-        # and use the superclass implementation
-        text = "".join([chunk.content for chunk in chunks])
-        tool_calls = []
-
-        # are there any tool calls in the chunks?
-        if any(chunk.meta.get("tool_calls") for chunk in chunks):
-            payloads = {}  # Use a dict to track tool calls by ID
-            for chunk_payload in chunks:
-                deltas = chunk_payload.meta.get("tool_calls") or []
-
-                # deltas is a list of ChoiceDeltaToolCall
-                for delta in deltas:
-                    if delta.id not in payloads:
-                        payloads[delta.id] = {"id": delta.id, "arguments": "", "name": "", "type": None}
-                    # ChoiceDeltaToolCall has a 'function' field of type ChoiceDeltaToolCallFunction
-                    if delta.function:
-                        # For tool calls with the same ID, use the latest values
-                        if delta.function.name is not None:
-                            payloads[delta.id]["name"] = delta.function.name
-                        if delta.function.arguments is not None:
-                            # Use the latest arguments value
-                            payloads[delta.id]["arguments"] = delta.function.arguments
-                    if delta.type is not None:
-                        payloads[delta.id]["type"] = delta.type
-
-            for payload in payloads.values():
-                arguments_str = payload["arguments"]
-                try:
-                    # Try to parse the concatenated arguments string as JSON
-                    arguments = json.loads(arguments_str)
-                    tool_calls.append(ToolCall(id=payload["id"], tool_name=payload["name"], arguments=arguments))
-                except json.JSONDecodeError:
-                    logger.warning(
-                        "Mistral returned a malformed JSON string for tool call arguments. This tool call "
-                        "will be skipped. Tool call ID: {_id}, Tool name: {_name}, Arguments: {_arguments}",
-                        _id=payload["id"],
-                        _name=payload["name"],
-                        _arguments=arguments_str,
-                    )
-
-        meta = {
-            "model": chunk.model,
-            "index": 0,
-            "finish_reason": chunk.choices[0].finish_reason,
-            "completion_start_time": chunks[0].meta.get("received_at"),  # first chunk received
-            "usage": {},  # we don't have usage data for streaming responses
-        }
-
-        return ChatMessage.from_assistant(text=text, tool_calls=tool_calls, meta=meta)
