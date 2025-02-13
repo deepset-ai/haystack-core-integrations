@@ -11,7 +11,7 @@ from unittest import mock
 import numpy as np
 import pytest
 from chromadb.api.types import Documents, EmbeddingFunction, Embeddings
-from haystack import Document
+from haystack.dataclasses import ByteStream, Document
 from haystack.testing.document_store import (
     TEST_EMBEDDING_1,
     TEST_EMBEDDING_2,
@@ -226,6 +226,20 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, FilterDocuments
         assert written_docs[0].meta == {}
         assert written_docs[1].meta == {}
         assert written_docs[2].meta == {"ok": 123}
+
+    def test_documents_with_content_none_are_not_stored(self, document_store: ChromaDocumentStore):
+        document_store.write_documents([Document(content=None)])
+        assert document_store.filter_documents() == []
+
+    def test_dataframe_and_blob_are_not_stored(self, document_store: ChromaDocumentStore):
+        bs = ByteStream(data=b"test")
+        doc_mixed = Document(content="test", blob=bs)
+        doc_mixed.dataframe = "non null content"  # just a placeholder
+
+        document_store.write_documents([doc_mixed])
+
+        expected_doc = Document(id=doc_mixed.id, content="test")
+        assert document_store.filter_documents() == [expected_doc]
 
     @pytest.mark.integration
     def test_to_dict(self, request):
