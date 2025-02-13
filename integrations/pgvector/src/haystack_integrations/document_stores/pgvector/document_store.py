@@ -591,11 +591,19 @@ class PgvectorDocumentStore:
             blob_data = haystack_dict.pop("blob_data")
             blob_meta = haystack_dict.pop("blob_meta")
             blob_mime_type = haystack_dict.pop("blob_mime_type")
+            dataframe = haystack_dict.pop("dataframe", None)
 
-            # postgresql returns the embedding as a string
-            # so we need to convert it to a list of floats
+            # convert the embedding to a list of floats
             if document.get("embedding") is not None:
                 haystack_dict["embedding"] = document["embedding"].tolist()
+
+            if dataframe:
+                logger.warning(
+                    "Document %s has the `dataframe` field set. "
+                    "PgvectorDocumentStore no longer supports dataframes and this field will be ignored. "
+                    "The `dataframe` field will soon be removed from Haystack Document.",
+                    haystack_dict["id"],
+                )
 
             haystack_document = Document.from_dict(haystack_dict)
 
