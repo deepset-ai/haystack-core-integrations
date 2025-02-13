@@ -1,5 +1,11 @@
 # Changelog
 
+## [integrations/pgvector-v2.0.0] - 2025-02-13
+
+### 🧹 Chores
+
+- Pgvector - remove support for dataframe (#1370)
+
 ## [integrations/pgvector-v1.3.0] - 2025-02-03
 
 ### 🚀 Features
