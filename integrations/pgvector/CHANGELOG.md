@@ -6,10 +6,6 @@
 
 - Pgvector - remove support for dataframe (#1370)
 
-### 🌀 Miscellaneous
-
-- Docs: update changelog for integrations/pgvector (#1345)
-
 ## [integrations/pgvector-v1.3.0] - 2025-02-03
 
 ### 🚀 Features
