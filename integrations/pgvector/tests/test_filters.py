@@ -2,10 +2,8 @@ from typing import List
 
 import pytest
 from haystack.dataclasses.document import Document
-from haystack.testing.document_store import FilterDocumentsTest, FilterDocumentsTestWithDataframe
-from pandas import DataFrame
+from haystack.testing.document_store import FilterDocumentsTest
 from psycopg.sql import SQL
-from psycopg.types.json import Jsonb
 
 from haystack_integrations.document_stores.pgvector.filters import (
     FilterError,
@@ -17,7 +15,7 @@ from haystack_integrations.document_stores.pgvector.filters import (
 
 
 @pytest.mark.integration
-class TestFilters(FilterDocumentsTest, FilterDocumentsTestWithDataframe):
+class TestFilters(FilterDocumentsTest):
     def assert_documents_are_equal(self, received: List[Document], expected: List[Document]):
         """
         This overrides the default assert_documents_are_equal from FilterDocumentsTest.
@@ -145,17 +143,6 @@ def test_treat_meta_field():
     assert _treat_meta_field(field="meta.other", value={"a": 3, "b": "example"}) == "meta->>'other'"
     assert _treat_meta_field(field="meta.empty_list", value=[]) == "meta->>'empty_list'"
     assert _treat_meta_field(field="meta.name", value=None) == "meta->>'name'"
-
-
-def test_comparison_condition_dataframe_jsonb_conversion():
-    dataframe = DataFrame({"a": [1, 2, 3], "b": ["a", "b", "c"]})
-    condition = {"field": "meta.df", "operator": "==", "value": dataframe}
-    field, values = _parse_comparison_condition(condition)
-    assert field == "(meta.df)::jsonb = %s"
-
-    # we check each slot of the Jsonb object because it does not implement __eq__
-    assert values[0].obj == Jsonb(dataframe.to_json()).obj
-    assert values[0].dumps == Jsonb(dataframe.to_json()).dumps
 
 
 def test_comparison_condition_missing_operator():

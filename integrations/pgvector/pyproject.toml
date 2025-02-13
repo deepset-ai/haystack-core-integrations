@@ -163,6 +163,7 @@ markers = ["integration: integration tests"]
 module = [
   "haystack.*",
   "haystack_integrations.*",
+  "numpy.*",
   "pgvector.*",
   "psycopg.*",
   "pytest.*",
