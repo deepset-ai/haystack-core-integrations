@@ -12,6 +12,7 @@ from haystack.dataclasses.document import Document
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
 from haystack.testing.document_store import DocumentStoreBaseTests
+from pandas import DataFrame
 
 from haystack_integrations.document_stores.elasticsearch import ElasticsearchDocumentStore
 
@@ -132,7 +133,7 @@ class TestDocumentStore(DocumentStoreBaseTests):
 
     def test_write_documents_dataframe_ignored(self, document_store: ElasticsearchDocumentStore):
         doc = Document(id="1", content="test")
-        doc.dataframe = "placeholder_for_dataframe"
+        doc.dataframe = DataFrame({"a": [1, 2, 3]})
 
         document_store.write_documents([doc])
 
@@ -146,7 +147,7 @@ class TestDocumentStore(DocumentStoreBaseTests):
 
     def test_deserialize_document_dataframe_ignored(self, document_store: ElasticsearchDocumentStore):
         hit = {
-            "_source": {"id": "1", "content": "test", "dataframe": "placeholder_for_dataframe"},
+            "_source": {"id": "1", "content": "test", "dataframe": {"a": [1, 2, 3]}},
         }
         doc = document_store._deserialize_document(hit)
         assert doc.id == "1"
