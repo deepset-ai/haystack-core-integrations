@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/opensearch-v2.0.0] - 2025-02-14
+
+### 🧹 Chores
+
+- Inherit from `FilterDocumentsTestWithDataframe` in Document Stores (#1290)
+- [**breaking**] OpenSearch - remove dataframe support (#1378)
+
 ## [integrations/opensearch-v1.3.0] - 2025-01-16
 
 ### 🚀 Features
