@@ -2,6 +2,12 @@
 
 ## [integrations/mongodb_atlas-v2.0.0] - 2025-02-14
 
+### 🧹 Chores
+
+- [**breaking**] Mongodb - remove dataframe support (#1398)
+
+## [integrations/mongodb_atlas-v1.1.0] - 2025-02-10
+
 ### 🚀 Features
 
 - Defer the database connection to when it's needed (#770)
