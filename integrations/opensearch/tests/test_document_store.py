@@ -9,9 +9,10 @@ import pytest
 from haystack.dataclasses.document import Document
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
-from haystack.testing.document_store import DocumentStoreBaseTests, FilterDocumentsTestWithDataframe
+from haystack.testing.document_store import DocumentStoreBaseTests
 from haystack.utils.auth import Secret
 from opensearchpy.exceptions import RequestError
+from pandas import DataFrame
 
 from haystack_integrations.document_stores.opensearch import OpenSearchDocumentStore
 from haystack_integrations.document_stores.opensearch.auth import AWSAuth
@@ -325,7 +326,7 @@ class TestAuth:
 
 
 @pytest.mark.integration
-class TestDocumentStore(DocumentStoreBaseTests, FilterDocumentsTestWithDataframe):
+class TestDocumentStore(DocumentStoreBaseTests):
     """
     Common test cases will be provided by `DocumentStoreBaseTests` but
     you can add more to this class.
@@ -457,6 +458,31 @@ class TestDocumentStore(DocumentStoreBaseTests, FilterDocumentsTestWithDataframe
     def test_create_index(self, document_store_readonly: OpenSearchDocumentStore):
         document_store_readonly.create_index()
         assert document_store_readonly.client.indices.exists(index=document_store_readonly._index)
+
+    def test_write_documents_dataframe_ignored(self, document_store: OpenSearchDocumentStore):
+        doc = Document(id="1", content="test")
+        doc.dataframe = DataFrame({"a": [1, 2, 3]})
+
+        document_store.write_documents([doc])
+
+        res = document_store.filter_documents()
+        assert len(res) == 1
+
+        assert res[0].id == "1"
+        assert res[0].content == "test"
+
+        assert not hasattr(res[0], "dataframe") or res[0].dataframe is None
+
+    def test_deserialize_document_dataframe_ignored(self, document_store: OpenSearchDocumentStore):
+        hit = {
+            "_source": {"id": "1", "content": "test", "dataframe": {"a": [1, 2, 3]}},
+            "_score": 1.0,
+        }
+        doc = document_store._deserialize_document(hit)
+        assert doc.id == "1"
+        assert doc.content == "test"
+        assert doc.score == 1.0
+        assert not hasattr(doc, "dataframe") or doc.dataframe is None
 
     def test_bm25_retrieval(self, document_store: OpenSearchDocumentStore):
         document_store.write_documents(
