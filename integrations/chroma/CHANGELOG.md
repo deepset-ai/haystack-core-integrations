@@ -1,5 +1,11 @@
 # Changelog
 
+## [integrations/chroma-v2.0.1] - 2025-02-14
+
+### 🌀 Miscellaneous
+
+- Better handle discarded fields (#1373)
+
 ## [integrations/chroma-v1.0.1] - 2025-02-14
 
 ### 🧹 Chores
