@@ -29,21 +29,22 @@ def poll_langfuse(url: str):
     time.sleep(5)
 
     auth = HTTPBasicAuth(os.environ["LANGFUSE_PUBLIC_KEY"], os.environ["LANGFUSE_SECRET_KEY"])
-    
+
     attempts = 5
     delay = 1
-    
+
     while attempts > 0:
         res = requests.get(url, auth=auth)
         if res.status_code == 200:
             return res
-            
+
         attempts -= 1
         if attempts > 0:
             time.sleep(delay)
             delay *= 2
-    
+
     return res
+
 
 @pytest.fixture
 def pipeline_with_env_vars(llm_class, expected_trace):
