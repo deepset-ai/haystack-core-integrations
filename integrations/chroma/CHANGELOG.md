@@ -4,7 +4,6 @@
 
 ### 🌀 Miscellaneous
 
-- Docs: update changelog for integrations/chroma (#1396)
 - Better handle discarded fields (#1373)
 
 ## [integrations/chroma-v1.0.1] - 2025-02-14
