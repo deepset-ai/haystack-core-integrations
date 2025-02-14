@@ -9,7 +9,7 @@ import pytest
 from haystack import Document
 from haystack.document_stores.errors import MissingDocumentError
 from haystack.document_stores.types import DuplicatePolicy
-from haystack.testing.document_store import DocumentStoreBaseTests, FilterDocumentsTestWithDataframe
+from haystack.testing.document_store import DocumentStoreBaseTests
 
 from haystack_integrations.document_stores.astra import AstraDocumentStore
 
@@ -47,7 +47,7 @@ def test_to_dict(mock_auth):  # noqa
     os.environ.get("ASTRA_DB_APPLICATION_TOKEN", "") == "", reason="ASTRA_DB_APPLICATION_TOKEN env var not set"
 )
 @pytest.mark.skipif(os.environ.get("ASTRA_DB_API_ENDPOINT", "") == "", reason="ASTRA_DB_API_ENDPOINT env var not set")
-class TestDocumentStore(DocumentStoreBaseTests, FilterDocumentsTestWithDataframe):
+class TestDocumentStore(DocumentStoreBaseTests):
     """
     Common test cases will be provided by `DocumentStoreBaseTests` but
     you can add more to this class.
@@ -218,10 +218,6 @@ class TestDocumentStore(DocumentStoreBaseTests, FilterDocumentsTestWithDataframe
     def test_comparison_not_equal(self, document_store, filterable_docs):
         pass
 
-    @pytest.mark.skip(reason="Unsupported filter operator $neq.")
-    def test_comparison_not_equal_with_dataframe(self, document_store, filterable_docs):
-        pass
-
     @pytest.mark.skip(reason="Unsupported filter operator $nin.")
     def test_comparison_not_in(self, document_store, filterable_docs):
         pass
@@ -240,10 +236,6 @@ class TestDocumentStore(DocumentStoreBaseTests, FilterDocumentsTestWithDataframe
 
     @pytest.mark.skip(reason="Unsupported filter operator $gt.")
     def test_comparison_greater_than_with_string(self, document_store, filterable_docs):
-        pass
-
-    @pytest.mark.skip(reason="Unsupported filter operator $gt.")
-    def test_comparison_greater_than_with_dataframe(self, document_store, filterable_docs):
         pass
 
     @pytest.mark.skip(reason="Unsupported filter operator $gt.")
@@ -271,10 +263,6 @@ class TestDocumentStore(DocumentStoreBaseTests, FilterDocumentsTestWithDataframe
         pass
 
     @pytest.mark.skip(reason="Unsupported filter operator $gte.")
-    def test_comparison_greater_than_equal_with_dataframe(self, document_store, filterable_docs):
-        pass
-
-    @pytest.mark.skip(reason="Unsupported filter operator $gte.")
     def test_comparison_greater_than_equal_with_string(self, document_store, filterable_docs):
         pass
 
@@ -288,10 +276,6 @@ class TestDocumentStore(DocumentStoreBaseTests, FilterDocumentsTestWithDataframe
 
     @pytest.mark.skip(reason="Unsupported filter operator $lte.")
     def test_comparison_less_than_equal_with_string(self, document_store, filterable_docs):
-        pass
-
-    @pytest.mark.skip(reason="Unsupported filter operator $lte.")
-    def test_comparison_less_than_equal_with_dataframe(self, document_store, filterable_docs):
         pass
 
     @pytest.mark.skip(reason="Unsupported filter operator $lte.")
@@ -312,10 +296,6 @@ class TestDocumentStore(DocumentStoreBaseTests, FilterDocumentsTestWithDataframe
 
     @pytest.mark.skip(reason="Unsupported filter operator $lt.")
     def test_comparison_less_than_with_list(self, document_store, filterable_docs):
-        pass
-
-    @pytest.mark.skip(reason="Unsupported filter operator $lt.")
-    def test_comparison_less_than_with_dataframe(self, document_store, filterable_docs):
         pass
 
     @pytest.mark.skip(reason="Unsupported filter operator $lt.")

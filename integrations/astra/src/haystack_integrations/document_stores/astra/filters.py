@@ -1,6 +1,5 @@
 from typing import Any, Dict, List, Optional
 
-import pandas as pd
 from haystack.errors import FilterError
 
 
@@ -32,8 +31,6 @@ def _convert_filters(filters: Optional[Dict[str, Any]] = None) -> Optional[Dict[
         else:
             if key != "$in" and isinstance(value, list):
                 filter_statements[key] = {"$in": value}
-            elif isinstance(value, pd.DataFrame):
-                filter_statements[key] = value.to_json()
             elif isinstance(value, dict):
                 for dkey, dvalue in value.items():
                     if dkey == "$in" and not isinstance(dvalue, list):
@@ -96,8 +93,6 @@ def _parse_comparison_condition(condition: Dict[str, Any]) -> Dict[str, Any]:
         raise FilterError(msg)
     operator: str = condition["operator"]
     value: Any = condition["value"]
-    if isinstance(value, pd.DataFrame):
-        value = value.to_json()
 
     return {field: {OPERATORS[operator]: value}}
 
