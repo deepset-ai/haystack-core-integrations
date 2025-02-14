@@ -26,7 +26,7 @@ os.environ["HAYSTACK_CONTENT_TRACING_ENABLED"] = "true"
 def poll_langfuse(url: str):
     """Utility function to poll Langfuse API until the trace is ready"""
     # Initial wait for trace creation
-    time.sleep(5)
+    time.sleep(10)
 
     auth = HTTPBasicAuth(os.environ["LANGFUSE_PUBLIC_KEY"], os.environ["LANGFUSE_SECRET_KEY"])
 
