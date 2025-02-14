@@ -5,9 +5,8 @@ from datetime import datetime
 from typing import Any, Dict
 
 from haystack.errors import FilterError
-from pandas import DataFrame
 
-UNSUPPORTED_TYPES_FOR_COMPARISON = (list, DataFrame)
+UNSUPPORTED_TYPES_FOR_COMPARISON = (list,)
 
 
 def _normalize_filters(filters: Dict[str, Any]) -> Dict[str, Any]:
@@ -67,9 +66,6 @@ def _parse_comparison_condition(condition: Dict[str, Any]) -> Dict[str, Any]:
         raise FilterError(msg)
     operator: str = condition["operator"]
     value: Any = condition["value"]
-
-    if isinstance(value, DataFrame):
-        value = value.to_json()
 
     return COMPARISON_OPERATORS[operator](field, value)
 

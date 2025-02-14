@@ -157,3 +157,9 @@ exclude_lines = ["no cov", "if __name__ == .__main__.:", "if TYPE_CHECKING:"]
 [[tool.mypy.overrides]]
 module = ["haystack.*", "haystack_integrations.*", "pymongo.*", "pytest.*"]
 ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+addopts = "--strict-markers"
+markers = [
+  "integration: integration tests",
+]

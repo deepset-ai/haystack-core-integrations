@@ -93,7 +93,6 @@ class TestFullTextRetrieval:
                     "_id": 0,
                     "blob": 1,
                     "content": 1,
-                    "dataframe": 1,
                     "embedding": 1,
                     "meta": 1,
                     "score": {"$meta": "searchScore"},
