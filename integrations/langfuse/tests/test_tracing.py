@@ -23,6 +23,28 @@ from haystack_integrations.tracing.langfuse.tracer import _COMPONENT_OUTPUT_KEY
 os.environ["HAYSTACK_CONTENT_TRACING_ENABLED"] = "true"
 
 
+def poll_langfuse(url: str):
+    """Utility function to poll Langfuse API until the trace is ready"""
+    # we first need to wait for the response to be available and the trace to be created
+    time.sleep(5)
+
+    # Poll the Langfuse API
+    attempts = 5
+    delay = 1
+    while attempts >= 0:
+        res = requests.get(
+            url, auth=HTTPBasicAuth(os.environ["LANGFUSE_PUBLIC_KEY"], os.environ["LANGFUSE_SECRET_KEY"])
+        )
+        if attempts > 0 and res.status_code != 200:
+            attempts -= 1
+            time.sleep(delay)
+            delay *= 2
+            continue
+
+    assert res.status_code == 200, f"Failed to retrieve data from Langfuse API: {res.status_code}"
+    return res
+
+
 @pytest.fixture
 def pipeline_with_env_vars(llm_class, expected_trace):
     """Pipeline factory using environment variables for Langfuse authentication"""
@@ -109,27 +131,14 @@ def test_tracing_integration(llm_class, env_var, expected_trace, pipeline_fixtur
     uuid = os.path.basename(urlparse(trace_url).path)
     url = f"https://cloud.langfuse.com/api/public/traces/{uuid}"
 
-    # Poll the Langfuse API a bit as the trace might not be ready right away
-    attempts = 5
-    delay = 1
-    while attempts >= 0:
-        res = requests.get(
-            url, auth=HTTPBasicAuth(os.environ["LANGFUSE_PUBLIC_KEY"], os.environ["LANGFUSE_SECRET_KEY"])
-        )
-        if attempts > 0 and res.status_code != 200:
-            attempts -= 1
-            time.sleep(delay)
-            delay *= 2
-            continue
-        assert res.status_code == 200, f"Failed to retrieve data from Langfuse API: {res.status_code}"
+    res = poll_langfuse(url)
 
-        # check if the trace contains the expected LLM name
-        assert expected_trace in str(res.content)
-        # check if the trace contains the expected generation span
-        assert "GENERATION" in str(res.content)
-        # check if the trace contains the expected user_id
-        assert "user_42" in str(res.content)
-        break
+    # check if the trace contains the expected LLM name
+    assert expected_trace in str(res.content)
+    # check if the trace contains the expected generation span
+    assert "GENERATION" in str(res.content)
+    # check if the trace contains the expected user_id
+    assert "user_42" in str(res.content)
 
 
 def test_pipeline_serialization(monkeypatch):
@@ -237,24 +246,8 @@ def test_custom_span_handler():
     uuid = os.path.basename(urlparse(trace_url).path)
     url = f"https://cloud.langfuse.com/api/public/traces/{uuid}"
 
-    # we first need to wait for the response to be available and the trace to be created
-    time.sleep(5)
+    res = poll_langfuse(url)
 
-    # Poll the Langfuse API
-    attempts = 5
-    delay = 1
-    while attempts >= 0:
-        res = requests.get(
-            url, auth=HTTPBasicAuth(os.environ["LANGFUSE_PUBLIC_KEY"], os.environ["LANGFUSE_SECRET_KEY"])
-        )
-        if attempts > 0 and res.status_code != 200:
-            attempts -= 1
-            time.sleep(delay)
-            delay *= 2
-            continue
-
-        assert res.status_code == 200
-        content = str(res.content)
-        assert "WARNING" in content
-        assert "Response too long" in content
-        break
+    content = str(res.content)
+    assert "WARNING" in content
+    assert "Response too long" in content
