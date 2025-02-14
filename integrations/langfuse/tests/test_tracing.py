@@ -25,25 +25,25 @@ os.environ["HAYSTACK_CONTENT_TRACING_ENABLED"] = "true"
 
 def poll_langfuse(url: str):
     """Utility function to poll Langfuse API until the trace is ready"""
-    # we first need to wait for the response to be available and the trace to be created
+    # Initial wait for trace creation
     time.sleep(5)
 
-    # Poll the Langfuse API
+    auth = HTTPBasicAuth(os.environ["LANGFUSE_PUBLIC_KEY"], os.environ["LANGFUSE_SECRET_KEY"])
+    
     attempts = 5
     delay = 1
-    while attempts >= 0:
-        res = requests.get(
-            url, auth=HTTPBasicAuth(os.environ["LANGFUSE_PUBLIC_KEY"], os.environ["LANGFUSE_SECRET_KEY"])
-        )
-        if attempts > 0 and res.status_code != 200:
-            attempts -= 1
+    
+    while attempts > 0:
+        res = requests.get(url, auth=auth)
+        if res.status_code == 200:
+            return res
+            
+        attempts -= 1
+        if attempts > 0:
             time.sleep(delay)
             delay *= 2
-            continue
-
-    assert res.status_code == 200, f"Failed to retrieve data from Langfuse API: {res.status_code}"
+    
     return res
-
 
 @pytest.fixture
 def pipeline_with_env_vars(llm_class, expected_trace):
@@ -132,6 +132,7 @@ def test_tracing_integration(llm_class, env_var, expected_trace, pipeline_fixtur
     url = f"https://cloud.langfuse.com/api/public/traces/{uuid}"
 
     res = poll_langfuse(url)
+    assert res.status_code == 200, f"Failed to retrieve data from Langfuse API: {res.status_code}"
 
     # check if the trace contains the expected LLM name
     assert expected_trace in str(res.content)
@@ -247,6 +248,7 @@ def test_custom_span_handler():
     url = f"https://cloud.langfuse.com/api/public/traces/{uuid}"
 
     res = poll_langfuse(url)
+    assert res.status_code == 200, f"Failed to retrieve data from Langfuse API: {res.status_code}"
 
     content = str(res.content)
     assert "WARNING" in content
