@@ -147,7 +147,8 @@ class TestDocumentStore(DocumentStoreBaseTests):
 
     def test_deserialize_document_dataframe_ignored(self, document_store: ElasticsearchDocumentStore):
         hit = {
-            "_source": {"id": "1", "content": "test", "dataframe": {"a": [1, 2, 3]}, "_score": 1.0},
+            "_source": {"id": "1", "content": "test", "dataframe": {"a": [1, 2, 3]}},
+            "_score": 1.0,
         }
         doc = document_store._deserialize_document(hit)
         assert doc.id == "1"
