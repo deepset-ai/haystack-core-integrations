@@ -331,7 +331,6 @@ class ElasticsearchDocumentStore:
             data["metadata"]["highlighted"] = hit["highlight"]
         data["score"] = hit["_score"]
 
-        # Remove the `dataframe` field if it exists
         if "dataframe" in data:
             dataframe = data.pop("dataframe")
             if dataframe:
