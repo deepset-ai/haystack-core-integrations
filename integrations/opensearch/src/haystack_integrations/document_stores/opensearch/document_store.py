@@ -289,16 +289,39 @@ class OpenSearchDocumentStore:
             policy = DuplicatePolicy.FAIL
 
         action = "index" if policy == DuplicatePolicy.OVERWRITE else "create"
-        documents_written, errors = bulk(
-            client=self.client,
-            actions=(
+
+        opensearch_actions = []
+        for doc in documents:
+            doc_dict = doc.to_dict()
+            if "dataframe" in doc_dict:
+                dataframe = doc_dict.pop("dataframe")
+                if dataframe:
+                    logger.warning(
+                        "Document %s has the `dataframe` field set,"
+                        "OpenSearchDocumentStore no longer supports dataframes and this field will be ignored. "
+                        "The `dataframe` field will soon be removed from Haystack Document.",
+                        doc.id,
+                    )
+            if "sparse_embedding" in doc_dict:
+                sparse_embedding = doc_dict.pop("sparse_embedding", None)
+                if sparse_embedding:
+                    logger.warning(
+                        "Document %s has the `sparse_embedding` field set,"
+                        "but storing sparse embeddings in OpenSearch is not currently supported."
+                        "The `sparse_embedding` field will be ignored.",
+                        doc.id,
+                    )
+            opensearch_actions.append(
                 {
                     "_op_type": action,
                     "_id": doc.id,
-                    "_source": doc.to_dict(),
+                    "_source": doc_dict,
                 }
-                for doc in documents
-            ),
+            )
+
+        documents_written, errors = bulk(
+            client=self.client,
+            actions=opensearch_actions,
             refresh="wait_for",
             index=self._index,
             raise_on_error=False,
@@ -343,6 +366,16 @@ class OpenSearchDocumentStore:
         if "highlight" in hit:
             data["metadata"]["highlighted"] = hit["highlight"]
         data["score"] = hit["_score"]
+
+        if "dataframe" in data:
+            dataframe = data.pop("dataframe")
+            if dataframe:
+                logger.warning(
+                    "Document %s has the `dataframe` field set,"
+                    "OpenSearchDocumentStore no longer supports dataframes and this field will be ignored. "
+                    "The `dataframe` field will soon be removed from Haystack Document.",
+                    data["id"],
+                )
 
         return Document.from_dict(data)
 
