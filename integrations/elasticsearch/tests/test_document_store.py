@@ -147,11 +147,12 @@ class TestDocumentStore(DocumentStoreBaseTests):
 
     def test_deserialize_document_dataframe_ignored(self, document_store: ElasticsearchDocumentStore):
         hit = {
-            "_source": {"id": "1", "content": "test", "dataframe": {"a": [1, 2, 3]}},
+            "_source": {"id": "1", "content": "test", "dataframe": {"a": [1, 2, 3]}, "_score": 1.0},
         }
         doc = document_store._deserialize_document(hit)
         assert doc.id == "1"
         assert doc.content == "test"
+        assert doc.score == 1.0
         assert not hasattr(doc, "dataframe") or doc.dataframe is None
 
     def test_bm25_retrieval(self, document_store: ElasticsearchDocumentStore):
