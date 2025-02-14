@@ -319,14 +319,14 @@ class OpenSearchDocumentStore:
                 }
             )
 
-            documents_written, errors = bulk(
-                client=self.client,
-                actions=opensearch_actions,
-                refresh="wait_for",
-                index=self._index,
-                raise_on_error=False,
-                max_chunk_bytes=self._max_chunk_bytes,
-            )
+        documents_written, errors = bulk(
+            client=self.client,
+            actions=opensearch_actions,
+            refresh="wait_for",
+            index=self._index,
+            raise_on_error=False,
+            max_chunk_bytes=self._max_chunk_bytes,
+        )
 
         if errors:
             duplicate_errors_ids = []
