@@ -2,7 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 import logging
-from dataclasses import asdict
 from typing import Any, Dict, List, Optional, Union
 
 from haystack import default_from_dict, default_to_dict
@@ -180,7 +179,7 @@ class AstraDocumentStore:
 
         def _convert_input_document(document: Union[dict, Document]):
             if isinstance(document, Document):
-                document_dict = asdict(document)
+                document_dict = document.to_dict(flatten=False)
             elif isinstance(document, dict):
                 document_dict = document
             else:
