@@ -2,10 +2,6 @@
 
 ## [integrations/azure_ai_search-v0.1.3] - 2025-02-17
 
-### 📚 Documentation
-
-- Update changelog for integrations/azure_ai_search (#1348)
-
 ### 🧹 Chores
 
 - Azure AI search - clarify that dataframe is not supported (#1407)
