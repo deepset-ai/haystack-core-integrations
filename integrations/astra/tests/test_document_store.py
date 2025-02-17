@@ -10,6 +10,7 @@ from haystack import Document
 from haystack.document_stores.errors import MissingDocumentError
 from haystack.document_stores.types import DuplicatePolicy
 from haystack.testing.document_store import DocumentStoreBaseTests
+from pandas import DataFrame
 
 from haystack_integrations.document_stores.astra import AstraDocumentStore
 
@@ -109,6 +110,20 @@ class TestDocumentStore(DocumentStoreBaseTests):
             Document(id="1", content="test doc 2"),
         ]
         assert document_store.write_documents(docs, policy=DuplicatePolicy.SKIP) == 1
+
+    def test_write_documents_dataframe_ignored(self, document_store: AstraDocumentStore):
+        doc = Document(id="1", content="test")
+        doc.dataframe = DataFrame({"a": [1, 2, 3]})
+
+        document_store.write_documents([doc])
+
+        res = document_store.filter_documents()
+        assert len(res) == 1
+
+        assert res[0].id == "1"
+        assert res[0].content == "test"
+
+        assert not hasattr(res[0], "dataframe") or res[0].dataframe is None
 
     def test_delete_documents_non_existing_document(self, document_store: AstraDocumentStore):
         """
