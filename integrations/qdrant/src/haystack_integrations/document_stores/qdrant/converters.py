@@ -25,7 +25,7 @@ def convert_haystack_documents_to_qdrant_points(
 
         if "dataframe" in payload:
             dataframe = payload.pop("dataframe")
-            if dataframe is not None:
+            if dataframe:
                 logger.warning(
                     "Document %s has the `dataframe` field set,"
                     "QdrantDocumentStore no longer supports dataframes and this field will be ignored. "
@@ -77,7 +77,7 @@ def convert_qdrant_point_to_haystack_document(point: QdrantPoint, use_sparse_emb
 
     if "dataframe" in payload:
         dataframe = payload.pop("dataframe")
-        if dataframe is not None:
+        if dataframe:
             logger.warning(
                 "Document %s has the `dataframe` field set,"
                 "QdrantDocumentStore no longer supports dataframes and this field will be ignored. "
