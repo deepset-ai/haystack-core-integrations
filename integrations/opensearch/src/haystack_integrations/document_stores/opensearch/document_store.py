@@ -4,14 +4,13 @@
 import logging
 from typing import Any, Dict, List, Mapping, Optional, Union
 
-import numpy as np
 from haystack import default_from_dict, default_to_dict
 from haystack.dataclasses import Document
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
 from haystack.utils.auth import Secret
-from opensearchpy import OpenSearch, AsyncOpenSearch
-from opensearchpy.helpers import bulk, async_bulk
+from opensearchpy import AsyncOpenSearch, OpenSearch
+from opensearchpy.helpers import async_bulk, bulk
 
 from haystack_integrations.document_stores.opensearch.auth import AWSAuth
 from haystack_integrations.document_stores.opensearch.filters import normalize_filters
@@ -123,7 +122,7 @@ class OpenSearchDocumentStore:
         # the document store is instantiated.
         self._client = None
         self._async_client = None
-        self._initialized = False        
+        self._initialized = False
 
     def _get_default_mappings(self) -> Dict[str, Any]:
         default_mappings: Dict[str, Any] = {
@@ -143,30 +142,6 @@ class OpenSearchDocumentStore:
         if self._method:
             default_mappings["properties"]["embedding"]["method"] = self._method
         return default_mappings
-
-    @property
-    def client(self) -> OpenSearch:
-        if not self._client:
-            self._client = OpenSearch(
-                hosts=self._hosts,
-                http_auth=self._http_auth,
-                use_ssl=self._use_ssl,
-                verify_certs=self._verify_certs,
-                timeout=self._timeout,
-                **self._kwargs,
-            )
-
-        if self._client.indices.exists(index=self._index):  # type:ignore
-            logger.debug(
-                "The index '%s' already exists. The `embedding_dim`, `method`, `mappings`, and "
-                "`settings` values will be ignored.",
-                self._index,
-            )
-        elif self._create_index:
-            # Create the index if it doesn't exist
-            body = {"mappings": self._mappings, "settings": self._settings}
-            self._client.indices.create(index=self._index, body=body)  # type:ignore
-        return self._client
 
     def create_index(
         self,
@@ -195,8 +170,8 @@ class OpenSearchDocumentStore:
         if not settings:
             settings = self._settings
 
-        if not self.client.indices.exists(index=index):
-            self.client.indices.create(index=index, body={"mappings": mappings, "settings": settings})
+        if not self._client.indices.exists(index=index):
+            self._client.indices.create(index=index, body={"mappings": mappings, "settings": settings})
 
     def to_dict(self) -> Dict[str, Any]:
         """
@@ -253,7 +228,7 @@ class OpenSearchDocumentStore:
                 are_secrets = all(isinstance(item, dict) and "type" in item for item in http_auth)
                 init_params["http_auth"] = [Secret.from_dict(item) for item in http_auth] if are_secrets else http_auth
         return default_from_dict(cls, data)
-    
+
     def _ensure_initialized(self):
         # Ideally, we have a warm-up stage for document stores as well as components.
         if not self._initialized:
@@ -294,7 +269,7 @@ class OpenSearchDocumentStore:
         elif self._create_index:
             # Create the index if it doesn't exist
             body = {"mappings": self._mappings, "settings": self._settings}
-            self._client.indices.create(index=self._index, body=body)  # type:ignore            
+            self._client.indices.create(index=self._index, body=body)  # type:ignore
 
     def count_documents(self) -> int:
         """
@@ -304,13 +279,13 @@ class OpenSearchDocumentStore:
         assert self._client is not None
 
         return self._client.count(index=self._index)["count"]
-    
-    async def count_documents_async(self) -> int:  # noqa: D102
+
+    async def count_documents_async(self) -> int:
         self._ensure_initialized()
 
         assert self._async_client is not None
         return (await self._async_client.count(index=self._index))["count"]
-    
+
     def _deserialize_search_hits(self, hits: List[Dict[str, Any]]) -> List[Document]:
         out = []
         for hit in hits:
@@ -320,10 +295,9 @@ class OpenSearchDocumentStore:
             data["score"] = hit["_score"]
             out.append(Document.from_dict(data))
 
-        return out    
+        return out
 
     def _prepare_filter_search_request(self, filters: Optional[Dict[str, Any]]) -> Dict[str, Any]:
-        raise_on_invalid_filter_syntax(filters)
         search_kwargs: Dict[str, Any] = {"size": 10_000}
         if filters:
             search_kwargs["query"] = {"bool": {"filter": normalize_filters(filters)}}
@@ -337,35 +311,27 @@ class OpenSearchDocumentStore:
     async def _search_documents_async(self, request_body: Dict[str, Any]) -> List[Document]:
         assert self._async_client is not None
         search_results = await self._async_client.search(index=self._index, body=request_body)
-        return self._deserialize_search_hits(search_results["hits"]["hits"])        
-
+        return self._deserialize_search_hits(search_results["hits"]["hits"])
 
     def filter_documents(self, filters: Optional[Dict[str, Any]] = None) -> List[Document]:
         self._ensure_initialized()
         return self._search_documents(self._prepare_filter_search_request(filters))
-    
-    async def filter_documents_async(  # noqa: D102
-        self, filters: Optional[Dict[str, Any]] = None
-    ) -> List[Document]:
-        self._ensure_initialized()
-        return await self._search_documents_async(self._prepare_filter_search_request(filters))    
 
-    def write_documents(self, documents: List[Document], policy: DuplicatePolicy = DuplicatePolicy.NONE) -> int:
-        """
-        Writes Documents to OpenSearch.
-        If policy is not specified or set to DuplicatePolicy.NONE, it will raise an exception if a document with the
-        same ID already exists in the document store.
-        """
-        if len(documents) > 0:
-            if not isinstance(documents[0], Document):
-                msg = "param 'documents' must contain a list of objects of type Document"
-                raise ValueError(msg)
+    async def filter_documents_async(self, filters: Optional[Dict[str, Any]] = None) -> List[Document]:
+        self._ensure_initialized()
+        return await self._search_documents_async(self._prepare_filter_search_request(filters))
+
+    def _prepare_bulk_write_request(
+        self, documents: List[Document], policy: DuplicatePolicy, is_async: bool
+    ) -> Dict[str, Any]:
+        if len(documents) > 0 and not isinstance(documents[0], Document):
+            msg = "param 'documents' must contain a list of objects of type Document"
+            raise ValueError(msg)
 
         if policy == DuplicatePolicy.NONE:
             policy = DuplicatePolicy.FAIL
 
         action = "index" if policy == DuplicatePolicy.OVERWRITE else "create"
-
         opensearch_actions = []
         for doc in documents:
             doc_dict = doc.to_dict()
@@ -395,41 +361,65 @@ class OpenSearchDocumentStore:
                 }
             )
 
-        documents_written, errors = bulk(
-            client=self.client,
-            actions=opensearch_actions,
-            refresh="wait_for",
-            index=self._index,
-            raise_on_error=False,
-            max_chunk_bytes=self._max_chunk_bytes,
-        )
+        return {
+            "client": self._client if not is_async else self._async_client,
+            "actions": opensearch_actions,
+            "refresh": "wait_for",
+            "index": self._index,
+            "raise_on_error": False,
+            "max_chunk_bytes": self._max_chunk_bytes,
+        }
 
-        if errors:
-            duplicate_errors_ids = []
-            other_errors = []
-            for e in errors:
-                # OpenSearch might not return a correctly formatted error, in that case we
-                # treat it as a generic error
-                if "create" not in e:
-                    other_errors.append(e)
-                    continue
-                error_type = e["create"]["error"]["type"]
-                if policy == DuplicatePolicy.FAIL and error_type == "version_conflict_engine_exception":
-                    duplicate_errors_ids.append(e["create"]["_id"])
-                elif policy == DuplicatePolicy.SKIP and error_type == "version_conflict_engine_exception":
-                    # when the policy is skip, duplication errors are OK and we should not raise an exception
-                    continue
-                else:
-                    other_errors.append(e)
+    def _process_bulk_write_errors(self, errors: List[Dict[str, Any]], policy: DuplicatePolicy):
+        if len(errors) == 0:
+            return
 
-            if len(duplicate_errors_ids) > 0:
-                msg = f"IDs '{', '.join(duplicate_errors_ids)}' already exist in the document store."
-                raise DuplicateDocumentError(msg)
+        duplicate_errors_ids = []
+        other_errors = []
+        for e in errors:
+            # OpenSearch might not return a correctly formatted error, in that case we
+            # treat it as a generic error
+            if "create" not in e:
+                other_errors.append(e)
+                continue
+            error_type = e["create"]["error"]["type"]
+            if policy == DuplicatePolicy.FAIL and error_type == "version_conflict_engine_exception":
+                duplicate_errors_ids.append(e["create"]["_id"])
+            elif policy == DuplicatePolicy.SKIP and error_type == "version_conflict_engine_exception":
+                # when the policy is skip, duplication errors are OK and we should not raise an exception
+                continue
+            else:
+                other_errors.append(e)
 
-            if len(other_errors) > 0:
-                msg = f"Failed to write documents to OpenSearch. Errors:\n{other_errors}"
-                raise DocumentStoreError(msg)
+        if len(duplicate_errors_ids) > 0:
+            msg = f"IDs '{', '.join(duplicate_errors_ids)}' already exist in the document store."
+            raise DuplicateDocumentError(msg)
 
+        if len(other_errors) > 0:
+            msg = f"Failed to write documents to OpenSearch. Errors:\n{other_errors}"
+            raise DocumentStoreError(msg)
+
+    def write_documents(self, documents: List[Document], policy: DuplicatePolicy = DuplicatePolicy.NONE) -> int:
+        """
+        Writes Documents to OpenSearch.
+        If policy is not specified or set to DuplicatePolicy.NONE, it will raise an exception if a document with the
+        same ID already exists in the document store.
+        """
+        self._ensure_initialized()
+
+        bulk_params = self._prepare_bulk_write_request(documents, policy, is_async=False)
+        documents_written, errors = bulk(**bulk_params)
+        self._process_bulk_write_errors(errors, policy)
+        return documents_written
+
+    async def write_documents_async(
+        self, documents: List[Document], policy: DuplicatePolicy = DuplicatePolicy.NONE
+    ) -> int:
+        self._ensure_initialized()
+
+        bulk_params = self._prepare_bulk_write_request(documents, policy, is_async=True)
+        documents_written, errors = await async_bulk(**bulk_params)
+        self._process_bulk_write_errors(errors, policy)  # type:ignore
         return documents_written
 
     def _deserialize_document(self, hit: Dict[str, Any]) -> Document:
@@ -476,12 +466,10 @@ class OpenSearchDocumentStore:
 
         bulk(**self._prepare_bulk_delete_request(document_ids, is_async=False))
 
-    async def delete_documents_async(  # noqa: D102
-        self, document_ids: List[str]
-    ) -> None:
+    async def delete_documents_async(self, document_ids: List[str]) -> None:
         self._ensure_initialized()
 
-        await async_bulk(**self._prepare_bulk_delete_request(document_ids, is_async=True))        
+        await async_bulk(**self._prepare_bulk_delete_request(document_ids, is_async=True))
 
     def _prepare_bm25_search_request(
         self,
@@ -493,7 +481,6 @@ class OpenSearchDocumentStore:
         all_terms_must_match: bool,
         custom_query: Optional[Dict[str, Any]],
     ) -> Dict[str, Any]:
-        raise_on_invalid_filter_syntax(filters)
 
         if not query:
             body: Dict[str, Any] = {"query": {"bool": {"must": {"match_all": {}}}}}
@@ -538,15 +525,15 @@ class OpenSearchDocumentStore:
         if not self._return_embedding:
             body["_source"] = {"excludes": ["embedding"]}
 
-        return body        
-    
+        return body
+
     def _postprocess_bm25_search_results(self, results: List[Document], scale_score: bool):
         if not scale_score:
             return
 
         for doc in results:
             assert doc.score is not None
-            doc.score = float(1 / (1 + math.exp(-(doc.score / float(BM25_SCALING_FACTOR)))))    
+            doc.score = float(1 / (1 + math.exp(-(doc.score / float(BM25_SCALING_FACTOR)))))
 
     def _bm25_retrieval(
         self,
@@ -614,7 +601,7 @@ class OpenSearchDocumentStore:
         documents = self._search_documents(search_params)
         self._postprocess_bm25_search_results(documents, scale_score)
         return documents
-    
+
     async def _bm25_retrieval_async(
         self,
         query: str,
@@ -647,7 +634,6 @@ class OpenSearchDocumentStore:
         top_k: int,
         custom_query: Optional[Dict[str, Any]],
     ) -> Dict[str, Any]:
-        raise_on_invalid_filter_syntax(filters)
 
         if not query_embedding:
             msg = "query_embedding must be a non-empty list of floats"
@@ -691,7 +677,7 @@ class OpenSearchDocumentStore:
         if not self._return_embedding:
             body["_source"] = {"excludes": ["embedding"]}
 
-        return body        
+        return body
 
     def _embedding_retrieval(
         self,
@@ -746,7 +732,7 @@ class OpenSearchDocumentStore:
 
         search_params = self._prepare_embedding_search_request(query_embedding, filters, top_k, custom_query)
         return self._search_documents(search_params)
-    
+
     async def _embedding_retrieval_async(
         self,
         query_embedding: List[float],
@@ -758,7 +744,7 @@ class OpenSearchDocumentStore:
         self._ensure_initialized()
 
         search_params = self._prepare_embedding_search_request(query_embedding, filters, top_k, custom_query)
-        return await self._search_documents_async(search_params)    
+        return await self._search_documents_async(search_params)
 
     def _render_custom_query(self, custom_query: Any, substitutions: Dict[str, Any]) -> Any:
         """

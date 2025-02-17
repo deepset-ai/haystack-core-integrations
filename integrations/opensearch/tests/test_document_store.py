@@ -122,14 +122,16 @@ class TestAuth:
     @patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
     def test_init_with_basic_auth(self, _mock_opensearch_client):
         document_store = OpenSearchDocumentStore(hosts="testhost", http_auth=("user", "pw"))
-        assert document_store.client
+        document_store._ensure_initialized()
+        assert document_store._client
         _mock_opensearch_client.assert_called_once()
         assert _mock_opensearch_client.call_args[1]["http_auth"] == ("user", "pw")
 
     @patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
     def test_init_without_auth(self, _mock_opensearch_client):
         document_store = OpenSearchDocumentStore(hosts="testhost")
-        assert document_store.client
+        document_store._ensure_initialized()
+        assert document_store._client
         _mock_opensearch_client.assert_called_once()
         assert _mock_opensearch_client.call_args[1]["http_auth"] is None
 
@@ -141,7 +143,8 @@ class TestAuth:
             use_ssl=True,
             verify_certs=True,
         )
-        assert document_store.client
+        document_store._ensure_initialized()
+        assert document_store._client
         _mock_opensearch_client.assert_called_once()
         assert isinstance(_mock_opensearch_client.call_args[1]["http_auth"], AWSAuth)
         assert _mock_opensearch_client.call_args[1]["use_ssl"] is True
@@ -160,7 +163,8 @@ class TestAuth:
                 },
             }
         )
-        assert document_store.client
+        document_store._ensure_initialized()
+        assert document_store._client
         _mock_opensearch_client.assert_called_once()
         assert _mock_opensearch_client.call_args[1]["http_auth"] == ["user", "pw"]
 
@@ -181,7 +185,8 @@ class TestAuth:
                 },
             }
         )
-        assert document_store.client
+        document_store._ensure_initialized()
+        assert document_store._client
         _mock_opensearch_client.assert_called_once()
         assert isinstance(_mock_opensearch_client.call_args[1]["http_auth"], AWSAuth)
         assert _mock_opensearch_client.call_args[1]["use_ssl"] is True
@@ -271,7 +276,8 @@ class TestAuth:
         monkeypatch.setenv("OPENSEARCH_PASSWORD", "pass")
 
         document_store = OpenSearchDocumentStore(hosts="testhost")
-        assert document_store.client
+        document_store._ensure_initialized()
+        assert document_store._client
         _mock_opensearch_client.assert_called_once()
         assert _mock_opensearch_client.call_args[1]["http_auth"] == ["user", "pass"]
 
@@ -279,7 +285,8 @@ class TestAuth:
     def test_init_with_missing_env_vars(self, _mock_opensearch_client):
         """Test that auth is None when environment variables are missing"""
         document_store = OpenSearchDocumentStore(hosts="testhost")
-        assert document_store.client
+        document_store._ensure_initialized()
+        assert document_store._client
         _mock_opensearch_client.assert_called_once()
         assert _mock_opensearch_client.call_args[1]["http_auth"] is None
 
@@ -320,7 +327,8 @@ class TestAuth:
             },
         }
         document_store = OpenSearchDocumentStore.from_dict(data)
-        assert document_store.client
+        document_store._ensure_initialized()
+        assert document_store._client
         _mock_opensearch_client.assert_called_once()
         assert _mock_opensearch_client.call_args[1]["http_auth"] == ["user", "pass"]
 
@@ -351,7 +359,9 @@ class TestDocumentStore(DocumentStoreBaseTests):
             method={"space_type": "cosinesimil", "engine": "nmslib", "name": "hnsw"},
         )
         yield store
-        store.client.indices.delete(index=index, params={"ignore": [400, 404]})
+        store._ensure_initialized()
+        assert store._client
+        store._client.indices.delete(index=index, params={"ignore": [400, 404]})
 
     @pytest.fixture
     def document_store_readonly(self, request):
@@ -372,10 +382,12 @@ class TestDocumentStore(DocumentStoreBaseTests):
             method={"space_type": "cosinesimil", "engine": "nmslib", "name": "hnsw"},
             create_index=False,
         )
-        store.client.cluster.put_settings(body={"transient": {"action.auto_create_index": False}})
+        store._ensure_initialized()
+        assert store._client
+        store._client.cluster.put_settings(body={"transient": {"action.auto_create_index": False}})
         yield store
-        store.client.cluster.put_settings(body={"transient": {"action.auto_create_index": True}})
-        store.client.indices.delete(index=index, params={"ignore": [400, 404]})
+        store._client.cluster.put_settings(body={"transient": {"action.auto_create_index": True}})
+        store._client.indices.delete(index=index, params={"ignore": [400, 404]})
 
     @pytest.fixture
     def document_store_embedding_dim_4(self, request):
@@ -396,7 +408,7 @@ class TestDocumentStore(DocumentStoreBaseTests):
             method={"space_type": "cosinesimil", "engine": "nmslib", "name": "hnsw"},
         )
         yield store
-        store.client.indices.delete(index=index, params={"ignore": [400, 404]})
+        store._client.indices.delete(index=index, params={"ignore": [400, 404]})
 
     @pytest.fixture
     def document_store_embedding_dim_4_faiss(self, request):
@@ -417,7 +429,7 @@ class TestDocumentStore(DocumentStoreBaseTests):
             method={"space_type": "innerproduct", "engine": "faiss", "name": "hnsw"},
         )
         yield store
-        store.client.indices.delete(index=index, params={"ignore": [400, 404]})
+        store._client.indices.delete(index=index, params={"ignore": [400, 404]})
 
     def assert_documents_are_equal(self, received: List[Document], expected: List[Document]):
         """
@@ -457,7 +469,7 @@ class TestDocumentStore(DocumentStoreBaseTests):
 
     def test_create_index(self, document_store_readonly: OpenSearchDocumentStore):
         document_store_readonly.create_index()
-        assert document_store_readonly.client.indices.exists(index=document_store_readonly._index)
+        assert document_store_readonly._client.indices.exists(index=document_store_readonly._index)
 
     def test_write_documents_dataframe_ignored(self, document_store: OpenSearchDocumentStore):
         doc = Document(id="1", content="test")
@@ -923,7 +935,7 @@ class TestDocumentStore(DocumentStoreBaseTests):
             method={"space_type": "cosinesimil", "engine": "nmslib", "name": "hnsw"},
         )
         yield store
-        store.client.indices.delete(index=index, params={"ignore": [400, 404]})
+        store._client.indices.delete(index=index, params={"ignore": [400, 404]})
 
     def test_embedding_retrieval_but_dont_return_embeddings_for_embedding_retrieval(
         self, document_store_no_embbding_returned: OpenSearchDocumentStore
