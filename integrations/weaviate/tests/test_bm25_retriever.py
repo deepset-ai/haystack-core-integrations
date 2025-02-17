@@ -46,7 +46,6 @@ def test_to_dict(_mock_weaviate):
                         "properties": [
                             {"name": "_original_id", "dataType": ["text"]},
                             {"name": "content", "dataType": ["text"]},
-                            {"name": "dataframe", "dataType": ["text"]},
                             {"name": "blob_data", "dataType": ["blob"]},
                             {"name": "blob_mime_type", "dataType": ["text"]},
                             {"name": "score", "dataType": ["number"]},
@@ -81,7 +80,6 @@ def test_from_dict(_mock_weaviate):
                             "properties": [
                                 {"name": "_original_id", "dataType": ["text"]},
                                 {"name": "content", "dataType": ["text"]},
-                                {"name": "dataframe", "dataType": ["text"]},
                                 {"name": "blob_data", "dataType": ["blob"]},
                                 {"name": "blob_mime_type", "dataType": ["text"]},
                                 {"name": "score", "dataType": ["number"]},
@@ -119,7 +117,6 @@ def test_from_dict_no_filter_policy(_mock_weaviate):
                             "properties": [
                                 {"name": "_original_id", "dataType": ["text"]},
                                 {"name": "content", "dataType": ["text"]},
-                                {"name": "dataframe", "dataType": ["text"]},
                                 {"name": "blob_data", "dataType": ["blob"]},
                                 {"name": "blob_mime_type", "dataType": ["text"]},
                                 {"name": "score", "dataType": ["number"]},
