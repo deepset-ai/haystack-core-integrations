@@ -2,6 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from .tracer import WeaveTracer, WeaveSpan
+from .tracer import WeaveSpan, WeaveTracer
 
-__all__ = ["WeaveTracer", "WeaveSpan"]
+__all__ = ["WeaveSpan", "WeaveTracer"]
