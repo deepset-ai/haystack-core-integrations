@@ -289,7 +289,8 @@ class WeaviateDocumentStore:
         if "_split_overlap" in data:
             data.pop("_split_overlap")
             logger.warning(
-                "Document %s has the unsupported `_split_overlap` meta field. It will be ignored.", data["_original_id"]
+                "Document {id} has the unsupported `_split_overlap` meta field. It will be ignored.",
+                id=data["_original_id"],
             )
 
         if "dataframe" in data:
