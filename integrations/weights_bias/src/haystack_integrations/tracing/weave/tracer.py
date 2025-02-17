@@ -4,8 +4,8 @@ from typing import Any, Dict, Iterator, Optional, Union
 from haystack.tracing import Span, Tracer
 from haystack.tracing.utils import coerce_tag_value
 
-import weave
-from weave.trace.weave_client import Call, WeaveClient
+import weave  # type: ignore
+from weave.trace.weave_client import Call, WeaveClient  # type: ignore
 
 
 class WeaveSpan(Span):

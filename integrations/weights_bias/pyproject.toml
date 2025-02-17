@@ -3,7 +3,7 @@ requires = ["hatchling", "hatch-vcs"]
 build-backend = "hatchling.build"
 
 [project]
-name = "weaviate-haystack"
+name = "weights_bias-haystack"
 dynamic = ["version"]
 description = "An integration of Weight and Bias Weaver tracer with Haystack"
 readme = "README.md"
