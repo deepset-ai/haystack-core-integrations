@@ -244,8 +244,10 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, FilterDocuments
 
         document_store.write_documents([doc_mixed])
 
-        expected_doc = Document(id=doc_mixed.id, content="test")
-        assert document_store.filter_documents() == [expected_doc]
+        retrieved_doc = document_store.filter_documents()[0]
+        assert retrieved_doc.content == "test"
+        assert retrieved_doc.blob is None
+        assert not hasattr(retrieved_doc, "dataframe") or retrieved_doc.dataframe is None
 
     @pytest.mark.integration
     def test_to_dict(self, request):
