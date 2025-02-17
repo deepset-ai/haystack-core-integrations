@@ -10,8 +10,8 @@ from haystack.dataclasses import Document
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
 from haystack.utils.auth import Secret
-from opensearchpy import OpenSearch
-from opensearchpy.helpers import bulk
+from opensearchpy import OpenSearch, AsyncOpenSearch
+from opensearchpy.helpers import bulk, async_bulk
 
 from haystack_integrations.document_stores.opensearch.auth import AWSAuth
 from haystack_integrations.document_stores.opensearch.filters import normalize_filters
@@ -119,6 +119,12 @@ class OpenSearchDocumentStore:
         self._timeout = timeout
         self._kwargs = kwargs
 
+        # Client is initialized lazily to prevent side effects when
+        # the document store is instantiated.
+        self._client = None
+        self._async_client = None
+        self._initialized = False        
+
     def _get_default_mappings(self) -> Dict[str, Any]:
         default_mappings: Dict[str, Any] = {
             "properties": {
@@ -179,6 +185,9 @@ class OpenSearchDocumentStore:
         :param settings: The settings of the index to be created. Please see the [official OpenSearch docs](https://opensearch.org/docs/latest/search-plugins/knn/knn-index/#index-settings)
             for more information. If None, the settings from the constructor are used.
         """
+        self._ensure_initialized()
+        assert self._client is not None
+
         if not index:
             index = self._index
         if not mappings:
@@ -244,35 +253,102 @@ class OpenSearchDocumentStore:
                 are_secrets = all(isinstance(item, dict) and "type" in item for item in http_auth)
                 init_params["http_auth"] = [Secret.from_dict(item) for item in http_auth] if are_secrets else http_auth
         return default_from_dict(cls, data)
+    
+    def _ensure_initialized(self):
+        # Ideally, we have a warm-up stage for document stores as well as components.
+        if not self._initialized:
+            self._client = OpenSearch(
+                hosts=self._hosts,
+                http_auth=self._http_auth,
+                use_ssl=self._use_ssl,
+                verify_certs=self._verify_certs,
+                timeout=self._timeout,
+                **self._kwargs,
+            )
+            self._async_client = AsyncOpenSearch(
+                hosts=self._hosts,
+                http_auth=self._http_auth,
+                use_ssl=self._use_ssl,
+                verify_certs=self._verify_certs,
+                timeout=self._timeout,
+                **self._kwargs,
+            )
+
+            self._initialized = True
+
+        # In a just world, this is something that the document store shouldn't
+        # be responsible for. However, the current implementation has become a
+        # dependency of downstream users, so we'll have to preserve this behaviour
+        # (for now).
+        self._ensure_index_exists()
+
+    def _ensure_index_exists(self):
+        assert self._client is not None
+
+        if self._client.indices.exists(index=self._index):
+            logger.debug(
+                "The index '{index}' already exists. The `embedding_dim`, `method`, `mappings`, and "
+                "`settings` values will be ignored.",
+                index=self._index,
+            )
+        elif self._create_index:
+            # Create the index if it doesn't exist
+            body = {"mappings": self._mappings, "settings": self._settings}
+            self._client.indices.create(index=self._index, body=body)  # type:ignore            
 
     def count_documents(self) -> int:
         """
         Returns how many documents are present in the document store.
         """
-        return self.client.count(index=self._index)["count"]
+        self._ensure_initialized()
+        assert self._client is not None
 
-    def _search_documents(self, **kwargs) -> List[Document]:
-        """
-        Calls the OpenSearch client's search method and handles pagination.
-        """
-        res = self.client.search(
-            index=self._index,
-            body=kwargs,
-        )
-        documents: List[Document] = [self._deserialize_document(hit) for hit in res["hits"]["hits"]]
-        return documents
+        return self._client.count(index=self._index)["count"]
+    
+    async def count_documents_async(self) -> int:  # noqa: D102
+        self._ensure_initialized()
+
+        assert self._async_client is not None
+        return (await self._async_client.count(index=self._index))["count"]
+    
+    def _deserialize_search_hits(self, hits: List[Dict[str, Any]]) -> List[Document]:
+        out = []
+        for hit in hits:
+            data = hit["_source"]
+            if "highlight" in hit:
+                data["metadata"]["highlighted"] = hit["highlight"]
+            data["score"] = hit["_score"]
+            out.append(Document.from_dict(data))
+
+        return out    
+
+    def _prepare_filter_search_request(self, filters: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+        raise_on_invalid_filter_syntax(filters)
+        search_kwargs: Dict[str, Any] = {"size": 10_000}
+        if filters:
+            search_kwargs["query"] = {"bool": {"filter": normalize_filters(filters)}}
+        return search_kwargs
+
+    def _search_documents(self, request_body: Dict[str, Any]) -> List[Document]:
+        assert self._client is not None
+        search_results = self._client.search(index=self._index, body=request_body)
+        return self._deserialize_search_hits(search_results["hits"]["hits"])
+
+    async def _search_documents_async(self, request_body: Dict[str, Any]) -> List[Document]:
+        assert self._async_client is not None
+        search_results = await self._async_client.search(index=self._index, body=request_body)
+        return self._deserialize_search_hits(search_results["hits"]["hits"])        
+
 
     def filter_documents(self, filters: Optional[Dict[str, Any]] = None) -> List[Document]:
-        if filters and "operator" not in filters and "conditions" not in filters:
-            msg = "Invalid filter syntax. See https://docs.haystack.deepset.ai/docs/metadata-filtering for details."
-            raise ValueError(msg)
-
-        if filters:
-            query = {"bool": {"filter": normalize_filters(filters)}}
-            documents = self._search_documents(query=query, size=10_000)
-        else:
-            documents = self._search_documents(size=10_000)
-        return documents
+        self._ensure_initialized()
+        return self._search_documents(self._prepare_filter_search_request(filters))
+    
+    async def filter_documents_async(  # noqa: D102
+        self, filters: Optional[Dict[str, Any]] = None
+    ) -> List[Document]:
+        self._ensure_initialized()
+        return await self._search_documents_async(self._prepare_filter_search_request(filters))    
 
     def write_documents(self, documents: List[Document], policy: DuplicatePolicy = DuplicatePolicy.NONE) -> int:
         """
@@ -379,6 +455,16 @@ class OpenSearchDocumentStore:
 
         return Document.from_dict(data)
 
+    def _prepare_bulk_delete_request(self, document_ids: List[str], is_async: bool) -> Dict[str, Any]:
+        return {
+            "client": self._client if not is_async else self._async_client,
+            "actions": ({"_op_type": "delete", "_id": id_} for id_ in document_ids),
+            "refresh": "wait_for",
+            "index": self._index,
+            "raise_on_error": False,
+            "max_chunk_bytes": self._max_chunk_bytes,
+        }
+
     def delete_documents(self, document_ids: List[str]) -> None:
         """
         Deletes all documents with a matching document_ids from the document store.
@@ -386,14 +472,81 @@ class OpenSearchDocumentStore:
         :param object_ids: the object_ids to delete
         """
 
-        bulk(
-            client=self.client,
-            actions=({"_op_type": "delete", "_id": id_} for id_ in document_ids),
-            refresh="wait_for",
-            index=self._index,
-            raise_on_error=False,
-            max_chunk_bytes=self._max_chunk_bytes,
-        )
+        self._ensure_initialized()
+
+        bulk(**self._prepare_bulk_delete_request(document_ids, is_async=False))
+
+    async def delete_documents_async(  # noqa: D102
+        self, document_ids: List[str]
+    ) -> None:
+        self._ensure_initialized()
+
+        await async_bulk(**self._prepare_bulk_delete_request(document_ids, is_async=True))        
+
+    def _prepare_bm25_search_request(
+        self,
+        *,
+        query: str,
+        filters: Optional[Dict[str, Any]],
+        fuzziness: str,
+        top_k: int,
+        all_terms_must_match: bool,
+        custom_query: Optional[Dict[str, Any]],
+    ) -> Dict[str, Any]:
+        raise_on_invalid_filter_syntax(filters)
+
+        if not query:
+            body: Dict[str, Any] = {"query": {"bool": {"must": {"match_all": {}}}}}
+            if filters:
+                body["query"]["bool"]["filter"] = normalize_filters(filters)
+
+        if isinstance(custom_query, dict):
+            body = self._render_custom_query(
+                custom_query,
+                {
+                    "$query": query,
+                    "$filters": normalize_filters(filters),  # type:ignore
+                },
+            )
+
+        else:
+            operator = "AND" if all_terms_must_match else "OR"
+            body = {
+                "query": {
+                    "bool": {
+                        "must": [
+                            {
+                                "multi_match": {
+                                    "query": query,
+                                    "fuzziness": fuzziness,
+                                    "type": "most_fields",
+                                    "operator": operator,
+                                }
+                            }
+                        ]
+                    }
+                },
+            }
+
+            if filters:
+                body["query"]["bool"]["filter"] = normalize_filters(filters)
+
+        body["size"] = top_k
+
+        # For some applications not returning the embedding can save a lot of bandwidth
+        # if you don't need this data not retrieving it can be a good idea
+        if not self._return_embedding:
+            body["_source"] = {"excludes": ["embedding"]}
+
+        return body        
+    
+    def _postprocess_bm25_search_results(self, results: List[Document], scale_score: bool):
+        if not scale_score:
+            return
+
+        for doc in results:
+            assert doc.score is not None
+            doc.score = float(1 / (1 + math.exp(-(doc.score / float(BM25_SCALING_FACTOR)))))    
 
     def _bm25_retrieval(
         self,
@@ -448,33 +601,82 @@ class OpenSearchDocumentStore:
 
         :returns: List of Document that match `query`
         """
-        if filters and "operator" not in filters and "conditions" not in filters:
-            msg = "Invalid filter syntax. See https://docs.haystack.deepset.ai/docs/metadata-filtering for details."
+        self._ensure_initialized()
+
+        search_params = self._prepare_bm25_search_request(
+            query=query,
+            filters=filters,
+            fuzziness=fuzziness,
+            top_k=top_k,
+            all_terms_must_match=all_terms_must_match,
+            custom_query=custom_query,
+        )
+        documents = self._search_documents(search_params)
+        self._postprocess_bm25_search_results(documents, scale_score)
+        return documents
+    
+    async def _bm25_retrieval_async(
+        self,
+        query: str,
+        *,
+        filters: Optional[Dict[str, Any]] = None,
+        fuzziness: str = "AUTO",
+        top_k: int = 10,
+        scale_score: bool = False,
+        all_terms_must_match: bool = False,
+        custom_query: Optional[Dict[str, Any]] = None,
+    ) -> List[Document]:
+        self._ensure_initialized()
+
+        search_params = self._prepare_bm25_search_request(
+            query=query,
+            filters=filters,
+            fuzziness=fuzziness,
+            top_k=top_k,
+            all_terms_must_match=all_terms_must_match,
+            custom_query=custom_query,
+        )
+        documents = await self._search_documents_async(search_params)
+        self._postprocess_bm25_search_results(documents, scale_score)
+        return documents
+
+    def _prepare_embedding_search_request(
+        self,
+        query_embedding: List[float],
+        filters: Optional[Dict[str, Any]],
+        top_k: int,
+        custom_query: Optional[Dict[str, Any]],
+    ) -> Dict[str, Any]:
+        raise_on_invalid_filter_syntax(filters)
+
+        if not query_embedding:
+            msg = "query_embedding must be a non-empty list of floats"
             raise ValueError(msg)
 
-        if not query:
-            body: Dict[str, Any] = {"query": {"bool": {"must": {"match_all": {}}}}}
-            if filters:
-                body["query"]["bool"]["filter"] = normalize_filters(filters)
-
+        body: Dict[str, Any]
         if isinstance(custom_query, dict):
-            body = self._render_custom_query(custom_query, {"$query": query, "$filters": normalize_filters(filters)})
+            body = self._render_custom_query(
+                custom_query,
+                {
+                    "$query_embedding": query_embedding,
+                    "$filters": normalize_filters(filters),  # type:ignore
+                },
+            )
 
         else:
-            operator = "AND" if all_terms_must_match else "OR"
             body = {
                 "query": {
                     "bool": {
                         "must": [
                             {
-                                "multi_match": {
-                                    "query": query,
-                                    "fuzziness": fuzziness,
-                                    "type": "most_fields",
-                                    "operator": operator,
+                                "knn": {
+                                    "embedding": {
+                                        "vector": query_embedding,
+                                        "k": top_k,
+                                    }
                                 }
                             }
-                        ]
+                        ],
                     }
                 },
             }
@@ -489,13 +691,7 @@ class OpenSearchDocumentStore:
         if not self._return_embedding:
             body["_source"] = {"excludes": ["embedding"]}
 
-        documents = self._search_documents(**body)
-
-        if scale_score:
-            for doc in documents:
-                doc.score = float(1 / (1 + np.exp(-np.asarray(doc.score / BM25_SCALING_FACTOR))))  # type:ignore
-
-        return documents
+        return body        
 
     def _embedding_retrieval(
         self,
@@ -546,52 +742,23 @@ class OpenSearchDocumentStore:
         :raises ValueError: If `query_embedding` is an empty list
         :returns: List of Document that are most similar to `query_embedding`
         """
-        if filters and "operator" not in filters and "conditions" not in filters:
-            msg = "Legacy filters support has been removed. Please see documentation for new filter syntax."
-            raise ValueError(msg)
+        self._ensure_initialized()
 
-        if not query_embedding:
-            msg = "query_embedding must be a non-empty list of floats"
-            raise ValueError(msg)
+        search_params = self._prepare_embedding_search_request(query_embedding, filters, top_k, custom_query)
+        return self._search_documents(search_params)
+    
+    async def _embedding_retrieval_async(
+        self,
+        query_embedding: List[float],
+        *,
+        filters: Optional[Dict[str, Any]] = None,
+        top_k: int = 10,
+        custom_query: Optional[Dict[str, Any]] = None,
+    ) -> List[Document]:
+        self._ensure_initialized()
 
-        if isinstance(custom_query, dict):
-            body = self._render_custom_query(
-                custom_query, {"$query_embedding": query_embedding, "$filters": normalize_filters(filters)}
-            )
-
-        else:
-            body = {
-                "query": {
-                    "bool": {
-                        "must": [
-                            {
-                                "knn": {
-                                    "embedding": {
-                                        "vector": query_embedding,
-                                        "k": top_k,
-                                    }
-                                }
-                            }
-                        ],
-                    }
-                },
-            }
-
-            if filters:
-                if efficient_filtering:
-                    body["query"]["bool"]["must"][0]["knn"]["embedding"]["filter"] = normalize_filters(filters)
-                else:
-                    body["query"]["bool"]["filter"] = normalize_filters(filters)
-
-        body["size"] = top_k
-
-        # For some applications not returning the embedding can save a lot of bandwidth
-        # if you don't need this data not retrieving it can be a good idea
-        if not self._return_embedding:
-            body["_source"] = {"excludes": ["embedding"]}
-
-        docs = self._search_documents(**body)
-        return docs
+        search_params = self._prepare_embedding_search_request(query_embedding, filters, top_k, custom_query)
+        return await self._search_documents_async(search_params)    
 
     def _render_custom_query(self, custom_query: Any, substitutions: Dict[str, Any]) -> Any:
         """
