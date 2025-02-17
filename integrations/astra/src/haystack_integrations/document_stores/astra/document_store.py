@@ -1,12 +1,9 @@
 # SPDX-FileCopyrightText: 2023-present Anant Corporation <support@anant.us>
 #
 # SPDX-License-Identifier: Apache-2.0
-import json
 import logging
-from dataclasses import asdict
 from typing import Any, Dict, List, Optional, Union
 
-import pandas as pd
 from haystack import default_from_dict, default_to_dict
 from haystack.dataclasses import Document
 from haystack.document_stores.errors import DuplicateDocumentError, MissingDocumentError
@@ -182,7 +179,7 @@ class AstraDocumentStore:
 
         def _convert_input_document(document: Union[dict, Document]):
             if isinstance(document, Document):
-                document_dict = asdict(document)
+                document_dict = document.to_dict(flatten=False)
             elif isinstance(document, dict):
                 document_dict = document
             else:
@@ -203,10 +200,19 @@ class AstraDocumentStore:
                     )
                     raise Exception(msg)
 
-            if "dataframe" in document_dict and document_dict["dataframe"] is not None:
-                document_dict["dataframe"] = document_dict.pop("dataframe").to_json()
             if embedding := document_dict.pop("embedding", []):
                 document_dict["$vector"] = embedding
+
+            if "dataframe" in document_dict:
+                dataframe = document_dict.pop("dataframe", None)
+                if dataframe:
+                    logger.warning(
+                        "Document %s has the `dataframe` field set. "
+                        "AstraDocumentStore no longer supports dataframes and this field will be ignored. "
+                        "The `dataframe` field will soon be removed from Haystack Document.",
+                        document_dict["_id"],
+                    )
+
             if "sparse_embedding" in document_dict:
                 sparse_embedding = document_dict.pop("sparse_embedding", None)
                 if sparse_embedding:
@@ -336,14 +342,16 @@ class AstraDocumentStore:
         for match in results.matches:
             dataframe = match.metadata.pop("dataframe", None)
             if dataframe is not None:
-                df = pd.DataFrame.from_dict(json.loads(dataframe))
-            else:
-                df = None
+                logger.warning(
+                    "Document %s has the `dataframe` field set. "
+                    "AstraDocumentStore no longer supports dataframes and this field will be ignored. "
+                    "The `dataframe` field will soon be removed from Haystack Document.",
+                    match.document_id,
+                )
             document = Document(
                 content=match.text,
                 id=match.document_id,
                 embedding=match.values,
-                dataframe=df,
                 blob=match.metadata.pop("blob", None),
                 meta=match.metadata.pop("meta", None),
                 score=match.score,
