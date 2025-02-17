@@ -1,5 +1,13 @@
 # Changelog
 
+## [integrations/astra-v1.0.0] - 2025-02-17
+
+### 🧹 Chores
+
+- Inherit from `FilterDocumentsTestWithDataframe` in Document Stores (#1290)
+- [**breaking**] Astra - remove dataframe support (#1376)
+
+
 ## [integrations/astra-v0.9.4] - 2024-11-25
 
 ### 🌀 Miscellaneous
