@@ -372,7 +372,7 @@ class AzureAISearchDocumentStore:
                     "Document %s has the `dataframe` field set. "
                     "AzureAISearchDocumentStore does not support dataframes and this field will be ignored. "
                     "The `dataframe` field will soon be removed from Haystack Document.",
-                    doc_dict["_original_id"],
+                    doc_dict["id"],
                 )
 
         # Because Azure Search does not allow dynamic fields, we only include fields that are part of the schema
