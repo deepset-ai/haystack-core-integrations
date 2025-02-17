@@ -1,6 +1,6 @@
 # This workflow comes from https://github.com/ofek/hatch-mypyc
 # https://github.com/ofek/hatch-mypyc/blob/5a198c0ba8660494d02716cfc9d79ce4adfb1442/.github/workflows/test.yml
-name: Test / weaviate
+name: Test / weights_bias
 
 on:
   schedule:
@@ -47,9 +47,6 @@ jobs:
       - name: Lint
         if: matrix.python-version == '3.9' && runner.os == 'Linux'
         run: hatch run lint:all
-
-      - name: Run Weaviate container
-        run: docker compose up -d
 
       - name: Generate docs
         if: matrix.python-version == '3.9' && runner.os == 'Linux'
