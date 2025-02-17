@@ -4,10 +4,10 @@
 import base64
 import datetime
 import json
-import logging
 from dataclasses import asdict
 from typing import Any, Dict, List, Optional
 
+from haystack import logging
 from haystack.core.serialization import default_from_dict, default_to_dict
 from haystack.dataclasses.document import Document
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
