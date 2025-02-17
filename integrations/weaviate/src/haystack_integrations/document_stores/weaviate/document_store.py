@@ -297,20 +297,20 @@ class WeaviateDocumentStore:
             dataframe = data.pop("dataframe")
             if dataframe:
                 logger.warning(
-                    "Document %s has the `dataframe` field set. "
+                    "Document {id} has the `dataframe` field set. "
                     "WeaviateDocumentStore no longer supports dataframes and this field will be ignored. "
                     "The `dataframe` field will soon be removed from Haystack Document.",
-                    data["_original_id"],
+                    id=data["_original_id"],
                 )
 
         if "sparse_embedding" in data:
             sparse_embedding = data.pop("sparse_embedding", None)
             if sparse_embedding:
                 logger.warning(
-                    "Document %s has the `sparse_embedding` field set,"
+                    "Document {id} has the `sparse_embedding` field set,"
                     "but storing sparse embeddings in Weaviate is not currently supported."
                     "The `sparse_embedding` field will be ignored.",
-                    data["_original_id"],
+                    id=data["_original_id"],
                 )
 
         return data
@@ -342,10 +342,10 @@ class WeaviateDocumentStore:
             dataframe = document_data.pop("dataframe")
             if dataframe:
                 logger.warning(
-                    "Document %s has the `dataframe` field set. "
+                    "Document {id} has the `dataframe` field set. "
                     "WeaviateDocumentStore no longer supports dataframes and this field will be ignored. "
                     "The `dataframe` field will soon be removed from Haystack Document.",
-                    document_data["id"],
+                    id=document_data["id"],
                 )
 
         for key, value in document_data.items():
