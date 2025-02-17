@@ -22,6 +22,8 @@ concurrency:
 env:
   PYTHONUNBUFFERED: "1"
   FORCE_COLOR: "1"
+  WANDB_API_KEY: ${{ secrets.WANDB_API_KEY }}
+
 
 jobs:
   run:
