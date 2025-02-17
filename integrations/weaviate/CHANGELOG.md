@@ -66,10 +66,6 @@
 
 ### 🌀 Miscellaneous
 
-- Handle connection to WCS and add tests
-- Revert "Handle connection to WCS and add tests"
-
-This reverts commit f48802b2ce612896fd06a13cf33dffd9f77a8859.
 - Ci: install `pytest-rerunfailures` where needed; add retry config to `test-cov` script (#845)
 - Chore: Minor retriever pydoc fix (#884)
 - Fix: `weaviate` - Fallback to default filter policy when deserializing retrievers without the init parameter  (#903)
