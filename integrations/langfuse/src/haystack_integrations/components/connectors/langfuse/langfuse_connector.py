@@ -28,7 +28,7 @@ class LangfuseConnector:
     enable Haystack tracing in your pipeline.
 
     Lastly, you may disable flushing the data after each component by setting the `HAYSTACK_LANGFUSE_ENFORCE_FLUSH`
-    environent variable to `false`. By default, the data is flushed after each component and blocks the thread until
+    environment variable to `false`. By default, the data is flushed after each component and blocks the thread until
     the data is sent to Langfuse. **Caution**: Disabling this feature may result in data loss if the program crashes
     before the data is sent to Langfuse. Make sure you will call langfuse.flush() explicitly before the program exits.
     E.g. by using tracer.actual_tracer.flush():

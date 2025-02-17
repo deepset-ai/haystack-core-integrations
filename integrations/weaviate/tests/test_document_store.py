@@ -16,7 +16,6 @@ from haystack.testing.document_store import (
     CountDocumentsTest,
     DeleteDocumentsTest,
     FilterDocumentsTest,
-    FilterDocumentsTestWithDataframe,
     WriteDocumentsTest,
     create_filterable_docs,
 )
@@ -24,6 +23,7 @@ from haystack.utils.auth import Secret
 from numpy import array as np_array
 from numpy import array_equal as np_array_equal
 from numpy import float32 as np_float32
+from pandas import DataFrame
 from weaviate.collections.classes.data import DataObject
 from weaviate.config import AdditionalConfig, ConnectionConfig, Proxies, Timeout
 from weaviate.embedded import (
@@ -48,9 +48,7 @@ def test_init_is_lazy(_mock_client):
 
 
 @pytest.mark.integration
-class TestWeaviateDocumentStore(
-    CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsTest, FilterDocumentsTest, FilterDocumentsTestWithDataframe
-):
+class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsTest, FilterDocumentsTest):
     @pytest.fixture
     def document_store(self, request) -> WeaviateDocumentStore:
         # Use a different index for each test so we can run them in parallel
@@ -78,21 +76,7 @@ class TestWeaviateDocumentStore(
         Weaviate forces RFC 3339 date strings.
         The original fixture uses ISO 8601 date strings.
         """
-        documents = create_filterable_docs(include_dataframe_docs=False)
-        for i in range(len(documents)):
-            if date := documents[i].meta.get("date"):
-                documents[i].meta["date"] = f"{date}Z"
-        return documents
-
-    @pytest.fixture
-    def filterable_docs_with_dataframe(self) -> List[Document]:
-        """
-        This fixture has been copied from haystack/testing/document_store.py and modified to
-        use a different date format.
-        Weaviate forces RFC 3339 date strings.
-        The original fixture uses ISO 8601 date strings.
-        """
-        documents = create_filterable_docs(include_dataframe_docs=True)
+        documents = create_filterable_docs()
         for i in range(len(documents)):
             if date := documents[i].meta.get("date"):
                 documents[i].meta["date"] = f"{date}Z"
@@ -202,7 +186,6 @@ class TestWeaviateDocumentStore(
                     "properties": [
                         {"name": "_original_id", "dataType": ["text"]},
                         {"name": "content", "dataType": ["text"]},
-                        {"name": "dataframe", "dataType": ["text"]},
                         {"name": "blob_data", "dataType": ["blob"]},
                         {"name": "blob_mime_type", "dataType": ["text"]},
                         {"name": "score", "dataType": ["number"]},
@@ -284,7 +267,6 @@ class TestWeaviateDocumentStore(
             "properties": [
                 {"name": "_original_id", "dataType": ["text"]},
                 {"name": "content", "dataType": ["text"]},
-                {"name": "dataframe", "dataType": ["text"]},
                 {"name": "blob_data", "dataType": ["blob"]},
                 {"name": "blob_mime_type", "dataType": ["text"]},
                 {"name": "score", "dataType": ["number"]},
@@ -312,7 +294,6 @@ class TestWeaviateDocumentStore(
         assert data == {
             "_original_id": doc.id,
             "content": doc.content,
-            "dataframe": None,
             "score": None,
         }
 
@@ -329,10 +310,19 @@ class TestWeaviateDocumentStore(
             "content": doc.content,
             "blob_data": base64.b64encode(image.data).decode(),
             "blob_mime_type": "image/jpeg",
-            "dataframe": None,
             "score": None,
             "key": "value",
         }
+
+    def test_to_data_object_skips_dataframe(self, document_store):
+        doc = Document(id="test_id", content="test content")
+        doc.dataframe = DataFrame([{"a": 1, "b": 2}, {"a": 3, "b": 4}])
+
+        data = document_store._to_data_object(doc)
+
+        assert data["_original_id"] == "test_id"
+        assert data["content"] == "test content"
+        assert "dataframe" not in data
 
     def test_to_document(self, document_store, test_files_path):
         image = ByteStream.from_file_path(test_files_path / "robot1.jpg", mime_type="image/jpeg")
@@ -342,7 +332,6 @@ class TestWeaviateDocumentStore(
                 "content": "some content",
                 "blob_data": base64.b64encode(image.data).decode(),
                 "blob_mime_type": "image/jpeg",
-                "dataframe": None,
                 "score": None,
                 "key": "value",
             },
@@ -356,6 +345,20 @@ class TestWeaviateDocumentStore(
         assert doc.embedding == [1, 2, 3]
         assert doc.score is None
         assert doc.meta == {"key": "value"}
+
+    def test_to_document_skips_dataframe(self, document_store):
+        data = DataObject(
+            properties={
+                "_original_id": "test_id",
+                "content": "test content",
+                "dataframe": {"a": [1, 2, 3]},
+            }
+        )
+
+        doc = document_store._to_document(data)
+        assert doc.id == "test_id"
+        assert doc.content == "test content"
+        assert not hasattr(doc, "dataframe") or doc.dataframe is None
 
     def test_write_documents(self, document_store):
         """
@@ -467,10 +470,6 @@ class TestWeaviateDocumentStore(
                 and parser.isoparse(d.meta["date"]) <= parser.isoparse("1969-07-21T20:17:40Z")
             ],
         )
-
-    @pytest.mark.skip(reason="Weaviate for some reason is not returning what we expect")
-    def test_comparison_not_equal_with_dataframe(self, document_store, filterable_docs):
-        return super().test_comparison_not_equal_with_dataframe(document_store, filterable_docs)
 
     def test_meta_split_overlap_is_skipped(self, document_store):
         doc = Document(
