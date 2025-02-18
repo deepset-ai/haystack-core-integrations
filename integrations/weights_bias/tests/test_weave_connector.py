@@ -105,17 +105,6 @@ class TestWeaveConnector:
         result: dict[str, str] = connector.run(no_op="test")
         assert result == {"no_op": "test"}
 
-    def test_content_tracing_enabled(self) -> None:
-        """Test that content tracing is enabled when WeaveConnector is instantiated"""
-        # Reset the global tracer state
-        haystack_configured_tracer.is_content_tracing_enabled = False
-
-        # Create connector
-        WeaveConnector(pipeline_name="test_pipeline")
-
-        # Verify content tracing was enabled
-        assert haystack_configured_tracer.is_content_tracing_enabled is True
-
     @pytest.mark.skipif(
         not os.environ.get("WANDB_API_KEY", None),
         reason="Export an env var called WANDB_API_KEY containing the Weights & Bias API key to run this test.",

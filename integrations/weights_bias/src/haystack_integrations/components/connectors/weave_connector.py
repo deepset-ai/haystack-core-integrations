@@ -1,9 +1,11 @@
+import os
+from haystack import component, default_from_dict, default_to_dict, tracing
+from haystack import logging
+from haystack.tracing import tracer as haystack_tracer
+from haystack_integrations.tracing.weave import WeaveTracer
 from typing import Any, Optional
 
-from haystack import component, default_from_dict, default_to_dict, tracing
-from haystack.tracing import tracer as haystack_tracer
-
-from haystack_integrations.tracing.weave import WeaveTracer
+logger = logging.getLogger(__name__)
 
 
 @component
@@ -13,6 +15,10 @@ class WeaveConnector:
 
     Add this component to your pipeline to integrate with the Weights & Biases Weave framework for tracing and
     monitoring your pipeline components.
+
+    Note that you need to have the `WANDB_API_KEY` environment variable set to your Weights & Biases API key.
+    In addition, you need to set the `HAYSTACK_CONTENT_TRACING_ENABLED` environment variable to `true` in order to
+    enable Haystack tracing in your pipeline.
     """
 
     def __init__(self, pipeline_name: str) -> None:
@@ -22,10 +28,14 @@ class WeaveConnector:
         :param pipeline_name: The name of the pipeline you want to trace.
         """
         self.pipeline_name = pipeline_name
-
-        # TODO: This is a hack because content tracing enabled seems to rely on import order which is hard to debug.
-        # As a workaround, we assume that users adding the WeaveConnector to a pipeline always want to trace content.
-        haystack_tracer.is_content_tracing_enabled = True
+        content_tracing_enabled = os.getenv("HAYSTACK_CONTENT_TRACING_ENABLED", "false").lower()
+        self.enable_tracing = content_tracing_enabled == "true"
+        if not haystack_tracer.is_content_tracing_enabled:
+            logger.warning(
+                "Traces will not be logged to Weave because Haystack tracing is disabled. "
+                "To enable, set the HAYSTACK_CONTENT_TRACING_ENABLED environment variable to true "
+                "before importing Haystack."
+            )
 
         self.tracer: Optional[WeaveTracer] = None
 
