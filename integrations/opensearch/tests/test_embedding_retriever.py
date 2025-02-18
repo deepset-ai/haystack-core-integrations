@@ -151,6 +151,25 @@ def test_run():
     assert res["documents"][0].embedding == [0.1, 0.2]
 
 
+@pytest.mark.asyncio
+async def test_run_async():
+    mock_store = Mock(spec=OpenSearchDocumentStore)
+    mock_store._embedding_retrieval_async.return_value = [Document(content="Test doc", embedding=[0.1, 0.2])]
+    retriever = OpenSearchEmbeddingRetriever(document_store=mock_store)
+    res = await retriever.run_async(query_embedding=[0.5, 0.7])
+    mock_store._embedding_retrieval_async.assert_called_once_with(
+        query_embedding=[0.5, 0.7],
+        filters={},
+        top_k=10,
+        custom_query=None,
+        efficient_filtering=False,
+    )
+    assert len(res) == 1
+    assert len(res["documents"]) == 1
+    assert res["documents"][0].content == "Test doc"
+    assert res["documents"][0].embedding == [0.1, 0.2]
+
+
 def test_run_init_params():
     mock_store = Mock(spec=OpenSearchDocumentStore)
     mock_store._embedding_retrieval.return_value = [Document(content="Test doc", embedding=[0.1, 0.2])]
@@ -175,6 +194,30 @@ def test_run_init_params():
     assert res["documents"][0].embedding == [0.1, 0.2]
 
 
+@pytest.mark.asyncio
+async def test_run_async_init_params():
+    mock_store = Mock(spec=OpenSearchDocumentStore)
+    mock_store._embedding_retrieval_async.return_value = [Document(content="Test doc", embedding=[0.1, 0.2])]
+    retriever = OpenSearchEmbeddingRetriever(
+        document_store=mock_store,
+        filters={"from": "init"},
+        top_k=11,
+        custom_query="custom_query",
+    )
+    res = await retriever.run_async(query_embedding=[0.5, 0.7])
+    mock_store._embedding_retrieval_async.assert_called_once_with(
+        query_embedding=[0.5, 0.7],
+        filters={"from": "init"},
+        top_k=11,
+        custom_query="custom_query",
+        efficient_filtering=False,
+    )
+    assert len(res) == 1
+    assert len(res["documents"]) == 1
+    assert res["documents"][0].content == "Test doc"
+    assert res["documents"][0].embedding == [0.1, 0.2]
+
+
 def test_run_time_params():
     mock_store = Mock(spec=OpenSearchDocumentStore)
     mock_store._embedding_retrieval.return_value = [Document(content="Test doc", embedding=[0.1, 0.2])]
@@ -186,6 +229,25 @@ def test_run_time_params():
         top_k=9,
         custom_query=None,
         efficient_filtering=True,
+    )
+    assert len(res) == 1
+    assert len(res["documents"]) == 1
+    assert res["documents"][0].content == "Test doc"
+    assert res["documents"][0].embedding == [0.1, 0.2]
+
+
+@pytest.mark.asyncio
+async def test_run_async_time_params():
+    mock_store = Mock(spec=OpenSearchDocumentStore)
+    mock_store._embedding_retrieval_async.return_value = [Document(content="Test doc", embedding=[0.1, 0.2])]
+    retriever = OpenSearchEmbeddingRetriever(document_store=mock_store, filters={"from": "init"}, top_k=11)
+    res = await retriever.run_async(query_embedding=[0.5, 0.7], filters={"from": "run"}, top_k=9)
+    mock_store._embedding_retrieval_async.assert_called_once_with(
+        query_embedding=[0.5, 0.7],
+        filters={"from": "run"},
+        top_k=9,
+        custom_query=None,
+        efficient_filtering=False,
     )
     assert len(res) == 1
     assert len(res["documents"]) == 1

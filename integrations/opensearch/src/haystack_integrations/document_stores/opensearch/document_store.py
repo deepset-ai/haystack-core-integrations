@@ -1,10 +1,11 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
-import logging
+
+from math import exp
 from typing import Any, Dict, List, Mapping, Optional, Union
 
-from haystack import default_from_dict, default_to_dict
+from haystack import default_from_dict, default_to_dict, logging
 from haystack.dataclasses import Document
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
@@ -251,10 +252,6 @@ class OpenSearchDocumentStore:
 
             self._initialized = True
 
-        # In a just world, this is something that the document store shouldn't
-        # be responsible for. However, the current implementation has become a
-        # dependency of downstream users, so we'll have to preserve this behaviour
-        # (for now).
         self._ensure_index_exists()
 
     def _ensure_index_exists(self):
@@ -281,6 +278,9 @@ class OpenSearchDocumentStore:
         return self._client.count(index=self._index)["count"]
 
     async def count_documents_async(self) -> int:
+        """
+        Asynchronously returns the total number of documents in the document store.
+        """
         self._ensure_initialized()
 
         assert self._async_client is not None
@@ -314,15 +314,33 @@ class OpenSearchDocumentStore:
         return self._deserialize_search_hits(search_results["hits"]["hits"])
 
     def filter_documents(self, filters: Optional[Dict[str, Any]] = None) -> List[Document]:
+        """
+        Returns the documents that match the filters provided.
+
+        For a detailed specification of the filters,
+        refer to the [documentation](https://docs.haystack.deepset.ai/docs/metadata-filtering)
+
+        :param filters: The filters to apply to the document list.
+        :returns: A list of Documents that match the given filters.
+        """
         self._ensure_initialized()
         return self._search_documents(self._prepare_filter_search_request(filters))
 
     async def filter_documents_async(self, filters: Optional[Dict[str, Any]] = None) -> List[Document]:
+        """
+        Asynchronously returns the documents that match the filters provided.
+
+        For a detailed specification of the filters,
+        refer to the [documentation](https://docs.haystack.deepset.ai/docs/metadata-filtering)
+
+        :param filters: The filters to apply to the document list.
+        :returns: A list of Documents that match the given filters.
+        """
         self._ensure_initialized()
         return await self._search_documents_async(self._prepare_filter_search_request(filters))
 
     def _prepare_bulk_write_request(
-        self, documents: List[Document], policy: DuplicatePolicy, is_async: bool
+        self, *, documents: List[Document], policy: DuplicatePolicy, is_async: bool
     ) -> Dict[str, Any]:
         if len(documents) > 0 and not isinstance(documents[0], Document):
             msg = "param 'documents' must contain a list of objects of type Document"
@@ -339,19 +357,19 @@ class OpenSearchDocumentStore:
                 dataframe = doc_dict.pop("dataframe")
                 if dataframe:
                     logger.warning(
-                        "Document %s has the `dataframe` field set,"
+                        "Document {id} has the `dataframe` field set,"
                         "OpenSearchDocumentStore no longer supports dataframes and this field will be ignored. "
                         "The `dataframe` field will soon be removed from Haystack Document.",
-                        doc.id,
+                        id=doc.id,
                     )
             if "sparse_embedding" in doc_dict:
                 sparse_embedding = doc_dict.pop("sparse_embedding", None)
                 if sparse_embedding:
                     logger.warning(
-                        "Document %s has the `sparse_embedding` field set,"
+                        "Document {id} has the `sparse_embedding` field set,"
                         "but storing sparse embeddings in OpenSearch is not currently supported."
                         "The `sparse_embedding` field will be ignored.",
-                        doc.id,
+                        id=doc.id,
                     )
             opensearch_actions.append(
                 {
@@ -401,13 +419,17 @@ class OpenSearchDocumentStore:
 
     def write_documents(self, documents: List[Document], policy: DuplicatePolicy = DuplicatePolicy.NONE) -> int:
         """
-        Writes Documents to OpenSearch.
-        If policy is not specified or set to DuplicatePolicy.NONE, it will raise an exception if a document with the
-        same ID already exists in the document store.
+        Writes documents to the document store.
+
+        :param documents: A list of Documents to write to the document store.
+        :param policy: The duplicate policy to use when writing documents.
+        :raises DuplicateDocumentError: If a document with the same id already exists in the document store
+             and the policy is set to `DuplicatePolicy.FAIL` (or not specified).
+        :returns: The number of documents written to the document store.
         """
         self._ensure_initialized()
 
-        bulk_params = self._prepare_bulk_write_request(documents, policy, is_async=False)
+        bulk_params = self._prepare_bulk_write_request(documents=documents, policy=policy, is_async=False)
         documents_written, errors = bulk(**bulk_params)
         self._process_bulk_write_errors(errors, policy)
         return documents_written
@@ -415,9 +437,15 @@ class OpenSearchDocumentStore:
     async def write_documents_async(
         self, documents: List[Document], policy: DuplicatePolicy = DuplicatePolicy.NONE
     ) -> int:
-        self._ensure_initialized()
+        """
+        Asynchronously writes documents to the document store.
 
-        bulk_params = self._prepare_bulk_write_request(documents, policy, is_async=True)
+        :param documents: A list of Documents to write to the document store.
+        :param policy: The duplicate policy to use when writing documents.
+        :returns: The number of documents written to the document store.
+        """
+        self._ensure_initialized()
+        bulk_params = self._prepare_bulk_write_request(documents=documents, policy=policy, is_async=True)
         documents_written, errors = await async_bulk(**bulk_params)
         self._process_bulk_write_errors(errors, policy)  # type:ignore
         return documents_written
@@ -437,15 +465,15 @@ class OpenSearchDocumentStore:
             dataframe = data.pop("dataframe")
             if dataframe:
                 logger.warning(
-                    "Document %s has the `dataframe` field set,"
+                    "Document {id} has the `dataframe` field set,"
                     "OpenSearchDocumentStore no longer supports dataframes and this field will be ignored. "
                     "The `dataframe` field will soon be removed from Haystack Document.",
-                    data["id"],
+                    id=data["id"],
                 )
 
         return Document.from_dict(data)
 
-    def _prepare_bulk_delete_request(self, document_ids: List[str], is_async: bool) -> Dict[str, Any]:
+    def _prepare_bulk_delete_request(self, *, document_ids: List[str], is_async: bool) -> Dict[str, Any]:
         return {
             "client": self._client if not is_async else self._async_client,
             "actions": ({"_op_type": "delete", "_id": id_} for id_ in document_ids),
@@ -457,26 +485,31 @@ class OpenSearchDocumentStore:
 
     def delete_documents(self, document_ids: List[str]) -> None:
         """
-        Deletes all documents with a matching document_ids from the document store.
+        Deletes documents that match the provided `document_ids` from the document store.
 
-        :param object_ids: the object_ids to delete
+        :param document_ids: the document ids to delete
         """
 
         self._ensure_initialized()
 
-        bulk(**self._prepare_bulk_delete_request(document_ids, is_async=False))
+        bulk(**self._prepare_bulk_delete_request(document_ids=document_ids, is_async=False))
 
     async def delete_documents_async(self, document_ids: List[str]) -> None:
+        """
+        Asynchronously deletes documents that match the provided `document_ids` from the document store.
+
+        :param document_ids: the document ids to delete
+        """
         self._ensure_initialized()
 
-        await async_bulk(**self._prepare_bulk_delete_request(document_ids, is_async=True))
+        await async_bulk(**self._prepare_bulk_delete_request(document_ids=document_ids, is_async=True))
 
     def _prepare_bm25_search_request(
         self,
         *,
         query: str,
         filters: Optional[Dict[str, Any]],
-        fuzziness: str,
+        fuzziness: Union[int, str],
         top_k: int,
         all_terms_must_match: bool,
         custom_query: Optional[Dict[str, Any]],
@@ -527,13 +560,13 @@ class OpenSearchDocumentStore:
 
         return body
 
-    def _postprocess_bm25_search_results(self, results: List[Document], scale_score: bool):
+    def _postprocess_bm25_search_results(self, *, results: List[Document], scale_score: bool):
         if not scale_score:
             return
 
         for doc in results:
             assert doc.score is not None
-            doc.score = float(1 / (1 + math.exp(-(doc.score / float(BM25_SCALING_FACTOR)))))
+            doc.score = float(1 / (1 + exp(-(doc.score / float(BM25_SCALING_FACTOR)))))
 
     def _bm25_retrieval(
         self,
@@ -547,46 +580,17 @@ class OpenSearchDocumentStore:
         custom_query: Optional[Dict[str, Any]] = None,
     ) -> List[Document]:
         """
+        Retrieves documents that match the provided `query` using the BM25 search algorithm.
+
         OpenSearch by defaults uses BM25 search algorithm.
-        Even though this method is called `bm25_retrieval` it searches for `query`
+        Even though this method is called `_bm25_retrieval` it searches for `query`
         using the search algorithm `_client` was configured with.
 
         This method is not meant to be part of the public interface of
         `OpenSearchDocumentStore` nor called directly.
         `OpenSearchBM25Retriever` uses this method directly and is the public interface for it.
 
-        :param query: String to search in saved Documents' text.
-        :param filters: Optional filters to narrow down the search space.
-        :param fuzziness: Determines how approximate string matching is applied in full-text queries.
-            This parameter sets the number of character edits (insertions, deletions, or substitutions)
-            required to transform one word into another. For example, the "fuzziness" between the words
-            "wined" and "wind" is 1 because only one edit is needed to match them.
-
-            Use "AUTO" (the default) for automatic adjustment based on term length, which is optimal for
-            most scenarios. For detailed guidance, refer to the
-            [OpenSearch fuzzy query documentation](https://opensearch.org/docs/latest/query-dsl/term/fuzzy/).
-        :param top_k: Maximum number of Documents to return, defaults to 10
-        :param scale_score: If `True` scales the Document`s scores between 0 and 1, defaults to False
-        :param all_terms_must_match: If `True` all terms in `query` must be present in the Document, defaults to False
-        :param custom_query: The query containing a mandatory `$query` and an optional `$filters` placeholder
-
-            **An example custom_query:**
-
-            ```python
-            {
-                "query": {
-                    "bool": {
-                        "should": [{"multi_match": {
-                            "query": "$query",                 // mandatory query placeholder
-                            "type": "most_fields",
-                            "fields": ["content", "title"]}}],
-                        "filter": "$filters"                  // optional filter placeholder
-                    }
-                }
-            }
-            ```
-
-        :returns: List of Document that match `query`
+        See `OpenSearchBM25Retriever` for more information.
         """
         self._ensure_initialized()
 
@@ -599,7 +603,7 @@ class OpenSearchDocumentStore:
             custom_query=custom_query,
         )
         documents = self._search_documents(search_params)
-        self._postprocess_bm25_search_results(documents, scale_score)
+        self._postprocess_bm25_search_results(results=documents, scale_score=scale_score)
         return documents
 
     async def _bm25_retrieval_async(
@@ -613,6 +617,20 @@ class OpenSearchDocumentStore:
         all_terms_must_match: bool = False,
         custom_query: Optional[Dict[str, Any]] = None,
     ) -> List[Document]:
+        """
+        Asynchronously retrieves documents that match the provided `query` using the BM25 search algorithm.
+
+        OpenSearch by defaults uses BM25 search algorithm.
+        Even though this method is called `_bm25_retrieval` it searches for `query`
+        using the search algorithm `_client` was configured with.
+
+        This method is not meant to be part of the public interface of
+        `OpenSearchDocumentStore` nor called directly.
+        `OpenSearchBM25Retriever` uses this method directly and is the public interface for it.
+
+        See `OpenSearchBM25Retriever` for more information.
+        """
+
         self._ensure_initialized()
 
         search_params = self._prepare_bm25_search_request(
@@ -624,15 +642,17 @@ class OpenSearchDocumentStore:
             custom_query=custom_query,
         )
         documents = await self._search_documents_async(search_params)
-        self._postprocess_bm25_search_results(documents, scale_score)
+        self._postprocess_bm25_search_results(results=documents, scale_score=scale_score)
         return documents
 
     def _prepare_embedding_search_request(
         self,
+        *,
         query_embedding: List[float],
         filters: Optional[Dict[str, Any]],
         top_k: int,
         custom_query: Optional[Dict[str, Any]],
+        efficient_filtering: bool = False,
     ) -> Dict[str, Any]:
 
         if not query_embedding:
@@ -668,7 +688,10 @@ class OpenSearchDocumentStore:
             }
 
             if filters:
-                body["query"]["bool"]["filter"] = normalize_filters(filters)
+                if efficient_filtering:
+                    body["query"]["bool"]["must"][0]["knn"]["embedding"]["filter"] = normalize_filters(filters)
+                else:
+                    body["query"]["bool"]["filter"] = normalize_filters(filters)
 
         body["size"] = top_k
 
@@ -696,41 +719,17 @@ class OpenSearchDocumentStore:
         `OpenSearchDocumentStore` nor called directly.
         `OpenSearchEmbeddingRetriever` uses this method directly and is the public interface for it.
 
-        :param query_embedding: Embedding of the query.
-        :param filters: Filters applied to the retrieved Documents. Defaults to None.
-            Filters are applied during the approximate kNN search to ensure that top_k matching documents are returned.
-        :param top_k: Maximum number of Documents to return, defaults to 10
-        :param custom_query: The query containing a mandatory `$query_embedding` and an optional `$filters` placeholder
-
-            **An example custom_query:**
-            ```python
-            {
-                "query": {
-                    "bool": {
-                        "must": [
-                            {
-                                "knn": {
-                                    "embedding": {
-                                        "vector": "$query_embedding",   // mandatory query placeholder
-                                        "k": 10000,
-                                    }
-                                }
-                            }
-                        ],
-                        "filter": "$filters"                            // optional filter placeholder
-                    }
-                }
-            }
-            ```
-
-        :param efficient_filtering: If `True`, the filter will be applied during the approximate kNN search.
-            This is only supported for knn engines "faiss" and "lucene" and does not work with the default "nmslib".
-        :raises ValueError: If `query_embedding` is an empty list
-        :returns: List of Document that are most similar to `query_embedding`
+        See `OpenSearchEmbeddingRetriever` for more information.
         """
         self._ensure_initialized()
 
-        search_params = self._prepare_embedding_search_request(query_embedding, filters, top_k, custom_query)
+        search_params = self._prepare_embedding_search_request(
+            query_embedding=query_embedding,
+            filters=filters,
+            top_k=top_k,
+            custom_query=custom_query,
+            efficient_filtering=efficient_filtering,
+        )
         return self._search_documents(search_params)
 
     async def _embedding_retrieval_async(
@@ -740,10 +739,27 @@ class OpenSearchDocumentStore:
         filters: Optional[Dict[str, Any]] = None,
         top_k: int = 10,
         custom_query: Optional[Dict[str, Any]] = None,
+        efficient_filtering: bool = False,
     ) -> List[Document]:
+        """
+        Asynchronously retrieves documents that are most similar to the query embedding using a vector similarity
+        metric. It uses the OpenSearch's Approximate k-Nearest Neighbors search algorithm.
+
+        This method is not meant to be part of the public interface of
+        `OpenSearchDocumentStore` nor called directly.
+        `OpenSearchEmbeddingRetriever` uses this method directly and is the public interface for it.
+
+        See `OpenSearchEmbeddingRetriever` for more information.
+        """
         self._ensure_initialized()
 
-        search_params = self._prepare_embedding_search_request(query_embedding, filters, top_k, custom_query)
+        search_params = self._prepare_embedding_search_request(
+            query_embedding=query_embedding,
+            filters=filters,
+            top_k=top_k,
+            custom_query=custom_query,
+            efficient_filtering=efficient_filtering,
+        )
         return await self._search_documents_async(search_params)
 
     def _render_custom_query(self, custom_query: Any, substitutions: Dict[str, Any]) -> Any:

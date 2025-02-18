@@ -47,6 +47,7 @@ dependencies = [
   "pytest",
   "pytest-rerunfailures",
   "pytest-xdist",
+  "pytest-asyncio",
   "haystack-pydoc-tools",
   "boto3",
 ]
@@ -128,6 +129,8 @@ ignore = [
   "PLR0912",
   "PLR0913",
   "PLR0915",
+  # Ignore asserts
+  "S101",
 ]
 unfixable = [
   # Don't touch unused imports
@@ -159,6 +162,7 @@ exclude_lines = ["no cov", "if __name__ == .__main__.:", "if TYPE_CHECKING:"]
 [tool.pytest.ini_options]
 minversion = "6.0"
 markers = ["unit: unit tests", "integration: integration tests"]
+asyncio_mode = "auto"
 
 [[tool.mypy.overrides]]
 module = ["botocore.*", "boto3.*", "haystack.*", "haystack_integrations.*", "pytest.*", "opensearchpy.*"]
