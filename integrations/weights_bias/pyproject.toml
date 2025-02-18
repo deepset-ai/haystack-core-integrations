@@ -146,7 +146,9 @@ show_missing = true
 exclude_lines = ["no cov", "if __name__ == .__main__.:", "if TYPE_CHECKING:"]
 
 [tool.pytest.ini_options]
-markers = ["integration: integration tests"]
+markers = [
+  "integration: integration tests"
+]
 
 [[tool.mypy.overrides]]
 module = [

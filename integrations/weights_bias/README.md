@@ -28,6 +28,10 @@ in Haystack.
 ### Example 
 
 
+https://hub.docker.com/r/wandb/weave-trace
+
+
+
 Create a document store with some example documents and index them. 
 
 ```python
