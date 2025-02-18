@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "weights-bias-haystack"
 dynamic = ["version"]
-description = "An integration of Weight and Bias Weaver tracer with Haystack"
+description = "An integration of Weight and Bias Weave tracer with Haystack"
 readme = "README.md"
 requires-python = ">=3.9"
 license = "Apache-2.0"
@@ -15,7 +15,6 @@ classifiers = [
   "License :: OSI Approved :: Apache Software License",
   "Development Status :: 4 - Beta",
   "Programming Language :: Python",
-  "Programming Language :: Python :: 3.8",
   "Programming Language :: Python :: 3.9",
   "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",

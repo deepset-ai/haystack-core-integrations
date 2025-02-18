@@ -16,15 +16,15 @@ processors:
   - type: crossref
 renderer:
   type: haystack_pydoc_tools.renderers.ReadmeIntegrationRenderer
-  excerpt: Langfuse integration for Haystack
+  excerpt: Weights & Bias integration for Haystack
   category_slug: integrations-api
-  title: langfuse
-  slug: integrations-langfuse
-  order: 136
+  title: weights and bias
+  slug: integrations-weights-bias
+  order: 260
   markdown:
     descriptive_class_title: false
     classdef_code_block: false
     descriptive_module_title: true
     add_method_class_prefix: true
     add_member_class_prefix: false
-    filename: _readme_langfuse.md
+    filename: _readme_weights_and_bias.md
