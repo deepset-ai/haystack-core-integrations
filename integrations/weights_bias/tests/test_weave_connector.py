@@ -6,6 +6,7 @@ import pytest
 from haystack import Pipeline, component
 from haystack.components.builders import PromptBuilder
 from haystack.tracing import tracer as haystack_configured_tracer
+
 from haystack_integrations.components.connectors import WeaveConnector
 from haystack_integrations.tracing.weave import WeaveTracer
 
