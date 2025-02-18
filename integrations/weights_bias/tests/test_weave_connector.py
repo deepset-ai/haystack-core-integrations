@@ -43,7 +43,6 @@ def sample_pipeline() -> Pipeline:
 
 
 class TestWeaveConnector:
-
     def test_serialization(self) -> None:
         """Test that WeaveConnector can be serialized and deserialized correctly"""
         connector = WeaveConnector(pipeline_name="test_pipeline")
@@ -126,7 +125,7 @@ class TestWeaveConnector:
         connector = WeaveConnector(pipeline_name="test_pipeline")
         assert connector.tracer is None
 
-        connector.warm_up() # initialize tracer
+        connector.warm_up()  # initialize tracer
 
         assert connector.tracer is not None
         assert isinstance(connector.tracer, WeaveTracer)
