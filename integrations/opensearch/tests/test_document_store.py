@@ -122,14 +122,16 @@ class TestAuth:
     @patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
     def test_init_with_basic_auth(self, _mock_opensearch_client):
         document_store = OpenSearchDocumentStore(hosts="testhost", http_auth=("user", "pw"))
-        assert document_store.client
+        document_store._ensure_initialized()
+        assert document_store._client
         _mock_opensearch_client.assert_called_once()
         assert _mock_opensearch_client.call_args[1]["http_auth"] == ("user", "pw")
 
     @patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
     def test_init_without_auth(self, _mock_opensearch_client):
         document_store = OpenSearchDocumentStore(hosts="testhost")
-        assert document_store.client
+        document_store._ensure_initialized()
+        assert document_store._client
         _mock_opensearch_client.assert_called_once()
         assert _mock_opensearch_client.call_args[1]["http_auth"] is None
 
@@ -141,7 +143,8 @@ class TestAuth:
             use_ssl=True,
             verify_certs=True,
         )
-        assert document_store.client
+        document_store._ensure_initialized()
+        assert document_store._client
         _mock_opensearch_client.assert_called_once()
         assert isinstance(_mock_opensearch_client.call_args[1]["http_auth"], AWSAuth)
         assert _mock_opensearch_client.call_args[1]["use_ssl"] is True
@@ -160,7 +163,8 @@ class TestAuth:
                 },
             }
         )
-        assert document_store.client
+        document_store._ensure_initialized()
+        assert document_store._client
         _mock_opensearch_client.assert_called_once()
         assert _mock_opensearch_client.call_args[1]["http_auth"] == ["user", "pw"]
 
@@ -181,7 +185,8 @@ class TestAuth:
                 },
             }
         )
-        assert document_store.client
+        document_store._ensure_initialized()
+        assert document_store._client
         _mock_opensearch_client.assert_called_once()
         assert isinstance(_mock_opensearch_client.call_args[1]["http_auth"], AWSAuth)
         assert _mock_opensearch_client.call_args[1]["use_ssl"] is True
@@ -271,7 +276,8 @@ class TestAuth:
         monkeypatch.setenv("OPENSEARCH_PASSWORD", "pass")
 
         document_store = OpenSearchDocumentStore(hosts="testhost")
-        assert document_store.client
+        document_store._ensure_initialized()
+        assert document_store._client
         _mock_opensearch_client.assert_called_once()
         assert _mock_opensearch_client.call_args[1]["http_auth"] == ["user", "pass"]
 
@@ -279,7 +285,8 @@ class TestAuth:
     def test_init_with_missing_env_vars(self, _mock_opensearch_client):
         """Test that auth is None when environment variables are missing"""
         document_store = OpenSearchDocumentStore(hosts="testhost")
-        assert document_store.client
+        document_store._ensure_initialized()
+        assert document_store._client
         _mock_opensearch_client.assert_called_once()
         assert _mock_opensearch_client.call_args[1]["http_auth"] is None
 
@@ -320,7 +327,8 @@ class TestAuth:
             },
         }
         document_store = OpenSearchDocumentStore.from_dict(data)
-        assert document_store.client
+        document_store._ensure_initialized()
+        assert document_store._client
         _mock_opensearch_client.assert_called_once()
         assert _mock_opensearch_client.call_args[1]["http_auth"] == ["user", "pass"]
 
@@ -351,7 +359,9 @@ class TestDocumentStore(DocumentStoreBaseTests):
             method={"space_type": "cosinesimil", "engine": "nmslib", "name": "hnsw"},
         )
         yield store
-        store.client.indices.delete(index=index, params={"ignore": [400, 404]})
+        store._ensure_initialized()
+        assert store._client
+        store._client.indices.delete(index=index, params={"ignore": [400, 404]})
 
     @pytest.fixture
     def document_store_readonly(self, request):
@@ -372,10 +382,12 @@ class TestDocumentStore(DocumentStoreBaseTests):
             method={"space_type": "cosinesimil", "engine": "nmslib", "name": "hnsw"},
             create_index=False,
         )
-        store.client.cluster.put_settings(body={"transient": {"action.auto_create_index": False}})
+        store._ensure_initialized()
+        assert store._client
+        store._client.cluster.put_settings(body={"transient": {"action.auto_create_index": False}})
         yield store
-        store.client.cluster.put_settings(body={"transient": {"action.auto_create_index": True}})
-        store.client.indices.delete(index=index, params={"ignore": [400, 404]})
+        store._client.cluster.put_settings(body={"transient": {"action.auto_create_index": True}})
+        store._client.indices.delete(index=index, params={"ignore": [400, 404]})
 
     @pytest.fixture
     def document_store_embedding_dim_4(self, request):
@@ -396,7 +408,7 @@ class TestDocumentStore(DocumentStoreBaseTests):
             method={"space_type": "cosinesimil", "engine": "nmslib", "name": "hnsw"},
         )
         yield store
-        store.client.indices.delete(index=index, params={"ignore": [400, 404]})
+        store._client.indices.delete(index=index, params={"ignore": [400, 404]})
 
     @pytest.fixture
     def document_store_embedding_dim_4_faiss(self, request):
@@ -417,7 +429,7 @@ class TestDocumentStore(DocumentStoreBaseTests):
             method={"space_type": "innerproduct", "engine": "faiss", "name": "hnsw"},
         )
         yield store
-        store.client.indices.delete(index=index, params={"ignore": [400, 404]})
+        store._client.indices.delete(index=index, params={"ignore": [400, 404]})
 
     def assert_documents_are_equal(self, received: List[Document], expected: List[Document]):
         """
@@ -457,7 +469,7 @@ class TestDocumentStore(DocumentStoreBaseTests):
 
     def test_create_index(self, document_store_readonly: OpenSearchDocumentStore):
         document_store_readonly.create_index()
-        assert document_store_readonly.client.indices.exists(index=document_store_readonly._index)
+        assert document_store_readonly._client.indices.exists(index=document_store_readonly._index)
 
     def test_write_documents_dataframe_ignored(self, document_store: OpenSearchDocumentStore):
         doc = Document(id="1", content="test")
@@ -923,7 +935,7 @@ class TestDocumentStore(DocumentStoreBaseTests):
             method={"space_type": "cosinesimil", "engine": "nmslib", "name": "hnsw"},
         )
         yield store
-        store.client.indices.delete(index=index, params={"ignore": [400, 404]})
+        store._client.indices.delete(index=index, params={"ignore": [400, 404]})
 
     def test_embedding_retrieval_but_dont_return_embeddings_for_embedding_retrieval(
         self, document_store_no_embbding_returned: OpenSearchDocumentStore
@@ -952,3 +964,501 @@ class TestDocumentStore(DocumentStoreBaseTests):
         results = document_store_no_embbding_returned._bm25_retrieval("document", top_k=2)
         assert len(results) == 2
         assert results[0].embedding is None
+
+
+@pytest.mark.integration
+class TestDocumentStoreAsync:
+
+    @pytest.fixture
+    async def document_store(self, request):
+        """
+        This is the most basic requirement for the child class: provide
+        an instance of this document store so the base class can use it.
+        """
+        hosts = ["https://localhost:9200"]
+        # Use a different index for each test so we can run them in parallel
+        index = f"{request.node.name}"
+
+        store = OpenSearchDocumentStore(
+            hosts=hosts,
+            index=index,
+            http_auth=("admin", "admin"),
+            verify_certs=False,
+            embedding_dim=768,
+            method={"space_type": "cosinesimil", "engine": "nmslib", "name": "hnsw"},
+        )
+        yield store
+        store._ensure_initialized()
+        assert store._client
+        store._client.indices.delete(index=index, params={"ignore": [400, 404]})
+        await store._async_client.close()
+
+    @pytest.fixture
+    async def document_store_readonly(self, request):
+        """
+        This is the most basic requirement for the child class: provide
+        an instance of this document store so the base class can use it.
+        """
+        hosts = ["https://localhost:9200"]
+        # Use a different index for each test so we can run them in parallel
+        index = f"{request.node.name}"
+
+        store = OpenSearchDocumentStore(
+            hosts=hosts,
+            index=index,
+            http_auth=("admin", "admin"),
+            verify_certs=False,
+            embedding_dim=768,
+            method={"space_type": "cosinesimil", "engine": "nmslib", "name": "hnsw"},
+            create_index=False,
+        )
+        store._ensure_initialized()
+        assert store._client
+        store._client.cluster.put_settings(body={"transient": {"action.auto_create_index": False}})
+        yield store
+        store._client.cluster.put_settings(body={"transient": {"action.auto_create_index": True}})
+        store._client.indices.delete(index=index, params={"ignore": [400, 404]})
+        await store._async_client.close()
+
+    @pytest.fixture
+    async def document_store_embedding_dim_4(self, request):
+        """
+        This is the most basic requirement for the child class: provide
+        an instance of this document store so the base class can use it.
+        """
+        hosts = ["https://localhost:9200"]
+        # Use a different index for each test so we can run them in parallel
+        index = f"{request.node.name}"
+
+        store = OpenSearchDocumentStore(
+            hosts=hosts,
+            index=index,
+            http_auth=("admin", "admin"),
+            verify_certs=False,
+            embedding_dim=4,
+            method={"space_type": "cosinesimil", "engine": "nmslib", "name": "hnsw"},
+        )
+        yield store
+        store._ensure_initialized()
+        assert store._client
+        store._client.indices.delete(index=index, params={"ignore": [400, 404]})
+        await store._async_client.close()
+
+    @pytest.fixture
+    async def document_store_no_embbding_returned(self, request):
+        """
+        This is the most basic requirement for the child class: provide
+        an instance of this document store so the base class can use it.
+        """
+        hosts = ["https://localhost:9200"]
+        # Use a different index for each test so we can run them in parallel
+        index = f"{request.node.name}"
+
+        store = OpenSearchDocumentStore(
+            hosts=hosts,
+            index=index,
+            http_auth=("admin", "admin"),
+            verify_certs=False,
+            embedding_dim=4,
+            return_embedding=False,
+            method={"space_type": "cosinesimil", "engine": "nmslib", "name": "hnsw"},
+        )
+        store._ensure_initialized()
+        yield store
+        store._client.indices.delete(index=index, params={"ignore": [400, 404]})
+
+    @pytest.mark.asyncio
+    async def test_write_documents(self, document_store: OpenSearchDocumentStore):
+        assert await document_store.write_documents_async([Document(id="1")]) == 1
+
+    @pytest.mark.asyncio
+    async def test_bm25_retrieval(self, document_store: OpenSearchDocumentStore):
+        document_store.write_documents(
+            [
+                Document(content="Haskell is a functional programming language"),
+                Document(content="Lisp is a functional programming language"),
+                Document(content="Exilir is a functional programming language"),
+                Document(content="F# is a functional programming language"),
+                Document(content="C# is a functional programming language"),
+                Document(content="C++ is an object oriented programming language"),
+                Document(content="Dart is an object oriented programming language"),
+                Document(content="Go is an object oriented programming language"),
+                Document(content="Python is a object oriented programming language"),
+                Document(content="Ruby is a object oriented programming language"),
+                Document(content="PHP is a object oriented programming language"),
+            ]
+        )
+        res = await document_store._bm25_retrieval_async("functional", top_k=3)
+        assert len(res) == 3
+        assert "functional" in res[0].content
+        assert "functional" in res[1].content
+        assert "functional" in res[2].content
+
+    @pytest.mark.asyncio
+    async def test_bm25_retrieval_pagination(self, document_store: OpenSearchDocumentStore):
+        """
+        Test that handling of pagination works as expected, when the matching documents are > 10.
+        """
+        document_store.write_documents(
+            [
+                Document(content="Haskell is a functional programming language"),
+                Document(content="Lisp is a functional programming language"),
+                Document(content="Exilir is a functional programming language"),
+                Document(content="F# is a functional programming language"),
+                Document(content="C# is a functional programming language"),
+                Document(content="C++ is an object oriented programming language"),
+                Document(content="Dart is an object oriented programming language"),
+                Document(content="Go is an object oriented programming language"),
+                Document(content="Python is a object oriented programming language"),
+                Document(content="Ruby is a object oriented programming language"),
+                Document(content="PHP is a object oriented programming language"),
+                Document(content="Java is an object oriented programming language"),
+                Document(content="Javascript is a programming language"),
+                Document(content="Typescript is a programming language"),
+                Document(content="C is a programming language"),
+            ]
+        )
+
+        res = await document_store._bm25_retrieval_async("programming", top_k=11)
+        assert len(res) == 11
+        assert all("programming" in doc.content for doc in res)
+
+    @pytest.mark.asyncio
+    async def test_bm25_retrieval_all_terms_must_match(self, document_store: OpenSearchDocumentStore):
+        document_store.write_documents(
+            [
+                Document(content="Haskell is a functional programming language"),
+                Document(content="Lisp is a functional programming language"),
+                Document(content="Exilir is a functional programming language"),
+                Document(content="F# is a functional programming language"),
+                Document(content="C# is a functional programming language"),
+                Document(content="C++ is an object oriented programming language"),
+                Document(content="Dart is an object oriented programming language"),
+                Document(content="Go is an object oriented programming language"),
+                Document(content="Python is a object oriented programming language"),
+                Document(content="Ruby is a object oriented programming language"),
+                Document(content="PHP is a object oriented programming language"),
+            ]
+        )
+
+        res = await document_store._bm25_retrieval_async("functional Haskell", top_k=3, all_terms_must_match=True)
+        assert len(res) == 1
+        assert "Haskell is a functional programming language" in res[0].content
+
+    @pytest.mark.asyncio
+    async def test_bm25_retrieval_all_terms_must_match_false(self, document_store: OpenSearchDocumentStore):
+        document_store.write_documents(
+            [
+                Document(content="Haskell is a functional programming language"),
+                Document(content="Lisp is a functional programming language"),
+                Document(content="Exilir is a functional programming language"),
+                Document(content="F# is a functional programming language"),
+                Document(content="C# is a functional programming language"),
+                Document(content="C++ is an object oriented programming language"),
+                Document(content="Dart is an object oriented programming language"),
+                Document(content="Go is an object oriented programming language"),
+                Document(content="Python is a object oriented programming language"),
+                Document(content="Ruby is a object oriented programming language"),
+                Document(content="PHP is a object oriented programming language"),
+            ]
+        )
+
+        res = await document_store._bm25_retrieval_async("functional Haskell", top_k=10, all_terms_must_match=False)
+        assert len(res) == 5
+        assert "functional" in res[0].content
+        assert "functional" in res[1].content
+        assert "functional" in res[2].content
+        assert "functional" in res[3].content
+        assert "functional" in res[4].content
+
+    @pytest.mark.asyncio
+    async def test_bm25_retrieval_with_filters(self, document_store: OpenSearchDocumentStore):
+        document_store.write_documents(
+            [
+                Document(
+                    content="Haskell is a functional programming language",
+                    meta={"likes": 100000, "language_type": "functional"},
+                    id="1",
+                ),
+                Document(
+                    content="Lisp is a functional programming language",
+                    meta={"likes": 10000, "language_type": "functional"},
+                    id="2",
+                ),
+                Document(
+                    content="Exilir is a functional programming language",
+                    meta={"likes": 1000, "language_type": "functional"},
+                    id="3",
+                ),
+                Document(
+                    content="F# is a functional programming language",
+                    meta={"likes": 100, "language_type": "functional"},
+                    id="4",
+                ),
+                Document(
+                    content="C# is a functional programming language",
+                    meta={"likes": 10, "language_type": "functional"},
+                    id="5",
+                ),
+                Document(
+                    content="C++ is an object oriented programming language",
+                    meta={"likes": 100000, "language_type": "object_oriented"},
+                    id="6",
+                ),
+                Document(
+                    content="Dart is an object oriented programming language",
+                    meta={"likes": 10000, "language_type": "object_oriented"},
+                    id="7",
+                ),
+                Document(
+                    content="Go is an object oriented programming language",
+                    meta={"likes": 1000, "language_type": "object_oriented"},
+                    id="8",
+                ),
+                Document(
+                    content="Python is a object oriented programming language",
+                    meta={"likes": 100, "language_type": "object_oriented"},
+                    id="9",
+                ),
+                Document(
+                    content="Ruby is a object oriented programming language",
+                    meta={"likes": 10, "language_type": "object_oriented"},
+                    id="10",
+                ),
+                Document(
+                    content="PHP is a object oriented programming language",
+                    meta={"likes": 1, "language_type": "object_oriented"},
+                    id="11",
+                ),
+            ]
+        )
+        res = await document_store._bm25_retrieval_async(
+            "programming",
+            top_k=10,
+            filters={"field": "language_type", "operator": "==", "value": "functional"},
+        )
+        assert len(res) == 5
+        retrieved_ids = sorted([doc.id for doc in res])
+        assert retrieved_ids == ["1", "2", "3", "4", "5"]
+
+    @pytest.mark.asyncio
+    async def test_bm25_retrieval_with_custom_query(self, document_store: OpenSearchDocumentStore):
+        document_store.write_documents(
+            [
+                Document(
+                    content="Haskell is a functional programming language",
+                    meta={"likes": 100000, "language_type": "functional"},
+                    id="1",
+                ),
+                Document(
+                    content="Lisp is a functional programming language",
+                    meta={"likes": 10000, "language_type": "functional"},
+                    id="2",
+                ),
+                Document(
+                    content="Exilir is a functional programming language",
+                    meta={"likes": 1000, "language_type": "functional"},
+                    id="3",
+                ),
+                Document(
+                    content="F# is a functional programming language",
+                    meta={"likes": 100, "language_type": "functional"},
+                    id="4",
+                ),
+                Document(
+                    content="C# is a functional programming language",
+                    meta={"likes": 10, "language_type": "functional"},
+                    id="5",
+                ),
+                Document(
+                    content="C++ is an object oriented programming language",
+                    meta={"likes": 100000, "language_type": "object_oriented"},
+                    id="6",
+                ),
+                Document(
+                    content="Dart is an object oriented programming language",
+                    meta={"likes": 10000, "language_type": "object_oriented"},
+                    id="7",
+                ),
+                Document(
+                    content="Go is an object oriented programming language",
+                    meta={"likes": 1000, "language_type": "object_oriented"},
+                    id="8",
+                ),
+                Document(
+                    content="Python is a object oriented programming language",
+                    meta={"likes": 100, "language_type": "object_oriented"},
+                    id="9",
+                ),
+                Document(
+                    content="Ruby is a object oriented programming language",
+                    meta={"likes": 10, "language_type": "object_oriented"},
+                    id="10",
+                ),
+                Document(
+                    content="PHP is a object oriented programming language",
+                    meta={"likes": 1, "language_type": "object_oriented"},
+                    id="11",
+                ),
+            ]
+        )
+
+        custom_query = {
+            "query": {
+                "function_score": {
+                    "query": {
+                        "bool": {
+                            "must": {"match": {"content": "$query"}},
+                            "filter": "$filters",
+                        }
+                    },
+                    "field_value_factor": {
+                        "field": "likes",
+                        "factor": 0.1,
+                        "modifier": "log1p",
+                        "missing": 0,
+                    },
+                }
+            }
+        }
+        res = await document_store._bm25_retrieval_async(
+            "functional",
+            top_k=3,
+            custom_query=custom_query,
+            filters={"field": "language_type", "operator": "==", "value": "functional"},
+        )
+        assert len(res) == 3
+        assert "1" == res[0].id
+        assert "2" == res[1].id
+        assert "3" == res[2].id
+
+    @pytest.mark.asyncio
+    async def test_embedding_retrieval(self, document_store_embedding_dim_4: OpenSearchDocumentStore):
+        docs = [
+            Document(content="Most similar document", embedding=[1.0, 1.0, 1.0, 1.0]),
+            Document(content="2nd best document", embedding=[0.8, 0.8, 0.8, 1.0]),
+            Document(content="Not very similar document", embedding=[0.0, 0.8, 0.3, 0.9]),
+        ]
+        document_store_embedding_dim_4.write_documents(docs)
+
+        results = await document_store_embedding_dim_4._embedding_retrieval_async(
+            query_embedding=[0.1, 0.1, 0.1, 0.1], top_k=2, filters={}
+        )
+        assert len(results) == 2
+        assert results[0].content == "Most similar document"
+        assert results[1].content == "2nd best document"
+
+    @pytest.mark.asyncio
+    async def test_embedding_retrieval_with_filters(self, document_store_embedding_dim_4: OpenSearchDocumentStore):
+        docs = [
+            Document(content="Most similar document", embedding=[1.0, 1.0, 1.0, 1.0]),
+            Document(content="2nd best document", embedding=[0.8, 0.8, 0.8, 1.0]),
+            Document(
+                content="Not very similar document with meta field",
+                embedding=[0.0, 0.8, 0.3, 0.9],
+                meta={"meta_field": "custom_value"},
+            ),
+        ]
+        document_store_embedding_dim_4.write_documents(docs)
+
+        filters = {"field": "meta_field", "operator": "==", "value": "custom_value"}
+
+        results = await document_store_embedding_dim_4._embedding_retrieval_async(
+            query_embedding=[0.1, 0.1, 0.1, 0.1], top_k=3, filters=filters
+        )
+        assert len(results) == 1
+        assert results[0].content == "Not very similar document with meta field"
+
+    @pytest.mark.asyncio
+    async def test_embedding_retrieval_with_custom_query(self, document_store_embedding_dim_4: OpenSearchDocumentStore):
+        docs = [
+            Document(content="Most similar document", embedding=[1.0, 1.0, 1.0, 1.0]),
+            Document(content="2nd best document", embedding=[0.8, 0.8, 0.8, 1.0]),
+            Document(
+                content="Not very similar document with meta field",
+                embedding=[0.0, 0.8, 0.3, 0.9],
+                meta={"meta_field": "custom_value"},
+            ),
+        ]
+        document_store_embedding_dim_4.write_documents(docs)
+
+        custom_query = {
+            "query": {
+                "bool": {
+                    "must": [{"knn": {"embedding": {"vector": "$query_embedding", "k": 3}}}],
+                    "filter": "$filters",
+                }
+            }
+        }
+
+        filters = {"field": "meta_field", "operator": "==", "value": "custom_value"}
+
+        results = await document_store_embedding_dim_4._embedding_retrieval_async(
+            query_embedding=[0.1, 0.1, 0.1, 0.1],
+            top_k=1,
+            filters=filters,
+            custom_query=custom_query,
+        )
+        assert len(results) == 1
+        assert results[0].content == "Not very similar document with meta field"
+
+    @pytest.mark.asyncio
+    async def test_embedding_retrieval_but_dont_return_embeddings_for_embedding_retrieval(
+        self, document_store_no_embbding_returned: OpenSearchDocumentStore
+    ):
+        docs = [
+            Document(content="Most similar document", embedding=[1.0, 1.0, 1.0, 1.0]),
+            Document(content="2nd best document", embedding=[0.8, 0.8, 0.8, 1.0]),
+            Document(content="Not very similar document", embedding=[0.0, 0.8, 0.3, 0.9]),
+        ]
+        document_store_no_embbding_returned.write_documents(docs)
+
+        results = await document_store_no_embbding_returned._embedding_retrieval_async(
+            query_embedding=[0.1, 0.1, 0.1, 0.1], top_k=2, filters={}
+        )
+        assert len(results) == 2
+        assert results[0].embedding is None
+
+    @pytest.mark.asyncio
+    async def test_count_documents(self, document_store: OpenSearchDocumentStore):
+        document_store.write_documents(
+            [
+                Document(content="test doc 1"),
+                Document(content="test doc 2"),
+                Document(content="test doc 3"),
+            ]
+        )
+        assert await document_store.count_documents_async() == 3
+
+    @pytest.mark.asyncio
+    async def test_filter_documents(self, document_store: OpenSearchDocumentStore):
+        filterable_docs = [
+            Document(
+                content="1",
+                meta={
+                    "number": -10,
+                },
+            ),
+            Document(
+                content="2",
+                meta={
+                    "number": 100,
+                },
+            ),
+        ]
+        await document_store.write_documents_async(filterable_docs)
+        result = await document_store.filter_documents_async(
+            filters={"field": "meta.number", "operator": "==", "value": 100}
+        )
+        TestDocumentStore().assert_documents_are_equal(
+            result, [d for d in filterable_docs if d.meta.get("number") == 100]
+        )
+
+    @pytest.mark.asyncio
+    async def test_delete_documents(self, document_store: OpenSearchDocumentStore):
+        doc = Document(content="test doc")
+        await document_store.write_documents_async([doc])
+        assert document_store.count_documents() == 1
+
+        await document_store.delete_documents_async([doc.id])
+        assert await document_store.count_documents_async() == 0
