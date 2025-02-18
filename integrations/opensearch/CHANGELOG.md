@@ -1,5 +1,11 @@
 # Changelog
 
+## [integrations/opensearch-v2.1.0] - 2025-02-18
+
+### 🚀 Features
+
+- OpenSearch - async support (#1414)
+
 ## [integrations/opensearch-v2.0.0] - 2025-02-14
 
 ### 🧹 Chores

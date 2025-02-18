@@ -169,6 +169,26 @@ def test_run():
     assert res["documents"][0].content == "Test doc"
 
 
+@pytest.mark.asyncio
+async def test_run_async():
+    mock_store = Mock(spec=OpenSearchDocumentStore)
+    mock_store._bm25_retrieval_async.return_value = [Document(content="Test doc")]
+    retriever = OpenSearchBM25Retriever(document_store=mock_store)
+    res = await retriever.run_async(query="some query")
+    mock_store._bm25_retrieval_async.assert_called_once_with(
+        query="some query",
+        filters={},
+        fuzziness="AUTO",
+        top_k=10,
+        scale_score=False,
+        all_terms_must_match=False,
+        custom_query=None,
+    )
+    assert len(res) == 1
+    assert len(res["documents"]) == 1
+    assert res["documents"][0].content == "Test doc"
+
+
 def test_run_init_params():
     mock_store = Mock(spec=OpenSearchDocumentStore)
     mock_store._bm25_retrieval.return_value = [Document(content="Test doc")]
@@ -183,6 +203,34 @@ def test_run_init_params():
     )
     res = retriever.run(query="some query")
     mock_store._bm25_retrieval.assert_called_once_with(
+        query="some query",
+        filters={"from": "init"},
+        fuzziness="1",
+        top_k=11,
+        scale_score=True,
+        all_terms_must_match=True,
+        custom_query={"some": "custom query"},
+    )
+    assert len(res) == 1
+    assert len(res["documents"]) == 1
+    assert res["documents"][0].content == "Test doc"
+
+
+@pytest.mark.asyncio
+async def test_run_init_params_async():
+    mock_store = Mock(spec=OpenSearchDocumentStore)
+    mock_store._bm25_retrieval_async.return_value = [Document(content="Test doc")]
+    retriever = OpenSearchBM25Retriever(
+        document_store=mock_store,
+        filters={"from": "init"},
+        all_terms_must_match=True,
+        scale_score=True,
+        top_k=11,
+        fuzziness="1",
+        custom_query={"some": "custom query"},
+    )
+    res = await retriever.run_async(query="some query")
+    mock_store._bm25_retrieval_async.assert_called_once_with(
         query="some query",
         filters={"from": "init"},
         fuzziness="1",
@@ -216,6 +264,40 @@ def test_run_time_params():
         fuzziness="2",
     )
     mock_store._bm25_retrieval.assert_called_once_with(
+        query="some query",
+        filters={"from": "run"},
+        fuzziness="2",
+        top_k=9,
+        scale_score=False,
+        all_terms_must_match=False,
+        custom_query=None,
+    )
+    assert len(res) == 1
+    assert len(res["documents"]) == 1
+    assert res["documents"][0].content == "Test doc"
+
+
+@pytest.mark.asyncio
+async def test_run_time_params_async():
+    mock_store = Mock(spec=OpenSearchDocumentStore)
+    mock_store._bm25_retrieval_async.return_value = [Document(content="Test doc")]
+    retriever = OpenSearchBM25Retriever(
+        document_store=mock_store,
+        filters={"from": "init"},
+        all_terms_must_match=True,
+        scale_score=True,
+        top_k=11,
+        fuzziness="1",
+    )
+    res = await retriever.run_async(
+        query="some query",
+        filters={"from": "run"},
+        all_terms_must_match=False,
+        scale_score=False,
+        top_k=9,
+        fuzziness="2",
+    )
+    mock_store._bm25_retrieval_async.assert_called_once_with(
         query="some query",
         filters={"from": "run"},
         fuzziness="2",
