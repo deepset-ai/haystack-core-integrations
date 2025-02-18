@@ -46,7 +46,7 @@ class WeaveConnector:
         :returns:
             Dictionary with all the necessary information to recreate this component.
         """
-        return default_to_dict(self, pipeline_name=self.pipeline_name)  # type: ignore
+        return default_to_dict(self, pipeline_name=self.pipeline_name)
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "WeaveConnector":
@@ -57,4 +57,4 @@ class WeaveConnector:
         :returns:
             Deserialized component.
         """
-        return default_from_dict(cls, data)  # type: ignore
+        return default_from_dict(cls, data)

@@ -81,6 +81,12 @@ class WeaveTracer(Tracer):
     """A simple bridge between Haystack's Tracer interface and Weave."""
 
     def __init__(self, project_name: str) -> None:
+        """
+        Initialize the WeaveTracer.
+
+        :param project_name: The name of the project you want to trace, this is will be the name appearing in Weave
+                             project.
+        """
         self._client = weave.init(project_name)
         self._current_span: Optional[WeaveSpan] = None
 
