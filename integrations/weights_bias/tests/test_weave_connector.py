@@ -1,3 +1,4 @@
+import os
 from typing import Any, Dict, Generator
 from unittest.mock import Mock, patch
 
@@ -5,7 +6,6 @@ import pytest
 from haystack import Pipeline, component
 from haystack.components.builders import PromptBuilder
 from haystack.tracing import tracer as haystack_configured_tracer
-
 from haystack_integrations.components.connectors import WeaveConnector
 from haystack_integrations.tracing.weave import WeaveTracer
 
@@ -42,47 +42,27 @@ def sample_pipeline() -> Pipeline:
 
 
 class TestWeaveConnector:
+
     def test_serialization(self) -> None:
         """Test that WeaveConnector can be serialized and deserialized correctly"""
-        # Create an instance
         connector = WeaveConnector(pipeline_name="test_pipeline")
-
-        # Serialize
         serialized: Dict[str, Any] = connector.to_dict()
 
-        # Check serialized data
         assert serialized["init_parameters"]["pipeline_name"] == "test_pipeline"
         assert "type" in serialized
         assert serialized["type"] == "haystack_integrations.components.connectors.weave_connector.WeaveConnector"
 
-        # Deserialize
         deserialized = WeaveConnector.from_dict(serialized)
 
-        # Check deserialized instance
         assert isinstance(deserialized, WeaveConnector)
         assert deserialized.pipeline_name == "test_pipeline"
-        assert deserialized.tracer is None  # Tracer should be initialized during warm_up
-
-    def test_warmup_initializes_tracer(self) -> None:
-        """Test that warm_up initializes the tracer correctly"""
-        connector = WeaveConnector(pipeline_name="test_pipeline")
-        assert connector.tracer is None
-
-        # Warm up the connector
-        connector.warm_up()
-
-        # Check that tracer was initialized
-        assert connector.tracer is not None
-        assert isinstance(connector.tracer, WeaveTracer)
-        assert haystack_configured_tracer.is_content_tracing_enabled is True
+        assert deserialized.tracer is None  # tracer is only initialized with warm_up
 
     def test_pipeline_tracing(self, mock_weave_client: Mock, sample_pipeline: Pipeline) -> None:
         """Test that pipeline operations are correctly traced"""
-        # Add WeaveConnector to pipeline
+
         connector = WeaveConnector(pipeline_name="test_pipeline")
         sample_pipeline.add_component("weave", connector)
-
-        # Run the pipeline
         sample_pipeline.run(data={"greeting": "Hello"})
 
         # Verify WeaveClient interactions
@@ -133,4 +113,20 @@ class TestWeaveConnector:
         WeaveConnector(pipeline_name="test_pipeline")
 
         # Verify content tracing was enabled
+        assert haystack_configured_tracer.is_content_tracing_enabled is True
+
+    @pytest.mark.skipif(
+        not os.environ.get("WANDB_API_KEY", None),
+        reason="Export an env var called WANDB_API_KEY containing the Weights & Bias API key to run this test.",
+    )
+    @pytest.mark.integration
+    def test_warmup_initializes_tracer(self) -> None:
+        """Test that warm_up initializes the tracer correctly"""
+        connector = WeaveConnector(pipeline_name="test_pipeline")
+        assert connector.tracer is None
+
+        connector.warm_up() # initialize tracer
+
+        assert connector.tracer is not None
+        assert isinstance(connector.tracer, WeaveTracer)
         assert haystack_configured_tracer.is_content_tracing_enabled is True
