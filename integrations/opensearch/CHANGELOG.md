@@ -6,24 +6,18 @@
 
 - OpenSearch - async support (#1414)
 
-### 📚 Documentation
-
-- Update changelog for integrations/opensearch (#1402)
-
 ## [integrations/opensearch-v2.0.0] - 2025-02-14
-
-### 🚀 Features
-
-- Add Secret handling in OpenSearchDocumentStore (#1288)
 
 ### 🧹 Chores
 
 - Inherit from `FilterDocumentsTestWithDataframe` in Document Stores (#1290)
 - [**breaking**] OpenSearch - remove dataframe support (#1378)
 
-### 🌀 Miscellaneous
+## [integrations/opensearch-v1.3.0] - 2025-01-16
 
-- Chore: OpenSearch - manually fix changelog (#1299)
+### 🚀 Features
+
+- Add Secret handling in OpenSearchDocumentStore (#1288)
 
 ## [integrations/opensearch-v1.2.0] - 2024-12-12
 
