@@ -1,5 +1,6 @@
 import os
-from typing import Any, Dict, Generator
+from collections.abc import Generator
+from typing import Any
 from unittest.mock import Mock, patch
 
 import pytest
@@ -15,7 +16,7 @@ from haystack_integrations.tracing.weave import WeaveTracer
 class FailingComponent:
     """A component that always raises an exception for testing error handling."""
 
-    def run(self) -> Dict[str, Any]:
+    def run(self) -> dict[str, Any]:
         """Execute the component's logic - always raises an exception."""
         msg = "Test error"
         raise ValueError(msg)
@@ -46,7 +47,7 @@ class TestWeaveConnector:
     def test_serialization(self) -> None:
         """Test that WeaveConnector can be serialized and deserialized correctly"""
         connector = WeaveConnector(pipeline_name="test_pipeline")
-        serialized: Dict[str, Any] = connector.to_dict()
+        serialized: dict[str, Any] = connector.to_dict()
 
         assert serialized["init_parameters"]["pipeline_name"] == "test_pipeline"
         assert "type" in serialized
@@ -70,7 +71,7 @@ class TestWeaveConnector:
         mock_weave_client.create_call.assert_called()
 
         # Get all create_call arguments
-        create_call_args: list[Dict[str, Any]] = [call[1] for call in mock_weave_client.create_call.call_args_list]
+        create_call_args: list[dict[str, Any]] = [call[1] for call in mock_weave_client.create_call.call_args_list]
 
         # Verify pipeline operation was traced
         pipeline_calls = [args for args in create_call_args if args.get("op") == "haystack.pipeline.run"]
@@ -101,7 +102,7 @@ class TestWeaveConnector:
     def test_run_method(self) -> None:
         """Test the basic run method of WeaveConnector"""
         connector = WeaveConnector(pipeline_name="test_pipeline")
-        result: Dict[str, str] = connector.run(no_op="test")
+        result: dict[str, str] = connector.run(no_op="test")
         assert result == {"no_op": "test"}
 
     def test_content_tracing_enabled(self) -> None:

@@ -1,4 +1,4 @@
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 from haystack import component, default_from_dict, default_to_dict, tracing
 from haystack.tracing import tracer as haystack_tracer
@@ -36,10 +36,10 @@ class WeaveConnector:
             tracing.enable_tracing(self.tracer)
 
     @component.output_types(no_op=str)
-    def run(self, no_op: str = "no_op") -> Dict[str, str]:
+    def run(self, no_op: str = "no_op") -> dict[str, str]:
         return {"no_op": no_op}
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """
         Serializes the component to a dictionary.
 
@@ -49,7 +49,7 @@ class WeaveConnector:
         return default_to_dict(self, pipeline_name=self.pipeline_name)  # type: ignore
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "WeaveConnector":
+    def from_dict(cls, data: dict[str, Any]) -> "WeaveConnector":
         """
         Deserializes the component from a dictionary.
 

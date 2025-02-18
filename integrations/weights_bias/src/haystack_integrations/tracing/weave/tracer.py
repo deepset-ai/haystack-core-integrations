@@ -1,11 +1,12 @@
 import contextlib
-from typing import Any, Dict, Iterator, Optional, Union
+from collections.abc import Iterator
+from typing import Any, Optional, Union
 
 from haystack.tracing import Span, Tracer
 from haystack.tracing.utils import coerce_tag_value
 
-import weave  # type: ignore
-from weave.trace.weave_client import Call, WeaveClient  # type: ignore
+import weave
+from weave.trace.weave_client import Call, WeaveClient
 
 
 class WeaveSpan(Span):
@@ -20,7 +21,7 @@ class WeaveSpan(Span):
         self._call = call
         self._parent = parent
         self._operation = operation
-        self._attributes: Dict[str, Any] = {}
+        self._attributes: dict[str, Any] = {}
 
     def set_tag(self, key: str, value: Any) -> None:
         """
@@ -32,7 +33,7 @@ class WeaveSpan(Span):
         coerced_value = value
         self._attributes[key] = coerced_value
 
-    def set_tags(self, tags: Dict[str, Any]) -> None:
+    def set_tags(self, tags: dict[str, Any]) -> None:
         for k, v in tags.items():
             self.set_tag(k, v)
 
@@ -40,7 +41,7 @@ class WeaveSpan(Span):
         """Access to the underlying Weave Call object."""
         return self._call
 
-    def get_correlation_data_for_logs(self) -> Dict[str, Any]:
+    def get_correlation_data_for_logs(self) -> dict[str, Any]:
         """Correlation data for logging."""
         if not self._call:
             return {}
@@ -52,12 +53,12 @@ class WeaveSpan(Span):
     def set_call(self, call: "weave.Call") -> None:
         self._call = call
 
-    def get_attributes(self) -> Dict[str, Any]:
+    def get_attributes(self) -> dict[str, Any]:
         return self._attributes
 
 
 def create_call(
-    attributes: Dict,
+    attributes: dict,
     client: WeaveClient,
     parent_span: Union[WeaveSpan, None],
     operation_name: str,
@@ -87,7 +88,7 @@ class WeaveTracer(Tracer):
     def trace(
         self,
         operation_name: str,
-        tags: Optional[Dict[str, Any]] = None,
+        tags: Optional[dict[str, Any]] = None,
         parent_span: Optional[WeaveSpan] = None,
     ) -> Iterator[WeaveSpan]:
         """Create a new trace span."""
