@@ -9,8 +9,9 @@ from weave.trace.weave_client import Call, WeaveClient  # type: ignore
 
 
 class WeaveSpan(Span):
-    """A simple bridge between Haystack's Span interface and Weave's Call object."""
-
+    """
+    A simple bridge between Haystack's Span interface and Weave's Call object.
+    """
     def __init__(
         self,
         call: Optional[Call] = None,
@@ -23,7 +24,12 @@ class WeaveSpan(Span):
         self._attributes: Dict[str, Any] = {}
 
     def set_tag(self, key: str, value: Any) -> None:
-        """Set a tag by adding it to the call's inputs."""
+        """
+        Set a tag by adding it to the call's inputs.
+
+        :param key: The tag key.
+        :param value: The tag value.
+        """
         coerced_value = value
         self._attributes[key] = coerced_value
 

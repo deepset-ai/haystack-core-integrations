@@ -27,10 +27,13 @@ in Haystack.
 
 ### Example 
 
+You need to have a Weave account to use this feature. You can sign up for free at https://wandb.ai/site.
 
-https://hub.docker.com/r/wandb/weave-trace
+You then need to set the `WANDB_API_KEY:` environment variable with your Weights & Biases API key. You should find 
+your API key in https://wandb.ai/home when you are logged in. 
 
-
+Now let's create a pipeline that uses a hybrid retrieval strategy, combining BM25 and embeddings, and trace the results
+in Weave.
 
 Create a document store with some example documents and index them. 
 
@@ -94,5 +97,15 @@ Now we can run the pipeline and trace the results in Weave.
 ```python
 query = "What is the capital of France?"
 results = hybrid_retrieval.run({"text_embedder": {"text": query}, "bm25_retriever": {"query": query}, "ranker": {"query": query}})
-
 ```
+
+You should then head to `https://wandb.ai/<user_name>/projects` and see the complete trace for your pipeline under
+the pipeline name you specified, when creating the `WeaveConnector`.
+
+
+## Example with Docker
+
+https://hub.docker.com/r/wandb/weave-trace
+
+
+## License
