@@ -9,9 +9,7 @@ from weave.trace.weave_client import Call, WeaveClient  # type: ignore
 
 
 class WeaveSpan(Span):
-    """
-    A simple bridge between Haystack's Span interface and Weave's Call object.
-    """
+    """A simple bridge between Haystack's Span interface and Weave's Call object."""
     def __init__(
         self,
         call: Optional[Call] = None,
