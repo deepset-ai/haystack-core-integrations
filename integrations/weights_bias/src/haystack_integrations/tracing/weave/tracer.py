@@ -10,13 +10,15 @@ from weave.trace.weave_client import Call, WeaveClient
 
 
 class WeaveSpan(Span):
-    """A simple bridge between Haystack's Span interface and Weave's Call object."""
+    """
+    A bridge between Haystack's Span interface and Weave's Call object.
+
+    Stores metadata about a component execution and its inputs and outputs, and manages the attributes/tags
+    that describe the operation.
+    """
 
     def __init__(
-        self,
-        call: Optional[Call] = None,
-        parent: Optional[Call] = None,
-        operation: Optional[str] = None,
+        self, call: Optional[Call] = None, parent: Optional[Call] = None, operation: Optional[str] = None
     ) -> None:
         self._call = call
         self._parent = parent
@@ -30,8 +32,7 @@ class WeaveSpan(Span):
         :param key: The tag key.
         :param value: The tag value.
         """
-        coerced_value = value
-        self._attributes[key] = coerced_value
+        self._attributes[key] = value
 
     def set_tags(self, tags: dict[str, Any]) -> None:
         for k, v in tags.items():
@@ -45,10 +46,7 @@ class WeaveSpan(Span):
         """Correlation data for logging."""
         if not self._call:
             return {}
-        return {
-            "weave.call_id": self._call.id,
-            "weave.run_id": getattr(self._call, "run_id", ""),
-        }
+        return {"weave.call_id": self._call.id, "weave.run_id": getattr(self._call, "run_id", "")}
 
     def set_call(self, call: "weave.Call") -> None:
         self._call = call
@@ -57,55 +55,53 @@ class WeaveSpan(Span):
         return self._attributes
 
 
-def create_call(
-    attributes: dict,
-    client: WeaveClient,
-    parent_span: Union[WeaveSpan, None],
-    operation_name: str,
-) -> Call:
-    comp_name = attributes.pop("haystack.component.name", "")
-    comp_type = attributes.pop("haystack.component.type", "")
-    comp_input = attributes.pop("haystack.component.input", {})
-    call = client.create_call(
-        op=operation_name,
-        inputs={key: coerce_tag_value(value) for key, value in comp_input.items()},
-        attributes={key: coerce_tag_value(value) for key, value in attributes.items()},
-        display_name=f"{comp_name}[{comp_type}].run",
-        parent=parent_span.raw_span() if parent_span else None,
-    )
-
-    return call
-
-
 class WeaveTracer(Tracer):
-    """A simple bridge between Haystack's Tracer interface and Weave."""
+    """
+    Implements a Haystack's Tracer to make an interface with Weights and Bias Weave.
+
+    It's responsible for creating and managing Weave calls, and for converting Haystack spans
+    to Weave spans. It creates spans for each Haystack component run.
+    """
 
     def __init__(self, project_name: str) -> None:
         """
         Initialize the WeaveTracer.
 
-        :param project_name: The name of the project you want to trace, this is will be the name appearing in Weave
-                             project.
+        :param project_name: The name of the project to trace, this is will be the name appearing in Weave project.
         """
         self._client = weave.init(project_name)
         self._current_span: Optional[WeaveSpan] = None
 
+    @staticmethod
+    def create_call(
+        attributes: dict, client: WeaveClient, parent_span: Union[WeaveSpan, None], operation_name: str
+    ) -> Call:
+        comp_name = attributes.pop("haystack.component.name", "")
+        comp_type = attributes.pop("haystack.component.type", "")
+        comp_input = attributes.pop("haystack.component.input", {})
+        call = client.create_call(
+            op=operation_name,
+            inputs={key: coerce_tag_value(value) for key, value in comp_input.items()},
+            attributes={key: coerce_tag_value(value) for key, value in attributes.items()},
+            display_name=f"{comp_name}[{comp_type}].run",
+            parent=parent_span.raw_span() if parent_span else None,
+        )
+        return call
+
+    def current_span(self) -> Optional[Span]:
+        """Get the current active span."""
+        return self._current_span
+
     @contextlib.contextmanager
     def trace(
-        self,
-        operation_name: str,
-        tags: Optional[dict[str, Any]] = None,
-        parent_span: Optional[WeaveSpan] = None,
+        self, operation_name: str, tags: Optional[dict[str, Any]] = None, parent_span: Optional[WeaveSpan] = None
     ) -> Iterator[WeaveSpan]:
         """Create a new trace span."""
         # We need to defer call creation for components as a Call in Weave can't be updated
         # but the content tags are only set on the Span at a later stage. To get the inputs on
         # call creation, we need to create the call after we yield the span.
         if operation_name == "haystack.component.run":
-            span = WeaveSpan(
-                parent=parent_span.raw_span() if parent_span else None,
-                operation=operation_name,
-            )
+            span = WeaveSpan(parent=parent_span.raw_span() if parent_span else None, operation=operation_name)
         else:
             call = self._client.create_call(
                 op=operation_name,
@@ -125,7 +121,7 @@ class WeaveTracer(Tracer):
             # That's why we need to create it here.
             if operation_name == "haystack.component.run":
                 attributes = span.get_attributes()
-                call = create_call(
+                call = self.create_call(
                     attributes=attributes,
                     client=self._client,
                     parent_span=parent_span,
@@ -140,7 +136,7 @@ class WeaveTracer(Tracer):
             # If the operation is a haystack component run, we haven't created the call yet.
             # That's why we need to create it here.
             if operation_name == "haystack.component.run":
-                call = create_call(
+                call = self.create_call(
                     attributes=attributes,
                     client=self._client,
                     parent_span=parent_span,
@@ -160,7 +156,3 @@ class WeaveTracer(Tracer):
                 )
         finally:
             self._current_span = None
-
-    def current_span(self) -> Optional[Span]:
-        """Get the current active span."""
-        return self._current_span

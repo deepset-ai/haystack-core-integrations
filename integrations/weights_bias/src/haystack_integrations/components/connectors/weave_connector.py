@@ -1,9 +1,10 @@
 import os
-from haystack import component, default_from_dict, default_to_dict, tracing
-from haystack import logging
-from haystack.tracing import tracer as haystack_tracer
-from haystack_integrations.tracing.weave import WeaveTracer
 from typing import Any, Optional
+
+from haystack import component, default_from_dict, default_to_dict, logging, tracing
+from haystack.tracing import tracer as haystack_tracer
+
+from haystack_integrations.tracing.weave import WeaveTracer
 
 logger = logging.getLogger(__name__)
 
