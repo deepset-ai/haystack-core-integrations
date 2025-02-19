@@ -144,7 +144,7 @@ class WeaveTracer(Tracer):
 
             self._client.finish_call(call, exception=e)
             msg = f"Error in operation {operation_name}: {e}"
-            raise Exception(msg)
+            raise Exception(msg) from None  # raise a new exception with the original exception as the cause
         else:
             attributes = span.get_attributes()
             # If the operation is a haystack component run, we haven't created the call yet.
