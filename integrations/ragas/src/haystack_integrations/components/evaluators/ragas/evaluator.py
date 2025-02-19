@@ -3,8 +3,6 @@ from typing import Any, Dict, List, Optional, Union, get_args, get_origin
 
 from haystack import Document, component
 from haystack.dataclasses import ChatMessage
-from langchain_core.embeddings import Embeddings as LangchainEmbeddings  # type: ignore
-from langchain_core.language_models import BaseLanguageModel as LangchainLLM  # type: ignore
 from pydantic import ValidationError  # type: ignore
 
 from ragas import evaluate  # type: ignore
@@ -57,8 +55,8 @@ class RagasEvaluator:
     def __init__(
         self,
         ragas_metrics: List[Metric],
-        evaluator_llm: Optional[Union[BaseRagasLLM, LangchainLLM]] = None,
-        evaluator_embedding: Optional[Union[BaseRagasEmbeddings, LangchainEmbeddings]] = None,
+        evaluator_llm: Optional[BaseRagasLLM] = None,
+        evaluator_embedding: Optional[BaseRagasEmbeddings] = None,
     ):
         """
         Constructs a new Ragas evaluator.
@@ -75,8 +73,8 @@ class RagasEvaluator:
     def _validate_inputs(
         self,
         metrics: List[Metric],
-        llm: Optional[Union[BaseRagasLLM, LangchainLLM]],
-        embedding: Optional[Union[BaseRagasEmbeddings, LangchainEmbeddings]],
+        llm: Optional[BaseRagasLLM],
+        embedding: Optional[BaseRagasEmbeddings],
     ) -> None:
         """Validate input parameters.
 
@@ -90,11 +88,11 @@ class RagasEvaluator:
             error_message = "All items in ragas_metrics must be instances of Metric class."
             raise TypeError(error_message)
 
-        if llm is not None and not isinstance(llm, (BaseRagasLLM, LangchainLLM)):
+        if llm is not None and not isinstance(llm, (BaseRagasLLM)):
             error_message = f"Expected evaluator_llm to be BaseRagasLLM or LangchainLLM, got {type(llm).__name__}"
             raise TypeError(error_message)
 
-        if embedding is not None and not isinstance(embedding, (BaseRagasEmbeddings, LangchainEmbeddings)):
+        if embedding is not None and not isinstance(embedding, (BaseRagasEmbeddings)):
             error_message = (
                 f"Expected evaluator_embedding to be BaseRagasEmbeddings or "
                 f"LangchainEmbeddings, got {type(embedding).__name__}"

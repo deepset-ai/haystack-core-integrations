@@ -12,11 +12,11 @@ from haystack.components.embedders import OpenAITextEmbedder, OpenAIDocumentEmbe
 from haystack.components.retrievers.in_memory import InMemoryEmbeddingRetriever
 from haystack.components.builders import ChatPromptBuilder
 from haystack.dataclasses import ChatMessage
+from haystack.components.generators import OpenAIGenerator
 from haystack.components.generators.chat import OpenAIChatGenerator
 from haystack.components.builders import AnswerBuilder
 
-from langchain_openai import ChatOpenAI
-from ragas.llms import LangchainLLMWrapper
+from ragas.llms import HaystackLLMWrapper
 from ragas.metrics import AnswerRelevancy, ContextPrecision, Faithfulness
 from ragas import evaluate
 from ragas.dataset_schema import EvaluationDataset
@@ -126,8 +126,8 @@ for que_idx in range(len(questions)):
 
 evaluation_dataset = EvaluationDataset.from_list(evals_list)
 
-llm = ChatOpenAI(model="gpt-4o-mini")
-evaluator_llm = LangchainLLMWrapper(llm)
+llm = OpenAIGenerator(model="gpt-4o-mini")
+evaluator_llm = HaystackLLMWrapper(llm)
 
 result = evaluate(
     dataset=evaluation_dataset,
