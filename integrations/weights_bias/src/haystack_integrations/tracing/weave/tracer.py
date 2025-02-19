@@ -99,10 +99,13 @@ class WeaveTracer(Tracer):
         """
         A context manager that creates and manages spans for tracking operations in Weights & Biases Weave.
 
+
         :param operation_name: The name of the operation to trace.
         :param tags: A dictionary of tags to add to the span.
         :param parent_span: The parent span to use for the new span.
-        :return: An iterator of WeaveSpan objects.
+
+        :returns:
+            An iterator of WeaveSpan objects.
         """
 
         # We need to defer call creation for components as a Call in Weave can't be updated
