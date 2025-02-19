@@ -145,6 +145,7 @@ class WeaveTracer(Tracer):
 
             self._client.finish_call(call, exception=e)
             raise
+
         else:
             attributes = span.get_attributes()
             # If the operation is a haystack component run, we haven't created the call yet.
