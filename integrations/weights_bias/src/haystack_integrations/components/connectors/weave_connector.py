@@ -99,7 +99,7 @@ class WeaveConnector:
 
     @component.output_types(no_op=str)
     def run(self) -> dict[str, str]:
-        return {}   # this is a no-op component - it doesn't do anything, just sends traces to Weights & Biases
+        return {}  # this is a no-op component - it doesn't do anything, just sends traces to Weights & Biases
 
     def to_dict(self) -> dict[str, Any]:
         """
