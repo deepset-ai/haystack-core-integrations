@@ -60,8 +60,8 @@ def main():
 
     query = "What is the capital of Germany?"
     r = pipeline.run({"text_embedder": {"text": query}, "bm25_retriever": {"query": query}, "ranker": {"query": query}})
-    print(r)
-    # print(r["ranker"]["results"])  # noqa: T201
+    print(r) # noqa: T201
+
 
 
 if __name__ == "__main__":
