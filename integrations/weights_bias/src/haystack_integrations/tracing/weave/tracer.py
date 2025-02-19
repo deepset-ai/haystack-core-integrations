@@ -61,6 +61,8 @@ class WeaveTracer(Tracer):
 
     It's responsible for creating and managing Weave calls, and for converting Haystack spans
     to Weave spans. It creates spans for each Haystack component run.
+
+
     """
 
     def __init__(self, project_name: str) -> None:
@@ -98,7 +100,6 @@ class WeaveTracer(Tracer):
     ) -> Iterator[WeaveSpan]:
         """
         A context manager that creates and manages spans for tracking operations in Weights & Biases Weave.
-
 
         :param operation_name: The name of the operation to trace.
         :param tags: A dictionary of tags to add to the span.

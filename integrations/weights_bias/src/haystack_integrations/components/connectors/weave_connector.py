@@ -98,8 +98,8 @@ class WeaveConnector:
             tracing.enable_tracing(self.tracer)
 
     @component.output_types(no_op=str)
-    def run(self, no_op: str = "no_op") -> dict[str, str]:
-        return {"no_op": no_op}
+    def run(self) -> dict[str, str]:
+        return {}   # this is a no-op component - it doesn't do anything, just sends traces to Weights & Biases
 
     def to_dict(self) -> dict[str, Any]:
         """

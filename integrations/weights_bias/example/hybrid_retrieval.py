@@ -58,9 +58,10 @@ def main():
     doc_store = index()
     pipeline = hybrid_pipeline(doc_store)
 
-    query = "What is the capital of France?"
+    query = "What is the capital of Germany?"
     r = pipeline.run({"text_embedder": {"text": query}, "bm25_retriever": {"query": query}, "ranker": {"query": query}})
-    print(r["ranker"]["results"])  # noqa: T201
+    print(r)
+    # print(r["ranker"]["results"])  # noqa: T201
 
 
 if __name__ == "__main__":
