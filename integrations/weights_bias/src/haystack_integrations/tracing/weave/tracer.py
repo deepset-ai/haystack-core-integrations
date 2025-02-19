@@ -92,6 +92,45 @@ class WeaveTracer(Tracer):
         """Get the current active span."""
         return self._current_span
 
+    @staticmethod
+    def _create_component_span(parent_span: Optional[WeaveSpan], operation_name: str) -> WeaveSpan:
+        """Create a span for component runs with deferred call creation."""
+        return WeaveSpan(parent=parent_span.raw_span() if parent_span else None, operation=operation_name)
+
+    def _create_regular_span(self, operation_name: str, tags: Optional[dict], parent_span: Optional[WeaveSpan]) -> WeaveSpan:
+        """Create a span for regular operations with immediate call creation."""
+        call = self._client.create_call(
+            op=operation_name,
+            inputs=tags,
+            parent=parent_span.raw_span() if parent_span else None,
+        )
+        return WeaveSpan(call=call)
+
+    def _finish_component_call(self, span: WeaveSpan, parent_span: Optional[WeaveSpan], operation_name: str) -> None:
+        """Create and finish call for component runs."""
+        attributes = span.get_attributes()
+        call = self.create_call(
+            attributes=attributes,
+            client=self._client,
+            parent_span=parent_span,
+            operation_name=operation_name,
+        )
+        span.set_call(call)
+        comp_output = attributes.pop("haystack.component.output", {})
+        self._client.finish_call(
+            call,
+            output={key: coerce_tag_value(value) for key, value in comp_output.items()},
+        )
+
+    def _finish_regular_call(self, span: WeaveSpan) -> None:
+        """Finish call for regular operations."""
+        attributes = span.get_attributes()
+        pipeline_output = attributes.pop("haystack.pipeline.output_data", {})
+        self._client.finish_call(
+            span.raw_span(),
+            output={key: coerce_tag_value(value) for key, value in pipeline_output.items()},
+        )
+
     @contextlib.contextmanager
     def trace(
         self, operation_name: str, tags: Optional[dict[str, Any]] = None, parent_span: Optional[WeaveSpan] = None
@@ -99,39 +138,49 @@ class WeaveTracer(Tracer):
         """
         A context manager that creates and manages spans for tracking operations in Weights & Biases Weave.
 
-        :param operation_name: The name of the operation to trace.
-        :param tags: A dictionary of tags to add to the span.
-        :param parent_span: The parent span to use for the new span.
+        It has two main workflows:
 
-        :returns:
-            An iterator of WeaveSpan objects.
+        A) For regular operations (operation_name != "haystack.component.run"):
+            Creates a Weave Call immediately
+            Creates a WeaveSpan with this call
+            Sets any provided tags
+            Yields the span for use in the with block
+            When the block ends, updates the call with pipeline output data
+
+        B) For component runs (operation_name == "haystack.component.run"):
+            Creates a WeaveSpan WITHOUT a call initially (deferred creation)
+            Sets any provided tags
+            Yields the span for use in the with block
+            Creates the actual Weave Call only at the end, when all component information is available
+            Updates the call with component output data
+
+        This distinction is important because Weave's calls can't be updated once created, but the content
+        tags are only set on the Span at a later stage. To get the inputs on call creation, we need to create
+        the call after we yield the span.
+
         """
+        # create an appropriate span based on operation type
+        is_component_run = operation_name == "haystack.component.run"
+        span = (
+            self._create_component_span(parent_span, operation_name)
+            if is_component_run
+            else self._create_regular_span(operation_name, tags, parent_span)
+        )
 
-        # We need to defer call creation for components as a Call in Weave can't be updated
-        # but the content tags are only set on the Span at a later stage. To get the inputs on
-        # call creation, we need to create the call after we yield the span.
-
-        if operation_name == "haystack.component.run":
-            span = WeaveSpan(parent=parent_span.raw_span() if parent_span else None, operation=operation_name)
-        else:
-            call = self._client.create_call(
-                op=operation_name,
-                inputs=tags,
-                parent=parent_span.raw_span() if parent_span else None,
-            )
-            span = WeaveSpan(call=call)
         self._current_span = span
-
         if tags:
             span.set_tags(tags)
 
+        # this method acts as a context manager so yielding the span yields the context to the caller
+        # try-except-else-finally block ensures that the call is created and finished correctly for both component 
+        # and regular operations
         try:
             yield span
 
         except Exception as e:
-            # If the operation is a haystack component run, we haven't created the call yet.
-            # That's why we need to create it here.
-            if operation_name == "haystack.component.run":
+            # case when an exception is raised, an error occurred note that for a component run ensure call is
+            # created even on error
+            if is_component_run:
                 attributes = span.get_attributes()
                 call = self.create_call(
                     attributes=attributes,
@@ -140,32 +189,18 @@ class WeaveTracer(Tracer):
                     operation_name=operation_name,
                 )
                 span.set_call(call)
-
-            self._client.finish_call(call, exception=e)
-            raise
+                self._client.finish_call(call, exception=e)
+            else:
+                self._client.finish_call(span.raw_span(), exception=e)
+            raise # re-raise the same exception
 
         else:
-            attributes = span.get_attributes()
-            # If the operation is a haystack component run, we haven't created the call yet.
-            # That's why we need to create it here.
-            if operation_name == "haystack.component.run":
-                call = self.create_call(
-                    attributes=attributes,
-                    client=self._client,
-                    parent_span=parent_span,
-                    operation_name=operation_name,
-                )
-                span.set_call(call)
-                comp_output = attributes.pop("haystack.component.output", {})
-                self._client.finish_call(
-                    call,
-                    output={key: coerce_tag_value(value) for key, value in comp_output.items()},
-                )
+            # case when no exception is raised, operation was successful
+            if is_component_run:
+                self._finish_component_call(span, parent_span, operation_name)
             else:
-                pipeline_output = attributes.pop("haystack.pipeline.output_data", {})
-                self._client.finish_call(
-                    call,
-                    output={key: coerce_tag_value(value) for key, value in pipeline_output.items()},
-                )
+                self._finish_regular_call(span)
+
         finally:
+            # reset the current span
             self._current_span = None
