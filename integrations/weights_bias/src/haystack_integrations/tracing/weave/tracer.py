@@ -96,10 +96,19 @@ class WeaveTracer(Tracer):
     def trace(
         self, operation_name: str, tags: Optional[dict[str, Any]] = None, parent_span: Optional[WeaveSpan] = None
     ) -> Iterator[WeaveSpan]:
-        """Create a new trace span."""
+        """
+        A context manager that creates and manages spans for tracking operations in Weights & Biases Weave.
+
+        :param operation_name: The name of the operation to trace.
+        :param tags: A dictionary of tags to add to the span.
+        :param parent_span: The parent span to use for the new span.
+        :return: An iterator of WeaveSpan objects.
+        """
+
         # We need to defer call creation for components as a Call in Weave can't be updated
         # but the content tags are only set on the Span at a later stage. To get the inputs on
         # call creation, we need to create the call after we yield the span.
+
         if operation_name == "haystack.component.run":
             span = WeaveSpan(parent=parent_span.raw_span() if parent_span else None, operation=operation_name)
         else:
@@ -116,6 +125,7 @@ class WeaveTracer(Tracer):
 
         try:
             yield span
+
         except Exception as e:
             # If the operation is a haystack component run, we haven't created the call yet.
             # That's why we need to create it here.
@@ -130,7 +140,7 @@ class WeaveTracer(Tracer):
                 span.set_call(call)
 
             self._client.finish_call(call, exception=e)
-            raise
+            raise Exception(f"Error in operation {operation_name}: {e}")
         else:
             attributes = span.get_attributes()
             # If the operation is a haystack component run, we haven't created the call yet.
