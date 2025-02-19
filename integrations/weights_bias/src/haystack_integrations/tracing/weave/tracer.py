@@ -143,7 +143,8 @@ class WeaveTracer(Tracer):
                 span.set_call(call)
 
             self._client.finish_call(call, exception=e)
-            raise Exception(f"Error in operation {operation_name}: {e}")
+            msg = f"Error in operation {operation_name}: {e}"
+            raise Exception(msg)
         else:
             attributes = span.get_attributes()
             # If the operation is a haystack component run, we haven't created the call yet.
