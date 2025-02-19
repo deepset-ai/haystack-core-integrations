@@ -38,4 +38,39 @@ To use this connector simply add it to your pipeline without any connections, an
 sending traces to Weights & Biases.
 
 ```python
-from haystack.pipeline import WeaveConnector
+import os
+
+    from haystack import Pipeline
+    from haystack.components.builders import ChatPromptBuilder
+    from haystack.components.generators.chat import OpenAIChatGenerator
+    from haystack.dataclasses import ChatMessage
+
+    from haystack_integrations.components.connectors import WeaveConnector
+
+    os.environ["HAYSTACK_CONTENT_TRACING_ENABLED"] = "true"
+
+    pipe = Pipeline()
+    pipe.add_component("prompt_builder", ChatPromptBuilder())
+    pipe.add_component("llm", OpenAIChatGenerator(model="gpt-3.5-turbo"))
+    pipe.connect("prompt_builder.prompt", "llm.messages")
+
+    connector = WeaveConnector(pipeline_name="test_pipeline")
+    pipe.add_component("weave", connector)
+
+    messages = [
+        ChatMessage.from_system(
+            "Always respond in German even if some input data is in other languages."
+        ),
+        ChatMessage.from_user("Tell me about {{location}}"),
+    ]
+
+    response = pipe.run(
+        data={
+            "prompt_builder": {
+                "template_variables": {"location": "Berlin"},
+                "template": messages,
+            }
+        }
+    )
+    print(response["llm"]["replies"][0])
+```
