@@ -110,8 +110,9 @@ class TestWeaveConnector:
         reason="Export an env var called WANDB_API_KEY containing the Weights & Bias API key to run this test.",
     )
     @pytest.mark.integration
-    def test_warmup_initializes_tracer(self) -> None:
+    def test_warmup_initializes_tracer(self, monkeypatch) -> None:
         """Test that warm_up initializes the tracer correctly"""
+        monkeypatch.setenv("HAYSTACK_CONTENT_TRACING_ENABLED", "true")
         connector = WeaveConnector(pipeline_name="test_pipeline")
         assert connector.tracer is None
 

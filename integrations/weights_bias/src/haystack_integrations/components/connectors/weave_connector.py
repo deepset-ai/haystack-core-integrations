@@ -18,6 +18,10 @@ class WeaveConnector:
     monitoring your pipeline components.
 
     Note that you need to have the `WANDB_API_KEY` environment variable set to your Weights & Biases API key.
+
+    NOTE: If you don't have a Weights & Biases account it will interactively ask you to set one and your input
+    will then be stored in ~/.netrc
+
     In addition, you need to set the `HAYSTACK_CONTENT_TRACING_ENABLED` environment variable to `true` in order to
     enable Haystack tracing in your pipeline.
     """
@@ -31,6 +35,7 @@ class WeaveConnector:
         self.pipeline_name = pipeline_name
         content_tracing_enabled = os.getenv("HAYSTACK_CONTENT_TRACING_ENABLED", "false").lower()
         self.enable_tracing = content_tracing_enabled == "true"
+        haystack_tracer.is_content_tracing_enabled = self.enable_tracing
         if not haystack_tracer.is_content_tracing_enabled:
             logger.warning(
                 "Traces will not be logged to Weave because Haystack tracing is disabled. "
