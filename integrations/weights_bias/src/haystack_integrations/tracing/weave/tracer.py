@@ -97,7 +97,9 @@ class WeaveTracer(Tracer):
         """Create a span for component runs with deferred call creation."""
         return WeaveSpan(parent=parent_span.raw_span() if parent_span else None, operation=operation_name)
 
-    def _create_regular_span(self, operation_name: str, tags: Optional[dict], parent_span: Optional[WeaveSpan]) -> WeaveSpan:
+    def _create_regular_span(
+        self, operation_name: str, tags: Optional[dict], parent_span: Optional[WeaveSpan]
+    ) -> WeaveSpan:
         """Create a span for regular operations with immediate call creation."""
         call = self._client.create_call(
             op=operation_name,
@@ -172,8 +174,7 @@ class WeaveTracer(Tracer):
             span.set_tags(tags)
 
         # this method acts as a context manager so yielding the span yields the context to the caller
-        # try-except-else-finally block ensures that the call is created and finished correctly for both component 
-        # and regular operations
+        # try-except-else-finally to ensure that a call is created and finished correctly for both types of operations
         try:
             yield span
 
@@ -192,7 +193,7 @@ class WeaveTracer(Tracer):
                 self._client.finish_call(call, exception=e)
             else:
                 self._client.finish_call(span.raw_span(), exception=e)
-            raise # re-raise the same exception
+            raise  # re-raise the same exception
 
         else:
             # case when no exception is raised, operation was successful
