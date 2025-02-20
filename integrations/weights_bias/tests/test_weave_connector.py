@@ -103,7 +103,7 @@ class TestWeaveConnector:
         """Test the basic run method of WeaveConnector"""
         connector = WeaveConnector(pipeline_name="test_pipeline")
         result: dict[str, str] = connector.run()
-        assert result == {'pipeline_name': 'test_pipeline'}
+        assert result == {"pipeline_name": "test_pipeline"}
 
     @pytest.mark.skipif(
         not os.environ.get("WANDB_API_KEY", None),
