@@ -22,6 +22,15 @@ def convert_haystack_documents_to_qdrant_points(
     points = []
     for document in documents:
         payload = document.to_dict(flatten=False)
+
+        if payload.pop("dataframe", None):
+            logger.warning(
+                "Document %s has the `dataframe` field set,"
+                "QdrantDocumentStore no longer supports dataframes and this field will be ignored. "
+                "The `dataframe` field will soon be removed from Haystack Document.",
+                document.id,
+            )
+
         if use_sparse_embeddings:
             vector = {}
 
@@ -63,6 +72,14 @@ QdrantPoint = Union[rest.ScoredPoint, rest.Record]
 def convert_qdrant_point_to_haystack_document(point: QdrantPoint, use_sparse_embeddings: bool) -> Document:
     payload = {**point.payload}
     payload["score"] = point.score if hasattr(point, "score") else None
+
+    if payload.pop("dataframe", None):
+        logger.warning(
+            "Document %s has the `dataframe` field set,"
+            "QdrantDocumentStore no longer supports dataframes and this field will be ignored. "
+            "The `dataframe` field will soon be removed from Haystack Document.",
+            payload["id"],
+        )
 
     if not use_sparse_embeddings:
         payload["embedding"] = point.vector if hasattr(point, "vector") else None

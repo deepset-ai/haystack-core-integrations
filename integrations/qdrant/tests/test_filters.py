@@ -2,14 +2,14 @@ from typing import List
 
 import pytest
 from haystack import Document
-from haystack.testing.document_store import FilterDocumentsTest, FilterDocumentsTestWithDataframe
+from haystack.testing.document_store import FilterDocumentsTest
 from haystack.utils.filters import FilterError
 from qdrant_client.http import models
 
 from haystack_integrations.document_stores.qdrant import QdrantDocumentStore
 
 
-class TestQdrantStoreBaseTests(FilterDocumentsTest, FilterDocumentsTestWithDataframe):
+class TestQdrantStoreBaseTests(FilterDocumentsTest):
     @pytest.fixture
     def document_store(self) -> QdrantDocumentStore:
         return QdrantDocumentStore(
@@ -207,12 +207,6 @@ class TestQdrantStoreBaseTests(FilterDocumentsTest, FilterDocumentsTestWithDataf
             self.assert_documents_are_equal(result, [])
 
     # ======== ========================== ========
-
-    @pytest.mark.skip(reason="Qdrant doesn't support comparision with dataframe")
-    def test_comparison_equal_with_dataframe(self, document_store, filterable_docs): ...
-
-    @pytest.mark.skip(reason="Qdrant doesn't support comparision with dataframe")
-    def test_comparison_not_equal_with_dataframe(self, document_store, filterable_docs): ...
 
     @pytest.mark.skip(reason="Cannot distinguish errors yet")
     def test_missing_top_level_operator_key(self, document_store, filterable_docs): ...
