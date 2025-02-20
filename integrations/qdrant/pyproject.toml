@@ -7,7 +7,7 @@ name = "qdrant-haystack"
 dynamic = ["version"]
 description = 'An integration of Qdrant ANN vector database backend with Haystack'
 readme = "README.md"
-requires-python = ">=3.8"
+requires-python = ">=3.9"
 license = "Apache-2.0"
 keywords = []
 authors = [

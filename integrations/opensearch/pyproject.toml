@@ -7,7 +7,7 @@ name = "opensearch-haystack"
 dynamic = ["version"]
 description = 'Haystack 2.x Document Store for OpenSearch'
 readme = "README.md"
-requires-python = ">=3.8"
+requires-python = ">=3.9"
 license = "Apache-2.0"
 keywords = []
 authors = [{ name = "deepset", email = "info@deepset.ai" }]

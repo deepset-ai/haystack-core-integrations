@@ -7,7 +7,7 @@ name = "optimum-haystack"
 dynamic = ["version"]
 description = "Component to embed strings and Documents using models loaded with the HuggingFace Optimum library. This component is designed to seamlessly inference models using the high speed ONNX runtime."
 readme = "README.md"
-requires-python = ">=3.8"
+requires-python = ">=3.9"
 license = "Apache-2.0"
 keywords = []
 authors = [

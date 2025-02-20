@@ -7,7 +7,7 @@ name = "azure-ai-search-haystack"
 dynamic = ["version"]
 description = 'Haystack 2.x Document Store for Azure AI Search'
 readme = "README.md"
-requires-python = ">=3.8,<3.13"
+requires-python = ">=3.9,<3.13"
 license = "Apache-2.0"
 keywords = []
 authors = [{ name = "deepset", email = "info@deepset.ai" }]

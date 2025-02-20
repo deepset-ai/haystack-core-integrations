@@ -7,7 +7,7 @@ name = "elasticsearch-haystack"
 dynamic = ["version"]
 description = 'Haystack 2.x Document Store for ElasticSearch'
 readme = "README.md"
-requires-python = ">=3.8"
+requires-python = ">=3.9"
 license = "Apache-2.0"
 keywords = []
 authors = [{ name = "Silvano Cerza", email = "silvanocerza@gmail.com" }]
