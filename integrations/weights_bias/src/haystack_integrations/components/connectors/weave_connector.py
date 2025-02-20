@@ -79,16 +79,6 @@ class WeaveConnector:
         :param pipeline_name: The name of the pipeline you want to trace.
         """
         self.pipeline_name = pipeline_name
-        content_tracing_enabled = os.getenv("HAYSTACK_CONTENT_TRACING_ENABLED", "false").lower()
-        self.enable_tracing = content_tracing_enabled == "true"
-        haystack_tracer.is_content_tracing_enabled = self.enable_tracing
-        if not haystack_tracer.is_content_tracing_enabled:
-            logger.warning(
-                "Traces will not be logged to Weave because Haystack tracing is disabled. "
-                "To enable, set the HAYSTACK_CONTENT_TRACING_ENABLED environment variable to true "
-                "before importing Haystack."
-            )
-
         self.tracer: Optional[WeaveTracer] = None
 
     def warm_up(self) -> None:
