@@ -1,8 +1,5 @@
-import os
-from typing import Any, Optional
-
 from haystack import component, default_from_dict, default_to_dict, logging, tracing
-from haystack.tracing import tracer as haystack_tracer
+from typing import Any, Optional
 
 from haystack_integrations.tracing.weave import WeaveTracer
 
