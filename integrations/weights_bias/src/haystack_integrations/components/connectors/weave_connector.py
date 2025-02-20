@@ -1,5 +1,6 @@
-from haystack import component, default_from_dict, default_to_dict, logging, tracing
 from typing import Any, Optional
+
+from haystack import component, default_from_dict, default_to_dict, logging, tracing
 
 from haystack_integrations.tracing.weave import WeaveTracer
 

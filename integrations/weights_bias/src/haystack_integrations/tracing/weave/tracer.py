@@ -1,3 +1,5 @@
+import os
+
 import contextlib
 from collections.abc import Iterator
 from typing import Any, Optional, Union
@@ -74,6 +76,8 @@ class WeaveTracer(Tracer):
         :param project_name: The name of the project to trace, this is will be the name appearing in Weave project.
         """
 
+        content_tracing_enabled = os.getenv("HAYSTACK_CONTENT_TRACING_ENABLED", "false").lower()
+        haystack_tracer.is_content_tracing_enabled = content_tracing_enabled == "true"
         if not haystack_tracer.is_content_tracing_enabled:
             logger.warning(
                 "Traces will not be logged to Weave because Haystack tracing is disabled. "
