@@ -7,7 +7,7 @@ name = "elasticsearch-haystack"
 dynamic = ["version"]
 description = 'Haystack 2.x Document Store for ElasticSearch'
 readme = "README.md"
-requires-python = ">=3.8"
+requires-python = ">=3.9"
 license = "Apache-2.0"
 keywords = []
 authors = [{ name = "Silvano Cerza", email = "silvanocerza@gmail.com" }]
@@ -15,7 +15,6 @@ classifiers = [
   "License :: OSI Approved :: Apache Software License",
   "Development Status :: 4 - Beta",
   "Programming Language :: Python",
-  "Programming Language :: Python :: 3.8",
   "Programming Language :: Python :: 3.9",
   "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
@@ -59,7 +58,7 @@ cov-retry = ["test-cov-retry", "cov-report"]
 docs = ["pydoc-markdown pydoc/config.yml"]
 
 [[tool.hatch.envs.all.matrix]]
-python = ["3.8", "3.9", "3.10", "3.11"]
+python = [ "3.9", "3.10", "3.11"]
 
 [tool.hatch.envs.lint]
 installer = "uv"
