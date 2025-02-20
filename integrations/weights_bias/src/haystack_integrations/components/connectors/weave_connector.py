@@ -97,9 +97,10 @@ class WeaveConnector:
             self.tracer = WeaveTracer(project_name=self.pipeline_name)
             tracing.enable_tracing(self.tracer)
 
-    @component.output_types(no_op=str)
+    @component.output_types(pipeline_name=str)
     def run(self) -> dict[str, str]:
-        return {}  # this is a no-op component - it doesn't do anything, just sends traces to Weights & Biases
+        # NOTE: this is a no-op component - it simply triggers the Tracer to sends traces to Weights & Biases
+        return {"pipeline_name": self.pipeline_name}
 
     def to_dict(self) -> dict[str, Any]:
         """

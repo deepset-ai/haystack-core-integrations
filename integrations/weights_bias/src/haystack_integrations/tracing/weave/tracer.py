@@ -2,11 +2,15 @@ import contextlib
 from collections.abc import Iterator
 from typing import Any, Optional, Union
 
+from haystack import logging
 from haystack.tracing import Span, Tracer
+from haystack.tracing import tracer as haystack_tracer
 from haystack.tracing.utils import coerce_tag_value
 
 import weave
 from weave.trace.weave_client import Call, WeaveClient
+
+logger = logging.getLogger(__name__)
 
 
 class WeaveSpan(Span):
@@ -69,6 +73,14 @@ class WeaveTracer(Tracer):
 
         :param project_name: The name of the project to trace, this is will be the name appearing in Weave project.
         """
+
+        if not haystack_tracer.is_content_tracing_enabled:
+            logger.warning(
+                "Traces will not be logged to Weave because Haystack tracing is disabled. "
+                "To enable, set the HAYSTACK_CONTENT_TRACING_ENABLED environment variable to true "
+                "before importing Haystack."
+            )
+
         self._client = weave.init(project_name)
         self._current_span: Optional[WeaveSpan] = None
 
