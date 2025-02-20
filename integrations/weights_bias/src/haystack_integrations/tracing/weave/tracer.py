@@ -1,6 +1,5 @@
-import os
-
 import contextlib
+import os
 from collections.abc import Iterator
 from typing import Any, Optional, Union
 
