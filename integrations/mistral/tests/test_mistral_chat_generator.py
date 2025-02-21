@@ -290,6 +290,11 @@ class TestMistralChatGenerator:
         assert callback.counter > 1
         assert "Paris" in callback.responses
 
+    @pytest.mark.skipif(
+        not os.environ.get("MISTRAL_API_KEY", None),
+        reason="Export an env var called MISTRAL_API_KEY containing the OpenAI API key to run this test.",
+    )
+    @pytest.mark.integration
     def test_live_run_with_tools(self, tools):
         chat_messages = [ChatMessage.from_user("What's the weather like in Paris?")]
         component = MistralChatGenerator(tools=tools)
