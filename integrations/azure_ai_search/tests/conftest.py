@@ -83,13 +83,26 @@ def document_store(request):
 
 
 @pytest.fixture(scope="session", autouse=True)
-def cleanup_indexes():
+def cleanup_indexes(request):
     """
     Fixture to clean up all remaining indexes at the end of the test session.
+    Only runs for tests marked with 'integration'.
     Automatically runs after all tests.
     """
-    azure_endpoint = os.environ["AZURE_SEARCH_SERVICE_ENDPOINT"]
-    api_key = os.environ["AZURE_SEARCH_API_KEY"]
+    # Check if any test in the session is marked as integration
+    has_integration_test = False
+    for item in request.session.items:
+        if item.get_closest_marker("integration"):
+            has_integration_test = True
+            break
+
+    if not has_integration_test:
+        yield
+        return
+
+    # the following happens only if there is at least one integration test in the session
+    azure_endpoint = os.getenv("AZURE_SEARCH_SERVICE_ENDPOINT")
+    api_key = os.getenv("AZURE_SEARCH_API_KEY")
 
     client = SearchIndexClient(azure_endpoint, AzureKeyCredential(api_key))
 
