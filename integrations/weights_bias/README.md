@@ -1,6 +1,5 @@
 # weights_biases-haystack
 
-[![PyPI - License](https://img.shields.io/pypi/l/weights_bias-haystack.svg)](https://pypi.org/project/weights_bias-haystack)
 [![PyPI - Version](https://img.shields.io/pypi/v/weights_bias-haystack.svg)](https://pypi.org/project/weights_bias-haystack)
 [![PyPI - Python Version](https://img.shields.io/pypi/pyversions/weights_bias-haystack.svg)](https://pypi.org/project/weights_bias-haystack)
 
@@ -74,3 +73,7 @@ response = pipe.run(
 )
 print(response["llm"]["replies"][0])
 ```
+
+## License
+
+`weights_biases-haystack` is distributed under the terms of the [Apache-2.0](https://spdx.org/licenses/Apache-2.0.html) license.
