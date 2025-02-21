@@ -79,7 +79,7 @@ class WeaveTracer(Tracer):
         haystack_tracer.is_content_tracing_enabled = content_tracing_enabled == "true"
         if not haystack_tracer.is_content_tracing_enabled:
             logger.warning(
-                "Traces will not be logged to Weave because Haystack tracing is disabled. "
+                "Inputs and Outputs of components traces will not be logged because Haystack tracing is disabled."
                 "To enable, set the HAYSTACK_CONTENT_TRACING_ENABLED environment variable to true "
                 "before importing Haystack."
             )
