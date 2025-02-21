@@ -86,7 +86,7 @@ def document_store(request):
 def cleanup_indexes(request):
     """
     Fixture to clean up all remaining indexes at the end of the test session.
-    Only runs for tests marked with 'integration'.
+    Only runs if in the session there is at least one test marked with 'integration'.
     Automatically runs after all tests.
     """
     # Check if any test in the session is marked as integration
