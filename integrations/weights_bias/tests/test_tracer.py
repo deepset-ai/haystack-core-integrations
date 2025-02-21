@@ -83,4 +83,8 @@ class TestWeaveTracer:
             with patch("weave.init") as mock_init:
                 mock_init.return_value = MockWeaveClient()
                 WeaveTracer(project_name="test_project")
-                assert "Traces will not be logged to Weave because Haystack tracing is disabled" in caplog.text
+                assert (
+                    "Inputs and Outputs of components traces will not be logged because Haystack tracing is "
+                    "disabled.To enable, set the HAYSTACK_CONTENT_TRACING_ENABLED environment variable to true "
+                    "before importing Haystack.\n"
+                ) in caplog.text
