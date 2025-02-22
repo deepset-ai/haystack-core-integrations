@@ -100,6 +100,7 @@ def test_init(_mock_azure_search_client):
     assert document_store._vector_search_configuration == DEFAULT_VECTOR_SEARCH
 
 
+@pytest.mark.integration
 @pytest.mark.skipif(
     not os.environ.get("AZURE_SEARCH_SERVICE_ENDPOINT", None) and not os.environ.get("AZURE_SEARCH_API_KEY", None),
     reason="Missing AZURE_SEARCH_SERVICE_ENDPOINT or AZURE_SEARCH_API_KEY.",
@@ -155,6 +156,7 @@ TEST_EMBEDDING_1 = _random_embeddings(768)
 TEST_EMBEDDING_2 = _random_embeddings(768)
 
 
+@pytest.mark.integration
 @pytest.mark.skipif(
     not os.environ.get("AZURE_SEARCH_SERVICE_ENDPOINT", None) and not os.environ.get("AZURE_SEARCH_API_KEY", None),
     reason="Missing AZURE_SEARCH_SERVICE_ENDPOINT or AZURE_SEARCH_API_KEY.",
