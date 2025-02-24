@@ -30,6 +30,7 @@ Hosts = Union[str, List[Union[str, Mapping[str, Union[str, int]], NodeConfig]]]
 # Increase the default if most unscaled scores are larger than expected (>30) and otherwise would incorrectly
 # all be mapped to scores ~1.
 BM25_SCALING_FACTOR = 8
+DOC_ALREADY_EXISTS = 409
 
 
 class ElasticsearchDocumentStore:
@@ -219,7 +220,7 @@ class ElasticsearchDocumentStore:
         :returns: Number of documents in the document store.
         """
         self._ensure_initialized()
-        result = await self._async_client.count(index=self._index)
+        result = await self._async_client.count(index=self._index)  # type: ignore
         return result["count"]
 
     def _search_documents(self, **kwargs) -> List[Document]:
@@ -240,7 +241,7 @@ class ElasticsearchDocumentStore:
                 **kwargs,
             )
 
-            documents.extend(self._deserialize_document(hit) for hit in res["hits"]["hits"])
+            documents.extend(self._deserialize_document(hit) for hit in res["hits"]["hits"])  # type: ignore
             from_ = len(documents)
 
             if top_k is not None and from_ >= top_k:
@@ -261,13 +262,8 @@ class ElasticsearchDocumentStore:
         from_ = 0
         # Handle pagination
         while True:
-            res = await self._async_client.search(
-                index=self._index,
-                from_=from_,
-                **kwargs,
-            )
-
-            documents.extend(self._deserialize_document(hit) for hit in res["hits"]["hits"])
+            res = await self._async_client.search(index=self._index, from_=from_, **kwargs)  # type: ignore
+            documents.extend(self._deserialize_document(hit) for hit in res["hits"]["hits"])  # type: ignore
             from_ = len(documents)
 
             if top_k is not None and from_ >= top_k:
@@ -426,7 +422,6 @@ class ElasticsearchDocumentStore:
                         "Document {id} has the `dataframe` field set,"
                         "ElasticsearchDocumentStore no longer supports dataframes and this field will be ignored. "
                         "The `dataframe` field will soon be removed from Haystack Document.",
-                        id=doc.id,
                     )
 
             action = {
@@ -447,7 +442,7 @@ class ElasticsearchDocumentStore:
             if failed:
                 if policy == DuplicatePolicy.FAIL:
                     for error in failed:
-                        if "create" in error and error["create"]["status"] == 409:
+                        if "create" in error and error["create"]["status"] == DOC_ALREADY_EXISTS:
                             msg = f"ID '{error['create']['_id']}' already exists in the document store"
                             raise DuplicateDocumentError(msg)
                 msg = f"Failed to write documents to Elasticsearch. Errors:\n{failed}"
@@ -587,7 +582,7 @@ class ElasticsearchDocumentStore:
         }
 
         if filters:
-            search_body["query"]["bool"]["filter"] = _normalize_filters(filters)
+            search_body["query"]["bool"]["filter"] = _normalize_filters(filters)  # type:ignore
 
         documents = await self._search_documents_async(**search_body)
 
