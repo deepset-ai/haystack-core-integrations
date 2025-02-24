@@ -24,13 +24,13 @@ class RagasEvaluator:
 
     Usage example:
     ```python
+    from haystack.components.generators import OpenAIGenerator
     from haystack_integrations.components.evaluators.ragas import RagasEvaluator
     from ragas.metrics import ContextPrecision
-    from ragas.llms import LangchainLLMWrapper
-    from langchain_openai import ChatOpenAI
+    from ragas.llms import HaystackLLMWrapper
 
-    llm = ChatOpenAI(model="gpt-4o-mini")
-    evaluator_llm = LangchainLLMWrapper(llm)
+    llm = OpenAIGenerator(model="gpt-4o-mini")
+    evaluator_llm = HaystackLLMWrapper(llm)
 
     evaluator = RagasEvaluator(
         ragas_metrics=[ContextPrecision()],
@@ -89,13 +89,13 @@ class RagasEvaluator:
             raise TypeError(error_message)
 
         if llm is not None and not isinstance(llm, (BaseRagasLLM)):
-            error_message = f"Expected evaluator_llm to be BaseRagasLLM or LangchainLLM, got {type(llm).__name__}"
+            error_message = f"Expected evaluator_llm to be BaseRagasLLM, got {type(llm).__name__}"
             raise TypeError(error_message)
 
         if embedding is not None and not isinstance(embedding, (BaseRagasEmbeddings)):
             error_message = (
-                f"Expected evaluator_embedding to be BaseRagasEmbeddings or "
-                f"LangchainEmbeddings, got {type(embedding).__name__}"
+                f"Expected evaluator_embedding to be BaseRagasEmbeddings, "
+                f"got {type(embedding).__name__}"
             )
             raise TypeError(error_message)
 
