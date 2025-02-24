@@ -378,14 +378,15 @@ class TestElasticsearchDocumentStoreAsync:
 
         store = ElasticsearchDocumentStore(hosts=hosts, index=index)
         yield store
-        store.client.indices.delete(index=index, ignore=[400, 404])
+        store.client.options(ignore_status=[400, 404]).indices.delete(index=index)
+
         await store.async_client.close()
 
     @pytest.mark.asyncio
     async def test_write_documents_async(self, document_store):
         docs = [Document(id="1")]
         assert await document_store.write_documents_async(docs) == 1
-        with pytest.raises(DuplicateDocumentError):
+        with pytest.raises(DuplicateDocumentError, match="ID '1' already exists in the document store"):
             await document_store.write_documents_async(docs, DuplicatePolicy.FAIL)
 
     @pytest.mark.asyncio
