@@ -132,6 +132,7 @@ class ElasticsearchEmbeddingRetriever:
             query_embedding=query_embedding,
             filters=filters,
             top_k=top_k or self._top_k,
+            num_candidates=self._num_candidates
         )
         return {"documents": docs}
 
