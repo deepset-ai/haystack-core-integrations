@@ -169,16 +169,9 @@ async def test_run_time_params_async():
         filter_policy=FilterPolicy.MERGE,
     )
 
-    res = await retriever.run_async(
-        query_embedding=[0.5, 0.7],
-        filters={"another": "filter"},
-        top_k=1
-    )
+    res = await retriever.run_async(query_embedding=[0.5, 0.7], filters={"another": "filter"}, top_k=1)
     mock_store._embedding_retrieval_async.assert_called_once_with(
-        query_embedding=[0.5, 0.7],
-        filters={"another": "filter"},
-        top_k=1,
-        num_candidates=30
+        query_embedding=[0.5, 0.7], filters={"another": "filter"}, top_k=1, num_candidates=30
     )
 
     assert len(res) == 1

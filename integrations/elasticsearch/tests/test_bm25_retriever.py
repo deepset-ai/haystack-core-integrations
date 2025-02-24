@@ -127,11 +127,7 @@ async def test_run_async():
 
     res = await retriever.run_async(query="some test query")
     mock_store._bm25_retrieval_async.assert_called_once_with(
-        query="some test query",
-        filters={},
-        fuzziness="AUTO",
-        top_k=10,
-        scale_score=False
+        query="some test query", filters={}, fuzziness="AUTO", top_k=10, scale_score=False
     )
     assert len(res) == 1
     assert len(res["documents"]) == 1
@@ -176,17 +172,9 @@ async def test_run_time_params_async():
         filter_policy=FilterPolicy.MERGE,
     )
 
-    res = await retriever.run_async(
-        query="some query",
-        filters={"another": "filter"},
-        top_k=1
-    )
+    res = await retriever.run_async(query="some query", filters={"another": "filter"}, top_k=1)
     mock_store._bm25_retrieval_async.assert_called_once_with(
-        query="some query",
-        filters={"another": "filter"},
-        top_k=1,
-        fuzziness="3",
-        scale_score=True
+        query="some query", filters={"another": "filter"}, top_k=1, fuzziness="3", scale_score=True
     )
 
     assert len(res) == 1

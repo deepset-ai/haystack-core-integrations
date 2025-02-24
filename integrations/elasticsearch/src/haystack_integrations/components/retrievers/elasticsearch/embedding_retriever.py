@@ -125,14 +125,14 @@ class ElasticsearchEmbeddingRetriever:
             The way runtime filters are applied depends on the `filter_policy` selected when initializing the Retriever.
         :param top_k: Maximum number of documents to return.
         :returns: A dictionary with the following keys:
-            - `documents`: List of `Document`s that match the query.
+            - `documents`: List of `Document`s most similar to the given `query_embedding`
         """
         filters = apply_filter_policy(self._filter_policy, self._filters, filters)
         docs = self._document_store._embedding_retrieval(
             query_embedding=query_embedding,
             filters=filters,
             top_k=top_k or self._top_k,
-            num_candidates=self._num_candidates
+            num_candidates=self._num_candidates,
         )
         return {"documents": docs}
 
@@ -157,6 +157,6 @@ class ElasticsearchEmbeddingRetriever:
             query_embedding=query_embedding,
             filters=filters,
             top_k=top_k or self._top_k,
-            num_candidates=self._num_candidates
+            num_candidates=self._num_candidates,
         )
         return {"documents": docs}
