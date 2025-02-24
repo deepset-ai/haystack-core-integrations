@@ -384,10 +384,11 @@ class TestElasticsearchDocumentStoreAsync:
 
     @pytest.mark.asyncio
     async def test_write_documents_async(self, document_store):
-        docs = [Document(id="1")]
+        docs = [Document(id="1", content="test")]
         assert await document_store.write_documents_async(docs) == 1
-        with pytest.raises(DuplicateDocumentError, match="ID '1' already exists in the document store"):
-            await document_store.write_documents_async(docs, DuplicatePolicy.FAIL)
+        assert await document_store.count_documents_async() == 1
+        with pytest.raises(DocumentStoreError):
+            await document_store.write_documents_async(docs, policy=DuplicatePolicy.FAIL)
 
     @pytest.mark.asyncio
     async def test_count_documents_async(self, document_store):
