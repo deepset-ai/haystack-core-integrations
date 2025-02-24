@@ -113,3 +113,75 @@ def test_run():
     assert len(res["documents"]) == 1
     assert res["documents"][0].content == "Test doc"
     assert res["documents"][0].embedding == [0.1, 0.2]
+
+
+@pytest.mark.asyncio
+async def test_run_async():
+    mock_store = Mock(spec=ElasticsearchDocumentStore)
+    mock_store._embedding_retrieval_async.return_value = [Document(content="test document", embedding=[0.1, 0.2])]
+    retriever = ElasticsearchEmbeddingRetriever(document_store=mock_store)
+    res = await retriever.run_async(query_embedding=[0.5, 0.7])
+    mock_store._embedding_retrieval_async.assert_called_once_with(
+        query_embedding=[0.5, 0.7],
+        filters={},
+        top_k=10,
+        num_candidates=None,
+    )
+    assert len(res) == 1
+    assert len(res["documents"]) == 1
+    assert res["documents"][0].content == "test document"
+    assert res["documents"][0].embedding == [0.1, 0.2]
+
+
+@pytest.mark.asyncio
+async def test_run_init_params_async():
+    mock_store = Mock(spec=ElasticsearchDocumentStore)
+    mock_store._embedding_retrieval_async.return_value = [Document(content="test document", embedding=[0.1, 0.2])]
+    retriever = ElasticsearchEmbeddingRetriever(
+        document_store=mock_store,
+        filters={"some": "filter"},
+        top_k=3,
+        num_candidates=30,
+        filter_policy=FilterPolicy.MERGE,
+    )
+    res = await retriever.run_async(query_embedding=[0.5, 0.7])
+    mock_store._embedding_retrieval_async.assert_called_once_with(
+        query_embedding=[0.5, 0.7],
+        filters={"some": "filter"},
+        top_k=3,
+        num_candidates=30,
+    )
+    assert len(res) == 1
+    assert len(res["documents"]) == 1
+    assert res["documents"][0].content == "test document"
+    assert res["documents"][0].embedding == [0.1, 0.2]
+
+
+@pytest.mark.asyncio
+async def test_run_time_params_async():
+    mock_store = Mock(spec=ElasticsearchDocumentStore)
+    mock_store._embedding_retrieval_async.return_value = [Document(content="test document", embedding=[0.1, 0.2])]
+    retriever = ElasticsearchEmbeddingRetriever(
+        document_store=mock_store,
+        filters={"some": "filter"},
+        top_k=3,
+        num_candidates=30,
+        filter_policy=FilterPolicy.MERGE,
+    )
+
+    res = await retriever.run_async(
+        query_embedding=[0.5, 0.7],
+        filters={"another": "filter"},
+        top_k=1
+    )
+    mock_store._embedding_retrieval_async.assert_called_once_with(
+        query_embedding=[0.5, 0.7],
+        filters={"another": "filter"},
+        top_k=1,
+        num_candidates=30
+    )
+
+    assert len(res) == 1
+    assert len(res["documents"]) == 1
+    assert res["documents"][0].content == "test document"
+    assert res["documents"][0].embedding == [0.1, 0.2]
