@@ -25,7 +25,9 @@ def test_init_is_lazy(_mock_es_client):
 
 @patch("haystack_integrations.document_stores.elasticsearch.document_store.Elasticsearch")
 def test_headers_are_supported(_mock_es_client):
-    _ = ElasticsearchDocumentStore(hosts="testhost", headers={"header1": "value1", "header2": "value2"}).client
+    _ = ElasticsearchDocumentStore(
+        hosts="http://testhost:9200", headers={"header1": "value1", "header2": "value2"}
+    ).client
 
     assert _mock_es_client.call_count == 1
     _, kwargs = _mock_es_client.call_args
@@ -242,16 +244,16 @@ class TestDocumentStore(DocumentStoreBaseTests):
         Test that not all terms must mandatorily match for BM25 retrieval to return a result.
         """
         documents = [
-            Document(id=1, content="There are over 7,000 languages spoken around the world today."),
+            Document(id="1", content="There are over 7,000 languages spoken around the world today."),
             Document(
-                id=2,
+                id="2",
                 content=(
                     "Elephants have been observed to behave in a way that indicates a high level of self-awareness"
                     " such as recognizing themselves in mirrors."
                 ),
             ),
             Document(
-                id=3,
+                id="3",
                 content=(
                     "In certain parts of the world, like the Maldives, Puerto Rico, and San Diego, you can witness"
                     " the phenomenon of bioluminescent waves."
@@ -262,7 +264,7 @@ class TestDocumentStore(DocumentStoreBaseTests):
 
         res = document_store._bm25_retrieval("How much self awareness do elephants have?", top_k=3)
         assert len(res) == 1
-        assert res[0].id == 2
+        assert res[0].id == "2"
 
     def test_embedding_retrieval(self, document_store: ElasticsearchDocumentStore):
         docs = [
@@ -355,8 +357,114 @@ class TestDocumentStore(DocumentStoreBaseTests):
         )
         mock_elasticsearch.return_value = mock_client
 
-        _ = ElasticsearchDocumentStore(hosts="some hosts", custom_mapping=custom_mapping).client
+        _ = ElasticsearchDocumentStore(hosts="http://testhost:9200", custom_mapping=custom_mapping).client
         mock_client.indices.create.assert_called_once_with(
             index="default",
             mappings=custom_mapping,
         )
+
+
+@pytest.mark.integration
+class TestElasticsearchDocumentStoreAsync:
+
+    @pytest.fixture
+    async def document_store(self, request):
+        """
+        Basic fixture providing a document store instance for async tests
+        """
+        hosts = ["http://localhost:9200"]
+        # Use a different index for each test so we can run them in parallel
+        index = f"{request.node.name}"
+
+        store = ElasticsearchDocumentStore(hosts=hosts, index=index)
+        yield store
+        store.client.indices.delete(index=index, ignore=[400, 404])
+        await store.async_client.close()
+
+    @pytest.mark.asyncio
+    async def test_write_documents_async(self, document_store):
+        docs = [Document(id="1")]
+        assert await document_store.write_documents_async(docs) == 1
+        with pytest.raises(DuplicateDocumentError):
+            await document_store.write_documents_async(docs, DuplicatePolicy.FAIL)
+
+    @pytest.mark.asyncio
+    async def test_count_documents_async(self, document_store):
+        docs = [
+            Document(content="test doc 1"),
+            Document(content="test doc 2"),
+            Document(content="test doc 3"),
+        ]
+        await document_store.write_documents_async(docs)
+        assert await document_store.count_documents_async() == 3
+
+    @pytest.mark.asyncio
+    async def test_delete_documents_async(self, document_store):
+        doc = Document(content="test doc")
+        await document_store.write_documents_async([doc])
+        assert await document_store.count_documents_async() == 1
+        await document_store.delete_documents_async([doc.id])
+        assert await document_store.count_documents_async() == 0
+
+    @pytest.mark.asyncio
+    async def test_filter_documents_async(self, document_store):
+        filterable_docs = [
+            Document(content="1", meta={"number": -10}),
+            Document(content="2", meta={"number": 100}),
+        ]
+        await document_store.write_documents_async(filterable_docs)
+        result = await document_store.filter_documents_async(
+            filters={"field": "number", "operator": "==", "value": 100}
+        )
+        assert len(result) == 1
+        assert result[0].meta["number"] == 100
+
+    @pytest.mark.asyncio
+    async def test_bm25_retrieval_async(self, document_store):
+        docs = [
+            Document(content="Haskell is a functional programming language"),
+            Document(content="Python is an object oriented programming language"),
+        ]
+        await document_store.write_documents_async(docs)
+        results = await document_store._bm25_retrieval_async("functional", top_k=1)
+        assert len(results) == 1
+        assert "functional" in results[0].content
+
+    @pytest.mark.asyncio
+    async def test_embedding_retrieval_async(self, document_store):
+        docs = [
+            Document(content="Most similar document", embedding=[1.0, 1.0, 1.0, 1.0]),
+            Document(content="Less similar document", embedding=[0.5, 0.5, 0.5, 0.5]),
+        ]
+        await document_store.write_documents_async(docs)
+        results = await document_store._embedding_retrieval_async(query_embedding=[1.0, 1.0, 1.0, 1.0], top_k=1)
+        assert len(results) == 1
+        assert results[0].content == "Most similar document"
+
+    @pytest.mark.asyncio
+    async def test_bm25_retrieval_async_with_filters(self, document_store):
+        docs = [
+            Document(content="Haskell is a functional programming language", meta={"type": "functional"}),
+            Document(content="Python is an object oriented programming language", meta={"type": "oop"}),
+        ]
+        await document_store.write_documents_async(docs)
+        results = await document_store._bm25_retrieval_async(
+            "programming", filters={"field": "type", "operator": "==", "value": "functional"}, top_k=1
+        )
+        assert len(results) == 1
+        assert "functional" in results[0].content
+
+    @pytest.mark.asyncio
+    async def test_embedding_retrieval_async_with_filters(self, document_store):
+        docs = [
+            Document(content="Most similar document", embedding=[1.0, 1.0, 1.0, 1.0], meta={"type": "similar"}),
+            Document(content="Less similar document", embedding=[0.5, 0.5, 0.5, 0.5], meta={"type": "different"}),
+        ]
+        await document_store.write_documents_async(docs)
+        results = await document_store._embedding_retrieval_async(
+            query_embedding=[1.0, 1.0, 1.0, 1.0],
+            filters={"field": "type", "operator": "==", "value": "similar"},
+            top_k=1,
+        )
+        assert len(results) == 1
+        assert results[0].content == "Most similar document"
