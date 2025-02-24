@@ -88,14 +88,12 @@ class RagasEvaluator:
             error_message = "All items in ragas_metrics must be instances of Metric class."
             raise TypeError(error_message)
 
-        if llm is not None and not isinstance(llm, (BaseRagasLLM)):
+        if llm is not None and not isinstance(llm, BaseRagasLLM):
             error_message = f"Expected evaluator_llm to be BaseRagasLLM, got {type(llm).__name__}"
             raise TypeError(error_message)
 
-        if embedding is not None and not isinstance(embedding, (BaseRagasEmbeddings)):
-            error_message = (
-                f"Expected evaluator_embedding to be BaseRagasEmbeddings, got {type(embedding).__name__}"
-            )
+        if embedding is not None and not isinstance(embedding, BaseRagasEmbeddings):
+            error_message = f"Expected evaluator_embedding to be BaseRagasEmbeddings, got {type(embedding).__name__}"
             raise TypeError(error_message)
 
     @component.output_types(result=EvaluationResult)
