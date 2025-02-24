@@ -94,8 +94,7 @@ class RagasEvaluator:
 
         if embedding is not None and not isinstance(embedding, (BaseRagasEmbeddings)):
             error_message = (
-                f"Expected evaluator_embedding to be BaseRagasEmbeddings, "
-                f"got {type(embedding).__name__}"
+                f"Expected evaluator_embedding to be BaseRagasEmbeddings, got {type(embedding).__name__}"
             )
             raise TypeError(error_message)
 
