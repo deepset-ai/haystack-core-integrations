@@ -120,7 +120,7 @@ class ElasticsearchBM25Retriever:
         """
         Retrieve documents using the BM25 keyword-based algorithm.
 
-        :param query: String to search in `Document`s' text.
+        :param query: String to search in the `Document` text.
         :param filters: Filters applied to the retrieved Documents. The way runtime filters are applied depends on
                         the `filter_policy` chosen at retriever initialization. See init method docstring for more
                         details.
@@ -143,7 +143,7 @@ class ElasticsearchBM25Retriever:
         """
         Asynchronously retrieve documents using the BM25 keyword-based algorithm.
 
-        :param query: String to search in `Document`s' text.
+        :param query: String to search in the `Document` text.
         :param filters: Filters applied to the retrieved Documents. The way runtime filters are applied depends on
                         the `filter_policy` chosen at retriever initialization. See init method docstring for more
                         details.

@@ -210,8 +210,11 @@ class ElasticsearchDocumentStore:
     def count_documents(self) -> int:
         """
         Returns how many documents are present in the document store.
-        :returns: Number of documents in the document store.
+
+        :returns:
+            Number of documents in the document store.
         """
+        self._ensure_initialized()
         return self.client.count(index=self._index)["count"]
 
     async def count_documents_async(self) -> int:
@@ -285,6 +288,7 @@ class ElasticsearchDocumentStore:
             msg = "Invalid filter syntax. See https://docs.haystack.deepset.ai/docs/metadata-filtering for details."
             raise ValueError(msg)
 
+        self._ensure_initialized()
         query = {"bool": {"filter": _normalize_filters(filters)}} if filters else None
         documents = self._search_documents(query=query)
         return documents
@@ -302,9 +306,35 @@ class ElasticsearchDocumentStore:
             msg = "Invalid filter syntax. See https://docs.haystack.deepset.ai/docs/metadata-filtering for details."
             raise ValueError(msg)
 
+        self._ensure_initialized()
         query = {"bool": {"filter": _normalize_filters(filters)}} if filters else None
         documents = await self._search_documents_async(query=query)
         return documents
+
+    @staticmethod
+    def _deserialize_document(hit: Dict[str, Any]) -> Document:
+        """
+        Creates a `Document` from the search hit provided.
+        This is mostly useful in self.filter_documents().
+        :param hit: A search hit from Elasticsearch.
+        :returns: `Document` created from the search hit.
+        """
+        data = hit["_source"]
+
+        if "highlight" in hit:
+            data["metadata"]["highlighted"] = hit["highlight"]
+        data["score"] = hit["_score"]
+
+        if "dataframe" in data:
+            dataframe = data.pop("dataframe")
+            if dataframe:
+                logger.warning(
+                    "Document %s has the `dataframe` field set,"
+                    "ElasticsearchDocumentStore no longer supports dataframes and this field will be ignored. "
+                    "The `dataframe` field will soon be removed from Haystack Document.",
+                    data["id"],
+                )
+        return Document.from_dict(data)
 
     def write_documents(self, documents: List[Document], policy: DuplicatePolicy = DuplicatePolicy.NONE) -> int:
         """
