@@ -1,5 +1,16 @@
 # Changelog
 
+## [integrations/ragas-v2.1.0] - 2025-02-24
+
+### 🚀 Features
+
+- Use HaystackLLMWrapper instead of LangChain in Ragas evaluators (#1420)
+
+### 🧹 Chores
+
+- Remove Python 3.8 support (#1421)
+
+
 ## [integrations/ragas-v2.0.0] - 2025-01-28
 
 ### 🚀 Features
