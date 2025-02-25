@@ -2,7 +2,7 @@ import json
 import logging
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
-import aioboto3
+
 from botocore.config import Config
 from botocore.eventstream import EventStream
 from botocore.exceptions import ClientError
@@ -15,6 +15,7 @@ from haystack_integrations.common.amazon_bedrock.errors import (
     AmazonBedrockConfigurationError,
     AmazonBedrockInferenceError,
 )
+
 from haystack_integrations.common.amazon_bedrock.utils import get_aws_session
 
 logger = logging.getLogger(__name__)
@@ -397,6 +398,7 @@ class AmazonBedrockChatGenerator:
             return secret.resolve_value() if secret else None
 
         try:
+            # Initialize sync client
             session = get_aws_session(
                 aws_access_key_id=resolve_secret(aws_access_key_id),
                 aws_secret_access_key=resolve_secret(aws_secret_access_key),
@@ -408,6 +410,16 @@ class AmazonBedrockChatGenerator:
             if self.boto3_config:
                 config = Config(**self.boto3_config)
             self.client = session.client("bedrock-runtime", config=config)
+
+            # Initialize async session
+            self.async_session = aioboto3.Session(
+                aws_access_key_id=resolve_secret(aws_access_key_id),
+                aws_secret_access_key=resolve_secret(aws_secret_access_key),
+                aws_session_token=resolve_secret(aws_session_token),
+                region_name=resolve_secret(aws_region_name),
+                profile_name=resolve_secret(aws_profile_name),
+            )
+
         except Exception as exception:
             msg = (
                 "Could not connect to Amazon Bedrock. Make sure the AWS environment is configured correctly. "
@@ -587,23 +599,12 @@ class AmazonBedrockChatGenerator:
 
         callback = streaming_callback or self.streaming_callback
 
-        def resolve_secret(secret: Optional[Secret]) -> Optional[str]:
-            return secret.resolve_value() if secret else None
-
         try:
-            session = aioboto3.Session()
             config: Optional[Config] = None
             if self.boto3_config:
                 config = Config(**self.boto3_config)
 
-            async with session.client(
-                "bedrock-runtime",
-                aws_access_key_id=resolve_secret(self.aws_access_key_id),
-                aws_secret_access_key=resolve_secret(self.aws_secret_access_key),
-                aws_session_token=resolve_secret(self.aws_session_token),
-                region_name=resolve_secret(self.aws_region_name),
-                config=config,
-            ) as async_client:
+            async with self.async_session.client("bedrock-runtime", config=config) as async_client:
                 if callback:
                     response = await async_client.converse_stream(**params)
                     response_stream: EventStream = response.get("stream")
@@ -614,6 +615,7 @@ class AmazonBedrockChatGenerator:
                 else:
                     response = await async_client.converse(**params)
                     replies = _parse_completion_response(response, self.model)
+
         except ClientError as exception:
             msg = f"Could not generate inference for Amazon Bedrock model {self.model} due: {exception}"
             raise AmazonBedrockInferenceError(msg) from exception

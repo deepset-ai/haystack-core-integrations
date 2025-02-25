@@ -1,5 +1,6 @@
 from typing import Optional
 
+import aioboto3
 import boto3
 from botocore.exceptions import BotoCoreError
 
@@ -58,3 +59,34 @@ def aws_configured(**kwargs) -> bool:
     """
     aws_config_provided = any(key in kwargs for key in AWS_CONFIGURATION_KEYS)
     return aws_config_provided
+
+
+async def get_aws_async_session(
+    aws_access_key_id: Optional[str] = None,
+    aws_secret_access_key: Optional[str] = None,
+    aws_session_token: Optional[str] = None,
+    aws_region_name: Optional[str] = None,
+    aws_profile_name: Optional[str] = None,
+) -> aioboto3.Session:
+    """
+    Creates an async AWS Session with the provided credentials.
+
+    :param aws_access_key_id: AWS access key ID.
+    :param aws_secret_access_key: AWS secret access key.
+    :param aws_session_token: AWS session token.
+    :param aws_region_name: AWS region name.
+    :param aws_profile_name: AWS profile name.
+    :return: aioboto3.Session object
+    """
+    session_kwargs = {}
+    if aws_access_key_id and aws_secret_access_key:
+        session_kwargs["aws_access_key_id"] = aws_access_key_id
+        session_kwargs["aws_secret_access_key"] = aws_secret_access_key
+    if aws_session_token:
+        session_kwargs["aws_session_token"] = aws_session_token
+    if aws_region_name:
+        session_kwargs["region_name"] = aws_region_name
+    if aws_profile_name:
+        session_kwargs["profile_name"] = aws_profile_name
+
+    return aioboto3.Session(**session_kwargs)
