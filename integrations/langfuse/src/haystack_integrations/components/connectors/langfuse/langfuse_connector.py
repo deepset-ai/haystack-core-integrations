@@ -8,6 +8,7 @@ from haystack.utils.base_serialization import (
     serialize_class_instance,
 )
 
+from haystack_integrations.tracing.langfuse import LangfuseTracer, SpanHandler
 from langfuse import Langfuse
 
 
