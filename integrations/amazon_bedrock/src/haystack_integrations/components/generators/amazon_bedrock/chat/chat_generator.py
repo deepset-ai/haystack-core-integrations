@@ -2,6 +2,7 @@ import json
 import logging
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
+import aioboto3
 from botocore.config import Config
 from botocore.eventstream import EventStream
 from botocore.exceptions import ClientError
@@ -10,7 +11,6 @@ from haystack.dataclasses import ChatMessage, ChatRole, StreamingChunk, ToolCall
 from haystack.tools import Tool, _check_duplicate_tool_names, deserialize_tools_inplace
 from haystack.utils.auth import Secret, deserialize_secrets_inplace
 from haystack.utils.callable_serialization import deserialize_callable, serialize_callable
-
 from haystack_integrations.common.amazon_bedrock.errors import (
     AmazonBedrockConfigurationError,
     AmazonBedrockInferenceError,
@@ -524,6 +524,96 @@ class AmazonBedrockChatGenerator:
             else:
                 response = self.client.converse(**params)
                 replies = _parse_completion_response(response, self.model)
+        except ClientError as exception:
+            msg = f"Could not generate inference for Amazon Bedrock model {self.model} due: {exception}"
+            raise AmazonBedrockInferenceError(msg) from exception
+
+        return {"replies": replies}
+
+    @component.output_types(replies=List[ChatMessage])
+    async def run_async(
+        self,
+        messages: List[ChatMessage],
+        streaming_callback: Optional[Callable[[StreamingChunk], None]] = None,
+        generation_kwargs: Optional[Dict[str, Any]] = None,
+        tools: Optional[List[Tool]] = None,
+    ):
+        """
+        Async version of the run method. Completes chats using LLMs hosted on Amazon Bedrock.
+
+        :param messages: List of ChatMessage objects representing the conversation history.
+        :param streaming_callback: Optional callback function for handling streaming responses.
+        :param generation_kwargs: Optional dictionary of generation parameters.
+        :param tools: Optional list of Tool objects that the model can use.
+        :return: Dictionary containing the model's replies as a list of ChatMessage objects.
+        """
+        generation_kwargs = generation_kwargs or {}
+
+        # Merge generation_kwargs with defaults
+        merged_kwargs = self.generation_kwargs.copy()
+        merged_kwargs.update(generation_kwargs)
+
+        # Extract known inference parameters
+        inference_config = {
+            key: merged_kwargs.pop(key, None)
+            for key in ["maxTokens", "stopSequences", "temperature", "topP"]
+            if key in merged_kwargs
+        }
+
+        # Handle tools - either toolConfig or Haystack Tool objects but not both
+        tools = tools or self.tools
+        _check_duplicate_tool_names(tools)
+        tool_config = merged_kwargs.pop("toolConfig", None)
+        if tools:
+            tool_config = _format_tools(tools)
+
+        # Any remaining kwargs go to additionalModelRequestFields
+        additional_fields = merged_kwargs if merged_kwargs else None
+
+        # Format messages to Bedrock format
+        system_prompts, messages_list = _format_messages(messages)
+
+        # Build API parameters
+        params = {
+            "modelId": self.model,
+            "messages": messages_list,
+            "system": system_prompts,
+            "inferenceConfig": inference_config,
+        }
+        if tool_config:
+            params["toolConfig"] = tool_config
+        if additional_fields:
+            params["additionalModelRequestFields"] = additional_fields
+
+        callback = streaming_callback or self.streaming_callback
+
+        def resolve_secret(secret: Optional[Secret]) -> Optional[str]:
+            return secret.resolve_value() if secret else None
+
+        try:
+            session = aioboto3.Session()
+            config: Optional[Config] = None
+            if self.boto3_config:
+                config = Config(**self.boto3_config)
+
+            async with session.client(
+                "bedrock-runtime",
+                aws_access_key_id=resolve_secret(self.aws_access_key_id),
+                aws_secret_access_key=resolve_secret(self.aws_secret_access_key),
+                aws_session_token=resolve_secret(self.aws_session_token),
+                region_name=resolve_secret(self.aws_region_name),
+                config=config,
+            ) as async_client:
+                if callback:
+                    response = await async_client.converse_stream(**params)
+                    response_stream: EventStream = response.get("stream")
+                    if not response_stream:
+                        msg = "No stream found in the response."
+                        raise AmazonBedrockInferenceError(msg)
+                    replies = _parse_streaming_response(response_stream, callback, self.model)
+                else:
+                    response = await async_client.converse(**params)
+                    replies = _parse_completion_response(response, self.model)
         except ClientError as exception:
             msg = f"Could not generate inference for Amazon Bedrock model {self.model} due: {exception}"
             raise AmazonBedrockInferenceError(msg) from exception
