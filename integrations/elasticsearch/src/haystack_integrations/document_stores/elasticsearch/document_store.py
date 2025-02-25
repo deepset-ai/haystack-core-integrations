@@ -264,7 +264,8 @@ class ElasticsearchDocumentStore:
 
         documents: List[Document] = []
         from_ = 0
-        # Handle pagination
+
+        # handle pagination
         while True:
             res = await self._async_client.search(index=self._index, from_=from_, **kwargs)  # type: ignore
             documents.extend(self._deserialize_document(hit) for hit in res["hits"]["hits"])  # type: ignore
@@ -272,8 +273,10 @@ class ElasticsearchDocumentStore:
 
             if top_k is not None and from_ >= top_k:
                 break
+
             if from_ >= res["hits"]["total"]["value"]:
                 break
+
         return documents
 
     def filter_documents(self, filters: Optional[Dict[str, Any]] = None) -> List[Document]:
@@ -453,6 +456,16 @@ class ElasticsearchDocumentStore:
                         "Document {id} has the `dataframe` field set,"
                         "ElasticsearchDocumentStore no longer supports dataframes and this field will be ignored. "
                         "The `dataframe` field will soon be removed from Haystack Document.",
+                    )
+
+            if "sparse_embedding" in doc_dict:
+                sparse_embedding = doc_dict.pop("sparse_embedding", None)
+                if sparse_embedding:
+                    logger.warning(
+                        "Document %s has the `sparse_embedding` field set,"
+                        "but storing sparse embeddings in Elasticsearch is not currently supported."
+                        "The `sparse_embedding` field will be ignored.",
+                        doc.id,
                     )
 
             action = {
