@@ -119,15 +119,41 @@ class ElasticsearchEmbeddingRetriever:
         Retrieve documents using a vector similarity metric.
 
         :param query_embedding: Embedding of the query.
-        :param filters: Filters applied to the retrieved Documents. The way runtime filters are applied depends on
-                        the `filter_policy` chosen at retriever initialization. See init method docstring for more
-                        details.
-        :param top_k: Maximum number of `Document`s to return.
+        :param filters: Filters applied when fetching documents from the Document Store.
+            Filters are applied during the approximate kNN search to ensure the Retriever returns
+              `top_k` matching documents.
+            The way runtime filters are applied depends on the `filter_policy` selected when initializing the Retriever.
+        :param top_k: Maximum number of documents to return.
         :returns: A dictionary with the following keys:
             - `documents`: List of `Document`s most similar to the given `query_embedding`
         """
         filters = apply_filter_policy(self._filter_policy, self._filters, filters)
         docs = self._document_store._embedding_retrieval(
+            query_embedding=query_embedding,
+            filters=filters,
+            top_k=top_k or self._top_k,
+            num_candidates=self._num_candidates,
+        )
+        return {"documents": docs}
+
+    @component.output_types(documents=List[Document])
+    async def run_async(
+        self, query_embedding: List[float], filters: Optional[Dict[str, Any]] = None, top_k: Optional[int] = None
+    ):
+        """
+        Asynchronously retrieve documents using a vector similarity metric.
+
+        :param query_embedding: Embedding of the query.
+        :param filters: Filters applied when fetching documents from the Document Store.
+            Filters are applied during the approximate kNN search to ensure the Retriever returns
+              `top_k` matching documents.
+            The way runtime filters are applied depends on the `filter_policy` selected when initializing the Retriever.
+        :param top_k: Maximum number of documents to return.
+        :returns: A dictionary with the following keys:
+            - `documents`: List of `Document`s that match the query.
+        """
+        filters = apply_filter_policy(self._filter_policy, self._filters, filters)
+        docs = await self._document_store._embedding_retrieval_async(
             query_embedding=query_embedding,
             filters=filters,
             top_k=top_k or self._top_k,
