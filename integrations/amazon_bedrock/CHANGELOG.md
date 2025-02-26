@@ -1,5 +1,15 @@
 # Changelog
 
+## [integrations/amazon_bedrock-v3.1.1] - 2025-02-26
+
+### 🐛 Bug Fixes
+
+- Avoid thinking end tag on first content block (#1442)
+
+### 📚 Documentation
+
+- Update changelog for integrations/amazon_bedrock (#1441)
+
 ## [integrations/amazon_bedrock-v3.1.0] - 2025-02-26
 
 ### 🚀 Features
