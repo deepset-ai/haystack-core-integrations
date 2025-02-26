@@ -179,13 +179,12 @@ class AnthropicClaudeAdapter(BedrockModelAdapter):
             if self.include_thinking:
                 thinking = delta.get("thinking", "")
                 text = text or thinking
-                if self.thinking_tag:
-                    content_block_type = chunk.get("content_block", {}).get("type")
-                    index = chunk.get("index")
-                    if content_block_type == "thinking" and index == 0:
-                        return StreamingChunk(content=self.thinking_tag_start, meta=chunk)
-                    if content_block_type == "text" and index == 1:
-                        return StreamingChunk(content=self.thinking_tag_end, meta=chunk)
+                content_block_type = chunk.get("content_block", {}).get("type")
+                index = chunk.get("index")
+                if content_block_type == "thinking" and index == 0:
+                    return StreamingChunk(content=self.thinking_tag_start, meta=chunk)
+                if content_block_type == "text" and index == 1:
+                    return StreamingChunk(content=self.thinking_tag_end, meta=chunk)
 
             return StreamingChunk(content=text, meta=chunk)
 
