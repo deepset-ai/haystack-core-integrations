@@ -25,7 +25,7 @@ class GoogleAIGeminiGenerator:
     from haystack.utils import Secret
     from haystack_integrations.components.generators.google_ai import GoogleAIGeminiGenerator
 
-    gemini = GoogleAIGeminiGenerator(model="gemini-pro", api_key=Secret.from_token("<MY_API_KEY>"))
+    gemini = GoogleAIGeminiGenerator(model="gemini-1.5-pro", api_key=Secret.from_token("<MY_API_KEY>"))
     res = gemini.run(parts = ["What is the most interesting thing you know?"])
     for answer in res["replies"]:
         print(answer)
