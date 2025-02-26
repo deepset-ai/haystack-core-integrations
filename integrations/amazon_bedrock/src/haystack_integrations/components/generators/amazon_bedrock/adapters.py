@@ -161,7 +161,7 @@ class AnthropicClaudeAdapter(BedrockModelAdapter):
             if self.include_thinking and len(thinking) == len(texts):
                 texts = [
                     f"{self.thinking_tag_start}{thinking}{self.thinking_tag_end}{text}"
-                    for text, thinking in zip(texts, thinking, strict=True)
+                    for text, thinking in zip(texts, thinking)
                 ]
             return texts
 
