@@ -99,6 +99,7 @@ class TestDocumentStore(DocumentStoreBaseTests):
         )
         yield store
         store.client.options(ignore_status=[400, 404]).indices.delete(index=index)
+        store.client.close()
 
     def assert_documents_are_equal(self, received: List[Document], expected: List[Document]):
         """
@@ -453,7 +454,7 @@ class TestElasticsearchDocumentStoreAsync:
 
         # with an embedding containing None
         with pytest.raises(ValueError, match="query_embedding must be a non-empty list of floats"):
-            results = await document_store._embedding_retrieval_async(query_embedding=None, top_k=2)
+            _ = await document_store._embedding_retrieval_async(query_embedding=None, top_k=2)
 
     @pytest.mark.asyncio
     async def test_bm25_retrieval_async_with_filters(self, document_store):
