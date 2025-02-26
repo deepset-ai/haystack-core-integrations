@@ -230,6 +230,93 @@ def _parse_streaming_response(
     return replies
 
 
+async def _parse_streaming_response_async(
+    response_stream: EventStream,
+    streaming_callback: Callable[[StreamingChunk], None],
+    model: str,
+) -> List[ChatMessage]:
+    """
+    Parse a streaming response from Bedrock.
+
+    :param response_stream: EventStream from Bedrock API
+    :param streaming_callback: Callback for streaming chunks
+    :param model: The model ID used for generation
+    :return: List of ChatMessage objects
+    """
+    replies = []
+    current_content = ""
+    current_tool_call: Optional[Dict[str, Any]] = None
+    base_meta = {
+        "model": model,
+        "index": 0,
+    }
+
+    collections.AsyncIterable
+
+    async for event in response_stream:
+        if "contentBlockStart" in event:
+            # Reset accumulators for new message
+            current_content = ""
+            current_tool_call = None
+            block_start = event["contentBlockStart"]
+            if "start" in block_start and "toolUse" in block_start["start"]:
+                tool_start = block_start["start"]["toolUse"]
+                current_tool_call = {
+                    "id": tool_start["toolUseId"],
+                    "name": tool_start["name"],
+                    "arguments": "",  # Will accumulate deltas as string
+                }
+
+        elif "contentBlockDelta" in event:
+            delta = event["contentBlockDelta"]["delta"]
+            if "text" in delta:
+                delta_text = delta["text"]
+                current_content += delta_text
+                streaming_chunk = StreamingChunk(content=delta_text, meta=None)
+                streaming_callback(streaming_chunk)
+            elif "toolUse" in delta and current_tool_call:
+                # Accumulate tool use input deltas
+                current_tool_call["arguments"] += delta["toolUse"].get("input", "")
+
+        elif "contentBlockStop" in event:
+            if current_tool_call:
+                # Parse accumulated input if it's a JSON string
+                try:
+                    input_json = json.loads(current_tool_call["arguments"])
+                    current_tool_call["arguments"] = input_json
+                except json.JSONDecodeError:
+                    # Keep as string if not valid JSON
+                    pass
+
+                tool_call = ToolCall(
+                    id=current_tool_call["id"],
+                    tool_name=current_tool_call["name"],
+                    arguments=current_tool_call["arguments"],
+                )
+                replies.append(ChatMessage.from_assistant("", tool_calls=[tool_call], meta=base_meta.copy()))
+            elif current_content:
+                replies.append(ChatMessage.from_assistant(current_content, meta=base_meta.copy()))
+
+        elif "messageStop" in event:
+            # Update finish reason for all replies
+            for reply in replies:
+                reply.meta["finish_reason"] = event["messageStop"].get("stopReason")
+
+        elif "metadata" in event:
+            metadata = event["metadata"]
+            # Update usage stats for all replies
+            for reply in replies:
+                if "usage" in metadata:
+                    usage = metadata["usage"]
+                    reply.meta["usage"] = {
+                        "prompt_tokens": usage.get("inputTokens", 0),
+                        "completion_tokens": usage.get("outputTokens", 0),
+                        "total_tokens": usage.get("totalTokens", 0),
+                    }
+
+    return replies
+
+
 @component
 class AmazonBedrockChatGenerator:
     """
@@ -615,7 +702,7 @@ class AmazonBedrockChatGenerator:
                     if not response_stream:
                         msg = "No stream found in the response."
                         raise AmazonBedrockInferenceError(msg)
-                    replies = _parse_streaming_response(response_stream, callback, self.model)
+                    replies = _parse_streaming_response_async(response_stream, callback, self.model)
                 else:
                     response = await async_client.converse(**params)
                     replies = _parse_completion_response(response, self.model)
