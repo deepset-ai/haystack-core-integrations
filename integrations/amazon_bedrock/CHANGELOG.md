@@ -1,5 +1,20 @@
 # Changelog
 
+## [integrations/amazon_bedrock-v3.1.0] - 2025-02-26
+
+### 🚀 Features
+
+- Support thinking parameter for Claude 3.7 in AmazonBedrockGenerator (#1439)
+
+### 🧹 Chores
+
+- Remove Python 3.8 support (#1421)
+
+### 🌀 Miscellaneous
+
+- Docs: update changelog for integrations/amazon_bedrock (#1336)
+- Chore: remove `jsonschema` dependency from `default` environment (#1368)
+
 ## [integrations/amazon_bedrock-v3.0.1] - 2025-01-30
 
 ### 🐛 Bug Fixes
