@@ -98,6 +98,12 @@ class BedrockModelAdapter(ABC):
 class AnthropicClaudeAdapter(BedrockModelAdapter):
     """
     Adapter for the Anthropic Claude models.
+
+    :param model_kwargs: model configuration:
+        - use_messages_api: Whether to use the messages API, default: True
+        - include_thinking: Whether to include thinking output, default: True
+        - thinking_tag: XML tag for thinking content, default: "thinking"
+    :param max_length: Maximum length of generated text
     """
 
     def __init__(self, model_kwargs: Dict[str, Any], max_length: Optional[int]) -> None:
