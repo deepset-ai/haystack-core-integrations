@@ -270,10 +270,7 @@ class TestAnthropicClaudeAdapterMessagesAPI:
             "top_k": 5,
             "system": "system prompt",
             "anthropic_version": "custom_version",
-            "thinking": {
-                "type": "enabled",
-                "budget_tokens": 1024
-            },
+            "thinking": {"type": "enabled", "budget_tokens": 1024},
         }
 
         body = layer.prepare_body(
@@ -302,10 +299,7 @@ class TestAnthropicClaudeAdapterMessagesAPI:
                 "system": "system prompt",
                 "anthropic_version": "custom_version",
                 "unknown_arg": "unknown_value",
-                "thinking": {
-                    "type": "enabled",
-                    "budget_tokens": 1024
-                },
+                "thinking": {"type": "enabled", "budget_tokens": 1024},
             },
             max_length=99,
         )
@@ -319,10 +313,7 @@ class TestAnthropicClaudeAdapterMessagesAPI:
             "top_k": 5,
             "system": "system prompt",
             "anthropic_version": "custom_version",
-            "thinking": {
-                "type": "enabled",
-                "budget_tokens": 1024
-            },
+            "thinking": {"type": "enabled", "budget_tokens": 1024},
         }
 
         body = layer.prepare_body(prompt)
@@ -339,10 +330,7 @@ class TestAnthropicClaudeAdapterMessagesAPI:
                 "stop_sequences": ["CUSTOM_STOP_MODEL_KWARGS"],
                 "system": "system prompt",
                 "anthropic_version": "custom_version",
-                "thinking": {
-                    "type": "enabled",
-                    "budget_tokens": 1024
-                },
+                "thinking": {"type": "enabled", "budget_tokens": 1024},
             },
             max_length=99,
         )
@@ -356,10 +344,7 @@ class TestAnthropicClaudeAdapterMessagesAPI:
             "top_k": 5,
             "system": "new system prompt",
             "anthropic_version": "new_custom_version",
-            "thinking": {
-                    "type": "enabled",
-                    "budget_tokens": 2048
-                },
+            "thinking": {"type": "enabled", "budget_tokens": 2048},
         }
 
         body = layer.prepare_body(
@@ -389,25 +374,45 @@ class TestAnthropicClaudeAdapterMessagesAPI:
 
     def test_get_responses_with_thinking(self) -> None:
         adapter = AnthropicClaudeAdapter(model_kwargs={}, max_length=99)
-        response_body = {"content": [{"thinking": "This is a thinking part.", "type": "thinking"}, {"text": "This is a single response."}]}
+        response_body = {
+            "content": [
+                {"thinking": "This is a thinking part.", "type": "thinking"},
+                {"text": "This is a single response."},
+            ]
+        }
         expected_responses = ["<thinking>This is a thinking part.</thinking>\n\nThis is a single response."]
         assert adapter.get_responses(response_body) == expected_responses
 
     def test_get_responses_with_thinking_include_thinking_false(self) -> None:
         adapter = AnthropicClaudeAdapter(model_kwargs={"include_thinking": False}, max_length=99)
-        response_body = {"content": [{"thinking": "This is a thinking part.", "type": "thinking"}, {"text": "This is a single response."}]}
+        response_body = {
+            "content": [
+                {"thinking": "This is a thinking part.", "type": "thinking"},
+                {"text": "This is a single response."},
+            ]
+        }
         expected_responses = ["This is a single response."]
         assert adapter.get_responses(response_body) == expected_responses
 
     def test_get_responses_with_thinking_custom_thinking_tag(self) -> None:
         adapter = AnthropicClaudeAdapter(model_kwargs={"thinking_tag": "custom"}, max_length=99)
-        response_body = {"content": [{"thinking": "This is a thinking part.", "type": "thinking"}, {"text": "This is a single response."}]}
+        response_body = {
+            "content": [
+                {"thinking": "This is a thinking part.", "type": "thinking"},
+                {"text": "This is a single response."},
+            ]
+        }
         expected_responses = ["<custom>This is a thinking part.</custom>\n\nThis is a single response."]
         assert adapter.get_responses(response_body) == expected_responses
 
     def test_get_responses_with_thinking_no_thinking_tag(self) -> None:
         adapter = AnthropicClaudeAdapter(model_kwargs={"thinking_tag": None}, max_length=99)
-        response_body = {"content": [{"thinking": "This is a thinking part.", "type": "thinking"}, {"text": "This is a single response."}]}
+        response_body = {
+            "content": [
+                {"thinking": "This is a thinking part.", "type": "thinking"},
+                {"text": "This is a single response."},
+            ]
+        }
         expected_responses = ["This is a thinking part.\n\nThis is a single response."]
         assert adapter.get_responses(response_body) == expected_responses
 
