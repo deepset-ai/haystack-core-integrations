@@ -303,6 +303,7 @@ class AmazonBedrockChatGenerator:
         merged_kwargs.update(generation_kwargs)
 
         # Extract known inference parameters
+        # See https://docs.aws.amazon.com/bedrock/latest/APIReference/API_runtime_InferenceConfiguration.html
         inference_config = {
             key: merged_kwargs.pop(key, None)
             for key in ["maxTokens", "stopSequences", "temperature", "topP"]
@@ -314,6 +315,7 @@ class AmazonBedrockChatGenerator:
         _check_duplicate_tool_names(tools)
         tool_config = merged_kwargs.pop("toolConfig", None)
         if tools:
+            # Format Haystack tools to Bedrock format
             tool_config = _format_tools(tools)
 
         # Any remaining kwargs go to additionalModelRequestFields
