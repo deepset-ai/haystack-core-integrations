@@ -491,13 +491,23 @@ class TestAnthropicClaudeAdapterMessagesAPI:
 
         streaming_callback_mock.assert_has_calls(
             [
-                call(StreamingChunk(content="<thinking>", meta={"type": "content_block_start", "content_block": {"type": "thinking"}})),
+                call(
+                    StreamingChunk(
+                        content="<thinking>",
+                        meta={"type": "content_block_start", "content_block": {"type": "thinking"}},
+                    )
+                ),
                 call(StreamingChunk(content="This", meta={"delta": {"thinking": "This"}})),
                 call(StreamingChunk(content=" is", meta={"delta": {"thinking": " is"}})),
                 call(StreamingChunk(content=" a", meta={"delta": {"thinking": " a"}})),
                 call(StreamingChunk(content=" thinking", meta={"delta": {"thinking": " thinking"}})),
                 call(StreamingChunk(content=" part.", meta={"delta": {"thinking": " part."}})),
-                call(StreamingChunk(content="</thinking>\n\n", meta={"type": "content_block_start", "content_block": {"type": "text"}})),
+                call(
+                    StreamingChunk(
+                        content="</thinking>\n\n",
+                        meta={"type": "content_block_start", "content_block": {"type": "text"}},
+                    )
+                ),
                 call(StreamingChunk(content="This", meta={"delta": {"text": "This"}})),
                 call(StreamingChunk(content=" is", meta={"delta": {"text": " is"}})),
                 call(StreamingChunk(content=" a", meta={"delta": {"text": " a"}})),
@@ -564,13 +574,21 @@ class TestAnthropicClaudeAdapterMessagesAPI:
 
         streaming_callback_mock.assert_has_calls(
             [
-                call(StreamingChunk(content="<custom>", meta={"type": "content_block_start", "content_block": {"type": "thinking"}})),
+                call(
+                    StreamingChunk(
+                        content="<custom>", meta={"type": "content_block_start", "content_block": {"type": "thinking"}}
+                    )
+                ),
                 call(StreamingChunk(content="This", meta={"delta": {"thinking": "This"}})),
                 call(StreamingChunk(content=" is", meta={"delta": {"thinking": " is"}})),
                 call(StreamingChunk(content=" a", meta={"delta": {"thinking": " a"}})),
                 call(StreamingChunk(content=" thinking", meta={"delta": {"thinking": " thinking"}})),
                 call(StreamingChunk(content=" part.", meta={"delta": {"thinking": " part."}})),
-                call(StreamingChunk(content="</custom>\n\n", meta={"type": "content_block_start", "content_block": {"type": "text"}})),
+                call(
+                    StreamingChunk(
+                        content="</custom>\n\n", meta={"type": "content_block_start", "content_block": {"type": "text"}}
+                    )
+                ),
                 call(StreamingChunk(content="This", meta={"delta": {"text": "This"}})),
                 call(StreamingChunk(content=" is", meta={"delta": {"text": " is"}})),
                 call(StreamingChunk(content=" a", meta={"delta": {"text": " a"}})),
@@ -604,13 +622,21 @@ class TestAnthropicClaudeAdapterMessagesAPI:
 
         streaming_callback_mock.assert_has_calls(
             [
-                call(StreamingChunk(content="", meta={"type": "content_block_start", "content_block": {"type": "thinking"}})),
+                call(
+                    StreamingChunk(
+                        content="", meta={"type": "content_block_start", "content_block": {"type": "thinking"}}
+                    )
+                ),
                 call(StreamingChunk(content="This", meta={"delta": {"thinking": "This"}})),
                 call(StreamingChunk(content=" is", meta={"delta": {"thinking": " is"}})),
                 call(StreamingChunk(content=" a", meta={"delta": {"thinking": " a"}})),
                 call(StreamingChunk(content=" thinking", meta={"delta": {"thinking": " thinking"}})),
                 call(StreamingChunk(content=" part.", meta={"delta": {"thinking": " part."}})),
-                call(StreamingChunk(content="\n\n", meta={"type": "content_block_start", "content_block": {"type": "text"}})),
+                call(
+                    StreamingChunk(
+                        content="\n\n", meta={"type": "content_block_start", "content_block": {"type": "text"}}
+                    )
+                ),
                 call(StreamingChunk(content="This", meta={"delta": {"text": "This"}})),
                 call(StreamingChunk(content=" is", meta={"delta": {"text": " is"}})),
                 call(StreamingChunk(content=" a", meta={"delta": {"text": " a"}})),
@@ -645,13 +671,23 @@ class TestAnthropicClaudeAdapterMessagesAPI:
 
         streaming_callback_mock.assert_has_calls(
             [
-                call(StreamingChunk(content="<thinking>", meta={"type": "content_block_start", "content_block": {"type": "thinking"}})),
+                call(
+                    StreamingChunk(
+                        content="<thinking>",
+                        meta={"type": "content_block_start", "content_block": {"type": "thinking"}},
+                    )
+                ),
                 call(StreamingChunk(content="This", meta={"delta": {"thinking": "This"}})),
                 call(StreamingChunk(content=" is", meta={"delta": {"thinking": " is"}})),
                 call(StreamingChunk(content=" a", meta={"delta": {"thinking": " a"}})),
                 call(StreamingChunk(content=" thinking", meta={"delta": {"thinking": " thinking"}})),
                 call(StreamingChunk(content=" part.", meta={"delta": {"thinking": " part."}})),
-                call(StreamingChunk(content="</thinking>\n\n", meta={"type": "content_block_start", "content_block": {"type": "text"}})),
+                call(
+                    StreamingChunk(
+                        content="</thinking>\n\n",
+                        meta={"type": "content_block_start", "content_block": {"type": "text"}},
+                    )
+                ),
                 call(StreamingChunk(content="This", meta={"delta": {"text": "This"}})),
                 call(StreamingChunk(content=" is", meta={"delta": {"text": " is"}})),
                 call(StreamingChunk(content=" a", meta={"delta": {"text": " a"}})),
