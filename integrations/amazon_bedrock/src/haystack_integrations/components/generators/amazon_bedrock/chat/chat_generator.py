@@ -16,7 +16,7 @@ from haystack_integrations.common.amazon_bedrock.errors import (
     AmazonBedrockInferenceError,
 )
 
-from haystack_integrations.common.amazon_bedrock.utils import get_aws_session, get_aws_async_session
+from haystack_integrations.common.amazon_bedrock.utils import get_aws_session
 
 logger = logging.getLogger(__name__)
 
@@ -329,9 +329,7 @@ class AmazonBedrockChatGenerator:
         self,
         model: str,
         aws_access_key_id: Optional[Secret] = Secret.from_env_var(["AWS_ACCESS_KEY_ID"], strict=False),  # noqa: B008
-        aws_secret_access_key: Optional[Secret] = Secret.from_env_var(  # noqa: B008
-            ["AWS_SECRET_ACCESS_KEY"], strict=False
-        ),
+        aws_secret_access_key: Optional[Secret] = Secret.from_env_var(["AWS_SECRET_ACCESS_KEY"], strict=False),
         aws_session_token: Optional[Secret] = Secret.from_env_var(["AWS_SESSION_TOKEN"], strict=False),  # noqa: B008
         aws_region_name: Optional[Secret] = Secret.from_env_var(["AWS_DEFAULT_REGION"], strict=False),  # noqa: B008
         aws_profile_name: Optional[Secret] = Secret.from_env_var(["AWS_PROFILE"], strict=False),  # noqa: B008
@@ -397,30 +395,37 @@ class AmazonBedrockChatGenerator:
         def resolve_secret(secret: Optional[Secret]) -> Optional[str]:
             return secret.resolve_value() if secret else None
 
+        aws_access_key_id = resolve_secret(aws_access_key_id)
+        aws_secret_access_key = resolve_secret(aws_secret_access_key)
+        aws_session_token = resolve_secret(aws_session_token)
+        aws_region_name = resolve_secret(aws_region_name)
+        aws_profile_name = resolve_secret(aws_profile_name)
+
+        config: Optional[Config] = None
+        if self.boto3_config:
+            config = Config(**self.boto3_config)
+
         try:
-            # Initialize sync client
+            # sync session
             session = get_aws_session(
-                aws_access_key_id=resolve_secret(aws_access_key_id),
-                aws_secret_access_key=resolve_secret(aws_secret_access_key),
-                aws_session_token=resolve_secret(aws_session_token),
-                aws_region_name=resolve_secret(aws_region_name),
-                aws_profile_name=resolve_secret(aws_profile_name),
+                aws_access_key_id=aws_access_key_id,
+                aws_secret_access_key=aws_secret_access_key,
+                aws_session_token=aws_session_token,
+                aws_region_name=aws_region_name,
+                aws_profile_name=aws_profile_name,
             )
-            config: Optional[Config] = None
-            if self.boto3_config:
-                config = Config(**self.boto3_config)
             self.client = session.client("bedrock-runtime", config=config)
 
-            """
-            # Initialize async session
-            self.async_session = aioboto3.Session(
-                aws_access_key_id=resolve_secret(aws_access_key_id),
-                aws_secret_access_key=resolve_secret(aws_secret_access_key),
-                aws_session_token=resolve_secret(aws_session_token),
-                region_name=resolve_secret(aws_region_name),
-                profile_name=resolve_secret(aws_profile_name),
+            # async session
+            async_session = get_aws_session(
+                aws_access_key_id= aws_access_key_id,
+                aws_secret_access_key=aws_secret_access_key,
+                aws_session_token=aws_session_token,
+                aws_region_name=aws_region_name,
+                aws_profile_name=aws_profile_name,
+                async_client=True
             )
-            """
+            self.async_client = async_session.client("bedrock-runtime", config=config)
 
         except Exception as exception:
             msg = (
@@ -602,11 +607,8 @@ class AmazonBedrockChatGenerator:
         callback = streaming_callback or self.streaming_callback
 
         try:
-            config: Optional[Config] = None
-            if self.boto3_config:
-                config = Config(**self.boto3_config)
 
-            async with self.async_session.client("bedrock-runtime", config=config) as async_client:
+            async with self.async_client as async_client:
                 if callback:
                     response = await async_client.converse_stream(**params)
                     response_stream: EventStream = response.get("stream")
