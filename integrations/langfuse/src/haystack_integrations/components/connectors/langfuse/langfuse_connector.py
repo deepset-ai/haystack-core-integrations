@@ -12,6 +12,8 @@ from haystack_integrations.tracing.langfuse import LangfuseTracer, SpanHandler
 from langfuse import Langfuse
 
 
+logger = logging.getLogger(__name__)
+
 @component
 class LangfuseConnector:
     """
