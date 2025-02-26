@@ -128,7 +128,6 @@ class AnthropicClaudeAdapter(BedrockModelAdapter):
                 "top_p": None,
                 "top_k": None,
                 "thinking": None,
-                "redacted_thinking": None,
             }
             params = self._get_params(inference_kwargs, default_params)
 
