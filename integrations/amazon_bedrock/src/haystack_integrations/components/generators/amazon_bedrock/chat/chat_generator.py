@@ -1,5 +1,5 @@
 import logging
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from botocore.config import Config
 from botocore.eventstream import EventStream
@@ -280,14 +280,22 @@ class AmazonBedrockChatGenerator:
         deserialize_tools_inplace(data["init_parameters"], key="tools")
         return default_from_dict(cls, data)
 
-    @component.output_types(replies=List[ChatMessage])
-    def run(
+    def _prepare_request_params(
         self,
         messages: List[ChatMessage],
         streaming_callback: Optional[Callable[[StreamingChunk], None]] = None,
         generation_kwargs: Optional[Dict[str, Any]] = None,
         tools: Optional[List[Tool]] = None,
-    ):
+    ) -> Tuple[Dict[str, Any], Optional[Callable[[StreamingChunk], None]]]:
+        """
+        Prepares the request parameters for both sync and async run methods.
+
+        :param messages: List of ChatMessage objects representing the conversation history.
+        :param streaming_callback: Optional callback function for handling streaming responses.
+        :param generation_kwargs: Optional dictionary of generation parameters.
+        :param tools: Optional list of Tool objects that the model can use.
+        :return: Tuple of (request parameters dict, callback function)
+        """
         generation_kwargs = generation_kwargs or {}
 
         # Merge generation_kwargs with defaults
@@ -295,7 +303,6 @@ class AmazonBedrockChatGenerator:
         merged_kwargs.update(generation_kwargs)
 
         # Extract known inference parameters
-        # See https://docs.aws.amazon.com/bedrock/latest/APIReference/API_runtime_InferenceConfiguration.html
         inference_config = {
             key: merged_kwargs.pop(key, None)
             for key in ["maxTokens", "stopSequences", "temperature", "topP"]
@@ -307,7 +314,6 @@ class AmazonBedrockChatGenerator:
         _check_duplicate_tool_names(tools)
         tool_config = merged_kwargs.pop("toolConfig", None)
         if tools:
-            # Format Haystack tools to Bedrock format
             tool_config = _format_tools(tools)
 
         # Any remaining kwargs go to additionalModelRequestFields
@@ -329,6 +335,23 @@ class AmazonBedrockChatGenerator:
             params["additionalModelRequestFields"] = additional_fields
 
         callback = streaming_callback or self.streaming_callback
+
+        return params, callback
+
+    @component.output_types(replies=List[ChatMessage])
+    def run(
+        self,
+        messages: List[ChatMessage],
+        streaming_callback: Optional[Callable[[StreamingChunk], None]] = None,
+        generation_kwargs: Optional[Dict[str, Any]] = None,
+        tools: Optional[List[Tool]] = None,
+    ):
+        params, callback = self._prepare_request_params(
+            messages=messages,
+            streaming_callback=streaming_callback,
+            generation_kwargs=generation_kwargs,
+            tools=tools
+        )
 
         try:
             if callback:
@@ -364,48 +387,14 @@ class AmazonBedrockChatGenerator:
         :param tools: Optional list of Tool objects that the model can use.
         :return: Dictionary containing the model's replies as a list of ChatMessage objects.
         """
-        generation_kwargs = generation_kwargs or {}
-
-        # Merge generation_kwargs with defaults
-        merged_kwargs = self.generation_kwargs.copy()
-        merged_kwargs.update(generation_kwargs)
-
-        # Extract known inference parameters
-        inference_config = {
-            key: merged_kwargs.pop(key, None)
-            for key in ["maxTokens", "stopSequences", "temperature", "topP"]
-            if key in merged_kwargs
-        }
-
-        # Handle tools - either toolConfig or Haystack Tool objects but not both
-        tools = tools or self.tools
-        _check_duplicate_tool_names(tools)
-        tool_config = merged_kwargs.pop("toolConfig", None)
-        if tools:
-            tool_config = _format_tools(tools)
-
-        # Any remaining kwargs go to additionalModelRequestFields
-        additional_fields = merged_kwargs if merged_kwargs else None
-
-        # Format messages to Bedrock format
-        system_prompts, messages_list = _format_messages(messages)
-
-        # Build API parameters
-        params = {
-            "modelId": self.model,
-            "messages": messages_list,
-            "system": system_prompts,
-            "inferenceConfig": inference_config,
-        }
-        if tool_config:
-            params["toolConfig"] = tool_config
-        if additional_fields:
-            params["additionalModelRequestFields"] = additional_fields
-
-        callback = streaming_callback or self.streaming_callback
+        params, callback = self._prepare_request_params(
+            messages=messages,
+            streaming_callback=streaming_callback,
+            generation_kwargs=generation_kwargs,
+            tools=tools
+        )
 
         try:
-
             async with self.async_client as async_client:
                 if callback:
                     response = await async_client.converse_stream(**params)
