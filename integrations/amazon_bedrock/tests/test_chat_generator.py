@@ -129,7 +129,7 @@ def test_from_dict(mock_boto3_session: Any, boto3_config: Optional[Dict[str, Any
     assert generator.boto3_config == boto3_config
 
 
-def test_default_constructor(mock_boto3_session, set_env_variables):
+def test_default_constructor(mock_boto3_session, mock_aioboto3_session, set_env_variables):
     """
     Test that the default constructor sets the correct values
     """
@@ -142,14 +142,24 @@ def test_default_constructor(mock_boto3_session, set_env_variables):
 
     # assert mocked boto3 client called exactly once
     mock_boto3_session.assert_called_once()
+    mock_aioboto3_session.assert_called_once()
 
     # assert mocked boto3 client was called with the correct parameters
     mock_boto3_session.assert_called_with(
         aws_access_key_id="some_fake_id",
         aws_secret_access_key="some_fake_key",
         aws_session_token="some_fake_token",
-        profile_name="some_fake_profile",
         region_name="fake_region",
+        profile_name="some_fake_profile",
+    )
+
+    # assert mocked aioboto3 client was called with the correct parameters
+    mock_aioboto3_session.assert_called_with(
+        aws_access_key_id="some_fake_id",
+        aws_secret_access_key="some_fake_key",
+        aws_session_token="some_fake_token",
+        region_name="fake_region",
+        profile_name="some_fake_profile",
     )
 
 
