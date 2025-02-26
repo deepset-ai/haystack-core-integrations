@@ -4,10 +4,10 @@
 import base64
 import datetime
 import json
-import logging
 from dataclasses import asdict
 from typing import Any, Dict, List, Optional
 
+from haystack import logging
 from haystack.core.serialization import default_from_dict, default_to_dict
 from haystack.dataclasses.document import Document
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
@@ -39,7 +39,6 @@ logger = logging.getLogger(__name__)
 DOCUMENT_COLLECTION_PROPERTIES = [
     {"name": "_original_id", "dataType": ["text"]},
     {"name": "content", "dataType": ["text"]},
-    {"name": "dataframe", "dataType": ["text"]},
     {"name": "blob_data", "dataType": ["blob"]},
     {"name": "blob_mime_type", "dataType": ["text"]},
     {"name": "score", "dataType": ["number"]},
@@ -105,7 +104,6 @@ class WeaviateDocumentStore:
             properties:
             - _original_id: text
             - content: text
-            - dataframe: text
             - blob_data: blob
             - blob_mime_type: text
             - score: number
@@ -291,17 +289,28 @@ class WeaviateDocumentStore:
         if "_split_overlap" in data:
             data.pop("_split_overlap")
             logger.warning(
-                "Document %s has the unsupported `_split_overlap` meta field. It will be ignored.", data["_original_id"]
+                "Document {id} has the unsupported `_split_overlap` meta field. It will be ignored.",
+                id=data["_original_id"],
             )
+
+        if "dataframe" in data:
+            dataframe = data.pop("dataframe")
+            if dataframe:
+                logger.warning(
+                    "Document {id} has the `dataframe` field set. "
+                    "WeaviateDocumentStore no longer supports dataframes and this field will be ignored. "
+                    "The `dataframe` field will soon be removed from Haystack Document.",
+                    id=data["_original_id"],
+                )
 
         if "sparse_embedding" in data:
             sparse_embedding = data.pop("sparse_embedding", None)
             if sparse_embedding:
                 logger.warning(
-                    "Document %s has the `sparse_embedding` field set,"
+                    "Document {id} has the `sparse_embedding` field set,"
                     "but storing sparse embeddings in Weaviate is not currently supported."
                     "The `sparse_embedding` field will be ignored.",
-                    data["_original_id"],
+                    id=data["_original_id"],
                 )
 
         return data
@@ -328,6 +337,16 @@ class WeaviateDocumentStore:
         # We always delete these fields as they're not part of the Document dataclass
         document_data.pop("blob_data", None)
         document_data.pop("blob_mime_type", None)
+
+        if "dataframe" in document_data:
+            dataframe = document_data.pop("dataframe")
+            if dataframe:
+                logger.warning(
+                    "Document {id} has the `dataframe` field set. "
+                    "WeaviateDocumentStore no longer supports dataframes and this field will be ignored. "
+                    "The `dataframe` field will soon be removed from Haystack Document.",
+                    id=document_data["id"],
+                )
 
         for key, value in document_data.items():
             if isinstance(value, datetime.datetime):

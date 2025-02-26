@@ -28,7 +28,6 @@ CREATE TABLE IF NOT EXISTS {schema_name}.{table_name} (
 id VARCHAR(128) PRIMARY KEY,
 embedding VECTOR({embedding_dimension}),
 content TEXT,
-dataframe JSONB,
 blob_data BYTEA,
 blob_meta JSONB,
 blob_mime_type VARCHAR(255),
@@ -37,15 +36,14 @@ meta JSONB)
 
 INSERT_STATEMENT = """
 INSERT INTO {schema_name}.{table_name}
-(id, embedding, content, dataframe, blob_data, blob_meta, blob_mime_type, meta)
-VALUES (%(id)s, %(embedding)s, %(content)s, %(dataframe)s, %(blob_data)s, %(blob_meta)s, %(blob_mime_type)s, %(meta)s)
+(id, embedding, content, blob_data, blob_meta, blob_mime_type, meta)
+VALUES (%(id)s, %(embedding)s, %(content)s, %(blob_data)s, %(blob_meta)s, %(blob_mime_type)s, %(meta)s)
 """
 
 UPDATE_STATEMENT = """
 ON CONFLICT (id) DO UPDATE SET
 embedding = EXCLUDED.embedding,
 content = EXCLUDED.content,
-dataframe = EXCLUDED.dataframe,
 blob_data = EXCLUDED.blob_data,
 blob_meta = EXCLUDED.blob_meta,
 blob_mime_type = EXCLUDED.blob_mime_type,
@@ -389,7 +387,9 @@ class PgvectorDocumentStore:
             )
             return
 
-        sql_drop_index = SQL("DROP INDEX IF EXISTS {index_name}").format(index_name=Identifier(self.hnsw_index_name))
+        sql_drop_index = SQL("DROP INDEX IF EXISTS {schema_name}.{index_name}").format(
+            schema_name=Identifier(self.schema_name), index_name=Identifier(self.hnsw_index_name)
+        )
         self._execute_sql(sql_drop_index, error_msg="Could not drop HNSW index")
 
         self._create_hnsw_index()
@@ -553,9 +553,17 @@ class PgvectorDocumentStore:
             db_document["blob_data"] = blob.data if blob else None
             db_document["blob_meta"] = Jsonb(blob.meta) if blob and blob.meta else None
             db_document["blob_mime_type"] = blob.mime_type if blob and blob.mime_type else None
-
-            db_document["dataframe"] = Jsonb(db_document["dataframe"]) if db_document["dataframe"] else None
             db_document["meta"] = Jsonb(db_document["meta"])
+
+            if "dataframe" in db_document:
+                dataframe = db_document.pop("dataframe", None)
+                if dataframe:
+                    logger.warning(
+                        "Document %s has the `dataframe` field set. "
+                        "PgvectorDocumentStore no longer supports dataframes and this field will be ignored. "
+                        "The `dataframe` field will soon be removed from Haystack Document.",
+                        db_document["id"],
+                    )
 
             if "sparse_embedding" in db_document:
                 sparse_embedding = db_document.pop("sparse_embedding", None)
@@ -583,11 +591,19 @@ class PgvectorDocumentStore:
             blob_data = haystack_dict.pop("blob_data")
             blob_meta = haystack_dict.pop("blob_meta")
             blob_mime_type = haystack_dict.pop("blob_mime_type")
+            dataframe = haystack_dict.pop("dataframe", None)
 
-            # postgresql returns the embedding as a string
-            # so we need to convert it to a list of floats
+            # convert the embedding to a list of floats
             if document.get("embedding") is not None:
                 haystack_dict["embedding"] = document["embedding"].tolist()
+
+            if dataframe:
+                logger.warning(
+                    "Document %s has the `dataframe` field set. "
+                    "PgvectorDocumentStore no longer supports dataframes and this field will be ignored. "
+                    "The `dataframe` field will soon be removed from Haystack Document.",
+                    haystack_dict["id"],
+                )
 
             haystack_document = Document.from_dict(haystack_dict)
 

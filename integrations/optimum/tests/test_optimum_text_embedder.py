@@ -84,7 +84,9 @@ class TestOptimumTextEmbedder:
         assert embedder._backend.parameters.optimizer_settings is None
         assert embedder._backend.parameters.quantizer_settings is None
 
-    def test_to_and_from_dict(self, mock_check_valid_model, mock_get_pooling_mode):  # noqa: ARG002
+    def test_to_and_from_dict(self, mock_check_valid_model, mock_get_pooling_mode, monkeypatch):  # noqa: ARG002
+        monkeypatch.delenv("HF_API_TOKEN", raising=False)
+        monkeypatch.delenv("HF_TOKEN", raising=False)
         component = OptimumTextEmbedder()
         data = component.to_dict()
 
@@ -234,7 +236,7 @@ class TestOptimumTextEmbedder:
             token=Secret.from_token("fake-api-token"),
             pooling_mode="mean",
         )
-        embedder.warm_up()
+        embedder._initialized = True
 
         list_integers_input = [1, 2, 3]
 

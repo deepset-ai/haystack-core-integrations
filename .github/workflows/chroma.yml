@@ -8,6 +8,7 @@ on:
   pull_request:
     paths:
       - "integrations/chroma/**"
+      - "!integrations/chroma/*.md"
       - ".github/workflows/chroma.yml"
 
 defaults:

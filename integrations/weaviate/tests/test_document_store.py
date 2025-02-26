@@ -4,7 +4,6 @@
 
 import base64
 import os
-import random
 from typing import List
 from unittest.mock import MagicMock, patch
 
@@ -14,12 +13,11 @@ from haystack.dataclasses.byte_stream import ByteStream
 from haystack.dataclasses.document import Document
 from haystack.document_stores.errors import DocumentStoreError
 from haystack.testing.document_store import (
-    TEST_EMBEDDING_1,
-    TEST_EMBEDDING_2,
     CountDocumentsTest,
     DeleteDocumentsTest,
     FilterDocumentsTest,
     WriteDocumentsTest,
+    create_filterable_docs,
 )
 from haystack.utils.auth import Secret
 from numpy import array as np_array
@@ -78,60 +76,10 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
         Weaviate forces RFC 3339 date strings.
         The original fixture uses ISO 8601 date strings.
         """
-        documents = []
-        for i in range(3):
-            documents.append(
-                Document(
-                    content=f"A Foo Document {i}",
-                    meta={
-                        "name": f"name_{i}",
-                        "page": "100",
-                        "chapter": "intro",
-                        "number": 2,
-                        "date": "1969-07-21T20:17:40Z",
-                    },
-                    embedding=[random.random() for _ in range(768)],  # noqa: S311
-                )
-            )
-            documents.append(
-                Document(
-                    content=f"A Bar Document {i}",
-                    meta={
-                        "name": f"name_{i}",
-                        "page": "123",
-                        "chapter": "abstract",
-                        "number": -2,
-                        "date": "1972-12-11T19:54:58Z",
-                    },
-                    embedding=[random.random() for _ in range(768)],  # noqa: S311
-                )
-            )
-            documents.append(
-                Document(
-                    content=f"A Foobar Document {i}",
-                    meta={
-                        "name": f"name_{i}",
-                        "page": "90",
-                        "chapter": "conclusion",
-                        "number": -10,
-                        "date": "1989-11-09T17:53:00Z",
-                    },
-                    embedding=[random.random() for _ in range(768)],  # noqa: S311
-                )
-            )
-            documents.append(
-                Document(
-                    content=f"Document {i} without embedding",
-                    meta={"name": f"name_{i}", "no_embedding": True, "chapter": "conclusion"},
-                )
-            )
-            documents.append(Document(dataframe=DataFrame([i]), meta={"name": f"table_doc_{i}"}))
-            documents.append(
-                Document(content=f"Doc {i} with zeros emb", meta={"name": "zeros_doc"}, embedding=TEST_EMBEDDING_1)
-            )
-            documents.append(
-                Document(content=f"Doc {i} with ones emb", meta={"name": "ones_doc"}, embedding=TEST_EMBEDDING_2)
-            )
+        documents = create_filterable_docs()
+        for i in range(len(documents)):
+            if date := documents[i].meta.get("date"):
+                documents[i].meta["date"] = f"{date}Z"
         return documents
 
     def assert_documents_are_equal(self, received: List[Document], expected: List[Document]):
@@ -238,7 +186,6 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
                     "properties": [
                         {"name": "_original_id", "dataType": ["text"]},
                         {"name": "content", "dataType": ["text"]},
-                        {"name": "dataframe", "dataType": ["text"]},
                         {"name": "blob_data", "dataType": ["blob"]},
                         {"name": "blob_mime_type", "dataType": ["text"]},
                         {"name": "score", "dataType": ["number"]},
@@ -320,7 +267,6 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
             "properties": [
                 {"name": "_original_id", "dataType": ["text"]},
                 {"name": "content", "dataType": ["text"]},
-                {"name": "dataframe", "dataType": ["text"]},
                 {"name": "blob_data", "dataType": ["blob"]},
                 {"name": "blob_mime_type", "dataType": ["text"]},
                 {"name": "score", "dataType": ["number"]},
@@ -348,7 +294,6 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
         assert data == {
             "_original_id": doc.id,
             "content": doc.content,
-            "dataframe": None,
             "score": None,
         }
 
@@ -365,10 +310,19 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
             "content": doc.content,
             "blob_data": base64.b64encode(image.data).decode(),
             "blob_mime_type": "image/jpeg",
-            "dataframe": None,
             "score": None,
             "key": "value",
         }
+
+    def test_to_data_object_skips_dataframe(self, document_store):
+        doc = Document(id="test_id", content="test content")
+        doc.dataframe = DataFrame([{"a": 1, "b": 2}, {"a": 3, "b": 4}])
+
+        data = document_store._to_data_object(doc)
+
+        assert data["_original_id"] == "test_id"
+        assert data["content"] == "test content"
+        assert "dataframe" not in data
 
     def test_to_document(self, document_store, test_files_path):
         image = ByteStream.from_file_path(test_files_path / "robot1.jpg", mime_type="image/jpeg")
@@ -378,7 +332,6 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
                 "content": "some content",
                 "blob_data": base64.b64encode(image.data).decode(),
                 "blob_mime_type": "image/jpeg",
-                "dataframe": None,
                 "score": None,
                 "key": "value",
             },
@@ -392,6 +345,20 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
         assert doc.embedding == [1, 2, 3]
         assert doc.score is None
         assert doc.meta == {"key": "value"}
+
+    def test_to_document_skips_dataframe(self, document_store):
+        data = DataObject(
+            properties={
+                "_original_id": "test_id",
+                "content": "test content",
+                "dataframe": {"a": [1, 2, 3]},
+            }
+        )
+
+        doc = document_store._to_document(data)
+        assert doc.id == "test_id"
+        assert doc.content == "test content"
+        assert not hasattr(doc, "dataframe") or doc.dataframe is None
 
     def test_write_documents(self, document_store):
         """
@@ -503,10 +470,6 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
                 and parser.isoparse(d.meta["date"]) <= parser.isoparse("1969-07-21T20:17:40Z")
             ],
         )
-
-    @pytest.mark.skip(reason="Weaviate for some reason is not returning what we expect")
-    def test_comparison_not_equal_with_dataframe(self, document_store, filterable_docs):
-        return super().test_comparison_not_equal_with_dataframe(document_store, filterable_docs)
 
     def test_meta_split_overlap_is_skipped(self, document_store):
         doc = Document(

@@ -208,11 +208,5 @@ class TestQdrantStoreBaseTests(FilterDocumentsTest):
 
     # ======== ========================== ========
 
-    @pytest.mark.skip(reason="Qdrant doesn't support comparision with dataframe")
-    def test_comparison_equal_with_dataframe(self, document_store, filterable_docs): ...
-
-    @pytest.mark.skip(reason="Qdrant doesn't support comparision with dataframe")
-    def test_comparison_not_equal_with_dataframe(self, document_store, filterable_docs): ...
-
     @pytest.mark.skip(reason="Cannot distinguish errors yet")
     def test_missing_top_level_operator_key(self, document_store, filterable_docs): ...

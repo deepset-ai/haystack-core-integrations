@@ -18,7 +18,7 @@ def test_init(monkeypatch):
         max_output_tokens=10,
         temperature=0.5,
         top_p=0.5,
-        top_k=0.5,
+        top_k=1,
     )
     safety_settings = {HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_ONLY_HIGH}
 
@@ -28,9 +28,9 @@ def test_init(monkeypatch):
             safety_settings=safety_settings,
         )
     mock_genai_configure.assert_called_once_with(api_key="test")
-    assert gemini._model_name == "gemini-1.5-flash"
-    assert gemini._generation_config == generation_config
-    assert gemini._safety_settings == safety_settings
+    assert gemini.model_name == "gemini-1.5-flash"
+    assert gemini.generation_config == generation_config
+    assert gemini.safety_settings == safety_settings
     assert isinstance(gemini._model, GenerativeModel)
 
 
@@ -105,7 +105,7 @@ def test_from_dict_with_param(monkeypatch):
                     "generation_config": {
                         "temperature": 0.5,
                         "top_p": 0.5,
-                        "top_k": 0.5,
+                        "top_k": 1,
                         "candidate_count": 1,
                         "max_output_tokens": 10,
                         "stop_sequences": ["stop"],
@@ -116,16 +116,16 @@ def test_from_dict_with_param(monkeypatch):
             }
         )
 
-    assert gemini._model_name == "gemini-1.5-flash"
-    assert gemini._generation_config == GenerationConfig(
+    assert gemini.model_name == "gemini-1.5-flash"
+    assert gemini.generation_config == GenerationConfig(
         candidate_count=1,
         stop_sequences=["stop"],
         max_output_tokens=10,
         temperature=0.5,
         top_p=0.5,
-        top_k=0.5,
+        top_k=1,
     )
-    assert gemini._safety_settings == {HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_ONLY_HIGH}
+    assert gemini.safety_settings == {HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_ONLY_HIGH}
     assert isinstance(gemini._model, GenerativeModel)
 
 
@@ -141,7 +141,7 @@ def test_from_dict(monkeypatch):
                     "generation_config": {
                         "temperature": 0.5,
                         "top_p": 0.5,
-                        "top_k": 0.5,
+                        "top_k": 1,
                         "candidate_count": 1,
                         "max_output_tokens": 10,
                         "stop_sequences": ["stop"],
@@ -152,22 +152,22 @@ def test_from_dict(monkeypatch):
             }
         )
 
-    assert gemini._model_name == "gemini-1.5-flash"
-    assert gemini._generation_config == GenerationConfig(
+    assert gemini.model_name == "gemini-1.5-flash"
+    assert gemini.generation_config == GenerationConfig(
         candidate_count=1,
         stop_sequences=["stop"],
         max_output_tokens=10,
         temperature=0.5,
         top_p=0.5,
-        top_k=0.5,
+        top_k=1,
     )
-    assert gemini._safety_settings == {HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_ONLY_HIGH}
+    assert gemini.safety_settings == {HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_ONLY_HIGH}
     assert isinstance(gemini._model, GenerativeModel)
 
 
 @pytest.mark.skipif(not os.environ.get("GOOGLE_API_KEY", None), reason="GOOGLE_API_KEY env var not set")
 def test_run():
-    gemini = GoogleAIGeminiGenerator(model="gemini-pro")
+    gemini = GoogleAIGeminiGenerator(model="gemini-1.5-pro")
     res = gemini.run("Tell me something cool")
     assert len(res["replies"]) > 0
 
@@ -180,7 +180,7 @@ def test_run_with_streaming_callback():
         nonlocal streaming_callback_called
         streaming_callback_called = True
 
-    gemini = GoogleAIGeminiGenerator(model="gemini-pro", streaming_callback=streaming_callback)
+    gemini = GoogleAIGeminiGenerator(model="gemini-1.5-pro", streaming_callback=streaming_callback)
     res = gemini.run("Tell me something cool")
     assert len(res["replies"]) > 0
     assert streaming_callback_called

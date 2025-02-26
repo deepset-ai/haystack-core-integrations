@@ -25,10 +25,6 @@ class TestFilters(FilterDocumentsTest):
         for received_doc, expected_doc in zip(received, expected):
             assert received_doc.meta == expected_doc.meta
             assert received_doc.content == expected_doc.content
-            if received_doc.dataframe is None:
-                assert expected_doc.dataframe is None
-            else:
-                assert received_doc.dataframe.equals(expected_doc.dataframe)
             # unfortunately, Pinecone returns a slightly different embedding
             if received_doc.embedding is None:
                 assert expected_doc.embedding is None
@@ -72,9 +68,6 @@ class TestFilters(FilterDocumentsTest):
     # see https://github.com/deepset-ai/haystack-core-integrations/issues/590
     @pytest.mark.skip(reason="Pinecone does not include null values in the result of the $ne operator")
     def test_comparison_not_equal(self, document_store, filterable_docs): ...
-
-    @pytest.mark.skip(reason="Pinecone does not include null values in the result of the $ne operator")
-    def test_comparison_not_equal_with_dataframe(self, document_store, filterable_docs): ...
 
     @pytest.mark.skip(
         reason="Pinecone has inconsistent behavior with respect to other Document Stores with the $or operator"

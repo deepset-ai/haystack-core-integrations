@@ -1,5 +1,53 @@
 # Changelog
 
+## [integrations/amazon_bedrock-v3.1.0] - 2025-02-26
+
+### 🚀 Features
+
+- Support thinking parameter for Claude 3.7 in AmazonBedrockGenerator (#1439)
+
+### 🧹 Chores
+
+- Remove Python 3.8 support (#1421)
+
+### 🌀 Miscellaneous
+
+- Docs: update changelog for integrations/amazon_bedrock (#1336)
+- Chore: remove `jsonschema` dependency from `default` environment (#1368)
+
+## [integrations/amazon_bedrock-v3.0.1] - 2025-01-30
+
+### 🐛 Bug Fixes
+
+- Chore: Bedrock - manually fix changelog (#1319)
+- Fix error when empty document list (#1325)
+
+
+## [integrations/amazon_bedrock-v3.0.0] - 2025-01-23
+
+### 🚀 Features
+
+- *(AWS Bedrock)* Add Cohere Reranker (#1291)
+- AmazonBedrockChatGenerator - add tools support (#1304)
+
+### 🚜 Refactor
+
+- [**breaking**] AmazonBedrockGenerator - remove truncation  (#1314)
+
+
+## [integrations/amazon_bedrock-v2.1.3] - 2025-01-21
+
+### 🧹 Chores
+
+- Bedrock - pin `transformers!=4.48.*` (#1306)
+
+
+## [integrations/amazon_bedrock-v2.1.2] - 2025-01-20
+
+### 🌀 Miscellaneous
+
+- Fix: Bedrock - pin `transformers!=4.48.0` (#1302)
+
 ## [integrations/amazon_bedrock-v2.1.1] - 2024-12-18
 
 ### 🐛 Bug Fixes

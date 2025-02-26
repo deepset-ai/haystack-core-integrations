@@ -72,12 +72,16 @@ class TestDocumentStore(DocumentStoreBaseTests):
         retrieved_docs = document_store.filter_documents()
         assert retrieved_docs == docs
 
-    def test_write_dataframe(self, document_store: MongoDBAtlasDocumentStore):
-        dataframe = DataFrame({"col1": [1, 2], "col2": [3, 4]})
-        docs = [Document(dataframe=dataframe)]
-        document_store.write_documents(docs)
+    def test_write_documents_dataframe_ignored(self, document_store: MongoDBAtlasDocumentStore):
+        doc = Document(id="test_id", content="test content")
+        doc.dataframe = DataFrame({"col1": [1, 2], "col2": [3, 4]})
+
+        document_store.write_documents([doc])
+
         retrieved_docs = document_store.filter_documents()
-        assert retrieved_docs == docs
+        assert retrieved_docs[0].id == "test_id"
+        assert retrieved_docs[0].content == "test content"
+        assert not hasattr(retrieved_docs[0], "dataframe") or retrieved_docs[0].dataframe is None
 
     def test_to_dict(self, document_store):
         serialized_store = document_store.to_dict()

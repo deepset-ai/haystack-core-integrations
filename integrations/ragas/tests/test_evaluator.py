@@ -1,350 +1,150 @@
-import copy
-import os
-from dataclasses import dataclass
-
 import pytest
-from datasets import Dataset
-from haystack import DeserializationError
-from ragas.evaluation import Result
-from ragas.metrics.base import Metric
-
-from haystack_integrations.components.evaluators.ragas import RagasEvaluator, RagasMetric
-
-DEFAULT_QUESTIONS = [
-    "Which is the most popular global sport?",
-    "Who created the Python language?",
-]
-DEFAULT_CONTEXTS = [
-    [
-        "The popularity of sports can be measured in various ways, including TV viewership, social media presence, number of participants, and economic impact.",
-        "Football is undoubtedly the world's most popular sport with major events like the FIFA World Cup and sports personalities like Ronaldo and Messi, drawing a followership of more than 4 billion people.",
-    ],
-    [
-        "Python, created by Guido van Rossum in the late 1980s, is a high-level general-purpose programming language. Its design philosophy emphasizes code readability, and its language constructs aim to help programmers write clear, logical code for both small and large-scale software projects."
-    ],
-]
-DEFAULT_RESPONSES = [
-    "Football is the most popular sport with around 4 billion followers worldwide",
-    "Python language was created by Guido van Rossum.",
-]
-DEFAULT_GROUND_TRUTHS = [
-    "Football (Soccer) is the most popular sport in the world with almost 4 billion fans around the world.",
-    "Guido van Rossum is the creator of the Python programming language.",
-]
+from unittest import mock
+from unittest.mock import MagicMock, patch
+from ragas.metrics import Metric, Faithfulness
+from ragas.llms import BaseRagasLLM
+from ragas.embeddings import BaseRagasEmbeddings
+from ragas.dataset_schema import EvaluationResult
+from haystack import Document
+from haystack_integrations.components.evaluators.ragas import RagasEvaluator
 
 
-@dataclass(frozen=True)
-class Unserializable:
-    something: str
+# Fixtures
+@pytest.fixture
+def mock_run():
+    """Fixture to mock the 'run' method of RagasEvaluator."""
+    with mock.patch.object(RagasEvaluator, 'run') as mock_method:
+        yield mock_method
 
 
-# Only returns results for the passed metrics.
-class MockBackend:
-    def __init__(self, metric: RagasMetric) -> None:
-        self.metric = metric
-
-    def evaluate(self, _, metric: Metric, **kwargs):
-        output_map = {
-            RagasMetric.ANSWER_CORRECTNESS: Result(scores=Dataset.from_list([{"answer_correctness": 0.5}])),
-            RagasMetric.FAITHFULNESS: Result(scores=Dataset.from_list([{"faithfulness": 1.0}])),
-            RagasMetric.ANSWER_SIMILARITY: Result(scores=Dataset.from_list([{"answer_similarity": 1.0}])),
-            RagasMetric.CONTEXT_PRECISION: Result(scores=Dataset.from_list([{"context_precision": 0.5}])),
-            RagasMetric.CONTEXT_UTILIZATION: Result(scores=Dataset.from_list([{"context_utilization": 1.0}])),
-            RagasMetric.CONTEXT_RECALL: Result(scores=Dataset.from_list([{"context_recall": 0.9}])),
-            RagasMetric.ASPECT_CRITIQUE: Result(scores=Dataset.from_list([{"harmfulness": 1.0}])),
-            RagasMetric.ANSWER_RELEVANCY: Result(scores=Dataset.from_list([{"answer_relevancy": 0.4}])),
-        }
-        assert isinstance(metric, Metric)
-        return output_map[self.metric]
-
-
-@pytest.mark.parametrize(
-    "metric, init_params",
-    [
-        (RagasMetric.ANSWER_CORRECTNESS, {"weights": [0.5, 0.5]}),
-        (RagasMetric.FAITHFULNESS, None),
-        (RagasMetric.ANSWER_SIMILARITY, {"threshold": 0.5}),
-        (RagasMetric.CONTEXT_PRECISION, None),
-        (RagasMetric.CONTEXT_UTILIZATION, None),
-        (RagasMetric.CONTEXT_RECALL, None),
-        (
-            RagasMetric.ASPECT_CRITIQUE,
-            {
-                "name": "harmfulness",
-                "definition": "Does the submission causes or has the potential to "
-                "cause harm to individuals, groups, or society at "
-                "large?",
-            },
-        ),
-        (RagasMetric.ANSWER_RELEVANCY, {"strictness": 2}),
-    ],
-)
-def test_evaluator_valid_metric_init_params(metric, init_params):
-    eval = RagasEvaluator(
-        metric,
-        metric_params=init_params,
+@pytest.fixture
+def ragas_evaluator():
+    """Fixture to create a valid RagasEvaluator instance."""
+    valid_metrics = [MagicMock(spec=Metric) for _ in range(3)]
+    valid_llm = MagicMock(spec=BaseRagasLLM)
+    valid_embedding = MagicMock(spec=BaseRagasEmbeddings)
+    return RagasEvaluator(
+        ragas_metrics=valid_metrics,
+        evaluator_llm=valid_llm,
+        evaluator_embedding=valid_embedding,
     )
-    assert eval.metric_params == init_params
-
-    msg = f"Invalid init parameters for Ragas metric '{metric}'. "
-    with pytest.raises(ValueError, match=msg):
-        RagasEvaluator(
-            metric,
-            metric_params={"invalid_param": "invalid_value"},
-        )
 
 
-@pytest.mark.parametrize(
-    "metric",
-    [
-        RagasMetric.ANSWER_CORRECTNESS,
-        RagasMetric.ANSWER_SIMILARITY,
-        RagasMetric.ASPECT_CRITIQUE,
-        RagasMetric.ANSWER_RELEVANCY,
-    ],
-)
-def test_evaluator_fails_with_no_metric_init_params(metric):
-    msg = f"Ragas metric '{metric}' expected init parameters but got none"
-    with pytest.raises(ValueError, match=msg):
-        RagasEvaluator(
-            metric,
-            metric_params=None,
-        )
+# Tests
+def test_successful_initialization(ragas_evaluator):
+    """Test RagasEvaluator initializes correctly with valid inputs."""
+    assert len(ragas_evaluator.metrics) == 3
+    assert isinstance(ragas_evaluator.llm, BaseRagasLLM)
+    assert isinstance(ragas_evaluator.embedding, BaseRagasEmbeddings)
 
 
-def test_evaluator_serde():
-    init_params = {
-        "metric": RagasMetric.ASPECT_CRITIQUE,
-        "metric_params": {
-            "name": "harmfulness",
-            "definition": "Does the submission causes or has the potential to "
-            "cause harm to individuals, groups, or society at "
-            "large?",
-        },
-    }
-    eval = RagasEvaluator(**init_params)
-    serde_data = eval.to_dict()
-    new_eval = RagasEvaluator.from_dict(serde_data)
+def test_invalid_metrics():
+    """Test RagasEvaluator raises TypeError for invalid metrics."""
+    invalid_metric = "not_a_metric"
 
-    assert eval.metric == new_eval.metric
-    assert eval.metric_params == new_eval.metric_params
+    with pytest.raises(TypeError, match="All items in ragas_metrics must be instances of Metric class."):
+        RagasEvaluator(ragas_metrics=[invalid_metric])
 
-    with pytest.raises(DeserializationError, match=r"cannot serialize the metric parameters"):
-        init_params3 = copy.deepcopy(init_params)
-        init_params3["metric_params"]["name"] = Unserializable("")
-        eval = RagasEvaluator(**init_params3)
-        eval.to_dict()
+
+def test_invalid_llm():
+    """Test RagasEvaluator raises TypeError for invalid evaluator_llm."""
+    valid_metric = MagicMock(spec=Metric)
+    invalid_llm = "not_a_llm"
+
+    with pytest.raises(TypeError, match="Expected evaluator_llm to be BaseRagasLLM"):
+        RagasEvaluator(ragas_metrics=[valid_metric], evaluator_llm=invalid_llm)
+
+
+def test_invalid_embedding():
+    """Test RagasEvaluator raises TypeError for invalid evaluator_embedding."""
+    valid_metric = MagicMock(spec=Metric)
+    invalid_embedding = "not_an_embedding"
+
+    with pytest.raises(TypeError, match="Expected evaluator_embedding to be BaseRagasEmbeddings"):
+        RagasEvaluator(ragas_metrics=[valid_metric], evaluator_embedding=invalid_embedding)
+
+
+def test_initializer_allows_optional_llm_and_embeddings():
+    """Test RagasEvaluator initializes correctly with None for optional parameters."""
+    valid_metric = MagicMock(spec=Metric)
+
+    evaluator = RagasEvaluator(
+        ragas_metrics=[valid_metric],
+        evaluator_llm=None,
+        evaluator_embedding=None,
+    )
+    assert evaluator.metrics == [valid_metric]
+    assert evaluator.llm is None
+    assert evaluator.embedding is None
 
 
 @pytest.mark.parametrize(
-    "current_metric, inputs, params",
+    "invalid_input,field_name,error_message",
     [
-        (
-            RagasMetric.ANSWER_CORRECTNESS,
-            {"questions": [], "responses": [], "ground_truths": []},
-            {"weights": [0.5, 0.5]},
-        ),
-        (RagasMetric.FAITHFULNESS, {"questions": [], "contexts": [], "responses": []}, None),
-        (RagasMetric.ANSWER_SIMILARITY, {"responses": [], "ground_truths": []}, {"threshold": 0.5}),
-        (RagasMetric.CONTEXT_PRECISION, {"questions": [], "contexts": [], "ground_truths": []}, None),
-        (RagasMetric.CONTEXT_UTILIZATION, {"questions": [], "contexts": [], "responses": []}, None),
-        (RagasMetric.CONTEXT_RECALL, {"questions": [], "contexts": [], "ground_truths": []}, None),
-        (
-            RagasMetric.ASPECT_CRITIQUE,
-            {"questions": [], "contexts": [], "responses": []},
-            {
-                "name": "harmfulness",
-                "definition": "Does the submission causes or has the potential to "
-                "cause harm to individuals, groups, or society at "
-                "large?",
-            },
-        ),
-        (RagasMetric.ANSWER_RELEVANCY, {"questions": [], "contexts": [], "responses": []}, {"strictness": 2}),
+        (["Invalid query type"], "query", "'query' field expected"),
+        ([123, ["Invalid document"]], "documents", "Unsupported type in documents list"),
+        (["score_1"], "rubrics", "'rubrics' field expected"),
     ],
 )
-def test_evaluator_valid_inputs(current_metric, inputs, params):
-    init_params = {
-        "metric": current_metric,
-        "metric_params": params,
-    }
-    eval = RagasEvaluator(**init_params)
-    eval._backend_callable = lambda dataset, metric: MockBackend(current_metric).evaluate(dataset, metric)
-    output = eval.run(**inputs)
+def test_run_invalid_inputs(invalid_input, field_name, error_message):
+    """Test RagasEvaluator raises ValueError for invalid input types."""
+    evaluator = RagasEvaluator(ragas_metrics=[Faithfulness()])
+    query = "Which is the most popular global sport?"
+    documents = ["Football is the most popular sport."]
+    response = "Football is the most popular sport in the world"
+
+    with pytest.raises(ValueError) as exc_info:
+        if field_name == "query":
+            evaluator.run(query=invalid_input, documents=documents, response=response)
+        elif field_name == "documents":
+            evaluator.run(query=query, documents=invalid_input, response=response)
+        elif field_name == "rubrics":
+            evaluator.run(query=query, rubrics=invalid_input, documents=documents, response=response)
+
+    assert error_message in str(exc_info.value)
 
 
-@pytest.mark.parametrize(
-    "current_metric, inputs, error_string, params",
-    [
-        (
-            RagasMetric.FAITHFULNESS,
-            {"questions": [1], "contexts": [2], "responses": [3]},
-            "expects inputs to be of type 'str'",
-            None,
-        ),
-        (
-            RagasMetric.ANSWER_RELEVANCY,
-            {"questions": [""], "responses": [], "contexts": []},
-            "Mismatching counts ",
-            {"strictness": 2},
-        ),
-        (RagasMetric.ANSWER_RELEVANCY, {"responses": []}, "expected input parameter ", {"strictness": 2}),
-    ],
-)
-def test_evaluator_invalid_inputs(current_metric, inputs, error_string, params):
-    with pytest.raises(ValueError, match=error_string):
-        init_params = {
-            "metric": current_metric,
-            "metric_params": params,
-        }
-        eval = RagasEvaluator(**init_params)
-        eval._backend_callable = lambda dataset, metric: MockBackend(current_metric).evaluate(dataset, metric)
-        output = eval.run(**inputs)
+def test_missing_columns_in_dataset():
+    """Test if RagasEvaluator raises a ValueError when required columns are missing for a specific metric."""
+    evaluator = RagasEvaluator(ragas_metrics=[Faithfulness()])
+    query = "Which is the most popular global sport?"
+    reference = "Football is the most popular sport with around 4 billion followers worldwide"
+    response = "Football is the most popular sport in the world"
+
+    with pytest.raises(ValueError) as exc_info:
+        evaluator.run(query=query, reference=reference, response=response)
+
+    assert "faithfulness" in str(exc_info.value)
+    assert "documents" in str(exc_info.value)
 
 
-# This test validates the expected outputs of the evaluator.
-# Each output is parameterized as a list of tuples, where each tuple is (name, score).
-@pytest.mark.parametrize(
-    "current_metric, inputs, expected_outputs, metric_params",
-    [
-        (
-            RagasMetric.ANSWER_CORRECTNESS,
-            {"questions": ["q1"], "responses": ["r1"], "ground_truths": ["gt1"]},
-            [[(None, 0.5)]],
-            {"weights": [0.5, 0.5]},
-        ),
-        (
-            RagasMetric.FAITHFULNESS,
-            {"questions": ["q2"], "contexts": [["c2"]], "responses": ["r2"]},
-            [[(None, 1.0)]],
-            None,
-        ),
-        (
-            RagasMetric.ANSWER_SIMILARITY,
-            {"responses": ["r3"], "ground_truths": ["gt3"]},
-            [[(None, 1.0)]],
-            {"threshold": 0.5},
-        ),
-        (
-            RagasMetric.CONTEXT_PRECISION,
-            {"questions": ["q4"], "contexts": [["c4"]], "ground_truths": ["gt44"]},
-            [[(None, 0.5)]],
-            None,
-        ),
-        (
-            RagasMetric.CONTEXT_UTILIZATION,
-            {"questions": ["q5"], "contexts": [["c5"]], "responses": ["r5"]},
-            [[(None, 1.0)]],
-            None,
-        ),
-        (
-            RagasMetric.CONTEXT_RECALL,
-            {"questions": ["q6"], "contexts": [["c6"]], "ground_truths": ["gt6"]},
-            [[(None, 0.9)]],
-            None,
-        ),
-        (
-            RagasMetric.ASPECT_CRITIQUE,
-            {"questions": ["q7"], "contexts": [["c7"]], "responses": ["r7"]},
-            [[("harmfulness", 1.0)]],
-            {
-                "name": "harmfulness",
-                "definition": "Does the submission causes or has the potential to "
-                "cause harm to individuals, groups, or society at "
-                "large?",
-            },
-        ),
-        (
-            RagasMetric.ANSWER_RELEVANCY,
-            {"questions": ["q9"], "contexts": [["c9"]], "responses": ["r9"]},
-            [[(None, 0.4)]],
-            {"strictness": 2},
-        ),
-    ],
-)
-def test_evaluator_outputs(current_metric, inputs, expected_outputs, metric_params):
-    init_params = {
-        "metric": current_metric,
-        "metric_params": metric_params,
-    }
-    eval = RagasEvaluator(**init_params)
-    eval._backend_callable = lambda dataset, metric: MockBackend(current_metric).evaluate(dataset, metric)
-    results = eval.run(**inputs)["results"]
+def test_run_valid_input(mock_run):
+    """Test RagasEvaluator runs successfully with valid input."""
+    mock_run.return_value = {"result": {"score": MagicMock(), "details": MagicMock(spec=EvaluationResult)}}
+    evaluator = RagasEvaluator(ragas_metrics=[MagicMock(Metric)])
 
-    assert type(results) == type(expected_outputs)
-    assert len(results) == len(expected_outputs)
+    query = "Which is the most popular global sport?"
+    response = "Football is the most popular sport in the world"
+    documents = [
+        Document(content="Football is the world's most popular sport."),
+        Document(content="Football has over 4 billion followers."),
+    ]
+    reference_contexts = ["Football is a globally popular sport."]
+    multi_responses = ["Football is considered the most popular sport."]
+    reference = "Football is the most popular sport with around 4 billion followers worldwide"
+    rubrics = {"accuracy": "high", "relevance": "high"}
 
-    for r, o in zip(results, expected_outputs):
-        assert len(r) == len(o)
+    output = evaluator.run(
+        query=query,
+        response=response,
+        documents=documents,
+        reference_contexts=reference_contexts,
+        multi_responses=multi_responses,
+        reference=reference,
+        rubrics=rubrics,
+    )
 
-        expected = {(name if name is not None else str(current_metric), score) for name, score in o}
-        got = {(x["name"], x["score"]) for x in r}
-        assert got == expected
-
-
-# This integration test validates the evaluator by running it against the
-# OpenAI API. It is parameterized by the metric, the inputs to the evaluator
-# and the metric parameters.
-@pytest.mark.asyncio
-@pytest.mark.skipif("OPENAI_API_KEY" not in os.environ, reason="OPENAI_API_KEY not set")
-@pytest.mark.parametrize(
-    "metric, inputs, metric_params",
-    [
-        (
-            RagasMetric.ANSWER_CORRECTNESS,
-            {"questions": DEFAULT_QUESTIONS, "responses": DEFAULT_RESPONSES, "ground_truths": DEFAULT_GROUND_TRUTHS},
-            {"weights": [0.5, 0.5]},
-        ),
-        (
-            RagasMetric.FAITHFULNESS,
-            {"questions": DEFAULT_QUESTIONS, "contexts": DEFAULT_CONTEXTS, "responses": DEFAULT_RESPONSES},
-            None,
-        ),
-        (
-            RagasMetric.ANSWER_SIMILARITY,
-            {"responses": DEFAULT_QUESTIONS, "ground_truths": DEFAULT_GROUND_TRUTHS},
-            {"threshold": 0.5},
-        ),
-        (
-            RagasMetric.CONTEXT_PRECISION,
-            {"questions": DEFAULT_QUESTIONS, "contexts": DEFAULT_CONTEXTS, "ground_truths": DEFAULT_GROUND_TRUTHS},
-            None,
-        ),
-        (
-            RagasMetric.CONTEXT_UTILIZATION,
-            {"questions": DEFAULT_QUESTIONS, "contexts": DEFAULT_CONTEXTS, "responses": DEFAULT_RESPONSES},
-            None,
-        ),
-        (
-            RagasMetric.CONTEXT_RECALL,
-            {"questions": DEFAULT_QUESTIONS, "contexts": DEFAULT_CONTEXTS, "ground_truths": DEFAULT_GROUND_TRUTHS},
-            None,
-        ),
-        (
-            RagasMetric.ASPECT_CRITIQUE,
-            {"questions": DEFAULT_QUESTIONS, "contexts": DEFAULT_CONTEXTS, "responses": DEFAULT_RESPONSES},
-            {
-                "name": "harmfulness",
-                "definition": "Does the submission causes or has the potential to "
-                "cause harm to individuals, groups, or society at "
-                "large?",
-            },
-        ),
-        (
-            RagasMetric.ANSWER_RELEVANCY,
-            {"questions": DEFAULT_QUESTIONS, "contexts": DEFAULT_CONTEXTS, "responses": DEFAULT_RESPONSES},
-            {"strictness": 2},
-        ),
-    ],
-)
-def test_integration_run(metric, inputs, metric_params):
-    init_params = {
-        "metric": metric,
-        "metric_params": metric_params,
-    }
-    eval = RagasEvaluator(**init_params)
-    output = eval.run(**inputs)
-
-    assert isinstance(output, dict)
-    assert len(output) == 1
-    assert "results" in output
-    assert len(output["results"]) == len(next(iter(inputs.values())))
+    assert "result" in output
+    assert isinstance(output["result"], dict)
+    assert "score" in output["result"]
+    assert isinstance(output["result"]["details"], EvaluationResult)

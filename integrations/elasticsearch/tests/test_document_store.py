@@ -12,6 +12,7 @@ from haystack.dataclasses.document import Document
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
 from haystack.testing.document_store import DocumentStoreBaseTests
+from pandas import DataFrame
 
 from haystack_integrations.document_stores.elasticsearch import ElasticsearchDocumentStore
 
@@ -129,6 +130,31 @@ class TestDocumentStore(DocumentStoreBaseTests):
         assert document_store.write_documents(docs) == 1
         with pytest.raises(DuplicateDocumentError):
             document_store.write_documents(docs, DuplicatePolicy.FAIL)
+
+    def test_write_documents_dataframe_ignored(self, document_store: ElasticsearchDocumentStore):
+        doc = Document(id="1", content="test")
+        doc.dataframe = DataFrame({"a": [1, 2, 3]})
+
+        document_store.write_documents([doc])
+
+        res = document_store.filter_documents()
+        assert len(res) == 1
+
+        assert res[0].id == "1"
+        assert res[0].content == "test"
+
+        assert not hasattr(res[0], "dataframe") or res[0].dataframe is None
+
+    def test_deserialize_document_dataframe_ignored(self, document_store: ElasticsearchDocumentStore):
+        hit = {
+            "_source": {"id": "1", "content": "test", "dataframe": {"a": [1, 2, 3]}},
+            "_score": 1.0,
+        }
+        doc = document_store._deserialize_document(hit)
+        assert doc.id == "1"
+        assert doc.content == "test"
+        assert doc.score == 1.0
+        assert not hasattr(doc, "dataframe") or doc.dataframe is None
 
     def test_bm25_retrieval(self, document_store: ElasticsearchDocumentStore):
         document_store.write_documents(

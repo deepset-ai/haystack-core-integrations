@@ -3,7 +3,6 @@
 # SPDX-License-Identifier: Apache-2.0
 import logging
 import os
-from dataclasses import asdict
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
@@ -246,15 +245,6 @@ class AzureAISearchDocumentStore:
         :return: the number of documents added to index.
         """
 
-        def _convert_input_document(documents: Document):
-            document_dict = asdict(documents)
-            if not isinstance(document_dict["id"], str):
-                msg = f"Document id {document_dict['id']} is not a string, "
-                raise TypeError(msg)
-            index_document = self._convert_haystack_documents_to_azure(document_dict)
-
-            return index_document
-
         if len(documents) > 0:
             if not isinstance(documents[0], Document):
                 msg = "param 'documents' must contain a list of objects of type Document"
@@ -266,7 +256,7 @@ class AzureAISearchDocumentStore:
                 f"but got {policy}. Overwriting duplicates is enabled by default."
             )
         client = self.client
-        documents_to_write = [(_convert_input_document(doc)) for doc in documents]
+        documents_to_write = [self._convert_haystack_document_to_azure(doc) for doc in documents]
 
         if documents_to_write != []:
             client.upload_documents(documents_to_write)
@@ -370,11 +360,23 @@ class AzureAISearchDocumentStore:
                 logger.warning(f"Document with ID {doc_id} not found.")
         return azure_documents
 
-    def _convert_haystack_documents_to_azure(self, document: Dict[str, Any]) -> Dict[str, Any]:
-        """Map the document keys to fields of search index"""
+    def _convert_haystack_document_to_azure(self, document: Document) -> Dict[str, Any]:
+        """Convert a Haystack Document to an Azure Search document"""
+
+        doc_dict = document.to_dict(flatten=False)
+
+        if "dataframe" in doc_dict:
+            dataframe = doc_dict.pop("dataframe")
+            if dataframe:
+                logger.warning(
+                    "Document %s has the `dataframe` field set. "
+                    "AzureAISearchDocumentStore does not support dataframes and this field will be ignored. "
+                    "The `dataframe` field will soon be removed from Haystack Document.",
+                    doc_dict["id"],
+                )
 
         # Because Azure Search does not allow dynamic fields, we only include fields that are part of the schema
-        index_document = {k: v for k, v in {**document, **document.get("meta", {})}.items() if k in self._index_fields}
+        index_document = {k: v for k, v in {**doc_dict, **doc_dict.get("meta", {})}.items() if k in self._index_fields}
         if index_document["embedding"] is None:
             index_document["embedding"] = self._dummy_vector
 
@@ -477,7 +479,7 @@ class AzureAISearchDocumentStore:
             msg = "query must not be None"
             raise ValueError(msg)
 
-        result = self.client.search(search_text=query, filter=filters, top=top_k, query_type="simple", **kwargs)
+        result = self.client.search(search_text=query, filter=filters, top=top_k, **kwargs)
         azure_docs = list(result)
         return self._convert_search_result_to_documents(azure_docs)
 
@@ -520,7 +522,6 @@ class AzureAISearchDocumentStore:
             vector_queries=[vector_query],
             filter=filters,
             top=top_k,
-            query_type="simple",
             **kwargs,
         )
         azure_docs = list(result)

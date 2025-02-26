@@ -1,5 +1,19 @@
 # Changelog
 
+## [integrations/llama_cpp-v1.0.0] - 2025-02-07
+
+### 🚀 Features
+
+- [**breaking**] Llama.cpp - unified support for tools + refactoring (#1357)
+
+
+## [integrations/llama_cpp-v0.4.4] - 2025-01-16
+
+### 🧹 Chores
+
+- Llama.cpp - gently handle the removal of ChatMessage.from_function (#1298)
+
+
 ## [integrations/llama_cpp-v0.4.3] - 2024-12-19
 
 ### 🐛 Bug Fixes

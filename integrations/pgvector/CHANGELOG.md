@@ -1,5 +1,29 @@
 # Changelog
 
+## [integrations/pgvector-v2.0.0] - 2025-02-13
+
+### 🧹 Chores
+
+- Pgvector - remove support for dataframe (#1370)
+
+## [integrations/pgvector-v1.3.0] - 2025-02-03
+
+### 🚀 Features
+
+- Pgvector - add like and not like filters (#1341)
+
+### 🧹 Chores
+
+- Inherit from `FilterDocumentsTestWithDataframe` in Document Stores (#1290)
+
+
+## [integrations/pgvector-v1.2.1] - 2025-01-10
+
+### 🐛 Bug Fixes
+
+- PgvectorDocumentStore - use appropriate schema name if dropping index (#1277)
+
+
 ## [integrations/pgvector-v1.2.0] - 2024-11-22
 
 ### 🚀 Features

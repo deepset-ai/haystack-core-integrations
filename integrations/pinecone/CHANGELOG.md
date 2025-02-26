@@ -1,5 +1,22 @@
 # Changelog
 
+## [integrations/pinecone-v3.0.0] - 2025-02-14
+
+### ⚙️ CI
+
+- Adopt uv as installer (#1142)
+
+### 🧹 Chores
+
+- Update changelog after removing legacy filters (#1083)
+- Update ruff linting scripts and settings (#1105)
+- Inherit from `FilterDocumentsTestWithDataframe` in Document Stores (#1290)
+
+### 🌀 Miscellaneous
+
+- Test: Pinecone - increase sleep time (#1307)
+- [**breaking**] Pinecone - remove dataframe support (#1372)
+
 ## [integrations/pinecone-v2.0.0] - 2024-09-12
 
 ### ⚙️ Miscellaneous Tasks
@@ -46,7 +63,6 @@
 
 - Fix order of API docs (#447)
 
-This PR will also push the docs to Readme
 - Correctly deserialize Pinecone docstore in embedding retriever (#636)
 
 ### 📚 Documentation

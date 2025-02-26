@@ -1,5 +1,24 @@
 # Changelog
 
+## [integrations/nvidia-v0.1.6] - 2025-02-11
+
+### 🚀 Features
+
+- Add nvidia latest embedding models (#1364)
+
+## [integrations/nvidia-v0.1.5] - 2025-02-04
+
+### 🌀 Miscellaneous
+
+- Client Reject Incompatible models (#1056)
+- Base url validation fix and cleanup (#1349)
+
+## [integrations/nvidia-v0.1.4] - 2025-01-08
+
+### 🌀 Miscellaneous
+
+- Feat: add nv-rerank-qa-mistral-4b:1 reranker (#1278)
+
 ## [integrations/nvidia-v0.1.3] - 2025-01-02
 
 ### 🚀 Features

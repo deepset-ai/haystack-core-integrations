@@ -5,13 +5,13 @@
 from unittest.mock import patch
 
 import numpy as np
+import psycopg
 import pytest
 from haystack.dataclasses.document import ByteStream, Document
 from haystack.document_stores.errors import DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
 from haystack.testing.document_store import CountDocumentsTest, DeleteDocumentsTest, WriteDocumentsTest
 from haystack.utils import Secret
-from pandas import DataFrame
 
 from haystack_integrations.document_stores.pgvector import PgvectorDocumentStore
 
@@ -27,15 +27,6 @@ class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsT
     def test_write_blob(self, document_store: PgvectorDocumentStore):
         bytestream = ByteStream(b"test", meta={"meta_key": "meta_value"}, mime_type="mime_type")
         docs = [Document(id="1", blob=bytestream)]
-        document_store.write_documents(docs)
-
-        retrieved_docs = document_store.filter_documents()
-        assert retrieved_docs == docs
-
-    def test_write_dataframe(self, document_store: PgvectorDocumentStore):
-        dataframe = DataFrame({"col1": [1, 2], "col2": [3, 4]})
-        docs = [Document(id="1", dataframe=dataframe)]
-
         document_store.write_documents(docs)
 
         retrieved_docs = document_store.filter_documents()
@@ -144,7 +135,7 @@ def test_from_haystack_to_pg_documents():
         ),
         Document(
             id="2",
-            dataframe=DataFrame({"col1": [1, 2], "col2": [3, 4]}),
+            content="This is another text",
             meta={"meta_key": "meta_value"},
             embedding=[0.4, 0.5, 0.6],
             score=0.6,
@@ -168,30 +159,30 @@ def test_from_haystack_to_pg_documents():
 
     assert pg_docs[0]["id"] == "1"
     assert pg_docs[0]["content"] == "This is a text"
-    assert pg_docs[0]["dataframe"] is None
     assert pg_docs[0]["blob_data"] is None
     assert pg_docs[0]["blob_meta"] is None
     assert pg_docs[0]["blob_mime_type"] is None
+    assert "dataframe" not in pg_docs[0]
     assert pg_docs[0]["meta"].obj == {"meta_key": "meta_value"}
     assert pg_docs[0]["embedding"] == [0.1, 0.2, 0.3]
     assert "score" not in pg_docs[0]
 
     assert pg_docs[1]["id"] == "2"
-    assert pg_docs[1]["content"] is None
-    assert pg_docs[1]["dataframe"].obj == DataFrame({"col1": [1, 2], "col2": [3, 4]}).to_json()
+    assert pg_docs[1]["content"] == "This is another text"
     assert pg_docs[1]["blob_data"] is None
     assert pg_docs[1]["blob_meta"] is None
     assert pg_docs[1]["blob_mime_type"] is None
+    assert "dataframe" not in pg_docs[1]
     assert pg_docs[1]["meta"].obj == {"meta_key": "meta_value"}
     assert pg_docs[1]["embedding"] == [0.4, 0.5, 0.6]
     assert "score" not in pg_docs[1]
 
     assert pg_docs[2]["id"] == "3"
     assert pg_docs[2]["content"] is None
-    assert pg_docs[2]["dataframe"] is None
     assert pg_docs[2]["blob_data"] == b"test"
     assert pg_docs[2]["blob_meta"].obj == {"blob_meta_key": "blob_meta_value"}
     assert pg_docs[2]["blob_mime_type"] == "mime_type"
+    assert "dataframe" not in pg_docs[2]
     assert pg_docs[2]["meta"].obj == {"meta_key": "meta_value"}
     assert pg_docs[2]["embedding"] == [0.7, 0.8, 0.9]
     assert "score" not in pg_docs[2]
@@ -202,7 +193,6 @@ def test_from_pg_to_haystack_documents():
         {
             "id": "1",
             "content": "This is a text",
-            "dataframe": None,
             "blob_data": None,
             "blob_meta": None,
             "blob_mime_type": None,
@@ -211,8 +201,7 @@ def test_from_pg_to_haystack_documents():
         },
         {
             "id": "2",
-            "content": None,
-            "dataframe": DataFrame({"col1": [1, 2], "col2": [3, 4]}).to_json(),
+            "content": "This is another text",
             "blob_data": None,
             "blob_meta": None,
             "blob_mime_type": None,
@@ -222,7 +211,6 @@ def test_from_pg_to_haystack_documents():
         {
             "id": "3",
             "content": None,
-            "dataframe": None,
             "blob_data": b"test",
             "blob_meta": {"blob_meta_key": "blob_meta_value"},
             "blob_mime_type": "mime_type",
@@ -236,15 +224,13 @@ def test_from_pg_to_haystack_documents():
 
     assert haystack_docs[0].id == "1"
     assert haystack_docs[0].content == "This is a text"
-    assert haystack_docs[0].dataframe is None
     assert haystack_docs[0].blob is None
     assert haystack_docs[0].meta == {"meta_key": "meta_value"}
     assert haystack_docs[0].embedding == [0.1, 0.2, 0.3]
     assert haystack_docs[0].score is None
 
     assert haystack_docs[1].id == "2"
-    assert haystack_docs[1].content is None
-    assert haystack_docs[1].dataframe.equals(DataFrame({"col1": [1, 2], "col2": [3, 4]}))
+    assert haystack_docs[1].content == "This is another text"
     assert haystack_docs[1].blob is None
     assert haystack_docs[1].meta == {"meta_key": "meta_value"}
     assert haystack_docs[1].embedding == [0.4, 0.5, 0.6]
@@ -252,10 +238,53 @@ def test_from_pg_to_haystack_documents():
 
     assert haystack_docs[2].id == "3"
     assert haystack_docs[2].content is None
-    assert haystack_docs[2].dataframe is None
     assert haystack_docs[2].blob.data == b"test"
     assert haystack_docs[2].blob.meta == {"blob_meta_key": "blob_meta_value"}
     assert haystack_docs[2].blob.mime_type == "mime_type"
     assert haystack_docs[2].meta == {"meta_key": "meta_value"}
     assert haystack_docs[2].embedding == [0.7, 0.8, 0.9]
     assert haystack_docs[2].score is None
+
+
+@pytest.mark.integration
+def test_hnsw_index_recreation():
+    def get_index_oid(document_store, schema_name, index_name):
+        sql_get_index_oid = """
+            SELECT c.oid
+            FROM pg_class c
+            JOIN pg_namespace n ON n.oid = c.relnamespace
+            WHERE c.relkind = 'i'
+            AND n.nspname = %s
+            AND c.relname = %s;
+        """
+        return document_store.cursor.execute(sql_get_index_oid, (schema_name, index_name)).fetchone()[0]
+
+    # create a new schema
+    connection_string = "postgresql://postgres:postgres@localhost:5432/postgres"
+    schema_name = "test_schema"
+    with psycopg.connect(connection_string, autocommit=True) as conn:
+        conn.execute(f"CREATE SCHEMA IF NOT EXISTS {schema_name}")
+
+    # create a first document store and trigger the creation of the hnsw index
+    params = {
+        "connection_string": Secret.from_token(connection_string),
+        "schema_name": schema_name,
+        "table_name": "haystack_test_hnsw_index_recreation",
+        "search_strategy": "hnsw",
+    }
+    ds1 = PgvectorDocumentStore(**params)
+    ds1._initialize_table()
+
+    # get the hnsw index oid
+    hnws_index_name = "haystack_hnsw_index"
+    first_oid = get_index_oid(ds1, ds1.schema_name, hnws_index_name)
+
+    # create second document store with recreation enabled
+    ds2 = PgvectorDocumentStore(**params, hnsw_recreate_index_if_exists=True)
+    ds2._initialize_table()
+
+    # get the index oid
+    second_oid = get_index_oid(ds2, ds2.schema_name, hnws_index_name)
+
+    # verify that oids differ
+    assert second_oid != first_oid, "Index was not recreated (OID remained the same)"

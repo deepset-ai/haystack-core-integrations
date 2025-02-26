@@ -1,5 +1,21 @@
 # Changelog
 
+## [integrations/chroma-v2.0.1] - 2025-02-14
+
+### 🌀 Miscellaneous
+
+- Better handle discarded fields (#1373)
+
+## [integrations/chroma-v1.0.1] - 2025-02-14
+
+### 🧹 Chores
+
+- Inherit from `FilterDocumentsTestWithDataframe` in Document Stores (#1290)
+
+### 🌀 Miscellaneous
+
+- Fix: Chroma - make `filter_documents` method return embeddings (#1361)
+
 ## [integrations/chroma-v2.0.0] - 2025-01-02
 
 ### 🧹 Chores

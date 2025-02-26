@@ -98,10 +98,20 @@ class BedrockModelAdapter(ABC):
 class AnthropicClaudeAdapter(BedrockModelAdapter):
     """
     Adapter for the Anthropic Claude models.
+
+    :param model_kwargs: model configuration:
+        - use_messages_api: Whether to use the messages API, default: True
+        - include_thinking: Whether to include thinking output, default: True
+        - thinking_tag: XML tag for thinking content, default: "thinking"
+    :param max_length: Maximum length of generated text
     """
 
     def __init__(self, model_kwargs: Dict[str, Any], max_length: Optional[int]) -> None:
         self.use_messages_api = model_kwargs.get("use_messages_api", True)
+        self.include_thinking = model_kwargs.get("include_thinking", True)
+        self.thinking_tag = model_kwargs.get("thinking_tag", "thinking")
+        self.thinking_tag_start = f"<{self.thinking_tag}>" if self.thinking_tag else ""
+        self.thinking_tag_end = f"</{self.thinking_tag}>\n\n" if self.thinking_tag else "\n\n"
         super().__init__(model_kwargs, max_length)
 
     def prepare_body(self, prompt: str, **inference_kwargs) -> Dict[str, Any]:
@@ -123,6 +133,7 @@ class AnthropicClaudeAdapter(BedrockModelAdapter):
                 "temperature": None,
                 "top_p": None,
                 "top_k": None,
+                "thinking": None,
             }
             params = self._get_params(inference_kwargs, default_params)
 
@@ -148,7 +159,16 @@ class AnthropicClaudeAdapter(BedrockModelAdapter):
         :returns: A list of string responses.
         """
         if self.use_messages_api:
-            return [content["text"] for content in response_body["content"]]
+            texts = [content["text"] for content in response_body["content"] if content.get("type", "text") == "text"]
+            thinking = [
+                content["thinking"] for content in response_body["content"] if content.get("type", "text") == "thinking"
+            ]
+            if self.include_thinking and len(thinking) == len(texts):
+                texts = [
+                    f"{self.thinking_tag_start}{thinking}{self.thinking_tag_end}{text}"
+                    for text, thinking in zip(texts, thinking)
+                ]
+            return texts
 
         return [response_body["completion"]]
 
@@ -160,7 +180,19 @@ class AnthropicClaudeAdapter(BedrockModelAdapter):
         :returns: A StreamingChunk object.
         """
         if self.use_messages_api:
-            return StreamingChunk(content=chunk.get("delta", {}).get("text", ""), meta=chunk)
+            delta = chunk.get("delta", {})
+            text = delta.get("text", "")
+            if self.include_thinking:
+                thinking = delta.get("thinking", "")
+                text = text or thinking
+                if chunk.get("type") == "content_block_start":
+                    content_block_type = chunk.get("content_block", {}).get("type")
+                    if content_block_type == "thinking":
+                        return StreamingChunk(content=self.thinking_tag_start, meta=chunk)
+                    if content_block_type == "text":
+                        return StreamingChunk(content=self.thinking_tag_end, meta=chunk)
+
+            return StreamingChunk(content=text, meta=chunk)
 
         return StreamingChunk(content=chunk.get("completion", ""), meta=chunk)
 

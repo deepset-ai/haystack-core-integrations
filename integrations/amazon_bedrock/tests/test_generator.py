@@ -1,5 +1,5 @@
 from typing import Any, Dict, Optional, Type
-from unittest.mock import MagicMock, call, patch
+from unittest.mock import MagicMock, call
 
 import pytest
 from haystack.dataclasses import StreamingChunk
@@ -107,9 +107,6 @@ def test_default_constructor(mock_boto3_session, set_env_variables):
     assert layer.max_length == 99
     assert layer.model == "anthropic.claude-v2"
 
-    assert layer.prompt_handler is not None
-    assert layer.prompt_handler.model_max_length == 4096
-
     # assert mocked boto3 client called exactly once
     mock_boto3_session.assert_called_once()
 
@@ -121,23 +118,6 @@ def test_default_constructor(mock_boto3_session, set_env_variables):
         profile_name="some_fake_profile",
         region_name="fake_region",
     )
-
-
-def test_constructor_prompt_handler_initialized(mock_boto3_session, mock_prompt_handler):
-    """
-    Test that the constructor sets the prompt_handler correctly, with the correct model_max_length for llama-2
-    """
-    layer = AmazonBedrockGenerator(model="anthropic.claude-v2", prompt_handler=mock_prompt_handler)
-    assert layer.prompt_handler is not None
-    assert layer.prompt_handler.model_max_length == 4096
-
-
-def test_prompt_handler_absent_when_truncate_false(mock_boto3_session):
-    """
-    Test that the prompt_handler is not initialized when truncate is set to False.
-    """
-    generator = AmazonBedrockGenerator(model="anthropic.claude-v2", truncate=False)
-    assert not hasattr(generator, "prompt_handler")
 
 
 def test_constructor_with_model_kwargs(mock_boto3_session):
@@ -157,110 +137,6 @@ def test_constructor_with_empty_model():
     """
     with pytest.raises(ValueError, match="cannot be None or empty string"):
         AmazonBedrockGenerator(model="")
-
-
-def test_short_prompt_is_not_truncated(mock_boto3_session):
-    """
-    Test that a short prompt is not truncated
-    """
-    # Define a short mock prompt and its tokenized version
-    mock_prompt_text = "I am a tokenized prompt"
-    mock_prompt_tokens = mock_prompt_text.split()
-
-    # Mock the tokenizer so it returns our predefined tokens
-    mock_tokenizer = MagicMock()
-    mock_tokenizer.tokenize.return_value = mock_prompt_tokens
-
-    # We set a small max_length for generated text (3 tokens) and a total model_max_length of 10 tokens
-    # Since our mock prompt is 5 tokens long, it doesn't exceed the
-    # total limit (5 prompt tokens + 3 generated tokens < 10 tokens)
-    max_length_generated_text = 3
-    total_model_max_length = 10
-
-    with patch("transformers.AutoTokenizer.from_pretrained", return_value=mock_tokenizer):
-        layer = AmazonBedrockGenerator(
-            "anthropic.claude-v2",
-            max_length=max_length_generated_text,
-            model_max_length=total_model_max_length,
-        )
-        prompt_after_resize = layer._ensure_token_limit(mock_prompt_text)
-
-    # The prompt doesn't exceed the limit, _ensure_token_limit doesn't truncate it
-    assert prompt_after_resize == mock_prompt_text
-
-
-def test_long_prompt_is_truncated(mock_boto3_session):
-    """
-    Test that a long prompt is truncated
-    """
-    # Define a long mock prompt and its tokenized version
-    long_prompt_text = "I am a tokenized prompt of length eight"
-    long_prompt_tokens = long_prompt_text.split()
-
-    # _ensure_token_limit will truncate the prompt to make it fit into the model's max token limit
-    truncated_prompt_text = "I am a tokenized prompt of length"
-
-    # Mock the tokenizer to return our predefined tokens
-    # convert tokens to our predefined truncated text
-    mock_tokenizer = MagicMock()
-    mock_tokenizer.tokenize.return_value = long_prompt_tokens
-    mock_tokenizer.convert_tokens_to_string.return_value = truncated_prompt_text
-
-    # We set a small max_length for generated text (3 tokens) and a total model_max_length of 10 tokens
-    # Our mock prompt is 8 tokens long, so it exceeds the total limit (8 prompt tokens + 3 generated tokens > 10 tokens)
-    max_length_generated_text = 3
-    total_model_max_length = 10
-
-    with patch("transformers.AutoTokenizer.from_pretrained", return_value=mock_tokenizer):
-        layer = AmazonBedrockGenerator(
-            "anthropic.claude-v2",
-            max_length=max_length_generated_text,
-            model_max_length=total_model_max_length,
-        )
-        prompt_after_resize = layer._ensure_token_limit(long_prompt_text)
-
-    # The prompt exceeds the limit, _ensure_token_limit truncates it
-    assert prompt_after_resize == truncated_prompt_text
-
-
-def test_long_prompt_is_not_truncated_when_truncate_false(mock_boto3_session):
-    """
-    Test that a long prompt is not truncated and _ensure_token_limit is not called when truncate is set to False
-    """
-    long_prompt_text = "I am a tokenized prompt of length eight"
-
-    # Our mock prompt is 8 tokens long, so it exceeds the total limit (8 prompt tokens + 3 generated tokens > 10 tokens)
-    max_length_generated_text = 3
-    total_model_max_length = 10
-
-    with patch("transformers.AutoTokenizer.from_pretrained", return_value=MagicMock()):
-        generator = AmazonBedrockGenerator(
-            model="anthropic.claude-v2",
-            max_length=max_length_generated_text,
-            model_max_length=total_model_max_length,
-            truncate=False,
-        )
-
-        # Mock the _ensure_token_limit method to track if it is called
-        with patch.object(
-            generator, "_ensure_token_limit", wraps=generator._ensure_token_limit
-        ) as mock_ensure_token_limit:
-            # Mock the model adapter to avoid actual invocation
-            generator.model_adapter.prepare_body = MagicMock(return_value={})
-            generator.client = MagicMock()
-            generator.client.invoke_model = MagicMock(
-                return_value={"body": MagicMock(read=MagicMock(return_value=b'{"generated_text": "response"}'))}
-            )
-            generator.model_adapter.get_responses = MagicMock(return_value=["response"])
-
-            # Invoke the generator
-            generator.run(prompt=long_prompt_text)
-
-        # Ensure _ensure_token_limit was not called
-        mock_ensure_token_limit.assert_not_called()
-
-        # Check the prompt passed to prepare_body
-        generator.model_adapter.prepare_body.assert_called_with(prompt=long_prompt_text, stream=False)
 
 
 @pytest.mark.parametrize(
@@ -394,6 +270,7 @@ class TestAnthropicClaudeAdapterMessagesAPI:
             "top_k": 5,
             "system": "system prompt",
             "anthropic_version": "custom_version",
+            "thinking": {"type": "enabled", "budget_tokens": 1024},
         }
 
         body = layer.prepare_body(
@@ -406,6 +283,7 @@ class TestAnthropicClaudeAdapterMessagesAPI:
             system="system prompt",
             anthropic_version="custom_version",
             unknown_arg="unknown_value",
+            thinking={"type": "enabled", "budget_tokens": 1024},
         )
 
         assert body == expected_body
@@ -421,6 +299,7 @@ class TestAnthropicClaudeAdapterMessagesAPI:
                 "system": "system prompt",
                 "anthropic_version": "custom_version",
                 "unknown_arg": "unknown_value",
+                "thinking": {"type": "enabled", "budget_tokens": 1024},
             },
             max_length=99,
         )
@@ -434,6 +313,7 @@ class TestAnthropicClaudeAdapterMessagesAPI:
             "top_k": 5,
             "system": "system prompt",
             "anthropic_version": "custom_version",
+            "thinking": {"type": "enabled", "budget_tokens": 1024},
         }
 
         body = layer.prepare_body(prompt)
@@ -450,6 +330,7 @@ class TestAnthropicClaudeAdapterMessagesAPI:
                 "stop_sequences": ["CUSTOM_STOP_MODEL_KWARGS"],
                 "system": "system prompt",
                 "anthropic_version": "custom_version",
+                "thinking": {"type": "enabled", "budget_tokens": 1024},
             },
             max_length=99,
         )
@@ -463,6 +344,7 @@ class TestAnthropicClaudeAdapterMessagesAPI:
             "top_k": 5,
             "system": "new system prompt",
             "anthropic_version": "new_custom_version",
+            "thinking": {"type": "enabled", "budget_tokens": 2048},
         }
 
         body = layer.prepare_body(
@@ -473,6 +355,7 @@ class TestAnthropicClaudeAdapterMessagesAPI:
             max_tokens=50,
             system="new system prompt",
             anthropic_version="new_custom_version",
+            thinking={"type": "enabled", "budget_tokens": 2048},
         )
 
         assert body == expected_body
@@ -487,6 +370,62 @@ class TestAnthropicClaudeAdapterMessagesAPI:
         adapter = AnthropicClaudeAdapter(model_kwargs={}, max_length=99)
         response_body = {"content": [{"text": "\n\t This is a single response."}]}
         expected_responses = ["This is a single response."]
+        assert adapter.get_responses(response_body) == expected_responses
+
+    def test_get_responses_with_thinking(self) -> None:
+        adapter = AnthropicClaudeAdapter(model_kwargs={}, max_length=99)
+        response_body = {
+            "content": [
+                {"thinking": "This is a thinking part.", "type": "thinking"},
+                {"text": "This is a single response."},
+            ]
+        }
+        expected_responses = ["<thinking>This is a thinking part.</thinking>\n\nThis is a single response."]
+        assert adapter.get_responses(response_body) == expected_responses
+
+    def test_get_responses_with_thinking_include_thinking_false(self) -> None:
+        adapter = AnthropicClaudeAdapter(model_kwargs={"include_thinking": False}, max_length=99)
+        response_body = {
+            "content": [
+                {"thinking": "This is a thinking part.", "type": "thinking"},
+                {"text": "This is a single response."},
+            ]
+        }
+        expected_responses = ["This is a single response."]
+        assert adapter.get_responses(response_body) == expected_responses
+
+    def test_get_responses_with_thinking_custom_thinking_tag(self) -> None:
+        adapter = AnthropicClaudeAdapter(model_kwargs={"thinking_tag": "custom"}, max_length=99)
+        response_body = {
+            "content": [
+                {"thinking": "This is a thinking part.", "type": "thinking"},
+                {"text": "This is a single response."},
+            ]
+        }
+        expected_responses = ["<custom>This is a thinking part.</custom>\n\nThis is a single response."]
+        assert adapter.get_responses(response_body) == expected_responses
+
+    def test_get_responses_with_thinking_no_thinking_tag(self) -> None:
+        adapter = AnthropicClaudeAdapter(model_kwargs={"thinking_tag": None}, max_length=99)
+        response_body = {
+            "content": [
+                {"thinking": "This is a thinking part.", "type": "thinking"},
+                {"text": "This is a single response."},
+            ]
+        }
+        expected_responses = ["This is a thinking part.\n\nThis is a single response."]
+        assert adapter.get_responses(response_body) == expected_responses
+
+    def test_get_responses_with_thinking_redacted_thinking_is_ignored(self) -> None:
+        adapter = AnthropicClaudeAdapter(model_kwargs={}, max_length=99)
+        response_body = {
+            "content": [
+                {"thinking": "This is a thinking part.", "type": "thinking"},
+                {"data": "[REDACTED]", "type": "redacted_thinking"},
+                {"text": "This is a single response."},
+            ]
+        }
+        expected_responses = ["<thinking>This is a thinking part.</thinking>\n\nThis is a single response."]
         assert adapter.get_responses(response_body) == expected_responses
 
     def test_get_stream_responses(self) -> None:
@@ -526,6 +465,236 @@ class TestAnthropicClaudeAdapterMessagesAPI:
         assert adapter.get_stream_responses(stream_mock, streaming_callback_mock) == expected_responses
 
         streaming_callback_mock.assert_not_called()
+
+    def test_get_stream_responses_with_thinking(self) -> None:
+        stream_mock = MagicMock()
+        streaming_callback_mock = MagicMock()
+
+        stream_mock.__iter__.return_value = [
+            {"chunk": {"bytes": b'{"type": "content_block_start", "content_block": {"type": "thinking"}}'}},
+            {"chunk": {"bytes": b'{"delta": {"thinking": "This"}}'}},
+            {"chunk": {"bytes": b'{"delta": {"thinking": " is"}}'}},
+            {"chunk": {"bytes": b'{"delta": {"thinking": " a"}}'}},
+            {"chunk": {"bytes": b'{"delta": {"thinking": " thinking"}}'}},
+            {"chunk": {"bytes": b'{"delta": {"thinking": " part."}}'}},
+            {"chunk": {"bytes": b'{"type": "content_block_start", "content_block": {"type": "text"}}'}},
+            {"chunk": {"bytes": b'{"delta": {"text": "This"}}'}},
+            {"chunk": {"bytes": b'{"delta": {"text": " is"}}'}},
+            {"chunk": {"bytes": b'{"delta": {"text": " a"}}'}},
+            {"chunk": {"bytes": b'{"delta": {"text": " single"}}'}},
+            {"chunk": {"bytes": b'{"delta": {"text": " response."}}'}},
+        ]
+
+        adapter = AnthropicClaudeAdapter(model_kwargs={}, max_length=99)
+        expected_responses = ["<thinking>This is a thinking part.</thinking>\n\nThis is a single response."]
+        assert adapter.get_stream_responses(stream_mock, streaming_callback_mock) == expected_responses
+
+        streaming_callback_mock.assert_has_calls(
+            [
+                call(
+                    StreamingChunk(
+                        content="<thinking>",
+                        meta={"type": "content_block_start", "content_block": {"type": "thinking"}},
+                    )
+                ),
+                call(StreamingChunk(content="This", meta={"delta": {"thinking": "This"}})),
+                call(StreamingChunk(content=" is", meta={"delta": {"thinking": " is"}})),
+                call(StreamingChunk(content=" a", meta={"delta": {"thinking": " a"}})),
+                call(StreamingChunk(content=" thinking", meta={"delta": {"thinking": " thinking"}})),
+                call(StreamingChunk(content=" part.", meta={"delta": {"thinking": " part."}})),
+                call(
+                    StreamingChunk(
+                        content="</thinking>\n\n",
+                        meta={"type": "content_block_start", "content_block": {"type": "text"}},
+                    )
+                ),
+                call(StreamingChunk(content="This", meta={"delta": {"text": "This"}})),
+                call(StreamingChunk(content=" is", meta={"delta": {"text": " is"}})),
+                call(StreamingChunk(content=" a", meta={"delta": {"text": " a"}})),
+                call(StreamingChunk(content=" single", meta={"delta": {"text": " single"}})),
+                call(StreamingChunk(content=" response.", meta={"delta": {"text": " response."}})),
+            ]
+        )
+
+    def test_get_stream_responses_with_thinking_include_thinking_false(self) -> None:
+        stream_mock = MagicMock()
+        streaming_callback_mock = MagicMock()
+
+        stream_mock.__iter__.return_value = [
+            {"chunk": {"bytes": b'{"type": "content_block_start", "content_block": {"type": "thinking"}}'}},
+            {"chunk": {"bytes": b'{"delta": {"thinking": "This"}}'}},
+            {"chunk": {"bytes": b'{"delta": {"thinking": " is"}}'}},
+            {"chunk": {"bytes": b'{"delta": {"thinking": " a"}}'}},
+            {"chunk": {"bytes": b'{"delta": {"thinking": " thinking"}}'}},
+            {"chunk": {"bytes": b'{"delta": {"thinking": " part."}}'}},
+            {"chunk": {"bytes": b'{"type": "content_block_start", "content_block": {"type": "text"}}'}},
+            {"chunk": {"bytes": b'{"delta": {"text": "This"}}'}},
+            {"chunk": {"bytes": b'{"delta": {"text": " is"}}'}},
+            {"chunk": {"bytes": b'{"delta": {"text": " a"}}'}},
+            {"chunk": {"bytes": b'{"delta": {"text": " single"}}'}},
+            {"chunk": {"bytes": b'{"delta": {"text": " response."}}'}},
+        ]
+
+        adapter = AnthropicClaudeAdapter(model_kwargs={"include_thinking": False}, max_length=99)
+        expected_responses = ["This is a single response."]
+        assert adapter.get_stream_responses(stream_mock, streaming_callback_mock) == expected_responses
+
+        streaming_callback_mock.assert_has_calls(
+            [
+                call(StreamingChunk(content="This", meta={"delta": {"text": "This"}})),
+                call(StreamingChunk(content=" is", meta={"delta": {"text": " is"}})),
+                call(StreamingChunk(content=" a", meta={"delta": {"text": " a"}})),
+                call(StreamingChunk(content=" single", meta={"delta": {"text": " single"}})),
+                call(StreamingChunk(content=" response.", meta={"delta": {"text": " response."}})),
+            ]
+        )
+
+    def test_get_stream_responses_with_thinking_custom_thinking_tag(self) -> None:
+        stream_mock = MagicMock()
+        streaming_callback_mock = MagicMock()
+
+        stream_mock.__iter__.return_value = [
+            {"chunk": {"bytes": b'{"type": "content_block_start", "content_block": {"type": "thinking"}}'}},
+            {"chunk": {"bytes": b'{"delta": {"thinking": "This"}}'}},
+            {"chunk": {"bytes": b'{"delta": {"thinking": " is"}}'}},
+            {"chunk": {"bytes": b'{"delta": {"thinking": " a"}}'}},
+            {"chunk": {"bytes": b'{"delta": {"thinking": " thinking"}}'}},
+            {"chunk": {"bytes": b'{"delta": {"thinking": " part."}}'}},
+            {"chunk": {"bytes": b'{"type": "content_block_start", "content_block": {"type": "text"}}'}},
+            {"chunk": {"bytes": b'{"delta": {"text": "This"}}'}},
+            {"chunk": {"bytes": b'{"delta": {"text": " is"}}'}},
+            {"chunk": {"bytes": b'{"delta": {"text": " a"}}'}},
+            {"chunk": {"bytes": b'{"delta": {"text": " single"}}'}},
+            {"chunk": {"bytes": b'{"delta": {"text": " response."}}'}},
+        ]
+
+        adapter = AnthropicClaudeAdapter(model_kwargs={"thinking_tag": "custom"}, max_length=99)
+        expected_responses = ["<custom>This is a thinking part.</custom>\n\nThis is a single response."]
+        assert adapter.get_stream_responses(stream_mock, streaming_callback_mock) == expected_responses
+
+        streaming_callback_mock.assert_has_calls(
+            [
+                call(
+                    StreamingChunk(
+                        content="<custom>", meta={"type": "content_block_start", "content_block": {"type": "thinking"}}
+                    )
+                ),
+                call(StreamingChunk(content="This", meta={"delta": {"thinking": "This"}})),
+                call(StreamingChunk(content=" is", meta={"delta": {"thinking": " is"}})),
+                call(StreamingChunk(content=" a", meta={"delta": {"thinking": " a"}})),
+                call(StreamingChunk(content=" thinking", meta={"delta": {"thinking": " thinking"}})),
+                call(StreamingChunk(content=" part.", meta={"delta": {"thinking": " part."}})),
+                call(
+                    StreamingChunk(
+                        content="</custom>\n\n", meta={"type": "content_block_start", "content_block": {"type": "text"}}
+                    )
+                ),
+                call(StreamingChunk(content="This", meta={"delta": {"text": "This"}})),
+                call(StreamingChunk(content=" is", meta={"delta": {"text": " is"}})),
+                call(StreamingChunk(content=" a", meta={"delta": {"text": " a"}})),
+                call(StreamingChunk(content=" single", meta={"delta": {"text": " single"}})),
+                call(StreamingChunk(content=" response.", meta={"delta": {"text": " response."}})),
+            ]
+        )
+
+    def test_get_stream_responses_with_thinking_no_thinking_tag(self) -> None:
+        stream_mock = MagicMock()
+        streaming_callback_mock = MagicMock()
+
+        stream_mock.__iter__.return_value = [
+            {"chunk": {"bytes": b'{"type": "content_block_start", "content_block": {"type": "thinking"}}'}},
+            {"chunk": {"bytes": b'{"delta": {"thinking": "This"}}'}},
+            {"chunk": {"bytes": b'{"delta": {"thinking": " is"}}'}},
+            {"chunk": {"bytes": b'{"delta": {"thinking": " a"}}'}},
+            {"chunk": {"bytes": b'{"delta": {"thinking": " thinking"}}'}},
+            {"chunk": {"bytes": b'{"delta": {"thinking": " part."}}'}},
+            {"chunk": {"bytes": b'{"type": "content_block_start", "content_block": {"type": "text"}}'}},
+            {"chunk": {"bytes": b'{"delta": {"text": "This"}}'}},
+            {"chunk": {"bytes": b'{"delta": {"text": " is"}}'}},
+            {"chunk": {"bytes": b'{"delta": {"text": " a"}}'}},
+            {"chunk": {"bytes": b'{"delta": {"text": " single"}}'}},
+            {"chunk": {"bytes": b'{"delta": {"text": " response."}}'}},
+        ]
+
+        adapter = AnthropicClaudeAdapter(model_kwargs={"thinking_tag": None}, max_length=99)
+        expected_responses = ["This is a thinking part.\n\nThis is a single response."]
+        assert adapter.get_stream_responses(stream_mock, streaming_callback_mock) == expected_responses
+
+        streaming_callback_mock.assert_has_calls(
+            [
+                call(
+                    StreamingChunk(
+                        content="", meta={"type": "content_block_start", "content_block": {"type": "thinking"}}
+                    )
+                ),
+                call(StreamingChunk(content="This", meta={"delta": {"thinking": "This"}})),
+                call(StreamingChunk(content=" is", meta={"delta": {"thinking": " is"}})),
+                call(StreamingChunk(content=" a", meta={"delta": {"thinking": " a"}})),
+                call(StreamingChunk(content=" thinking", meta={"delta": {"thinking": " thinking"}})),
+                call(StreamingChunk(content=" part.", meta={"delta": {"thinking": " part."}})),
+                call(
+                    StreamingChunk(
+                        content="\n\n", meta={"type": "content_block_start", "content_block": {"type": "text"}}
+                    )
+                ),
+                call(StreamingChunk(content="This", meta={"delta": {"text": "This"}})),
+                call(StreamingChunk(content=" is", meta={"delta": {"text": " is"}})),
+                call(StreamingChunk(content=" a", meta={"delta": {"text": " a"}})),
+                call(StreamingChunk(content=" single", meta={"delta": {"text": " single"}})),
+                call(StreamingChunk(content=" response.", meta={"delta": {"text": " response."}})),
+            ]
+        )
+
+    def test_get_stream_responses_with_thinking_redacted_thinking_is_ignored(self) -> None:
+        stream_mock = MagicMock()
+        streaming_callback_mock = MagicMock()
+
+        stream_mock.__iter__.return_value = [
+            {"chunk": {"bytes": b'{"type": "content_block_start", "content_block": {"type": "redacted_thinking"}}'}},
+            {"chunk": {"bytes": b'{"type": "content_block_start", "content_block": {"type": "thinking"}}'}},
+            {"chunk": {"bytes": b'{"delta": {"thinking": "This"}}'}},
+            {"chunk": {"bytes": b'{"delta": {"thinking": " is"}}'}},
+            {"chunk": {"bytes": b'{"delta": {"thinking": " a"}}'}},
+            {"chunk": {"bytes": b'{"delta": {"thinking": " thinking"}}'}},
+            {"chunk": {"bytes": b'{"delta": {"thinking": " part."}}'}},
+            {"chunk": {"bytes": b'{"type": "content_block_start", "content_block": {"type": "text"}}'}},
+            {"chunk": {"bytes": b'{"delta": {"text": "This"}}'}},
+            {"chunk": {"bytes": b'{"delta": {"text": " is"}}'}},
+            {"chunk": {"bytes": b'{"delta": {"text": " a"}}'}},
+            {"chunk": {"bytes": b'{"delta": {"text": " single"}}'}},
+            {"chunk": {"bytes": b'{"delta": {"text": " response."}}'}},
+        ]
+
+        adapter = AnthropicClaudeAdapter(model_kwargs={}, max_length=99)
+        expected_responses = ["<thinking>This is a thinking part.</thinking>\n\nThis is a single response."]
+        assert adapter.get_stream_responses(stream_mock, streaming_callback_mock) == expected_responses
+
+        streaming_callback_mock.assert_has_calls(
+            [
+                call(
+                    StreamingChunk(
+                        content="<thinking>",
+                        meta={"type": "content_block_start", "content_block": {"type": "thinking"}},
+                    )
+                ),
+                call(StreamingChunk(content="This", meta={"delta": {"thinking": "This"}})),
+                call(StreamingChunk(content=" is", meta={"delta": {"thinking": " is"}})),
+                call(StreamingChunk(content=" a", meta={"delta": {"thinking": " a"}})),
+                call(StreamingChunk(content=" thinking", meta={"delta": {"thinking": " thinking"}})),
+                call(StreamingChunk(content=" part.", meta={"delta": {"thinking": " part."}})),
+                call(
+                    StreamingChunk(
+                        content="</thinking>\n\n",
+                        meta={"type": "content_block_start", "content_block": {"type": "text"}},
+                    )
+                ),
+                call(StreamingChunk(content="This", meta={"delta": {"text": "This"}})),
+                call(StreamingChunk(content=" is", meta={"delta": {"text": " is"}})),
+                call(StreamingChunk(content=" a", meta={"delta": {"text": " a"}})),
+                call(StreamingChunk(content=" single", meta={"delta": {"text": " single"}})),
+                call(StreamingChunk(content=" response.", meta={"delta": {"text": " response."}})),
+            ]
+        )
 
 
 class TestAnthropicClaudeAdapterNoMessagesAPI:

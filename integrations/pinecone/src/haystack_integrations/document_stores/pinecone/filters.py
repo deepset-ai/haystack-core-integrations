@@ -4,7 +4,6 @@
 from typing import Any, Dict
 
 from haystack.errors import FilterError
-from pandas import DataFrame
 
 
 def _normalize_filters(filters: Dict[str, Any]) -> Dict[str, Any]:
@@ -61,8 +60,6 @@ def _parse_comparison_condition(condition: Dict[str, Any]) -> Dict[str, Any]:
         field = field[5:]
 
     value: Any = condition["value"]
-    if isinstance(value, DataFrame):
-        value = value.to_json()
 
     return COMPARISON_OPERATORS[operator](field, value)
 
