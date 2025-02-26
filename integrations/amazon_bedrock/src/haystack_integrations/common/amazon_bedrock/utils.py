@@ -61,7 +61,7 @@ def aws_configured(**kwargs) -> bool:
     return aws_config_provided
 
 
-async def get_aws_async_session(
+def get_aws_async_session(
     aws_access_key_id: Optional[str] = None,
     aws_secret_access_key: Optional[str] = None,
     aws_session_token: Optional[str] = None,
@@ -76,7 +76,8 @@ async def get_aws_async_session(
     :param aws_session_token: AWS session token.
     :param aws_region_name: AWS region name.
     :param aws_profile_name: AWS profile name.
-    :return: aioboto3.Session object
+    :returns:
+        aioboto3.Session object
     """
     session_kwargs = {}
     if aws_access_key_id and aws_secret_access_key:

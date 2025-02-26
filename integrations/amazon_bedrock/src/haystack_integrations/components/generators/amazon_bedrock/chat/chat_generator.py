@@ -16,7 +16,7 @@ from haystack_integrations.common.amazon_bedrock.errors import (
     AmazonBedrockInferenceError,
 )
 
-from haystack_integrations.common.amazon_bedrock.utils import get_aws_session
+from haystack_integrations.common.amazon_bedrock.utils import get_aws_session, get_aws_async_session
 
 logger = logging.getLogger(__name__)
 
@@ -411,6 +411,7 @@ class AmazonBedrockChatGenerator:
                 config = Config(**self.boto3_config)
             self.client = session.client("bedrock-runtime", config=config)
 
+            """
             # Initialize async session
             self.async_session = aioboto3.Session(
                 aws_access_key_id=resolve_secret(aws_access_key_id),
@@ -419,6 +420,7 @@ class AmazonBedrockChatGenerator:
                 region_name=resolve_secret(aws_region_name),
                 profile_name=resolve_secret(aws_profile_name),
             )
+            """
 
         except Exception as exception:
             msg = (
