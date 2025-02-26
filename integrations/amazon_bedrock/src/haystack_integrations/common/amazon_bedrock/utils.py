@@ -1,6 +1,6 @@
 from typing import Optional
 
-import aioboto3
+import aioboto3  # type: ignore
 import boto3
 from botocore.exceptions import BotoCoreError
 

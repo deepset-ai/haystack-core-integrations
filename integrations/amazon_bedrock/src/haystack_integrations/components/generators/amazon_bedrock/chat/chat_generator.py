@@ -349,10 +349,7 @@ class AmazonBedrockChatGenerator:
         tools: Optional[List[Tool]] = None,
     ):
         params, callback = self._prepare_request_params(
-            messages=messages,
-            streaming_callback=streaming_callback,
-            generation_kwargs=generation_kwargs,
-            tools=tools
+            messages=messages, streaming_callback=streaming_callback, generation_kwargs=generation_kwargs, tools=tools
         )
 
         try:
@@ -390,10 +387,7 @@ class AmazonBedrockChatGenerator:
         :return: Dictionary containing the model's replies as a list of ChatMessage objects.
         """
         params, callback = self._prepare_request_params(
-            messages=messages,
-            streaming_callback=streaming_callback,
-            generation_kwargs=generation_kwargs,
-            tools=tools
+            messages=messages, streaming_callback=streaming_callback, generation_kwargs=generation_kwargs, tools=tools
         )
 
         try:
