@@ -1,5 +1,19 @@
 # Changelog
 
+## [integrations/elasticsearch-v2.1.0] - 2025-02-26
+
+### 🚀 Features
+
+- Adding async support to ElasticSearch retrievers and document store (#1429)
+
+### 🧹 Chores
+
+- Remove Python 3.8 support (#1421)
+
+### 🌀 Miscellaneous
+
+- Docs: update changelog for integrations/elasticsearch (#1400)
+
 ## [integrations/elasticsearch-v2.0.0] - 2025-02-14
 
 ### 🧹 Chores
