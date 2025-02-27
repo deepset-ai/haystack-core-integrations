@@ -1,5 +1,15 @@
 # Changelog
 
+## [integrations/amazon_bedrock-v3.2.0] - 2025-02-27
+
+### 🚀 Features
+
+- Adding async to `AmazonChatGenerator` (#1445)
+
+### 📚 Documentation
+
+- Update changelog for integrations/amazon_bedrock (#1443)
+
 ## [integrations/amazon_bedrock-v3.1.1] - 2025-02-26
 
 ### 🐛 Bug Fixes
