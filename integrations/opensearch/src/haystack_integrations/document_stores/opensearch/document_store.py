@@ -56,7 +56,7 @@ class OpenSearchDocumentStore:
         **kwargs,
     ):
         """
-        Creates a new OpenSearchDocumentStore instance.
+        An instance of an OpenSearch database you can use to store all types of data. 
 
         The ``embeddings_dim``, ``method``, ``mappings``, and ``settings`` arguments are only used if the index does not
         exists and needs to be created. If the index already exists, its current configurations will be used.
