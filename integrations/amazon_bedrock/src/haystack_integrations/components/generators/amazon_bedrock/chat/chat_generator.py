@@ -224,11 +224,15 @@ class AmazonBedrockChatGenerator:
         self.generation_kwargs = generation_kwargs or {}
         self.stop_words = stop_words or []
         self.streaming_callback = streaming_callback
+        self.async_session = None
 
-    async def _get_async_client(self):
+    def _get_async_session(self):
+
+        if self.async_session:
+            return self.async_session
 
         try:
-            async_session = get_aws_session(
+            self.async_session = get_aws_session(
                 aws_access_key_id=self.aws_access_key_id.resolve_value() if self.aws_access_key_id else None,
                 aws_secret_access_key=(
                     self.aws_secret_access_key.resolve_value() if self.aws_secret_access_key else None
@@ -236,9 +240,9 @@ class AmazonBedrockChatGenerator:
                 aws_session_token=self.aws_session_token.resolve_value() if self.aws_session_token else None,
                 aws_region_name=self.aws_region_name.resolve_value() if self.aws_region_name else None,
                 aws_profile_name=self.aws_profile_name.resolve_value() if self.aws_profile_name else None,
-                async_client=True,
+                async_mode=True,
             )
-            return async_session.client("bedrock-runtime", config=self.boto3_config)
+            return self.async_session
 
         except Exception as exception:
             msg = (
@@ -402,8 +406,10 @@ class AmazonBedrockChatGenerator:
         )
 
         try:
-            async_client_coroutine = await self._get_async_client()
-            async with async_client_coroutine as async_client:
+            session = self._get_async_session()
+            # Note: https://aioboto3.readthedocs.io/en/latest/usage.html
+            # we need to create a new client for each request
+            async with session.client("bedrock-runtime", config=self.boto3_config) as async_client:
                 if callback:
                     response = await async_client.converse_stream(**params)
                     response_stream: EventStream = response.get("stream")
