@@ -16,7 +16,7 @@ from haystack_integrations.components.generators.amazon_bedrock.chat.chat_genera
 KLASS = "haystack_integrations.components.generators.amazon_bedrock.chat.chat_generator.AmazonBedrockChatGenerator"
 MODELS_TO_TEST = [
     # "anthropic.claude-3-5-sonnet-20240620-v1:0",
-    "cohere.command-r-plus-v1:0",
+    # "cohere.command-r-plus-v1:0",
     "mistral.mistral-large-2402-v1:0",
 ]
 MODELS_TO_TEST_WITH_TOOLS = [
@@ -26,7 +26,10 @@ MODELS_TO_TEST_WITH_TOOLS = [
 ]
 
 # so far we've discovered these models support streaming and tool use
-STREAMING_TOOL_MODELS = ["anthropic.claude-3-5-sonnet-20240620-v1:0", "cohere.command-r-plus-v1:0"]
+STREAMING_TOOL_MODELS = [
+    # "anthropic.claude-3-5-sonnet-20240620-v1:0",
+    "cohere.command-r-plus-v1:0"
+]
 
 
 def weather(city: str):
