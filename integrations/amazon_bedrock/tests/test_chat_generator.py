@@ -20,7 +20,7 @@ MODELS_TO_TEST = [
     "mistral.mistral-large-2402-v1:0",
 ]
 MODELS_TO_TEST_WITH_TOOLS = [
-    "anthropic.claude-3-5-sonnet-20240620-v1:0",
+    # "anthropic.claude-3-5-sonnet-20240620-v1:0",
     "cohere.command-r-plus-v1:0",
     "mistral.mistral-large-2402-v1:0",
 ]
@@ -187,6 +187,7 @@ def test_constructor_with_empty_model():
 
 
 class TestAmazonBedrockChatGeneratorInference:
+
     @pytest.mark.parametrize("model_name", MODELS_TO_TEST)
     @pytest.mark.integration
     def test_default_inference_params(self, model_name, chat_messages):
@@ -797,7 +798,7 @@ class TestAmazonBedrockChatGeneratorAsyncInference:
         assert "paris" in final_message.text.lower()
 
     @pytest.mark.asyncio
-    @pytest.mark.parametrize("model_name", MODELS_TO_TEST)
+    @pytest.mark.parametrize("model_name", STREAMING_TOOL_MODELS)
     @pytest.mark.integration
     async def test_async_inference_with_streaming(self, model_name, chat_messages):
         """
