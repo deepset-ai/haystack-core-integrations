@@ -1,7 +1,7 @@
 # stackit
 
-[![PyPI - Version](https://img.shields.io/pypi/v/stackit.svg)](https://pypi.org/project/stackit)
-[![PyPI - Python Version](https://img.shields.io/pypi/pyversions/stackit.svg)](https://pypi.org/project/stackit)
+[![PyPI - Version](https://img.shields.io/pypi/v/stackit-haystack.svg)](https://pypi.org/project/stackit-haystack)
+[![PyPI - Python Version](https://img.shields.io/pypi/pyversions/stackit-haystack.svg)](https://pypi.org/project/stackit-haystack)
 
 -----
 
