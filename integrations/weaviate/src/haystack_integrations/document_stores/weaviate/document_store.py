@@ -57,8 +57,8 @@ DEFAULT_QUERY_LIMIT = 9999
 
 class WeaviateDocumentStore:
     """
-    WeaviateDocumentStore is a Document Store for Weaviate.
-    It can be used with Weaviate Cloud Services or self-hosted instances.
+    A WeaviateDocumentStore instance you
+    can use with Weaviate Cloud Services or self-hosted instances.
 
     Usage example with Weaviate Cloud Services:
     ```python
