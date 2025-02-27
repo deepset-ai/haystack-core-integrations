@@ -236,6 +236,17 @@ class AmazonBedrockChatGenerator:
         self.stop_words = stop_words or []
         self.streaming_callback = streaming_callback
 
+    async def _get_async_client(self):
+        async_session = get_aws_session(
+            aws_access_key_id=self.aws_access_key_id.resolve_value() if self.aws_access_key_id else None,
+            aws_secret_access_key=self.aws_secret_access_key.resolve_value() if self.aws_secret_access_key else None,
+            aws_session_token=self.aws_session_token.resolve_value() if self.aws_session_token else None,
+            aws_region_name=self.aws_region_name.resolve_value() if self.aws_region_name else None,
+            aws_profile_name=self.aws_profile_name.resolve_value() if self.aws_profile_name else None,
+            async_client=True,
+        )
+        return async_session.client("bedrock-runtime", config=self.boto3_config)
+
     def to_dict(self) -> Dict[str, Any]:
         """
         Serializes the component to a dictionary.
@@ -391,14 +402,15 @@ class AmazonBedrockChatGenerator:
         )
 
         try:
-            async with self.async_client as async_client:
+            async_client_coroutine = await self._get_async_client()
+            async with async_client_coroutine as async_client:
                 if callback:
                     response = await async_client.converse_stream(**params)
                     response_stream: EventStream = response.get("stream")
                     if not response_stream:
                         msg = "No stream found in the response."
                         raise AmazonBedrockInferenceError(msg)
-                    replies = _parse_streaming_response_async(response_stream, callback, self.model)
+                    replies = await _parse_streaming_response_async(response_stream, callback, self.model)
                 else:
                     response = await async_client.converse(**params)
                     replies = _parse_completion_response(response, self.model)
