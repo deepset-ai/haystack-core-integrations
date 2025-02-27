@@ -1,7 +1,6 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
-import logging
 from collections.abc import Mapping
 from typing import Any, Dict, List, Literal, Optional, Union
 
@@ -9,7 +8,7 @@ import numpy as np
 
 # There are no import stubs for elastic_transport and elasticsearch so mypy fails
 from elastic_transport import NodeConfig  # type: ignore[import-not-found]
-from haystack import default_from_dict, default_to_dict
+from haystack import default_from_dict, default_to_dict, logging
 from haystack.dataclasses import Document
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy

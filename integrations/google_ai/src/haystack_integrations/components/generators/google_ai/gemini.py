@@ -1,10 +1,10 @@
-import logging
 from typing import Any, Callable, Dict, List, Optional, Union
 
 import google.generativeai as genai
 from google.ai.generativelanguage import Content, Part
 from google.generativeai import GenerationConfig, GenerativeModel
 from google.generativeai.types import GenerateContentResponse, HarmBlockThreshold, HarmCategory
+from haystack import logging
 from haystack.core.component import component
 from haystack.core.component.types import Variadic
 from haystack.core.serialization import default_from_dict, default_to_dict

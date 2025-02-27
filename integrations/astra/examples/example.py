@@ -1,8 +1,7 @@
-import logging
 import os
 from pathlib import Path
 
-from haystack import Pipeline
+from haystack import Pipeline, logging
 from haystack.components.converters import TextFileToDocument
 from haystack.components.embedders import SentenceTransformersDocumentEmbedder, SentenceTransformersTextEmbedder
 from haystack.components.preprocessors import DocumentCleaner, DocumentSplitter

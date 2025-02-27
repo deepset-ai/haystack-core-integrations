@@ -1,7 +1,7 @@
-import logging
 import uuid
 from typing import List, Union
 
+from haystack import logging
 from haystack.dataclasses import Document
 from qdrant_client.http import models as rest
 
@@ -25,10 +25,10 @@ def convert_haystack_documents_to_qdrant_points(
 
         if payload.pop("dataframe", None):
             logger.warning(
-                "Document %s has the `dataframe` field set,"
+                "Document {doc_id} has the `dataframe` field set, "
                 "QdrantDocumentStore no longer supports dataframes and this field will be ignored. "
                 "The `dataframe` field will soon be removed from Haystack Document.",
-                document.id,
+                doc_id=document.id
             )
 
         if use_sparse_embeddings:
@@ -75,10 +75,10 @@ def convert_qdrant_point_to_haystack_document(point: QdrantPoint, use_sparse_emb
 
     if payload.pop("dataframe", None):
         logger.warning(
-            "Document %s has the `dataframe` field set,"
+            "Document {doc_id} has the `dataframe` field set, "
             "QdrantDocumentStore no longer supports dataframes and this field will be ignored. "
             "The `dataframe` field will soon be removed from Haystack Document.",
-            payload["id"],
+            doc_id=payload["id"]
         )
 
     if not use_sparse_embeddings:
