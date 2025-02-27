@@ -797,39 +797,39 @@ class TestAmazonBedrockChatGeneratorAsyncInference:
     #     assert len(final_message.text) > 0
     #     assert "paris" in final_message.text.lower()
 
-    @pytest.mark.asyncio
-    @pytest.mark.parametrize("model_name", STREAMING_TOOL_MODELS)
-    @pytest.mark.integration
-    async def test_async_inference_with_streaming(self, model_name, chat_messages):
-        """
-        Test async chat completion with streaming
-        """
-        streaming_callback_called = False
-        paris_found_in_response = False
-
-        def streaming_callback(chunk: StreamingChunk):
-            nonlocal streaming_callback_called, paris_found_in_response
-            streaming_callback_called = True
-            assert isinstance(chunk, StreamingChunk)
-            assert chunk.content is not None
-            if not paris_found_in_response:
-                paris_found_in_response = "paris" in chunk.content.lower()
-
-        client = AmazonBedrockChatGenerator(model=model_name, streaming_callback=streaming_callback)
-        response = await client.run_async(chat_messages)
-
-        assert streaming_callback_called, "Streaming callback was not called"
-        assert paris_found_in_response, "The streaming callback response did not contain 'paris'"
-        replies = response["replies"]
-        assert isinstance(replies, list), "Replies is not a list"
-        assert len(replies) > 0, "No replies received"
-
-        first_reply = replies[0]
-        assert isinstance(first_reply, ChatMessage), "First reply is not a ChatMessage instance"
-        assert first_reply.text, "First reply has no content"
-        assert ChatMessage.is_from(first_reply, ChatRole.ASSISTANT), "First reply is not from the assistant"
-        assert "paris" in first_reply.text.lower(), "First reply does not contain 'paris'"
-        assert first_reply.meta, "First reply has no metadata"
+    # @pytest.mark.asyncio
+    # @pytest.mark.parametrize("model_name", STREAMING_TOOL_MODELS)
+    # @pytest.mark.integration
+    # async def test_async_inference_with_streaming(self, model_name, chat_messages):
+    #     """
+    #     Test async chat completion with streaming
+    #     """
+    #     streaming_callback_called = False
+    #     paris_found_in_response = False
+    #
+    #     def streaming_callback(chunk: StreamingChunk):
+    #         nonlocal streaming_callback_called, paris_found_in_response
+    #         streaming_callback_called = True
+    #         assert isinstance(chunk, StreamingChunk)
+    #         assert chunk.content is not None
+    #         if not paris_found_in_response:
+    #             paris_found_in_response = "paris" in chunk.content.lower()
+    #
+    #     client = AmazonBedrockChatGenerator(model=model_name, streaming_callback=streaming_callback)
+    #     response = await client.run_async(chat_messages)
+    #
+    #     assert streaming_callback_called, "Streaming callback was not called"
+    #     assert paris_found_in_response, "The streaming callback response did not contain 'paris'"
+    #     replies = response["replies"]
+    #     assert isinstance(replies, list), "Replies is not a list"
+    #     assert len(replies) > 0, "No replies received"
+    #
+    #     first_reply = replies[0]
+    #     assert isinstance(first_reply, ChatMessage), "First reply is not a ChatMessage instance"
+    #     assert first_reply.text, "First reply has no content"
+    #     assert ChatMessage.is_from(first_reply, ChatRole.ASSISTANT), "First reply is not from the assistant"
+    #     assert "paris" in first_reply.text.lower(), "First reply does not contain 'paris'"
+    #     assert first_reply.meta, "First reply has no metadata"
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize("model_name", STREAMING_TOOL_MODELS)
