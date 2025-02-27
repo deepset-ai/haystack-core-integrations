@@ -60,4 +60,4 @@ result = rag_pipeline.run(
     }
 )
 
-print(result)
+print(result)  # noqa: T201

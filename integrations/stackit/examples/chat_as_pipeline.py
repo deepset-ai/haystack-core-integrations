@@ -19,4 +19,4 @@ pipeline.connect("prompt_builder.prompt", "llm.messages")
 
 result = pipeline.run({"prompt_builder": {"template_variables": {"question": "Tell me a joke."}, "template": messages}})
 
-print(result)
+print(result)  # noqa: T201

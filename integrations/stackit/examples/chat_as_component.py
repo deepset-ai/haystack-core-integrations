@@ -7,4 +7,4 @@ from haystack_integrations.components.generators.stackit import STACKITChatGener
 generator = STACKITChatGenerator(model="neuralmagic/Meta-Llama-3.1-70B-Instruct-FP8")
 
 result = generator.run([ChatMessage.from_user("Tell me a joke.")])
-print(result)
+print(result)  # noqa: T201
