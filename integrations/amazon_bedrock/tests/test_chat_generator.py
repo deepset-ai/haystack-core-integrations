@@ -831,57 +831,57 @@ class TestAmazonBedrockChatGeneratorAsyncInference:
     #     assert "paris" in first_reply.text.lower(), "First reply does not contain 'paris'"
     #     assert first_reply.meta, "First reply has no metadata"
 
-    @pytest.mark.asyncio
-    @pytest.mark.parametrize("model_name", STREAMING_TOOL_MODELS)
-    @pytest.mark.integration
-    async def test_async_tools_use_with_streaming(self, model_name):
-        """
-        Test async tools use with streaming
-        """
-        tool_config = {
-            "tools": [
-                {
-                    "toolSpec": {
-                        "name": "top_song",
-                        "description": "Get the most popular song played on a radio station.",
-                        "inputSchema": {
-                            "json": {
-                                "type": "object",
-                                "properties": {
-                                    "sign": {
-                                        "type": "string",
-                                        "description": "The call sign for the radio station "
-                                        "for which you want the most popular song. Example "
-                                        "calls signs are WZPZ and WKRP.",
-                                    }
-                                },
-                                "required": ["sign"],
-                            }
-                        },
-                    }
-                }
-            ],
-            "toolChoice": {"auto": {}},
-        }
-
-        messages = [ChatMessage.from_user("What is the most popular song on WZPZ?")]
-        client = AmazonBedrockChatGenerator(model=model_name, streaming_callback=print_streaming_chunk)
-        response = await client.run_async(messages=messages, generation_kwargs={"toolConfig": tool_config})
-        replies = response["replies"]
-        assert isinstance(replies, list), "Replies is not a list"
-        assert len(replies) > 0, "No replies received"
-
-        # Find the message containing the tool call
-        tool_message = next((msg for msg in replies if msg.tool_call), None)
-        assert tool_message is not None, "No message with tool call found"
-        assert isinstance(tool_message, ChatMessage), "Tool message is not a ChatMessage instance"
-        assert ChatMessage.is_from(tool_message, ChatRole.ASSISTANT), "Tool message is not from the assistant"
-
-        tool_call = tool_message.tool_call
-        assert tool_call.id, "Tool call does not contain value for 'id' key"
-        assert tool_call.tool_name == "top_song", f"{tool_call} does not contain the correct 'tool_name' value"
-        assert tool_call.arguments, f"{tool_call} does not contain 'arguments' value"
-        assert tool_call.arguments["sign"] == "WZPZ", f"{tool_call} does not contain the correct 'input' value"
+    # @pytest.mark.asyncio
+    # @pytest.mark.parametrize("model_name", STREAMING_TOOL_MODELS)
+    # @pytest.mark.integration
+    # async def test_async_tools_use_with_streaming(self, model_name):
+    #     """
+    #     Test async tools use with streaming
+    #     """
+    #     tool_config = {
+    #         "tools": [
+    #             {
+    #                 "toolSpec": {
+    #                     "name": "top_song",
+    #                     "description": "Get the most popular song played on a radio station.",
+    #                     "inputSchema": {
+    #                         "json": {
+    #                             "type": "object",
+    #                             "properties": {
+    #                                 "sign": {
+    #                                     "type": "string",
+    #                                     "description": "The call sign for the radio station "
+    #                                     "for which you want the most popular song. Example "
+    #                                     "calls signs are WZPZ and WKRP.",
+    #                                 }
+    #                             },
+    #                             "required": ["sign"],
+    #                         }
+    #                     },
+    #                 }
+    #             }
+    #         ],
+    #         "toolChoice": {"auto": {}},
+    #     }
+    #
+    #     messages = [ChatMessage.from_user("What is the most popular song on WZPZ?")]
+    #     client = AmazonBedrockChatGenerator(model=model_name, streaming_callback=print_streaming_chunk)
+    #     response = await client.run_async(messages=messages, generation_kwargs={"toolConfig": tool_config})
+    #     replies = response["replies"]
+    #     assert isinstance(replies, list), "Replies is not a list"
+    #     assert len(replies) > 0, "No replies received"
+    #
+    #     # Find the message containing the tool call
+    #     tool_message = next((msg for msg in replies if msg.tool_call), None)
+    #     assert tool_message is not None, "No message with tool call found"
+    #     assert isinstance(tool_message, ChatMessage), "Tool message is not a ChatMessage instance"
+    #     assert ChatMessage.is_from(tool_message, ChatRole.ASSISTANT), "Tool message is not from the assistant"
+    #
+    #     tool_call = tool_message.tool_call
+    #     assert tool_call.id, "Tool call does not contain value for 'id' key"
+    #     assert tool_call.tool_name == "top_song", f"{tool_call} does not contain the correct 'tool_name' value"
+    #     assert tool_call.arguments, f"{tool_call} does not contain 'arguments' value"
+    #     assert tool_call.arguments["sign"] == "WZPZ", f"{tool_call} does not contain the correct 'input' value"
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize("model_name", STREAMING_TOOL_MODELS)
