@@ -34,6 +34,9 @@ DEFAULT_MAX_CHUNK_BYTES = 100 * 1024 * 1024
 
 
 class OpenSearchDocumentStore:
+    """
+    An instance of an OpenSearch database you can use to store all types of data.
+    """
     def __init__(
         self,
         *,
@@ -56,7 +59,7 @@ class OpenSearchDocumentStore:
         **kwargs,
     ):
         """
-        An instance of an OpenSearch database you can use to store all types of data.
+        Creates a new OpenSearchDocumentStore instance.
 
         The ``embeddings_dim``, ``method``, ``mappings``, and ``settings`` arguments are only used if the index does not
         exists and needs to be created. If the index already exists, its current configurations will be used.
