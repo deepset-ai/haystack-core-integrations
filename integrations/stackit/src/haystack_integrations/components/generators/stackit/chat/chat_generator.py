@@ -1,12 +1,12 @@
 # SPDX-FileCopyrightText: 2025-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
-from typing import Any, Callable, Dict, Optional, List
+from typing import Any, Callable, Dict, Optional
 
-from haystack import component
+from haystack import component, default_to_dict
 from haystack.components.generators.chat import OpenAIChatGenerator
-from haystack.components.generators.chat.openai import StreamingCallbackT
-from haystack.dataclasses import StreamingChunk, ChatMessage, Tool
+from haystack.dataclasses import StreamingChunk
+from haystack.utils import serialize_callable
 from haystack.utils.auth import Secret
 
 
@@ -80,21 +80,24 @@ class STACKITChatGenerator(OpenAIChatGenerator):
             generation_kwargs=generation_kwargs,
         )
 
-    def _prepare_api_call(  # noqa: PLR0913
-        self,
-        *,
-        messages: List[ChatMessage],
-        streaming_callback: Optional[StreamingCallbackT] = None,
-        generation_kwargs: Optional[Dict[str, Any]] = None,
-        tools: Optional[List[Tool]] = None,
-        tools_strict: Optional[bool] = None,
-    ) -> Dict[str, Any]:
-        prepared_api_call = super(STACKITChatGenerator, self)._prepare_api_call(
-            messages=messages,
-            streaming_callback=streaming_callback,
-            generation_kwargs=generation_kwargs,
-            tools=tools,
-            tools_strict=tools_strict,
+    def to_dict(self) -> Dict[str, Any]:
+        """
+        Serialize this component to a dictionary.
+
+        :returns:
+            The serialized component as a dictionary.
+        """
+        callback_name = serialize_callable(self.streaming_callback) if self.streaming_callback else None
+
+        # if we didn't implement the to_dict method here then the to_dict method of the superclass would be used
+        # which would serialiaze some fields that we don't want to serialize (e.g. the ones we don't have in
+        # the __init__)
+        # it would be hard to maintain the compatibility as superclass changes
+        return default_to_dict(
+            self,
+            model=self.model,
+            streaming_callback=callback_name,
+            api_base_url=self.api_base_url,
+            generation_kwargs=self.generation_kwargs,
+            api_key=self.api_key.to_dict(),
         )
-        prepared_api_call.pop("tools")
-        return prepared_api_call

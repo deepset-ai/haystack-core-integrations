@@ -30,7 +30,7 @@ def mock_chat_completion():
     with patch("openai.resources.chat.completions.Completions.create") as mock_chat_completion_create:
         completion = ChatCompletion(
             id="foo",
-            model="neuralmagic/Meta-Llama-3.1-70B-Instruct-FP8",
+            model="neuralmagic/Meta-Llama-3.1-8B-Instruct-FP8",
             object="chat.completion",
             choices=[
                 Choice(
@@ -51,9 +51,9 @@ def mock_chat_completion():
 class TestSTACKITChatGenerator:
     def test_init_default(self, monkeypatch):
         monkeypatch.setenv("STACKIT_API_KEY", "test-api-key")
-        component = STACKITChatGenerator(model="neuralmagic/Meta-Llama-3.1-70B-Instruct-FP8")
+        component = STACKITChatGenerator(model="neuralmagic/Meta-Llama-3.1-8B-Instruct-FP8")
         assert component.client.api_key == "test-api-key"
-        assert component.model == "neuralmagic/Meta-Llama-3.1-70B-Instruct-FP8"
+        assert component.model == "neuralmagic/Meta-Llama-3.1-8B-Instruct-FP8"
         assert component.api_base_url == "https://api.openai-compat.model-serving.eu01.onstackit.cloud/v1"
         assert component.streaming_callback is None
         assert not component.generation_kwargs
@@ -61,24 +61,24 @@ class TestSTACKITChatGenerator:
     def test_init_fail_wo_api_key(self, monkeypatch):
         monkeypatch.delenv("STACKIT_API_KEY", raising=False)
         with pytest.raises(ValueError, match="None of the .* environment variables are set"):
-            STACKITChatGenerator(model="neuralmagic/Meta-Llama-3.1-70B-Instruct-FP8")
+            STACKITChatGenerator(model="neuralmagic/Meta-Llama-3.1-8B-Instruct-FP8")
 
     def test_init_with_parameters(self):
         component = STACKITChatGenerator(
             api_key=Secret.from_token("test-api-key"),
-            model="neuralmagic/Meta-Llama-3.1-70B-Instruct-FP8",
+            model="neuralmagic/Meta-Llama-3.1-8B-Instruct-FP8",
             streaming_callback=print_streaming_chunk,
             api_base_url="test-base-url",
             generation_kwargs={"max_tokens": 10, "some_test_param": "test-params"},
         )
         assert component.client.api_key == "test-api-key"
-        assert component.model == "neuralmagic/Meta-Llama-3.1-70B-Instruct-FP8"
+        assert component.model == "neuralmagic/Meta-Llama-3.1-8B-Instruct-FP8"
         assert component.streaming_callback is print_streaming_chunk
         assert component.generation_kwargs == {"max_tokens": 10, "some_test_param": "test-params"}
 
     def test_to_dict_default(self, monkeypatch):
         monkeypatch.setenv("STACKIT_API_KEY", "test-api-key")
-        component = STACKITChatGenerator(model="neuralmagic/Meta-Llama-3.1-70B-Instruct-FP8")
+        component = STACKITChatGenerator(model="neuralmagic/Meta-Llama-3.1-8B-Instruct-FP8")
         data = component.to_dict()
 
         assert (
@@ -88,8 +88,7 @@ class TestSTACKITChatGenerator:
 
         expected_params = {
             "api_key": {"env_vars": ["STACKIT_API_KEY"], "strict": True, "type": "env_var"},
-            "model": "neuralmagic/Meta-Llama-3.1-70B-Instruct-FP8",
-            "organization": None,
+            "model": "neuralmagic/Meta-Llama-3.1-8B-Instruct-FP8",
             "streaming_callback": None,
             "api_base_url": "https://api.openai-compat.model-serving.eu01.onstackit.cloud/v1",
             "generation_kwargs": {},
@@ -102,7 +101,7 @@ class TestSTACKITChatGenerator:
         monkeypatch.setenv("ENV_VAR", "test-api-key")
         component = STACKITChatGenerator(
             api_key=Secret.from_env_var("ENV_VAR"),
-            model="neuralmagic/Meta-Llama-3.1-70B-Instruct-FP8",
+            model="neuralmagic/Meta-Llama-3.1-8B-Instruct-FP8",
             streaming_callback=print_streaming_chunk,
             api_base_url="test-base-url",
             generation_kwargs={"max_tokens": 10, "some_test_param": "test-params"},
@@ -116,7 +115,7 @@ class TestSTACKITChatGenerator:
 
         expected_params = {
             "api_key": {"env_vars": ["ENV_VAR"], "strict": True, "type": "env_var"},
-            "model": "neuralmagic/Meta-Llama-3.1-70B-Instruct-FP8",
+            "model": "neuralmagic/Meta-Llama-3.1-8B-Instruct-FP8",
             "api_base_url": "test-base-url",
             "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
             "generation_kwargs": {"max_tokens": 10, "some_test_param": "test-params"},
@@ -131,14 +130,14 @@ class TestSTACKITChatGenerator:
             "type": "haystack_integrations.components.generators.stackit.chat.chat_generator.STACKITChatGenerator",
             "init_parameters": {
                 "api_key": {"env_vars": ["STACKIT_API_KEY"], "strict": True, "type": "env_var"},
-                "model": "neuralmagic/Meta-Llama-3.1-70B-Instruct-FP8",
+                "model": "neuralmagic/Meta-Llama-3.1-8B-Instruct-FP8",
                 "api_base_url": "test-base-url",
                 "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
                 "generation_kwargs": {"max_tokens": 10, "some_test_param": "test-params"},
             },
         }
         component = STACKITChatGenerator.from_dict(data)
-        assert component.model == "neuralmagic/Meta-Llama-3.1-70B-Instruct-FP8"
+        assert component.model == "neuralmagic/Meta-Llama-3.1-8B-Instruct-FP8"
         assert component.streaming_callback is print_streaming_chunk
         assert component.api_base_url == "test-base-url"
         assert component.generation_kwargs == {"max_tokens": 10, "some_test_param": "test-params"}
@@ -150,7 +149,7 @@ class TestSTACKITChatGenerator:
             "type": "haystack_integrations.components.generators.stackit.chat.chat_generator.STACKITChatGenerator",
             "init_parameters": {
                 "api_key": {"env_vars": ["STACKIT_API_KEY"], "strict": True, "type": "env_var"},
-                "model": "neuralmagic/Meta-Llama-3.1-70B-Instruct-FP8",
+                "model": "neuralmagic/Meta-Llama-3.1-8B-Instruct-FP8",
                 "api_base_url": "test-base-url",
                 "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
                 "generation_kwargs": {"max_tokens": 10, "some_test_param": "test-params"},
@@ -161,7 +160,7 @@ class TestSTACKITChatGenerator:
 
     def test_run(self, chat_messages, mock_chat_completion, monkeypatch):  # noqa: ARG002
         monkeypatch.setenv("STACKIT_API_KEY", "fake-api-key")
-        component = STACKITChatGenerator(model="neuralmagic/Meta-Llama-3.1-70B-Instruct-FP8")
+        component = STACKITChatGenerator(model="neuralmagic/Meta-Llama-3.1-8B-Instruct-FP8")
         response = component.run(chat_messages)
 
         # check that the component returns the correct ChatMessage response
@@ -173,7 +172,7 @@ class TestSTACKITChatGenerator:
 
     def test_run_with_params(self, chat_messages, mock_chat_completion, monkeypatch):
         monkeypatch.setenv("STACKIT_API_KEY", "fake-api-key")
-        component = STACKITChatGenerator(model="neuralmagic/Meta-Llama-3.1-70B-Instruct-FP8", generation_kwargs={"max_tokens": 10, "temperature": 0.5})
+        component = STACKITChatGenerator(model="neuralmagic/Meta-Llama-3.1-8B-Instruct-FP8", generation_kwargs={"max_tokens": 10, "temperature": 0.5})
         response = component.run(chat_messages)
 
         # check that the component calls the OpenAI API with the correct parameters
@@ -189,7 +188,7 @@ class TestSTACKITChatGenerator:
         assert [isinstance(reply, ChatMessage) for reply in response["replies"]]
 
     def test_check_abnormal_completions(self, caplog):
-        component = STACKITChatGenerator(model="neuralmagic/Meta-Llama-3.1-70B-Instruct-FP8", api_key=Secret.from_token("test-api-key"))
+        component = STACKITChatGenerator(model="neuralmagic/Meta-Llama-3.1-8B-Instruct-FP8", api_key=Secret.from_token("test-api-key"))
         messages = [
             ChatMessage.from_assistant(
                 "", meta={"finish_reason": "content_filter" if i % 2 == 0 else "length", "index": i}
@@ -226,12 +225,12 @@ class TestSTACKITChatGenerator:
     @pytest.mark.integration
     def test_live_run(self):
         chat_messages = [ChatMessage.from_user("What's the capital of France")]
-        component = STACKITChatGenerator(model="neuralmagic/Meta-Llama-3.1-70B-Instruct-FP8")
+        component = STACKITChatGenerator(model="neuralmagic/Meta-Llama-3.1-8B-Instruct-FP8")
         results = component.run(chat_messages)
         assert len(results["replies"]) == 1
         message: ChatMessage = results["replies"][0]
         assert "Paris" in message.text
-        assert "neuralmagic/Meta-Llama-3.1-70B-Instruct-FP8" in message.meta["model"]
+        assert "neuralmagic/Meta-Llama-3.1-8B-Instruct-FP8" in message.meta["model"]
         assert message.meta["finish_reason"] == "stop"
 
     @pytest.mark.skipif(
@@ -260,14 +259,14 @@ class TestSTACKITChatGenerator:
                 self.responses += chunk.content if chunk.content else ""
 
         callback = Callback()
-        component = STACKITChatGenerator(model="neuralmagic/Meta-Llama-3.1-70B-Instruct-FP8", streaming_callback=callback)
+        component = STACKITChatGenerator(model="neuralmagic/Meta-Llama-3.1-8B-Instruct-FP8", streaming_callback=callback)
         results = component.run([ChatMessage.from_user("What's the capital of France?")])
 
         assert len(results["replies"]) == 1
         message: ChatMessage = results["replies"][0]
         assert "Paris" in message.text
 
-        assert "neuralmagic/Meta-Llama-3.1-70B-Instruct-FP8" in message.meta["model"]
+        assert "neuralmagic/Meta-Llama-3.1-8B-Instruct-FP8" in message.meta["model"]
         assert message.meta["finish_reason"] == "stop"
 
         assert callback.counter > 1
