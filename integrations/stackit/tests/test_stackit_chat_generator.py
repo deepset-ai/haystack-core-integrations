@@ -42,7 +42,7 @@ def mock_chat_completion():
                 )
             ],
             created=int(datetime.now(tz=pytz.timezone("UTC")).timestamp()),
-            usage=CompletionUsage(prompt_tokens=57, completion_tokens=40, total_tokens=97)
+            usage=CompletionUsage(prompt_tokens=57, completion_tokens=40, total_tokens=97),
         )
 
         mock_chat_completion_create.return_value = completion
