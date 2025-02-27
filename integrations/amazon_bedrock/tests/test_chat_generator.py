@@ -701,40 +701,6 @@ class TestAmazonBedrockChatGeneratorAsyncInference:
             assert "completion_tokens" in first_reply.meta["usage"]
 
     @pytest.mark.asyncio
-    @pytest.mark.parametrize("model_name", MODELS_TO_TEST)
-    @pytest.mark.integration
-    async def test_async_inference_with_streaming(self, model_name, chat_messages):
-        """
-        Test async chat completion with streaming
-        """
-        streaming_callback_called = False
-        paris_found_in_response = False
-
-        def streaming_callback(chunk: StreamingChunk):
-            nonlocal streaming_callback_called, paris_found_in_response
-            streaming_callback_called = True
-            assert isinstance(chunk, StreamingChunk)
-            assert chunk.content is not None
-            if not paris_found_in_response:
-                paris_found_in_response = "paris" in chunk.content.lower()
-
-        client = AmazonBedrockChatGenerator(model=model_name, streaming_callback=streaming_callback)
-        response = await client.run_async(chat_messages)
-
-        assert streaming_callback_called, "Streaming callback was not called"
-        assert paris_found_in_response, "The streaming callback response did not contain 'paris'"
-        replies = response["replies"]
-        assert isinstance(replies, list), "Replies is not a list"
-        assert len(replies) > 0, "No replies received"
-
-        first_reply = replies[0]
-        assert isinstance(first_reply, ChatMessage), "First reply is not a ChatMessage instance"
-        assert first_reply.text, "First reply has no content"
-        assert ChatMessage.is_from(first_reply, ChatRole.ASSISTANT), "First reply is not from the assistant"
-        assert "paris" in first_reply.text.lower(), "First reply does not contain 'paris'"
-        assert first_reply.meta, "First reply has no metadata"
-
-    @pytest.mark.asyncio
     @pytest.mark.parametrize("model_name", MODELS_TO_TEST_WITH_TOOLS)
     @pytest.mark.integration
     async def test_async_tools_use(self, model_name):
@@ -789,6 +755,79 @@ class TestAmazonBedrockChatGeneratorAsyncInference:
         ), f"Tool call {tool_call} does not contain the correct 'arguments' value"
 
     @pytest.mark.asyncio
+    @pytest.mark.parametrize("model_name", MODELS_TO_TEST_WITH_TOOLS)
+    @pytest.mark.integration
+    async def test_async_live_run_with_tools(self, model_name, tools):
+        """
+        Integration test that the AmazonBedrockChatGenerator component can run asynchronously with tools
+        """
+        initial_messages = [ChatMessage.from_user("What's the weather like in Paris?")]
+        component = AmazonBedrockChatGenerator(model=model_name, tools=tools)
+        results = await component.run_async(messages=initial_messages)
+
+        assert len(results["replies"]) > 0, "No replies received"
+
+        # Find the message with tool calls
+        tool_message = next((msg for msg in results["replies"] if msg.tool_call), None)
+        assert tool_message is not None, "No message with tool call found"
+        assert isinstance(tool_message, ChatMessage), "Tool message is not a ChatMessage instance"
+        assert ChatMessage.is_from(tool_message, ChatRole.ASSISTANT), "Tool message is not from the assistant"
+
+        tool_call = tool_message.tool_call
+        assert tool_call.id, "Tool call does not contain value for 'id' key"
+        assert tool_call.tool_name == "weather"
+        assert tool_call.arguments == {"city": "Paris"}
+        assert tool_message.meta["finish_reason"] == "tool_use"
+
+        new_messages = [
+            initial_messages[0],
+            tool_message,
+            ChatMessage.from_tool(tool_result="22° C", origin=tool_call),
+        ]
+        # Pass the tool result to the model to get the final response
+        results = await component.run_async(new_messages)
+
+        assert len(results["replies"]) == 1
+        final_message = results["replies"][0]
+        assert not final_message.tool_call
+        assert len(final_message.text) > 0
+        assert "paris" in final_message.text.lower()
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("model_name", MODELS_TO_TEST)
+    @pytest.mark.integration
+    async def test_async_inference_with_streaming(self, model_name, chat_messages):
+        """
+        Test async chat completion with streaming
+        """
+        streaming_callback_called = False
+        paris_found_in_response = False
+
+        def streaming_callback(chunk: StreamingChunk):
+            nonlocal streaming_callback_called, paris_found_in_response
+            streaming_callback_called = True
+            assert isinstance(chunk, StreamingChunk)
+            assert chunk.content is not None
+            if not paris_found_in_response:
+                paris_found_in_response = "paris" in chunk.content.lower()
+
+        client = AmazonBedrockChatGenerator(model=model_name, streaming_callback=streaming_callback)
+        response = await client.run_async(chat_messages)
+
+        assert streaming_callback_called, "Streaming callback was not called"
+        assert paris_found_in_response, "The streaming callback response did not contain 'paris'"
+        replies = response["replies"]
+        assert isinstance(replies, list), "Replies is not a list"
+        assert len(replies) > 0, "No replies received"
+
+        first_reply = replies[0]
+        assert isinstance(first_reply, ChatMessage), "First reply is not a ChatMessage instance"
+        assert first_reply.text, "First reply has no content"
+        assert ChatMessage.is_from(first_reply, ChatRole.ASSISTANT), "First reply is not from the assistant"
+        assert "paris" in first_reply.text.lower(), "First reply does not contain 'paris'"
+        assert first_reply.meta, "First reply has no metadata"
+
+    @pytest.mark.asyncio
     @pytest.mark.parametrize("model_name", STREAMING_TOOL_MODELS)
     @pytest.mark.integration
     async def test_async_tools_use_with_streaming(self, model_name):
@@ -839,45 +878,6 @@ class TestAmazonBedrockChatGeneratorAsyncInference:
         assert tool_call.tool_name == "top_song", f"{tool_call} does not contain the correct 'tool_name' value"
         assert tool_call.arguments, f"{tool_call} does not contain 'arguments' value"
         assert tool_call.arguments["sign"] == "WZPZ", f"{tool_call} does not contain the correct 'input' value"
-
-    @pytest.mark.asyncio
-    @pytest.mark.parametrize("model_name", MODELS_TO_TEST_WITH_TOOLS)
-    @pytest.mark.integration
-    async def test_async_live_run_with_tools(self, model_name, tools):
-        """
-        Integration test that the AmazonBedrockChatGenerator component can run asynchronously with tools
-        """
-        initial_messages = [ChatMessage.from_user("What's the weather like in Paris?")]
-        component = AmazonBedrockChatGenerator(model=model_name, tools=tools)
-        results = await component.run_async(messages=initial_messages)
-
-        assert len(results["replies"]) > 0, "No replies received"
-
-        # Find the message with tool calls
-        tool_message = next((msg for msg in results["replies"] if msg.tool_call), None)
-        assert tool_message is not None, "No message with tool call found"
-        assert isinstance(tool_message, ChatMessage), "Tool message is not a ChatMessage instance"
-        assert ChatMessage.is_from(tool_message, ChatRole.ASSISTANT), "Tool message is not from the assistant"
-
-        tool_call = tool_message.tool_call
-        assert tool_call.id, "Tool call does not contain value for 'id' key"
-        assert tool_call.tool_name == "weather"
-        assert tool_call.arguments == {"city": "Paris"}
-        assert tool_message.meta["finish_reason"] == "tool_use"
-
-        new_messages = [
-            initial_messages[0],
-            tool_message,
-            ChatMessage.from_tool(tool_result="22° C", origin=tool_call),
-        ]
-        # Pass the tool result to the model to get the final response
-        results = await component.run_async(new_messages)
-
-        assert len(results["replies"]) == 1
-        final_message = results["replies"][0]
-        assert not final_message.tool_call
-        assert len(final_message.text) > 0
-        assert "paris" in final_message.text.lower()
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize("model_name", STREAMING_TOOL_MODELS)
