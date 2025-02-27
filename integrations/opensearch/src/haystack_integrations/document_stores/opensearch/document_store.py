@@ -37,6 +37,7 @@ class OpenSearchDocumentStore:
     """
     An instance of an OpenSearch database you can use to store all types of data.
     """
+
     def __init__(
         self,
         *,
