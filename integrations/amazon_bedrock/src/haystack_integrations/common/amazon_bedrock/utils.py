@@ -40,7 +40,6 @@ def get_aws_session(
     :returns: The created AWS session.
     """
     try:
-
         if async_client:
             return aioboto3.Session(
                 aws_access_key_id=aws_access_key_id,
