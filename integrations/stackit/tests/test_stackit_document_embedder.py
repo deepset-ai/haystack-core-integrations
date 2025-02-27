@@ -123,7 +123,9 @@ class TestSTACKITDocumentEmbedder:
             assert isinstance(doc.embedding[0], float)
 
     def test_run_wrong_input_format(self):
-        embedder = STACKITDocumentEmbedder(model="intfloat/e5-mistral-7b-instruct", api_key=Secret.from_token("test-api-key"))
+        embedder = STACKITDocumentEmbedder(
+            model="intfloat/e5-mistral-7b-instruct", api_key=Secret.from_token("test-api-key")
+        )
 
         match_error_msg = (
             "OpenAIDocumentEmbedder expects a list of Documents as input.In case you want to embed a string, "

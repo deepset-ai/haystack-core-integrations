@@ -8,6 +8,7 @@ from haystack.components.generators.utils import print_streaming_chunk
 from haystack.dataclasses import ChatMessage, StreamingChunk
 from haystack.utils.auth import Secret
 from openai import OpenAIError
+from openai.types import CompletionUsage
 from openai.types.chat import ChatCompletion, ChatCompletionMessage
 from openai.types.chat.chat_completion import Choice
 
@@ -41,7 +42,7 @@ def mock_chat_completion():
                 )
             ],
             created=int(datetime.now(tz=pytz.timezone("UTC")).timestamp()),
-            usage={"prompt_tokens": 57, "completion_tokens": 40, "total_tokens": 97},
+            usage=CompletionUsage(prompt_tokens=57, completion_tokens=40, total_tokens=97)
         )
 
         mock_chat_completion_create.return_value = completion
@@ -172,7 +173,9 @@ class TestSTACKITChatGenerator:
 
     def test_run_with_params(self, chat_messages, mock_chat_completion, monkeypatch):
         monkeypatch.setenv("STACKIT_API_KEY", "fake-api-key")
-        component = STACKITChatGenerator(model="neuralmagic/Meta-Llama-3.1-8B-Instruct-FP8", generation_kwargs={"max_tokens": 10, "temperature": 0.5})
+        component = STACKITChatGenerator(
+            model="neuralmagic/Meta-Llama-3.1-8B-Instruct-FP8", generation_kwargs={"max_tokens": 10, "temperature": 0.5}
+        )
         response = component.run(chat_messages)
 
         # check that the component calls the OpenAI API with the correct parameters
@@ -188,7 +191,9 @@ class TestSTACKITChatGenerator:
         assert [isinstance(reply, ChatMessage) for reply in response["replies"]]
 
     def test_check_abnormal_completions(self, caplog):
-        component = STACKITChatGenerator(model="neuralmagic/Meta-Llama-3.1-8B-Instruct-FP8", api_key=Secret.from_token("test-api-key"))
+        component = STACKITChatGenerator(
+            model="neuralmagic/Meta-Llama-3.1-8B-Instruct-FP8", api_key=Secret.from_token("test-api-key")
+        )
         messages = [
             ChatMessage.from_assistant(
                 "", meta={"finish_reason": "content_filter" if i % 2 == 0 else "length", "index": i}
@@ -223,7 +228,7 @@ class TestSTACKITChatGenerator:
         reason="Export an env var called STACKIT_API_KEY containing the API key to run this test.",
     )
     @pytest.mark.integration
-    def test_live_run(self):
+    def test_live_run(self) -> None:
         chat_messages = [ChatMessage.from_user("What's the capital of France")]
         component = STACKITChatGenerator(model="neuralmagic/Meta-Llama-3.1-8B-Instruct-FP8")
         results = component.run(chat_messages)
@@ -259,7 +264,9 @@ class TestSTACKITChatGenerator:
                 self.responses += chunk.content if chunk.content else ""
 
         callback = Callback()
-        component = STACKITChatGenerator(model="neuralmagic/Meta-Llama-3.1-8B-Instruct-FP8", streaming_callback=callback)
+        component = STACKITChatGenerator(
+            model="neuralmagic/Meta-Llama-3.1-8B-Instruct-FP8", streaming_callback=callback
+        )
         results = component.run([ChatMessage.from_user("What's the capital of France?")])
 
         assert len(results["replies"]) == 1

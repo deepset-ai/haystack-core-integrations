@@ -6,7 +6,6 @@ from haystack.dataclasses import ChatMessage
 
 from haystack_integrations.components.generators.stackit import STACKITChatGenerator
 
-
 prompt_builder = ChatPromptBuilder()
 llm = STACKITChatGenerator(model="neuralmagic/Meta-Llama-3.1-70B-Instruct-FP8")
 

@@ -86,7 +86,9 @@ class TestSTACKITTextEmbedder:
         assert all(isinstance(x, float) for x in result["embedding"])
 
     def test_run_wrong_input_format(self):
-        embedder = STACKITTextEmbedder(model="intfloat/e5-mistral-7b-instruct", api_key=Secret.from_token("test-api-key"))
+        embedder = STACKITTextEmbedder(
+            model="intfloat/e5-mistral-7b-instruct", api_key=Secret.from_token("test-api-key")
+        )
         list_integers_input = ["text_snippet_1", "text_snippet_2"]
         match_error_msg = (
             "OpenAITextEmbedder expects a string as an input.In case you want to embed a list of Documents,"

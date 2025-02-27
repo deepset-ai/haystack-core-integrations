@@ -36,7 +36,9 @@ indexing.run(data={"fetcher": {"urls": ["https://www.stackit.de/en/"]}})
 
 retriever = InMemoryBM25Retriever(document_store=document_store)
 prompt_builder = ChatPromptBuilder(variables=["documents"])
-llm = STACKITChatGenerator(model="neuralmagic/Meta-Llama-3.1-70B-Instruct-FP8", streaming_callback=print_streaming_chunk)
+llm = STACKITChatGenerator(
+    model="neuralmagic/Meta-Llama-3.1-70B-Instruct-FP8", streaming_callback=print_streaming_chunk
+)
 
 messages = [ChatMessage.from_user("Here are some of the documents: {{documents}} \\n Question: {{query}} \\n Answer:")]
 
