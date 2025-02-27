@@ -4,7 +4,7 @@
 
 ### 🚀 Features
 
-- Adding async to `AmazonChatGenerator` (#1445)
+- Adding async support to `AmazonChatGenerator` (#1445)
 
 ### 📚 Documentation
 
