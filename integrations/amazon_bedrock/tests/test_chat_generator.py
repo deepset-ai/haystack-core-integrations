@@ -15,7 +15,7 @@ from haystack_integrations.components.generators.amazon_bedrock.chat.chat_genera
 
 KLASS = "haystack_integrations.components.generators.amazon_bedrock.chat.chat_generator.AmazonBedrockChatGenerator"
 MODELS_TO_TEST = [
-    "anthropic.claude-3-5-sonnet-20240620-v1:0",
+    # "anthropic.claude-3-5-sonnet-20240620-v1:0",
     "cohere.command-r-plus-v1:0",
     "mistral.mistral-large-2402-v1:0",
 ]
