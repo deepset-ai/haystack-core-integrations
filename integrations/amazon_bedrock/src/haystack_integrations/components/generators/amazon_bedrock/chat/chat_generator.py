@@ -214,17 +214,6 @@ class AmazonBedrockChatGenerator:
             )
             self.client = session.client("bedrock-runtime", config=config)
 
-            # async session
-            async_session = get_aws_session(
-                aws_access_key_id=aws_access_key_id,
-                aws_secret_access_key=aws_secret_access_key,
-                aws_session_token=aws_session_token,
-                aws_region_name=aws_region_name,
-                aws_profile_name=aws_profile_name,
-                async_client=True,
-            )
-            self.async_client = async_session.client("bedrock-runtime", config=config)
-
         except Exception as exception:
             msg = (
                 "Could not connect to Amazon Bedrock. Make sure the AWS environment is configured correctly. "
@@ -237,15 +226,26 @@ class AmazonBedrockChatGenerator:
         self.streaming_callback = streaming_callback
 
     async def _get_async_client(self):
-        async_session = get_aws_session(
-            aws_access_key_id=self.aws_access_key_id.resolve_value() if self.aws_access_key_id else None,
-            aws_secret_access_key=self.aws_secret_access_key.resolve_value() if self.aws_secret_access_key else None,
-            aws_session_token=self.aws_session_token.resolve_value() if self.aws_session_token else None,
-            aws_region_name=self.aws_region_name.resolve_value() if self.aws_region_name else None,
-            aws_profile_name=self.aws_profile_name.resolve_value() if self.aws_profile_name else None,
-            async_client=True,
-        )
-        return async_session.client("bedrock-runtime", config=self.boto3_config)
+
+        try:
+            async_session = get_aws_session(
+                aws_access_key_id=self.aws_access_key_id.resolve_value() if self.aws_access_key_id else None,
+                aws_secret_access_key=(
+                    self.aws_secret_access_key.resolve_value() if self.aws_secret_access_key else None
+                ),
+                aws_session_token=self.aws_session_token.resolve_value() if self.aws_session_token else None,
+                aws_region_name=self.aws_region_name.resolve_value() if self.aws_region_name else None,
+                aws_profile_name=self.aws_profile_name.resolve_value() if self.aws_profile_name else None,
+                async_client=True,
+            )
+            return async_session.client("bedrock-runtime", config=self.boto3_config)
+
+        except Exception as exception:
+            msg = (
+                "Could not connect to Amazon Bedrock. Make sure the AWS environment is configured correctly. "
+                "See https://boto3.amazonaws.com/v1/documentation/api/latest/guide/quickstart.html#configuration"
+            )
+            raise AmazonBedrockConfigurationError(msg) from exception
 
     def to_dict(self) -> Dict[str, Any]:
         """
