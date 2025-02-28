@@ -127,7 +127,12 @@ class AnthropicGenerator:
         return default_from_dict(cls, data)
 
     @component.output_types(replies=List[str], meta=List[Dict[str, Any]])
-    def run(self, prompt: str, generation_kwargs: Optional[Dict[str, Any]] = None):
+    def run(
+        self,
+        prompt: str,
+        generation_kwargs: Optional[Dict[str, Any]] = None,
+        streaming_callback: Optional[Callable[[StreamingChunk], None]] = None,
+    ):
         """
         Generate replies using the Anthropic API.
 
@@ -147,7 +152,8 @@ class AnthropicGenerator:
                 f"Allowed parameters are {self.ALLOWED_PARAMS}."
             )
 
-        stream = self.streaming_callback is not None
+        streaming_callback = streaming_callback or self.streaming_callback
+        stream = streaming_callback is not None
         response: Union[Message, Stream[MessageStreamEvent]] = self.client.messages.create(
             max_tokens=filtered_generation_kwargs.pop("max_tokens", 512),
             system=self.system_prompt if self.system_prompt else filtered_generation_kwargs.pop("system", ""),
@@ -171,8 +177,8 @@ class AnthropicGenerator:
                 if isinstance(stream_event, ContentBlockDeltaEvent) and isinstance(stream_event.delta, TextDelta):
                     chunk_delta: StreamingChunk = StreamingChunk(content=stream_event.delta.text)
                     chunks.append(chunk_delta)
-                    if self.streaming_callback:
-                        self.streaming_callback(chunk_delta)  # invoke callback with the chunk_delta
+                    if streaming_callback:
+                        streaming_callback(chunk_delta)  # invoke callback with the chunk_delta
                 if isinstance(stream_event, MessageDeltaEvent):
                     # capture stop reason and stop sequence
                     delta = stream_event
@@ -182,21 +188,21 @@ class AnthropicGenerator:
                         if content_block_type == "thinking":
                             start_tag_chunk = StreamingChunk(content=self.thinking_tag_start)
                             chunks.append(start_tag_chunk)
-                            if self.streaming_callback:
-                                self.streaming_callback(start_tag_chunk)
+                            if streaming_callback:
+                                streaming_callback(start_tag_chunk)
                     if isinstance(stream_event, ContentBlockStopEvent):
                         if content_block_type == "thinking":
                             end_tag_chunk = StreamingChunk(content=self.thinking_tag_end)
                             chunks.append(end_tag_chunk)
-                            if self.streaming_callback:
-                                self.streaming_callback(end_tag_chunk)
+                            if streaming_callback:
+                                streaming_callback(end_tag_chunk)
                     if isinstance(stream_event, ContentBlockDeltaEvent) and isinstance(
                         stream_event.delta, ThinkingDelta
                     ):
                         thinking_delta_chunk: StreamingChunk = StreamingChunk(content=stream_event.delta.thinking)
                         chunks.append(thinking_delta_chunk)
-                        if self.streaming_callback:
-                            self.streaming_callback(thinking_delta_chunk)
+                        if streaming_callback:
+                            streaming_callback(thinking_delta_chunk)
 
             completions = ["".join([chunk.content for chunk in chunks])]
             meta.update(
