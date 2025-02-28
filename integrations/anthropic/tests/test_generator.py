@@ -141,6 +141,22 @@ class TestAnthropicGenerator:
         assert len(response["meta"]) == 1
         assert [isinstance(meta, dict) for meta in response["meta"]]
 
+    def test_run_extended_thinking(self, mock_chat_completion_extended_thinking):
+        component = AnthropicGenerator(api_key=Secret.from_token("test-api-key"))
+        response = component.run("What is the capital of France?")
+
+        # check that the component returns the correct ChatMessage response
+        assert isinstance(response, dict)
+        assert "replies" in response
+        assert "meta" in response
+        assert isinstance(response["replies"], list)
+        assert isinstance(response["meta"], list)
+        assert len(response["replies"]) == 1
+        assert len(response["meta"]) == 1
+        assert [isinstance(reply, str) for reply in response["replies"]]
+        assert [isinstance(meta, dict) for meta in response["meta"]]
+        assert response["replies"][0] == "<thinking>This is a thinking part!</thinking>\n\nHello, world!"
+
     @pytest.mark.skipif(
         not os.environ.get("ANTHROPIC_API_KEY", None),
         reason="Export an env var called ANTHROPIC_API_KEY containing the Anthropic API key to run this test.",
@@ -206,3 +222,129 @@ class TestAnthropicGenerator:
         assert isinstance(first_reply, str), "First reply is not a str instance"
         assert first_reply, "First reply has no content"
         assert "paris" in first_reply.lower(), "First reply does not contain 'paris'"
+
+    @pytest.mark.skipif(
+        not os.environ.get("ANTHROPIC_API_KEY", None),
+        reason="Export an env var called ANTHROPIC_API_KEY containing the Anthropic API key to run this test.",
+    )
+    @pytest.mark.integration
+    def test_extended_thinking_mode(self):
+        client = AnthropicGenerator(
+            model="claude-3-7-sonnet-20250219",
+            generation_kwargs={"thinking": {"type": "enabled", "budget_tokens": 1024}, "max_tokens": 1536},
+        )
+        response = client.run("What is the capital of France?")
+
+        assert "replies" in response, "Response does not contain 'replies' key"
+        replies = response["replies"]
+        assert isinstance(replies, list), "Replies is not a list"
+        assert len(replies) > 0, "No replies received"
+
+        first_reply = replies[0]
+        assert isinstance(first_reply, str), "First reply is not a str instance"
+        assert first_reply, "First reply has no content"
+        assert "paris" in first_reply.lower(), "First reply does not contain 'paris'"
+        assert "<thinking>" in first_reply, "First reply does not contain a thinking block"
+        assert "</thinking>" in first_reply, "First reply does not contain a closing thinking block"
+
+        assert "meta" in response, "Response does not contain 'meta' key"
+        meta = response["meta"]
+        assert isinstance(meta, list), "Meta is not a list"
+        assert len(meta) > 0, "No meta received"
+        assert isinstance(meta[0], dict), "First meta is not a dict instance"
+
+    @pytest.mark.skipif(
+        not os.environ.get("ANTHROPIC_API_KEY", None),
+        reason="Export an env var called ANTHROPIC_API_KEY containing the Anthropic API key to run this test.",
+    )
+    @pytest.mark.integration
+    def test_extended_thinking_mode_with_streaming(self):
+        streaming_callback_called = False
+        paris_found_in_response = False
+        thinking_start_tag_found = False
+        thinking_end_tag_found = False
+
+        def streaming_callback(chunk: StreamingChunk):
+            nonlocal streaming_callback_called, paris_found_in_response
+            nonlocal thinking_start_tag_found, thinking_end_tag_found
+            streaming_callback_called = True
+            assert isinstance(chunk, StreamingChunk)
+            assert chunk.content is not None
+            if not paris_found_in_response:
+                paris_found_in_response = "paris" in chunk.content.lower()
+            if not thinking_start_tag_found:
+                thinking_start_tag_found = "<thinking>" in chunk.content
+            if not thinking_end_tag_found:
+                thinking_end_tag_found = "</thinking>" in chunk.content
+
+        client = AnthropicGenerator(
+            model="claude-3-7-sonnet-20250219",
+            generation_kwargs={"thinking": {"type": "enabled", "budget_tokens": 1024}, "max_tokens": 1536},
+            streaming_callback=streaming_callback,
+        )
+        response = client.run("What is the capital of France?")
+
+        assert streaming_callback_called, "Streaming callback was not called"
+        assert paris_found_in_response, "The streaming callback response did not contain 'paris'"
+        replies = response["replies"]
+        assert isinstance(replies, list), "Replies is not a list"
+        assert len(replies) > 0, "No replies received"
+
+        first_reply = replies[0]
+        assert isinstance(first_reply, str), "First reply is not a str instance"
+        assert first_reply, "First reply has no content"
+        assert "paris" in first_reply.lower(), "First reply does not contain 'paris'"
+        assert "<thinking>" in first_reply, "First reply does not contain a thinking block"
+        assert "</thinking>" in first_reply, "First reply does not contain a closing thinking block"
+        assert thinking_start_tag_found, "The streaming callback response did not contain a thinking start tag"
+        assert thinking_end_tag_found, "The streaming callback response did not contain a thinking end tag"
+
+    @pytest.mark.skipif(
+        not os.environ.get("ANTHROPIC_API_KEY", None),
+        reason="Export an env var called ANTHROPIC_API_KEY containing the Anthropic API key to run this test.",
+    )
+    @pytest.mark.integration
+    def test_extended_thinking_mode_with_streaming_include_thinking_false(self):
+        streaming_callback_called = False
+        paris_found_in_response = False
+        thinking_start_tag_found = False
+        thinking_end_tag_found = False
+
+        def streaming_callback(chunk: StreamingChunk):
+            nonlocal streaming_callback_called, paris_found_in_response
+            nonlocal thinking_start_tag_found, thinking_end_tag_found
+            streaming_callback_called = True
+            assert isinstance(chunk, StreamingChunk)
+            assert chunk.content is not None
+            if not paris_found_in_response:
+                paris_found_in_response = "paris" in chunk.content.lower()
+            if not thinking_start_tag_found:
+                thinking_start_tag_found = "<thinking>" in chunk.content
+            if not thinking_end_tag_found:
+                thinking_end_tag_found = "</thinking>" in chunk.content
+
+        client = AnthropicGenerator(
+            model="claude-3-7-sonnet-20250219",
+            generation_kwargs={
+                "thinking": {"type": "enabled", "budget_tokens": 1024},
+                "max_tokens": 1536,
+                "include_thinking": False,
+            },
+            streaming_callback=streaming_callback,
+        )
+        response = client.run("What is the capital of France?")
+
+        assert streaming_callback_called, "Streaming callback was not called"
+        assert paris_found_in_response, "The streaming callback response did not contain 'paris'"
+        replies = response["replies"]
+        assert isinstance(replies, list), "Replies is not a list"
+        assert len(replies) > 0, "No replies received"
+
+        first_reply = replies[0]
+        assert isinstance(first_reply, str), "First reply is not a str instance"
+        assert first_reply, "First reply has no content"
+        assert "paris" in first_reply.lower(), "First reply does not contain 'paris'"
+        assert "<thinking>" not in first_reply, "First reply does contain a thinking block"
+        assert "</thinking>" not in first_reply, "First reply does contain a closing thinking block"
+        assert not thinking_start_tag_found, "The streaming callback response did contain a thinking start tag"
+        assert not thinking_end_tag_found, "The streaming callback response did contain a thinking end tag"

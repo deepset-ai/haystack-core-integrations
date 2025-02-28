@@ -7,11 +7,17 @@ from haystack.utils import Secret, deserialize_callable, deserialize_secrets_inp
 from anthropic import Anthropic, Stream
 from anthropic.types import (
     ContentBlockDeltaEvent,
+    ContentBlockStartEvent,
+    ContentBlockStopEvent,
     Message,
     MessageDeltaEvent,
     MessageParam,
     MessageStartEvent,
     MessageStreamEvent,
+    TextBlock,
+    TextDelta,
+    ThinkingBlock,
+    ThinkingDelta,
 )
 
 logger = logging.getLogger(__name__)
@@ -48,6 +54,7 @@ class AnthropicGenerator:
         "temperature",
         "top_p",
         "top_k",
+        "thinking",
     ]
 
     def __init__(
@@ -73,6 +80,10 @@ class AnthropicGenerator:
         self.streaming_callback = streaming_callback
         self.system_prompt = system_prompt
         self.client = Anthropic(api_key=self.api_key.resolve_value())
+        self.include_thinking = self.generation_kwargs.pop("include_thinking", True)
+        self.thinking_tag = self.generation_kwargs.pop("thinking_tag", "thinking")
+        self.thinking_tag_start = f"<{self.thinking_tag}>" if self.thinking_tag else ""
+        self.thinking_tag_end = f"</{self.thinking_tag}>\n\n" if self.thinking_tag else "\n\n"
 
     def _get_telemetry_data(self) -> Dict[str, Any]:
         """
@@ -136,26 +147,28 @@ class AnthropicGenerator:
                 f"Allowed parameters are {self.ALLOWED_PARAMS}."
             )
 
+        stream = self.streaming_callback is not None
         response: Union[Message, Stream[MessageStreamEvent]] = self.client.messages.create(
             max_tokens=filtered_generation_kwargs.pop("max_tokens", 512),
             system=self.system_prompt if self.system_prompt else filtered_generation_kwargs.pop("system", ""),
             model=self.model,
             messages=[MessageParam(content=prompt, role="user")],
-            stream=self.streaming_callback is not None,
+            stream=stream,
             **filtered_generation_kwargs,
         )
 
         completions: List[str] = []
         meta: Dict[str, Any] = {}
         # if streaming is enabled, the response is a Stream[MessageStreamEvent]
-        if isinstance(response, Stream):
+        # some tracing libs (e.g. ddtrace) wrap the response breaking isinstance checks
+        if stream:
             chunks: List[StreamingChunk] = []
-            stream_event, delta, start_event = None, None, None
+            stream_event, delta, start_event, content_block_type = None, None, None, None
             for stream_event in response:
                 if isinstance(stream_event, MessageStartEvent):
                     # capture start message to count input tokens
                     start_event = stream_event
-                if isinstance(stream_event, ContentBlockDeltaEvent):
+                if isinstance(stream_event, ContentBlockDeltaEvent) and isinstance(stream_event.delta, TextDelta):
                     chunk_delta: StreamingChunk = StreamingChunk(content=stream_event.delta.text)
                     chunks.append(chunk_delta)
                     if self.streaming_callback:
@@ -163,6 +176,28 @@ class AnthropicGenerator:
                 if isinstance(stream_event, MessageDeltaEvent):
                     # capture stop reason and stop sequence
                     delta = stream_event
+                if self.include_thinking:
+                    if isinstance(stream_event, ContentBlockStartEvent):
+                        content_block_type = stream_event.content_block.type
+                        if content_block_type == "thinking":
+                            start_tag_chunk = StreamingChunk(content=self.thinking_tag_start)
+                            chunks.append(start_tag_chunk)
+                            if self.streaming_callback:
+                                self.streaming_callback(start_tag_chunk)
+                    if isinstance(stream_event, ContentBlockStopEvent):
+                        if content_block_type == "thinking":
+                            end_tag_chunk = StreamingChunk(content=self.thinking_tag_end)
+                            chunks.append(end_tag_chunk)
+                            if self.streaming_callback:
+                                self.streaming_callback(end_tag_chunk)
+                    if isinstance(stream_event, ContentBlockDeltaEvent) and isinstance(
+                        stream_event.delta, ThinkingDelta
+                    ):
+                        thinking_delta_chunk: StreamingChunk = StreamingChunk(content=stream_event.delta.thinking)
+                        chunks.append(thinking_delta_chunk)
+                        if self.streaming_callback:
+                            self.streaming_callback(thinking_delta_chunk)
+
             completions = ["".join([chunk.content for chunk in chunks])]
             meta.update(
                 {
@@ -174,7 +209,19 @@ class AnthropicGenerator:
             )
         # if streaming is disabled, the response is an Anthropic Message
         elif isinstance(response, Message):
-            completions = [content_block.text for content_block in response.content]
+
+            completions = [
+                content_block.text for content_block in response.content if isinstance(content_block, TextBlock)
+            ]
+            thinkings = [
+                content_block.thinking for content_block in response.content if isinstance(content_block, ThinkingBlock)
+            ]
+            if self.include_thinking and len(thinkings) == len(completions):
+                completions = [
+                    f"{self.thinking_tag_start}{thinking}{self.thinking_tag_end}{completion}"
+                    for thinking, completion in zip(thinkings, completions)
+                ]
+
             meta.update(
                 {
                     "model": response.model,
