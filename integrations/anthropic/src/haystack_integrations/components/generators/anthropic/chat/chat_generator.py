@@ -6,7 +6,7 @@ from haystack.dataclasses import ChatMessage, ChatRole, StreamingChunk, ToolCall
 from haystack.tools import Tool, _check_duplicate_tool_names, deserialize_tools_inplace
 from haystack.utils import Secret, deserialize_callable, deserialize_secrets_inplace, serialize_callable
 
-from anthropic import Anthropic, Stream
+from anthropic import Anthropic
 
 logger = logging.getLogger(__name__)
 
@@ -443,18 +443,20 @@ class AnthropicChatGenerator:
         )
 
         streaming_callback = streaming_callback or self.streaming_callback
+        stream = streaming_callback is not None
 
         response = self.client.messages.create(
             model=self.model,
             messages=non_system_messages,
             system=system_messages,
             tools=anthropic_tools,
-            stream=streaming_callback is not None,
+            stream=stream,
             max_tokens=generation_kwargs.pop("max_tokens", 1024),
             **generation_kwargs,
         )
 
-        if isinstance(response, Stream):
+        # workaround for https://github.com/DataDog/dd-trace-py/issues/12562
+        if stream:
             chunks: List[StreamingChunk] = []
             model: Optional[str] = None
             for chunk in response:
