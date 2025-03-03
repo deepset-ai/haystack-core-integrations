@@ -5,7 +5,7 @@
 import json
 import logging
 import os
-from unittest.mock import patch, AsyncMock
+from unittest.mock import AsyncMock, patch
 
 import anthropic
 import pytest
@@ -1077,7 +1077,6 @@ class TestAnthropicChatGeneratorAsync:
             mock_anthropic.return_value = AsyncMock(return_value=completion)()
             yield mock_anthropic
 
-
     @pytest.mark.asyncio
     async def test_run_async(self, chat_messages, mock_anthropic_completion_async, monkeypatch):
         """
@@ -1093,7 +1092,6 @@ class TestAnthropicChatGeneratorAsync:
         assert isinstance(response["replies"], list)
         assert len(response["replies"]) == 1
         assert [isinstance(reply, ChatMessage) for reply in response["replies"]]
-
 
     @pytest.mark.asyncio
     async def test_run_async_with_params(self, chat_messages, mock_anthropic_completion_async):
