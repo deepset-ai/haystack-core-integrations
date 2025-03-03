@@ -2,8 +2,7 @@ import json
 from typing import Any, Callable, ClassVar, Dict, List, Optional, Tuple
 
 from haystack import component, default_from_dict, default_to_dict, logging
-from haystack.dataclasses import ChatMessage, ChatRole, StreamingChunk, ToolCall, ToolCallResult, \
-    select_streaming_callback
+from haystack.dataclasses import ChatMessage, ChatRole, StreamingChunk, ToolCall, ToolCallResult
 from haystack.tools import Tool, _check_duplicate_tool_names, deserialize_tools_inplace
 from haystack.utils import Secret, deserialize_callable, deserialize_secrets_inplace, serialize_callable
 
