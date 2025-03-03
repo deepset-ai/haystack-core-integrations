@@ -2,14 +2,8 @@ import json
 from typing import Any, Callable, ClassVar, Dict, List, Optional, Tuple
 
 from haystack import component, default_from_dict, default_to_dict, logging
-from haystack.dataclasses import (
-    ChatMessage,
-    ChatRole,
-    StreamingChunk,
-    ToolCall,
-    ToolCallResult,
-    select_streaming_callback,
-)
+from haystack.dataclasses import ChatMessage, ChatRole, StreamingChunk, ToolCall, ToolCallResult, \
+    select_streaming_callback
 from haystack.tools import Tool, _check_duplicate_tool_names, deserialize_tools_inplace
 from haystack.utils import Secret, deserialize_callable, deserialize_secrets_inplace, serialize_callable
 
@@ -550,10 +544,8 @@ class AnthropicChatGenerator:
             messages, generation_kwargs, tools
         )
 
-        # validate and select the streaming callback
-        streaming_callback = select_streaming_callback(
-            self.streaming_callback, streaming_callback, requires_async=False
-        )  # type: ignore
+        # ToDO: change to haystack.dataclasses.select_streaming_callback once it is available
+        streaming_callback = streaming_callback or self.streaming_callback
 
         response = self.client.messages.create(
             model=self.model,
@@ -590,10 +582,8 @@ class AnthropicChatGenerator:
             messages, generation_kwargs, tools
         )
 
-        # validate and select the streaming callback
-        streaming_callback = select_streaming_callback(
-            self.streaming_callback, streaming_callback, requires_async=False
-        )  # type: ignore
+        # ToDO: change to haystack.dataclasses.select_streaming_callback once it is available
+        streaming_callback = streaming_callback or self.streaming_callback
 
         response = await self.async_client.messages.create(
             model=self.model,
