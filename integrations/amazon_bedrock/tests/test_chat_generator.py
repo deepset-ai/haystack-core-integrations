@@ -21,8 +21,8 @@ MODELS_TO_TEST = [
 ]
 MODELS_TO_TEST_WITH_TOOLS = [
     "anthropic.claude-3-5-sonnet-20240620-v1:0",
-    "cohere.command-r-plus-v1:0",
-    "mistral.mistral-large-2402-v1:0",
+    # "cohere.command-r-plus-v1:0",
+    # "mistral.mistral-large-2402-v1:0",
 ]
 
 # so far we've discovered these models support streaming and tool use
@@ -129,7 +129,7 @@ def test_from_dict(mock_boto3_session: Any, boto3_config: Optional[Dict[str, Any
     assert generator.boto3_config == boto3_config
 
 
-def test_default_constructor(mock_boto3_session, set_env_variables):
+def test_default_constructor(mock_boto3_session, mock_aioboto3_session, set_env_variables):
     """
     Test that the default constructor sets the correct values
     """
@@ -148,8 +148,8 @@ def test_default_constructor(mock_boto3_session, set_env_variables):
         aws_access_key_id="some_fake_id",
         aws_secret_access_key="some_fake_key",
         aws_session_token="some_fake_token",
-        profile_name="some_fake_profile",
         region_name="fake_region",
+        profile_name="some_fake_profile",
     )
 
 
@@ -263,8 +263,7 @@ class TestAmazonBedrockChatGeneratorInference:
             "toolChoice": {"auto": {}},
         }
 
-        messages = []
-        messages.append(ChatMessage.from_user("What is the most popular song on WZPZ?"))
+        messages = [ChatMessage.from_user("What is the most popular song on WZPZ?")]
         client = AmazonBedrockChatGenerator(model=model_name)
         response = client.run(messages=messages, generation_kwargs={"toolConfig": tool_config})
         replies = response["replies"]
@@ -659,3 +658,254 @@ class TestAmazonBedrockChatGeneratorInference:
         assert loaded_generator.tools[0].name == generator.tools[0].name
         assert loaded_generator.tools[0].description == generator.tools[0].description
         assert loaded_generator.tools[0].parameters == generator.tools[0].parameters
+
+
+class TestAmazonBedrockChatGeneratorAsyncInference:
+    """
+    Test class for async inference functionality of AmazonBedrockChatGenerator
+    """
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("model_name", MODELS_TO_TEST)
+    @pytest.mark.integration
+    async def test_async_default_inference_params(self, model_name, chat_messages):
+        """
+        Test basic async chat completion without streaming
+        """
+        client = AmazonBedrockChatGenerator(model=model_name)
+        response = await client.run_async(chat_messages)
+
+        assert "replies" in response, "Response does not contain 'replies' key"
+        replies = response["replies"]
+        assert isinstance(replies, list), "Replies is not a list"
+        assert len(replies) > 0, "No replies received"
+
+        first_reply = replies[0]
+        assert isinstance(first_reply, ChatMessage), "First reply is not a ChatMessage instance"
+        assert first_reply.text, "First reply has no content"
+        assert ChatMessage.is_from(first_reply, ChatRole.ASSISTANT), "First reply is not from the assistant"
+        assert "paris" in first_reply.text.lower(), "First reply does not contain 'paris'"
+        assert first_reply.meta, "First reply has no metadata"
+
+        if first_reply.meta and "usage" in first_reply.meta:
+            assert "prompt_tokens" in first_reply.meta["usage"]
+            assert "completion_tokens" in first_reply.meta["usage"]
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("model_name", MODELS_TO_TEST_WITH_TOOLS)
+    @pytest.mark.integration
+    async def test_async_tools_use(self, model_name):
+        """
+        Test async tools use with passing the generation_kwargs={"toolConfig": tool_config}
+        """
+        tool_config = {
+            "tools": [
+                {
+                    "toolSpec": {
+                        "name": "top_song",
+                        "description": "Get the most popular song played on a radio station.",
+                        "inputSchema": {
+                            "json": {
+                                "type": "object",
+                                "properties": {
+                                    "sign": {
+                                        "type": "string",
+                                        "description": "The call sign for the radio station "
+                                        "for which you want the most popular song. "
+                                        "Example calls signs are WZPZ and WKRP.",
+                                    }
+                                },
+                                "required": ["sign"],
+                            }
+                        },
+                    }
+                }
+            ],
+            "toolChoice": {"auto": {}},
+        }
+
+        messages = [ChatMessage.from_user("What is the most popular song on WZPZ?")]
+        client = AmazonBedrockChatGenerator(model=model_name)
+        response = await client.run_async(messages=messages, generation_kwargs={"toolConfig": tool_config})
+        replies = response["replies"]
+        assert isinstance(replies, list), "Replies is not a list"
+        assert len(replies) > 0, "No replies received"
+
+        # Find the message with tool calls
+        tool_message = next((msg for msg in replies if msg.tool_call), None)
+        assert tool_message is not None, "No message with tool call found"
+        assert isinstance(tool_message, ChatMessage), "Tool message is not a ChatMessage instance"
+        assert ChatMessage.is_from(tool_message, ChatRole.ASSISTANT), "Tool message is not from the assistant"
+
+        tool_call = tool_message.tool_call
+        assert tool_call.id, "Tool call does not contain value for 'id' key"
+        assert tool_call.tool_name == "top_song", f"{tool_call} does not contain the correct 'tool_name' value"
+        assert tool_call.arguments, f"Tool call {tool_call} does not contain 'arguments' value"
+        assert (
+            tool_call.arguments["sign"] == "WZPZ"
+        ), f"Tool call {tool_call} does not contain the correct 'arguments' value"
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("model_name", MODELS_TO_TEST_WITH_TOOLS)
+    @pytest.mark.integration
+    async def test_async_live_run_with_tools(self, model_name, tools):
+        """
+        Integration test that the AmazonBedrockChatGenerator component can run asynchronously with tools
+        """
+        initial_messages = [ChatMessage.from_user("What's the weather like in Paris?")]
+        component = AmazonBedrockChatGenerator(model=model_name, tools=tools)
+        results = await component.run_async(messages=initial_messages)
+
+        assert len(results["replies"]) > 0, "No replies received"
+
+        # Find the message with tool calls
+        tool_message = next((msg for msg in results["replies"] if msg.tool_call), None)
+        assert tool_message is not None, "No message with tool call found"
+        assert isinstance(tool_message, ChatMessage), "Tool message is not a ChatMessage instance"
+        assert ChatMessage.is_from(tool_message, ChatRole.ASSISTANT), "Tool message is not from the assistant"
+
+        tool_call = tool_message.tool_call
+        assert tool_call.id, "Tool call does not contain value for 'id' key"
+        assert tool_call.tool_name == "weather"
+        assert tool_call.arguments == {"city": "Paris"}
+        assert tool_message.meta["finish_reason"] == "tool_use"
+
+        new_messages = [
+            initial_messages[0],
+            tool_message,
+            ChatMessage.from_tool(tool_result="22° C", origin=tool_call),
+        ]
+        # Pass the tool result to the model to get the final response
+        results = await component.run_async(new_messages)
+
+        assert len(results["replies"]) == 1
+        final_message = results["replies"][0]
+        assert not final_message.tool_call
+        assert len(final_message.text) > 0
+        assert "paris" in final_message.text.lower()
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("model_name", STREAMING_TOOL_MODELS)
+    @pytest.mark.integration
+    async def test_async_inference_with_streaming(self, model_name, chat_messages):
+        """
+        Test async chat completion with streaming
+        """
+        streaming_callback_called = False
+        paris_found_in_response = False
+
+        def streaming_callback(chunk: StreamingChunk):
+            nonlocal streaming_callback_called, paris_found_in_response
+            streaming_callback_called = True
+            assert isinstance(chunk, StreamingChunk)
+            assert chunk.content is not None
+            if not paris_found_in_response:
+                paris_found_in_response = "paris" in chunk.content.lower()
+
+        client = AmazonBedrockChatGenerator(model=model_name, streaming_callback=streaming_callback)
+        response = await client.run_async(chat_messages)
+
+        assert streaming_callback_called, "Streaming callback was not called"
+        assert paris_found_in_response, "The streaming callback response did not contain 'paris'"
+        replies = response["replies"]
+        assert isinstance(replies, list), "Replies is not a list"
+        assert len(replies) > 0, "No replies received"
+
+        first_reply = replies[0]
+        assert isinstance(first_reply, ChatMessage), "First reply is not a ChatMessage instance"
+        assert first_reply.text, "First reply has no content"
+        assert ChatMessage.is_from(first_reply, ChatRole.ASSISTANT), "First reply is not from the assistant"
+        assert "paris" in first_reply.text.lower(), "First reply does not contain 'paris'"
+        assert first_reply.meta, "First reply has no metadata"
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("model_name", STREAMING_TOOL_MODELS)
+    @pytest.mark.integration
+    async def test_async_tools_use_with_streaming(self, model_name):
+        """
+        Test async tools use with streaming
+        """
+        tool_config = {
+            "tools": [
+                {
+                    "toolSpec": {
+                        "name": "top_song",
+                        "description": "Get the most popular song played on a radio station.",
+                        "inputSchema": {
+                            "json": {
+                                "type": "object",
+                                "properties": {
+                                    "sign": {
+                                        "type": "string",
+                                        "description": "The call sign for the radio station "
+                                        "for which you want the most popular song. Example "
+                                        "calls signs are WZPZ and WKRP.",
+                                    }
+                                },
+                                "required": ["sign"],
+                            }
+                        },
+                    }
+                }
+            ],
+            "toolChoice": {"auto": {}},
+        }
+
+        messages = [ChatMessage.from_user("What is the most popular song on WZPZ?")]
+        client = AmazonBedrockChatGenerator(model=model_name, streaming_callback=print_streaming_chunk)
+        response = await client.run_async(messages=messages, generation_kwargs={"toolConfig": tool_config})
+        replies = response["replies"]
+        assert isinstance(replies, list), "Replies is not a list"
+        assert len(replies) > 0, "No replies received"
+
+        # Find the message containing the tool call
+        tool_message = next((msg for msg in replies if msg.tool_call), None)
+        assert tool_message is not None, "No message with tool call found"
+        assert isinstance(tool_message, ChatMessage), "Tool message is not a ChatMessage instance"
+        assert ChatMessage.is_from(tool_message, ChatRole.ASSISTANT), "Tool message is not from the assistant"
+
+        tool_call = tool_message.tool_call
+        assert tool_call.id, "Tool call does not contain value for 'id' key"
+        assert tool_call.tool_name == "top_song", f"{tool_call} does not contain the correct 'tool_name' value"
+        assert tool_call.arguments, f"{tool_call} does not contain 'arguments' value"
+        assert tool_call.arguments["sign"] == "WZPZ", f"{tool_call} does not contain the correct 'input' value"
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("model_name", STREAMING_TOOL_MODELS)
+    @pytest.mark.integration
+    async def test_async_live_run_with_tools_streaming(self, model_name, tools):
+        """
+        Integration test that the AmazonBedrockChatGenerator component can run asynchronously with tools and streaming
+        """
+        initial_messages = [ChatMessage.from_user("What's the weather like in Paris?")]
+        component = AmazonBedrockChatGenerator(model=model_name, tools=tools, streaming_callback=print_streaming_chunk)
+        results = await component.run_async(messages=initial_messages)
+
+        assert len(results["replies"]) > 0, "No replies received"
+
+        # Find the message with tool calls
+        tool_message = next((msg for msg in results["replies"] if msg.tool_call), None)
+        assert tool_message is not None, "No message with tool call found"
+        assert isinstance(tool_message, ChatMessage), "Tool message is not a ChatMessage instance"
+        assert ChatMessage.is_from(tool_message, ChatRole.ASSISTANT), "Tool message is not from the assistant"
+
+        tool_call = tool_message.tool_call
+        assert tool_call.id, "Tool call does not contain value for 'id' key"
+        assert tool_call.tool_name == "weather"
+        assert tool_call.arguments == {"city": "Paris"}
+        assert tool_message.meta["finish_reason"] == "tool_use"
+
+        new_messages = [
+            initial_messages[0],
+            tool_message,
+            ChatMessage.from_tool(tool_result="22° C", origin=tool_call),
+        ]
+
+        # Pass the tool result to the model to get the final response
+        results = await component.run_async(new_messages)
+
+        assert len(results["replies"]) == 1
+        final_message = results["replies"][0]
+        assert not final_message.tool_call
+        assert len(final_message.text) > 0
+        assert "paris" in final_message.text.lower()

@@ -35,7 +35,7 @@ DOC_ALREADY_EXISTS = 409
 
 class ElasticsearchDocumentStore:
     """
-    ElasticsearchDocumentStore is a Document Store for Elasticsearch. It can be used with Elastic Cloud or your own
+    An ElasticsearchDocumentStore instance that works with Elastic Cloud or your own
     Elasticsearch cluster.
 
     Usage example (Elastic Cloud):

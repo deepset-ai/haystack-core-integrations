@@ -43,7 +43,6 @@ class TestAmazonBedrockTextEmbedder:
             )
 
     def test_to_dict(self, mock_boto3_session):
-
         embedder = AmazonBedrockTextEmbedder(
             model="cohere.embed-english-v3",
             input_type="search_query",
@@ -66,7 +65,6 @@ class TestAmazonBedrockTextEmbedder:
         assert embedder.to_dict() == expected_dict
 
     def test_from_dict(self, mock_boto3_session):
-
         data = {
             "type": "haystack_integrations.components.embedders.amazon_bedrock.text_embedder.AmazonBedrockTextEmbedder",
             "init_parameters": {

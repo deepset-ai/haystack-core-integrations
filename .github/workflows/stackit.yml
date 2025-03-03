@@ -1,29 +1,28 @@
 # This workflow comes from https://github.com/ofek/hatch-mypyc
 # https://github.com/ofek/hatch-mypyc/blob/5a198c0ba8660494d02716cfc9d79ce4adfb1442/.github/workflows/test.yml
-name: Test / nvidia
+name: Test / stackit
 
 on:
   schedule:
-    - cron: "0 0 * * 0"
+    - cron: "0 0 * * *"
   pull_request:
     paths:
-      - "integrations/nvidia/**"
-      - "!integrations/nvidia/*.md"
-      - ".github/workflows/nvidia.yml"
+      - "integrations/stackit/**"
+      - "!integrations/stackit/*.md"
+      - ".github/workflows/stackit.yml"
 
 defaults:
   run:
-    working-directory: integrations/nvidia
+    working-directory: integrations/stackit
 
 concurrency:
-  group: nvidia-${{ github.head_ref }}
+  group: stackit-${{ github.head_ref }}
   cancel-in-progress: true
 
 env:
   PYTHONUNBUFFERED: "1"
   FORCE_COLOR: "1"
-  NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
-  NVIDIA_CATALOG_API_KEY: ${{ secrets.NVIDIA_CATALOG_API_KEY }}
+  STACKIT: ${{ secrets.STACKIT_API_KEY }}
 
 jobs:
   run:
@@ -33,7 +32,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
-        python-version: ["3.9"]
+        python-version: ["3.9", "3.10"]
 
     steps:
       - name: Support longpaths
@@ -55,12 +54,12 @@ jobs:
         if: matrix.python-version == '3.9' && runner.os == 'Linux'
         run: hatch run lint:all
 
-      - name: Run tests
-        run: hatch run cov-retry
-
       - name: Generate docs
         if: matrix.python-version == '3.9' && runner.os == 'Linux'
         run: hatch run docs
+
+      - name: Run tests
+        run: hatch run cov-retry
 
       - name: Nightly - run unit tests with Haystack main branch
         if: github.event_name == 'schedule'

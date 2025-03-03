@@ -47,8 +47,8 @@ def get_batches_from_generator(iterable, n):
 
 class QdrantDocumentStore:
     """
-    QdrantDocumentStore is a Document Store for Qdrant.
-    It can be used with any Qdrant instance: in-memory, disk-persisted, Docker-based,
+    A QdrantDocumentStore implementation that you
+    can use with any Qdrant instance: in-memory, disk-persisted, Docker-based,
     and Qdrant Cloud Cluster deployments.
 
     Usage example by creating an in-memory instance:

@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 class MongoDBAtlasDocumentStore:
     """
-    MongoDBAtlasDocumentStore is a DocumentStore implementation that uses
+    A MongoDBAtlasDocumentStore implementation that uses the
     [MongoDB Atlas](https://www.mongodb.com/atlas/database) service that is easy to deploy, operate, and scale.
 
     To connect to MongoDB Atlas, you need to provide a connection string in the format:

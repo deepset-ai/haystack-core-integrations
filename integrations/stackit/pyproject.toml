@@ -3,9 +3,9 @@ requires = ["hatchling", "hatch-vcs"]
 build-backend = "hatchling.build"
 
 [project]
-name = "amazon-bedrock-haystack"
+name = "stackit-haystack"
 dynamic = ["version"]
-description = 'An integration of Amazon Bedrock as an AmazonBedrockGenerator component.'
+description = 'An integration of STACKIT as a StackitChatGenerator'
 readme = "README.md"
 requires-python = ">=3.9"
 license = "Apache-2.0"
@@ -22,34 +22,32 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
-dependencies = ["haystack-ai", "boto3>=1.28.57", "aioboto3>=14.0.0"]
+dependencies = ["haystack-ai"]
 
 [project.urls]
-Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/amazon_bedrock#readme"
+Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/stackit#readme"
 Issues = "https://github.com/deepset-ai/haystack-core-integrations/issues"
-Source = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/amazon_bedrock"
+Source = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/stackit"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/haystack_integrations"]
 
 [tool.hatch.version]
 source = "vcs"
-tag-pattern = 'integrations\/amazon_bedrock-v(?P<version>.*)'
+tag-pattern = 'integrations\/stackit-v(?P<version>.*)'
 
 [tool.hatch.version.raw-options]
 root = "../.."
-git_describe_command = 'git describe --tags --match="integrations/amazon_bedrock-v[0-9]*"'
+git_describe_command = 'git describe --tags --match="integrations/stackit-v[0-9]*"'
 
 [tool.hatch.envs.default]
 installer = "uv"
 dependencies = [
   "coverage[toml]>=6.5",
-  "haystack-pydoc-tools",
   "pytest",
-  "pytest-asyncio",
   "pytest-rerunfailures",
+  "haystack-pydoc-tools",
 ]
-
 [tool.hatch.envs.default.scripts]
 test = "pytest {args:tests}"
 test-cov = "coverage run -m pytest {args:tests}"
@@ -60,17 +58,19 @@ cov-retry = ["test-cov-retry", "cov-report"]
 docs = ["pydoc-markdown pydoc/config.yml"]
 
 [[tool.hatch.envs.all.matrix]]
-python = ["3.9", "3.10", "3.11", "3.12"]
+python = ["3.9", "3.10", "3.11"]
 
 [tool.hatch.envs.lint]
 installer = "uv"
 detached = true
 dependencies = ["pip", "black>=23.1.0", "mypy>=1.0.0", "ruff>=0.0.243"]
-
 [tool.hatch.envs.lint.scripts]
 typing = "mypy --install-types --non-interactive --explicit-package-bases {args:src/ tests}"
-style = ["ruff check {args:.}", "black --check --diff {args:.}"]
-fmt = ["black {args:.}", "ruff check --fix {args:.}", "style"]
+style = [
+  "ruff check {args:}",
+  "black --check --diff {args:.}",
+]
+fmt = ["black {args:.}", "ruff check --fix {args:}", "style"]
 all = ["style", "typing"]
 
 [tool.black]
@@ -122,10 +122,9 @@ ignore = [
   "PLR0912",
   "PLR0913",
   "PLR0915",
-  # Ignore unused params
-  "ARG001",
-  "ARG002",
-  "ARG005",
+  # Misc
+  "B008",
+  "S101",
 ]
 unfixable = [
   # Don't touch unused imports
@@ -145,19 +144,21 @@ ban-relative-imports = "parents"
 [tool.coverage.run]
 source = ["haystack_integrations"]
 branch = true
-parallel = true
+parallel = false
+
 
 [tool.coverage.report]
 omit = ["*/tests/*", "*/__init__.py"]
 show_missing = true
 exclude_lines = ["no cov", "if __name__ == .__main__.:", "if TYPE_CHECKING:"]
 
+
 [[tool.mypy.overrides]]
 module = [
-  "botocore.*",
-  "boto3.*",
+  "stackit.*",
   "haystack.*",
   "haystack_integrations.*",
+  "openai.*",
   "pytest.*",
   "numpy.*",
 ]
@@ -166,9 +167,7 @@ ignore_missing_imports = true
 [tool.pytest.ini_options]
 addopts = "--strict-markers"
 markers = [
-  "unit: unit tests",
   "integration: integration tests",
-  "embedders: embedders tests",
-  "generators: generators tests",
+  "unit: unit tests",
 ]
 log_cli = true

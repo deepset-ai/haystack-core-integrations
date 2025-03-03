@@ -34,6 +34,10 @@ DEFAULT_MAX_CHUNK_BYTES = 100 * 1024 * 1024
 
 
 class OpenSearchDocumentStore:
+    """
+    An instance of an OpenSearch database you can use to store all types of data.
+    """
+
     def __init__(
         self,
         *,
