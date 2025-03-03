@@ -1,13 +1,15 @@
 # SPDX-FileCopyrightText: 2022-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
+
 import json
 import logging
 import os
-from unittest.mock import patch
+from unittest.mock import patch, AsyncMock
 
 import anthropic
 import pytest
+import pytest_asyncio
 from anthropic.types import (
     ContentBlockDeltaEvent,
     ContentBlockStartEvent,
@@ -65,6 +67,7 @@ def mock_anthropic_completion():
 
 
 class TestAnthropicChatGenerator:
+
     def test_init_default(self, monkeypatch):
         """
         Test the default initialization of the AnthropicChatGenerator component.
@@ -1058,7 +1061,7 @@ class TestAnthropicChatGenerator:
 
 class TestAnthropicChatGeneratorAsync:
 
-    @pytest.fixture
+    @pytest_asyncio.fixture
     async def mock_anthropic_completion_async(self):
         with patch("anthropic.resources.messages.AsyncMessages.create") as mock_anthropic:
             completion = Message(
@@ -1070,15 +1073,18 @@ class TestAnthropicChatGeneratorAsync:
                 stop_reason="end_turn",
                 usage={"input_tokens": 10, "output_tokens": 20},
             )
-            mock_anthropic.return_value = completion
+            # Make the mock return an awaitable
+            mock_anthropic.return_value = AsyncMock(return_value=completion)()
             yield mock_anthropic
 
+
     @pytest.mark.asyncio
-    async def test_run_async(self, chat_messages, mock_anthropic_completion_async):
+    async def test_run_async(self, chat_messages, mock_anthropic_completion_async, monkeypatch):
         """
         Test that the async run method of AnthropicChatGenerator works correctly.
         """
-        component = AnthropicChatGenerator(api_key=Secret.from_token("test-api-key"))
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "test-api-key")
+        component = AnthropicChatGenerator()
         response = await component.run_async(chat_messages)
 
         # check that the component returns the correct ChatMessage response
@@ -1087,6 +1093,7 @@ class TestAnthropicChatGeneratorAsync:
         assert isinstance(response["replies"], list)
         assert len(response["replies"]) == 1
         assert [isinstance(reply, ChatMessage) for reply in response["replies"]]
+
 
     @pytest.mark.asyncio
     async def test_run_async_with_params(self, chat_messages, mock_anthropic_completion_async):

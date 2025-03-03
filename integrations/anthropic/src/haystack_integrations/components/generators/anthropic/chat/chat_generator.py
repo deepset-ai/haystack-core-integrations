@@ -543,7 +543,7 @@ class AnthropicChatGenerator:
             messages, generation_kwargs, tools
         )
 
-        # ToDO: change to haystack.dataclasses.select_streaming_callback once it is available
+        # ToDO: use haystack.dataclasses.select_streaming_callback once it is available
         streaming_callback = streaming_callback or self.streaming_callback
 
         response = self.client.messages.create(
@@ -581,7 +581,7 @@ class AnthropicChatGenerator:
             messages, generation_kwargs, tools
         )
 
-        # ToDO: change to haystack.dataclasses.select_streaming_callback once it is available
+        # ToDO: use haystack.dataclasses.select_streaming_callback once it is available
         streaming_callback = streaming_callback or self.streaming_callback
 
         response = await self.async_client.messages.create(
