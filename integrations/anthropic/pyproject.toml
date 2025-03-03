@@ -164,5 +164,5 @@ ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 addopts = "--strict-markers"
-markers = ["unit: unit tests", "integration: integration tests"]
+markers = ["unit: unit tests", "integration: integration tests", "asyncio: mark a test as an asyncio coroutine"]
 log_cli = true
