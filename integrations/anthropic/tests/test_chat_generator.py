@@ -1151,6 +1151,7 @@ class TestAnthropicChatGeneratorAsync:
         """
         Test that the async run method of AnthropicChatGenerator works with streaming.
         """
+
         class Callback:
             def __init__(self):
                 self.responses = ""
