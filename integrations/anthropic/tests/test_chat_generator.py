@@ -9,7 +9,7 @@ from unittest.mock import AsyncMock, patch
 
 import anthropic
 import pytest
-import pytest_asyncio
+import pytest_asyncio  # type: ignore[import]
 from anthropic.types import (
     ContentBlockDeltaEvent,
     ContentBlockStartEvent,
