@@ -1087,12 +1087,7 @@ class TestAnthropicChatGeneratorAsync:
                 role="assistant",
                 content=[
                     TextBlockParam(type="text", text="Let me check the weather for you."),
-                    {
-                        "type": "tool_use",
-                        "id": "tool_123",
-                        "name": "weather",
-                        "input": {"city": "Paris"}
-                    }
+                    {"type": "tool_use", "id": "tool_123", "name": "weather", "input": {"city": "Paris"}},
                 ],
                 stop_reason="tool_use",
                 usage={"input_tokens": 10, "output_tokens": 20},
@@ -1221,7 +1216,6 @@ class TestAnthropicChatGeneratorAsync:
         assert "Paris" in message.text
         assert "claude-3-5-sonnet-20240620" in message.meta["model"]
         assert message.meta["finish_reason"] == "end_turn"
-
 
     @pytest.mark.asyncio
     @pytest.mark.skipif(
