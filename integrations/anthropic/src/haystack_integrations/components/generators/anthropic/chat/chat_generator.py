@@ -2,13 +2,18 @@ import json
 from typing import Any, Callable, ClassVar, Dict, List, Optional, Tuple
 
 from haystack import component, default_from_dict, default_to_dict, logging
-from haystack.dataclasses import ChatMessage, ChatRole, StreamingChunk, ToolCall, ToolCallResult, \
-    select_streaming_callback
+from haystack.dataclasses import (
+    ChatMessage,
+    ChatRole,
+    StreamingChunk,
+    ToolCall,
+    ToolCallResult,
+    select_streaming_callback,
+)
 from haystack.tools import Tool, _check_duplicate_tool_names, deserialize_tools_inplace
 from haystack.utils import Secret, deserialize_callable, deserialize_secrets_inplace, serialize_callable
 
 from anthropic import Anthropic, AsyncAnthropic, Stream
-
 
 logger = logging.getLogger(__name__)
 
@@ -453,35 +458,35 @@ class AnthropicChatGenerator:
         response: Any,
         streaming_callback: Optional[Callable[[StreamingChunk], None]] = None,
     ) -> Dict[str, List[ChatMessage]]:
-            """
-            Process the response from the Anthropic API.
-            :param response: The response from the Anthropic API.
-            :param streaming_callback: A callback function that is called when a new token is received from the stream.
-            :returns: A dictionary containing the processed response as a list of ChatMessage objects.
-            """
-            if isinstance(response, Stream):
-                chunks: List[StreamingChunk] = []
-                model: Optional[str] = None
-                for chunk in response:
-                    if chunk.type == "message_start":
-                        model = chunk.message.model
-                    elif chunk.type in [
-                        "content_block_start",
-                        "content_block_delta",
-                        "message_delta",
-                    ]:
-                        streaming_chunk = self._convert_anthropic_chunk_to_streaming_chunk(chunk)
-                        chunks.append(streaming_chunk)
-                        if streaming_callback:
-                            streaming_callback(streaming_chunk)
-                completion = self._convert_streaming_chunks_to_chat_message(chunks, model)
-                return {"replies": [completion]}
-            else:
-                return {
-                    "replies": [
-                        self._convert_chat_completion_to_chat_message(response, self.ignore_tools_thinking_messages)
-                    ]
-                }
+        """
+        Process the response from the Anthropic API.
+        :param response: The response from the Anthropic API.
+        :param streaming_callback: A callback function that is called when a new token is received from the stream.
+        :returns: A dictionary containing the processed response as a list of ChatMessage objects.
+        """
+        if isinstance(response, Stream):
+            chunks: List[StreamingChunk] = []
+            model: Optional[str] = None
+            for chunk in response:
+                if chunk.type == "message_start":
+                    model = chunk.message.model
+                elif chunk.type in [
+                    "content_block_start",
+                    "content_block_delta",
+                    "message_delta",
+                ]:
+                    streaming_chunk = self._convert_anthropic_chunk_to_streaming_chunk(chunk)
+                    chunks.append(streaming_chunk)
+                    if streaming_callback:
+                        streaming_callback(streaming_chunk)
+            completion = self._convert_streaming_chunks_to_chat_message(chunks, model)
+            return {"replies": [completion]}
+        else:
+            return {
+                "replies": [
+                    self._convert_chat_completion_to_chat_message(response, self.ignore_tools_thinking_messages)
+                ]
+            }
 
     @component.output_types(replies=List[ChatMessage])
     def run(
@@ -544,9 +549,7 @@ class AnthropicChatGenerator:
             messages, generation_kwargs, tools
         )
 
-        streaming_callback = select_streaming_callback(
-            self.streaming_callback, streaming_callback, requires_async=True
-        )
+        streaming_callback = select_streaming_callback(self.streaming_callback, streaming_callback, requires_async=True)
 
         response = await self.async_client.messages.create(
             model=self.model,
