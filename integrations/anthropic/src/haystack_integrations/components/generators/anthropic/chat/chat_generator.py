@@ -6,7 +6,7 @@ from haystack.dataclasses import ChatMessage, ChatRole, StreamingChunk, ToolCall
 from haystack.tools import Tool, _check_duplicate_tool_names, deserialize_tools_inplace
 from haystack.utils import Secret, deserialize_callable, deserialize_secrets_inplace, serialize_callable
 
-from anthropic import Anthropic, AsyncAnthropic, Stream
+from anthropic import Anthropic, AsyncAnthropic, Stream, AsyncStream
 
 logger = logging.getLogger(__name__)
 
@@ -135,8 +135,8 @@ class AnthropicChatGenerator:
 
     Usage example:
     ```python
-    from haystack_experimental.components.generators.anthropic import AnthropicChatGenerator
-    from haystack_experimental.dataclasses import ChatMessage
+    from haystack_integrations.components.generators.anthropic import AnthropicChatGenerator
+    from haystack.dataclasses import ChatMessage
 
     generator = AnthropicChatGenerator(model="claude-3-5-sonnet-20240620",
                                        generation_kwargs={
@@ -493,9 +493,11 @@ class AnthropicChatGenerator:
 
         :param response: The response from the Anthropic API.
         :param streaming_callback: A callback function that is called when a new token is received from the stream.
-        :returns: A dictionary containing the processed response as a list of ChatMessage objects.
+
+        :returns:
+            A dictionary containing the processed response as a list of ChatMessage objects.
         """
-        if isinstance(response, Stream):
+        if isinstance(response, AsyncStream):
             chunks: List[StreamingChunk] = []
             model: Optional[str] = None
             async for chunk in response:
