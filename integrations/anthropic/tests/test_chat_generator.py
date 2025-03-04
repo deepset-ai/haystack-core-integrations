@@ -1144,40 +1144,6 @@ class TestAnthropicChatGeneratorAsync:
         assert response["replies"][0].meta["model"] == "claude-3-5-sonnet-20240620"
         assert response["replies"][0].meta["finish_reason"] == "end_turn"
 
-    # @pytest.mark.asyncio
-    # async def test_run_async_with_tools(self, tools, mock_anthropic_completion_async_with_tool):
-    #     """
-    #     Test that the async run method of AnthropicChatGenerator works with tools.
-    #     """
-    #     initial_messages = [ChatMessage.from_user("What's the weather like in Paris?")]
-    #     component = AnthropicChatGenerator(tools=tools)
-    #     results = await component.run_async(messages=initial_messages)
-    #
-    #     assert len(results["replies"]) == 1
-    #     message = results["replies"][0]
-    #
-    #     assert message.tool_calls
-    #     tool_call = message.tool_call
-    #     assert isinstance(tool_call, ToolCall)
-    #     assert tool_call.id is not None
-    #     assert tool_call.tool_name == "weather"
-    #     assert tool_call.arguments == {"city": "Paris"}
-    #     assert message.meta["finish_reason"] == "tool_use"
-    #
-    #     new_messages = [
-    #         *initial_messages,
-    #         message,
-    #         ChatMessage.from_tool(tool_result="22° C", origin=tool_call),
-    #     ]
-    #     # the model tends to make tool calls if provided with tools, so we don't pass them here
-    #     results = await component.run_async(new_messages, generation_kwargs={"max_tokens": 50})
-    #
-    #     assert len(results["replies"]) == 1
-    #     final_message = results["replies"][0]
-    #     assert not final_message.tool_calls
-    #     assert len(final_message.text) > 0
-    #     assert "paris" in final_message.text.lower()
-
     @pytest.mark.asyncio
     @pytest.mark.skipif(
         not os.environ.get("ANTHROPIC_API_KEY", None),
@@ -1272,51 +1238,3 @@ class TestAnthropicChatGeneratorAsync:
         assert not final_message.tool_calls
         assert len(final_message.text) > 0
         assert "paris" in final_message.text.lower()
-
-    # @pytest.mark.asyncio
-    # @pytest.mark.skipif(
-    #     not os.environ.get("ANTHROPIC_API_KEY", None),
-    #     reason="Export an env var called ANTHROPIC_API_KEY containing the Anthropic API key to run this test.",
-    # )
-    # @pytest.mark.integration
-    # async def test_live_run_async_with_parallel_tools(self, tools):
-    #     """
-    #     Integration test that the async run method works with parallel tools.
-    #     """
-    #     initial_messages = [ChatMessage.from_user("What's the weather like in Paris and Berlin?")]
-    #     component = AnthropicChatGenerator(tools=tools)
-    #     results = await component.run_async(messages=initial_messages)
-    #
-    #     assert len(results["replies"]) == 1
-    #     message = results["replies"][0]
-    #
-    #     assert len(message.tool_calls) == 2
-    #     tool_call_paris = message.tool_calls[0]
-    #     assert isinstance(tool_call_paris, ToolCall)
-    #     assert tool_call_paris.id is not None
-    #     assert tool_call_paris.tool_name == "weather"
-    #     assert tool_call_paris.arguments["city"] in {"Paris", "Berlin"}
-    #     assert message.meta["finish_reason"] == "tool_use"
-    #
-    #     tool_call_berlin = message.tool_calls[1]
-    #     assert isinstance(tool_call_berlin, ToolCall)
-    #     assert tool_call_berlin.id is not None
-    #     assert tool_call_berlin.tool_name == "weather"
-    #     assert tool_call_berlin.arguments["city"] in {"Berlin", "Paris"}
-    #
-    #     new_messages = [
-    #         *initial_messages,
-    #         message,
-    #         ChatMessage.from_tool(tool_result="22° C", origin=tool_call_paris, error=False),
-    #         ChatMessage.from_tool(tool_result="12° C", origin=tool_call_berlin, error=False),
-    #     ]
-    #
-    #     results = await component.run_async(new_messages)
-    #     message = results["replies"][0]
-    #     assert not message.tool_calls
-    #     assert len(message.text) > 0
-    #     assert "paris" in message.text.lower()
-    #     assert "berlin" in message.text.lower()
-    #     assert "22°" in message.text
-    #     assert "12°" in message.text
-    #     assert message.meta["finish_reason"] == "end_turn"
