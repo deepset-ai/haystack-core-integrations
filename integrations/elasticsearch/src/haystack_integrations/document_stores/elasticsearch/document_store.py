@@ -332,10 +332,10 @@ class ElasticsearchDocumentStore:
             dataframe = data.pop("dataframe")
             if dataframe:
                 logger.warning(
-                    "Document %s has the `dataframe` field set,"
+                    "Document {doc_id} has the `dataframe` field set,"
                     "ElasticsearchDocumentStore no longer supports dataframes and this field will be ignored. "
                     "The `dataframe` field will soon be removed from Haystack Document.",
-                    data["id"],
+                    doc_id=data["id"],
                 )
         return Document.from_dict(data)
 
@@ -368,19 +368,19 @@ class ElasticsearchDocumentStore:
                 dataframe = doc_dict.pop("dataframe")
                 if dataframe:
                     logger.warning(
-                        "Document %s has the `dataframe` field set,"
+                        "Document {doc_id} has the `dataframe` field set,"
                         "ElasticsearchDocumentStore no longer supports dataframes and this field will be ignored. "
                         "The `dataframe` field will soon be removed from Haystack Document.",
-                        doc.id,
+                        doc_id=doc.id,
                     )
             if "sparse_embedding" in doc_dict:
                 sparse_embedding = doc_dict.pop("sparse_embedding", None)
                 if sparse_embedding:
                     logger.warning(
-                        "Document %s has the `sparse_embedding` field set,"
+                        "Document {doc_id} has the `sparse_embedding` field set,"
                         "but storing sparse embeddings in Elasticsearch is not currently supported."
                         "The `sparse_embedding` field will be ignored.",
-                        doc.id,
+                        doc_id=doc.id,
                     )
             elasticsearch_actions.append(
                 {
@@ -461,10 +461,10 @@ class ElasticsearchDocumentStore:
                 sparse_embedding = doc_dict.pop("sparse_embedding", None)
                 if sparse_embedding:
                     logger.warning(
-                        "Document %s has the `sparse_embedding` field set,"
+                        "Document {doc_id} has the `sparse_embedding` field set,"
                         "but storing sparse embeddings in Elasticsearch is not currently supported."
                         "The `sparse_embedding` field will be ignored.",
-                        doc.id,
+                        doc_id=doc.id,
                     )
 
             action = {

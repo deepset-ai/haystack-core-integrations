@@ -28,7 +28,7 @@ def convert_haystack_documents_to_qdrant_points(
                 "Document {doc_id} has the `dataframe` field set, "
                 "QdrantDocumentStore no longer supports dataframes and this field will be ignored. "
                 "The `dataframe` field will soon be removed from Haystack Document.",
-                doc_id=document.id
+                doc_id=document.id,
             )
 
         if use_sparse_embeddings:
@@ -78,7 +78,7 @@ def convert_qdrant_point_to_haystack_document(point: QdrantPoint, use_sparse_emb
             "Document {doc_id} has the `dataframe` field set, "
             "QdrantDocumentStore no longer supports dataframes and this field will be ignored. "
             "The `dataframe` field will soon be removed from Haystack Document.",
-            doc_id=payload["id"]
+            doc_id=payload["id"],
         )
 
     if not use_sparse_embeddings:
