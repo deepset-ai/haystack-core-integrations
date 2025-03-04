@@ -431,6 +431,7 @@ class TestCohereChatGenerator:
         assert pipeline_dict == {
             "metadata": {},
             "max_runs_per_component": 100,
+            "connection_type_validation": True,
             "components": {
                 "generator": {
                     "type": "haystack_integrations.components.generators.cohere.chat.chat_generator.CohereChatGenerator",  # noqa: E501

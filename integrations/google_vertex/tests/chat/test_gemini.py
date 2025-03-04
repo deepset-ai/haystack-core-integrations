@@ -522,6 +522,7 @@ class TestVertexAIGeminiChatGenerator:
         assert pipeline_dict == {
             "metadata": {},
             "max_runs_per_component": 100,
+            "connection_type_validation": True,
             "components": {
                 "generator": {
                     "type": (
