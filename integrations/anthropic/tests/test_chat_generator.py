@@ -532,9 +532,11 @@ class TestAnthropicChatGenerator:
 
         pipeline_dict = pipeline.to_dict()
         type_ = "haystack_integrations.components.generators.anthropic.chat.chat_generator.AnthropicChatGenerator"
-        assert pipeline_dict == {
+
+        expected_dict = {
             "metadata": {},
             "max_runs_per_component": 100,
+            "connection_type_validation": True,
             "components": {
                 "generator": {
                     "type": type_,
@@ -560,6 +562,11 @@ class TestAnthropicChatGenerator:
             },
             "connections": [],
         }
+
+        if not hasattr(pipeline, "_connection_type_validation"):
+            expected_dict.pop("connection_type_validation")
+
+        assert pipeline_dict == expected_dict
 
         pipeline_yaml = pipeline.dumps()
 
