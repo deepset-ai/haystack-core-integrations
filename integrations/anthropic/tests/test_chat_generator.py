@@ -7,7 +7,6 @@ import os
 from unittest.mock import patch
 
 import anthropic
-import haystack
 import pytest
 from anthropic.types import (
     ContentBlockDeltaEvent,
@@ -561,12 +560,7 @@ class TestAnthropicChatGenerator:
             "connections": [],
         }
 
-        try:
-            version = haystack.version.__version__
-        except AttributeError:
-            version = haystack.__version__
-
-        if version < "2.11.0":
+        if not hasattr(pipeline, "_connection_type_validation"):
             expected_dict.pop("connection_type_validation")
 
         assert pipeline_dict == expected_dict
