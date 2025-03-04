@@ -13,9 +13,7 @@ import pytest_asyncio  # type: ignore[import]
 from anthropic.types import (
     ContentBlockDeltaEvent,
     ContentBlockStartEvent,
-    ContentBlockStopEvent,
     Message,
-    MessageDeltaEvent,
     MessageStartEvent,
     TextBlockParam,
     TextDelta,
@@ -1173,8 +1171,6 @@ class TestAnthropicChatGeneratorAsync:
     #     assert len(final_message.text) > 0
     #     assert "paris" in final_message.text.lower()
 
-
-
     @pytest.mark.asyncio
     @pytest.mark.skipif(
         not os.environ.get("ANTHROPIC_API_KEY", None),
@@ -1317,4 +1313,3 @@ class TestAnthropicChatGeneratorAsync:
     #     assert "22°" in message.text
     #     assert "12°" in message.text
     #     assert message.meta["finish_reason"] == "end_turn"
-

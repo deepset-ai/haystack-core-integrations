@@ -6,7 +6,7 @@ from haystack.dataclasses import ChatMessage, ChatRole, StreamingChunk, ToolCall
 from haystack.tools import Tool, _check_duplicate_tool_names, deserialize_tools_inplace
 from haystack.utils import Secret, deserialize_callable, deserialize_secrets_inplace, serialize_callable
 
-from anthropic import Anthropic, AsyncAnthropic, Stream, AsyncStream
+from anthropic import Anthropic, AsyncAnthropic, AsyncStream, Stream
 
 logger = logging.getLogger(__name__)
 
