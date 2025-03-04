@@ -494,6 +494,10 @@ class TestMistralChatGenerator:
             },
             "connections": [],
         }
+
+        if not hasattr(pipeline, "_connection_type_validation"):
+            expected_dict.pop("connection_type_validation")
+
         assert pipeline_dict == expected_dict
 
         # Test YAML serialization/deserialization
