@@ -7,6 +7,7 @@ import os
 from unittest.mock import patch
 
 import anthropic
+import haystack
 import pytest
 from anthropic.types import (
     ContentBlockDeltaEvent,
@@ -529,7 +530,8 @@ class TestAnthropicChatGenerator:
 
         pipeline_dict = pipeline.to_dict()
         type_ = "haystack_integrations.components.generators.anthropic.chat.chat_generator.AnthropicChatGenerator"
-        assert pipeline_dict == {
+
+        expected_dict = {
             "metadata": {},
             "max_runs_per_component": 100,
             "connection_type_validation": True,
@@ -558,6 +560,16 @@ class TestAnthropicChatGenerator:
             },
             "connections": [],
         }
+
+        try:
+            version = haystack.version.__version__
+        except AttributeError:
+            version = haystack.__version__
+
+        if version < "2.11.0":
+            expected_dict.pop("connection_type_validation")
+
+        assert pipeline_dict == expected_dict
 
         pipeline_yaml = pipeline.dumps()
 
