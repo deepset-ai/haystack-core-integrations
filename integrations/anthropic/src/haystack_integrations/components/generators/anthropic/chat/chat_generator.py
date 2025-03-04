@@ -8,12 +8,11 @@ from haystack.dataclasses import (
     StreamingChunk,
     ToolCall,
     ToolCallResult,
-    select_streaming_callback,
 )
 from haystack.tools import Tool, _check_duplicate_tool_names, deserialize_tools_inplace
 from haystack.utils import Secret, deserialize_callable, deserialize_secrets_inplace, serialize_callable
 
-from anthropic import Anthropic, AsyncAnthropic, Stream
+from anthropic import Anthropic, AsyncAnthropic, Stream, AsyncStream
 
 logger = logging.getLogger(__name__)
 
@@ -526,42 +525,19 @@ class AnthropicChatGenerator:
 
         return self._process_response(response, streaming_callback)
 
-    @component.output_types(replies=List[ChatMessage])
-    async def run_async(
-        self,
-        messages: List[ChatMessage],
-        streaming_callback: Optional[Callable[[StreamingChunk], None]] = None,
-        generation_kwargs: Optional[Dict[str, Any]] = None,
-        tools: Optional[List[Tool]] = None,
-    ):
+    async def _process_response_async(
+            self,
+            response: Any,
+            streaming_callback: Optional[Callable[[StreamingChunk], None]] = None,
+    ) -> Dict[str, List[ChatMessage]]:
         """
-        Async version of the run method. Invokes the Anthropic API with the given messages and generation kwargs.
-
-        :param messages: A list of ChatMessage instances representing the input messages.
+        Process the response from the Anthropic API asynchronously.
+        :param response: The response from the Anthropic API.
         :param streaming_callback: A callback function that is called when a new token is received from the stream.
-        :param generation_kwargs: Optional arguments to pass to the Anthropic generation endpoint.
-        :param tools: A list of tools for which the model can prepare calls. If set, it will override
-        the `tools` parameter set during component initialization.
-        :returns: A dictionary with the following keys:
-            - `replies`: The responses from the model
+        :returns:
+            A dictionary containing the processed response as a list of ChatMessage objects.
         """
-        system_messages, non_system_messages, anthropic_tools, generation_kwargs = self._prepare_messages_and_tools(
-            messages, generation_kwargs, tools
-        )
-
-        streaming_callback = select_streaming_callback(self.streaming_callback, streaming_callback, requires_async=True)
-
-        response = await self.async_client.messages.create(
-            model=self.model,
-            messages=non_system_messages,
-            system=system_messages,
-            tools=anthropic_tools,
-            stream=streaming_callback is not None,
-            max_tokens=generation_kwargs.pop("max_tokens", 1024),
-            **generation_kwargs,
-        )
-
-        if isinstance(response, Stream):
+        if isinstance(response, AsyncStream):
             chunks: List[StreamingChunk] = []
             model: Optional[str] = None
             async for chunk in response:
@@ -585,3 +561,40 @@ class AnthropicChatGenerator:
                     self._convert_chat_completion_to_chat_message(response, self.ignore_tools_thinking_messages)
                 ]
             }
+
+    @component.output_types(replies=List[ChatMessage])
+    async def run_async(
+        self,
+        messages: List[ChatMessage],
+        streaming_callback: Optional[Callable[[StreamingChunk], None]] = None,
+        generation_kwargs: Optional[Dict[str, Any]] = None,
+        tools: Optional[List[Tool]] = None,
+    ):
+        """
+        Async version of the run method. Invokes the Anthropic API with the given messages and generation kwargs.
+        :param messages: A list of ChatMessage instances representing the input messages.
+        :param streaming_callback: A callback function that is called when a new token is received from the stream.
+        :param generation_kwargs: Optional arguments to pass to the Anthropic generation endpoint.
+        :param tools: A list of tools for which the model can prepare calls. If set, it will override
+        the `tools` parameter set during component initialization.
+        :returns: A dictionary with the following keys:
+            - `replies`: The responses from the model
+        """
+        system_messages, non_system_messages, anthropic_tools, generation_kwargs = self._prepare_messages_and_tools(
+            messages, generation_kwargs, tools
+        )
+
+        # ToDO: use haystack.dataclasses.select_streaming_callback once it is available
+        streaming_callback = streaming_callback or self.streaming_callback
+
+        response = await self.async_client.messages.create(
+            model=self.model,
+            messages=non_system_messages,
+            system=system_messages,
+            tools=anthropic_tools,
+            stream=streaming_callback is not None,
+            max_tokens=generation_kwargs.pop("max_tokens", 1024),
+            **generation_kwargs,
+        )
+
+        return await self._process_response_async(response, streaming_callback)
