@@ -1137,39 +1137,39 @@ class TestAnthropicChatGeneratorAsync:
         assert response["replies"][0].meta["model"] == "claude-3-5-sonnet-20240620"
         assert response["replies"][0].meta["finish_reason"] == "end_turn"
 
-    # @pytest.mark.asyncio
-    # async def test_run_async_with_tools(self, tools, mock_anthropic_completion_async_with_tool):
-    #     """
-    #     Test that the async run method of AnthropicChatGenerator works with tools.
-    #     """
-    #     initial_messages = [ChatMessage.from_user("What's the weather like in Paris?")]
-    #     component = AnthropicChatGenerator(tools=tools)
-    #     results = await component.run_async(messages=initial_messages)
-    #
-    #     assert len(results["replies"]) == 1
-    #     message = results["replies"][0]
-    #
-    #     assert message.tool_calls
-    #     tool_call = message.tool_call
-    #     assert isinstance(tool_call, ToolCall)
-    #     assert tool_call.id is not None
-    #     assert tool_call.tool_name == "weather"
-    #     assert tool_call.arguments == {"city": "Paris"}
-    #     assert message.meta["finish_reason"] == "tool_use"
-    #
-    #     new_messages = [
-    #         *initial_messages,
-    #         message,
-    #         ChatMessage.from_tool(tool_result="22° C", origin=tool_call),
-    #     ]
-    #     # the model tends to make tool calls if provided with tools, so we don't pass them here
-    #     results = await component.run_async(new_messages, generation_kwargs={"max_tokens": 50})
-    #
-    #     assert len(results["replies"]) == 1
-    #     final_message = results["replies"][0]
-    #     assert not final_message.tool_calls
-    #     assert len(final_message.text) > 0
-    #     assert "paris" in final_message.text.lower()
+    @pytest.mark.asyncio
+    async def test_run_async_with_tools(self, tools, mock_anthropic_completion_async_with_tool):
+        """
+        Test that the async run method of AnthropicChatGenerator works with tools.
+        """
+        initial_messages = [ChatMessage.from_user("What's the weather like in Paris?")]
+        component = AnthropicChatGenerator(tools=tools)
+        results = await component.run_async(messages=initial_messages)
+
+        assert len(results["replies"]) == 1
+        message = results["replies"][0]
+
+        assert message.tool_calls
+        tool_call = message.tool_call
+        assert isinstance(tool_call, ToolCall)
+        assert tool_call.id is not None
+        assert tool_call.tool_name == "weather"
+        assert tool_call.arguments == {"city": "Paris"}
+        assert message.meta["finish_reason"] == "tool_use"
+
+        new_messages = [
+            *initial_messages,
+            message,
+            ChatMessage.from_tool(tool_result="22° C", origin=tool_call),
+        ]
+        # the model tends to make tool calls if provided with tools, so we don't pass them here
+        results = await component.run_async(new_messages, generation_kwargs={"max_tokens": 50})
+
+        assert len(results["replies"]) == 1
+        final_message = results["replies"][0]
+        assert not final_message.tool_calls
+        assert len(final_message.text) > 0
+        assert "paris" in final_message.text.lower()
 
     # async def test_run_async_with_streaming(self, chat_messages, mock_anthropic_completion_async):
     #     """
