@@ -1,12 +1,21 @@
 # Changelog
 
-## [unreleased]
+## [integrations/anthropic-v2.1.0] - 2025-03-03
+
+### 🐛 Bug Fixes
+
+- Workaround for Anthropic streaming with ddtrace (#1454) (#1456)
+
+### 🧹 Chores
+
+- Remove Python 3.8 support (#1421)
 
 ### 🌀 Miscellaneous
 
 - Test: remove tests involving serialization of lambdas (#1281)
 - Test: remove more tests involving serialization of lambdas (#1285)
 - Feat: Anthropic - support for Tools + refactoring (#1300)
+- Chore: remove `jsonschema` dependency from `default` environment (#1368)
 
 ## [integrations/anthropic-v1.2.1] - 2024-12-18
 

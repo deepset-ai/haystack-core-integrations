@@ -116,12 +116,18 @@ class AnthropicGenerator:
         return default_from_dict(cls, data)
 
     @component.output_types(replies=List[str], meta=List[Dict[str, Any]])
-    def run(self, prompt: str, generation_kwargs: Optional[Dict[str, Any]] = None):
+    def run(
+        self,
+        prompt: str,
+        generation_kwargs: Optional[Dict[str, Any]] = None,
+        streaming_callback: Optional[Callable[[StreamingChunk], None]] = None,
+    ):
         """
         Generate replies using the Anthropic API.
 
         :param prompt: The input prompt for generation.
         :param generation_kwargs: Additional keyword arguments for generation.
+        :param streaming_callback: An optional callback function to handle streaming chunks.
         :returns: A dictionary containing:
          - `replies`: A list of generated replies.
          - `meta`: A list of metadata dictionaries for each reply.
@@ -136,19 +142,22 @@ class AnthropicGenerator:
                 f"Allowed parameters are {self.ALLOWED_PARAMS}."
             )
 
+        streaming_callback = streaming_callback or self.streaming_callback
+        stream = streaming_callback is not None
         response: Union[Message, Stream[MessageStreamEvent]] = self.client.messages.create(
             max_tokens=filtered_generation_kwargs.pop("max_tokens", 512),
             system=self.system_prompt if self.system_prompt else filtered_generation_kwargs.pop("system", ""),
             model=self.model,
             messages=[MessageParam(content=prompt, role="user")],
-            stream=self.streaming_callback is not None,
+            stream=stream,
             **filtered_generation_kwargs,
         )
 
         completions: List[str] = []
         meta: Dict[str, Any] = {}
         # if streaming is enabled, the response is a Stream[MessageStreamEvent]
-        if isinstance(response, Stream):
+        # workaround for https://github.com/DataDog/dd-trace-py/issues/12562
+        if stream:
             chunks: List[StreamingChunk] = []
             stream_event, delta, start_event = None, None, None
             for stream_event in response:
@@ -158,8 +167,8 @@ class AnthropicGenerator:
                 if isinstance(stream_event, ContentBlockDeltaEvent):
                     chunk_delta: StreamingChunk = StreamingChunk(content=stream_event.delta.text)
                     chunks.append(chunk_delta)
-                    if self.streaming_callback:
-                        self.streaming_callback(chunk_delta)  # invoke callback with the chunk_delta
+                    if streaming_callback:
+                        streaming_callback(chunk_delta)  # invoke callback with the chunk_delta
                 if isinstance(stream_event, MessageDeltaEvent):
                     # capture stop reason and stop sequence
                     delta = stream_event
