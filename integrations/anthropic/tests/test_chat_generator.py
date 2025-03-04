@@ -4,17 +4,18 @@
 import json
 import logging
 import os
-from unittest.mock import patch
+from unittest.mock import patch, AsyncMock
 
 import anthropic
 import pytest
+import pytest_asyncio
 from anthropic.types import (
     ContentBlockDeltaEvent,
     ContentBlockStartEvent,
     Message,
     MessageStartEvent,
     TextBlockParam,
-    TextDelta,
+    TextDelta, Usage,
 )
 from haystack import Pipeline
 from haystack.components.generators.utils import print_streaming_chunk
@@ -1061,3 +1062,259 @@ class TestAnthropicChatGenerator:
         else:
             assert token_usage["cache_creation_input_tokens"] == 0
             assert token_usage["cache_read_input_tokens"] == 0
+
+
+class TestAnthropicChatGeneratorAsync:
+
+    @pytest_asyncio.fixture
+    async def mock_anthropic_completion_async(self):
+        with patch("anthropic.resources.messages.AsyncMessages.create") as mock_anthropic:
+            completion = Message(
+                id="foo",
+                type="message",
+                model="claude-3-5-sonnet-20240620",
+                role="assistant",
+                content=[TextBlockParam(type="text", text="Hello! I'm Claude.")],
+                stop_reason="end_turn",
+                usage=Usage(input_tokens=10, output_tokens=20),
+            )
+            # Make the mock return an awaitable
+            mock_anthropic.return_value = AsyncMock(return_value=completion)()
+            yield mock_anthropic
+
+    @pytest_asyncio.fixture
+    async def mock_anthropic_completion_async_with_tool(self):
+        with patch("anthropic.resources.messages.AsyncMessages.create") as mock_anthropic:
+            completion = Message(
+                id="foo",
+                type="message",
+                model="claude-3-5-sonnet-20240620",
+                role="assistant",
+                content=[
+                    TextBlockParam(type="text", text="Let me check the weather for you."),
+                    {"type": "tool_use", "id": "tool_123", "name": "weather", "input": {"city": "Paris"}},
+                ],
+                stop_reason="tool_use",
+                usage=Usage(input_tokens=10, output_tokens=20),
+            )
+            # Make the mock return an awaitable
+            mock_anthropic.return_value = AsyncMock(return_value=completion)()
+            yield mock_anthropic
+
+    @pytest.mark.asyncio
+    async def test_run_async(self, chat_messages, mock_anthropic_completion_async, monkeypatch):
+        """
+        Test that the async run method of AnthropicChatGenerator works correctly.
+        """
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "test-api-key")
+        component = AnthropicChatGenerator()
+        response = await component.run_async(chat_messages)
+
+        # check that the component returns the correct ChatMessage response
+        assert isinstance(response, dict)
+        assert "replies" in response
+        assert isinstance(response["replies"], list)
+        assert len(response["replies"]) == 1
+        assert [isinstance(reply, ChatMessage) for reply in response["replies"]]
+
+    @pytest.mark.asyncio
+    async def test_run_async_with_params(self, chat_messages, mock_anthropic_completion_async):
+        """
+        Test that the async run method of AnthropicChatGenerator works with parameters.
+        """
+        component = AnthropicChatGenerator(
+            api_key=Secret.from_token("test-api-key"), generation_kwargs={"max_tokens": 10, "temperature": 0.5}
+        )
+        response = await component.run_async(chat_messages)
+
+        # Check that the component calls the Anthropic API with the correct parameters
+        _, kwargs = mock_anthropic_completion_async.call_args
+        assert kwargs["max_tokens"] == 10
+        assert kwargs["temperature"] == 0.5
+
+        # Check that the component returns the correct response
+        assert isinstance(response, dict)
+        assert "replies" in response
+        assert isinstance(response["replies"], list)
+        assert len(response["replies"]) == 1
+        assert isinstance(response["replies"][0], ChatMessage)
+        assert "Hello! I'm Claude." in response["replies"][0].text
+        assert response["replies"][0].meta["model"] == "claude-3-5-sonnet-20240620"
+        assert response["replies"][0].meta["finish_reason"] == "end_turn"
+
+    # @pytest.mark.asyncio
+    # async def test_run_async_with_tools(self, tools, mock_anthropic_completion_async_with_tool):
+    #     """
+    #     Test that the async run method of AnthropicChatGenerator works with tools.
+    #     """
+    #     initial_messages = [ChatMessage.from_user("What's the weather like in Paris?")]
+    #     component = AnthropicChatGenerator(tools=tools)
+    #     results = await component.run_async(messages=initial_messages)
+    #
+    #     assert len(results["replies"]) == 1
+    #     message = results["replies"][0]
+    #
+    #     assert message.tool_calls
+    #     tool_call = message.tool_call
+    #     assert isinstance(tool_call, ToolCall)
+    #     assert tool_call.id is not None
+    #     assert tool_call.tool_name == "weather"
+    #     assert tool_call.arguments == {"city": "Paris"}
+    #     assert message.meta["finish_reason"] == "tool_use"
+    #
+    #     new_messages = [
+    #         *initial_messages,
+    #         message,
+    #         ChatMessage.from_tool(tool_result="22° C", origin=tool_call),
+    #     ]
+    #     # the model tends to make tool calls if provided with tools, so we don't pass them here
+    #     results = await component.run_async(new_messages, generation_kwargs={"max_tokens": 50})
+    #
+    #     assert len(results["replies"]) == 1
+    #     final_message = results["replies"][0]
+    #     assert not final_message.tool_calls
+    #     assert len(final_message.text) > 0
+    #     assert "paris" in final_message.text.lower()
+
+    @pytest.mark.asyncio
+    @pytest.mark.skipif(
+        not os.environ.get("ANTHROPIC_API_KEY", None),
+        reason="Export an env var called ANTHROPIC_API_KEY containing the Anthropic API key to run this test.",
+    )
+    @pytest.mark.integration
+    async def test_live_run_async(self):
+        """
+        Integration test that the async run method of AnthropicChatGenerator works with default parameters.
+        """
+        component = AnthropicChatGenerator()
+        results = await component.run_async(messages=[ChatMessage.from_user("What's the capital of France?")])
+        assert len(results["replies"]) == 1
+        message: ChatMessage = results["replies"][0]
+        assert "Paris" in message.text
+        assert "claude-3-5-sonnet-20240620" in message.meta["model"]
+        assert message.meta["finish_reason"] == "end_turn"
+
+    @pytest.mark.asyncio
+    @pytest.mark.skipif(
+        not os.environ.get("ANTHROPIC_API_KEY", None),
+        reason="Export an env var called ANTHROPIC_API_KEY containing the Anthropic API key to run this test.",
+    )
+    @pytest.mark.integration
+    async def test_live_run_async_with_streaming(self):
+        """
+        Test that the async run method of AnthropicChatGenerator works with streaming.
+        """
+        initial_messages = [ChatMessage.from_user("What's the weather like in Paris?")]
+        component = AnthropicChatGenerator(streaming_callback=print_streaming_chunk)
+
+        # Create a callback to capture streaming chunks
+        class Callback:
+            def __init__(self):
+                self.responses = ""
+                self.counter = 0
+
+            def __call__(self, chunk: StreamingChunk) -> None:
+                self.counter += 1
+                self.responses += chunk.content if chunk.content else ""
+
+        callback = Callback()
+        component.streaming_callback = callback
+
+        # Run the async streaming test
+        results = await component.run_async(messages=initial_messages)
+
+        # Verify the results
+        assert len(results["replies"]) == 1
+        message = results["replies"][0]
+        assert "paris" in message.text.lower()
+        assert "claude-3-5-sonnet-20240620" in message.meta["model"]
+        assert message.meta["finish_reason"] == "end_turn"
+
+        # Verify streaming behavior
+        assert callback.counter > 1  # Should have received multiple chunks
+        assert "paris" in callback.responses.lower()  # Should have received the response in chunks
+
+    @pytest.mark.asyncio
+    @pytest.mark.skipif(
+        not os.environ.get("ANTHROPIC_API_KEY", None),
+        reason="Export an env var called ANTHROPIC_API_KEY containing the Anthropic API key to run this test.",
+    )
+    @pytest.mark.integration
+    async def test_live_run_async_with_tools(self, tools):
+        """
+        Integration test that the async run method works with tools.
+        """
+        initial_messages = [ChatMessage.from_user("What's the weather like in Paris?")]
+        component = AnthropicChatGenerator(tools=tools)
+        results = await component.run_async(messages=initial_messages)
+
+        assert len(results["replies"]) == 1
+        message = results["replies"][0]
+
+        assert message.tool_calls
+        tool_call = message.tool_call
+        assert isinstance(tool_call, ToolCall)
+        assert tool_call.id is not None
+        assert tool_call.tool_name == "weather"
+        assert tool_call.arguments == {"city": "Paris"}
+        assert message.meta["finish_reason"] == "tool_use"
+
+        new_messages = [
+            *initial_messages,
+            message,
+            ChatMessage.from_tool(tool_result="22° C", origin=tool_call),
+        ]
+        results = await component.run_async(new_messages)
+        assert len(results["replies"]) == 1
+        final_message = results["replies"][0]
+        assert not final_message.tool_calls
+        assert len(final_message.text) > 0
+        assert "paris" in final_message.text.lower()
+
+    # @pytest.mark.asyncio
+    # @pytest.mark.skipif(
+    #     not os.environ.get("ANTHROPIC_API_KEY", None),
+    #     reason="Export an env var called ANTHROPIC_API_KEY containing the Anthropic API key to run this test.",
+    # )
+    # @pytest.mark.integration
+    # async def test_live_run_async_with_parallel_tools(self, tools):
+    #     """
+    #     Integration test that the async run method works with parallel tools.
+    #     """
+    #     initial_messages = [ChatMessage.from_user("What's the weather like in Paris and Berlin?")]
+    #     component = AnthropicChatGenerator(tools=tools)
+    #     results = await component.run_async(messages=initial_messages)
+    #
+    #     assert len(results["replies"]) == 1
+    #     message = results["replies"][0]
+    #
+    #     assert len(message.tool_calls) == 2
+    #     tool_call_paris = message.tool_calls[0]
+    #     assert isinstance(tool_call_paris, ToolCall)
+    #     assert tool_call_paris.id is not None
+    #     assert tool_call_paris.tool_name == "weather"
+    #     assert tool_call_paris.arguments["city"] in {"Paris", "Berlin"}
+    #     assert message.meta["finish_reason"] == "tool_use"
+    #
+    #     tool_call_berlin = message.tool_calls[1]
+    #     assert isinstance(tool_call_berlin, ToolCall)
+    #     assert tool_call_berlin.id is not None
+    #     assert tool_call_berlin.tool_name == "weather"
+    #     assert tool_call_berlin.arguments["city"] in {"Berlin", "Paris"}
+    #
+    #     new_messages = [
+    #         *initial_messages,
+    #         message,
+    #         ChatMessage.from_tool(tool_result="22° C", origin=tool_call_paris, error=False),
+    #         ChatMessage.from_tool(tool_result="12° C", origin=tool_call_berlin, error=False),
+    #     ]
+    #
+    #     results = await component.run_async(new_messages)
+    #     message = results["replies"][0]
+    #     assert not message.tool_calls
+    #     assert len(message.text) > 0
+    #     assert "paris" in message.text.lower()
+    #     assert "berlin" in message.text.lower()
+    #     assert "22°" in message.text
+    #     assert "12°" in message.text
+    #     assert message.meta["finish_reason"] == "end_turn"
