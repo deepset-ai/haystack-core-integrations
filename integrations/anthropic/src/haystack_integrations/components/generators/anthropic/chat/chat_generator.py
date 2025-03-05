@@ -458,6 +458,7 @@ class AnthropicChatGenerator:
         :param streaming_callback: A callback function that is called when a new token is received from the stream.
         :returns: A dictionary containing the processed response as a list of ChatMessage objects.
         """
+        # workaround for https://github.com/DataDog/dd-trace-py/issues/12562
         stream = streaming_callback is not None
         if stream:
             chunks: List[StreamingChunk] = []
@@ -498,6 +499,7 @@ class AnthropicChatGenerator:
         :returns:
             A dictionary containing the processed response as a list of ChatMessage objects.
         """
+        # workaround for https://github.com/DataDog/dd-trace-py/issues/12562
         stream = streaming_callback is not None
         if stream:
             chunks: List[StreamingChunk] = []
