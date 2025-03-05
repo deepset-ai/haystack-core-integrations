@@ -171,7 +171,7 @@ class NimBackend:
         return models
 
     def rank(self, query_text: str, document_texts: List[str]) -> List[Dict[str, Any]]:
-        url = f"{self.api_url}/ranking"
+        url = self.api_url
 
         try:
             res = self.session.post(

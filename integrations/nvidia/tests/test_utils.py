@@ -8,18 +8,25 @@ import pytest
 
 from haystack_integrations.utils.nvidia import is_hosted
 from haystack_integrations.utils.nvidia.models import EMBEDDING_MODEL_TABLE, CHAT_MODEL_TABLE, RANKING_MODEL_TABLE
-from haystack_integrations.utils.nvidia.utils import lookup_model, determine_model, validate_hosted_model
+from haystack_integrations.utils.nvidia.utils import lookup_model, determine_model, validate_hosted_model, \
+    url_validation
 
 
 # url_validation
-#def test_base_url_invalid_not_hosted(base_url: str, component) -> None:
-#    with pytest.warns(UserWarning) as msg:
-#        component(api_url=base_url, model="x")
-#    assert "you may have inference and listing issues" in str(msg[0].message)
-
-
 def test_url_validation() -> None:
-    pass
+    api_url = "https://integrate.api.nvidia.com/v1"
+    assert api_url == url_validation(api_url)
+
+def test_url_validation_not_ending_with_v1() -> None:
+    with pytest.warns(UserWarning, match="you may have inference and listing issues"):
+        api_url = url_validation("https://integrate.api.nvidia.com")
+        assert api_url.endswith("/v1")
+
+
+def test_url_validation_invalid_format() -> None:
+    with pytest.raises(ValueError, match="Expected format is"):
+        url_validation("not-a-domain")
+
 
 #is_hosted
 @pytest.mark.parametrize("api_url", ["https://integrate.api.nvidia.com/v1", "https://ai.api.nvidia.com/v1/retrieval/nvidia"])
@@ -69,9 +76,9 @@ def test_determine_model_not_found() -> None:
 
 
 # validate_hosted_model
-#def test_validate_hosted_model_no_model_client(model_name, client) -> None:
-#    with pytest.warns(UserWarning, match="determine validity"):
-#        assert validate_hosted_model("snowflake/arctic-embed-l")
+def test_validate_hosted_model_no_model_client() -> None:
+    with pytest.warns(UserWarning, match="determine validity"):
+        assert validate_hosted_model("snowflake/arctic-embed-l")
 
 
 def test_validate_hosted_model_client_incompatible() -> None:
