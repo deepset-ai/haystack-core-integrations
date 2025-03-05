@@ -353,7 +353,8 @@ class AnthropicChatGenerator:
                     except json.JSONDecodeError:
                         logger.warning(
                             "Anthropic returned a malformed JSON string for tool call arguments. "
-                            "This tool call will be skipped. Arguments: {current_arguments}", current_arguments=current_tool_call.get('arguments', '')
+                            "This tool call will be skipped. Arguments: {current_arguments}",
+                            current_arguments=current_tool_call.get("arguments", ""),
                         )
                     current_tool_call = None
 
@@ -405,7 +406,8 @@ class AnthropicChatGenerator:
         disallowed_params = set(generation_kwargs) - set(self.ALLOWED_PARAMS)
         if disallowed_params:
             logger.warning(
-                "Model parameters {disallowed_params} are not allowed and will be ignored. Allowed parameters are {allowed_params}.",
+                "Model parameters {disallowed_params} are not allowed and will be ignored. "
+                "Allowed parameters are {allowed_params}.",
                 disallowed_params=disallowed_params,
                 allowed_params=self.ALLOWED_PARAMS,
             )
