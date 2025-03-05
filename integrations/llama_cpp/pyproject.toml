@@ -27,7 +27,7 @@ classifiers = [
 ]
 dependencies = [
     "haystack-ai>=2.9.0",
-    "llama-cpp-python>=0.2.87,<0.3.7; platform_system=='Windows'",  # build failures on Windows for 0.3.7
+    "llama-cpp-python>=0.2.87,<0.3.6; platform_system=='Windows'",  # build failures on Windows for 0.3.7
     "llama-cpp-python>=0.2.87; platform_system!='Windows'"
 ]
 
