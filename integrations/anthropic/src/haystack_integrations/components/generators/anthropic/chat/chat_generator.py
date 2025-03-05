@@ -458,7 +458,8 @@ class AnthropicChatGenerator:
         :param streaming_callback: A callback function that is called when a new token is received from the stream.
         :returns: A dictionary containing the processed response as a list of ChatMessage objects.
         """
-        if streaming_callback is not None:
+        stream = streaming_callback is not None
+        if stream:
             chunks: List[StreamingChunk] = []
             model: Optional[str] = None
             for chunk in response:
@@ -497,7 +498,8 @@ class AnthropicChatGenerator:
         :returns:
             A dictionary containing the processed response as a list of ChatMessage objects.
         """
-        if streaming_callback is not None:
+        stream = streaming_callback is not None
+        if stream:
             chunks: List[StreamingChunk] = []
             model: Optional[str] = None
             async for chunk in response:
