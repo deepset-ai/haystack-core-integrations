@@ -1,5 +1,15 @@
 # Changelog
 
+## [integrations/anthropic-v2.2.1] - 2025-03-05
+
+### 🐛 Bug Fixes
+
+- Apply ddtrace workaround to chat generator (#1470)
+
+### 🌀 Miscellaneous
+
+- Docs: update changelog for integrations/anthropic (#1465)
+
 ## [integrations/anthropic-v2.2.0] - 2025-03-05
 
 ### 🚀 Features
