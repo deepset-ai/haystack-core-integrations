@@ -33,7 +33,6 @@ dependencies = [
   # "sentence-transformers" has been added, since most embedding models use it
   "sentence-transformers>=2.3",
   "optimum[onnxruntime]",
-  "transformers<4.48.0",  # https://github.com/huggingface/transformers/issues/35639 
 ]
 
 [project.urls]
