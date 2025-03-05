@@ -8,7 +8,6 @@
 
 ### 🌀 Miscellaneous
 
-- Docs: update changelog for integrations/optimum (#1344)
 - Build: Optimum - remove `transformers` pin (#1467)
 
 ## [integrations/optimum-v0.1.3] - 2025-02-03
