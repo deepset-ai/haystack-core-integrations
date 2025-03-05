@@ -48,6 +48,7 @@ class AnthropicGenerator:
         "temperature",
         "top_p",
         "top_k",
+        "thinking",
     ]
 
     def __init__(
@@ -138,8 +139,10 @@ class AnthropicGenerator:
         disallowed_params = set(generation_kwargs) - set(self.ALLOWED_PARAMS)
         if disallowed_params:
             logger.warning(
-                f"Model parameters {disallowed_params} are not allowed and will be ignored. "
-                f"Allowed parameters are {self.ALLOWED_PARAMS}."
+                "Model parameters {disallowed_params} are not allowed and will be ignored. "
+                "Allowed parameters are {allowed_params}.",
+                disallowed_params=disallowed_params,
+                allowed_params=self.ALLOWED_PARAMS
             )
 
         streaming_callback = streaming_callback or self.streaming_callback
