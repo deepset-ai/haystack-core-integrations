@@ -101,13 +101,14 @@ def validate_hosted_model(
     if model := determine_model(model_name):
         err_msg = f"Model {model.id} is incompatible with client {client}. \
                         Please check `{client}.available_models`."
-        if not model.client:
+        if not client:
             warn_msg = f"Unable to determine validity of {model.id}"
             warnings.warn(warn_msg, stacklevel=1)
-        elif model.model_type == "embedding" and client not in ["NvidiaTextEmbedder", "NvidiaDocumentEmbedder"]:
+        elif hasattr(model,"client") and model.client != client:
             raise ValueError(err_msg)
-        elif model.client != client:
+        elif hasattr(model,"model_type") and model.model_type == "embedding" and client not in ["NvidiaTextEmbedder", "NvidiaDocumentEmbedder"]:
             raise ValueError(err_msg)
+
     else:
         err_msg = f"Model {model_name} is unknown, check `available_models`"
         raise ValueError(err_msg)
