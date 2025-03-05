@@ -6,7 +6,7 @@ from haystack.dataclasses import ChatMessage, ChatRole, StreamingChunk, ToolCall
 from haystack.tools import Tool, _check_duplicate_tool_names, deserialize_tools_inplace
 from haystack.utils import Secret, deserialize_callable, deserialize_secrets_inplace, serialize_callable
 
-from anthropic import Anthropic, AsyncAnthropic, AsyncStream, Stream
+from anthropic import Anthropic, AsyncAnthropic
 
 logger = logging.getLogger(__name__)
 
@@ -458,7 +458,7 @@ class AnthropicChatGenerator:
         :param streaming_callback: A callback function that is called when a new token is received from the stream.
         :returns: A dictionary containing the processed response as a list of ChatMessage objects.
         """
-        if isinstance(response, Stream):
+        if streaming_callback is not None:
             chunks: List[StreamingChunk] = []
             model: Optional[str] = None
             for chunk in response:
@@ -497,7 +497,7 @@ class AnthropicChatGenerator:
         :returns:
             A dictionary containing the processed response as a list of ChatMessage objects.
         """
-        if isinstance(response, AsyncStream):
+        if streaming_callback is not None:
             chunks: List[StreamingChunk] = []
             model: Optional[str] = None
             async for chunk in response:
