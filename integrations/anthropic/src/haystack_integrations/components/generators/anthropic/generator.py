@@ -142,7 +142,7 @@ class AnthropicGenerator:
                 "Model parameters {disallowed_params} are not allowed and will be ignored. "
                 "Allowed parameters are {allowed_params}.",
                 disallowed_params=disallowed_params,
-                allowed_params=self.ALLOWED_PARAMS
+                allowed_params=self.ALLOWED_PARAMS,
             )
 
         streaming_callback = streaming_callback or self.streaming_callback
