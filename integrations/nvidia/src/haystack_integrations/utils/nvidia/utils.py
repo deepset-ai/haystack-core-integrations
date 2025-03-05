@@ -104,9 +104,9 @@ def validate_hosted_model(
         if not client:
             warn_msg = f"Unable to determine validity of {model.id}"
             warnings.warn(warn_msg, stacklevel=1)
-        elif hasattr(model,"client") and model.client != client:
+        elif model.client and model.client != client:
             raise ValueError(err_msg)
-        elif hasattr(model,"model_type") and model.model_type == "embedding" and client not in ["NvidiaTextEmbedder", "NvidiaDocumentEmbedder"]:
+        elif model.model_type == "embedding" and client not in ["NvidiaTextEmbedder", "NvidiaDocumentEmbedder"]:
             raise ValueError(err_msg)
 
     else:
