@@ -15,7 +15,8 @@ from anthropic.types import (
     Message,
     MessageStartEvent,
     TextBlockParam,
-    TextDelta, Usage,
+    TextDelta,
+    Usage,
 )
 from haystack import Pipeline
 from haystack.components.generators.utils import print_streaming_chunk
