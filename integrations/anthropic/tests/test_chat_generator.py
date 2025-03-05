@@ -9,14 +9,13 @@ from unittest.mock import AsyncMock, patch
 
 import anthropic
 import pytest
-import pytest_asyncio  # type: ignore[import]
 from anthropic.types import (
     ContentBlockDeltaEvent,
     ContentBlockStartEvent,
     Message,
     MessageStartEvent,
     TextBlockParam,
-    TextDelta,
+    TextDelta, Usage,
 )
 from haystack import Pipeline
 from haystack.components.generators.utils import print_streaming_chunk
@@ -1068,7 +1067,7 @@ class TestAnthropicChatGenerator:
 
 class TestAnthropicChatGeneratorAsync:
 
-    @pytest_asyncio.fixture
+    @pytest.fixture
     async def mock_anthropic_completion_async(self):
         with patch("anthropic.resources.messages.AsyncMessages.create") as mock_anthropic:
             completion = Message(
@@ -1078,13 +1077,13 @@ class TestAnthropicChatGeneratorAsync:
                 role="assistant",
                 content=[TextBlockParam(type="text", text="Hello! I'm Claude.")],
                 stop_reason="end_turn",
-                usage={"input_tokens": 10, "output_tokens": 20},
+                usage=Usage(input_tokens=10, output_tokens=20),
             )
             # Make the mock return an awaitable
             mock_anthropic.return_value = AsyncMock(return_value=completion)()
             yield mock_anthropic
 
-    @pytest_asyncio.fixture
+    @pytest.fixture
     async def mock_anthropic_completion_async_with_tool(self):
         with patch("anthropic.resources.messages.AsyncMessages.create") as mock_anthropic:
             completion = Message(
@@ -1097,7 +1096,7 @@ class TestAnthropicChatGeneratorAsync:
                     {"type": "tool_use", "id": "tool_123", "name": "weather", "input": {"city": "Paris"}},
                 ],
                 stop_reason="tool_use",
-                usage={"input_tokens": 10, "output_tokens": 20},
+                usage=Usage(input_tokens=10, output_tokens=20),
             )
             # Make the mock return an awaitable
             mock_anthropic.return_value = AsyncMock(return_value=completion)()
