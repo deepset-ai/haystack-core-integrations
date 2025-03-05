@@ -30,7 +30,7 @@ dependencies = [
     "llama-cpp-python>=0.2.87"
 ]
 
-[tool.uv.index]
+[[tool.uv.index]]
 url = "https://abetlen.github.io/llama-cpp-python/whl/cpu"
 default = true
 
