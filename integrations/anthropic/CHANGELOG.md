@@ -1,5 +1,19 @@
 # Changelog
 
+## [integrations/anthropic-v2.2.0] - 2025-03-05
+
+### 🚀 Features
+
+- Adding async run to `AnthropicChatGenerator` (#1461)
+
+### 🐛 Bug Fixes
+
+- Update serialization/deserialization tests to add new parameter `connection_type_validation` (#1464)
+
+### 🌀 Miscellaneous
+
+- Docs: update changelog for integrations/anthropic (#1459)
+
 ## [integrations/anthropic-v2.1.0] - 2025-03-03
 
 ### 🐛 Bug Fixes
