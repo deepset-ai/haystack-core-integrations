@@ -32,9 +32,10 @@ class Model:
     def validate(self):
         if self.client:
             supported = {
-                "NvidiaGenerator": ("chat"),
+                "NvidiaGenerator": ("chat",),
                 "NvidiaTextEmbedder": ("embedding",),
                 "NvidiaDocumentEmbedder": ("embedding",),
+                "NvidiaRanker": ("ranking",),
             }
             model_type = self.model_type
             if model_type not in supported[self.client]:
