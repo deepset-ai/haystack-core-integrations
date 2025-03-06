@@ -1,7 +1,7 @@
 import inspect
 import logging
 from itertools import islice
-from typing import Any, ClassVar, Dict, Generator, List, Optional, Set, Union
+from typing import Any, AsyncGenerator, ClassVar, Dict, Generator, List, Optional, Set, Union
 
 import numpy as np
 import qdrant_client
@@ -217,6 +217,8 @@ class QdrantDocumentStore:
         """
 
         self._client = None
+        self._async_client = None
+        self._initialized = False
 
         # Store the Qdrant client specific attributes
         self.location = location
@@ -258,9 +260,8 @@ class QdrantDocumentStore:
         self.write_batch_size = write_batch_size
         self.scroll_size = scroll_size
 
-    @property
-    def client(self):
-        if not self._client:
+    def _ensure_initialized(self):
+        if not self._initialized:
             self._client = qdrant_client.QdrantClient(
                 location=self.location,
                 url=self.url,
@@ -276,6 +277,23 @@ class QdrantDocumentStore:
                 metadata=self.metadata,
                 force_disable_check_same_thread=self.force_disable_check_same_thread,
             )
+
+            self._async_client = qdrant_client.AsyncQdrantClient(
+                location=self.location,
+                url=self.url,
+                port=self.port,
+                grpc_port=self.grpc_port,
+                prefer_grpc=self.prefer_grpc,
+                https=self.https,
+                api_key=self.api_key.resolve_value() if self.api_key else None,
+                prefix=self.prefix,
+                timeout=self.timeout,
+                host=self.host,
+                path=self.path,
+                metadata=self.metadata,
+                force_disable_check_same_thread=self.force_disable_check_same_thread,
+            )
+
             # Make sure the collection is properly set up
             self._set_up_collection(
                 self.index,
@@ -287,14 +305,34 @@ class QdrantDocumentStore:
                 self.on_disk,
                 self.payload_fields_to_index,
             )
-        return self._client
+
+            self._initialized = True
 
     def count_documents(self) -> int:
         """
         Returns the number of documents present in the Document Store.
         """
+        self._ensure_initialized()
+        assert self._client is not None
         try:
             response = self.client.count(
+                collection_name=self.index,
+            )
+            return response.count
+        except (UnexpectedResponse, ValueError):
+            # Qdrant local raises ValueError if the collection is not found, but
+            # with the remote server UnexpectedResponse is raised. Until that's unified,
+            # we need to catch both.
+            return 0
+        
+    async def count_documents_async(self) -> int:
+        """
+        Asynchronously returns the number of documents present in the document dtore.
+        """
+        self._ensure_initialized()
+        assert self._async_client is not None
+        try:
+            response = await self._async_client.count(
                 collection_name=self.index,
             )
             return response.count
@@ -317,6 +355,10 @@ class QdrantDocumentStore:
         :param filters: The filters to apply to the document list.
         :returns: A list of documents that match the given filters.
         """
+
+        self._ensure_initialized()
+        assert self._client is not None
+
         if filters and not isinstance(filters, dict) and not isinstance(filters, rest.Filter):
             msg = "Filter must be a dictionary or an instance of `qdrant_client.http.models.Filter`"
             raise ValueError(msg)
@@ -326,6 +368,29 @@ class QdrantDocumentStore:
             raise ValueError(msg)
         return list(
             self.get_documents_generator(
+                filters,
+            )
+        )
+    
+    async def filter_documents_async(
+        self,
+        filters: Optional[Union[Dict[str, Any], rest.Filter]] = None,
+    ) -> List[Document]:
+        """
+        Asynchronously returns the documents that match the provided filters.
+        """
+        self._ensure_initialized()
+        assert self._async_client is not None
+
+        if filters and not isinstance(filters, dict) and not isinstance(filters, rest.Filter):
+            msg = "Filter must be a dictionary or an instance of `qdrant_client.http.models.Filter`"
+            raise ValueError(msg)
+
+        if filters and not isinstance(filters, rest.Filter) and "operator" not in filters:
+            msg = "Invalid filter syntax. See https://docs.haystack.deepset.ai/docs/metadata-filtering for details."
+            raise ValueError(msg)
+        return list(
+            await self.get_documents_generator(
                 filters,
             )
         )
@@ -374,6 +439,58 @@ class QdrantDocumentStore:
                 )
 
                 self.client.upsert(
+                    collection_name=self.index,
+                    points=batch,
+                    wait=self.wait_result_from_api,
+                )
+
+                progress_bar.update(self.write_batch_size)
+        return len(document_objects)
+    
+    async def write_documents_async(
+        self,
+        documents: List[Document],
+        policy: DuplicatePolicy = DuplicatePolicy.FAIL,
+    ) -> int:
+        """
+        Writes documents to Qdrant using the specified policy.
+        The QdrantDocumentStore can handle duplicate documents based on the given policy.
+        The available policies are:
+        - `FAIL`: The operation will raise an error if any document already exists.
+        - `OVERWRITE`: Existing documents will be overwritten with the new ones.
+        - `SKIP`: Existing documents will be skipped, and only new documents will be added.
+
+        :param documents: A list of Document objects to write to Qdrant.
+        :param policy: The policy for handling duplicate documents.
+
+        :returns: The number of documents written to the document store.
+        """
+        for doc in documents:
+            if not isinstance(doc, Document):
+                msg = f"DocumentStore.write_documents() expects a list of Documents but got an element of {type(doc)}."
+                raise ValueError(msg)
+        self._set_up_collection(
+            self.index, self.embedding_dim, False, self.similarity, self.use_sparse_embeddings, self.sparse_idf
+        )
+
+        if len(documents) == 0:
+            logger.warning("Calling QdrantDocumentStore.write_documents() with empty list")
+            return 0
+
+        document_objects = self._handle_duplicate_documents(
+            documents=documents,
+            policy=policy,
+        )
+
+        batched_documents = get_batches_from_generator(document_objects, self.write_batch_size)
+        with tqdm(total=len(document_objects), disable=not self.progress_bar) as progress_bar:
+            for document_batch in batched_documents:
+                batch = convert_haystack_documents_to_qdrant_points(
+                    document_batch,
+                    use_sparse_embeddings=self.use_sparse_embeddings,
+                )
+
+                await self._async_client.upsert(
                     collection_name=self.index,
                     points=batch,
                     wait=self.wait_result_from_api,
@@ -447,7 +564,7 @@ class QdrantDocumentStore:
         next_offset = None
         stop_scrolling = False
         while not stop_scrolling:
-            records, next_offset = self.client.scroll(
+            records, next_offset = self._client.scroll(
                 collection_name=index,
                 scroll_filter=qdrant_filters,
                 limit=self.scroll_size,
@@ -460,6 +577,40 @@ class QdrantDocumentStore:
             )
 
             for record in records:
+                yield convert_qdrant_point_to_haystack_document(
+                    record, use_sparse_embeddings=self.use_sparse_embeddings
+                )
+
+    async def get_documents_generator_async(
+        self,
+        filters: Optional[Union[Dict[str, Any], rest.Filter]] = None,
+    ) -> AsyncGenerator[Document, None]:
+        """
+        Asynchronously returns a generator that yields documents from Qdrant based on the provided filters.
+
+        :param filters: Filters applied to the retrieved documents.
+        :returns: A generator that yields documents retrieved from Qdrant.
+        """
+
+        index = self.index
+        qdrant_filters = convert_filters_to_qdrant(filters)
+
+        next_offset = None
+        stop_scrolling = False
+        while not stop_scrolling:
+            records, next_offset = await self._async_client.scroll(
+                collection_name=index,
+                scroll_filter=qdrant_filters,
+                limit=self.scroll_size,
+                offset=next_offset,
+                with_payload=True,
+                with_vectors=True,
+            )
+            stop_scrolling = next_offset is None or (
+                isinstance(next_offset, grpc.PointId) and next_offset.num == 0 and next_offset.uuid == ""
+            )
+
+            async for record in records:
                 yield convert_qdrant_point_to_haystack_document(
                     record, use_sparse_embeddings=self.use_sparse_embeddings
                 )
@@ -480,8 +631,44 @@ class QdrantDocumentStore:
         """
         documents: List[Document] = []
 
+        self._ensure_initialized()
+        assert self._client is not None
+
         ids = [convert_id(_id) for _id in ids]
         records = self.client.retrieve(
+            collection_name=self.index,
+            ids=ids,
+            with_payload=True,
+            with_vectors=True,
+        )
+
+        for record in records:
+            documents.append(
+                convert_qdrant_point_to_haystack_document(record, use_sparse_embeddings=self.use_sparse_embeddings)
+            )
+        return documents
+    
+    async def get_documents_by_id_async(
+        self,
+        ids: List[str],
+    ) -> List[Document]:
+        """
+        Retrieves documents from Qdrant by their IDs.
+
+        :param ids:
+            A list of document IDs to retrieve.
+        :param index:
+            The name of the index to retrieve documents from.
+        :returns:
+            A list of documents.
+        """
+        documents: List[Document] = []
+
+        self._ensure_initialized()
+        assert self._async_client is not None
+
+        ids = [convert_id(_id) for _id in ids]
+        records = await self._async_client.retrieve(
             collection_name=self.index,
             ids=ids,
             with_payload=True,
